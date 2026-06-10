@@ -16,7 +16,8 @@
         slideItems: [],
         slideTimer: 0,
         slidePlaying: false,
-        unsubscribe: null
+        unsubscribe: null,
+        refreshToken: 0
     };
 
     function readPrefs() {
@@ -158,11 +159,29 @@
 
     function refresh() {
         if (!state.enabled) return;
+        state.refreshToken += 1;
+        var token = state.refreshToken;
         var content = getWidget().querySelector('[data-phone-content]');
         content.innerHTML = '<div class="eve-matrix-phone-loading">READING DATAPACK...</div>';
         setTimeout(function () {
-            state.snapshot = bridge?.capture?.() || null;
-            render();
+            Promise.resolve(bridge?.capture?.()).then(function (snapshot) {
+                if (!state.enabled || token !== state.refreshToken) return;
+                var previousScope = JSON.stringify(state.snapshot?.scope || null);
+                var nextScope = JSON.stringify(snapshot?.scope || null);
+                if (state.snapshot && previousScope !== nextScope) {
+                    stopSlideshow();
+                    state.history = [];
+                    state.route = { name: 'home' };
+                    state.page = 0;
+                    state.query = '';
+                }
+                state.snapshot = snapshot || null;
+                render();
+            }).catch(function () {
+                if (token !== state.refreshToken) return;
+                state.snapshot = null;
+                render();
+            });
         }, 0);
     }
 
@@ -269,10 +288,8 @@
                 state.unsubscribe = bridge?.subscribe?.(refresh) || null;
             }
             refresh();
-            setTimeout(function () {
-                if (state.enabled) refresh();
-            }, 1800);
         } else {
+            state.refreshToken += 1;
             stopSlideshow();
             if (state.unsubscribe) state.unsubscribe();
             state.unsubscribe = null;

@@ -78,6 +78,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             <button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">
                 Map
             </button>
+            <button type="button" class="unidex-layout-btn unidex-matrix-btn" onclick="window.UnidexView.openMatrixWorkshop()" title="Open Matrix Workshop for this layer">
+                Matrix
+            </button>
         `;
         }
 

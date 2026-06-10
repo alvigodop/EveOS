@@ -54,7 +54,16 @@ async function seedDatapack(page, resetPrefs = true) {
                     id: 'alpha',
                     name: 'Alpha Tab',
                     icon: 'A',
-                    subTabs: [{ id: 'alpha-child', name: 'Alpha Child', icon: 'a', subTabs: [] }]
+                    subTabs: [
+                        { id: 'alpha-child', name: 'Alpha Child', icon: 'a', subTabs: [] },
+                        {
+                            id: 'alpha-shortcut',
+                            name: 'Beta Shortcut',
+                            icon: 'S',
+                            linkedTo: 'beta',
+                            subTabs: []
+                        }
+                    ]
                 },
                 { id: 'beta', name: 'Beta Tab', icon: 'B', subTabs: [] }
             ]
@@ -221,11 +230,11 @@ async function seedLargeDatapack(page, count = 10000) {
             && window.__eveCoreDataLoaded === true
             && typeof window.setLiveLinks === 'function'
         ), null, { timeout: 180000 });
+        await seedDatapack(page);
         await page.locator('.topbar-matrix-btn').click();
 
         const frame = page.frameLocator('#matrix-workshop-frame');
         await frame.locator('#datapackPhoneCheckbox').waitFor({ state: 'attached', timeout: 30000 });
-        await seedDatapack(page);
         await frame.locator('#toggleToolbar').click();
         await frame.locator('#widgets-section .section-header').click();
         await frame.locator('#datapackPhoneCheckbox').check();
@@ -242,15 +251,31 @@ async function seedLargeDatapack(page, count = 10000) {
             copy: widget.textContent,
             appCount: widget.querySelectorAll('.eve-matrix-phone-grid--home .eve-matrix-phone-app').length
         }));
+        const initialScope = await page.evaluate(() => window.EveMatrixWorkshop.getScope());
         if (
             homeState.connected !== 'EVE LINK'
             || !homeState.copy.includes('4 bookmarks')
             || !homeState.copy.includes('3 tabs / 3 cards')
+            || !homeState.copy.includes('Alpha Tab / Tab Scope')
             || homeState.appCount !== 2
+            || initialScope.scope !== 'workspace'
+            || initialScope.workspaceId !== 'alpha'
         ) {
-            throw new Error(`Phone home mismatch: ${JSON.stringify(homeState)}`);
+            throw new Error(`Phone home mismatch: ${JSON.stringify({ homeState, initialScope })}`);
         }
 
+        await frame.getByText('Datapack Matrix', { exact: true }).click();
+        const scopedTabNames = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
+        if (scopedTabNames.includes('Beta Tab') || !scopedTabNames.includes('Beta Shortcut')) {
+            throw new Error(`Topbar Matrix scope mismatch: ${JSON.stringify(scopedTabNames)}`);
+        }
+        await frame.getByText('Beta Shortcut', { exact: true }).click();
+        await frame.getByText('Novels', { exact: true }).click();
+        await frame.getByText('Library Cover', { exact: true }).waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
+        await frame.locator('[data-phone-home]').click();
         await frame.getByText('Datapack Matrix', { exact: true }).click();
         await frame.getByText('Alpha Tab', { exact: true }).click();
         await frame.getByText('Reading', { exact: true }).click();
@@ -297,18 +322,41 @@ async function seedLargeDatapack(page, count = 10000) {
             throw new Error(`Cover slideshow mismatch: ${JSON.stringify(slideshowState)}`);
         }
 
+        await page.locator('[data-matrix-close]').click();
+        await page.evaluate(() => {
+            window.config.viewMode = 'unidex';
+            window.eveState.config = window.config;
+            window.UnidexView.resetSelection();
+            window.renderDashboard();
+        });
+        await page.locator('.unidex-matrix-btn').first().waitFor({ state: 'visible', timeout: 30000 });
+        await page.locator('.unidex-matrix-btn').first().click();
+        const unidexFrame = page.frameLocator('#matrix-workshop-frame');
+        await unidexFrame.locator('[data-phone-connection]').filter({
+            hasText: 'EVE LINK'
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        await unidexFrame.getByText('Whole Datapack', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        const unidexScope = await page.evaluate(() => window.EveMatrixWorkshop.getScope());
+        if (unidexScope.scope !== 'all') {
+            throw new Error(`Unidex Matrix scope mismatch: ${JSON.stringify(unidexScope)}`);
+        }
+
         await seedLargeDatapack(page);
-        await frame.locator('[data-phone-home]').click();
+        await page.evaluate(() => window.EveMatrixWorkshop.openAll());
+        await unidexFrame.locator('[data-phone-home]').click();
         const largePackStartedAt = Date.now();
-        await frame.locator('[data-phone-refresh]').click();
-        await frame.getByText('10000 bookmarks', {
+        await unidexFrame.locator('[data-phone-refresh]').click();
+        await unidexFrame.getByText('10000 bookmarks', {
             exact: true
         }).waitFor({ state: 'visible', timeout: 15000 });
         const largePackRefreshMs = Date.now() - largePackStartedAt;
 
         await seedDatapack(page, false);
-        await frame.locator('[data-phone-refresh]').click();
-        await frame.getByText('4 bookmarks', {
+        await page.evaluate(() => window.EveMatrixWorkshop.openWorkspace('alpha'));
+        await unidexFrame.locator('[data-phone-refresh]').click();
+        await unidexFrame.getByText('4 bookmarks', {
             exact: true
         }).waitFor({ state: 'visible', timeout: 30000 });
 
@@ -334,10 +382,13 @@ async function seedLargeDatapack(page, count = 10000) {
 
         console.log('MATRIX_DATAPACK_PHONE_BROWSER_SMOKE_OK', JSON.stringify({
             homeState,
+            initialScope,
+            scopedTabNames,
             matrixBookmarks,
             coverScopes,
             coveredBookmarks,
             slideshowState,
+            unidexScope,
             detachedState,
             largePackRefreshMs
         }));

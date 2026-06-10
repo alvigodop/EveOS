@@ -50,6 +50,16 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             scheduleProgressiveEntriesHydration,
             cancelProgressiveEntriesHydration
         } = progressiveHelpers;
+        const mapButtonHtml = '<button type="button" class="unidex-layout-btn unidex-map-btn" onclick="window.UnidexView.openConstellationMap()" title="Open Constellation Map for this layer">Map</button>';
+        const matrixButtonHtml = '<button type="button" class="unidex-layout-btn unidex-matrix-btn" onclick="window.UnidexView.openMatrixWorkshop()" title="Open Matrix Workshop for this layer">Matrix</button>';
+        const nexusAllTabsBtn = '<button type="button" class="unidex-layout-btn unidex-nexus-btn" onclick="window.UnidexView.openNexusSearch()" title="Search across all tabs (bookmarks + scraper cache)">⚔ Nexus Search</button>';
+        function buildNexusScopedBtn(workspaceId) {
+            const safeWorkspaceId = String(workspaceId || '').replace(/'/g, "\\'");
+            return '<button type="button" class="unidex-layout-btn unidex-nexus-btn" onclick="window.UnidexView.openNexusSearch(\''
+                + safeWorkspaceId
+                + '\')" title="Search this tab (bookmarks + scraper cache)">⚔ Nexus Search</button>';
+        }
+
         function buildTabsTreeModeButton() {
             const mode = getTabsTreeMode();
             const label = mode === 'wrapped' ? 'Wrapped' : 'Unfolded';
@@ -100,6 +110,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         ${buildTabsTreeModeButton()}
                         ${nexusAllTabsBtn}
                         ${mapButtonHtml}
+                        ${matrixButtonHtml}
                     </div>
                     <section class="unidex-tabs ${tabsTreeMode === 'wrapped' ? 'is-wrapper-view' : 'is-unfolded-view'}" aria-label="Workspace Tabs">
                         ${buildTabsHtml({ mode: tabsTreeMode })}
@@ -250,6 +261,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             ${unifiedToggleHtml}
                             ${buildNexusScopedBtn(state.selectedWorkspaceId)}
                             ${mapButtonHtml}
+                            ${matrixButtonHtml}
                         </div>
                     </header>
                     ${buildWrappedCardsHtml(workspace, categoryModels, {

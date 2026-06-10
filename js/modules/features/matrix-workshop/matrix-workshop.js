@@ -11,6 +11,7 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     let previousFocus = null;
     let previousBodyOverflow = '';
     let detachedWindow = null;
+    let currentScope = null;
 
     function getLauncher() {
         return document.querySelector('.topbar-matrix-btn');
@@ -50,6 +51,26 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     function setStatus(message) {
         const status = document.querySelector(`#${OVERLAY_ID} [data-matrix-status]`);
         if (status) status.textContent = message;
+    }
+
+    function normalizeScope(scopeOption) {
+        if (typeof ns.normalizeScope === 'function') return ns.normalizeScope(scopeOption);
+        const config = window.eveState?.config || window.config || {};
+        const source = scopeOption && typeof scopeOption === 'object' ? scopeOption : {};
+        return {
+            scope: source.scope || 'workspace',
+            workspaceId: source.workspaceId || config.activeWorkspace || 'main',
+            workspaceIds: Array.isArray(source.workspaceIds) ? source.workspaceIds.slice() : [],
+            categoryName: source.categoryName || '',
+            scopeLabel: source.scopeLabel || ''
+        };
+    }
+
+    function setScope(scopeOption) {
+        currentScope = normalizeScope(scopeOption);
+        setStatus((ns.getScopeLabel?.(currentScope) || 'EveOS') + ' · Visual engine');
+        ns.broadcastDatapackInvalidated?.('scope-changed');
+        return currentScope;
     }
 
     function readHeaderPreference() {
@@ -136,7 +157,9 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
             if (!isOpen() || frame.src === 'about:blank') return;
             overlay.classList.remove('is-loading');
             const status = overlay.querySelector('[data-matrix-status]');
-            if (status) status.textContent = 'Visual engine online';
+            if (status) {
+                status.textContent = (ns.getScopeLabel?.(currentScope) || 'EveOS') + ' · Online';
+            }
         });
 
         overlay.querySelector('[data-matrix-close]')?.addEventListener('click', ns.close);
@@ -156,7 +179,8 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         return document.getElementById(OVERLAY_ID) || createOverlay();
     }
 
-    ns.open = function openMatrixWorkshop() {
+    ns.open = function openMatrixWorkshop(scopeOption) {
+        setScope(scopeOption);
         const overlay = ensureOverlay();
         if (isOpen()) return;
 
@@ -171,7 +195,9 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
 
         const frame = overlay.querySelector(`#${FRAME_ID}`);
         const status = overlay.querySelector('[data-matrix-status]');
-        if (status) status.textContent = 'Starting local visual engine';
+        if (status) {
+            status.textContent = 'Starting · ' + (ns.getScopeLabel?.(currentScope) || 'EveOS');
+        }
         overlay.classList.add('is-open', 'is-loading');
         overlay.setAttribute('aria-hidden', 'false');
         updateLauncher(true);
@@ -226,6 +252,37 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
 
     ns.isOpen = isOpen;
     ns.setHeaderHidden = setHeaderHidden;
+    ns.getScope = function getScope() {
+        return currentScope || normalizeScope();
+    };
+    ns.setScope = setScope;
+    ns.getDetachedWindow = function getDetachedWindow() {
+        return detachedWindow;
+    };
+    ns.openAll = function openAllMatrix() {
+        ns.open({ scope: 'all' });
+    };
+    ns.openWorkspace = function openWorkspaceMatrix(workspaceId) {
+        ns.open({ scope: 'workspace', workspaceId });
+    };
+    ns.openCard = function openCardMatrix(workspaceId, categoryName) {
+        ns.open({ scope: 'card', workspaceId, categoryName });
+    };
+    ns.openCurrentView = function openCurrentMatrixView() {
+        const mainContent = document.getElementById('main-content');
+        const unidex = window.UnidexView;
+        if (mainContent?.classList?.contains('unidex-view-active') && unidex?.getMatrixScope) {
+            ns.open(unidex.getMatrixScope());
+            return;
+        }
+        const groupScope = ns.getGroupOverviewScope?.();
+        if (groupScope) {
+            ns.open(groupScope);
+            return;
+        }
+        const config = window.eveState?.config || window.config || {};
+        ns.openWorkspace(config.activeWorkspace || 'main');
+    };
 
     window.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape' || !isOpen()) return;
@@ -236,6 +293,6 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     window.dispatchEvent(new CustomEvent('eve:matrix-workshop-ready'));
     if (window.__eveMatrixOpenPending) {
         window.__eveMatrixOpenPending = false;
-        setTimeout(ns.open, 0);
+        setTimeout(ns.openCurrentView, 0);
     }
 })(window.EveMatrixWorkshop);

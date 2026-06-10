@@ -40,7 +40,7 @@
                 <button class="topbar-primary-btn" onclick="toggleView()" title="View">&#128203; View</button>
                 <button class="topbar-map-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCurrentViewMap()" title="Constellation Map">&#127756; Map</button>
                 <button class="topbar-map-btn topbar-matrix-btn" type="button"
-                    onclick="window.EveMatrixWorkshop?.open ? window.EveMatrixWorkshop.open() : (window.__eveMatrixOpenPending = true)" aria-haspopup="dialog"
+                    onclick="window.EveMatrixWorkshop?.openCurrentView ? window.EveMatrixWorkshop.openCurrentView() : (window.__eveMatrixOpenPending = true)" aria-haspopup="dialog"
                     aria-controls="matrix-workshop-overlay" aria-expanded="false"
                     title="Matrix Workshop">&#9001; Matrix</button>
                 <button class="topbar-primary-btn" onclick="toggleScratchpad()" title="Notes">&#128221; Notes</button>
@@ -152,7 +152,9 @@
 
 
     <!-- SCRIPTS -->
-    <script src="js/modules/features/matrix-workshop/matrix-workshop.js?v=0.3.0"></script>
+    <script src="js/modules/features/matrix-workshop/matrix-workshop.scope.js?v=0.1.0"></script>
+    <script src="js/modules/features/matrix-workshop/matrix-workshop.datapack.js?v=0.1.0"></script>
+    <script src="js/modules/features/matrix-workshop/matrix-workshop.js?v=0.4.0"></script>
     <script src="js/config/manifest/scripts.parts/00-core.js"></script>
     <script src="js/config/manifest/scripts.parts/01-ui.js?v=0.4.0"></script>
     <script src="js/config/manifest/scripts.parts/02-dashboard-categories.js"></script>

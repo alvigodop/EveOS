@@ -132,7 +132,9 @@ window.UnidexView = (function () {
             openEntry: function () { return false; },
             openEntryJsonState: function () { return false; },
             validateEntryJsonLink: function () { return false; },
-            resetSelection: function () { }
+            resetSelection: function () { },
+            getMatrixScope: function () { return { scope: 'all' }; },
+            openMatrixWorkshop: function () { }
         };
     }
 
@@ -162,6 +164,16 @@ window.UnidexView = (function () {
     function openConstellationMap() {
         if (window.EveConstellationMap?.openMap) {
             window.EveConstellationMap.openMap(getConstellationScope());
+        }
+    }
+
+    function getMatrixScope() {
+        return getConstellationScope();
+    }
+
+    function openMatrixWorkshop() {
+        if (window.EveMatrixWorkshop?.open) {
+            window.EveMatrixWorkshop.open(getMatrixScope());
         }
     }
 
@@ -197,6 +209,8 @@ window.UnidexView = (function () {
         resetSelection: stages.resetSelection,
         getConstellationScope,
         openConstellationMap,
+        getMatrixScope,
+        openMatrixWorkshop,
         openNexusSearch
     };
 })();

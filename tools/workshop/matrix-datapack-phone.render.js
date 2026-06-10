@@ -71,10 +71,25 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
         });
     }
 
+    function dedupeBookmarks(items) {
+        var seen = new Set();
+        return (Array.isArray(items) ? items : []).filter(function (item) {
+            var key = String(item.sourceId || item.id || '').trim();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }
+
     function renderHome(state) {
         var snap = state.snapshot || {};
-        return '<div class="eve-matrix-phone-hero"><span>LIVE DATAPACK</span><strong>'
-            + (snap.bookmarks?.length || 0) + ' bookmarks</strong><small>'
+        var bookmarkCount = Number.isFinite(Number(snap.uniqueBookmarkCount))
+            ? Number(snap.uniqueBookmarkCount)
+            : dedupeBookmarks(snap.bookmarks).length;
+        return '<div class="eve-matrix-phone-hero"><span>'
+            + escapeHtml(snap.scopeLabel || 'LIVE DATAPACK')
+            + '</span><strong>'
+            + bookmarkCount + ' bookmarks</strong><small>'
             + (snap.workspaces?.length || 0) + ' tabs / '
             + (snap.cards?.length || 0) + ' cards</small></div>'
             + '<div class="eve-matrix-phone-grid eve-matrix-phone-grid--home">'
@@ -92,6 +107,7 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
                 workspace.icon || 'TAB',
                 workspace.name,
                 workspace.cardCount + ' cards / ' + workspace.bookmarkCount + ' links'
+                    + (workspace.isShortcut ? ' / shortcut' : '')
             );
         }));
     }
@@ -151,6 +167,9 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
         var bookmarks = (state.snapshot?.bookmarks || []).filter(function (item) {
             return !!item.coverUrl;
         });
+        if (!['workspace', 'card', 'folder'].includes(type)) {
+            bookmarks = dedupeBookmarks(bookmarks);
+        }
         var groups = new Map();
         function add(key, label) {
             if (!key) return;
@@ -222,7 +241,7 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
             items = items.filter(function (item) { return (item.status || 'Untracked') === key; });
         }
         if (type === 'tag') items = items.filter(function (item) { return item.tags.includes(key); });
-        return filterItems(items, state, [
+        return filterItems(dedupeBookmarks(items), state, [
             'title',
             'category',
             function (item) { return item.tags.join(' '); }
@@ -285,7 +304,12 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
         var route = state.route;
         var html = '';
         var title = 'EveOS';
-        var subtitle = snap.connected ? 'LIVE / ' + snap.bookmarks.length + ' LINKS' : 'NO EVEOS CONNECTION';
+        var bookmarkCount = Number.isFinite(Number(snap.uniqueBookmarkCount))
+            ? Number(snap.uniqueBookmarkCount)
+            : dedupeBookmarks(snap.bookmarks).length;
+        var subtitle = snap.connected
+            ? (snap.scopeLabel || 'LIVE') + ' / ' + bookmarkCount + ' LINKS'
+            : 'NO EVEOS CONNECTION';
 
         if (route.name === 'home') html = renderHome(state);
         else if (route.name === 'matrix-tabs') { title = 'Datapack Matrix'; html = renderTabs(state); }
