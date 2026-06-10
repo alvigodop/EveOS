@@ -185,6 +185,7 @@ window.EveLibraryNotesSections = window.EveLibraryNotesSections || {};
         if (!profile || syncing) return;
         const raw = document.getElementById(profile.rawId);
         const human = document.getElementById(profile.humanId);
+        const merge = document.getElementById(profile.mergeId);
         if (!raw || !human) return;
         syncing = true;
         const split = splitMergeBlocks(raw.value || '');
@@ -195,8 +196,12 @@ window.EveLibraryNotesSections = window.EveLibraryNotesSections || {};
             if (block.trim()) nextParts.push(block.trim());
         });
         raw.value = nextParts.join('\n\n').trim();
+        if (merge) merge.innerHTML = renderMergeBlocks(split.blocks);
+        updateMeta(profile, {
+            human: human.value,
+            blocks: split.blocks
+        });
         syncing = false;
-        syncFromRaw(profileName);
     }
 
     function bindProfile(profileName) {

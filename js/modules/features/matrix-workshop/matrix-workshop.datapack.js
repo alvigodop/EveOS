@@ -92,20 +92,39 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         });
     }
 
-    function getFolderNames() {
+    function getFolderTrees() {
         const map = new Map();
         const store = window.eveState?.bookmarkFolders || window.bookmarkFolders || {};
         Object.entries(store).forEach(function ([scope, tree]) {
             const nodes = Array.isArray(tree?.nodes) ? tree.nodes : (Array.isArray(tree) ? tree : []);
-            nodes.forEach(function (node) {
+            const normalizedNodes = nodes.map(function (node) {
                 const id = text(node?.id, '');
-                if (id) map.set(scope + '::' + id, text(node?.name, 'Folder'));
+                if (!id) return null;
+                return {
+                    id,
+                    name: text(node?.name, 'Folder'),
+                    parentId: text(node?.parentId, ''),
+                    order: Number(node?.order) || 0
+                };
+            }).filter(Boolean);
+            map.set(String(scope).toLowerCase(), {
+                nodes: normalizedNodes,
+                byId: new Map(normalizedNodes.map(function (node) { return [node.id, node]; }))
             });
         });
         return map;
     }
 
-    function buildBookmark(link, index, displayWorkspace, libraryByLink, folderNames) {
+    function getFolderTree(folderTrees, workspaceId, category) {
+        return folderTrees.get((workspaceId + '::' + category).toLowerCase()) || null;
+    }
+
+    function projectFolderId(sourceWorkspaceId, folderId) {
+        return folderId ? sourceWorkspaceId + '::folder::' + folderId : '';
+    }
+
+    function buildBookmark(link, index, displayWorkspace, libraryByLink, folderTrees) {
+        const fields = ns.DatapackFields || {};
         const sourceId = text(link.id, 'bookmark-' + index);
         const sourceWorkspaceId = text(link.workspace, 'main');
         const workspaceId = displayWorkspace.id;
@@ -124,22 +143,41 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
             entry?.status || entry?.libraryStatus?.label || entry?.libraryStatus?.id || link.status,
             ''
         );
-        const folderId = text(link.folderId, '');
-        const sourceScopeKey = sourceWorkspaceId + '::' + category;
+        const sourceFolderId = text(link.folderId, '');
+        const folderTree = getFolderTree(folderTrees, sourceWorkspaceId, category);
+        const folder = sourceFolderId ? folderTree?.byId.get(sourceFolderId) : null;
+        const title = text(link.title, 'Untitled Bookmark');
+        const graphicChapter = fields.positiveNumber?.(entry?.graphicChapter, link?.graphicChapter) || 0;
+        const novelChapter = fields.positiveNumber?.(entry?.novelChapter, link?.novelChapter) || 0;
+        const chapter = fields.positiveNumber?.(
+            entry?.chapter,
+            graphicChapter,
+            novelChapter,
+            link?.chapter
+        ) || 0;
         return {
             id: projected ? sourceId + '::via::' + workspaceId : sourceId,
             sourceId,
-            title: text(link.title, 'Untitled Bookmark'),
+            title,
             url: text(link.url, ''),
             workspaceId,
             sourceWorkspaceId,
             viaShortcutId: projected ? workspaceId : '',
             category,
-            folderId,
-            folderName: folderNames.get(sourceScopeKey + '::' + folderId) || '',
+            folderId: folder ? projectFolderId(sourceWorkspaceId, sourceFolderId) : '',
+            sourceFolderId,
+            folderName: folder?.name || '',
             icon: text(link.icon, ''),
             tags,
             status,
+            aliases: fields.getTitleAliases?.(link, entry, title) || [],
+            personalNotes: fields.getPersonalNotes?.(link, entry) || '',
+            graphicChapter,
+            novelChapter,
+            chapter,
+            season: fields.positiveNumber?.(entry?.season, link?.season) || 0,
+            episode: fields.positiveNumber?.(entry?.episode, link?.episode) || 0,
+            mediaTypes: unique(list(entry?.mediaTypes).concat(list(link?.mediaTypes))),
             coverUrls,
             coverUrl: coverUrls[0] || '',
             hasAdditionalCovers: (Array.isArray(link.coverImages) && link.coverImages.length > 0)
@@ -156,9 +194,10 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         const liveLinks = getLiveLinks();
         const rawLinks = (Array.isArray(liveLinks) ? liveLinks : []).filter(Boolean);
         const libraryByLink = getLibraryEntriesByLink();
-        const folderNames = getFolderNames();
+        const folderTrees = getFolderTrees();
         const linksByWorkspace = new Map();
         const cardsByKey = new Map();
+        const sourceScopesByCard = new Map();
         const bookmarks = [];
         const uniqueBookmarkIds = new Set();
 
@@ -188,10 +227,18 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
                         index,
                         workspace,
                         libraryByLink,
-                        folderNames
+                        folderTrees
                     );
                     bookmarks.push(bookmark);
                     const cardKey = workspace.id + '::' + bookmark.category;
+                    if (!sourceScopesByCard.has(cardKey)) sourceScopesByCard.set(cardKey, new Map());
+                    sourceScopesByCard.get(cardKey).set(
+                        (bookmark.sourceWorkspaceId + '::' + bookmark.category).toLowerCase(),
+                        {
+                            workspaceId: bookmark.sourceWorkspaceId,
+                            category: bookmark.category
+                        }
+                    );
                     let card = cardsByKey.get(cardKey);
                     if (!card) {
                         card = {
@@ -209,8 +256,67 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
             });
         });
 
+        const folders = [];
+        const folderKeys = new Set();
+        sourceScopesByCard.forEach(function (sourceScopes, cardKey) {
+            const card = cardsByKey.get(cardKey);
+            sourceScopes.forEach(function (sourceScope) {
+                const tree = getFolderTree(folderTrees, sourceScope.workspaceId, sourceScope.category);
+                tree?.nodes.forEach(function (node) {
+                    const id = projectFolderId(sourceScope.workspaceId, node.id);
+                    const key = cardKey + '::' + id;
+                    if (folderKeys.has(key)) return;
+                    folderKeys.add(key);
+                    folders.push({
+                        id,
+                        sourceId: node.id,
+                        sourceWorkspaceId: sourceScope.workspaceId,
+                        workspaceId: card?.workspaceId || '',
+                        category: card?.name || sourceScope.category,
+                        cardKey,
+                        name: node.name,
+                        parentId: tree.byId.has(node.parentId)
+                            ? projectFolderId(sourceScope.workspaceId, node.parentId)
+                            : '',
+                        order: node.order,
+                        bookmarkCount: 0,
+                        childFolderCount: 0
+                    });
+                });
+            });
+        });
+        const folderByKey = new Map(folders.map(function (folder) {
+            return [folder.cardKey + '::' + folder.id, folder];
+        }));
+        bookmarks.forEach(function (bookmark) {
+            if (!bookmark.folderId) return;
+            const folder = folderByKey.get(
+                bookmark.workspaceId + '::' + bookmark.category + '::' + bookmark.folderId
+            );
+            if (folder) folder.bookmarkCount += 1;
+        });
+        folders.forEach(function (folder) {
+            if (!folder.parentId) return;
+            const parent = folderByKey.get(folder.cardKey + '::' + folder.parentId);
+            if (parent) parent.childFolderCount += 1;
+        });
+
         const cards = Array.from(cardsByKey.values()).sort(function (a, b) {
             return a.name.localeCompare(b.name);
+        });
+        const folderCountByCard = new Map();
+        const rootBookmarkCountByCard = new Map();
+        folders.forEach(function (folder) {
+            folderCountByCard.set(folder.cardKey, (folderCountByCard.get(folder.cardKey) || 0) + 1);
+        });
+        bookmarks.forEach(function (bookmark) {
+            if (bookmark.folderId) return;
+            const cardKey = bookmark.workspaceId + '::' + bookmark.category;
+            rootBookmarkCountByCard.set(cardKey, (rootBookmarkCountByCard.get(cardKey) || 0) + 1);
+        });
+        cards.forEach(function (card) {
+            card.folderCount = folderCountByCard.get(card.key) || 0;
+            card.rootBookmarkCount = rootBookmarkCountByCard.get(card.key) || 0;
         });
         const workspaces = displayWorkspaces.map(function (workspace) {
             const workspaceCards = cards.filter(function (card) {
@@ -239,6 +345,7 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
             uniqueBookmarkCount: uniqueBookmarkIds.size,
             workspaces,
             cards,
+            folders,
             bookmarks,
             capturedAt: Date.now()
         };

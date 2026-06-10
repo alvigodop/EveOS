@@ -93,6 +93,15 @@ async function seedDatapack(page, resetPrefs = true) {
                 tags: ['Fantasy']
             },
             {
+                id: 'nested-bookmark',
+                title: 'Nested Tale',
+                url: 'https://example.test/nested',
+                workspace: 'alpha',
+                category: 'Reading',
+                folderId: 'archive',
+                tags: ['Archive']
+            },
+            {
                 id: 'plain',
                 title: 'Plain Bookmark',
                 url: 'https://example.test/plain',
@@ -105,13 +114,22 @@ async function seedDatapack(page, resetPrefs = true) {
                 url: 'https://example.test/library',
                 workspace: 'beta',
                 category: 'Novels',
+                folderId: 'beta-shelf',
                 tags: ['Archive']
             }
         ];
         window.setLiveLinks(nextLinks);
         window.eveState.bookmarkFolders = {
             'alpha::Reading': {
-                nodes: [{ id: 'favorites', name: 'Favorites', parentId: '' }]
+                nodes: [
+                    { id: 'favorites', name: 'Favorites', parentId: '', order: 0 },
+                    { id: 'archive', name: 'Archive Shelf', parentId: 'favorites', order: 0 }
+                ]
+            },
+            'beta::Novels': {
+                nodes: [
+                    { id: 'beta-shelf', name: 'Beta Shelf', parentId: '', order: 0 }
+                ]
             }
         };
         window.bookmarkFolders = window.eveState.bookmarkFolders;
@@ -132,7 +150,19 @@ async function seedDatapack(page, resetPrefs = true) {
                     id: 'entry-alpha',
                     title: 'Alpha Hero',
                     status: 'Reading',
-                    tags: ['Fantasy']
+                    tags: ['Fantasy'],
+                    titleAltNames: ['Hero Alpha', 'Alfa no Eiyuu'],
+                    graphicChapter: 42,
+                    season: 2,
+                    episode: 7,
+                    rating: 5,
+                    summary: [
+                        'Personal note with real spaces.',
+                        '',
+                        '=== Bookmark Merge ===',
+                        'Incoming Title: Old Alpha Hero',
+                        'Mode: notes-only'
+                    ].join('\n')
                 }]
             }
         });
@@ -242,7 +272,7 @@ async function seedLargeDatapack(page, count = 10000) {
         await frame.locator('[data-phone-connection]').filter({
             hasText: 'EVE LINK'
         }).waitFor({ state: 'visible', timeout: 30000 });
-        await frame.getByText('4 bookmarks', {
+        await frame.getByText('5 bookmarks', {
             exact: true
         }).waitFor({ state: 'visible', timeout: 30000 });
 
@@ -254,7 +284,7 @@ async function seedLargeDatapack(page, count = 10000) {
         const initialScope = await page.evaluate(() => window.EveMatrixWorkshop.getScope());
         if (
             homeState.connected !== 'EVE LINK'
-            || !homeState.copy.includes('4 bookmarks')
+            || !homeState.copy.includes('5 bookmarks')
             || !homeState.copy.includes('3 tabs / 3 cards')
             || !homeState.copy.includes('Alpha Tab / Tab Scope')
             || homeState.appCount !== 2
@@ -271,6 +301,7 @@ async function seedLargeDatapack(page, count = 10000) {
         }
         await frame.getByText('Beta Shortcut', { exact: true }).click();
         await frame.getByText('Novels', { exact: true }).click();
+        await frame.getByText('Beta Shelf', { exact: true }).click();
         await frame.getByText('Library Cover', { exact: true }).waitFor({
             state: 'visible',
             timeout: 30000
@@ -279,10 +310,57 @@ async function seedLargeDatapack(page, count = 10000) {
         await frame.getByText('Datapack Matrix', { exact: true }).click();
         await frame.getByText('Alpha Tab', { exact: true }).click();
         await frame.getByText('Reading', { exact: true }).click();
-        const matrixBookmarks = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
-        if (!matrixBookmarks.includes('Alpha Hero') || !matrixBookmarks.includes('Beta Chronicle')) {
-            throw new Error(`Datapack hierarchy mismatch: ${JSON.stringify(matrixBookmarks)}`);
+        const matrixRootItems = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
+        if (
+            !matrixRootItems.includes('Favorites')
+            || !matrixRootItems.includes('Beta Chronicle')
+            || matrixRootItems.includes('Alpha Hero')
+        ) {
+            throw new Error(`Datapack root hierarchy mismatch: ${JSON.stringify(matrixRootItems)}`);
         }
+        const rootTileTypes = await frame.locator('.eve-matrix-phone-app').evaluateAll((nodes) => (
+            nodes.map((node) => ({
+                label: node.querySelector('strong')?.textContent || '',
+                folder: node.classList.contains('eve-matrix-phone-app--folder'),
+                bookmark: node.classList.contains('eve-matrix-phone-app--bookmark')
+            }))
+        ));
+        const favoritesTile = rootTileTypes.find((item) => item.label === 'Favorites');
+        const betaTile = rootTileTypes.find((item) => item.label === 'Beta Chronicle');
+        if (!favoritesTile?.folder || !betaTile?.bookmark) {
+            throw new Error(`Folder/bookmark tile distinction missing: ${JSON.stringify(rootTileTypes)}`);
+        }
+        await frame.getByText('Favorites', { exact: true }).click();
+        const favoritesItems = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
+        if (!favoritesItems.includes('Alpha Hero') || !favoritesItems.includes('Archive Shelf')) {
+            throw new Error(`First folder hierarchy mismatch: ${JSON.stringify(favoritesItems)}`);
+        }
+        await frame.getByText('Alpha Hero', { exact: true }).click();
+        const enrichedBookmarkDetail = await frame.locator('.eve-matrix-phone-detail').evaluate((node) => ({
+            text: node.textContent || '',
+            notes: node.querySelector('.eve-matrix-phone-detail-notes')?.textContent || '',
+            factCount: node.querySelectorAll('.eve-matrix-phone-detail-facts > div').length
+        }));
+        for (const expected of ['Reading', '42', 'Season', '2', 'Episode', '7', 'Hero Alpha', 'Alfa no Eiyuu']) {
+            if (!enrichedBookmarkDetail.text.includes(expected)) {
+                throw new Error(`Bookmark detail missing ${expected}: ${JSON.stringify(enrichedBookmarkDetail)}`);
+            }
+        }
+        if (
+            !enrichedBookmarkDetail.notes.includes('Personal note with real spaces.')
+            || enrichedBookmarkDetail.text.includes('Bookmark Merge')
+            || enrichedBookmarkDetail.text.includes('Old Alpha Hero')
+            || enrichedBookmarkDetail.text.includes('Rating')
+            || enrichedBookmarkDetail.factCount < 4
+        ) {
+            throw new Error(`Bookmark detail data projection mismatch: ${JSON.stringify(enrichedBookmarkDetail)}`);
+        }
+        await frame.locator('[data-phone-back]').click();
+        await frame.getByText('Archive Shelf', { exact: true }).click();
+        await frame.getByText('Nested Tale', { exact: true }).waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
 
         await frame.locator('[data-phone-home]').click();
         await frame.getByText('Cover Atlas', { exact: true }).click();
@@ -435,7 +513,7 @@ async function seedLargeDatapack(page, count = 10000) {
         await seedDatapack(page, false);
         await page.evaluate(() => window.EveMatrixWorkshop.openWorkspace('alpha'));
         await unidexFrame.locator('[data-phone-refresh]').click();
-        await unidexFrame.getByText('4 bookmarks', {
+        await unidexFrame.getByText('5 bookmarks', {
             exact: true
         }).waitFor({ state: 'visible', timeout: 30000 });
 
@@ -447,14 +525,14 @@ async function seedLargeDatapack(page, count = 10000) {
         await popup.locator('[data-phone-connection]').filter({
             hasText: 'EVE LINK'
         }).waitFor({ state: 'visible', timeout: 30000 });
-        await popup.getByText('4 bookmarks', {
+        await popup.getByText('5 bookmarks', {
             exact: true
         }).waitFor({ state: 'visible', timeout: 30000 });
         const detachedState = await popup.locator('#eveDatapackPhoneWidget').evaluate((widget) => ({
             connected: widget.querySelector('[data-phone-connection]')?.textContent,
             copy: widget.textContent
         }));
-        if (detachedState.connected !== 'EVE LINK' || !detachedState.copy.includes('4 bookmarks')) {
+        if (detachedState.connected !== 'EVE LINK' || !detachedState.copy.includes('5 bookmarks')) {
             throw new Error(`Detached phone bridge mismatch: ${JSON.stringify(detachedState)}`);
         }
         await popup.close();
@@ -463,7 +541,9 @@ async function seedLargeDatapack(page, count = 10000) {
             homeState,
             initialScope,
             scopedTabNames,
-            matrixBookmarks,
+            matrixRootItems,
+            favoritesItems,
+            enrichedBookmarkDetail,
             coverScopes,
             coveredBookmarks,
             slideshowState,

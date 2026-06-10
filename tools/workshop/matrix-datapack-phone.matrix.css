@@ -1,0 +1,115 @@
+.eve-matrix-phone-app--folder {
+    position: relative;
+    border-color: color-mix(in srgb, #69d8ff 46%, transparent);
+    background:
+        linear-gradient(145deg, rgba(40, 150, 190, 0.16), rgba(0, 22, 13, 0.82));
+}
+
+.eve-matrix-phone-app--folder::after {
+    content: "FOLDER";
+    position: absolute;
+    top: 4px;
+    right: 5px;
+    color: rgba(140, 225, 255, 0.52);
+    font-size: 5px;
+    letter-spacing: 0.14em;
+}
+
+.eve-matrix-phone-app--folder .eve-matrix-phone-app-icon {
+    position: relative;
+    width: 42px;
+    height: 32px;
+    margin-top: 6px;
+    border-color: rgba(105, 216, 255, 0.66);
+    border-radius: 4px 7px 7px 7px;
+    background: linear-gradient(145deg, rgba(55, 205, 255, 0.34), rgba(0, 50, 65, 0.9));
+    color: #c8f4ff;
+}
+
+.eve-matrix-phone-app--folder .eve-matrix-phone-app-icon::before {
+    content: "";
+    position: absolute;
+    top: -6px;
+    left: 2px;
+    width: 18px;
+    height: 6px;
+    border: 1px solid rgba(105, 216, 255, 0.66);
+    border-bottom: 0;
+    border-radius: 4px 4px 0 0;
+    background: rgba(18, 96, 118, 0.96);
+}
+
+.eve-matrix-phone-app--folder:hover,
+.eve-matrix-phone-app--folder:focus-visible {
+    border-color: #7fe3ff;
+    background: linear-gradient(145deg, rgba(50, 190, 235, 0.25), rgba(0, 45, 40, 0.9));
+}
+
+.eve-matrix-phone-app--card {
+    border-color: color-mix(in srgb, var(--matrix-phone-accent) 38%, transparent);
+}
+
+.eve-matrix-phone-app--tab .eve-matrix-phone-app-icon,
+.eve-matrix-phone-app--card .eve-matrix-phone-app-icon {
+    border-radius: 50%;
+}
+
+.eve-matrix-phone-detail-facts {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.eve-matrix-phone-detail-facts > div {
+    min-width: 0;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border: 1px solid rgba(80, 255, 120, 0.18);
+    border-radius: 7px;
+    background: rgba(0, 27, 8, 0.7);
+}
+
+.eve-matrix-phone-detail-facts span {
+    color: rgba(165, 255, 185, 0.54);
+    font-size: 7px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.eve-matrix-phone-detail-facts strong {
+    overflow: hidden;
+    color: #e6ffeb;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eve-matrix-phone-detail-section {
+    width: 100%;
+    padding: 8px 9px;
+    border: 1px solid rgba(80, 255, 120, 0.16);
+    border-radius: 8px;
+    background: rgba(0, 20, 6, 0.68);
+    text-align: left;
+}
+
+.eve-matrix-phone-detail-section h4 {
+    margin: 0 0 5px;
+    color: color-mix(in srgb, var(--matrix-phone-accent) 78%, white);
+    font-size: 7px;
+    letter-spacing: 0.13em;
+}
+
+.eve-matrix-phone-detail-section p {
+    margin: 0;
+    color: rgba(220, 255, 228, 0.76);
+    font-size: 8px;
+    line-height: 1.45;
+}
+
+.eve-matrix-phone-detail-notes p {
+    white-space: pre-wrap;
+}

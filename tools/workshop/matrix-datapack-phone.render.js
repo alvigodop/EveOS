@@ -2,6 +2,7 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
     'use strict';
 
     var PAGE_SIZE = 24;
+    var matrixRenderer = window.EveMatrixDatapackPhoneMatrixRenderer;
 
     function escapeHtml(value) {
         return String(value == null ? '' : value)
@@ -62,15 +63,6 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
         return match?.name || id;
     }
 
-    function cardBookmarks(state, cardKey) {
-        var separator = cardKey.indexOf('::');
-        var workspaceId = separator >= 0 ? cardKey.slice(0, separator) : cardKey;
-        var category = separator >= 0 ? cardKey.slice(separator + 2) : '';
-        return (state.snapshot?.bookmarks || []).filter(function (bookmark) {
-            return bookmark.workspaceId === workspaceId && bookmark.category === category;
-        });
-    }
-
     function dedupeBookmarks(items) {
         var seen = new Set();
         return (Array.isArray(items) ? items : []).filter(function (item) {
@@ -96,55 +88,6 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
             + appButton(action('matrix-tabs'), 'MX', 'Datapack Matrix', 'Tabs, cards, bookmarks')
             + appButton(action('cover-scopes'), 'CV', 'Cover Atlas', 'Browse and play covers')
             + '</div>';
-    }
-
-    function renderTabs(state) {
-        var items = filterItems(state.snapshot?.workspaces || [], state, ['name', 'id']);
-        var page = paginate(items, state);
-        return grid(page, page.items.map(function (workspace) {
-            return appButton(
-                action('matrix-cards', workspace.id),
-                workspace.icon || 'TAB',
-                workspace.name,
-                workspace.cardCount + ' cards / ' + workspace.bookmarkCount + ' links'
-                    + (workspace.isShortcut ? ' / shortcut' : '')
-            );
-        }));
-    }
-
-    function renderCards(state, workspaceId) {
-        var items = (state.snapshot?.cards || []).filter(function (card) {
-            return card.workspaceId === workspaceId;
-        });
-        items = filterItems(items, state, ['name']);
-        var page = paginate(items, state);
-        return grid(page, page.items.map(function (card) {
-            return appButton(
-                action('matrix-bookmarks', card.key),
-                'CARD',
-                card.name,
-                card.bookmarkCount + ' links / ' + card.coverCount + ' covers'
-            );
-        }));
-    }
-
-    function renderBookmarks(state, cardKey) {
-        var items = filterItems(cardBookmarks(state, cardKey), state, [
-            'title',
-            'url',
-            'folderName',
-            function (item) { return item.tags.join(' '); }
-        ]);
-        var page = paginate(items, state);
-        return grid(page, page.items.map(function (bookmark) {
-            return appButton(
-                action('bookmark', bookmark.id),
-                bookmark.icon || bookmark.title.slice(0, 2).toUpperCase(),
-                bookmark.title,
-                bookmark.folderName || bookmark.status || 'Bookmark',
-                bookmark.coverUrl
-            );
-        }));
     }
 
     function renderCoverScopes() {
@@ -266,25 +209,6 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
         }), true);
     }
 
-    function renderBookmark(state, id) {
-        var item = state.snapshot?.bookmarks?.find(function (bookmark) {
-            return bookmark.id === id;
-        });
-        if (!item) return '<div class="eve-matrix-phone-empty">Bookmark unavailable.</div>';
-        return '<article class="eve-matrix-phone-detail">'
-            + (item.coverUrl
-                ? '<img src="' + escapeHtml(item.coverUrl) + '" alt="" referrerpolicy="no-referrer">'
-                : '')
-            + '<strong>' + escapeHtml(item.title) + '</strong>'
-            + '<span>' + escapeHtml(workspaceName(state, item.workspaceId) + ' / ' + item.category) + '</span>'
-            + '<small>' + escapeHtml(item.folderName || item.status || item.tags.join(', ')) + '</small>'
-            + (item.url
-                ? '<a href="' + escapeHtml(item.url)
-                    + '" target="_blank" rel="noopener noreferrer">OPEN BOOKMARK</a>'
-                : '')
-            + '</article>';
-    }
-
     function renderSlideshow(state) {
         var item = state.slideItems[state.slideIndex] || null;
         if (!item) return '<div class="eve-matrix-phone-empty">No covers in this scope.</div>';
@@ -336,14 +260,11 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
             ? (snap.scopeLabel || 'LIVE') + ' / ' + bookmarkCount + ' LINKS'
             : 'NO EVEOS CONNECTION';
 
+        var matrixView = matrixRenderer?.render?.(state);
         if (route.name === 'home') html = renderHome(state);
-        else if (route.name === 'matrix-tabs') { title = 'Datapack Matrix'; html = renderTabs(state); }
-        else if (route.name === 'matrix-cards') {
-            title = workspaceName(state, route.workspaceId);
-            html = renderCards(state, route.workspaceId);
-        } else if (route.name === 'matrix-bookmarks') {
-            title = route.cardKey.split('::').slice(1).join('::');
-            html = renderBookmarks(state, route.cardKey);
+        else if (matrixView) {
+            title = matrixView.title;
+            html = matrixView.html;
         } else if (route.name === 'cover-scopes') { title = 'Cover Atlas'; html = renderCoverScopes(); }
         else if (route.name === 'cover-groups') {
             title = 'Cover / ' + route.type;
@@ -351,8 +272,7 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
         } else if (route.name === 'cover-list') {
             title = 'Covered Bookmarks';
             html = renderCoverList(state, route.type, route.key);
-        } else if (route.name === 'bookmark') { title = 'Bookmark'; html = renderBookmark(state, route.id); }
-        else if (route.name === 'slideshow') { title = 'Cover Slideshow'; html = renderSlideshow(state); }
+        } else if (route.name === 'slideshow') { title = 'Cover Slideshow'; html = renderSlideshow(state); }
 
         widget.querySelector('[data-phone-title]').textContent = title;
         widget.querySelector('[data-phone-subtitle]').textContent = subtitle;
@@ -360,7 +280,7 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
         widget.querySelector('[data-phone-content]').innerHTML = html;
         widget.querySelector('[data-phone-back]').disabled = !state.history.length;
 
-        var count = getCurrentItemCount(state);
+        var count = matrixView ? matrixView.count : getCurrentItemCount(state);
         var pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
         widget.querySelector('[data-phone-page]').textContent = pages > 1 ? (state.page + 1) + '/' + pages : '';
         widget.querySelector('[data-phone-prev]').disabled = state.page <= 0;
@@ -370,16 +290,8 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
 
     function getCurrentItemCount(state) {
         var route = state.route;
-        if (route.name === 'matrix-tabs') {
-            return filterItems(state.snapshot?.workspaces || [], state, ['name', 'id']).length;
-        }
-        if (route.name === 'matrix-cards') {
-            return filterItems((state.snapshot?.cards || []).filter(function (item) {
-                return item.workspaceId === route.workspaceId;
-            }), state, ['name']).length;
-        }
-        if (route.name === 'matrix-bookmarks') {
-            return filterItems(cardBookmarks(state, route.cardKey), state, ['title', 'url']).length;
+        if (route.name.indexOf('matrix-') === 0 || route.name === 'bookmark') {
+            return matrixRenderer?.getCurrentItemCount?.(state) || 0;
         }
         if (route.name === 'cover-groups') {
             return filterItems(buildCoverGroups(state, route.type), state, ['label']).length;

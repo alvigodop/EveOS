@@ -235,6 +235,8 @@
             navigate({ name: 'matrix-cards', workspaceId: parts[1] });
         } else if (parts[0] === 'matrix-bookmarks') {
             navigate({ name: 'matrix-bookmarks', cardKey: parts[1] });
+        } else if (parts[0] === 'matrix-folder') {
+            navigate({ name: 'matrix-folder', cardKey: parts[1], folderId: parts[2] });
         } else if (parts[0] === 'cover-scopes') navigate({ name: 'cover-scopes' });
         else if (parts[0] === 'cover-groups') {
             navigate({ name: 'cover-groups', type: parts[1] });
