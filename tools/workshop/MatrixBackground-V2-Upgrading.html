@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Matrix Code Rain v2.0</title>
-    <link rel="stylesheet" href="matrix-datapack-phone.css?v=0.1.0">
+    <link rel="stylesheet" href="matrix-datapack-phone.css?v=0.2.0">
+    <link rel="stylesheet" href="matrix-datapack-phone.slideshow.css?v=0.1.0">
     <style>
         body {
             margin: 0;
@@ -487,11 +488,14 @@
 
         #slideshowBar {
             position: fixed;
-            bottom: 0;
+            bottom: max(0px, env(safe-area-inset-bottom));
             left: 0;
             right: 0;
             z-index: 1001;
             display: none;
+            max-width: 100vw;
+            max-height: calc(100dvh - 30px);
+            box-sizing: border-box;
             background: rgba(0, 0, 0, 0.9);
             border-top: 1px solid #0f0;
             backdrop-filter: blur(8px);
@@ -549,8 +553,12 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 8px 12px;
+            max-width: 100%;
+            max-height: calc(100dvh - 38px);
+            padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
             overflow-x: auto;
+            overflow-y: hidden;
+            box-sizing: border-box;
         }
 
         .slideshow-bar-inner .sl-btn {
@@ -3374,8 +3382,9 @@
         }
     </script>
     <script src="matrix-datapack-phone.bridge.js?v=0.2.0"></script>
-    <script src="matrix-datapack-phone.render.js?v=0.2.0"></script>
-    <script src="matrix-datapack-phone.js?v=0.2.0"></script>
+    <script src="matrix-datapack-phone.slideshow.js?v=0.1.0"></script>
+    <script src="matrix-datapack-phone.render.js?v=0.3.0"></script>
+    <script src="matrix-datapack-phone.js?v=0.3.0"></script>
 </body>
 
 </html>

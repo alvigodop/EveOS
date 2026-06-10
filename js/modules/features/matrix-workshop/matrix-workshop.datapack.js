@@ -60,12 +60,28 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
 
     function getCoverUrls(link, entry) {
         const covers = window.EveBookmarkCovers;
+        const fallbackImage = text(
+            entry?.image || entry?.imageUrl || entry?.coverImage || entry?.bannerImage,
+            ''
+        );
+        const displayCover = typeof covers?.getDisplayCover === 'function'
+            ? covers.getDisplayCover(link, fallbackImage)
+            : '';
+        const additionalCovers = typeof covers?.getAdditionalCoverImages === 'function'
+            ? covers.getAdditionalCoverImages(link)
+            : [];
         const values = [
+            displayCover,
             link?.fixedCoverImage,
-            link?.coverImage
+            link?.coverImage,
+            link?.image,
+            link?.imageUrl,
+            link?.thumbnail,
+            link?.poster
         ].concat(
+            additionalCovers,
             Array.isArray(link?.coverImages) ? link.coverImages : [],
-            [entry?.image, entry?.imageUrl, entry?.coverImage],
+            [fallbackImage],
             Array.isArray(entry?.coverImages) ? entry.coverImages : []
         );
         return unique(values).filter(function (url) {
@@ -95,7 +111,9 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         const workspaceId = displayWorkspace.id;
         const projected = sourceWorkspaceId.toLowerCase() !== workspaceId.toLowerCase();
         const category = text(link.category, 'Unsorted');
-        const entry = libraryByLink.get(sourceId) || null;
+        const entry = libraryByLink.get(sourceId)
+            || window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(sourceId)?.entry
+            || null;
         const coverUrls = getCoverUrls(link, entry);
         const tags = unique(list(link.tags).concat(
             list(entry?.tags),

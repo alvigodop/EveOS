@@ -13,6 +13,11 @@ function logStep(message) {
     fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
 }
 
+function coverData(label, color) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="180"><rect width="120" height="180" fill="${color}"/><text y="90">${label}</text></svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}#${label}.jpg`;
+}
+
 async function waitForStatus(url, timeoutMs = 30000) {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
@@ -42,7 +47,7 @@ function buildSeedPayload() {
                 url: 'https://example.com/root',
                 workspace: 'main',
                 category: 'Reading',
-                coverImage: 'https://images.example.com/root-primary.jpg'
+                coverImage: coverData('root-primary', '#164e63')
             },
             {
                 id: 'l-extra',
@@ -50,8 +55,8 @@ function buildSeedPayload() {
                 url: 'https://example.com/extra',
                 workspace: 'main',
                 category: 'Reading',
-                coverImage: 'https://images.example.com/extra-primary.jpg',
-                coverImages: ['https://images.example.com/extra-random.jpg']
+                coverImage: coverData('extra-primary', '#7c2d12'),
+                coverImages: [coverData('extra-random', '#713f12')]
             },
             {
                 id: 'l-library',
@@ -87,7 +92,7 @@ function buildSeedPayload() {
                     {
                         id: 'e-library',
                         title: 'Linked Library Entry',
-                        image: 'https://images.example.com/library-linked.jpg'
+                        image: coverData('library-linked', '#4c1d95')
                     }
                 ]
             }
@@ -220,6 +225,27 @@ async function runBrowserSmoke(page) {
         }
         if (!libraryHover.includes('library-linked.jpg')) {
             throw new Error(`Unexpected library-linked hover image after folder move: ${libraryHover}`);
+        }
+
+        const previousPerfMode = !!window._evePerfMode;
+        if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        await waitFor(() => !!document.querySelector('li[data-link-id="l-root"]'), 4000, 'performance-mode bookmark row');
+        window._evePerfMode = true;
+        const perfRow = document.querySelector('li[data-link-id="l-root"]');
+        perfRow.dispatchEvent(new PointerEvent('pointerover', {
+            bubbles: true,
+            relatedTarget: null
+        }));
+        await waitFor(() => {
+            const overlay = document.getElementById('bookmark-cover-hover-overlay');
+            return overlay?.classList.contains('is-visible')
+                && normalizeImageSrc(overlay.querySelector('.bookmark-cover-hover-image')?.src).includes('root-primary.jpg');
+        }, 4000, 'performance-mode cover hover');
+        const perfHoverVisible = document.getElementById('bookmark-cover-hover-overlay')?.classList.contains('is-visible');
+        window.hideBookmarkCoverHover?.();
+        window._evePerfMode = previousPerfMode;
+        if (!perfHoverVisible) {
+            throw new Error('Expected delegated cover hover to work in large-pack performance mode');
         }
 
         if (window.eveState?.config) {

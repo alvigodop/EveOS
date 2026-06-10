@@ -16,9 +16,13 @@
         slideItems: [],
         slideTimer: 0,
         slidePlaying: false,
+        slideShuffle: false,
+        slideSpeed: 3000,
+        slideOpacity: 100,
         unsubscribe: null,
         refreshToken: 0
     };
+    var slideshow = window.EveMatrixPhoneSlideshow?.create?.(state, render) || null;
 
     function readPrefs() {
         try {
@@ -34,7 +38,10 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify({
                 enabled: state.enabled,
                 x: widget?.style.left || '',
-                y: widget?.style.top || ''
+                y: widget?.style.top || '',
+                slideShuffle: state.slideShuffle,
+                slideSpeed: state.slideSpeed,
+                slideOpacity: state.slideOpacity
             }));
         } catch (error) {
             // The widget remains usable when storage is unavailable.
@@ -106,6 +113,11 @@
             render();
         });
         widget.querySelector('[data-phone-content]').addEventListener('click', handleContentClick);
+        widget.querySelector('[data-phone-content]').addEventListener('input', function (event) {
+            if (!event.target.matches('[data-phone-slide-opacity]')) return;
+            slideshow?.setOpacity?.(event.target.value);
+            savePrefs();
+        });
         bindDrag(widget, widget.querySelector('[data-phone-drag]'));
         updateClock();
         setInterval(updateClock, 30000);
@@ -169,7 +181,7 @@
                 var previousScope = JSON.stringify(state.snapshot?.scope || null);
                 var nextScope = JSON.stringify(snapshot?.scope || null);
                 if (state.snapshot && previousScope !== nextScope) {
-                    stopSlideshow();
+                    slideshow?.stop?.();
                     state.history = [];
                     state.route = { name: 'home' };
                     state.page = 0;
@@ -186,7 +198,7 @@
     }
 
     function navigate(route, remember) {
-        stopSlideshow();
+        slideshow?.stop?.();
         if (remember !== false) state.history.push(state.route);
         state.route = route;
         state.page = 0;
@@ -201,7 +213,7 @@
             navigate({ name: 'home' }, false);
             return;
         }
-        stopSlideshow();
+        slideshow?.stop?.();
         state.route = state.history.pop();
         state.page = 0;
         state.query = '';
@@ -232,48 +244,27 @@
             navigate({ name: 'bookmark', id: parts[1] });
         } else if (parts[0] === 'slideshow') {
             startScopeSlideshow(parts[1], parts[2]);
-        } else if (parts[0] === 'slide-prev') moveSlide(-1);
-        else if (parts[0] === 'slide-next') moveSlide(1);
-        else if (parts[0] === 'slide-toggle') toggleSlideshowPlayback();
+        } else if (parts[0] === 'slide-prev') slideshow?.move?.(-1);
+        else if (parts[0] === 'slide-next') slideshow?.move?.(1);
+        else if (parts[0] === 'slide-toggle') slideshow?.toggle?.();
+        else if (parts[0] === 'slide-shuffle') {
+            slideshow?.toggleShuffle?.();
+            savePrefs();
+        } else if (parts[0] === 'slide-slower') {
+            slideshow?.adjustSpeed?.(1);
+            savePrefs();
+        } else if (parts[0] === 'slide-faster') {
+            slideshow?.adjustSpeed?.(-1);
+            savePrefs();
+        } else if (parts[0] === 'slide-go') {
+            slideshow?.goTo?.(Number(parts[1]));
+        }
     }
 
     function startScopeSlideshow(type, key) {
-        state.slideItems = renderer?.getCoverItems?.(state, type, key) || [];
-        state.slideIndex = 0;
+        slideshow?.setItems?.(renderer?.getCoverItems?.(state, type, key) || []);
         navigate({ name: 'slideshow', type: type, key: key });
-        startSlideshow();
-    }
-
-    function moveSlide(delta) {
-        if (!state.slideItems.length) return;
-        state.slideIndex = (
-            state.slideIndex + delta + state.slideItems.length
-        ) % state.slideItems.length;
-        render();
-    }
-
-    function startSlideshow() {
-        stopSlideshow();
-        state.slidePlaying = true;
-        state.slideTimer = setInterval(function () {
-            moveSlide(1);
-        }, 3200);
-        render();
-    }
-
-    function stopSlideshow() {
-        clearInterval(state.slideTimer);
-        state.slideTimer = 0;
-        state.slidePlaying = false;
-    }
-
-    function toggleSlideshowPlayback() {
-        if (state.slidePlaying) {
-            stopSlideshow();
-            render();
-        } else {
-            startSlideshow();
-        }
+        slideshow?.start?.();
     }
 
     api.toggle = function (enabled) {
@@ -290,7 +281,7 @@
             refresh();
         } else {
             state.refreshToken += 1;
-            stopSlideshow();
+            slideshow?.stop?.();
             if (state.unsubscribe) state.unsubscribe();
             state.unsubscribe = null;
         }
@@ -309,13 +300,19 @@
         return {
             enabled: state.enabled,
             x: widget.style.left,
-            y: widget.style.top
+            y: widget.style.top,
+            slideShuffle: state.slideShuffle,
+            slideSpeed: state.slideSpeed,
+            slideOpacity: state.slideOpacity
         };
     };
     api.applySettings = function (settings) {
         var widget = getWidget();
         if (settings?.x) widget.style.left = settings.x;
         if (settings?.y) widget.style.top = settings.y;
+        if (typeof settings?.slideShuffle === 'boolean') state.slideShuffle = settings.slideShuffle;
+        if (Number.isFinite(Number(settings?.slideSpeed))) state.slideSpeed = Number(settings.slideSpeed);
+        if (Number.isFinite(Number(settings?.slideOpacity))) state.slideOpacity = Number(settings.slideOpacity);
         api.toggle(!!settings?.enabled);
     };
     api.getState = function () {
@@ -335,6 +332,9 @@
     });
 
     var prefs = readPrefs();
+    if (typeof prefs.slideShuffle === 'boolean') state.slideShuffle = prefs.slideShuffle;
+    if (Number.isFinite(Number(prefs.slideSpeed))) state.slideSpeed = Number(prefs.slideSpeed);
+    if (Number.isFinite(Number(prefs.slideOpacity))) state.slideOpacity = Number(prefs.slideOpacity);
     api.syncColor(typeof color !== 'undefined' ? color : '#00ff00');
     api.toggle(!!prefs.enabled);
 })();

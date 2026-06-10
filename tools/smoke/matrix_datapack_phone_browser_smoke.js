@@ -78,7 +78,7 @@ async function seedDatapack(page, resetPrefs = true) {
                 workspace: 'alpha',
                 category: 'Reading',
                 folderId: 'favorites',
-                coverImage: coverA,
+                imageUrl: coverA,
                 tags: ['Fantasy', 'Hero']
             },
             {
@@ -316,10 +316,66 @@ async function seedLargeDatapack(page, count = 10000) {
         const slideshowState = await frame.locator('.eve-matrix-phone-slideshow').evaluate((node) => ({
             image: node.querySelector('img')?.getAttribute('src') || '',
             title: node.querySelector('strong')?.textContent || '',
-            controls: node.querySelectorAll('nav button').length
+            mainControls: node.querySelectorAll('.eve-matrix-phone-slide-main-controls button').length,
+            optionControls: node.querySelectorAll('.eve-matrix-phone-slide-options button').length,
+            thumbs: node.querySelectorAll('.eve-matrix-phone-slide-thumb').length,
+            hasOpacity: !!node.querySelector('[data-phone-slide-opacity]')
         }));
-        if (!slideshowState.image.startsWith('data:image/') || !slideshowState.title || slideshowState.controls !== 3) {
+        if (
+            !slideshowState.image.startsWith('data:image/')
+            || !slideshowState.title
+            || slideshowState.mainControls !== 3
+            || slideshowState.optionControls !== 3
+            || slideshowState.thumbs !== 3
+            || !slideshowState.hasOpacity
+        ) {
             throw new Error(`Cover slideshow mismatch: ${JSON.stringify(slideshowState)}`);
+        }
+        await frame.locator('[data-phone-action^="slide-shuffle"]').click();
+        await frame.locator('[data-phone-action^="slide-faster"]').click();
+        await frame.locator('[data-phone-slide-opacity]').evaluate((input) => {
+            input.value = '65';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        const slideshowControlsState = await frame.locator('body').evaluate(() => {
+            const state = window.EveMatrixDatapackPhone.getState();
+            return {
+                shuffle: state.slideShuffle,
+                speed: state.slideSpeed,
+                opacity: state.slideOpacity,
+                imageOpacity: document.querySelector('.eve-matrix-phone-slideshow > img')?.style.opacity || ''
+            };
+        });
+        if (
+            !slideshowControlsState.shuffle
+            || slideshowControlsState.speed !== 2500
+            || slideshowControlsState.opacity !== 65
+            || slideshowControlsState.imageOpacity !== '0.65'
+        ) {
+            throw new Error(`Slideshow controls mismatch: ${JSON.stringify(slideshowControlsState)}`);
+        }
+
+        await frame.locator('#slideshowCheckbox').check();
+        await frame.locator('.slideshow-toggle-tab').click();
+        await frame.locator('.slideshow-toggle-tab').click();
+        await page.waitForTimeout(450);
+        const originalSlideshowBounds = await frame.locator('#slideshowBar').evaluate((bar) => {
+            const rect = bar.getBoundingClientRect();
+            return {
+                top: rect.top,
+                bottom: rect.bottom,
+                height: rect.height,
+                viewportHeight: window.innerHeight,
+                innerScrollWidth: bar.querySelector('.slideshow-bar-inner')?.scrollWidth || 0,
+                innerClientWidth: bar.querySelector('.slideshow-bar-inner')?.clientWidth || 0
+            };
+        });
+        if (
+            originalSlideshowBounds.top < -1
+            || originalSlideshowBounds.bottom > originalSlideshowBounds.viewportHeight + 1
+            || originalSlideshowBounds.height <= 0
+        ) {
+            throw new Error(`Original slideshow bar clipped outside viewport: ${JSON.stringify(originalSlideshowBounds)}`);
         }
 
         await page.locator('[data-matrix-close]').click();
@@ -388,6 +444,8 @@ async function seedLargeDatapack(page, count = 10000) {
             coverScopes,
             coveredBookmarks,
             slideshowState,
+            slideshowControlsState,
+            originalSlideshowBounds,
             unidexScope,
             detachedState,
             largePackRefreshMs

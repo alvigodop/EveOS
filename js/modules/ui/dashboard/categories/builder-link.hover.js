@@ -44,11 +44,19 @@
     function getBookmarkHoverPreview(link) {
         if (!link) return null;
         const libraryEntry = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(link.id)?.entry || null;
-        const rawCoverUrl = String(
-            window.EveBookmarkCovers?.getDisplayCover?.(link, libraryEntry?.image || libraryEntry?.imageUrl)
-            || link?.coverImage
-            || libraryEntry?.image
+        const libraryFallback = libraryEntry?.image
             || libraryEntry?.imageUrl
+            || libraryEntry?.coverImage
+            || libraryEntry?.bannerImage
+            || '';
+        const rawCoverUrl = String(
+            window.EveBookmarkCovers?.getDisplayCover?.(link, libraryFallback)
+            || link?.coverImage
+            || link?.image
+            || link?.imageUrl
+            || link?.thumbnail
+            || link?.poster
+            || libraryFallback
             || ''
         ).trim();
         const coverUrl = (typeof window.EveBookmarkCovers?.isDisplayableCoverUrl === 'function')
@@ -170,7 +178,7 @@
     function showBookmarkCoverHover(event, linkId) {
         const target = event?.currentTarget;
         const normalizedId = toLinkId(linkId);
-        if (!target || !normalizedId || !!window._evePerfMode) {
+        if (!target || !normalizedId) {
             hideBookmarkCoverHover();
             return;
         }
@@ -187,9 +195,32 @@
 
         bookmarkCoverHoverShowTimer = setTimeout(() => {
             bookmarkCoverHoverShowTimer = 0;
-            if (bookmarkCoverHoverPendingLinkId !== normalizedId || !!window._evePerfMode) return;
+            if (bookmarkCoverHoverPendingLinkId !== normalizedId) return;
             renderBookmarkCoverHover(target, normalizedId);
         }, BOOKMARK_HOVER_SHOW_DELAY_MS);
+    }
+
+    function bindPerformanceModeHoverDelegation() {
+        if (window.__eveBookmarkCoverHoverDelegated) return;
+        window.__eveBookmarkCoverHoverDelegated = true;
+        document.addEventListener('pointerover', function (event) {
+            if (!window._evePerfMode) return;
+            const row = event.target?.closest?.('.category-card li[data-link-id]');
+            if (!row || row.contains(event.relatedTarget)) return;
+            showBookmarkCoverHover({ currentTarget: row }, row.dataset.linkId);
+        }, true);
+        document.addEventListener('pointermove', function (event) {
+            if (!window._evePerfMode) return;
+            const row = event.target?.closest?.('.category-card li[data-link-id]');
+            if (!row || row !== bookmarkCoverHoverActiveTarget) return;
+            moveBookmarkCoverHover({ currentTarget: row });
+        }, true);
+        document.addEventListener('pointerout', function (event) {
+            if (!window._evePerfMode) return;
+            const row = event.target?.closest?.('.category-card li[data-link-id]');
+            if (!row || row.contains(event.relatedTarget)) return;
+            hideBookmarkCoverHover();
+        }, true);
     }
 
     function moveBookmarkCoverHover(event) {
@@ -271,4 +302,5 @@
     };
 
     startRelatedUrlIconCycler();
+    bindPerformanceModeHoverDelegation();
 })();

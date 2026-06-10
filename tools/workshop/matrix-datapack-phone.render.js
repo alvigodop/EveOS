@@ -288,15 +288,37 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
     function renderSlideshow(state) {
         var item = state.slideItems[state.slideIndex] || null;
         if (!item) return '<div class="eve-matrix-phone-empty">No covers in this scope.</div>';
+        var thumbStart = Math.max(0, Math.min(
+            state.slideIndex - 8,
+            Math.max(0, state.slideItems.length - 18)
+        ));
+        var thumbs = state.slideItems.slice(thumbStart, thumbStart + 18).map(function (slide, offset) {
+            var index = thumbStart + offset;
+            return '<button class="eve-matrix-phone-slide-thumb'
+                + (index === state.slideIndex ? ' is-active' : '')
+                + '" data-phone-action="' + action('slide-go', index) + '" title="'
+                + escapeHtml(slide.title) + '"><img src="' + escapeHtml(slide.coverUrl)
+                + '" alt="" loading="lazy" referrerpolicy="no-referrer"></button>';
+        }).join('');
         return '<div class="eve-matrix-phone-slideshow">'
             + '<img src="' + escapeHtml(item.coverUrl) + '" alt="'
-            + escapeHtml(item.title) + '" referrerpolicy="no-referrer">'
+            + escapeHtml(item.title) + '" referrerpolicy="no-referrer" style="opacity:'
+            + (Number(state.slideOpacity) || 100) / 100 + '">'
             + '<div><strong>' + escapeHtml(item.title) + '</strong><small>'
             + (state.slideIndex + 1) + ' / ' + state.slideItems.length + '</small></div>'
-            + '<nav><button data-phone-action="' + action('slide-prev') + '">&#9664;</button>'
+            + '<nav class="eve-matrix-phone-slide-main-controls"><button data-phone-action="' + action('slide-prev') + '">&#9664;</button>'
             + '<button data-phone-action="' + action('slide-toggle') + '">'
             + (state.slidePlaying ? 'PAUSE' : 'PLAY') + '</button>'
-            + '<button data-phone-action="' + action('slide-next') + '">&#9654;</button></nav></div>';
+            + '<button data-phone-action="' + action('slide-next') + '">&#9654;</button></nav>'
+            + '<div class="eve-matrix-phone-slide-options">'
+            + '<button class="' + (state.slideShuffle ? 'is-active' : '')
+            + '" data-phone-action="' + action('slide-shuffle') + '" title="Shuffle">SHUFFLE</button>'
+            + '<button data-phone-action="' + action('slide-slower') + '" title="Slower">&#8722;</button>'
+            + '<span>' + ((Number(state.slideSpeed) || 3000) / 1000).toFixed(1) + 's</span>'
+            + '<button data-phone-action="' + action('slide-faster') + '" title="Faster">+</button>'
+            + '<label>OPACITY <input data-phone-slide-opacity type="range" min="10" max="100" value="'
+            + (Number(state.slideOpacity) || 100) + '"></label></div>'
+            + '<div class="eve-matrix-phone-slide-thumbs">' + thumbs + '</div></div>';
     }
 
     function render(state, widget) {

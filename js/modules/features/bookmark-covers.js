@@ -108,12 +108,20 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         return getAdditionalCoverImages(link);
     }
 
+    function getPrimaryCoverImage(link, fallbackImage) {
+        const candidates = [
+            link?.coverImage,
+            link?.image,
+            link?.imageUrl,
+            link?.thumbnail,
+            link?.poster,
+            fallbackImage
+        ];
+        return uniqueUrls(candidates).find(isDisplayableCoverUrl) || '';
+    }
+
     function getDisplayCover(link, fallbackImage) {
-        const primaryLink = trimUrl(link?.coverImage);
-        const primaryFallback = trimUrl(fallbackImage);
-        const primary = isDisplayableCoverUrl(primaryLink)
-            ? primaryLink
-            : (isDisplayableCoverUrl(primaryFallback) ? primaryFallback : '');
+        const primary = getPrimaryCoverImage(link, fallbackImage);
         const candidates = getCoverCandidates(link).filter(isDisplayableCoverUrl);
         const fixed = getFixedCoverImage(link);
         if (fixed && isDisplayableCoverUrl(fixed)) {
@@ -260,6 +268,7 @@ window.EveBookmarkCovers = window.EveBookmarkCovers || {};
         getAdditionalCoverImages,
         getFixedCoverImage,
         getCoverCandidates,
+        getPrimaryCoverImage,
         getDisplayCover,
         isRenderableCoverUrl,
         isDisplayableCoverUrl,
