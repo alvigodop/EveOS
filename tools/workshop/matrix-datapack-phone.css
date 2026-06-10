@@ -1,0 +1,424 @@
+.matrix-phone-setting-copy {
+    margin: 2px 0 8px 24px;
+    color: rgba(120, 255, 150, 0.7);
+    font-size: 10px;
+    line-height: 1.35;
+}
+
+.eve-matrix-phone {
+    --matrix-phone-accent: #00ff00;
+    position: fixed;
+    z-index: 1002;
+    width: 330px;
+    height: 610px;
+    display: none;
+    color: #d9ffe2;
+    font-family: "Courier New", monospace;
+}
+
+.eve-matrix-phone,
+.eve-matrix-phone * {
+    box-sizing: border-box;
+}
+
+.eve-matrix-phone-drag {
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 1px solid var(--matrix-phone-accent);
+    border-bottom: 0;
+    border-radius: 13px 13px 0 0;
+    background: rgba(0, 18, 5, 0.88);
+    cursor: grab;
+    touch-action: none;
+}
+
+.eve-matrix-phone-drag:active {
+    cursor: grabbing;
+}
+
+.eve-matrix-phone-drag span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--matrix-phone-accent);
+    box-shadow: 0 0 6px var(--matrix-phone-accent);
+}
+
+.eve-matrix-phone-frame {
+    height: calc(100% - 22px);
+    padding: 8px;
+    border: 2px solid var(--matrix-phone-accent);
+    border-radius: 0 0 32px 32px;
+    background: rgba(0, 5, 2, 0.94);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--matrix-phone-accent) 24%, transparent);
+}
+
+.eve-matrix-phone-screen {
+    height: 100%;
+    display: grid;
+    grid-template-rows: 20px 48px 38px minmax(0, 1fr) 34px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--matrix-phone-accent) 45%, transparent);
+    border-radius: 0 0 25px 25px;
+    background:
+        linear-gradient(rgba(0, 255, 70, 0.035) 1px, transparent 1px),
+        radial-gradient(circle at 50% -10%, rgba(30, 255, 90, 0.14), transparent 38%),
+        rgba(0, 11, 4, 0.98);
+    background-size: 100% 4px, auto, auto;
+}
+
+.eve-matrix-phone-status {
+    padding: 3px 11px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: color-mix(in srgb, var(--matrix-phone-accent) 82%, white);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+}
+
+.eve-matrix-phone-nav {
+    min-width: 0;
+    padding: 4px 7px;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    align-items: center;
+    gap: 7px;
+    border-block: 1px solid color-mix(in srgb, var(--matrix-phone-accent) 24%, transparent);
+}
+
+.eve-matrix-phone-nav > div {
+    min-width: 0;
+}
+
+.eve-matrix-phone-nav strong,
+.eve-matrix-phone-nav small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eve-matrix-phone-nav strong {
+    color: #e5ffeb;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+}
+
+.eve-matrix-phone-nav small {
+    margin-top: 2px;
+    color: rgba(170, 255, 190, 0.55);
+    font-size: 8px;
+}
+
+.eve-matrix-phone button,
+.eve-matrix-phone input {
+    font-family: inherit;
+}
+
+.eve-matrix-phone-nav button,
+.eve-matrix-phone-footer button,
+.eve-matrix-phone-search button,
+.eve-matrix-phone-slideshow nav button {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--matrix-phone-accent) 48%, transparent);
+    border-radius: 7px;
+    background: rgba(0, 38, 10, 0.74);
+    color: color-mix(in srgb, var(--matrix-phone-accent) 82%, white);
+    cursor: pointer;
+}
+
+.eve-matrix-phone-nav button {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+}
+
+.eve-matrix-phone button:disabled {
+    opacity: 0.22;
+    cursor: default;
+}
+
+.eve-matrix-phone-search {
+    padding: 6px 8px 4px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    gap: 5px;
+}
+
+.eve-matrix-phone-search input {
+    min-width: 0;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid rgba(80, 255, 120, 0.24);
+    border-radius: 7px;
+    outline: none;
+    background: rgba(0, 0, 0, 0.62);
+    color: #d9ffe2;
+    font-size: 10px;
+}
+
+.eve-matrix-phone-search input:focus {
+    border-color: var(--matrix-phone-accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--matrix-phone-accent) 18%, transparent);
+}
+
+.eve-matrix-phone-content {
+    min-height: 0;
+    overflow: auto;
+    padding: 7px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--matrix-phone-accent) rgba(0, 0, 0, 0.3);
+}
+
+.eve-matrix-phone-hero {
+    min-height: 88px;
+    margin-bottom: 9px;
+    padding: 13px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid rgba(80, 255, 120, 0.2);
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(0, 255, 70, 0.12), rgba(0, 0, 0, 0.22));
+}
+
+.eve-matrix-phone-hero span {
+    color: var(--matrix-phone-accent);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+}
+
+.eve-matrix-phone-hero strong {
+    margin-top: 6px;
+    color: #eefff1;
+    font-size: 17px;
+}
+
+.eve-matrix-phone-hero small {
+    margin-top: 4px;
+    color: rgba(190, 255, 204, 0.58);
+    font-size: 9px;
+}
+
+.eve-matrix-phone-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.eve-matrix-phone-grid--home {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.eve-matrix-phone-app {
+    min-width: 0;
+    min-height: 84px;
+    margin: 0;
+    padding: 7px 5px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(80, 255, 120, 0.18);
+    border-radius: 10px;
+    background: rgba(0, 24, 7, 0.72);
+    color: #ddffe5;
+    cursor: pointer;
+}
+
+.eve-matrix-phone-app:hover,
+.eve-matrix-phone-app:focus-visible {
+    border-color: var(--matrix-phone-accent);
+    background: rgba(0, 55, 15, 0.82);
+    outline: none;
+}
+
+.eve-matrix-phone-app img,
+.eve-matrix-phone-app-icon {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    border: 1px solid color-mix(in srgb, var(--matrix-phone-accent) 45%, transparent);
+    border-radius: 10px;
+}
+
+.eve-matrix-phone-app img {
+    object-fit: cover;
+    background: #001604;
+}
+
+.eve-matrix-phone-app-icon {
+    display: grid;
+    place-items: center;
+    background: linear-gradient(145deg, rgba(0, 255, 70, 0.2), rgba(0, 20, 5, 0.8));
+    color: color-mix(in srgb, var(--matrix-phone-accent) 82%, white);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.eve-matrix-phone-app strong,
+.eve-matrix-phone-app small {
+    width: 100%;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eve-matrix-phone-app strong {
+    font-size: 9px;
+}
+
+.eve-matrix-phone-app small {
+    color: rgba(190, 255, 204, 0.48);
+    font-size: 7px;
+}
+
+.eve-matrix-phone-grid--covers .eve-matrix-phone-app {
+    min-height: 112px;
+}
+
+.eve-matrix-phone-grid--covers .eve-matrix-phone-app img {
+    width: 58px;
+    height: 74px;
+    border-radius: 6px;
+}
+
+.eve-matrix-phone-slideshow-launch {
+    width: 100%;
+    min-height: 32px;
+    margin: 0 0 8px;
+    border: 1px solid var(--matrix-phone-accent);
+    border-radius: 8px;
+    background: rgba(0, 50, 14, 0.78);
+    color: #dfffe6;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+}
+
+.eve-matrix-phone-detail,
+.eve-matrix-phone-slideshow {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.eve-matrix-phone-detail > img {
+    width: min(180px, 75%);
+    max-height: 280px;
+    border: 1px solid var(--matrix-phone-accent);
+    border-radius: 10px;
+    object-fit: contain;
+}
+
+.eve-matrix-phone-detail strong {
+    font-size: 14px;
+}
+
+.eve-matrix-phone-detail span,
+.eve-matrix-phone-detail small {
+    color: rgba(200, 255, 211, 0.62);
+    font-size: 9px;
+}
+
+.eve-matrix-phone-detail a {
+    padding: 7px 12px;
+    border: 1px solid var(--matrix-phone-accent);
+    border-radius: 8px;
+    color: var(--matrix-phone-accent);
+    font-size: 10px;
+    text-decoration: none;
+}
+
+.eve-matrix-phone-slideshow {
+    justify-content: center;
+}
+
+.eve-matrix-phone-slideshow > img {
+    width: 94%;
+    height: 330px;
+    border: 1px solid var(--matrix-phone-accent);
+    border-radius: 12px;
+    object-fit: contain;
+    background: #000;
+    box-shadow: 0 0 22px color-mix(in srgb, var(--matrix-phone-accent) 18%, transparent);
+}
+
+.eve-matrix-phone-slideshow strong,
+.eve-matrix-phone-slideshow small {
+    display: block;
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eve-matrix-phone-slideshow small {
+    margin-top: 3px;
+    color: rgba(190, 255, 204, 0.55);
+    font-size: 9px;
+}
+
+.eve-matrix-phone-slideshow nav {
+    display: grid;
+    grid-template-columns: 44px 76px 44px;
+    gap: 8px;
+}
+
+.eve-matrix-phone-slideshow nav button {
+    min-height: 32px;
+}
+
+.eve-matrix-phone-loading,
+.eve-matrix-phone-empty {
+    grid-column: 1 / -1;
+    padding: 32px 10px;
+    color: rgba(180, 255, 197, 0.55);
+    font-size: 10px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.eve-matrix-phone-footer {
+    padding: 4px 9px;
+    display: grid;
+    grid-template-columns: 55px 1fr 55px;
+    align-items: center;
+    gap: 7px;
+    border-top: 1px solid rgba(80, 255, 120, 0.16);
+}
+
+.eve-matrix-phone-footer button {
+    height: 24px;
+    font-size: 8px;
+}
+
+.eve-matrix-phone-footer span {
+    color: rgba(190, 255, 204, 0.55);
+    font-size: 8px;
+    text-align: center;
+}
+
+.eve-matrix-phone.is-slideshow .eve-matrix-phone-search,
+.eve-matrix-phone.is-slideshow .eve-matrix-phone-footer {
+    visibility: hidden;
+}
+
+@media (max-width: 520px) {
+    .eve-matrix-phone {
+        width: min(330px, calc(100vw - 16px));
+        height: min(610px, calc(100vh - 24px));
+    }
+}

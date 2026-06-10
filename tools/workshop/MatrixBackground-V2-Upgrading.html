@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Matrix Code Rain v2.0</title>
+    <link rel="stylesheet" href="matrix-datapack-phone.css?v=0.1.0">
     <style>
         body {
             margin: 0;
@@ -977,6 +978,11 @@
                     <input type="checkbox" id="slideshowCheckbox" onchange="toggleSlideshow(this.checked)">Slideshow
                     Widget
                 </label>
+                <label>
+                    <input type="checkbox" id="datapackPhoneCheckbox"
+                        onchange="window.EveMatrixDatapackPhone?.toggle(this.checked)">EveOS Datapack Phone
+                </label>
+                <div class="matrix-phone-setting-copy">Browse the live EveOS datapack, cards, bookmarks, and covers.</div>
             </div>
         </div>
 
@@ -2161,6 +2167,7 @@
             document.querySelectorAll('.sl-thumb').forEach(t => t.style.borderColor = color);
             document.querySelectorAll('.sl-status').forEach(s => s.style.color = color);
             document.querySelectorAll('.sl-opacity-ctrl label').forEach(l => l.style.color = color);
+            window.EveMatrixDatapackPhone?.syncColor?.(color);
         }
 
         // Helper: hex color to "r, g, b" string
@@ -2566,6 +2573,7 @@
             document.getElementById('lineVariationSlider').value = lineVariation;
             document.getElementById('lineVariationValue').textContent = lineVariation + '%';
 
+            window.EveMatrixDatapackPhone?.toggle(false);
             initializeColumns();
         }
 
@@ -2706,6 +2714,7 @@
                     x: bouncyPhoneWidget.style.left,
                     y: bouncyPhoneWidget.style.top
                 },
+                datapackPhone: window.EveMatrixDatapackPhone?.exportSettings?.() || null,
 
                 // Effect colors and properties
                 gradientColors: gradientColors,
@@ -2827,6 +2836,9 @@
                 if (settings.bouncyDotsPhonePosition) {
                     bouncyPhoneWidget.style.left = settings.bouncyDotsPhonePosition.x || '20px';
                     bouncyPhoneWidget.style.top = settings.bouncyDotsPhonePosition.y || '20px';
+                }
+                if (settings.datapackPhone && window.EveMatrixDatapackPhone?.applySettings) {
+                    window.EveMatrixDatapackPhone.applySettings(settings.datapackPhone);
                 }
 
                 // Apply effect colors and properties
@@ -3361,6 +3373,9 @@
             }
         }
     </script>
+    <script src="matrix-datapack-phone.bridge.js?v=0.1.0"></script>
+    <script src="matrix-datapack-phone.render.js?v=0.1.0"></script>
+    <script src="matrix-datapack-phone.js?v=0.1.0"></script>
 </body>
 
 </html>

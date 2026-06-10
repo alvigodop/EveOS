@@ -1,0 +1,360 @@
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const http = require('http');
+const net = require('net');
+const { spawn } = require('child_process');
+const { launchChromiumOrConnect } = require('./playwright-browser');
+
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const COVER_A = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="120"%3E%3Crect width="80" height="120" fill="%2300aa44"/%3E%3C/svg%3E';
+const COVER_B = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="120"%3E%3Crect width="80" height="120" fill="%23007733"/%3E%3C/svg%3E';
+const COVER_C = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="120"%3E%3Crect width="80" height="120" fill="%23004422"/%3E%3C/svg%3E';
+
+async function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.unref();
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const { port } = server.address();
+            server.close((error) => error ? reject(error) : resolve(port));
+        });
+    });
+}
+
+async function waitForStatus(url, timeoutMs = 30000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        const ok = await new Promise((resolve) => {
+            const request = http.get(url, (response) => {
+                response.resume();
+                resolve(response.statusCode === 200);
+            });
+            request.on('error', () => resolve(false));
+            request.setTimeout(1000, () => {
+                request.destroy();
+                resolve(false);
+            });
+        });
+        if (ok) return;
+        await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    throw new Error(`Timed out waiting for ${url}`);
+}
+
+async function seedDatapack(page, resetPrefs = true) {
+    await page.evaluate(({ coverA, coverB, coverC, shouldResetPrefs }) => {
+        if (shouldResetPrefs) localStorage.removeItem('eveMatrixDatapackPhoneV1');
+        const nextConfig = {
+            ...window.eveState.config,
+            activeWorkspace: 'alpha',
+            workspaces: [
+                {
+                    id: 'alpha',
+                    name: 'Alpha Tab',
+                    icon: 'A',
+                    subTabs: [{ id: 'alpha-child', name: 'Alpha Child', icon: 'a', subTabs: [] }]
+                },
+                { id: 'beta', name: 'Beta Tab', icon: 'B', subTabs: [] }
+            ]
+        };
+        window.eveState.config = nextConfig;
+        window.config = nextConfig;
+        const nextLinks = [
+            {
+                id: 'cover-main',
+                title: 'Alpha Hero',
+                url: 'https://example.test/alpha',
+                workspace: 'alpha',
+                category: 'Reading',
+                folderId: 'favorites',
+                coverImage: coverA,
+                tags: ['Fantasy', 'Hero']
+            },
+            {
+                id: 'cover-extra',
+                title: 'Beta Chronicle',
+                url: 'https://example.test/beta',
+                workspace: 'alpha',
+                category: 'Reading',
+                coverImage: coverB,
+                coverImages: [coverC],
+                fixedCoverImage: coverC,
+                tags: ['Fantasy']
+            },
+            {
+                id: 'plain',
+                title: 'Plain Bookmark',
+                url: 'https://example.test/plain',
+                workspace: 'alpha',
+                category: 'Watch'
+            },
+            {
+                id: 'library-cover',
+                title: 'Library Cover',
+                url: 'https://example.test/library',
+                workspace: 'beta',
+                category: 'Novels',
+                tags: ['Archive']
+            }
+        ];
+        window.setLiveLinks(nextLinks);
+        window.eveState.bookmarkFolders = {
+            'alpha::Reading': {
+                nodes: [{ id: 'favorites', name: 'Favorites', parentId: '' }]
+            }
+        };
+        window.bookmarkFolders = window.eveState.bookmarkFolders;
+        window.EveLibrary.State.setAllLibraries({
+            'beta::Novels': {
+                dataType: 'novels',
+                entries: [{
+                    id: 'entry-library',
+                    title: 'Library Cover',
+                    image: coverB,
+                    status: 'Completed',
+                    tags: ['Archive']
+                }]
+            },
+            'alpha::Reading': {
+                dataType: 'graphicNovels',
+                entries: [{
+                    id: 'entry-alpha',
+                    title: 'Alpha Hero',
+                    status: 'Reading',
+                    tags: ['Fantasy']
+                }]
+            }
+        });
+        window.EveLibrary.ConnectionsAPI.setAll([
+            {
+                id: 'connection-alpha',
+                linkId: 'cover-main',
+                workspace: 'alpha',
+                categoryName: 'Reading',
+                libraryEntryId: 'entry-alpha'
+            },
+            {
+                id: 'connection-library',
+                linkId: 'library-cover',
+                workspace: 'beta',
+                categoryName: 'Novels',
+                libraryEntryId: 'entry-library'
+            }
+        ]);
+        window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+            detail: { source: 'matrix-datapack-phone-smoke' }
+        }));
+    }, {
+        coverA: COVER_A,
+        coverB: COVER_B,
+        coverC: COVER_C,
+        shouldResetPrefs: resetPrefs
+    });
+}
+
+async function seedLargeDatapack(page, count = 10000) {
+    await page.evaluate(({ coverA, linkCount }) => {
+        const workspaces = Array.from({ length: 20 }, (_, index) => ({
+            id: `scale-${index}`,
+            name: `Scale Tab ${index + 1}`,
+            icon: 'S',
+            subTabs: []
+        }));
+        const links = Array.from({ length: linkCount }, (_, index) => ({
+            id: `scale-link-${index}`,
+            title: `Scale Bookmark ${index}`,
+            url: `https://scale-${index % 40}.example.test/item/${index}`,
+            workspace: `scale-${index % workspaces.length}`,
+            category: `Card ${index % 100}`,
+            coverImage: index % 3 === 0 ? coverA : '',
+            tags: [`Tag ${index % 25}`]
+        }));
+        const nextConfig = {
+            ...window.eveState.config,
+            activeWorkspace: workspaces[0].id,
+            workspaces
+        };
+        window.eveState.config = nextConfig;
+        window.config = nextConfig;
+        window.setLiveLinks(links);
+        window.eveState.bookmarkFolders = {};
+        window.bookmarkFolders = {};
+        window.EveLibrary.State.setAllLibraries({});
+        window.EveLibrary.ConnectionsAPI.setAll([]);
+    }, { coverA: COVER_A, linkCount: count });
+}
+
+(async () => {
+    const port = await getFreePort();
+    const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-matrix-phone-store-'));
+    const server = spawn('python', [
+        'python-server.py',
+        String(port),
+        '--no-browser',
+        '--modular-root',
+        modularRoot
+    ], {
+        cwd: REPO_ROOT,
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let serverOutput = '';
+    server.stdout.on('data', (chunk) => { serverOutput += String(chunk); });
+    server.stderr.on('data', (chunk) => { serverOutput += String(chunk); });
+    let browser = null;
+    let context = null;
+
+    try {
+        await waitForStatus(`http://127.0.0.1:${port}/api/status`);
+        ({ browser } = await launchChromiumOrConnect({ headless: true }));
+        context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
+        const page = await context.newPage();
+        await page.goto(`http://127.0.0.1:${port}/EveOS.html`, {
+            waitUntil: 'load',
+            timeout: 180000
+        });
+        await page.locator('.topbar-matrix-btn').waitFor({ state: 'visible', timeout: 180000 });
+        await page.waitForFunction(() => (
+            !!window.EveLibrary?.State?.setAllLibraries
+            && !!window.EveLibrary?.ConnectionsAPI?.setAll
+            && window.__eveCoreDataLoaded === true
+            && typeof window.setLiveLinks === 'function'
+        ), null, { timeout: 180000 });
+        await page.locator('.topbar-matrix-btn').click();
+
+        const frame = page.frameLocator('#matrix-workshop-frame');
+        await frame.locator('#datapackPhoneCheckbox').waitFor({ state: 'attached', timeout: 30000 });
+        await seedDatapack(page);
+        await frame.locator('#toggleToolbar').click();
+        await frame.locator('#widgets-section .section-header').click();
+        await frame.locator('#datapackPhoneCheckbox').check();
+        await frame.locator('#eveDatapackPhoneWidget').waitFor({ state: 'visible', timeout: 30000 });
+        await frame.locator('[data-phone-connection]').filter({
+            hasText: 'EVE LINK'
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        await frame.getByText('4 bookmarks', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 30000 });
+
+        const homeState = await frame.locator('#eveDatapackPhoneWidget').evaluate((widget) => ({
+            connected: widget.querySelector('[data-phone-connection]')?.textContent,
+            copy: widget.textContent,
+            appCount: widget.querySelectorAll('.eve-matrix-phone-grid--home .eve-matrix-phone-app').length
+        }));
+        if (
+            homeState.connected !== 'EVE LINK'
+            || !homeState.copy.includes('4 bookmarks')
+            || !homeState.copy.includes('3 tabs / 3 cards')
+            || homeState.appCount !== 2
+        ) {
+            throw new Error(`Phone home mismatch: ${JSON.stringify(homeState)}`);
+        }
+
+        await frame.getByText('Datapack Matrix', { exact: true }).click();
+        await frame.getByText('Alpha Tab', { exact: true }).click();
+        await frame.getByText('Reading', { exact: true }).click();
+        const matrixBookmarks = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
+        if (!matrixBookmarks.includes('Alpha Hero') || !matrixBookmarks.includes('Beta Chronicle')) {
+            throw new Error(`Datapack hierarchy mismatch: ${JSON.stringify(matrixBookmarks)}`);
+        }
+
+        await frame.locator('[data-phone-home]').click();
+        await frame.getByText('Cover Atlas', { exact: true }).click();
+        const coverScopes = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
+        for (const expected of ['All Covers', 'Additional', 'By Tab', 'By Card', 'By Folder', 'By Letter', 'By Status', 'By Tag']) {
+            if (!coverScopes.includes(expected)) {
+                throw new Error(`Missing cover scope ${expected}: ${JSON.stringify(coverScopes)}`);
+            }
+        }
+
+        await frame.getByText('By Folder', { exact: true }).click();
+        await frame.getByText('Favorites / Reading', { exact: true }).click();
+        await frame.getByText('Alpha Hero', { exact: true }).waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
+        await frame.locator('[data-phone-home]').click();
+        await frame.getByText('Cover Atlas', { exact: true }).click();
+        await frame.getByText('All Covers', { exact: true }).click();
+        const coveredBookmarks = await frame.locator('.eve-matrix-phone-grid--covers .eve-matrix-phone-app strong').allTextContents();
+        if (
+            coveredBookmarks.length !== 3
+            || !coveredBookmarks.includes('Alpha Hero')
+            || !coveredBookmarks.includes('Beta Chronicle')
+            || !coveredBookmarks.includes('Library Cover')
+        ) {
+            throw new Error(`Cover list mismatch: ${JSON.stringify(coveredBookmarks)}`);
+        }
+
+        await frame.getByText('PLAY THIS SCOPE', { exact: true }).click();
+        const slideshowState = await frame.locator('.eve-matrix-phone-slideshow').evaluate((node) => ({
+            image: node.querySelector('img')?.getAttribute('src') || '',
+            title: node.querySelector('strong')?.textContent || '',
+            controls: node.querySelectorAll('nav button').length
+        }));
+        if (!slideshowState.image.startsWith('data:image/') || !slideshowState.title || slideshowState.controls !== 3) {
+            throw new Error(`Cover slideshow mismatch: ${JSON.stringify(slideshowState)}`);
+        }
+
+        await seedLargeDatapack(page);
+        await frame.locator('[data-phone-home]').click();
+        const largePackStartedAt = Date.now();
+        await frame.locator('[data-phone-refresh]').click();
+        await frame.getByText('10000 bookmarks', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 15000 });
+        const largePackRefreshMs = Date.now() - largePackStartedAt;
+
+        await seedDatapack(page, false);
+        await frame.locator('[data-phone-refresh]').click();
+        await frame.getByText('4 bookmarks', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 30000 });
+
+        const popupPromise = context.waitForEvent('page');
+        await page.locator('[data-matrix-detach]').click();
+        const popup = await popupPromise;
+        await popup.waitForLoadState('load', { timeout: 60000 });
+        await popup.locator('#eveDatapackPhoneWidget').waitFor({ state: 'visible', timeout: 30000 });
+        await popup.locator('[data-phone-connection]').filter({
+            hasText: 'EVE LINK'
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        await popup.getByText('4 bookmarks', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        const detachedState = await popup.locator('#eveDatapackPhoneWidget').evaluate((widget) => ({
+            connected: widget.querySelector('[data-phone-connection]')?.textContent,
+            copy: widget.textContent
+        }));
+        if (detachedState.connected !== 'EVE LINK' || !detachedState.copy.includes('4 bookmarks')) {
+            throw new Error(`Detached phone bridge mismatch: ${JSON.stringify(detachedState)}`);
+        }
+        await popup.close();
+
+        console.log('MATRIX_DATAPACK_PHONE_BROWSER_SMOKE_OK', JSON.stringify({
+            homeState,
+            matrixBookmarks,
+            coverScopes,
+            coveredBookmarks,
+            slideshowState,
+            detachedState,
+            largePackRefreshMs
+        }));
+    } catch (error) {
+        console.error(error && error.stack ? error.stack : error);
+        console.error(serverOutput.slice(-12000));
+        process.exitCode = 1;
+    } finally {
+        if (context) {
+            try { await context.close(); } catch (error) {}
+        }
+        if (browser) {
+            try { await browser.close(); } catch (error) {}
+        }
+        server.kill('SIGTERM');
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (!server.killed) server.kill('SIGKILL');
+        fs.rmSync(modularRoot, { recursive: true, force: true });
+    }
+})();
