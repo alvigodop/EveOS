@@ -151,14 +151,18 @@
         const maxUpdate = Math.max(24, Number(opts.maxUpdate || 220) || 220);
         const root = opts.root && typeof opts.root.querySelectorAll === 'function' ? opts.root : document;
         const forceFetch = !!opts.forceFetch || !!opts.force;
+        const fallbackOnly = !!opts.fallbackOnly;
         if (delayMs) await delay(delayMs);
         await loadDiskCache();
 
         let updated = 0;
         let queued = 0;
         const seenMisses = new Set();
-        const images = Array.from(root.querySelectorAll('img[data-favicon-domain]'));
-        if (root.matches && root.matches('img[data-favicon-domain]')) images.unshift(root);
+        const selector = fallbackOnly
+            ? 'img[data-favicon-domain][data-fallback-applied="1"]'
+            : 'img[data-favicon-domain]';
+        const images = Array.from(root.querySelectorAll(selector));
+        if (root.matches && root.matches(selector)) images.unshift(root);
         const total = images.length;
         images.forEach(function (image) {
             const key = normalizeDomain(image.dataset?.faviconDomain || '');
@@ -291,15 +295,19 @@
         image.dataset.fallbackApplied = '1';
         image.onerror = null;
         if (image.src !== fallbackSrc) image.src = fallbackSrc;
+        // Stored/manual icon URLs can fail before the domain favicon has been
+        // hydrated. Recover in place instead of waiting for a tab switch or
+        // dashboard rerender to request the cached/provider icon.
+        if (key && !isReservedTestDomain(key) && !isFailureCoolingDown(key)) {
+            void fetchAndCache(key, size).catch(function () {});
+        }
         return true;
     }
 
-    // Boot: start loading disk cache early
-    loadDiskCache();
-
-
-    // Boot: start loading disk cache early
-    loadDiskCache();
+    // Boot: hydrate disk cache, then recover icons that failed before this
+    // deferred module was available. Restrict the pass to marked fallbacks so
+    // large dashboards do not pay for a full image scan.
+    const diskReady = loadDiskCache();
 
     window.EveFaviconCache = { get, getSrc, fetchAndCache, warmup, refreshRendered, clearAll, getStats, canFetchRemote: canFetchRemoteFavicons };
     window.EveFaviconUtils = window.EveFaviconUtils || {};
@@ -315,4 +323,11 @@
         isReservedIconUrl,
         handleImageError
     });
+    void diskReady.then(function () {
+        return refreshRendered({
+            fallbackOnly: true,
+            maxFetch: 32,
+            maxUpdate: core.MAX_DOM_ICON_UPDATES_PER_FLUSH
+        });
+    }).catch(function () {});
 })();
