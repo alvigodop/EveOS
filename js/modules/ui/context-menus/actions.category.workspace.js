@@ -193,7 +193,10 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
 
         if (typeof closeAllMenus === 'function') closeAllMenus();
         if (nextWorkspaceId && typeof switchWorkspace === 'function') {
-            switchWorkspace(nextWorkspaceId, { forceRender: true });
+            switchWorkspace(nextWorkspaceId, {
+                forceRender: true,
+                forceSidebarRender: true
+            });
         } else {
             saveConfig({
                 immediate: true,

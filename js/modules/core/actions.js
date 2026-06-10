@@ -22,6 +22,7 @@ function switchWorkspace(id, options = {}) {
     const currentWorkspaceId = String(config.activeWorkspace || '').trim() || String(config.workspaces?.[0]?.id || 'main');
     const hadFocusCategory = typeof focusCategory !== 'undefined' && !!focusCategory;
     const forceRender = !!options.forceRender;
+    const forceSidebarRender = !!options.forceSidebarRender;
     const groupsApi = window.EveSidebarGroups || null;
     const workspaceHelpers = window.EveWorkspaceHelpers || null;
     const nextWorkspace = workspaceHelpers && typeof workspaceHelpers.findById === 'function'
@@ -116,7 +117,7 @@ function switchWorkspace(id, options = {}) {
     }
 
     saveConfig();
-    if (changed) {
+    if (changed || forceSidebarRender) {
         if (typeof renderSidebar === 'function') renderSidebar();
     } else if (typeof window.EveSidebarRuntime?.syncSidebarViewState === 'function') {
         window.EveSidebarRuntime.syncSidebarViewState();
