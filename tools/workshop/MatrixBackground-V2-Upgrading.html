@@ -1,0 +1,3366 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrix Code Rain v2.0</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            color: #0f0;
+            background-color: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            padding-top: 70px;
+            height: 100vh;
+            max-width: 400px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            transition: transform 0.3s ease-in-out;
+            scrollbar-width: thin;
+            scrollbar-color: #0f0 rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+
+        #toolbar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #toolbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        #toolbar::-webkit-scrollbar-thumb {
+            background-color: #0f0;
+            border-radius: 4px;
+        }
+
+        #toolbar.hidden {
+            transform: translateX(-100%);
+        }
+
+        button,
+        select {
+            background-color: #0f0;
+            color: #000;
+            border: none;
+            padding: 5px 10px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        #toggleToolbar {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            width: 40px;
+            height: 40px;
+            background-color: #0f0;
+            border: none;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3),
+                inset 0 0 15px rgba(255, 255, 255, 0.2);
+            text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        #toggleToolbar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(120deg,
+                    transparent,
+                    rgba(255, 255, 255, 0.2),
+                    transparent);
+            transition: 0.5s;
+        }
+
+        #toggleToolbar:hover::before {
+            left: 100%;
+        }
+
+        #toggleToolbar:hover {
+            background-color: #00ff00;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5),
+                inset 0 0 15px rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        #toggleToolbar:active {
+            transform: scale(0.95);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4),
+                inset 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .section {
+            margin-bottom: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+            padding: 10px;
+        }
+
+        .section-header {
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 255, 0, 0.1);
+            border-radius: 4px;
+            margin: -10px -10px 10px -10px;
+        }
+
+        .section-header:hover {
+            background: rgba(0, 255, 0, 0.15);
+        }
+
+        .section-content {
+            max-height: 0;
+            overflow: visible;
+            transition: max-height 0.3s ease-out;
+            opacity: 0;
+            display: none;
+            position: relative;
+        }
+
+        .section-content.visible {
+            max-height: none;
+            opacity: 1;
+            transition: max-height 0.5s ease-in, opacity 0.3s ease-in;
+            display: block;
+        }
+
+        .section h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: normal;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .section-arrow {
+            transition: transform 0.3s ease;
+        }
+
+        .section-content:not(.visible)+.section-header .section-arrow {
+            transform: rotate(-90deg);
+        }
+
+        /* Add padding to the top to account for the toggle button */
+        .section:first-child {
+            margin-top: 50px;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+        }
+
+        #resetButton {
+            background-color: #ff4500;
+            color: white;
+            font-weight: bold;
+            margin-top: 15px;
+        }
+
+        .character-density-container {
+            margin-top: 10px;
+            margin-left: 20px;
+        }
+
+        .character-selector-container {
+            position: relative;
+            display: inline-block;
+            z-index: 1001;
+        }
+
+        .character-selector {
+            position: absolute;
+            left: 0;
+            background: rgba(0, 0, 0, 0.95);
+            border: 1px solid #0f0;
+            padding: 8px;
+            width: 180px;
+            z-index: 1001;
+            backdrop-filter: blur(3px);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+            display: none;
+        }
+
+        .character-selector.visible {
+            display: block;
+        }
+
+        #charSelectorBtn {
+            width: 180px;
+            margin-bottom: 5px;
+            text-align: left;
+            position: relative;
+            padding: 4px 24px 4px 8px;
+            font-size: 12px;
+        }
+
+        #charSelectorBtn:after {
+            content: '▼';
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        #charSelectorBtn.active:after {
+            content: '▲';
+        }
+
+        .character-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 2px;
+            margin-bottom: 6px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.95);
+        }
+
+        .char-box {
+            border: 1px solid #0f0;
+            text-align: center;
+            cursor: pointer;
+            color: #0f0;
+            background: rgba(0, 0, 0, 0.5);
+            transition: all 0.2s ease;
+            font-size: 12px;
+            width: 20px;
+            height: 20px;
+            line-height: 18px;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .char-box:hover {
+            background: rgba(0, 255, 0, 0.1);
+            transform: scale(1.1);
+        }
+
+        .char-box.selected {
+            background: rgba(0, 255, 0, 0.3);
+            color: #fff;
+            text-shadow: 0 0 5px #0f0;
+        }
+
+        .selector-controls {
+            display: flex;
+            gap: 4px;
+            margin-top: 6px;
+            width: 100%;
+            border-top: 1px solid rgba(0, 255, 0, 0.2);
+            padding-top: 6px;
+        }
+
+        .selector-controls button {
+            flex: 1;
+            padding: 4px 8px;
+            font-size: 11px;
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #0f0;
+            color: #0f0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            min-width: 60px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .selector-controls button:hover {
+            background: rgba(0, 255, 0, 0.3);
+        }
+
+        #gridCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 1;
+            display: none;
+        }
+
+        #interactiveParticleCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: auto;
+            z-index: 2;
+            /* Between matrix/grid and UI */
+            display: none;
+        }
+
+        #matrix {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        /* Add transition for the toggle button position */
+        #toggleToolbar {
+            transition: all 0.3s ease-in-out;
+        }
+
+        /* Move toggle button when toolbar is visible */
+        #toolbar:not(.hidden)+#toggleToolbar {
+            left: calc(100% - 60px);
+        }
+
+        /* New styles for sequence controls */
+        .sequence-controls {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 5px;
+        }
+
+        .sequence-input {
+            width: 100%;
+            margin-top: 5px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 5px;
+        }
+
+        .trail-controls {
+            margin-top: 10px;
+        }
+
+        .ripple {
+            animation: rippleEffect 0.5s ease-out;
+        }
+
+        @keyframes rippleEffect {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .color-cycle {
+            transition: color 0.5s ease;
+        }
+
+        /* --- Bouncy Dots Canvas Overlay (Full-Screen Mode) --- */
+        #bouncyDotsCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 2;
+            display: none;
+        }
+
+        /* --- Bouncy Dots Phone Widget Mode --- */
+        #bouncyPhoneWidget {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .phone-drag-bar {
+            width: 100%;
+            height: 22px;
+            background: rgba(0, 255, 0, 0.15);
+            border: 1px solid #0f0;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .phone-drag-bar:active {
+            cursor: grabbing;
+            background: rgba(0, 255, 0, 0.3);
+        }
+
+        .phone-drag-bar .grip {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #0f0;
+            opacity: 0.6;
+        }
+
+        .phone-frame {
+            width: 280px;
+            height: 520px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #0f0;
+            border-radius: 0 0 30px 30px;
+            padding: 8px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+            position: relative;
+        }
+
+        .phone-screen {
+            background: rgba(0, 10, 0, 0.95);
+            height: 100%;
+            border-radius: 0 0 24px 24px;
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .phone-screen .phone-dot {
+            width: 4px;
+            height: 4px;
+            background: #0f0;
+            border-radius: 50%;
+            position: absolute;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            pointer-events: none;
+            box-shadow: 0 0 5px #0f0;
+        }
+
+        /* --- Slideshow (Non-Invasive) --- */
+        #slideshowBg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 3;
+            display: none;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.2;
+            pointer-events: none;
+            transition: opacity 0.5s ease, background-image 0.5s ease;
+        }
+
+        #slideshowBar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            display: none;
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 1px solid #0f0;
+            backdrop-filter: blur(8px);
+            transition: transform 0.3s ease;
+        }
+
+        #slideshowBar.collapsed {
+            transform: translateY(calc(100% - 30px));
+        }
+
+        #slideshowBar.hidden {
+            transform: translateY(calc(100% - 2px));
+        }
+
+        #slideshowBar.hidden::before {
+            content: '';
+            position: absolute;
+            top: -30px;
+            left: 0;
+            right: 0;
+            height: 30px;
+        }
+
+        .slideshow-toggle-tab {
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #0f0;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            color: #0f0;
+            font-size: 11px;
+            padding: 3px 16px;
+            cursor: pointer;
+            white-space: nowrap;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        #slideshowBar.hidden .slideshow-toggle-tab {
+            opacity: 0;
+        }
+
+        #slideshowBar.hidden:hover .slideshow-toggle-tab {
+            opacity: 1;
+        }
+
+        .slideshow-toggle-tab:hover {
+            background: rgba(0, 255, 0, 0.15);
+        }
+
+        .slideshow-bar-inner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            overflow-x: auto;
+        }
+
+        .slideshow-bar-inner .sl-btn {
+            background: rgba(0, 255, 0, 0.1);
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 4px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+
+        .slideshow-bar-inner .sl-btn:hover {
+            background: rgba(0, 255, 0, 0.3);
+        }
+
+        #slideshowFileInput {
+            display: none;
+        }
+
+        .sl-thumbs {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            overflow-x: auto;
+            flex: 1;
+            min-width: 0;
+            padding-bottom: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: #0f0 rgba(0, 0, 0, 0.3);
+        }
+
+        .sl-thumbs::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .sl-thumbs::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+        }
+
+        .sl-thumbs::-webkit-scrollbar-thumb {
+            background: #0f0;
+            border-radius: 3px;
+        }
+
+        .sl-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 3px;
+            border: 1px solid #0f0;
+            opacity: 0.4;
+            object-fit: cover;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .sl-thumb:hover {
+            opacity: 0.7;
+        }
+
+        .sl-thumb.active {
+            opacity: 1;
+            box-shadow: 0 0 8px #0f0;
+            border-width: 2px;
+        }
+
+        .sl-status {
+            color: #0f0;
+            font-size: 11px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+
+        .sl-opacity-ctrl {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .sl-opacity-ctrl label {
+            color: #0f0;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .sl-opacity-ctrl input[type="range"] {
+            width: 60px;
+            accent-color: #0f0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="fps-counter" id="fpsCounter">FPS: 0</div>
+    <canvas id="matrix"></canvas>
+    <canvas id="gridCanvas"></canvas>
+    <canvas id="interactiveParticleCanvas"></canvas>
+
+    <!-- Slideshow background image (overlay on top of rain, pointer-events disabled) -->
+    <div id="slideshowBg"></div>
+
+    <!-- Bouncy Dots Canvas Overlay (Full-Screen Mode) -->
+    <canvas id="bouncyDotsCanvas"></canvas>
+
+    <!-- Bouncy Dots Phone Widget (Phone Mode) -->
+    <div id="bouncyPhoneWidget">
+        <div class="phone-drag-bar" id="phoneDragBar">
+            <span class="grip"></span>
+            <span class="grip"></span>
+            <span class="grip"></span>
+            <span class="grip"></span>
+            <span class="grip"></span>
+        </div>
+        <div class="phone-frame" id="bouncyPhoneFrame">
+            <div class="phone-screen" id="bouncy-screen">
+                <div id="dots-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slideshow Bottom Bar -->
+    <div id="slideshowBar" class="collapsed">
+        <div class="slideshow-toggle-tab" onclick="toggleSlideshowBar()">▲ Slideshow</div>
+        <div class="slideshow-bar-inner">
+            <label for="slideshowFileInput" class="sl-btn">+ Upload</label>
+            <input type="file" id="slideshowFileInput" multiple accept="image/*">
+            <button class="sl-btn" id="slPrev">◀</button>
+            <button class="sl-btn" id="slPlayPause">▶</button>
+            <button class="sl-btn" id="slNext">▶▶</button>
+            <button class="sl-btn" id="slShuffle" title="Shuffle">🔀</button>
+            <button class="sl-btn" id="slSlower">−</button>
+            <span class="sl-status" id="slSpeedLabel">3.0s</span>
+            <button class="sl-btn" id="slFaster">+</button>
+            <div class="sl-opacity-ctrl">
+                <label>Opacity</label>
+                <input type="range" id="slOpacity" min="5" max="80" value="20"
+                    oninput="updateSlideshowOpacity(this.value)">
+            </div>
+            <div class="sl-thumbs" id="slThumbs"></div>
+            <span class="sl-status" id="slCounter">0/0</span>
+        </div>
+    </div>
+
+    <button id="toggleToolbar" onclick="toggleToolbar()">☰</button>
+    <div id="toolbar" class="hidden">
+        <div class="section" id="controls-section">
+            <div class="section-header" onclick="toggleSection('controls-section')">
+                <h3>Controls</h3>
+                <span class="section-arrow">▼</span>
+            </div>
+            <div class="section-content">
+                <button onclick="togglePause()">Pause/Resume</button>
+                <button onclick="randomizeColor()">Random Color</button>
+                <input type="color" id="colorPicker" value="#00ff00" onchange="updateColor(this.value)">
+                <label>Speed:
+                    <input type="range" id="speedSlider" min="10" max="200" value="50"
+                        onchange="updateSpeed(this.value)">
+                </label>
+                <label>Fade Speed:
+                    <input type="range" id="fadeSpeedSlider" min="0.01" max="0.2" step="0.01" value="0.05"
+                        onchange="updateFadeSpeed(this.value)">
+                </label>
+                <label>Font Size:
+                    <input type="range" id="fontSizeSlider" min="10" max="50" value="20"
+                        onchange="updateFontSize(this.value)">
+                </label>
+            </div>
+        </div>
+
+        <div class="section" id="character-section">
+            <div class="section-header" onclick="toggleSection('character-section')">
+                <h3>Character Settings</h3>
+                <span class="section-arrow">▼</span>
+            </div>
+            <div class="section-content">
+                <label>Character Set:
+                    <select id="charSetSelect" onchange="updateCharacterSet(this.value)">
+                        <option value="matrix">Matrix (Katakana + Latin)</option>
+                        <option value="binary">Binary (0/1)</option>
+                        <option value="ascii">ASCII</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </label>
+                <div id="customCharSetControls" style="display: none;">
+                    <label>Custom Characters:
+                        <input type="text" id="customCharInput" onchange="updateCustomCharSet(this.value)">
+                    </label>
+                </div>
+                <div class="character-selector-container">
+                    <button id="charSelectorBtn" onclick="toggleCharacterSelector(event)">Show Characters</button>
+                    <div id="characterSelector" class="character-selector">
+                        <div id="characterGrid" class="character-grid"></div>
+                        <div class="selector-controls">
+                            <button onclick="selectAllCharacters()">Select All</button>
+                            <button onclick="deselectAllCharacters()">Deselect All</button>
+                        </div>
+                    </div>
+                </div>
+                <label style="display: flex; align-items: center; margin-top: 10px;">
+                    Character Change Interval:
+                    <div style="margin-left: 10px;">
+                        <input type="number" id="minLineChange" value="1" min="1" style="width: 50px"
+                            onchange="updateLineChangeRange()">
+                        <input type="range" id="lineChangeSlider" value="1" onchange="updateLineChangeRate(this.value)">
+                        <input type="number" id="maxLineChange" value="4" min="1" style="width: 50px"
+                            onchange="updateLineChangeRange()">
+                    </div>
+                </label>
+
+                <!-- Add sequence controls here -->
+                <div class="sequence-section" style="margin-top: 15px; border-top: 1px solid #0f0; padding-top: 15px;">
+                    <label><input type="checkbox" id="sequenceCheckbox" onchange="toggleSequence(this.checked)">Enable
+                        Sequence Mode</label>
+                    <div id="sequenceControls" style="display: none; margin-top: 10px;">
+                        <label>Sequence Mode:
+                            <select id="sequenceModeSelect" onchange="updateSequenceMode(this.value)">
+                                <option value="random">Random</option>
+                                <option value="orderly">Orderly</option>
+                                <option value="sequential">Sequential</option>
+                            </select>
+                        </label>
+                        <div id="sequentialControls" style="display: none; margin-top: 10px;">
+                            <label>Custom Sequence:
+                                <input type="text" id="customSequenceInput" class="sequence-input"
+                                    placeholder="Enter sequence (e.g., ABC123)"
+                                    onchange="updateCustomSequence(this.value)">
+                            </label>
+                        </div>
+                        <div class="trail-controls">
+                            <label>Trail Length:
+                                <input type="range" id="trailLengthSlider" min="1" max="10" value="3"
+                                    onchange="updateTrailLength(this.value)">
+                                <span id="trailLengthValue">3</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="effects-section">
+            <div class="section-header" onclick="toggleSection('effects-section')">
+                <h3>Visual Effects</h3>
+                <span class="section-arrow">▼</span>
+            </div>
+            <div class="section-content">
+                <label><input type="checkbox" id="gradientCheckbox" onchange="toggleGradient(this.checked)">Gradient
+                    Mode</label>
+                <label><input type="checkbox" id="glowCheckbox" onchange="toggleGlow(this.checked)">Character
+                    Glow</label>
+                <label><input type="checkbox" id="colorCycleCheckbox" onchange="toggleColorCycle(this.checked)">Color
+                    Cycling</label>
+                <div id="colorCycleControls" style="display: none; margin-left: 20px;">
+                    <label>Color Cycle Speed (seconds):
+                        <input type="range" id="colorSpeedSlider" min="0.1" max="5" step="0.1" value="2"
+                            onchange="updateColorSpeed(this.value)">
+                        <span id="colorSpeedValue">2.0</span>
+                    </label>
+                </div>
+                <label>
+                    <input type="checkbox" id="gridCheckbox" onchange="toggleGrid(this.checked)">Grid Effect
+                    <div style="margin-left: 20px; display: none;" id="gridControls">
+                        <label>Grid Color:
+                            <input type="color" id="gridColorPicker" value="#00ff00"
+                                onchange="updateGridColor(this.value)">
+                        </label>
+                        <label>Grid Opacity:
+                            <input type="range" id="gridOpacitySlider" min="0.01" max="0.5" step="0.01" value="0.15"
+                                onchange="updateGridOpacity(this.value)">
+                        </label>
+                    </div>
+                </label>
+                <label>
+                    <input type="checkbox" id="particleCheckbox" onchange="toggleParticles(this.checked)">Particle
+                    Effect
+                    <div style="margin-left: 20px; display: none;" id="particleControls">
+                        <label>Particle Color:
+                            <input type="color" id="particleColorPicker" value="#00ff00"
+                                onchange="updateParticleColor(this.value)">
+                        </label>
+                    </div>
+                </label>
+                <label>
+                    <input type="checkbox" id="lightingCheckbox" onchange="toggleLighting(this.checked)">Lighting Effect
+                    <div style="margin-left: 20px; display: none;" id="lightingControls">
+                        <label>Lighting Color:
+                            <input type="color" id="lightingColorPicker" value="#00ff00"
+                                onchange="updateLightingColor(this.value)">
+                        </label>
+                    </div>
+                </label>
+                <label>Theme:
+                    <select id="themeSelect" onchange="updateTheme(this.value)">
+                        <option value="matrix">Matrix Green</option>
+                        <option value="cyberpunk">Cyberpunk</option>
+                        <option value="neon">Neon</option>
+                        <option value="monochrome">Monochrome</option>
+                    </select>
+                </label>
+                <label>Gradient Preset:
+                    <select id="gradientPresetSelect" onchange="updateGradientPreset(this.value)">
+                        <option value="custom">Custom</option>
+                        <option value="cyber">Cyber</option>
+                        <option value="neon">Neon</option>
+                        <option value="matrix2">Matrix 2.0</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <div class="section" id="movement-section">
+            <div class="section-header" onclick="toggleSection('movement-section')">
+                <h3>Movement Controls</h3>
+                <span class="section-arrow">▼</span>
+            </div>
+            <div class="section-content">
+                <label><input type="checkbox" id="movementCheckbox" onchange="toggleMovement(this.checked)">Enable
+                    Movement Controls</label>
+                <div id="movementControls" style="display: none; margin-top: 10px;">
+                    <label>Horizontal Movement:
+                        <input type="range" id="horizontalMovementSlider" min="0" max="10" value="0"
+                            onchange="updateHorizontalMovement(this.value)">
+                        <span id="horizontalMovementValue">0</span>
+                    </label>
+                    <label>Movement Range (pixels):
+                        <input type="number" id="movementRangeInput" min="1" value="15" style="width: 60px"
+                            onchange="updateMovementRange(this.value)">
+                    </label>
+                    <label>Precipitation Mode:
+                        <select id="precipitationSelect" onchange="updatePrecipitationMode(this.value)">
+                            <option value="continuous">Continuous Stream</option>
+                            <option value="individual">Individual Rain Lines</option>
+                            <option value="single">Single Line Per Cycle</option>
+                            <option value="dense">Dense Packed Rain</option>
+                        </select>
+                    </label>
+                    <label>Density Control:
+                        <input type="range" id="densitySlider" min="0" max="10" value="5"
+                            onchange="updateDensity(this.value)">
+                        <span id="densityValue">5</span>
+                    </label>
+                    <div id="precipitationControls" style="margin-left: 20px;">
+                        <label>Spawn Delay (Individual/Single Mode):
+                            <input type="range" id="spawnDelaySlider" min="200" max="1500" value="500"
+                                onchange="updateSpawnDelay(this.value)">
+                            <span id="spawnDelayValue">0.5s</span>
+                        </label>
+                        <label>Line Spacing (Individual Mode):
+                            <input type="range" id="lineSpacingSlider" min="2" max="10" value="4"
+                                onchange="updateLineSpacing(this.value)">
+                            <span id="lineSpacingValue">4</span>
+                        </label>
+                        <div id="denseControls" style="display: none;">
+                            <label>Dense Pack Intensity:
+                                <input type="range" id="densePackSlider" min="1" max="20" value="3"
+                                    onchange="updateDensePack(this.value)">
+                                <span id="densePackValue">3</span>
+                            </label>
+                            <label>Trail Character Count:
+                                <input type="range" id="trailCharSlider" min="1" max="10" value="3"
+                                    onchange="updateTrailChars(this.value)">
+                                <span id="trailCharValue">3</span>
+                            </label>
+                        </div>
+                        <label>Line Variation:
+                            <input type="range" id="lineVariationSlider" min="0" max="100" value="30"
+                                onchange="updateLineVariation(this.value)">
+                            <span id="lineVariationValue">30%</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="waterfall-section">
+            <div class="section-header" onclick="toggleSection('waterfall-section')">
+                <h3>Waterfall Mode</h3>
+                <span class="section-arrow">▼</span>
+            </div>
+            <div class="section-content">
+                <label><input type="checkbox" id="waterfallCheckbox" onchange="toggleWaterfall(this.checked)">Enable
+                    Waterfall Mode</label>
+                <div id="waterfallControls" style="display: none; margin-top: 10px;">
+                    <label>Waterfall Intensity:
+                        <input type="range" id="waterfallIntensitySlider" min="0" max="100" value="50"
+                            onchange="updateWaterfallIntensity(this.value)">
+                        <span id="waterfallIntensityValue">50</span>
+                    </label>
+                    <div style="margin-top: 5px; font-size: 12px; color: #0f0;">
+                        Low: Varied falling speed - High: Uniform falling speed
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="widgets-section">
+            <div class="section-header" onclick="toggleSection('widgets-section')">
+                <h3>Widgets & Extra Features</h3>
+                <span class="section-arrow">▼</span>
+            </div>
+            <div class="section-content">
+                <label>
+                    <input type="checkbox" id="interactiveParticleCheckbox"
+                        onchange="toggleInteractiveParticles(this.checked)">Interactive Particles
+                </label>
+                <label>
+                    <input type="checkbox" id="bouncyDotsCheckbox" onchange="toggleBouncyDots(this.checked)">Bouncy Dots
+                </label>
+                <div id="bouncyDotsOptions" style="display: none; margin-left: 20px; margin-top: 5px;">
+                    <label>Mode:
+                        <select id="bouncyDotsMode" onchange="switchBouncyDotsMode(this.value)">
+                            <option value="fullscreen">Full Screen</option>
+                            <option value="phone">Phone Widget</option>
+                        </select>
+                    </label>
+                </div>
+                <label>
+                    <input type="checkbox" id="slideshowCheckbox" onchange="toggleSlideshow(this.checked)">Slideshow
+                    Widget
+                </label>
+            </div>
+        </div>
+
+        <div class="section" id="system-section">
+            <div class="section-header" onclick="toggleSection('system-section')">
+                <h3>System Controls</h3>
+                <span class="section-arrow">▼</span>
+            </div>
+            <div class="section-content">
+                <button onclick="toggleFullscreen()">Toggle Fullscreen</button>
+                <button onclick="saveSettings()">Save Settings</button>
+                <button onclick="loadSettings()">Load Settings</button>
+                <button id="resetButton" onclick="resetToDefaults()">Reset to Defaults</button>
+            </div>
+        </div>
+    </div>
+
+    <audio id="backgroundSound" loop>
+        <source src="rain.mp3" type="audio/mpeg" />
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        const canvas = document.getElementById('matrix');
+        const ctx = canvas.getContext('2d');
+        const gridCanvas = document.getElementById('gridCanvas');
+        const gridCtx = gridCanvas.getContext('2d');
+        const interactiveParticleCanvas = document.getElementById('interactiveParticleCanvas');
+        const interactiveCtx = interactiveParticleCanvas.getContext('2d');
+        let animationFrameId;
+        let lastFrameTime = Date.now();
+        let fps = 0;
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+
+        canvas.height = window.innerHeight;
+        canvas.width = window.innerWidth;
+        gridCanvas.height = window.innerHeight;
+        gridCanvas.width = window.innerWidth;
+        interactiveParticleCanvas.height = window.innerHeight;
+        interactiveParticleCanvas.width = window.innerWidth;
+
+        let katakana = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヰヱヲン';
+        let latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        let nums = '0123456789';
+
+        let alphabet = katakana + latin + nums;
+
+        let fontSize = 16;
+        let columns = canvas.width / fontSize;
+
+        let rainDrops = [];
+        let rainDropsChars = [];
+        for (let x = 0; x < columns; x++) {
+            rainDrops[x] = 1;
+            rainDropsChars[x] = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+        }
+
+        let color = '#0f0';
+        let speed = 50;
+        let paused = false;
+        let fadeSpeed = 0.05;
+        let lineChangeRate = 1; // Number of lines to pass before changing character
+        let minLineChange = 1;
+        let maxLineChange = 4;
+        let interval;
+
+        let particles = [];
+        const PARTICLE_LIFETIME = 100;
+        let gradientColors = null;
+
+        let selectedChars = new Set(); // Store selected characters
+
+        let gradientMode = false;
+        let glowEnabled = false;
+        let gridEnabled = false;
+        let particlesEnabled = false;
+        let lightingEnabled = false;
+
+        let gridColor = '#00ff00';
+        let gridOpacity = 0.15;
+
+        let particleColor = '#00ff00';
+        let lightingColor = '#00ff00';
+
+        let sequenceEnabled = false;
+        let sequenceMode = 'random';
+        let customSequence = '';
+        let trailLength = 3;
+        let colorCycleSpeed = 2;
+        let colorCycleEnabled = false;
+        let currentSequenceIndex = 0;
+        let lastColorChange = Date.now();
+
+        // Add new variables for movement controls
+        let movementEnabled = false;
+        let horizontalMovement = 0;
+        let precipitationMode = 'continuous';
+        let spawnDelay = 500;
+        let lineSpacing = 4;
+        let columnOffsets = [];
+        let lastSpawnTimes = [];
+        let columnPhases = [];
+        let currentColumn = 0; // For single line mode
+
+        // Add new variables for enhanced movement controls
+        let density = 5;
+        let columnVelocities = [];
+        let columnGaps = [];
+        let baseVerticalSpeed = 80; // pixels per second
+
+        // Add new variable for movement range
+        let movementRange = 15; // Default 15 pixels
+
+        // Add new variables for enhanced density controls
+        let densePack = 3;
+        let trailChars = 3;
+        let lineVariation = 30;
+        let columnDelays = [];
+
+        // Add new waterfall variables
+        let waterfallEnabled = false;
+        let waterfallIntensity = 50; // Default middle value
+        let columnSpeeds = [];
+
+        // Initialize column-specific variables
+        function initializeColumns() {
+            columnOffsets = new Array(Math.ceil(columns)).fill(0);
+            lastSpawnTimes = new Array(Math.ceil(columns)).fill(0);
+            columnPhases = new Array(Math.ceil(columns)).fill(0).map(() => Math.random() * Math.PI * 2);
+            columnVelocities = new Array(Math.ceil(columns)).fill(baseVerticalSpeed);
+            columnGaps = new Array(Math.ceil(columns)).fill(fontSize);
+            columnDelays = new Array(Math.ceil(columns)).fill(0).map(() => Math.random() * lineVariation);
+            columnSpeeds = new Array(Math.ceil(columns)).fill(1); // Initialize column speeds for waterfall
+        }
+
+        // ==========================================
+        // FEATURE 1: INTERACTIVE PARTICLE PLAYGROUND
+        // ==========================================
+        let interactiveParticlesEnabled = false;
+        let interactiveParticlesArray = [];
+
+        class InteractiveParticle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 10 + 2;
+                this.speedX = Math.random() * 3 - 1.5;
+                this.speedY = Math.random() * 3 - 1.5;
+                this.color = color; // Use the current matrix color
+                this.life = 100;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life -= 2;
+                if (this.size > 0.1) this.size -= 0.1;
+            }
+
+            draw() {
+                interactiveCtx.fillStyle = this.color;
+                interactiveCtx.shadowBlur = 10;
+                interactiveCtx.shadowColor = this.color;
+                interactiveCtx.beginPath();
+                interactiveCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                interactiveCtx.fill();
+                interactiveCtx.shadowBlur = 0;
+            }
+        }
+
+        function createInteractiveParticles(e) {
+            if (!interactiveParticlesEnabled) return;
+            let mouseX = e.clientX;
+            let mouseY = e.clientY;
+            for (let i = 0; i < 3; i++) {
+                interactiveParticlesArray.push(new InteractiveParticle(mouseX, mouseY));
+            }
+        }
+
+        window.addEventListener('mousemove', createInteractiveParticles);
+
+        function animateInteractiveParticles() {
+            if (!interactiveParticlesEnabled) return;
+
+            interactiveCtx.clearRect(0, 0, interactiveParticleCanvas.width, interactiveParticleCanvas.height);
+
+            for (let i = 0; i < interactiveParticlesArray.length; i++) {
+                let particle = interactiveParticlesArray[i];
+                // Sync color with current matrix color
+                particle.color = color;
+                particle.update();
+                particle.draw();
+
+                if (particle.life <= 0) {
+                    interactiveParticlesArray.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        function toggleInteractiveParticles(checked) {
+            interactiveParticlesEnabled = checked;
+            interactiveParticleCanvas.style.display = checked ? 'block' : 'none';
+            if (!checked) {
+                interactiveCtx.clearRect(0, 0, interactiveParticleCanvas.width, interactiveParticleCanvas.height);
+                interactiveParticlesArray = [];
+            }
+        }
+
+        // ==========================================
+        // FEATURE 2: BOUNCY DOTS (Dual Mode)
+        // ==========================================
+        let bouncyDotsEnabled = false;
+        let bouncyDotsMode = 'fullscreen'; // 'fullscreen' or 'phone'
+
+        // --- Full-Screen Canvas Mode ---
+        const bouncyDotsCanvas = document.getElementById('bouncyDotsCanvas');
+        const bouncyDotsCtx = bouncyDotsCanvas.getContext('2d');
+        bouncyDotsCanvas.width = canvas.width;
+        bouncyDotsCanvas.height = canvas.height;
+
+        const DOT_SPACING = 40;
+        const DOT_BASE_SIZE = 2;
+        const DOT_INFLUENCE_RADIUS = 150;
+        const DOT_MAX_PUSH = 25;
+        let dotMouseX = -1000;
+        let dotMouseY = -1000;
+        let dotGrid = [];
+
+        function buildDotGrid() {
+            dotGrid = [];
+            const cols = Math.ceil(bouncyDotsCanvas.width / DOT_SPACING);
+            const rows = Math.ceil(bouncyDotsCanvas.height / DOT_SPACING);
+            const offsetX = (bouncyDotsCanvas.width - (cols - 1) * DOT_SPACING) / 2;
+            const offsetY = (bouncyDotsCanvas.height - (rows - 1) * DOT_SPACING) / 2;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    dotGrid.push({
+                        homeX: c * DOT_SPACING + offsetX,
+                        homeY: r * DOT_SPACING + offsetY,
+                        x: c * DOT_SPACING + offsetX,
+                        y: r * DOT_SPACING + offsetY,
+                        size: DOT_BASE_SIZE,
+                        glow: 0
+                    });
+                }
+            }
+        }
+        buildDotGrid();
+
+        window.addEventListener('mousemove', (e) => {
+            if (bouncyDotsEnabled && bouncyDotsMode === 'fullscreen') {
+                dotMouseX = e.clientX;
+                dotMouseY = e.clientY;
+            }
+        });
+
+        function animateBouncyDots() {
+            if (!bouncyDotsEnabled || bouncyDotsMode !== 'fullscreen') return;
+
+            bouncyDotsCtx.clearRect(0, 0, bouncyDotsCanvas.width, bouncyDotsCanvas.height);
+
+            for (let i = 0; i < dotGrid.length; i++) {
+                const dot = dotGrid[i];
+                const dx = dotMouseX - dot.homeX;
+                const dy = dotMouseY - dot.homeY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < DOT_INFLUENCE_RADIUS) {
+                    const influence = 1 - (dist / DOT_INFLUENCE_RADIUS);
+                    const angle = Math.atan2(dy, dx);
+                    const push = DOT_MAX_PUSH * influence;
+                    dot.x = dot.homeX - Math.cos(angle) * push;
+                    dot.y = dot.homeY - Math.sin(angle) * push;
+                    dot.size = DOT_BASE_SIZE + influence * 4;
+                    dot.glow = influence;
+                } else {
+                    dot.x += (dot.homeX - dot.x) * 0.15;
+                    dot.y += (dot.homeY - dot.y) * 0.15;
+                    dot.size += (DOT_BASE_SIZE - dot.size) * 0.15;
+                    dot.glow += (0 - dot.glow) * 0.15;
+                }
+
+                bouncyDotsCtx.beginPath();
+                bouncyDotsCtx.arc(dot.x, dot.y, dot.size, 0, Math.PI * 2);
+
+                if (dot.glow > 0.05) {
+                    bouncyDotsCtx.fillStyle = color;
+                    bouncyDotsCtx.shadowBlur = 8 * dot.glow;
+                    bouncyDotsCtx.shadowColor = color;
+                } else {
+                    bouncyDotsCtx.fillStyle = `rgba(0, 255, 0, 0.15)`;
+                    bouncyDotsCtx.shadowBlur = 0;
+                }
+
+                bouncyDotsCtx.fill();
+                bouncyDotsCtx.shadowBlur = 0;
+            }
+        }
+
+        // --- Phone Widget Mode ---
+        const bouncyPhoneWidget = document.getElementById('bouncyPhoneWidget');
+        const bouncyScreen = document.getElementById('bouncy-screen');
+        const PHONE_DOT_ROWS = 22;
+        const PHONE_DOT_COLS = 12;
+        const PHONE_DOT_SPACING = 20;
+        const PHONE_DOT_OFFSET_X = 25;
+        const PHONE_DOT_OFFSET_Y = 15;
+        let phoneDotsInitialized = false;
+
+        function initializePhoneDots() {
+            if (phoneDotsInitialized) return;
+            const dotsContainer = document.getElementById('dots-container');
+            for (let row = 0; row < PHONE_DOT_ROWS; row++) {
+                for (let col = 0; col < PHONE_DOT_COLS; col++) {
+                    const dot = document.createElement('div');
+                    dot.className = 'phone-dot';
+                    dot.style.left = `${col * PHONE_DOT_SPACING + PHONE_DOT_OFFSET_X}px`;
+                    dot.style.top = `${row * PHONE_DOT_SPACING + PHONE_DOT_OFFSET_Y}px`;
+                    dotsContainer.appendChild(dot);
+                }
+            }
+            phoneDotsInitialized = true;
+        }
+
+        function updatePhoneDots(e) {
+            const rect = bouncyScreen.getBoundingClientRect();
+            let clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+            let clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            const dots = bouncyScreen.querySelectorAll('.phone-dot');
+            dots.forEach(dot => {
+                const dotLeft = parseFloat(dot.style.left);
+                const dotTop = parseFloat(dot.style.top);
+                const distance = Math.sqrt(Math.pow(x - dotLeft, 2) + Math.pow(y - dotTop, 2));
+                const maxDistance = 80;
+
+                if (distance < maxDistance) {
+                    const scale = 1 + (1 - distance / maxDistance) * 2;
+                    const angle = Math.atan2(y - dotTop, x - dotLeft);
+                    const push = 15 * (1 - distance / maxDistance);
+                    const moveX = Math.cos(angle) * push;
+                    const moveY = Math.sin(angle) * push;
+
+                    dot.style.backgroundColor = color;
+                    dot.style.boxShadow = `0 0 5px ${color}`;
+                    dot.style.transform = `translate(${moveX}px, ${moveY}px) scale(${scale})`;
+                } else {
+                    dot.style.backgroundColor = '';
+                    dot.style.boxShadow = '';
+                    dot.style.transform = 'none';
+                }
+            });
+        }
+
+        let isPhonePointerDown = false;
+
+        bouncyScreen.addEventListener('pointerdown', (e) => {
+            isPhonePointerDown = true;
+            updatePhoneDots(e);
+        });
+
+        bouncyScreen.addEventListener('pointermove', (e) => {
+            if (isPhonePointerDown) updatePhoneDots(e);
+        });
+
+        function resetPhoneDots() {
+            isPhonePointerDown = false;
+            const dots = bouncyScreen.querySelectorAll('.phone-dot');
+            dots.forEach(dot => {
+                dot.style.backgroundColor = '';
+                dot.style.boxShadow = '';
+                dot.style.transform = 'none';
+            });
+        }
+
+        bouncyScreen.addEventListener('pointerup', resetPhoneDots);
+        bouncyScreen.addEventListener('pointercancel', resetPhoneDots);
+        bouncyScreen.addEventListener('pointerleave', resetPhoneDots);
+
+        bouncyScreen.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+        bouncyScreen.addEventListener('touchmove', (e) => { e.preventDefault(); updatePhoneDots(e); }, { passive: false });
+        bouncyScreen.addEventListener('touchend', (e) => { e.preventDefault(); resetPhoneDots(); }, { passive: false });
+
+        // Phone widget dragging
+        let isDraggingPhone = false;
+        let phoneDragOffX = 0;
+        let phoneDragOffY = 0;
+
+        document.getElementById('phoneDragBar').addEventListener('mousedown', (e) => {
+            isDraggingPhone = true;
+            phoneDragOffX = e.clientX - bouncyPhoneWidget.offsetLeft;
+            phoneDragOffY = e.clientY - bouncyPhoneWidget.offsetTop;
+            bouncyPhoneWidget.style.zIndex = 1001;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDraggingPhone) return;
+            e.preventDefault();
+            let newX = Math.max(0, Math.min(e.clientX - phoneDragOffX, window.innerWidth - bouncyPhoneWidget.offsetWidth));
+            let newY = Math.max(0, Math.min(e.clientY - phoneDragOffY, window.innerHeight - bouncyPhoneWidget.offsetHeight));
+            bouncyPhoneWidget.style.left = `${newX}px`;
+            bouncyPhoneWidget.style.top = `${newY}px`;
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDraggingPhone) {
+                isDraggingPhone = false;
+                bouncyPhoneWidget.style.zIndex = 1000;
+            }
+        });
+
+        // --- Mode Switching ---
+        function switchBouncyDotsMode(mode) {
+            bouncyDotsMode = mode;
+            if (!bouncyDotsEnabled) return;
+
+            if (mode === 'fullscreen') {
+                bouncyDotsCanvas.style.display = 'block';
+                bouncyPhoneWidget.style.display = 'none';
+            } else {
+                bouncyDotsCanvas.style.display = 'none';
+                bouncyDotsCtx.clearRect(0, 0, bouncyDotsCanvas.width, bouncyDotsCanvas.height);
+                bouncyPhoneWidget.style.display = 'block';
+                initializePhoneDots();
+            }
+        }
+
+        function toggleBouncyDots(checked) {
+            bouncyDotsEnabled = checked;
+            document.getElementById('bouncyDotsOptions').style.display = checked ? 'block' : 'none';
+
+            if (checked) {
+                switchBouncyDotsMode(bouncyDotsMode);
+            } else {
+                bouncyDotsCanvas.style.display = 'none';
+                bouncyDotsCtx.clearRect(0, 0, bouncyDotsCanvas.width, bouncyDotsCanvas.height);
+                bouncyPhoneWidget.style.display = 'none';
+            }
+        }
+
+        // ==========================================
+        // FEATURE 3: SLIDESHOW (Non-Invasive Background)
+        // ==========================================
+        let slideshowEnabled = false;
+        let slideshowImages = [];
+        let slideshowIndex = 0;
+        let slideshowPlaying = false;
+        let slideshowInterval = null;
+        let slideshowSpeed = 3000; // ms
+        let slideshowShuffle = false;
+
+        const slideshowBg = document.getElementById('slideshowBg');
+        const slideshowBar = document.getElementById('slideshowBar');
+
+        // Resize helper: returns a data URL sized to maxDim
+        function resizeImage(dataUrl, maxDim, quality) {
+            return new Promise(resolve => {
+                const img = new Image();
+                img.onload = () => {
+                    let w = img.width, h = img.height;
+                    if (w > maxDim || h > maxDim) {
+                        const ratio = Math.min(maxDim / w, maxDim / h);
+                        w = Math.round(w * ratio);
+                        h = Math.round(h * ratio);
+                    }
+                    const c = document.createElement('canvas');
+                    c.width = w; c.height = h;
+                    c.getContext('2d').drawImage(img, 0, 0, w, h);
+                    resolve(c.toDataURL('image/jpeg', quality || 0.8));
+                };
+                img.src = dataUrl;
+            });
+        }
+
+        let slideshowThumbnails = []; // small versions for the bar
+
+        // File upload — resizes on load for performance
+        document.getElementById('slideshowFileInput').addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            files.forEach(file => {
+                if (!file.type.startsWith('image/')) return;
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const raw = ev.target.result;
+                    // Resize: 1920px for background, 80px for thumb
+                    const [bg, thumb] = await Promise.all([
+                        resizeImage(raw, 1920, 0.8),
+                        resizeImage(raw, 80, 0.6)
+                    ]);
+                    slideshowImages.push(bg);
+                    slideshowThumbnails.push(thumb);
+                    buildSlideshowThumbs();
+                    if (slideshowImages.length === 1) {
+                        showSlide(0);
+                    }
+                    updateSlideCounter();
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        function buildSlideshowThumbs() {
+            const container = document.getElementById('slThumbs');
+            container.innerHTML = '';
+            slideshowThumbnails.forEach((src, i) => {
+                const img = document.createElement('img');
+                img.className = 'sl-thumb' + (i === slideshowIndex ? ' active' : '');
+                img.src = src;
+                img.onclick = () => showSlide(i);
+                container.appendChild(img);
+            });
+        }
+
+        function showSlide(index) {
+            if (slideshowImages.length === 0) return;
+            slideshowIndex = index % slideshowImages.length;
+            if (slideshowIndex < 0) slideshowIndex = slideshowImages.length - 1;
+
+            slideshowBg.style.backgroundImage = `url(${slideshowImages[slideshowIndex]})`;
+            if (slideshowEnabled) slideshowBg.style.display = 'block';
+
+            // Update active thumb
+            document.querySelectorAll('.sl-thumb').forEach((t, i) => {
+                t.classList.toggle('active', i === slideshowIndex);
+            });
+            updateSlideCounter();
+        }
+
+        function updateSlideCounter() {
+            const counter = document.getElementById('slCounter');
+            counter.textContent = slideshowImages.length > 0
+                ? `${slideshowIndex + 1}/${slideshowImages.length}`
+                : '0/0';
+        }
+
+        function startSlideshow() {
+            if (slideshowInterval) clearInterval(slideshowInterval);
+            slideshowPlaying = true;
+            document.getElementById('slPlayPause').textContent = '⏸';
+            slideshowInterval = setInterval(() => {
+                if (slideshowShuffle && slideshowImages.length > 1) {
+                    let next;
+                    do { next = Math.floor(Math.random() * slideshowImages.length); } while (next === slideshowIndex);
+                    showSlide(next);
+                } else {
+                    showSlide(slideshowIndex + 1);
+                }
+            }, slideshowSpeed);
+        }
+
+        function stopSlideshow() {
+            slideshowPlaying = false;
+            document.getElementById('slPlayPause').textContent = '▶';
+            if (slideshowInterval) {
+                clearInterval(slideshowInterval);
+                slideshowInterval = null;
+            }
+        }
+
+        document.getElementById('slPlayPause').addEventListener('click', () => {
+            if (slideshowImages.length === 0) return;
+            if (slideshowPlaying) stopSlideshow();
+            else startSlideshow();
+        });
+
+        document.getElementById('slPrev').addEventListener('click', () => {
+            showSlide(slideshowIndex - 1);
+        });
+
+        document.getElementById('slNext').addEventListener('click', () => {
+            showSlide(slideshowIndex + 1);
+        });
+
+        document.getElementById('slShuffle').addEventListener('click', () => {
+            slideshowShuffle = !slideshowShuffle;
+            const btn = document.getElementById('slShuffle');
+            btn.style.borderColor = slideshowShuffle ? '#0f0' : '';
+            btn.style.background = slideshowShuffle ? 'rgba(0, 255, 0, 0.25)' : '';
+            if (slideshowPlaying) startSlideshow(); // restart with new mode
+        });
+
+        document.getElementById('slSlower').addEventListener('click', () => {
+            slideshowSpeed = Math.min(10000, slideshowSpeed + 500);
+            document.getElementById('slSpeedLabel').textContent = (slideshowSpeed / 1000).toFixed(1) + 's';
+            if (slideshowPlaying) startSlideshow(); // restart with new speed
+        });
+
+        document.getElementById('slFaster').addEventListener('click', () => {
+            slideshowSpeed = Math.max(500, slideshowSpeed - 500);
+            document.getElementById('slSpeedLabel').textContent = (slideshowSpeed / 1000).toFixed(1) + 's';
+            if (slideshowPlaying) startSlideshow();
+        });
+
+        function updateSlideshowOpacity(val) {
+            slideshowBg.style.opacity = val / 100;
+        }
+
+        let slideshowBarState = 1; // 0 = expanded, 1 = collapsed, 2 = hidden
+
+        function toggleSlideshowBar() {
+            const tab = slideshowBar.querySelector('.slideshow-toggle-tab');
+            slideshowBarState = (slideshowBarState + 1) % 3;
+
+            slideshowBar.classList.remove('collapsed', 'hidden');
+
+            if (slideshowBarState === 0) {
+                // Expanded — full bar visible
+                tab.textContent = '▼ Slideshow';
+            } else if (slideshowBarState === 1) {
+                // Collapsed — just the tab peeking
+                slideshowBar.classList.add('collapsed');
+                tab.textContent = '▲ Slideshow';
+            } else {
+                // Hidden — bar slides fully off, tab fades out
+                slideshowBar.classList.add('hidden');
+                tab.textContent = '▲ Slideshow';
+            }
+        }
+
+        function toggleSlideshow(checked) {
+            slideshowEnabled = checked;
+            slideshowBar.style.display = checked ? 'block' : 'none';
+            slideshowBg.style.display = (checked && slideshowImages.length > 0) ? 'block' : 'none';
+            if (!checked) {
+                stopSlideshow();
+            }
+        }
+
+        // Call initialization
+        initializeColumns();
+
+        function startAnimation() {
+            clearInterval(interval);
+            interval = setInterval(draw, speed);
+        }
+
+        function draw() {
+            if (paused) return;
+
+            const currentTime = Date.now();
+            const deltaTime = (currentTime - lastFrameTime) / 1000; // Convert to seconds
+            lastFrameTime = currentTime;
+
+            frameCount++;
+            if (currentTime - lastFpsTime >= 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastFpsTime = currentTime;
+                const fpsEl = document.getElementById('fpsCounter');
+                if (fpsEl) fpsEl.textContent = `FPS: ${fps}`;
+            }
+
+            // Apply fade effect
+            ctx.fillStyle = `rgba(0, 0, 0, ${fadeSpeed})`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Handle color cycling if enabled
+            if (colorCycleEnabled) {
+                if (currentTime - lastColorChange > colorCycleSpeed * 1000) {
+                    color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                    document.getElementById('colorPicker').value = color;
+                    updateMenuButtonColor(color);
+
+                    // Sync phone widget frame color
+                    syncWidgetColors();
+
+                    lastColorChange = currentTime;
+                }
+            }
+
+            // Set character style
+            if (gradientMode && gradientColors) {
+                ctx.fillStyle = createGradient(ctx);
+            } else {
+                ctx.fillStyle = color;
+            }
+
+            // Apply glow if enabled
+            if (glowEnabled) {
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = color;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+
+            // Draw characters
+            ctx.font = fontSize + 'px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            const time = currentTime / 1000; // Time in seconds for movement calculations
+
+            for (let i = 0; i < rainDrops.length; i++) {
+                // Calculate base x position with horizontal movement if enabled
+                let x = i * fontSize + fontSize / 2;
+                if (movementEnabled && horizontalMovement > 0) {
+                    x += calculateColumnMovement(i, time, horizontalMovement);
+                }
+
+                if (waterfallEnabled) {
+                    // Waterfall mode logic
+                    const y = rainDrops[i] * fontSize;
+
+                    // Calculate speed based on intensity
+                    const baseSpeed = 1;
+                    const intensityFactor = waterfallIntensity / 100;
+
+                    let speed = baseSpeed;
+                    const time = Date.now() * 0.001; // Current time in seconds
+
+                    if (intensityFactor === 0.5) {
+                        // At 50%: Perfect uniform speed
+                        speed = baseSpeed;
+                    } else if (intensityFactor < 0.5) {
+                        // Below 50%: Natural variations with increasing randomness
+                        const variationStrength = 1 - (intensityFactor * 2); // 1 at 0%, 0 at 50%
+                        // Use column index and time for consistent variations
+                        const columnPhase = i * 0.1;
+                        const timePhase = time * 0.5;
+                        speed = baseSpeed * (1 + Math.sin(columnPhase + timePhase) * variationStrength * 0.3);
+                    } else {
+                        // Above 50%: Wave patterns
+                        const patternStrength = (intensityFactor - 0.5) * 2; // 0 at 50%, 1 at 100%
+                        const columnPhase = i * 0.2;
+                        const timePhase = time * 0.3;
+
+                        // Create a wave pattern that moves through the columns
+                        speed = baseSpeed * (1 + Math.sin(columnPhase + timePhase) * patternStrength * 0.5);
+                    }
+
+                    // Ensure speed stays within reasonable bounds
+                    speed = Math.max(0.7, Math.min(1.3, speed));
+
+                    // Draw character
+                    ctx.fillText(rainDropsChars[i], x, y);
+
+                    // Update position
+                    rainDrops[i] += speed;
+
+                    // Reset when character reaches bottom
+                    if (y > canvas.height) {
+                        // Reset position
+                        rainDrops[i] = intensityFactor === 0.5 ? 0 : Math.random() * -1;
+
+                        // Update character
+                        if (sequenceEnabled) {
+                            const selectedCharsArray = Array.from(selectedChars);
+                            switch (sequenceMode) {
+                                case 'random':
+                                    rainDropsChars[i] = selectedCharsArray[Math.floor(Math.random() * selectedCharsArray.length)];
+                                    break;
+                                case 'orderly':
+                                    const position = Math.floor(i / trailLength);
+                                    rainDropsChars[i] = selectedCharsArray[position % selectedCharsArray.length];
+                                    break;
+                                case 'sequential':
+                                    if (customSequence) {
+                                        const position = Math.floor(i / trailLength);
+                                        rainDropsChars[i] = customSequence[position % customSequence.length];
+                                    }
+                                    break;
+                            }
+                        } else {
+                            rainDropsChars[i] = getRandomSelectedChar();
+                        }
+                    }
+                } else if (!movementEnabled || precipitationMode === 'continuous') {
+                    // Normal continuous rain behavior
+                    const y = rainDrops[i] * fontSize;
+
+                    if (sequenceEnabled) {
+                        if (y > canvas.height && Math.random() > 0.975) {
+                            rainDrops[i] = 0;
+                            updateSequenceCharacters();
+                        }
+                    } else {
+                        const currentLine = Math.floor(y / fontSize);
+                        if (currentLine > 0 && currentLine % lineChangeRate === 0 &&
+                            Math.floor((y - fontSize) / fontSize) !== currentLine) {
+                            rainDropsChars[i] = getRandomSelectedChar();
+                        }
+
+                        if (y > canvas.height && Math.random() > 0.975) {
+                            rainDrops[i] = 0;
+                        }
+                    }
+
+                    // Apply alpha trail effect
+                    const alpha = Math.min(1, (canvas.height - y) / (canvas.height * 0.3));
+                    ctx.globalAlpha = alpha;
+                    ctx.fillText(rainDropsChars[i], x, y - fontSize / 2);
+                    ctx.globalAlpha = 1;
+
+                    rainDrops[i] += adjustDensity(1, 'continuous');
+                } else if (precipitationMode === 'dense') {
+                    // Dense packed rain behavior
+                    const y = rainDrops[i] * fontSize;
+
+                    // Apply line variation delay
+                    const delay = columnDelays[i];
+                    if (y < delay) continue;
+
+                    // Check for gap with previous character
+                    const prevY = i > 0 ? rainDrops[i - 1] * fontSize : -fontSize;
+                    const gap = y - prevY;
+
+                    // Adjust velocity based on gap and dense pack setting
+                    const targetGap = fontSize * (densePack / 10);
+                    if (gap < targetGap) {
+                        columnVelocities[i] *= 0.95; // Slow down if too close
+                    } else if (gap > targetGap * 2) {
+                        columnVelocities[i] *= 1.05; // Speed up if too far
+                    }
+
+                    // Keep velocity within bounds
+                    columnVelocities[i] = Math.max(baseVerticalSpeed * 0.5,
+                        Math.min(baseVerticalSpeed * 1.5, columnVelocities[i]));
+
+                    // Draw trail characters with fading effect
+                    for (let t = 0; t < trailChars; t++) {
+                        const trailY = y - (t * fontSize * (densePack / 10));
+                        if (trailY > 0) {
+                            const alpha = 1 - (t / trailChars);
+                            ctx.globalAlpha = alpha;
+                            ctx.fillText(getRandomSelectedChar(), x, trailY - fontSize / 2);
+                        }
+                    }
+                    ctx.globalAlpha = 1;
+                    ctx.fillText(rainDropsChars[i], x, y - fontSize / 2);
+
+                    if (y > canvas.height) {
+                        rainDrops[i] = 0;
+                        rainDropsChars[i] = getRandomSelectedChar();
+                        columnVelocities[i] = baseVerticalSpeed;
+                        // Add random variation to starting position for natural look
+                        rainDrops[i] = Math.random() * -3; // Random start height above screen
+                        columnDelays[i] = Math.random() * lineVariation;
+                    }
+
+                    rainDrops[i] += (columnVelocities[i] * deltaTime) / fontSize;
+                } else if (precipitationMode === 'individual') {
+                    // Individual rain lines with spacing
+                    const y = rainDrops[i] * fontSize;
+
+                    // Dynamic line variation - changes as lines fall
+                    const time = currentTime / 1000; // Time in seconds
+                    const variationSpeed = 0.2; // Slower speed for smoother variation
+                    const variationPhase = columnPhases[i]; // Use existing phase for consistency
+
+                    // Calculate dynamic variation using multiple sine waves for more natural movement
+                    const primaryWave = Math.sin(time * variationSpeed + variationPhase);
+                    const secondaryWave = Math.sin(time * variationSpeed * 0.5 + variationPhase * 2) * 0.5;
+                    const dynamicVariation = (primaryWave + secondaryWave) * lineVariation;
+
+                    // Scale variation based on screen height for longer-lasting effect
+                    const variationScale = canvas.height / 2;
+                    const variationOffset = (dynamicVariation / 100) * variationScale;
+                    const adjustedY = y + variationOffset;
+
+                    // Change characters based on position
+                    const currentLine = Math.floor(adjustedY / fontSize);
+                    if (currentLine > 0 && currentLine % lineChangeRate === 0 &&
+                        Math.floor((adjustedY - fontSize) / fontSize) !== currentLine) {
+                        rainDropsChars[i] = getRandomSelectedChar();
+                    }
+
+                    if (adjustedY > -fontSize && adjustedY < canvas.height + fontSize) {
+                        // Improved fade effect - starts fading from middle of screen
+                        const fadeStart = canvas.height * 0.5; // Start fading halfway down
+                        const fadeLength = canvas.height * 0.5; // Fade over the remaining height
+                        let alpha = 1;
+
+                        if (adjustedY > fadeStart) {
+                            alpha = Math.max(0.1, 1 - ((adjustedY - fadeStart) / fadeLength));
+                        }
+
+                        ctx.globalAlpha = alpha;
+                        ctx.fillText(rainDropsChars[i], x, adjustedY - fontSize / 2);
+                        ctx.globalAlpha = 1;
+                    }
+
+                    const spacing = adjustDensity(fontSize * lineSpacing, 'individual');
+                    if (y > canvas.height + spacing) {
+                        rainDrops[i] = 0;
+                        lastSpawnTimes[i] = currentTime;
+                        rainDropsChars[i] = getRandomSelectedChar();
+                        // Update phase for next cycle with slight randomization
+                        columnPhases[i] = (columnPhases[i] + Math.random() * Math.PI) % (Math.PI * 2);
+                    }
+
+                    // All lines move together
+                    rainDrops[i] += 1;
+
+                    // Start new cycle when all lines have finished
+                    if (i === rainDrops.length - 1 && y > canvas.height + spacing) {
+                        // Reset all lines to start together with new random phases
+                        for (let j = 0; j < rainDrops.length; j++) {
+                            rainDrops[j] = 0;
+                            lastSpawnTimes[j] = currentTime;
+                            rainDropsChars[j] = getRandomSelectedChar();
+                            // Give each column a new random phase with some relation to neighbors
+                            const neighborPhase = j > 0 ? columnPhases[j - 1] : Math.random() * Math.PI * 2;
+                            columnPhases[j] = (neighborPhase + Math.random() * Math.PI * 0.5) % (Math.PI * 2);
+                        }
+                    }
+                } else if (precipitationMode === 'single') {
+                    // Single line per cycle mode
+                    if (i === currentColumn) {
+                        const y = rainDrops[i] * fontSize;
+                        ctx.fillText(rainDropsChars[i], x, y - fontSize / 2);
+
+                        if (y > canvas.height) {
+                            rainDrops[i] = 0;
+                            rainDropsChars[i] = getRandomSelectedChar();
+                            currentColumn = (currentColumn + 1) % rainDrops.length;
+                            lastSpawnTimes[currentColumn] = currentTime;
+                        }
+
+                        rainDrops[i] += adjustDensity(1, 'single');
+                    }
+                }
+            }
+
+            // Draw additional effects
+            if (gridEnabled) drawGrid();
+            if (lightingEnabled) drawLighting();
+            if (particlesEnabled) drawParticles();
+
+            // Draw Interactive Particles overlay
+            animateInteractiveParticles();
+
+            // Draw Bouncy Dots overlay (full-screen mode)
+            animateBouncyDots();
+        }
+
+        function drawGrid() {
+            // Clear the grid canvas
+            gridCtx.clearRect(0, 0, gridCanvas.width, gridCanvas.height);
+
+            // Set grid line style with custom color and opacity
+            const rgb = hexToRgb(gridColor);
+
+            // Draw cell backgrounds first
+            gridCtx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${gridOpacity * 0.05})`;
+            const columns = Math.ceil(gridCanvas.width / fontSize);
+            const rows = Math.ceil(gridCanvas.height / fontSize);
+
+            for (let col = 0; col < columns; col++) {
+                for (let row = 0; row < rows; row++) {
+                    const x = col * fontSize;
+                    const y = row * fontSize;
+                    gridCtx.fillRect(x, y, fontSize, fontSize);
+                }
+            }
+
+            // Draw grid lines
+            gridCtx.beginPath();
+            gridCtx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${gridOpacity})`;
+            gridCtx.lineWidth = 1;
+
+            // Draw vertical lines
+            for (let col = 0; col <= columns; col++) {
+                const x = col * fontSize;
+                gridCtx.moveTo(x, 0);
+                gridCtx.lineTo(x, gridCanvas.height);
+            }
+
+            // Draw horizontal lines
+            for (let row = 0; row <= rows; row++) {
+                const y = row * fontSize;
+                gridCtx.moveTo(0, y);
+                gridCtx.lineTo(gridCanvas.width, y);
+            }
+
+            gridCtx.stroke();
+        }
+
+        function hexToRgb(hex) {
+            // Remove the # if present
+            hex = hex.replace(/^#/, '');
+
+            // Parse the hex values
+            const bigint = parseInt(hex, 16);
+            return {
+                r: (bigint >> 16) & 255,
+                g: (bigint >> 8) & 255,
+                b: bigint & 255
+            };
+        }
+
+        function drawLighting() {
+            if (!lightingEnabled) return;
+
+            const gradient = ctx.createRadialGradient(
+                canvas.width / 2, canvas.height / 2, 0,
+                canvas.width / 2, canvas.height / 2, canvas.width / 2
+            );
+
+            const rgb = hexToRgb(lightingColor);
+            gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawParticles() {
+            if (!particlesEnabled) return;
+
+            // Update existing particles
+            particles = particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                p.alpha = p.life / PARTICLE_LIFETIME;
+
+                const rgb = hexToRgb(particleColor);
+                ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${p.alpha})`;
+                ctx.fillRect(p.x, p.y, 2, 2);
+
+                return p.life > 0;
+            });
+
+            // Add new particles occasionally
+            if (Math.random() < 0.1) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    life: PARTICLE_LIFETIME,
+                    alpha: 1
+                });
+            }
+        }
+
+        function createGradient(context) {
+            const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+            if (gradientMode && gradientColors) {
+                gradientColors.forEach((color, index) => {
+                    gradient.addColorStop(index / (gradientColors.length - 1), color);
+                });
+            } else {
+                gradient.addColorStop(0, color);
+                gradient.addColorStop(1, color);
+            }
+            return gradient;
+        }
+
+        function toggleGradient(checked) {
+            gradientMode = checked;
+            if (checked && !gradientColors) {
+                const presetSelect = document.getElementById('gradientPresetSelect');
+                updateGradientPreset(presetSelect.value);
+            }
+        }
+
+        function updateGradientPreset(value) {
+            const presets = {
+                custom: [color, '#00ff88', color],
+                cyber: ['#ff00ff', '#00ffff', '#ff4500'],
+                neon: ['#ff073a', '#4dff03', '#03f7ff'],
+                matrix2: ['#0f0', '#00ff88', '#00ff00']
+            };
+            gradientColors = presets[value];
+
+            // If gradient mode is enabled, force a redraw
+            if (gradientMode) {
+                ctx.fillStyle = createGradient(ctx);
+            }
+        }
+
+        function updateTheme(value) {
+            switch (value) {
+                case 'matrix':
+                    color = '#0f0';
+                    break;
+                case 'cyberpunk':
+                    color = '#ff00ff';
+                    break;
+                case 'neon':
+                    color = '#00ffff';
+                    break;
+                case 'monochrome':
+                    color = '#ffffff';
+                    break;
+            }
+            document.getElementById('colorPicker').value = color;
+            updateMenuButtonColor(color);
+
+            // Sync widget colors
+            syncWidgetColors();
+
+            // Update gradient if in gradient mode
+            if (gradientMode && document.getElementById('gradientPresetSelect').value === 'custom') {
+                updateGradientPreset('custom');
+            }
+        }
+
+        function updateGridColor(newColor) {
+            gridColor = newColor;
+            if (gridEnabled) {
+                drawGrid();
+            }
+        }
+
+        function updateGridOpacity(newOpacity) {
+            gridOpacity = parseFloat(newOpacity);
+            if (gridEnabled) {
+                drawGrid();
+            }
+        }
+
+        // Start animation
+        startAnimation();
+
+        function resizeCanvases() {
+            canvas.height = window.innerHeight;
+            canvas.width = window.innerWidth;
+            gridCanvas.height = window.innerHeight;
+            gridCanvas.width = window.innerWidth;
+            interactiveParticleCanvas.height = window.innerHeight;
+            interactiveParticleCanvas.width = window.innerWidth;
+            bouncyDotsCanvas.height = window.innerHeight;
+            bouncyDotsCanvas.width = window.innerWidth;
+            buildDotGrid();
+            columns = canvas.width / fontSize;
+            rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainDropsChars = Array(Math.ceil(columns)).fill().map(() =>
+                alphabet.charAt(Math.floor(Math.random() * alphabet.length))
+            );
+            if (gridEnabled) {
+                drawGrid();
+            }
+        }
+
+        // Initial canvas setup
+        resizeCanvases();
+
+        function togglePause() {
+            paused = !paused;
+        }
+
+        function randomizeColor() {
+            color = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
+            document.getElementById('colorPicker').value = color;
+            updateMenuButtonColor(color);
+        }
+
+        function syncWidgetColors() {
+            // Phone widget frame + drag bar
+            const pf = document.getElementById('bouncyPhoneFrame');
+            if (pf) {
+                pf.style.borderColor = color;
+                pf.style.boxShadow = `0 0 20px ${color}`;
+            }
+            const dragBar = document.querySelector('.phone-drag-bar');
+            if (dragBar) {
+                dragBar.style.borderColor = color;
+                dragBar.style.background = `rgba(${hexToRgbStr(color)}, 0.15)`;
+            }
+            document.querySelectorAll('.phone-drag-bar .grip').forEach(g => g.style.background = color);
+            document.querySelectorAll('.phone-screen .phone-dot').forEach(d => {
+                d.style.background = color;
+                d.style.boxShadow = `0 0 5px ${color}`;
+            });
+
+            // Slideshow bar
+            const slBar = document.getElementById('slideshowBar');
+            if (slBar) slBar.style.borderTopColor = color;
+            const slTab = document.querySelector('.slideshow-toggle-tab');
+            if (slTab) slTab.style.borderColor = color;
+            document.querySelectorAll('.sl-btn').forEach(btn => {
+                btn.style.borderColor = color;
+                btn.style.color = color;
+            });
+            document.querySelectorAll('.sl-thumb').forEach(t => t.style.borderColor = color);
+            document.querySelectorAll('.sl-status').forEach(s => s.style.color = color);
+            document.querySelectorAll('.sl-opacity-ctrl label').forEach(l => l.style.color = color);
+        }
+
+        // Helper: hex color to "r, g, b" string
+        function hexToRgbStr(hex) {
+            if (hex.startsWith('hsl')) return '0, 255, 0'; // fallback for HSL
+            hex = hex.replace('#', '');
+            if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+            const n = parseInt(hex, 16);
+            return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
+        }
+
+        function updateColor(newColor) {
+            color = newColor;
+            updateMenuButtonColor(newColor);
+            syncWidgetColors();
+        }
+
+        function updateMenuButtonColor(newColor) {
+            document.getElementById('toggleToolbar').style.backgroundColor = newColor;
+            document.getElementById('toggleToolbar').style.color = getContrastColor(newColor);
+        }
+
+        function getContrastColor(hexcolor) {
+            let r = parseInt(hexcolor.substr(1, 2), 16);
+            let g = parseInt(hexcolor.substr(3, 2), 16);
+            let b = parseInt(hexcolor.substr(5, 2), 16);
+            let yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+            return (yiq >= 128) ? 'black' : 'white';
+        }
+
+        function updateSpeed(newSpeed) {
+            speed = parseInt(newSpeed);
+            startAnimation();
+        }
+
+        function updateFontSize(newSize) {
+            fontSize = parseInt(newSize);
+            columns = canvas.width / fontSize;
+            rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainDropsChars = Array(Math.ceil(columns)).fill().map(() => alphabet.charAt(Math.floor(Math.random() * alphabet.length)));
+        }
+
+        function updateFadeSpeed(newSpeed) {
+            fadeSpeed = parseFloat(newSpeed);
+        }
+
+        function updateCharacterSet(set) {
+            const customControls = document.getElementById('customCharSetControls');
+
+            switch (set) {
+                case 'binary':
+                    alphabet = '01';
+                    customControls.style.display = 'none';
+                    break;
+                case 'ascii':
+                    alphabet = '';
+                    for (let i = 33; i <= 126; i++) {
+                        alphabet += String.fromCharCode(i);
+                    }
+                    customControls.style.display = 'none';
+                    break;
+                case 'custom':
+                    customControls.style.display = 'block';
+                    const customInput = document.getElementById('customCharInput');
+                    if (customInput.value) {
+                        alphabet = customInput.value;
+                    } else {
+                        customInput.value = alphabet;
+                    }
+                    break;
+                default: // matrix
+                    alphabet = katakana + latin + nums;
+                    customControls.style.display = 'none';
+            }
+
+            // Reset character selection
+            selectedChars = new Set(alphabet.split(''));
+            updateCharacterSelector();
+            updateCharacterChangeIntervalState();
+
+            // Refresh all characters
+            rainDropsChars = rainDropsChars.map(() =>
+                getRandomSelectedChar()
+            );
+        }
+
+        function updateCustomCharSet(value) {
+            if (value.length > 0) {
+                alphabet = value;
+                // Reset character selection
+                selectedChars = new Set(alphabet.split(''));
+                updateCharacterSelector();
+                updateCharacterChangeIntervalState();
+
+                // Refresh all characters
+                rainDropsChars = rainDropsChars.map(() =>
+                    getRandomSelectedChar()
+                );
+            }
+        }
+
+        function toggleCharacterSelector(event) {
+            if (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+            const selector = document.getElementById('characterSelector');
+            const btn = document.getElementById('charSelectorBtn');
+
+            if (!selector.classList.contains('visible')) {
+                // Close any other open selectors first
+                document.querySelectorAll('.character-selector.visible').forEach(sel => {
+                    if (sel !== selector) {
+                        sel.classList.remove('visible');
+                    }
+                });
+
+                selector.classList.add('visible');
+                btn.classList.add('active');
+
+                // Position the selector
+                const btnRect = btn.getBoundingClientRect();
+                const selectorHeight = selector.offsetHeight;
+                const windowHeight = window.innerHeight;
+
+                // Check if there's room below the button
+                if (btnRect.bottom + selectorHeight > windowHeight) {
+                    // Position above the button if not enough space below
+                    selector.style.top = 'auto';
+                    selector.style.bottom = '100%';
+                    selector.style.marginTop = '0';
+                    selector.style.marginBottom = '5px';
+                } else {
+                    // Position below the button
+                    selector.style.top = '100%';
+                    selector.style.bottom = 'auto';
+                    selector.style.marginTop = '5px';
+                    selector.style.marginBottom = '0';
+                }
+
+                // Add click outside listener
+                setTimeout(() => {
+                    document.addEventListener('click', closeCharacterSelector);
+                }, 0);
+            } else {
+                closeCharacterSelector();
+            }
+        }
+
+        function closeCharacterSelector(event) {
+            const selector = document.getElementById('characterSelector');
+            const btn = document.getElementById('charSelectorBtn');
+            const container = document.querySelector('.character-selector-container');
+
+            if (event) {
+                const isClickInside = container.contains(event.target);
+                if (isClickInside && event.target !== btn) return;
+            }
+
+            selector.classList.remove('visible');
+            btn.classList.remove('active');
+            document.removeEventListener('click', closeCharacterSelector);
+        }
+
+        function updateCharacterSelector() {
+            const grid = document.getElementById('characterGrid');
+            grid.innerHTML = '';
+
+            alphabet.split('').forEach(char => {
+                const box = document.createElement('div');
+                box.className = `char-box ${selectedChars.has(char) ? 'selected' : ''}`;
+                box.textContent = char;
+                box.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (selectedChars.has(char)) {
+                        if (selectedChars.size > 1) {
+                            selectedChars.delete(char);
+                        }
+                    } else {
+                        selectedChars.add(char);
+                    }
+                    updateCharacterSelector();
+                    updateCharacterChangeIntervalState();
+                };
+                grid.appendChild(box);
+            });
+        }
+
+        function selectAllCharacters() {
+            selectedChars = new Set(alphabet.split(''));
+            updateCharacterSelector();
+            updateCharacterChangeIntervalState();
+        }
+
+        function deselectAllCharacters() {
+            const firstChar = alphabet[0];
+            selectedChars = new Set([firstChar]);
+            updateCharacterSelector();
+            updateCharacterChangeIntervalState();
+        }
+
+        function updateCharacterChangeIntervalState() {
+            const lineChangeControls = document.querySelector('label[style*="display: flex"]');
+            const isSingleChar = selectedChars.size === 1;
+
+            if (isSingleChar) {
+                lineChangeControls.style.opacity = '0.5';
+                lineChangeControls.style.pointerEvents = 'none';
+                document.getElementById('lineChangeSlider').disabled = true;
+                document.getElementById('minLineChange').disabled = true;
+                document.getElementById('maxLineChange').disabled = true;
+            } else {
+                lineChangeControls.style.opacity = '1';
+                lineChangeControls.style.pointerEvents = 'auto';
+                document.getElementById('lineChangeSlider').disabled = false;
+                document.getElementById('minLineChange').disabled = false;
+                document.getElementById('maxLineChange').disabled = false;
+            }
+        }
+
+        function getRandomSelectedChar() {
+            const chars = Array.from(selectedChars);
+            return chars[Math.floor(Math.random() * chars.length)];
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        function toggleToolbar() {
+            document.getElementById('toolbar').classList.toggle('hidden');
+        }
+
+        function updateLineChangeRange() {
+            const min = parseInt(document.getElementById('minLineChange').value);
+            const max = parseInt(document.getElementById('maxLineChange').value);
+            const current = parseInt(document.getElementById('lineChangeSlider').value);
+
+            // Ensure min <= max
+            if (min > max) {
+                document.getElementById('maxLineChange').value = min;
+                maxLineChange = min;
+            } else {
+                minLineChange = min;
+                maxLineChange = max;
+            }
+
+            // Update slider range and adjust its visual width based on range
+            const slider = document.getElementById('lineChangeSlider');
+            slider.min = minLineChange;
+            slider.max = maxLineChange;
+
+            // Adjust slider width based on range
+            const range = maxLineChange - minLineChange;
+            const baseWidth = 150; // Base width in pixels
+            const width = Math.max(baseWidth, range * 30); // 30 pixels per unit
+            slider.style.width = `${width}px`;
+
+            // Keep current value within new range
+            if (current < min) {
+                slider.value = min;
+                updateLineChangeRate(min);
+            } else if (current > max) {
+                slider.value = max;
+                updateLineChangeRate(max);
+            }
+        }
+
+        function updateLineChangeRate(newRate) {
+            lineChangeRate = parseInt(newRate);
+            // Ensure rate stays within min/max bounds
+            if (lineChangeRate < minLineChange) lineChangeRate = minLineChange;
+            if (lineChangeRate > maxLineChange) lineChangeRate = maxLineChange;
+            document.getElementById('lineChangeSlider').value = lineChangeRate;
+        }
+
+        function resetToDefaults() {
+            color = '#0f0';
+            speed = 50;
+            fontSize = 16;
+            fadeSpeed = 0.05;
+            lineChangeRate = 1;
+            minLineChange = 1;
+            maxLineChange = 4;
+            alphabet = katakana + latin + nums;
+
+            document.getElementById('colorPicker').value = color;
+            document.getElementById('speedSlider').value = speed;
+            document.getElementById('fontSizeSlider').value = fontSize;
+            document.getElementById('fadeSpeedSlider').value = fadeSpeed;
+            document.getElementById('lineChangeSlider').value = lineChangeRate;
+            document.getElementById('minLineChange').value = minLineChange;
+            document.getElementById('maxLineChange').value = maxLineChange;
+            document.getElementById('charSetSelect').value = 'matrix';
+
+            updateColor(color);
+            updateSpeed(speed);
+            updateFontSize(fontSize);
+            updateFadeSpeed(fadeSpeed);
+            updateLineChangeRate(lineChangeRate);
+            updateLineChangeRange();
+
+            columns = canvas.width / fontSize;
+            rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainDropsChars = Array(Math.ceil(columns)).fill().map(() =>
+                alphabet.charAt(Math.floor(Math.random() * alphabet.length))
+            );
+            selectedChars = new Set(alphabet.split('')); // Reset character selection
+            updateCharacterSelector();
+            updateCharacterChangeIntervalState();
+
+            gradientMode = false;
+            glowEnabled = false;
+            gridEnabled = false;
+            particlesEnabled = false;
+            lightingEnabled = false;
+            gradientColors = null;
+
+            // Reset checkboxes
+            document.getElementById('gradientCheckbox').checked = false;
+            document.getElementById('glowCheckbox').checked = false;
+            document.getElementById('gridCheckbox').checked = false;
+            document.getElementById('particleCheckbox').checked = false;
+            document.getElementById('lightingCheckbox').checked = false;
+            document.getElementById('themeSelect').value = 'matrix';
+            document.getElementById('gradientPresetSelect').value = 'custom';
+
+            gridColor = '#00ff00';
+            gridOpacity = 0.15;
+            document.getElementById('gridColorPicker').value = gridColor;
+            document.getElementById('gridOpacitySlider').value = gridOpacity;
+
+            particleColor = '#00ff00';
+            lightingColor = '#00ff00';
+            document.getElementById('particleColorPicker').value = particleColor;
+            document.getElementById('lightingColorPicker').value = lightingColor;
+
+            document.getElementById('customCharInput').value = '';
+            document.getElementById('customCharSetControls').style.display = 'none';
+
+            sequenceEnabled = false;
+            sequenceMode = 'random';
+            customSequence = '';
+            trailLength = 3;
+            colorCycleSpeed = 2;
+            colorCycleEnabled = false;
+            currentSequenceIndex = 0;
+
+            document.getElementById('sequenceCheckbox').checked = false;
+            document.getElementById('sequenceControls').style.display = 'none';
+            document.getElementById('sequenceModeSelect').value = 'random';
+            document.getElementById('customSequenceInput').value = '';
+            document.getElementById('trailLengthSlider').value = trailLength;
+            document.getElementById('trailLengthValue').textContent = trailLength;
+            document.getElementById('colorSpeedSlider').value = colorCycleSpeed;
+            document.getElementById('colorSpeedValue').textContent = colorCycleSpeed;
+            document.getElementById('colorCycleCheckbox').checked = false;
+            document.getElementById('colorCycleControls').style.display = 'none';
+
+            movementEnabled = false;
+            horizontalMovement = 0;
+            precipitationMode = 'continuous';
+            spawnDelay = 500;
+            lineSpacing = 4;
+            currentColumn = 0;
+
+            document.getElementById('movementCheckbox').checked = false;
+            document.getElementById('movementControls').style.display = 'none';
+            document.getElementById('horizontalMovementSlider').value = horizontalMovement;
+            document.getElementById('horizontalMovementValue').textContent = horizontalMovement;
+            document.getElementById('precipitationSelect').value = precipitationMode;
+            document.getElementById('spawnDelaySlider').value = spawnDelay;
+            document.getElementById('spawnDelayValue').textContent = '0.5s';
+            document.getElementById('lineSpacingSlider').value = lineSpacing;
+            document.getElementById('lineSpacingValue').textContent = lineSpacing;
+
+            density = 5;
+            document.getElementById('densitySlider').value = density;
+            document.getElementById('densityValue').textContent = density;
+
+            // Reset velocities and gaps
+            columnVelocities = new Array(Math.ceil(columns)).fill(baseVerticalSpeed);
+            columnGaps = new Array(Math.ceil(columns)).fill(fontSize);
+
+            movementRange = 15;
+            document.getElementById('movementRangeInput').value = movementRange;
+
+            densePack = 3;
+            trailChars = 3;
+            lineVariation = 30;
+
+            document.getElementById('densePackSlider').value = densePack;
+            document.getElementById('densePackValue').textContent = densePack;
+            document.getElementById('trailCharSlider').value = trailChars;
+            document.getElementById('trailCharValue').textContent = trailChars;
+            document.getElementById('lineVariationSlider').value = lineVariation;
+            document.getElementById('lineVariationValue').textContent = lineVariation + '%';
+
+            initializeColumns();
+        }
+
+        // Initialize menu button color
+        updateMenuButtonColor(color);
+
+        // Initialize character selector
+        updateCharacterSet('matrix');
+
+        // Call updateLineChangeRange initially to set proper width
+        window.addEventListener('load', () => {
+            updateLineChangeRange();
+        });
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const content = section.querySelector('.section-content');
+            const arrow = section.querySelector('.section-arrow');
+
+            // Close all other sections first
+            document.querySelectorAll('.section-content').forEach(otherContent => {
+                if (otherContent !== content && otherContent.classList.contains('visible')) {
+                    otherContent.classList.remove('visible');
+                    const otherArrow = otherContent.parentElement.querySelector('.section-arrow');
+                    if (otherArrow) {
+                        otherArrow.textContent = '▶';
+                    }
+                }
+            });
+
+            // Toggle current section
+            content.classList.toggle('visible');
+            arrow.textContent = content.classList.contains('visible') ? '▼' : '▶';
+
+            // Close character selector when section is closed
+            if (!content.classList.contains('visible')) {
+                closeCharacterSelector();
+            }
+        }
+
+        // Initialize sections
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show the first section by default
+            const firstSection = document.querySelector('.section');
+            if (firstSection) {
+                const content = firstSection.querySelector('.section-content');
+                const arrow = firstSection.querySelector('.section-arrow');
+                content.classList.add('visible');
+                if (arrow) {
+                    arrow.textContent = '▼';
+                }
+            }
+
+            // Initialize all other sections as collapsed
+            document.querySelectorAll('.section:not(:first-child)').forEach(section => {
+                const arrow = section.querySelector('.section-arrow');
+                if (arrow) {
+                    arrow.textContent = '▶';
+                }
+            });
+        });
+
+        function toggleGlow(checked) {
+            glowEnabled = checked;
+            if (glowEnabled) {
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = color;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function toggleGrid(checked) {
+            gridEnabled = checked;
+            const gridControls = document.getElementById('gridControls');
+            gridControls.style.display = checked ? 'block' : 'none';
+            gridCanvas.style.display = checked ? 'block' : 'none';
+
+            if (checked) {
+                document.getElementById('gridColorPicker').value = gridColor;
+                document.getElementById('gridOpacitySlider').value = gridOpacity;
+                drawGrid();
+            }
+        }
+
+        function toggleParticles(checked) {
+            particlesEnabled = checked;
+            const particleControls = document.getElementById('particleControls');
+            particleControls.style.display = checked ? 'block' : 'none';
+
+            if (checked) {
+                document.getElementById('particleColorPicker').value = particleColor;
+                particles = [];
+            }
+        }
+
+        function toggleLighting(checked) {
+            lightingEnabled = checked;
+            const lightingControls = document.getElementById('lightingControls');
+            lightingControls.style.display = checked ? 'block' : 'none';
+
+            if (checked) {
+                document.getElementById('lightingColorPicker').value = lightingColor;
+            }
+        }
+
+        function updateParticleColor(newColor) {
+            particleColor = newColor;
+        }
+
+        function updateLightingColor(newColor) {
+            lightingColor = newColor;
+        }
+
+        function saveSettings() {
+            const settings = {
+                // Basic settings
+                color: color,
+                speed: speed,
+                fontSize: fontSize,
+                fadeSpeed: fadeSpeed,
+                lineChangeRate: lineChangeRate,
+                minLineChange: minLineChange,
+                maxLineChange: maxLineChange,
+                alphabet: alphabet,
+                selectedChars: Array.from(selectedChars),
+
+                // Effect toggles
+                gradientMode: gradientMode,
+                glowEnabled: glowEnabled,
+                gridEnabled: gridEnabled,
+                particlesEnabled: particlesEnabled,
+                lightingEnabled: lightingEnabled,
+                interactiveParticlesEnabled: interactiveParticlesEnabled,
+                bouncyDotsEnabled: bouncyDotsEnabled,
+                bouncyDotsMode: bouncyDotsMode,
+                bouncyDotsPhonePosition: {
+                    x: bouncyPhoneWidget.style.left,
+                    y: bouncyPhoneWidget.style.top
+                },
+
+                // Effect colors and properties
+                gradientColors: gradientColors,
+                gridColor: gridColor,
+                gridOpacity: gridOpacity,
+                particleColor: particleColor,
+                lightingColor: lightingColor,
+
+                // UI states
+                customCharacters: document.getElementById('customCharInput').value,
+                charSetType: document.getElementById('charSetSelect').value,
+                themeType: document.getElementById('themeSelect').value,
+                gradientPreset: document.getElementById('gradientPresetSelect').value,
+                sequenceEnabled: sequenceEnabled,
+                sequenceMode: sequenceMode,
+                customSequence: customSequence,
+                trailLength: trailLength,
+                colorCycleSpeed: colorCycleSpeed,
+                colorCycleEnabled: colorCycleEnabled,
+                movementEnabled: movementEnabled,
+                horizontalMovement: horizontalMovement,
+                precipitationMode: precipitationMode,
+                spawnDelay: spawnDelay,
+                lineSpacing: lineSpacing,
+                density: density,
+                movementRange: movementRange,
+                densePack: densePack,
+                trailChars: trailChars,
+                lineVariation: lineVariation
+            };
+
+            try {
+                const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'matrix-settings.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Error saving settings. Please try again.');
+            }
+        }
+
+        function loadSettings() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const settings = JSON.parse(event.target.result);
+                        console.log('Loading settings:', settings);
+                        applySettings(settings);
+                    } catch (error) {
+                        console.error('Error parsing settings file:', error);
+                        alert('Error loading settings file. Please ensure it is a valid JSON file.');
+                    }
+                };
+                reader.onerror = (error) => {
+                    console.error('Error reading file:', error);
+                    alert('Error reading the settings file. Please try again.');
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function applySettings(settings) {
+            try {
+                // First, ensure all sections are properly initialized
+                document.querySelectorAll('.section').forEach(section => {
+                    const content = section.querySelector('.section-content');
+                    const arrow = section.querySelector('.section-arrow');
+                    if (content) content.classList.remove('visible');
+                    if (arrow) arrow.textContent = '▶';
+                });
+
+                // Show the first section by default
+                const firstSection = document.querySelector('.section');
+                if (firstSection) {
+                    const content = firstSection.querySelector('.section-content');
+                    const arrow = firstSection.querySelector('.section-arrow');
+                    if (content) content.classList.add('visible');
+                    if (arrow) arrow.textContent = '▼';
+                }
+
+                // Apply basic settings with validation
+                if (settings.color) color = settings.color;
+                if (settings.speed) speed = parseInt(settings.speed);
+                if (settings.fontSize) fontSize = parseInt(settings.fontSize);
+                if (settings.fadeSpeed) fadeSpeed = parseFloat(settings.fadeSpeed);
+                if (settings.lineChangeRate) lineChangeRate = parseInt(settings.lineChangeRate);
+                if (settings.minLineChange) minLineChange = parseInt(settings.minLineChange);
+                if (settings.maxLineChange) maxLineChange = parseInt(settings.maxLineChange);
+                if (settings.alphabet) alphabet = settings.alphabet;
+                if (settings.selectedChars) selectedChars = new Set(settings.selectedChars);
+
+                // Apply effect settings
+                gradientMode = Boolean(settings.gradientMode);
+                glowEnabled = Boolean(settings.glowEnabled);
+                gridEnabled = Boolean(settings.gridEnabled);
+                particlesEnabled = Boolean(settings.particlesEnabled);
+                lightingEnabled = Boolean(settings.lightingEnabled);
+                if (settings.hasOwnProperty('interactiveParticlesEnabled')) {
+                    interactiveParticlesEnabled = Boolean(settings.interactiveParticlesEnabled);
+                }
+                if (settings.hasOwnProperty('bouncyDotsEnabled')) {
+                    bouncyDotsEnabled = Boolean(settings.bouncyDotsEnabled);
+                }
+                if (settings.bouncyDotsMode) {
+                    bouncyDotsMode = settings.bouncyDotsMode;
+                }
+                if (settings.bouncyDotsPhonePosition) {
+                    bouncyPhoneWidget.style.left = settings.bouncyDotsPhonePosition.x || '20px';
+                    bouncyPhoneWidget.style.top = settings.bouncyDotsPhonePosition.y || '20px';
+                }
+
+                // Apply effect colors and properties
+                if (settings.gradientColors) gradientColors = settings.gradientColors;
+                if (settings.gridColor) gridColor = settings.gridColor;
+                if (settings.gridOpacity) gridOpacity = parseFloat(settings.gridOpacity);
+                if (settings.particleColor) particleColor = settings.particleColor;
+                if (settings.lightingColor) lightingColor = settings.lightingColor;
+
+                // Update UI elements - with null checks
+                const elements = {
+                    colorPicker: document.getElementById('colorPicker'),
+                    speedSlider: document.getElementById('speedSlider'),
+                    fontSizeSlider: document.getElementById('fontSizeSlider'),
+                    fadeSpeedSlider: document.getElementById('fadeSpeedSlider'),
+                    lineChangeSlider: document.getElementById('lineChangeSlider'),
+                    minLineChange: document.getElementById('minLineChange'),
+                    maxLineChange: document.getElementById('maxLineChange'),
+                    gradientCheckbox: document.getElementById('gradientCheckbox'),
+                    glowCheckbox: document.getElementById('glowCheckbox'),
+                    gridCheckbox: document.getElementById('gridCheckbox'),
+                    gridControls: document.getElementById('gridControls'),
+                    gridColorPicker: document.getElementById('gridColorPicker'),
+                    gridOpacitySlider: document.getElementById('gridOpacitySlider'),
+                    particleCheckbox: document.getElementById('particleCheckbox'),
+                    particleControls: document.getElementById('particleControls'),
+                    particleColorPicker: document.getElementById('particleColorPicker'),
+                    lightingCheckbox: document.getElementById('lightingCheckbox'),
+                    lightingControls: document.getElementById('lightingControls'),
+                    lightingColorPicker: document.getElementById('lightingColorPicker'),
+                    interactiveParticleCheckbox: document.getElementById('interactiveParticleCheckbox'),
+                    bouncyDotsCheckbox: document.getElementById('bouncyDotsCheckbox'),
+                    charSetSelect: document.getElementById('charSetSelect'),
+                    customControls: document.getElementById('customCharSetControls'),
+                    customCharInput: document.getElementById('customCharInput'),
+                    themeSelect: document.getElementById('themeSelect'),
+                    gradientPresetSelect: document.getElementById('gradientPresetSelect'),
+                    toolbar: document.getElementById('toolbar')
+                };
+
+                // Update UI elements safely
+                if (elements.colorPicker) elements.colorPicker.value = color;
+                if (elements.speedSlider) elements.speedSlider.value = speed;
+                if (elements.fontSizeSlider) elements.fontSizeSlider.value = fontSize;
+                if (elements.fadeSpeedSlider) elements.fadeSpeedSlider.value = fadeSpeed;
+                if (elements.lineChangeSlider) elements.lineChangeSlider.value = lineChangeRate;
+                if (elements.minLineChange) elements.minLineChange.value = minLineChange;
+                if (elements.maxLineChange) elements.maxLineChange.value = maxLineChange;
+
+                // Update effect toggles and their controls safely
+                if (elements.gradientCheckbox) elements.gradientCheckbox.checked = gradientMode;
+                if (elements.glowCheckbox) elements.glowCheckbox.checked = glowEnabled;
+                if (elements.interactiveParticleCheckbox) elements.interactiveParticleCheckbox.checked = interactiveParticlesEnabled;
+                interactiveParticleCanvas.style.display = interactiveParticlesEnabled ? 'block' : 'none';
+
+                if (elements.bouncyDotsCheckbox) elements.bouncyDotsCheckbox.checked = bouncyDotsEnabled;
+                const bouncyModeSelect = document.getElementById('bouncyDotsMode');
+                if (bouncyModeSelect) bouncyModeSelect.value = bouncyDotsMode;
+                document.getElementById('bouncyDotsOptions').style.display = bouncyDotsEnabled ? 'block' : 'none';
+                if (bouncyDotsEnabled) {
+                    switchBouncyDotsMode(bouncyDotsMode);
+                } else {
+                    bouncyDotsCanvas.style.display = 'none';
+                    bouncyPhoneWidget.style.display = 'none';
+                }
+
+                // Update grid controls safely
+                if (elements.gridCheckbox) elements.gridCheckbox.checked = gridEnabled;
+                if (elements.gridControls) elements.gridControls.style.display = gridEnabled ? 'block' : 'none';
+                if (elements.gridColorPicker) elements.gridColorPicker.value = gridColor;
+                if (elements.gridOpacitySlider) elements.gridOpacitySlider.value = gridOpacity;
+                if (gridCanvas) gridCanvas.style.display = gridEnabled ? 'block' : 'none';
+
+                // Update particle controls safely
+                if (elements.particleCheckbox) elements.particleCheckbox.checked = particlesEnabled;
+                if (elements.particleControls) elements.particleControls.style.display = particlesEnabled ? 'block' : 'none';
+                if (elements.particleColorPicker) elements.particleColorPicker.value = particleColor;
+
+                // Update lighting controls safely
+                if (elements.lightingCheckbox) elements.lightingCheckbox.checked = lightingEnabled;
+                if (elements.lightingControls) elements.lightingControls.style.display = lightingEnabled ? 'block' : 'none';
+                if (elements.lightingColorPicker) elements.lightingColorPicker.value = lightingColor;
+
+                // Update dropdowns and custom input safely
+                if (elements.charSetSelect) elements.charSetSelect.value = settings.charSetType || 'matrix';
+                if (elements.customControls) elements.customControls.style.display = settings.charSetType === 'custom' ? 'block' : 'none';
+                if (elements.customCharInput && settings.customCharacters) elements.customCharInput.value = settings.customCharacters;
+                if (elements.themeSelect) elements.themeSelect.value = settings.themeType || 'matrix';
+                if (elements.gradientPresetSelect) elements.gradientPresetSelect.value = settings.gradientPreset || 'custom';
+
+                // Apply all changes
+                updateCharacterSet(settings.charSetType || 'matrix');
+                updateTheme(settings.themeType || 'matrix');
+                updateSpeed(speed);
+                updateFontSize(fontSize);
+                updateFadeSpeed(fadeSpeed);
+                updateLineChangeRate(lineChangeRate);
+                updateLineChangeRange();
+                updateMenuButtonColor(color);
+
+                // Refresh the matrix
+                columns = canvas.width / fontSize;
+                rainDrops = Array(Math.ceil(columns)).fill(1);
+                rainDropsChars = Array(Math.ceil(columns)).fill().map(() => getRandomSelectedChar());
+
+                // Redraw grid if enabled
+                if (gridEnabled) {
+                    drawGrid();
+                }
+
+                // Make sure the toolbar is visible
+                if (elements.toolbar) elements.toolbar.classList.remove('hidden');
+
+                // Apply sequence settings
+                if (settings.hasOwnProperty('sequenceEnabled')) {
+                    sequenceEnabled = settings.sequenceEnabled;
+                    document.getElementById('sequenceCheckbox').checked = sequenceEnabled;
+                    document.getElementById('sequenceControls').style.display = sequenceEnabled ? 'block' : 'none';
+                }
+
+                if (settings.hasOwnProperty('sequenceMode')) {
+                    sequenceMode = settings.sequenceMode;
+                    document.getElementById('sequenceModeSelect').value = sequenceMode;
+                    document.getElementById('sequentialControls').style.display =
+                        sequenceEnabled ? (sequenceMode === 'sequential' ? 'block' : 'none') : 'none';
+                }
+
+                if (settings.hasOwnProperty('customSequence')) {
+                    customSequence = settings.customSequence;
+                    document.getElementById('customSequenceInput').value = customSequence;
+                }
+
+                if (settings.hasOwnProperty('trailLength')) {
+                    trailLength = settings.trailLength;
+                    document.getElementById('trailLengthSlider').value = trailLength;
+                    document.getElementById('trailLengthValue').textContent = trailLength;
+                }
+
+                if (settings.hasOwnProperty('colorCycleSpeed')) {
+                    colorCycleSpeed = settings.colorCycleSpeed;
+                    document.getElementById('colorSpeedSlider').value = colorCycleSpeed;
+                    document.getElementById('colorSpeedValue').textContent = colorCycleSpeed;
+                }
+
+                if (settings.hasOwnProperty('colorCycleEnabled')) {
+                    colorCycleEnabled = settings.colorCycleEnabled;
+                    document.getElementById('colorCycleCheckbox').checked = colorCycleEnabled;
+                    document.getElementById('colorCycleControls').style.display =
+                        colorCycleEnabled ? 'block' : 'none';
+                }
+
+                if (sequenceEnabled) {
+                    updateSequenceCharacters();
+                }
+
+                // Apply movement settings
+                if (settings.hasOwnProperty('movementEnabled')) {
+                    movementEnabled = settings.movementEnabled;
+                    document.getElementById('movementCheckbox').checked = movementEnabled;
+                    document.getElementById('movementControls').style.display =
+                        movementEnabled ? 'block' : 'none';
+                }
+
+                if (settings.hasOwnProperty('horizontalMovement')) {
+                    horizontalMovement = settings.horizontalMovement;
+                    document.getElementById('horizontalMovementSlider').value = horizontalMovement;
+                    document.getElementById('horizontalMovementValue').textContent = horizontalMovement;
+                }
+
+                if (settings.hasOwnProperty('precipitationMode')) {
+                    precipitationMode = settings.precipitationMode;
+                    document.getElementById('precipitationSelect').value = precipitationMode;
+                    document.getElementById('precipitationControls').style.display =
+                        precipitationMode !== 'continuous' ? 'block' : 'none';
+                }
+
+                if (settings.hasOwnProperty('spawnDelay')) {
+                    spawnDelay = settings.spawnDelay;
+                    document.getElementById('spawnDelaySlider').value = spawnDelay;
+                    document.getElementById('spawnDelayValue').textContent = (spawnDelay / 1000).toFixed(1) + 's';
+                }
+
+                if (settings.hasOwnProperty('lineSpacing')) {
+                    lineSpacing = settings.lineSpacing;
+                    document.getElementById('lineSpacingSlider').value = lineSpacing;
+                    document.getElementById('lineSpacingValue').textContent = lineSpacing;
+                }
+
+                if (settings.hasOwnProperty('density')) {
+                    density = settings.density;
+                    document.getElementById('densitySlider').value = density;
+                    document.getElementById('densityValue').textContent = density;
+                }
+
+                if (settings.hasOwnProperty('movementRange')) {
+                    movementRange = settings.movementRange;
+                    document.getElementById('movementRangeInput').value = movementRange;
+                }
+
+                if (settings.hasOwnProperty('densePack')) {
+                    densePack = settings.densePack;
+                    document.getElementById('densePackSlider').value = densePack;
+                    document.getElementById('densePackValue').textContent = densePack;
+                }
+
+                if (settings.hasOwnProperty('trailChars')) {
+                    trailChars = settings.trailChars;
+                    document.getElementById('trailCharSlider').value = trailChars;
+                    document.getElementById('trailCharValue').textContent = trailChars;
+                }
+
+                if (settings.hasOwnProperty('lineVariation')) {
+                    lineVariation = settings.lineVariation;
+                    document.getElementById('lineVariationSlider').value = lineVariation;
+                    document.getElementById('lineVariationValue').textContent = lineVariation + '%';
+                }
+
+                initializeColumns();
+
+                console.log('Settings applied successfully');
+            } catch (error) {
+                console.error('Error applying settings:', error);
+                alert(`Error applying settings: ${error.message}`);
+            }
+        }
+
+        function toggleSequence(enabled) {
+            sequenceEnabled = enabled;
+            const controls = document.getElementById('sequenceControls');
+            const sequentialControls = document.getElementById('sequentialControls');
+            controls.style.display = enabled ? 'block' : 'none';
+
+            if (enabled) {
+                // Initialize sequence mode
+                sequenceMode = document.getElementById('sequenceModeSelect').value;
+                if (sequenceMode === 'sequential') {
+                    sequentialControls.style.display = 'block';
+                }
+                updateSequenceCharacters();
+            } else {
+                // Reset to normal matrix rain
+                sequentialControls.style.display = 'none';
+                if (!waterfallEnabled) {
+                    rainDropsChars = rainDropsChars.map(() => getRandomSelectedChar());
+                }
+            }
+        }
+
+        function updateSequenceMode(value) {
+            sequenceMode = value;
+            const sequentialControls = document.getElementById('sequentialControls');
+            sequentialControls.style.display = value === 'sequential' ? 'block' : 'none';
+
+            // Reset sequence index
+            currentSequenceIndex = 0;
+
+            // Update characters based on new mode
+            if (sequenceEnabled) {
+                updateSequenceCharacters();
+            }
+        }
+
+        function updateSequenceCharacters() {
+            if (!sequenceEnabled) return;
+
+            switch (sequenceMode) {
+                case 'random':
+                    rainDropsChars = rainDropsChars.map((_, index) => {
+                        return Array.from(selectedChars)[Math.floor(Math.random() * selectedChars.size)];
+                    });
+                    break;
+
+                case 'orderly':
+                    const selectedCharsArray = Array.from(selectedChars);
+                    rainDropsChars = rainDropsChars.map((_, index) => {
+                        const position = Math.floor(index / trailLength);
+                        return selectedCharsArray[position % selectedCharsArray.length];
+                    });
+                    break;
+
+                case 'sequential':
+                    if (customSequence) {
+                        rainDropsChars = rainDropsChars.map((_, index) => {
+                            const position = Math.floor(index / trailLength);
+                            return customSequence[position % customSequence.length];
+                        });
+                    }
+                    break;
+            }
+        }
+
+        function updateCustomSequence(value) {
+            customSequence = value;
+            currentSequenceIndex = 0;
+            if (sequenceEnabled && sequenceMode === 'sequential') {
+                updateSequenceCharacters();
+            }
+        }
+
+        function updateTrailLength(value) {
+            trailLength = parseInt(value);
+            document.getElementById('trailLengthValue').textContent = value;
+            if (sequenceEnabled) {
+                updateSequenceCharacters();
+            }
+        }
+
+        function updateColorSpeed(value) {
+            colorCycleSpeed = parseFloat(value);
+            document.getElementById('colorSpeedValue').textContent = value;
+        }
+
+        function toggleColorCycle(enabled) {
+            colorCycleEnabled = enabled;
+            const controls = document.getElementById('colorCycleControls');
+            controls.style.display = enabled ? 'block' : 'none';
+
+            if (!enabled) {
+                // Reset color to default green when disabling
+                color = '#00ff00';
+                document.getElementById('colorPicker').value = color;
+                updateMenuButtonColor(color);
+            }
+        }
+
+        function updateHorizontalMovement(value) {
+            horizontalMovement = parseInt(value);
+            document.getElementById('horizontalMovementValue').textContent = value;
+        }
+
+        function updatePrecipitationMode(value) {
+            precipitationMode = value;
+            const controls = document.getElementById('precipitationControls');
+            const denseControls = document.getElementById('denseControls');
+            controls.style.display = value !== 'continuous' ? 'block' : 'none';
+            denseControls.style.display = value === 'dense' ? 'block' : 'none';
+
+            // Reset rain drops for new mode
+            rainDrops = Array(Math.ceil(columns)).fill(1);
+            lastSpawnTimes = Array(Math.ceil(columns)).fill(Date.now());
+            currentColumn = 0;
+            initializeColumns();
+        }
+
+        function updateSpawnDelay(value) {
+            spawnDelay = parseInt(value);
+            document.getElementById('spawnDelayValue').textContent = (value / 1000).toFixed(1) + 's';
+        }
+
+        function updateLineSpacing(value) {
+            lineSpacing = parseInt(value);
+            document.getElementById('lineSpacingValue').textContent = value;
+        }
+
+        function toggleMovement(enabled) {
+            movementEnabled = enabled;
+            const controls = document.getElementById('movementControls');
+            controls.style.display = enabled ? 'block' : 'none';
+
+            if (!enabled) {
+                // Reset to normal rain
+                precipitationMode = 'continuous';
+                horizontalMovement = 0;
+                document.getElementById('precipitationSelect').value = 'continuous';
+                document.getElementById('horizontalMovementSlider').value = '0';
+                document.getElementById('horizontalMovementValue').textContent = '0';
+                rainDrops = Array(Math.ceil(columns)).fill(1);
+                lastSpawnTimes = Array(Math.ceil(columns)).fill(Date.now());
+                currentColumn = 0;
+            }
+            initializeColumns();
+        }
+
+        function updateDensity(value) {
+            density = parseInt(value);
+            document.getElementById('densityValue').textContent = value;
+
+            // Adjust font size based on density
+            const baseFontSize = 16;
+            const scaleFactor = 1 + ((10 - density) / 100); // ±15% max adjustment
+            fontSize = Math.round(baseFontSize * scaleFactor);
+
+            // Recalculate columns and reinitialize
+            columns = canvas.width / fontSize;
+            rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainDropsChars = Array(Math.ceil(columns)).fill().map(() => getRandomSelectedChar());
+            initializeColumns();
+        }
+
+        function adjustDensity(baseSpacing, mode) {
+            const densityFactor = density / 5; // normalize to 1 at density=5
+            let spacing = baseSpacing;
+
+            if (mode === 'dense') {
+                spacing *= 3 * densityFactor; // Increased spacing for dense mode
+                spacing = Math.max(3, spacing); // Increased minimum gap
+            } else {
+                spacing *= densityFactor;
+            }
+
+            return spacing;
+        }
+
+        function calculateColumnMovement(index, time, horizontalIntensity) {
+            if (horizontalIntensity === 0) return 0;
+
+            const maxOffset = movementRange; // Use custom range instead of fontSize * 0.15
+            let offset = 0;
+
+            if (horizontalIntensity <= 5) {
+                // Coordinated group sway - groups of 3 columns move together
+                const groupIndex = Math.floor(index / 3);
+                const frequency = 0.5 + (horizontalIntensity * 0.1);
+                const amplitude = (horizontalIntensity / 5) * maxOffset;
+                offset = Math.sin(time * frequency + columnPhases[groupIndex]) * amplitude;
+            } else {
+                // Chaotic individual drift
+                const frequency = 0.5 + ((horizontalIntensity - 5) * 0.2);
+                const amplitude = ((horizontalIntensity - 5) / 5) * maxOffset;
+                offset = Math.sin(time * frequency + columnPhases[index]) * amplitude;
+
+                // Add secondary chaotic movement
+                offset += Math.sin(time * frequency * 1.5 + columnPhases[index] * 2) * (amplitude * 0.3);
+            }
+
+            return offset;
+        }
+
+        function updateMovementRange(value) {
+            movementRange = Math.max(1, parseInt(value) || 15); // Ensure positive value, default to 15
+            document.getElementById('movementRangeInput').value = movementRange;
+        }
+
+        function updateDensePack(value) {
+            densePack = parseInt(value);
+            document.getElementById('densePackValue').textContent = value;
+        }
+
+        function updateTrailChars(value) {
+            trailChars = parseInt(value);
+            document.getElementById('trailCharValue').textContent = value;
+        }
+
+        function updateLineVariation(value) {
+            lineVariation = parseInt(value);
+            document.getElementById('lineVariationValue').textContent = value + '%';
+            initializeColumns();
+        }
+
+        function getRandomSelectedChar() {
+            const chars = Array.from(selectedChars);
+            return chars[Math.floor(Math.random() * chars.length)];
+        }
+
+        // Add waterfall mode functions
+        function toggleWaterfall(checked) {
+            waterfallEnabled = checked;
+            const controls = document.getElementById('waterfallControls');
+            controls.style.display = checked ? 'block' : 'none';
+
+            if (checked) {
+                // Reset all columns to start from top when waterfall is enabled
+                for (let i = 0; i < rainDrops.length; i++) {
+                    rainDrops[i] = 0;
+                    if (sequenceEnabled) {
+                        const selectedCharsArray = Array.from(selectedChars);
+                        switch (sequenceMode) {
+                            case 'random':
+                                rainDropsChars[i] = selectedCharsArray[Math.floor(Math.random() * selectedCharsArray.length)];
+                                break;
+                            case 'orderly':
+                                const position = Math.floor(i / trailLength);
+                                rainDropsChars[i] = selectedCharsArray[position % selectedCharsArray.length];
+                                break;
+                            case 'sequential':
+                                if (customSequence) {
+                                    const position = Math.floor(i / trailLength);
+                                    rainDropsChars[i] = customSequence[position % customSequence.length];
+                                }
+                                break;
+                        }
+                    } else {
+                        rainDropsChars[i] = getRandomSelectedChar();
+                    }
+                }
+                columnSpeeds = new Array(Math.ceil(columns)).fill(1);
+            } else {
+                // Reset speeds when disabling waterfall
+                columnSpeeds = new Array(Math.ceil(columns)).fill(1);
+            }
+        }
+
+        function updateWaterfallIntensity(value) {
+            waterfallIntensity = parseInt(value);
+            document.getElementById('waterfallIntensityValue').textContent = value;
+
+            // Reset positions when intensity is set to 50 to restore perfect unison
+            if (waterfallIntensity === 50) {
+                for (let i = 0; i < rainDrops.length; i++) {
+                    rainDrops[i] = 0;
+                    if (sequenceEnabled) {
+                        const selectedCharsArray = Array.from(selectedChars);
+                        switch (sequenceMode) {
+                            case 'random':
+                                rainDropsChars[i] = selectedCharsArray[Math.floor(Math.random() * selectedCharsArray.length)];
+                                break;
+                            case 'orderly':
+                                const position = Math.floor(i / trailLength);
+                                rainDropsChars[i] = selectedCharsArray[position % selectedCharsArray.length];
+                                break;
+                            case 'sequential':
+                                if (customSequence) {
+                                    const position = Math.floor(i / trailLength);
+                                    rainDropsChars[i] = customSequence[position % customSequence.length];
+                                }
+                                break;
+                        }
+                    } else {
+                        rainDropsChars[i] = getRandomSelectedChar();
+                    }
+                }
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

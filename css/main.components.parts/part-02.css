@@ -85,6 +85,22 @@
     color: #333;
 }
 
+.top-right .topbar-matrix-btn {
+    color: #9cffad !important;
+    border-color: rgba(70, 255, 112, 0.38) !important;
+    background: rgba(0, 34, 12, 0.48) !important;
+    box-shadow: inset 0 0 0 1px rgba(70, 255, 112, 0.08);
+}
+
+.top-right .topbar-matrix-btn:hover {
+    color: #c8ffd2 !important;
+    border-color: rgba(70, 255, 112, 0.64) !important;
+    background: rgba(0, 56, 18, 0.62) !important;
+    box-shadow:
+        inset 0 0 0 1px rgba(70, 255, 112, 0.18),
+        0 0 10px rgba(70, 255, 112, 0.12);
+}
+
 .library-notes-stack {
     margin-top: 6px;
 }

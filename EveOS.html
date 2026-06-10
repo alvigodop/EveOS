@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Eve-OS</title>
-    <link rel="stylesheet" href="css/main.css?v=0.2.17">
+    <link rel="stylesheet" href="css/main.css?v=0.2.19">
+    <link rel="stylesheet" href="js/modules/features/matrix-workshop/matrix-workshop.css?v=0.1.1">
     <script src="js/modules/core/theme-boot.js?v=0.2.2"></script>
     <script type="importmap">
     {
@@ -38,6 +39,10 @@
                 <button class="topbar-primary-btn" onclick="toggleBulkMode()" title="Select Multiple (Alt+B)">&#9989; Select</button>
                 <button class="topbar-primary-btn" onclick="toggleView()" title="View">&#128203; View</button>
                 <button class="topbar-map-btn" onclick="if(window.EveConstellationMap) window.EveConstellationMap.openCurrentViewMap()" title="Constellation Map">&#127756; Map</button>
+                <button class="topbar-map-btn topbar-matrix-btn" type="button"
+                    onclick="window.EveMatrixWorkshop?.open ? window.EveMatrixWorkshop.open() : (window.__eveMatrixOpenPending = true)" aria-haspopup="dialog"
+                    aria-controls="matrix-workshop-overlay" aria-expanded="false"
+                    title="Matrix Workshop">&#9001; Matrix</button>
                 <button class="topbar-primary-btn" onclick="toggleScratchpad()" title="Notes">&#128221; Notes</button>
                 <button class="topbar-primary-btn" onclick="openSettings()" title="Settings">&#9881; Settings</button>
                 <button class="topbar-primary-btn" onclick="openSocialManagerModal()" title="Social Manager">&#128241; Social</button>
@@ -147,6 +152,7 @@
 
 
     <!-- SCRIPTS -->
+    <script src="js/modules/features/matrix-workshop/matrix-workshop.js?v=0.1.0"></script>
     <script src="js/config/manifest/scripts.parts/00-core.js"></script>
     <script src="js/config/manifest/scripts.parts/01-ui.js?v=0.4.0"></script>
     <script src="js/config/manifest/scripts.parts/02-dashboard-categories.js"></script>

@@ -1,0 +1,249 @@
+.matrix-workshop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12000;
+    display: none;
+    padding: clamp(6px, 1vw, 14px);
+    box-sizing: border-box;
+    background:
+        radial-gradient(circle at 50% -10%, rgba(35, 255, 104, 0.14), transparent 42%),
+        rgba(0, 8, 4, 0.92);
+    color: var(--text-main);
+    backdrop-filter: blur(18px) saturate(0.88);
+}
+
+.matrix-workshop-overlay.is-open {
+    display: flex;
+    animation: matrix-workshop-enter 180ms ease-out both;
+}
+
+.matrix-workshop-shell {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(81, 255, 127, 0.34);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--card-bg) 82%, #020a05 18%);
+    box-shadow:
+        0 28px 90px rgba(0, 0, 0, 0.68),
+        0 0 36px rgba(27, 255, 91, 0.08),
+        inset 0 0 0 1px rgba(194, 255, 208, 0.035);
+}
+
+.matrix-workshop-header {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 auto;
+    min-height: 54px;
+    margin: 0;
+    padding: 8px 10px 8px 16px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid rgba(81, 255, 127, 0.2);
+    background:
+        linear-gradient(90deg, rgba(18, 68, 31, 0.34), transparent 48%),
+        color-mix(in srgb, var(--card-bg) 88%, #020a05 12%);
+    box-sizing: border-box;
+}
+
+.matrix-workshop-header::after {
+    content: "";
+    position: absolute;
+    right: 74px;
+    bottom: -1px;
+    width: min(34vw, 420px);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(79, 255, 124, 0.82), transparent);
+}
+
+.matrix-workshop-identity {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.matrix-workshop-mark {
+    width: 11px;
+    height: 11px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(158, 255, 180, 0.72);
+    border-radius: 3px;
+    background: #20ff65;
+    box-shadow:
+        0 0 0 4px rgba(32, 255, 101, 0.08),
+        0 0 16px rgba(32, 255, 101, 0.7);
+    transform: rotate(45deg);
+}
+
+.matrix-workshop-heading {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.matrix-workshop-heading strong {
+    color: color-mix(in srgb, var(--text-main) 78%, #8dffa8 22%);
+    font-family: "Courier New", monospace;
+    font-size: 0.95rem;
+    line-height: 1.1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.matrix-workshop-heading span {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.matrix-workshop-close {
+    min-height: 34px;
+    padding: 6px 11px 6px 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid rgba(81, 255, 127, 0.32);
+    border-radius: 9px;
+    background: rgba(4, 28, 11, 0.74);
+    color: color-mix(in srgb, var(--text-main) 82%, #8dffa8 18%);
+    font: inherit;
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.matrix-workshop-close span {
+    font-size: 1.2rem;
+    line-height: 0.8;
+}
+
+.matrix-workshop-close:hover,
+.matrix-workshop-close:focus-visible {
+    border-color: rgba(120, 255, 153, 0.72);
+    background: rgba(15, 70, 29, 0.78);
+    color: #c8ffd3;
+    outline: none;
+}
+
+.matrix-workshop-close:active {
+    transform: scale(0.96);
+}
+
+.matrix-workshop-stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: #000;
+}
+
+.matrix-workshop-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #000;
+    opacity: 1;
+    transition: opacity 160ms ease;
+}
+
+.matrix-workshop-loader {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: none;
+    place-items: center;
+    align-content: center;
+    gap: 14px;
+    overflow: hidden;
+    background: #020704;
+    color: #8dffa8;
+    font-family: "Courier New", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.is-loading .matrix-workshop-loader {
+    display: grid;
+}
+
+.is-loading .matrix-workshop-frame {
+    opacity: 0;
+}
+
+.matrix-workshop-loader-grid {
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(74, 255, 117, 0.5);
+    background:
+        linear-gradient(rgba(52, 255, 100, 0.25) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(52, 255, 100, 0.25) 1px, transparent 1px);
+    background-size: 8px 8px;
+    box-shadow: 0 0 26px rgba(46, 255, 96, 0.25);
+    animation: matrix-loader-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes matrix-workshop-enter {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes matrix-loader-pulse {
+    from { transform: scale(0.92) rotate(-2deg); opacity: 0.55; }
+    to { transform: scale(1.04) rotate(2deg); opacity: 1; }
+}
+
+@media (max-width: 640px) {
+    .matrix-workshop-overlay {
+        padding: 0;
+    }
+
+    .matrix-workshop-shell {
+        border-width: 0;
+        border-radius: 0;
+    }
+
+    .matrix-workshop-header {
+        min-height: 50px;
+        padding-left: 13px;
+    }
+
+    .matrix-workshop-heading span {
+        display: none;
+    }
+
+    .matrix-workshop-close {
+        padding-inline: 10px;
+    }
+
+    .matrix-workshop-close {
+        font-size: 0;
+    }
+
+    .matrix-workshop-close span {
+        font-size: 1.35rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .matrix-workshop-overlay.is-open,
+    .matrix-workshop-loader-grid {
+        animation: none;
+    }
+}

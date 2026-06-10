@@ -1,4 +1,4 @@
-@import url("./main.base.parts/part-01.css");
+@import url("./main.base.parts/part-01.css?v=0.1.1");
 @import url("./main.base.parts/part-02.css");
 
 /* Modularized: source rules moved into ordered part files above. */
