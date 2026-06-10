@@ -5,6 +5,8 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
 
     const REQUEST_TYPE = 'eve:matrix-phone:request-snapshot';
     const RESPONSE_TYPE = 'eve:matrix-phone:snapshot';
+    const UPDATE_REQUEST_TYPE = 'eve:matrix-phone:update-bookmark';
+    const UPDATE_RESPONSE_TYPE = 'eve:matrix-phone:bookmark-updated';
     const INVALIDATED_TYPE = 'eve:matrix-phone:state-changed';
     let mutationTimer = 0;
 
@@ -172,6 +174,7 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
             status,
             aliases: fields.getTitleAliases?.(link, entry, title) || [],
             personalNotes: fields.getPersonalNotes?.(link, entry) || '',
+            relatedUrls: fields.getRelatedUrls?.(link) || [],
             graphicChapter,
             novelChapter,
             chapter,
@@ -385,14 +388,37 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         });
     }
 
-    window.addEventListener('message', function (event) {
+    window.addEventListener('message', async function (event) {
         if (event.origin !== 'null' && event.origin !== window.location.origin) return;
-        if (event.data?.type !== REQUEST_TYPE || !isTrustedClient(event.source)) return;
-        postToClient(event.source, {
-            type: RESPONSE_TYPE,
-            requestId: text(event.data.requestId, ''),
-            snapshot: captureDatapackSnapshot(ns.getScope?.())
-        });
+        if (!isTrustedClient(event.source)) return;
+        if (event.data?.type === REQUEST_TYPE) {
+            postToClient(event.source, {
+                type: RESPONSE_TYPE,
+                requestId: text(event.data.requestId, ''),
+                snapshot: captureDatapackSnapshot(ns.getScope?.())
+            });
+            return;
+        }
+        if (event.data?.type === UPDATE_REQUEST_TYPE) {
+            let result = {
+                ok: false,
+                sourceId: text(event.data.sourceId, ''),
+                message: 'Bookmark update service is unavailable.'
+            };
+            try {
+                if (typeof ns.updateDatapackBookmark === 'function') {
+                    result = await ns.updateDatapackBookmark(event.data.sourceId, event.data.patch);
+                }
+            } catch (error) {
+                console.error('[MatrixWorkshop] Bookmark update failed.', error);
+                result.message = error?.message || 'Bookmark update failed.';
+            }
+            postToClient(event.source, {
+                type: UPDATE_RESPONSE_TYPE,
+                requestId: text(event.data.requestId, ''),
+                result
+            });
+        }
     });
 
     window.addEventListener('eve:state-mutated', function () {

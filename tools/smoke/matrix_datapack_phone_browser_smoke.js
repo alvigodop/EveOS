@@ -79,7 +79,19 @@ async function seedDatapack(page, resetPrefs = true) {
                 category: 'Reading',
                 folderId: 'favorites',
                 imageUrl: coverA,
-                tags: ['Fantasy', 'Hero']
+                tags: ['Fantasy', 'Hero'],
+                relatedUrls: [
+                    {
+                        url: 'https://mirror.example.test/alpha',
+                        label: 'Mirror Reader',
+                        notes: 'Alternate chapter source'
+                    },
+                    {
+                        url: 'https://wiki.example.test/alpha',
+                        label: 'Series Wiki',
+                        source: 'manual'
+                    }
+                ]
             },
             {
                 id: 'cover-extra',
@@ -299,6 +311,13 @@ async function seedLargeDatapack(page, count = 10000) {
         if (scopedTabNames.includes('Beta Tab') || !scopedTabNames.includes('Beta Shortcut')) {
             throw new Error(`Topbar Matrix scope mismatch: ${JSON.stringify(scopedTabNames)}`);
         }
+        const tabIconShape = await frame.locator('.eve-matrix-phone-app--tab .eve-matrix-phone-app-icon').first().evaluate((node) => ({
+            radius: getComputedStyle(node).borderRadius,
+            width: getComputedStyle(node).width
+        }));
+        if (tabIconShape.radius === '50%' || Number.parseFloat(tabIconShape.radius) > 12) {
+            throw new Error(`Tab icon was not rendered as a rounded square: ${JSON.stringify(tabIconShape)}`);
+        }
         await frame.getByText('Beta Shortcut', { exact: true }).click();
         await frame.getByText('Novels', { exact: true }).click();
         await frame.getByText('Beta Shelf', { exact: true }).click();
@@ -338,10 +357,16 @@ async function seedLargeDatapack(page, count = 10000) {
         await frame.getByText('Alpha Hero', { exact: true }).click();
         const enrichedBookmarkDetail = await frame.locator('.eve-matrix-phone-detail').evaluate((node) => ({
             text: node.textContent || '',
-            notes: node.querySelector('.eve-matrix-phone-detail-notes')?.textContent || '',
-            factCount: node.querySelectorAll('.eve-matrix-phone-detail-facts > div').length
+            notes: node.querySelector('[data-phone-edit-field="personalNotes"]')?.value || '',
+            factCount: node.querySelectorAll('.eve-matrix-phone-detail-facts > div').length,
+            relatedLabels: Array.from(node.querySelectorAll('.eve-matrix-phone-related-link strong')).map((item) => item.textContent),
+            editableFields: Array.from(node.querySelectorAll('[data-phone-edit-field]')).map((item) => item.dataset.phoneEditField),
+            editableValues: Object.fromEntries(Array.from(node.querySelectorAll('[data-phone-edit-field]')).map((item) => [
+                item.dataset.phoneEditField,
+                item.value
+            ]))
         }));
-        for (const expected of ['Reading', '42', 'Season', '2', 'Episode', '7', 'Hero Alpha', 'Alfa no Eiyuu']) {
+        for (const expected of ['Reading', 'Hero Alpha', 'Alfa no Eiyuu']) {
             if (!enrichedBookmarkDetail.text.includes(expected)) {
                 throw new Error(`Bookmark detail missing ${expected}: ${JSON.stringify(enrichedBookmarkDetail)}`);
             }
@@ -351,9 +376,91 @@ async function seedLargeDatapack(page, count = 10000) {
             || enrichedBookmarkDetail.text.includes('Bookmark Merge')
             || enrichedBookmarkDetail.text.includes('Old Alpha Hero')
             || enrichedBookmarkDetail.text.includes('Rating')
-            || enrichedBookmarkDetail.factCount < 4
+            || enrichedBookmarkDetail.factCount !== 1
+            || !enrichedBookmarkDetail.relatedLabels.includes('Mirror Reader')
+            || !enrichedBookmarkDetail.relatedLabels.includes('Series Wiki')
+            || !enrichedBookmarkDetail.editableFields.includes('chapter')
+            || !enrichedBookmarkDetail.editableFields.includes('personalNotes')
+            || enrichedBookmarkDetail.editableFields.includes('status')
+            || enrichedBookmarkDetail.editableValues.chapter !== '42'
+            || enrichedBookmarkDetail.editableValues.season !== '2'
+            || enrichedBookmarkDetail.editableValues.episode !== '7'
         ) {
             throw new Error(`Bookmark detail data projection mismatch: ${JSON.stringify(enrichedBookmarkDetail)}`);
+        }
+        await frame.locator('[data-phone-edit-field="chapter"]').fill('71');
+        await frame.locator('[data-phone-edit-field="personalNotes"]').fill('Phone note changed with real spaces.');
+        await frame.locator('[data-phone-action^="save-bookmark"]').click();
+        await page.waitForFunction(() => {
+            const linked = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.('cover-main');
+            const link = window.getLiveLinks?.().find((item) => item.id === 'cover-main');
+            return linked?.entry?.chapter === 71
+                && linked.entry.graphicChapter === 71
+                && linked.entry.summary.includes('Phone note changed with real spaces.')
+                && linked.entry.summary.includes('=== Bookmark Merge ===')
+                && link?.chapter === 71
+                && link?.graphicChapter === 71
+                && link?.notes?.includes('Phone note changed with real spaces.')
+                && link.notes.includes('=== Bookmark Merge ===');
+        }, null, { timeout: 30000 });
+        await frame.locator('[data-phone-edit-field="chapter"]').waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
+        const savedPhoneEdit = await frame.locator('.eve-matrix-phone-edit-form').evaluate((form) => ({
+            chapter: form.querySelector('[data-phone-edit-field="chapter"]')?.value || '',
+            notes: form.querySelector('[data-phone-edit-field="personalNotes"]')?.value || ''
+        }));
+        if (savedPhoneEdit.chapter !== '71' || savedPhoneEdit.notes !== 'Phone note changed with real spaces.') {
+            throw new Error(`Phone editor did not refresh saved values: ${JSON.stringify(savedPhoneEdit)}`);
+        }
+        const messageBridgeEdit = await frame.locator('body').evaluate(async () => {
+            const host = window.parent;
+            const capture = host.EveMatrixWorkshop.captureDatapackSnapshot;
+            delete host.EveMatrixWorkshop.captureDatapackSnapshot;
+            try {
+                return await window.EveMatrixDatapackPhoneBridge.updateBookmark('cover-main', {
+                    chapter: 72,
+                    personalNotes: 'Message bridge note with spaces.'
+                });
+            } finally {
+                host.EveMatrixWorkshop.captureDatapackSnapshot = capture;
+            }
+        });
+        if (!messageBridgeEdit?.ok) {
+            throw new Error(`File-safe message update failed: ${JSON.stringify(messageBridgeEdit)}`);
+        }
+        const unlinkedEdit = await page.evaluate(() => (
+            window.EveMatrixWorkshop.updateDatapackBookmark('plain', {
+                chapter: 3,
+                personalNotes: 'Unlinked phone note with spaces.'
+            })
+        ));
+        if (!unlinkedEdit?.ok || unlinkedEdit.linked) {
+            throw new Error(`Unlinked bookmark update failed: ${JSON.stringify(unlinkedEdit)}`);
+        }
+        const mutationState = await page.evaluate(() => {
+            const linked = window.EveLibrary.ConnectionsAPI.getLinkedEntry('cover-main');
+            const links = window.getLiveLinks();
+            const linkedBookmark = links.find((item) => item.id === 'cover-main');
+            const plainBookmark = links.find((item) => item.id === 'plain');
+            return {
+                linkedChapter: linked?.entry?.chapter,
+                linkedSummary: linked?.entry?.summary || '',
+                linkedNotes: linkedBookmark?.notes || '',
+                plainChapter: plainBookmark?.chapter,
+                plainNotes: plainBookmark?.notes || ''
+            };
+        });
+        if (
+            mutationState.linkedChapter !== 72
+            || !mutationState.linkedSummary.includes('Message bridge note with spaces.')
+            || !mutationState.linkedSummary.includes('=== Bookmark Merge ===')
+            || !mutationState.linkedNotes.includes('Message bridge note with spaces.')
+            || mutationState.plainChapter !== 3
+            || mutationState.plainNotes !== 'Unlinked phone note with spaces.'
+        ) {
+            throw new Error(`Bookmark mutation state mismatch: ${JSON.stringify(mutationState)}`);
         }
         await frame.locator('[data-phone-back]').click();
         await frame.getByText('Archive Shelf', { exact: true }).click();
@@ -541,9 +648,14 @@ async function seedLargeDatapack(page, count = 10000) {
             homeState,
             initialScope,
             scopedTabNames,
+            tabIconShape,
             matrixRootItems,
             favoritesItems,
             enrichedBookmarkDetail,
+            savedPhoneEdit,
+            messageBridgeEdit,
+            unlinkedEdit,
+            mutationState,
             coverScopes,
             coveredBookmarks,
             slideshowState,

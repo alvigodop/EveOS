@@ -3,10 +3,13 @@ window.EveMatrixDatapackPhoneBridge = (function () {
 
     var REQUEST_TYPE = 'eve:matrix-phone:request-snapshot';
     var RESPONSE_TYPE = 'eve:matrix-phone:snapshot';
+    var UPDATE_REQUEST_TYPE = 'eve:matrix-phone:update-bookmark';
+    var UPDATE_RESPONSE_TYPE = 'eve:matrix-phone:bookmark-updated';
     var INVALIDATED_TYPE = 'eve:matrix-phone:state-changed';
     var REQUEST_TIMEOUT_MS = 4000;
     var requestSequence = 0;
     var pending = new Map();
+    var pendingUpdates = new Map();
     var subscribers = new Set();
 
     function text(value, fallback) {
@@ -92,6 +95,45 @@ window.EveMatrixDatapackPhoneBridge = (function () {
         });
     }
 
+    function updateBookmark(sourceId, patch) {
+        var directHost = getDirectHost();
+        if (directHost) {
+            try {
+                return Promise.resolve(
+                    directHost.EveMatrixWorkshop.updateDatapackBookmark(sourceId, patch)
+                );
+            } catch (error) {
+                // Fall through to the file-safe message bridge.
+            }
+        }
+
+        var candidates = getCandidates();
+        if (!candidates.length) {
+            return Promise.resolve({ ok: false, message: 'No EveOS connection.' });
+        }
+        requestSequence += 1;
+        var requestId = 'matrix-phone-update-' + Date.now() + '-' + requestSequence;
+        return new Promise(function (resolve) {
+            var timer = window.setTimeout(function () {
+                pendingUpdates.delete(requestId);
+                resolve({ ok: false, message: 'EveOS did not respond.' });
+            }, REQUEST_TIMEOUT_MS);
+            pendingUpdates.set(requestId, { resolve: resolve, timer: timer });
+            candidates.forEach(function (candidate) {
+                try {
+                    candidate.postMessage({
+                        type: UPDATE_REQUEST_TYPE,
+                        requestId: requestId,
+                        sourceId: sourceId,
+                        patch: patch
+                    }, '*');
+                } catch (error) {
+                    // Continue to any remaining parent/opener candidate.
+                }
+            });
+        });
+    }
+
     function isCandidateSource(source) {
         return getCandidates().some(function (candidate) {
             return candidate === source;
@@ -109,6 +151,18 @@ window.EveMatrixDatapackPhoneBridge = (function () {
             window.clearTimeout(request.timer);
             pending.delete(requestId);
             request.resolve(data.snapshot || disconnectedSnapshot());
+            return;
+        }
+        if (data.type === UPDATE_RESPONSE_TYPE) {
+            var updateId = text(data.requestId, '');
+            var updateRequest = pendingUpdates.get(updateId);
+            if (!updateRequest) return;
+            window.clearTimeout(updateRequest.timer);
+            pendingUpdates.delete(updateId);
+            updateRequest.resolve(data.result || {
+                ok: false,
+                message: 'EveOS returned no update result.'
+            });
             return;
         }
         if (data.type === INVALIDATED_TYPE) {
@@ -133,6 +187,7 @@ window.EveMatrixDatapackPhoneBridge = (function () {
     return {
         capture: capture,
         getHost: getDirectHost,
-        subscribe: subscribe
+        subscribe: subscribe,
+        updateBookmark: updateBookmark
     };
 })();

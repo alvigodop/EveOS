@@ -20,7 +20,8 @@
         slideSpeed: 3000,
         slideOpacity: 100,
         unsubscribe: null,
-        refreshToken: 0
+        refreshToken: 0,
+        ignoreInvalidationsUntil: 0
     };
     var slideshow = window.EveMatrixPhoneSlideshow?.create?.(state, render) || null;
 
@@ -169,32 +170,43 @@
         renderer?.render?.(state, getWidget());
     }
 
-    function refresh() {
-        if (!state.enabled) return;
+    function refresh(options) {
+        if (!state.enabled) return Promise.resolve(null);
+        var silent = options?.silent === true;
         state.refreshToken += 1;
         var token = state.refreshToken;
         var content = getWidget().querySelector('[data-phone-content]');
-        content.innerHTML = '<div class="eve-matrix-phone-loading">READING DATAPACK...</div>';
-        setTimeout(function () {
-            Promise.resolve(bridge?.capture?.()).then(function (snapshot) {
-                if (!state.enabled || token !== state.refreshToken) return;
-                var previousScope = JSON.stringify(state.snapshot?.scope || null);
-                var nextScope = JSON.stringify(snapshot?.scope || null);
-                if (state.snapshot && previousScope !== nextScope) {
-                    slideshow?.stop?.();
-                    state.history = [];
-                    state.route = { name: 'home' };
-                    state.page = 0;
-                    state.query = '';
-                }
-                state.snapshot = snapshot || null;
-                render();
-            }).catch(function () {
-                if (token !== state.refreshToken) return;
-                state.snapshot = null;
-                render();
-            });
-        }, 0);
+        if (!silent) {
+            content.innerHTML = '<div class="eve-matrix-phone-loading">READING DATAPACK...</div>';
+        }
+        return new Promise(function (resolve) {
+            setTimeout(function () {
+                Promise.resolve(bridge?.capture?.()).then(function (snapshot) {
+                    if (!state.enabled || token !== state.refreshToken) {
+                        resolve(null);
+                        return;
+                    }
+                    var previousScope = JSON.stringify(state.snapshot?.scope || null);
+                    var nextScope = JSON.stringify(snapshot?.scope || null);
+                    if (state.snapshot && previousScope !== nextScope) {
+                        slideshow?.stop?.();
+                        state.history = [];
+                        state.route = { name: 'home' };
+                        state.page = 0;
+                        state.query = '';
+                    }
+                    state.snapshot = snapshot || null;
+                    render();
+                    resolve(snapshot || null);
+                }).catch(function () {
+                    if (token === state.refreshToken) {
+                        state.snapshot = null;
+                        render();
+                    }
+                    resolve(null);
+                });
+            }, 0);
+        });
     }
 
     function navigate(route, remember) {
@@ -226,11 +238,43 @@
         });
     }
 
+    function saveBookmarkEdits(button, sourceId) {
+        var form = button.closest('.eve-matrix-phone-edit-form');
+        var status = form?.querySelector('[data-phone-save-status]');
+        if (!form || !sourceId || typeof bridge?.updateBookmark !== 'function') return;
+        var patch = {};
+        form.querySelectorAll('[data-phone-edit-field]').forEach(function (field) {
+            var key = field.dataset.phoneEditField;
+            patch[key] = field.type === 'number'
+                ? Math.max(0, Math.trunc(Number(field.value) || 0))
+                : field.value;
+        });
+        button.disabled = true;
+        button.textContent = 'SAVING...';
+        if (status) status.textContent = '';
+        Promise.resolve(bridge.updateBookmark(sourceId, patch)).then(function (result) {
+            if (!result?.ok) throw new Error(result?.message || 'Save failed.');
+            state.ignoreInvalidationsUntil = Date.now() + 1000;
+            if (status) status.textContent = 'SAVED';
+            return refresh({ silent: true });
+        }).catch(function (error) {
+            button.disabled = false;
+            button.textContent = 'SAVE CHANGES';
+            if (status) status.textContent = error?.message || 'SAVE FAILED';
+        });
+    }
+
+    function handleBridgeInvalidated() {
+        if (Date.now() < state.ignoreInvalidationsUntil) return;
+        refresh();
+    }
+
     function handleContentClick(event) {
         var button = event.target.closest('[data-phone-action]');
         if (!button) return;
         var parts = parseAction(button.dataset.phoneAction);
-        if (parts[0] === 'matrix-tabs') navigate({ name: 'matrix-tabs' });
+        if (parts[0] === 'save-bookmark') saveBookmarkEdits(button, parts[1]);
+        else if (parts[0] === 'matrix-tabs') navigate({ name: 'matrix-tabs' });
         else if (parts[0] === 'matrix-cards') {
             navigate({ name: 'matrix-cards', workspaceId: parts[1] });
         } else if (parts[0] === 'matrix-bookmarks') {
@@ -278,7 +322,7 @@
 
         if (state.enabled) {
             if (!state.unsubscribe) {
-                state.unsubscribe = bridge?.subscribe?.(refresh) || null;
+                state.unsubscribe = bridge?.subscribe?.(handleBridgeInvalidated) || null;
             }
             refresh();
         } else {

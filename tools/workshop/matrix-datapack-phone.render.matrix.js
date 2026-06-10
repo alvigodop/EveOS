@@ -182,6 +182,59 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
             + escapeHtml(value) + '</strong></div>';
     }
 
+    function safeHref(value) {
+        var url = String(value || '').trim();
+        return /^(?:javascript|vbscript|data):/i.test(url) ? '' : url;
+    }
+
+    function editNumber(label, field, value) {
+        return '<label><span>' + escapeHtml(label) + '</span><input type="number" min="0" step="1"'
+            + ' data-phone-edit-field="' + escapeHtml(field) + '" value="'
+            + escapeHtml(Number(value) || 0) + '"></label>';
+    }
+
+    function renderEditor(item) {
+        var mediaTypes = (Array.isArray(item.mediaTypes) ? item.mediaTypes : []).map(function (value) {
+            return String(value || '').toLowerCase();
+        });
+        var hasFilms = mediaTypes.includes('films') || item.season > 0 || item.episode > 0;
+        var numericInputs = [editNumber('Chapter', 'chapter', item.chapter)];
+        if (item.graphicChapter > 0 && item.graphicChapter !== item.chapter) {
+            numericInputs.push(editNumber('Graphic Ch.', 'graphicChapter', item.graphicChapter));
+        }
+        if (item.novelChapter > 0 && item.novelChapter !== item.chapter) {
+            numericInputs.push(editNumber('Novel Ch.', 'novelChapter', item.novelChapter));
+        }
+        if (hasFilms) {
+            numericInputs.push(editNumber('Season', 'season', item.season));
+            numericInputs.push(editNumber('Episode', 'episode', item.episode));
+        }
+        return '<form class="eve-matrix-phone-edit-form" data-phone-bookmark-id="'
+            + escapeHtml(item.sourceId) + '"><div class="eve-matrix-phone-edit-title">'
+            + '<h4>MINI FOCUS</h4><small>Status stays managed by EveOS</small></div>'
+            + '<div class="eve-matrix-phone-edit-grid">' + numericInputs.join('') + '</div>'
+            + '<label class="eve-matrix-phone-edit-notes"><span>MY NOTES</span>'
+            + '<textarea rows="4" data-phone-edit-field="personalNotes"'
+            + ' placeholder="Personal notes only...">' + escapeHtml(item.personalNotes || '') + '</textarea></label>'
+            + '<div class="eve-matrix-phone-edit-actions"><button type="button" data-phone-action="'
+            + escapeHtml(action('save-bookmark', item.sourceId)) + '">SAVE CHANGES</button>'
+            + '<span data-phone-save-status aria-live="polite"></span></div></form>';
+    }
+
+    function renderRelatedUrls(item) {
+        var links = (Array.isArray(item.relatedUrls) ? item.relatedUrls : []).map(function (entry) {
+            var url = safeHref(entry?.url);
+            if (!url) return '';
+            return '<a class="eve-matrix-phone-related-link" href="' + escapeHtml(url)
+                + '" target="_blank" rel="noopener noreferrer"><strong>'
+                + escapeHtml(entry.label || entry.title || url) + '</strong><span>'
+                + escapeHtml(entry.notes || entry.source || url) + '</span></a>';
+        }).filter(Boolean);
+        if (!links.length) return '';
+        return '<section class="eve-matrix-phone-detail-section eve-matrix-phone-related">'
+            + '<h4>ADDITIONAL URLS</h4><div>' + links.join('') + '</div></section>';
+    }
+
     function renderBookmark(state, id) {
         var item = state.snapshot?.bookmarks?.find(function (bookmark) {
             return bookmark.id === id;
@@ -190,25 +243,17 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
             return { title: 'Bookmark', count: 0, html: '<div class="eve-matrix-phone-empty">Bookmark unavailable.</div>' };
         }
         var progress = [
-            detailRow('Status', item.status),
-            detailRow('Chapter', item.chapter),
-            detailRow('Graphic Ch.', item.graphicChapter && item.graphicChapter !== item.chapter ? item.graphicChapter : ''),
-            detailRow('Novel Ch.', item.novelChapter && item.novelChapter !== item.chapter ? item.novelChapter : ''),
-            detailRow('Season', item.season),
-            detailRow('Episode', item.episode)
+            detailRow('Status', item.status)
         ].join('');
         var aliases = Array.isArray(item.aliases) && item.aliases.length
             ? '<section class="eve-matrix-phone-detail-section"><h4>ALSO KNOWN AS</h4><p>'
                 + escapeHtml(item.aliases.join(' / ')) + '</p></section>'
             : '';
-        var notes = item.personalNotes
-            ? '<section class="eve-matrix-phone-detail-section eve-matrix-phone-detail-notes"><h4>MY NOTES</h4><p>'
-                + escapeHtml(item.personalNotes) + '</p></section>'
-            : '';
         var tags = Array.isArray(item.tags) && item.tags.length
             ? '<section class="eve-matrix-phone-detail-section"><h4>TAGS</h4><p>'
                 + escapeHtml(item.tags.join(', ')) + '</p></section>'
             : '';
+        var mainUrl = safeHref(item.url);
         return {
             title: 'Bookmark',
             count: 0,
@@ -220,9 +265,9 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
                 + '<span>' + escapeHtml(workspaceName(state, item.workspaceId) + ' / ' + item.category) + '</span>'
                 + (item.folderName ? '<small>Folder: ' + escapeHtml(item.folderName) + '</small>' : '')
                 + (progress ? '<section class="eve-matrix-phone-detail-facts">' + progress + '</section>' : '')
-                + aliases + notes + tags
-                + (item.url
-                    ? '<a href="' + escapeHtml(item.url)
+                + aliases + renderEditor(item) + renderRelatedUrls(item) + tags
+                + (mainUrl
+                    ? '<a href="' + escapeHtml(mainUrl)
                         + '" target="_blank" rel="noopener noreferrer">OPEN BOOKMARK</a>'
                     : '')
                 + '</article>'

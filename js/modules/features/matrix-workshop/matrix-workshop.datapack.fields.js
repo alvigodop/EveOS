@@ -96,9 +96,34 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         return 0;
     }
 
+    function getRelatedUrls(link) {
+        const seen = new Set();
+        return (Array.isArray(link?.relatedUrls) ? link.relatedUrls : []).map(function (entry) {
+            const source = typeof entry === 'string' ? { url: entry } : (entry || {});
+            const url = text(source.url || source.href || source.sourceUrl);
+            if (!url || seen.has(url)) return null;
+            seen.add(url);
+            let domain = '';
+            try {
+                domain = new URL(url).hostname.replace(/^www\./i, '');
+            } catch (error) {
+                domain = '';
+            }
+            const label = text(source.label || source.title || domain || url);
+            return {
+                url,
+                label,
+                title: text(source.title || label),
+                notes: text(source.notes),
+                source: text(source.source)
+            };
+        }).filter(Boolean);
+    }
+
     ns.DatapackFields = Object.assign(ns.DatapackFields || {}, {
         getTitleAliases,
         getPersonalNotes,
+        getRelatedUrls,
         positiveNumber
     });
 })(window.EveMatrixWorkshop);
