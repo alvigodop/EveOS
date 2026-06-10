@@ -282,19 +282,22 @@
             if (!pendingDomIconUpdates.size) return;
             const updates = new Map(pendingDomIconUpdates);
             pendingDomIconUpdates.clear();
-            if (document.images && Number(document.images.length || 0) > 2500) return;
-            const images = document.querySelectorAll('img[data-favicon-domain]');
             let applied = 0;
-            images.forEach(function (image) {
+            updates.forEach(function (nextSrc, imageDomain) {
                 if (applied >= MAX_DOM_ICON_UPDATES_PER_FLUSH) return;
-                const imageDomain = normalizeDomain(image.dataset?.faviconDomain || '');
-                const nextSrc = updates.get(imageDomain);
-                if (!nextSrc) return;
-                image.dataset.fallbackApplied = '';
-                if (image.src === nextSrc) return;
-                if (image.style.display === 'none') image.style.display = '';
-                image.src = nextSrc;
-                applied += 1;
+                const safeDomain = window.CSS?.escape
+                    ? window.CSS.escape(imageDomain)
+                    : imageDomain.replace(/["\\]/g, '\\$&');
+                document.querySelectorAll(
+                    `img[data-favicon-domain="${safeDomain}"]`
+                ).forEach(function (image) {
+                    if (applied >= MAX_DOM_ICON_UPDATES_PER_FLUSH) return;
+                    image.dataset.fallbackApplied = '';
+                    if (image.src === nextSrc) return;
+                    if (image.style.display === 'none') image.style.display = '';
+                    image.src = nextSrc;
+                    applied += 1;
+                });
             });
         }, 220);
     }

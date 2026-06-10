@@ -62,7 +62,10 @@
             return '';
         }
         const cached = getCachedIcon(key);
-        if (cached) return cached;
+        if (cached) {
+            scheduleDomIconUpdate(key, cached);
+            return cached;
+        }
         if (isFailureCoolingDown(key)) return '';
         if (_inFlight.has(key)) return _inFlight.get(key);
         const promise = (async () => {
@@ -71,7 +74,10 @@
 
             // Check disk (might have populated memory during load)
             const hydrated = getCachedIcon(key);
-            if (hydrated) return hydrated;
+            if (hydrated) {
+                scheduleDomIconUpdate(key, hydrated);
+                return hydrated;
+            }
 
             const existing = core.diskCache[key];
             if (
@@ -83,6 +89,7 @@
             ) {
                 core.memoryCache.set(key, existing.dataUri);
                 trimMemory();
+                scheduleDomIconUpdate(key, existing.dataUri);
                 return existing.dataUri;
             }
 
