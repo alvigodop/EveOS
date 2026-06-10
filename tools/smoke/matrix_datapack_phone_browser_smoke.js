@@ -343,7 +343,7 @@ async function seedLargeDatapack(page, count = 10000) {
                 shuffle: state.slideShuffle,
                 speed: state.slideSpeed,
                 opacity: state.slideOpacity,
-                imageOpacity: document.querySelector('.eve-matrix-phone-slideshow > img')?.style.opacity || ''
+                imageOpacity: document.querySelector('.eve-matrix-phone-slide-detail > img')?.style.opacity || ''
             };
         });
         if (
@@ -354,6 +354,29 @@ async function seedLargeDatapack(page, count = 10000) {
         ) {
             throw new Error(`Slideshow controls mismatch: ${JSON.stringify(slideshowControlsState)}`);
         }
+
+        const slideshowBookmarkTitle = await frame.locator('.eve-matrix-phone-slide-detail strong').textContent();
+        await frame.locator('.eve-matrix-phone-slide-detail').click();
+        const slideshowBookmarkDetail = await frame.locator('.eve-matrix-phone-detail').evaluate((node) => ({
+            title: node.querySelector('strong')?.textContent || '',
+            scope: node.querySelector('span')?.textContent || '',
+            hasOpenAction: !!node.querySelector('a[href]')
+        }));
+        if (
+            slideshowBookmarkDetail.title !== slideshowBookmarkTitle
+            || !slideshowBookmarkDetail.scope
+            || !slideshowBookmarkDetail.hasOpenAction
+        ) {
+            throw new Error(`Slideshow bookmark detail mismatch: ${JSON.stringify({
+                slideshowBookmarkTitle,
+                slideshowBookmarkDetail
+            })}`);
+        }
+        await frame.locator('[data-phone-back]').click();
+        await frame.locator('.eve-matrix-phone-slideshow').waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
 
         await frame.locator('#slideshowCheckbox').check();
         await frame.locator('.slideshow-toggle-tab').click();

@@ -21,7 +21,31 @@
     text-align: center;
 }
 
-.eve-matrix-phone-slideshow > img {
+.eve-matrix-phone-slide-detail {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+.eve-matrix-phone-slide-detail:hover strong,
+.eve-matrix-phone-slide-detail:focus-visible strong {
+    color: var(--matrix-phone-accent);
+}
+
+.eve-matrix-phone-slide-detail:focus-visible {
+    outline: 1px solid var(--matrix-phone-accent);
+    outline-offset: 4px;
+    border-radius: 12px;
+}
+
+.eve-matrix-phone-slide-detail > img {
     width: 94%;
     height: min(260px, 42dvh);
     border: 1px solid var(--matrix-phone-accent);
@@ -31,8 +55,8 @@
     box-shadow: 0 0 22px color-mix(in srgb, var(--matrix-phone-accent) 18%, transparent);
 }
 
-.eve-matrix-phone-slideshow strong,
-.eve-matrix-phone-slideshow small {
+.eve-matrix-phone-slide-detail strong,
+.eve-matrix-phone-slide-detail small {
     display: block;
     max-width: 250px;
     overflow: hidden;
@@ -40,7 +64,7 @@
     white-space: nowrap;
 }
 
-.eve-matrix-phone-slideshow small {
+.eve-matrix-phone-slide-detail small {
     margin-top: 3px;
     color: rgba(190, 255, 204, 0.55);
     font-size: 9px;

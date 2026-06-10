@@ -301,11 +301,14 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
                 + '" alt="" loading="lazy" referrerpolicy="no-referrer"></button>';
         }).join('');
         return '<div class="eve-matrix-phone-slideshow">'
+            + '<button class="eve-matrix-phone-slide-detail" data-phone-action="'
+            + action('bookmark', item.id) + '" title="View bookmark details">'
             + '<img src="' + escapeHtml(item.coverUrl) + '" alt="'
             + escapeHtml(item.title) + '" referrerpolicy="no-referrer" style="opacity:'
             + (Number(state.slideOpacity) || 100) / 100 + '">'
-            + '<div><strong>' + escapeHtml(item.title) + '</strong><small>'
-            + (state.slideIndex + 1) + ' / ' + state.slideItems.length + '</small></div>'
+            + '<span><strong>' + escapeHtml(item.title) + '</strong><small>'
+            + (state.slideIndex + 1) + ' / ' + state.slideItems.length
+            + ' &middot; VIEW INFO</small></span></button>'
             + '<nav class="eve-matrix-phone-slide-main-controls"><button data-phone-action="' + action('slide-prev') + '">&#9664;</button>'
             + '<button data-phone-action="' + action('slide-toggle') + '">'
             + (state.slidePlaying ? 'PAUSE' : 'PLAY') + '</button>'
