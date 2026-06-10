@@ -115,6 +115,7 @@
     gap: 7px;
 }
 
+.matrix-workshop-detach,
 .matrix-workshop-header-toggle,
 .matrix-workshop-close {
     min-height: 34px;
@@ -130,6 +131,17 @@
     letter-spacing: 0.04em;
     cursor: pointer;
     transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.matrix-workshop-detach {
+    min-width: 78px;
+    padding: 6px 10px;
+    gap: 6px;
+}
+
+.matrix-workshop-detach > span:first-child {
+    font-size: 0.88rem;
+    line-height: 1;
 }
 
 .matrix-workshop-header-toggle {
@@ -152,6 +164,8 @@
     line-height: 0.8;
 }
 
+.matrix-workshop-detach:hover,
+.matrix-workshop-detach:focus-visible,
 .matrix-workshop-header-toggle:hover,
 .matrix-workshop-header-toggle:focus-visible,
 .matrix-workshop-close:hover,
@@ -162,6 +176,7 @@
     outline: none;
 }
 
+.matrix-workshop-detach:active,
 .matrix-workshop-header-toggle:active,
 .matrix-workshop-close:active {
     transform: scale(0.96);
@@ -304,6 +319,16 @@
 
     .matrix-workshop-close {
         font-size: 0;
+    }
+
+    .matrix-workshop-detach {
+        min-width: 34px;
+        width: 34px;
+        padding: 0;
+    }
+
+    .matrix-workshop-detach-label {
+        display: none;
     }
 
     .matrix-workshop-close span {

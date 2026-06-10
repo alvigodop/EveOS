@@ -179,6 +179,37 @@ async function waitForStatus(url, timeoutMs = 30000) {
             throw new Error(`Matrix header restore mismatch: ${JSON.stringify(restoredHeaderState)}`);
         }
 
+        const detachedPagePromise = context.waitForEvent('page');
+        await page.locator('[data-matrix-detach]').click();
+        const detachedPage = await detachedPagePromise;
+        await detachedPage.waitForLoadState('load', { timeout: 60000 });
+        const detachedState = {
+            title: await detachedPage.title(),
+            url: detachedPage.url(),
+            canvasCount: await detachedPage.locator('canvas').count(),
+            parent: await page.evaluate(() => ({
+                open: document.getElementById('matrix-workshop-overlay')?.classList.contains('is-open') || false,
+                frameSrc: document.getElementById('matrix-workshop-frame')?.getAttribute('src') || '',
+                launcherExpanded: document.querySelector('.topbar-matrix-btn')?.getAttribute('aria-expanded'),
+                bodyLocked: document.body.style.overflow === 'hidden'
+            }))
+        };
+        if (
+            detachedState.title !== 'Matrix Code Rain v2.0'
+            || !detachedState.url.endsWith('/tools/workshop/MatrixBackground-V2-Upgrading.html')
+            || detachedState.canvasCount < 1
+            || detachedState.parent.open
+            || detachedState.parent.frameSrc !== 'about:blank'
+            || detachedState.parent.launcherExpanded !== 'false'
+            || detachedState.parent.bodyLocked
+            || page.url() !== originalUrl
+        ) {
+            throw new Error(`Matrix detach lifecycle mismatch: ${JSON.stringify(detachedState)}`);
+        }
+        await detachedPage.close();
+
+        await matrixButton.click();
+        await page.waitForSelector('#matrix-workshop-overlay.is-open', { timeout: 15000 });
         await page.locator('[data-matrix-close]').click();
         const closedState = await page.evaluate(() => ({
             open: document.getElementById('matrix-workshop-overlay')?.classList.contains('is-open') || false,
@@ -228,6 +259,7 @@ async function waitForStatus(url, timeoutMs = 30000) {
             matrixState,
             hiddenHeaderState,
             restoredHeaderState,
+            detachedState,
             closedState,
             mobileState,
             urlPreserved: page.url() === originalUrl,

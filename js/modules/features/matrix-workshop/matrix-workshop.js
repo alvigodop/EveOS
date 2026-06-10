@@ -7,8 +7,10 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     const FRAME_ID = 'matrix-workshop-frame';
     const SOURCE_PATH = 'tools/workshop/MatrixBackground-V2-Upgrading.html';
     const HEADER_PREF_KEY = 'eveMatrixWorkshopHeaderHidden';
+    const DETACHED_WINDOW_NAME = 'eveMatrixWorkshopWindow';
     let previousFocus = null;
     let previousBodyOverflow = '';
+    let detachedWindow = null;
 
     function getLauncher() {
         return document.querySelector('.topbar-matrix-btn');
@@ -25,6 +27,29 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
 
     function getSourceUrl() {
         return new URL(SOURCE_PATH, window.location.href).href;
+    }
+
+    function getDetachedWindowFeatures() {
+        const availableWidth = Math.max(760, Number(window.screen?.availWidth) || 1280);
+        const availableHeight = Math.max(600, Number(window.screen?.availHeight) || 820);
+        const width = Math.min(1280, Math.max(760, availableWidth - 120));
+        const height = Math.min(900, Math.max(600, availableHeight - 120));
+        const left = Math.max(0, Math.round((availableWidth - width) / 2));
+        const top = Math.max(0, Math.round((availableHeight - height) / 2));
+        return [
+            'popup=yes',
+            `width=${width}`,
+            `height=${height}`,
+            `left=${left}`,
+            `top=${top}`,
+            'resizable=yes',
+            'scrollbars=no'
+        ].join(',');
+    }
+
+    function setStatus(message) {
+        const status = document.querySelector(`#${OVERLAY_ID} [data-matrix-status]`);
+        if (status) status.textContent = message;
     }
 
     function readHeaderPreference() {
@@ -78,6 +103,11 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
                         </div>
                     </div>
                     <div class="matrix-workshop-header-actions">
+                        <button class="matrix-workshop-detach" type="button"
+                            data-matrix-detach aria-label="Detach Matrix Workshop into a window"
+                            title="Detach Matrix Workshop into a window">
+                            <span aria-hidden="true">&#8599;</span><span class="matrix-workshop-detach-label">Detach</span>
+                        </button>
                         <button class="matrix-workshop-header-toggle" type="button"
                             data-matrix-header-toggle aria-label="Hide Matrix header"
                             aria-pressed="false" title="Hide Matrix header">
@@ -110,6 +140,7 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         });
 
         overlay.querySelector('[data-matrix-close]')?.addEventListener('click', ns.close);
+        overlay.querySelector('[data-matrix-detach]')?.addEventListener('click', ns.detach);
         overlay.querySelector('[data-matrix-header-toggle]')?.addEventListener('click', function () {
             setHeaderHidden(true, { focus: 'restore' });
         });
@@ -168,6 +199,29 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
             previousFocus.focus();
         }
         previousFocus = null;
+    };
+
+    ns.detach = function detachMatrixWorkshop() {
+        if (detachedWindow && !detachedWindow.closed) {
+            detachedWindow.focus();
+            ns.close();
+            return detachedWindow;
+        }
+
+        detachedWindow = window.open(
+            getSourceUrl(),
+            DETACHED_WINDOW_NAME,
+            getDetachedWindowFeatures()
+        );
+
+        if (!detachedWindow) {
+            setStatus('Window blocked - allow pop-ups to detach');
+            return null;
+        }
+
+        detachedWindow.focus();
+        ns.close();
+        return detachedWindow;
     };
 
     ns.isOpen = isOpen;
