@@ -15,7 +15,7 @@ async function runConstellationSetup(page) {
 
     const topbarStyles = await page.evaluate(() => {
         const container = document.querySelector('.top-right');
-        const button = document.querySelector('.topbar-map-btn');
+        const button = document.querySelector('.topbar-map-btn:not(.topbar-matrix-btn)');
         const primary = document.querySelector('.topbar-primary-btn');
         const containerStyle = container ? window.getComputedStyle(container) : null;
         const buttonStyle = button ? window.getComputedStyle(button) : null;
@@ -47,7 +47,7 @@ async function runConstellationSetup(page) {
         throw new Error(`Expected smaller map button font-size, got ${JSON.stringify(topbarStyles)}`);
     }
 
-    await clickAndWaitForMap(page, () => page.locator('.topbar-map-btn').click());
+    await clickAndWaitForMap(page, () => page.locator('.topbar-map-btn:not(.topbar-matrix-btn)').click());
     const workspaceStats = await getStats(page);
     if (workspaceStats.scope.scope !== 'workspace' || workspaceStats.scope.workspaceId !== 'main') {
         throw new Error(`Topbar map scope mismatch: ${JSON.stringify(workspaceStats.scope)}`);

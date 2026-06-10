@@ -150,7 +150,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/constellation-map/constellation-map.events.js?v=0.1.8",
     "js/modules/features/constellation-map/constellation-map.toolbar.markup.builders.js?v=0.1.1",
     "js/modules/features/constellation-map/constellation-map.toolbar.markup.blobs.js?v=0.1.0",
-    "js/modules/features/constellation-map/constellation-map.toolbar.markup.overlay.js?v=0.1.1",
+    "js/modules/features/constellation-map/constellation-map.toolbar.markup.overlay.js?v=0.1.2",
     "js/modules/features/constellation-map/constellation-map.toolbar.markup.js?v=0.1.17",
     "js/modules/features/constellation-map/constellation-map.toolbar.handlers.js?v=0.1.2",
     "js/modules/features/constellation-map/constellation-map.toolbar.js?v=0.2.11",
