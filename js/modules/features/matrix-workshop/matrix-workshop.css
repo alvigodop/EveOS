@@ -109,12 +109,18 @@
     white-space: nowrap;
 }
 
+.matrix-workshop-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.matrix-workshop-header-toggle,
 .matrix-workshop-close {
     min-height: 34px;
-    padding: 6px 11px 6px 13px;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
     border: 1px solid rgba(81, 255, 127, 0.32);
     border-radius: 9px;
     background: rgba(4, 28, 11, 0.74);
@@ -126,11 +132,28 @@
     transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease;
 }
 
+.matrix-workshop-header-toggle {
+    width: 34px;
+    padding: 0;
+}
+
+.matrix-workshop-header-toggle span {
+    font-size: 0.62rem;
+    transform: translateY(-1px);
+}
+
+.matrix-workshop-close {
+    padding: 6px 11px 6px 13px;
+    gap: 8px;
+}
+
 .matrix-workshop-close span {
     font-size: 1.2rem;
     line-height: 0.8;
 }
 
+.matrix-workshop-header-toggle:hover,
+.matrix-workshop-header-toggle:focus-visible,
 .matrix-workshop-close:hover,
 .matrix-workshop-close:focus-visible {
     border-color: rgba(120, 255, 153, 0.72);
@@ -139,8 +162,13 @@
     outline: none;
 }
 
+.matrix-workshop-header-toggle:active,
 .matrix-workshop-close:active {
     transform: scale(0.96);
+}
+
+.is-header-hidden .matrix-workshop-header {
+    display: none;
 }
 
 .matrix-workshop-stage {
@@ -149,6 +177,48 @@
     min-height: 0;
     overflow: hidden;
     background: #000;
+}
+
+.matrix-workshop-header-restore {
+    position: absolute;
+    top: 10px;
+    right: 11px;
+    z-index: 4;
+    width: 34px;
+    height: 28px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(71, 255, 115, 0.3);
+    border-radius: 8px;
+    background: rgba(0, 18, 5, 0.5);
+    color: rgba(154, 255, 177, 0.72);
+    cursor: pointer;
+    opacity: 0.62;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 16px rgba(32, 255, 101, 0.08);
+    transition: opacity 150ms ease, border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.is-header-hidden .matrix-workshop-header-restore {
+    display: inline-flex;
+}
+
+.matrix-workshop-header-restore:hover,
+.matrix-workshop-header-restore:focus-visible {
+    border-color: rgba(110, 255, 144, 0.72);
+    background: rgba(0, 34, 10, 0.78);
+    color: #c8ffd3;
+    opacity: 1;
+    outline: none;
+}
+
+.matrix-workshop-header-restore:active {
+    transform: scale(0.94);
+}
+
+.matrix-workshop-header-restore span {
+    font-size: 0.62rem;
 }
 
 .matrix-workshop-frame {

@@ -6,6 +6,7 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     const OVERLAY_ID = 'matrix-workshop-overlay';
     const FRAME_ID = 'matrix-workshop-frame';
     const SOURCE_PATH = 'tools/workshop/MatrixBackground-V2-Upgrading.html';
+    const HEADER_PREF_KEY = 'eveMatrixWorkshopHeaderHidden';
     let previousFocus = null;
     let previousBodyOverflow = '';
 
@@ -26,6 +27,38 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         return new URL(SOURCE_PATH, window.location.href).href;
     }
 
+    function readHeaderPreference() {
+        try {
+            return localStorage.getItem(HEADER_PREF_KEY) === '1';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function writeHeaderPreference(hidden) {
+        try {
+            localStorage.setItem(HEADER_PREF_KEY, hidden ? '1' : '0');
+        } catch (error) {
+            // The visual state still works when storage is unavailable.
+        }
+    }
+
+    function setHeaderHidden(hidden, options = {}) {
+        const overlay = document.getElementById(OVERLAY_ID);
+        if (!overlay) return;
+
+        overlay.classList.toggle('is-header-hidden', !!hidden);
+        const toggle = overlay.querySelector('[data-matrix-header-toggle]');
+        if (toggle) toggle.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+        if (options.persist !== false) writeHeaderPreference(hidden);
+
+        if (options.focus === 'restore') {
+            requestAnimationFrame(() => overlay.querySelector('[data-matrix-header-restore]')?.focus());
+        } else if (options.focus === 'toggle') {
+            requestAnimationFrame(() => toggle?.focus());
+        }
+    }
+
     function createOverlay() {
         const overlay = document.createElement('div');
         overlay.id = OVERLAY_ID;
@@ -44,11 +77,21 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
                             <span data-matrix-status>Local visual engine</span>
                         </div>
                     </div>
-                    <button class="matrix-workshop-close" type="button"
-                        data-matrix-close aria-label="Close Matrix Workshop"
-                        title="Close Matrix Workshop">Close <span aria-hidden="true">&times;</span></button>
+                    <div class="matrix-workshop-header-actions">
+                        <button class="matrix-workshop-header-toggle" type="button"
+                            data-matrix-header-toggle aria-label="Hide Matrix header"
+                            aria-pressed="false" title="Hide Matrix header">
+                            <span aria-hidden="true">&#9650;</span>
+                        </button>
+                        <button class="matrix-workshop-close" type="button"
+                            data-matrix-close aria-label="Close Matrix Workshop"
+                            title="Close Matrix Workshop">Close <span aria-hidden="true">&times;</span></button>
+                    </div>
                 </header>
                 <div class="matrix-workshop-stage">
+                    <button class="matrix-workshop-header-restore" type="button"
+                        data-matrix-header-restore aria-label="Show Matrix header"
+                        title="Show Matrix header"><span aria-hidden="true">&#9660;</span></button>
                     <div class="matrix-workshop-loader" data-matrix-loader>
                         <span class="matrix-workshop-loader-grid" aria-hidden="true"></span>
                         <strong>Initializing Matrix</strong>
@@ -67,7 +110,14 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         });
 
         overlay.querySelector('[data-matrix-close]')?.addEventListener('click', ns.close);
+        overlay.querySelector('[data-matrix-header-toggle]')?.addEventListener('click', function () {
+            setHeaderHidden(true, { focus: 'restore' });
+        });
+        overlay.querySelector('[data-matrix-header-restore]')?.addEventListener('click', function () {
+            setHeaderHidden(false, { focus: 'toggle' });
+        });
         document.body.appendChild(overlay);
+        setHeaderHidden(readHeaderPreference(), { persist: false });
         return overlay;
     }
 
@@ -121,6 +171,7 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     };
 
     ns.isOpen = isOpen;
+    ns.setHeaderHidden = setHeaderHidden;
 
     window.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape' || !isOpen()) return;

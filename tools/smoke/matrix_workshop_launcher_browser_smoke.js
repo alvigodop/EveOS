@@ -134,6 +134,51 @@ async function waitForStatus(url, timeoutMs = 30000) {
             throw new Error(`Matrix workshop did not initialize from launcher: ${JSON.stringify(matrixState)}`);
         }
 
+        await page.locator('[data-matrix-header-toggle]').click();
+        const hiddenHeaderState = await page.evaluate(() => {
+            const overlay = document.getElementById('matrix-workshop-overlay');
+            const shell = overlay?.querySelector('.matrix-workshop-shell');
+            const header = overlay?.querySelector('.matrix-workshop-header');
+            const stage = overlay?.querySelector('.matrix-workshop-stage');
+            const restore = overlay?.querySelector('[data-matrix-header-restore]');
+            const shellRect = shell?.getBoundingClientRect();
+            const stageRect = stage?.getBoundingClientRect();
+            return {
+                hidden: overlay?.classList.contains('is-header-hidden') || false,
+                headerDisplay: header ? getComputedStyle(header).display : '',
+                restoreVisible: !!restore?.getClientRects().length,
+                heightDelta: Math.abs((shellRect?.height || 0) - (stageRect?.height || 0)),
+                stored: localStorage.getItem('eveMatrixWorkshopHeaderHidden')
+            };
+        });
+        if (
+            !hiddenHeaderState.hidden
+            || hiddenHeaderState.headerDisplay !== 'none'
+            || !hiddenHeaderState.restoreVisible
+            || hiddenHeaderState.heightDelta > 3
+            || hiddenHeaderState.stored !== '1'
+        ) {
+            throw new Error(`Matrix header collapse mismatch: ${JSON.stringify(hiddenHeaderState)}`);
+        }
+
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => !document.getElementById('matrix-workshop-overlay')?.classList.contains('is-open'));
+        await matrixButton.click();
+        await page.waitForSelector('#matrix-workshop-overlay.is-open.is-header-hidden', { timeout: 15000 });
+        await page.locator('[data-matrix-header-restore]').click();
+        const restoredHeaderState = await page.evaluate(() => {
+            const overlay = document.getElementById('matrix-workshop-overlay');
+            const header = overlay?.querySelector('.matrix-workshop-header');
+            return {
+                hidden: overlay?.classList.contains('is-header-hidden') || false,
+                headerDisplay: header ? getComputedStyle(header).display : '',
+                stored: localStorage.getItem('eveMatrixWorkshopHeaderHidden')
+            };
+        });
+        if (restoredHeaderState.hidden || restoredHeaderState.headerDisplay !== 'flex' || restoredHeaderState.stored !== '0') {
+            throw new Error(`Matrix header restore mismatch: ${JSON.stringify(restoredHeaderState)}`);
+        }
+
         await page.locator('[data-matrix-close]').click();
         const closedState = await page.evaluate(() => ({
             open: document.getElementById('matrix-workshop-overlay')?.classList.contains('is-open') || false,
@@ -181,6 +226,8 @@ async function waitForStatus(url, timeoutMs = 30000) {
         console.log('MATRIX_WORKSHOP_LAUNCHER_BROWSER_SMOKE_OK', JSON.stringify({
             placement,
             matrixState,
+            hiddenHeaderState,
+            restoredHeaderState,
             closedState,
             mobileState,
             urlPreserved: page.url() === originalUrl,
