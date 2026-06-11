@@ -5,6 +5,7 @@ const path = require('path');
 const { launchChromiumOrConnect } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const SCRIPT_LOADER_BOOTSTRAP_PATH = path.join(REPO_ROOT, 'js', 'script-loader.bootstrap.js');
 const SCRIPT_LOADER_PATH = path.join(REPO_ROOT, 'js', 'script-loader.js');
 
 function findFreePort() {
@@ -19,6 +20,7 @@ function findFreePort() {
 }
 
 function createServer() {
+    const scriptLoaderBootstrap = fs.readFileSync(SCRIPT_LOADER_BOOTSTRAP_PATH, 'utf8');
     const scriptLoader = fs.readFileSync(SCRIPT_LOADER_PATH, 'utf8');
     let harnessRequests = 0;
 
@@ -33,10 +35,16 @@ function createServer() {
     <script>
         window.EveModuleManifest = { scripts: ['/visible-bootstrap.js'] };
     </script>
+    <script src="/script-loader.bootstrap.js"></script>
     <script src="/script-loader.js"></script>
 </head>
 <body></body>
 </html>`);
+            return;
+        }
+        if (req.url === '/script-loader.bootstrap.js') {
+            res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+            res.end(scriptLoaderBootstrap);
             return;
         }
         if (req.url === '/script-loader.js') {

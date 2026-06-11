@@ -78,7 +78,11 @@ function createEditHistoryContext(cap) {
 
 function runEditHistoryCase(cap, linkCount, label) {
     const context = createEditHistoryContext(cap);
-    ['js/modules/core/storage.delta.js', 'js/modules/features/edit-history/edit-history.core.js']
+    [
+        'js/modules/core/storage.delta.js',
+        'js/modules/features/edit-history/edit-history.capture.js',
+        'js/modules/features/edit-history/edit-history.core.js'
+    ]
         .forEach((rel) => vm.runInContext(readModule(rel), context, { filename: rel }));
 
     const api = context.window.EveEditHistory;

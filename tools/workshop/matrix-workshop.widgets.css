@@ -1,0 +1,265 @@
+/* Matrix Workshop bouncy-dot and slideshow widgets. */
+        /* --- Bouncy Dots Canvas Overlay (Full-Screen Mode) --- */
+        #bouncyDotsCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 2;
+            display: none;
+        }
+
+        /* --- Bouncy Dots Phone Widget Mode --- */
+        #bouncyPhoneWidget {
+            position: absolute;
+            top: 80px;
+            left: 20px;
+            z-index: 1000;
+            display: none;
+        }
+
+        .phone-drag-bar {
+            width: 100%;
+            height: 22px;
+            background: rgba(0, 255, 0, 0.15);
+            border: 1px solid #0f0;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .phone-drag-bar:active {
+            cursor: grabbing;
+            background: rgba(0, 255, 0, 0.3);
+        }
+
+        .phone-drag-bar .grip {
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: #0f0;
+            opacity: 0.6;
+        }
+
+        .phone-frame {
+            width: 280px;
+            height: 520px;
+            background: rgba(0, 0, 0, 0.85);
+            border: 2px solid #0f0;
+            border-radius: 0 0 30px 30px;
+            padding: 8px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+            position: relative;
+        }
+
+        .phone-screen {
+            background: rgba(0, 10, 0, 0.95);
+            height: 100%;
+            border-radius: 0 0 24px 24px;
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .phone-screen .phone-dot {
+            width: 4px;
+            height: 4px;
+            background: #0f0;
+            border-radius: 50%;
+            position: absolute;
+            transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            pointer-events: none;
+            box-shadow: 0 0 5px #0f0;
+        }
+
+        /* --- Slideshow (Non-Invasive) --- */
+        #slideshowBg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 3;
+            display: none;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.2;
+            pointer-events: none;
+            transition: opacity 0.5s ease, background-image 0.5s ease;
+        }
+
+        #slideshowBar {
+            position: fixed;
+            bottom: max(0px, env(safe-area-inset-bottom));
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            display: none;
+            max-width: 100vw;
+            max-height: calc(100dvh - 30px);
+            box-sizing: border-box;
+            background: rgba(0, 0, 0, 0.9);
+            border-top: 1px solid #0f0;
+            backdrop-filter: blur(8px);
+            transition: transform 0.3s ease;
+        }
+
+        #slideshowBar.collapsed {
+            transform: translateY(calc(100% - 30px));
+        }
+
+        #slideshowBar.hidden {
+            transform: translateY(calc(100% - 2px));
+        }
+
+        #slideshowBar.hidden::before {
+            content: '';
+            position: absolute;
+            top: -30px;
+            left: 0;
+            right: 0;
+            height: 30px;
+        }
+
+        .slideshow-toggle-tab {
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.85);
+            border: 1px solid #0f0;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            color: #0f0;
+            font-size: 11px;
+            padding: 3px 16px;
+            cursor: pointer;
+            white-space: nowrap;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+
+        #slideshowBar.hidden .slideshow-toggle-tab {
+            opacity: 0;
+        }
+
+        #slideshowBar.hidden:hover .slideshow-toggle-tab {
+            opacity: 1;
+        }
+
+        .slideshow-toggle-tab:hover {
+            background: rgba(0, 255, 0, 0.15);
+        }
+
+        .slideshow-bar-inner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            max-width: 100%;
+            max-height: calc(100dvh - 38px);
+            padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+            overflow-x: auto;
+            overflow-y: hidden;
+            box-sizing: border-box;
+        }
+
+        .slideshow-bar-inner .sl-btn {
+            background: rgba(0, 255, 0, 0.1);
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 4px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+
+        .slideshow-bar-inner .sl-btn:hover {
+            background: rgba(0, 255, 0, 0.3);
+        }
+
+        #slideshowFileInput {
+            display: none;
+        }
+
+        .sl-thumbs {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            overflow-x: auto;
+            flex: 1;
+            min-width: 0;
+            padding-bottom: 4px;
+            scrollbar-width: thin;
+            scrollbar-color: #0f0 rgba(0, 0, 0, 0.3);
+        }
+
+        .sl-thumbs::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .sl-thumbs::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 3px;
+        }
+
+        .sl-thumbs::-webkit-scrollbar-thumb {
+            background: #0f0;
+            border-radius: 3px;
+        }
+
+        .sl-thumb {
+            width: 40px;
+            height: 40px;
+            border-radius: 3px;
+            border: 1px solid #0f0;
+            opacity: 0.4;
+            object-fit: cover;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+
+        .sl-thumb:hover {
+            opacity: 0.7;
+        }
+
+        .sl-thumb.active {
+            opacity: 1;
+            box-shadow: 0 0 8px #0f0;
+            border-width: 2px;
+        }
+
+        .sl-status {
+            color: #0f0;
+            font-size: 11px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+
+        .sl-opacity-ctrl {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .sl-opacity-ctrl label {
+            color: #0f0;
+            font-size: 10px;
+            white-space: nowrap;
+        }
+
+        .sl-opacity-ctrl input[type="range"] {
+            width: 60px;
+            accent-color: #0f0;
+        }

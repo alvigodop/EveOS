@@ -430,21 +430,4 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         computeHealth
     };
     ns.Index = datapackIndexApi;
-    window.EveOS = window.EveOS || {};
-    window.EveOS.DatapackIndex = datapackIndexApi;
-    window.EveOS.DatapackGraph = Object.assign(window.EveOS.DatapackGraph || {}, {
-        getProjection: function (scope) {
-            return datapackIndexApi.buildGraphProjection({ scope: scope || null });
-        },
-        getStructureSummary: function () {
-            return datapackIndexApi.getStructureSummary();
-        },
-        getIntegrityReport: function (scope) {
-            return datapackIndexApi.getIntegrityReport({ scope: scope || null });
-        }
-    });
-    window.EveConstellationMap = window.EveConstellationMap || {};
-    window.EveConstellationMap.getNexusGraphProjection = function (scope) {
-        return ns.Index.buildGraphProjection({ scope: scope || null });
-    };
 })();

@@ -186,6 +186,7 @@ async function main() {
     const context = createContext();
     [
         'js/modules/core/storage.delta.js',
+        'js/modules/features/edit-history/edit-history.capture.js',
         'js/modules/features/edit-history/edit-history.core.js',
         'js/modules/features/edit-history/edit-history.config.js',
         'js/modules/features/edit-history/edit-history.restore.js',
