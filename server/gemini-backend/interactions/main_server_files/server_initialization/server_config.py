@@ -6,10 +6,10 @@ Server configuration settings and constants.
 CLEANUP_INTERVAL_SEC = 60
 
 # Default WebSocket server port
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 9083
 
 # Default status server port (WebSocket port + 1)
 STATUS_PORT = DEFAULT_PORT + 1
 
 # Chat history file path
-CHAT_HISTORY_FILE = "chat_history.json" 
+CHAT_HISTORY_FILE = "chat_history.json"

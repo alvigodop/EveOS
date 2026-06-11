@@ -66,6 +66,7 @@ async function main() {
 
             const root = box('#gemini-ui-root');
             const summaryPane = box('#gemini-monitor-summary-pane');
+            const serverControl = box('[data-gemini-server-control]');
             const container = box('#gemini-ui-root .mdl-layout__container');
             const hiddenRightColumn = document.querySelector('#gemini-ui-root .right-column')
                 ? window.getComputedStyle(document.querySelector('#gemini-ui-root .right-column')).display
@@ -80,6 +81,9 @@ async function main() {
             return {
                 root,
                 summaryPane,
+                serverControl,
+                serverStatus: document.querySelector('[data-gemini-server-status]')?.textContent || '',
+                serverAction: document.querySelector('[data-gemini-server-action-label]')?.textContent || '',
                 container,
                 hiddenRightColumn,
                 hiddenVideoSection,
@@ -98,6 +102,12 @@ async function main() {
         }
         if (!result.summaryPane || result.summaryPane.display === 'none' || result.summaryPane.height < 180) {
             throw new Error(`Gemini summary pane did not render stably: ${JSON.stringify(result)}`);
+        }
+        if (!result.serverControl || result.serverControl.display === 'none' || result.serverControl.height < 28) {
+            throw new Error(`Gemini lifecycle control did not render in Search Monitor: ${JSON.stringify(result)}`);
+        }
+        if (!result.serverStatus || !result.serverAction) {
+            throw new Error(`Gemini lifecycle control labels are missing: ${JSON.stringify(result)}`);
         }
         if (result.container && result.container.display !== 'none') {
             throw new Error(`Compact summary mode should keep the full workspace hidden: ${JSON.stringify(result)}`);

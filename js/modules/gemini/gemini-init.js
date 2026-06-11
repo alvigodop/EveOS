@@ -194,9 +194,18 @@
                     <div class="gemini-monitor-shell-kicker">Gemini Link</div>
                     <div class="gemini-monitor-shell-title">Search Monitor Assistant</div>
                 </div>
-                <div class="gemini-monitor-view-switch" role="group" aria-label="Gemini monitor view">
-                    <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="summary">Compact</button>
-                    <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="full">Workspace</button>
+                <div class="gemini-monitor-toolbar-actions">
+                    <div class="gemini-server-control" data-gemini-server-control data-state="checking">
+                        <span class="gemini-server-state" data-gemini-server-status>Checking</span>
+                        <button type="button" class="gemini-server-toggle" data-gemini-server-toggle disabled>
+                            <i class="material-icons" aria-hidden="true">sync</i>
+                            <span data-gemini-server-action-label>Start</span>
+                        </button>
+                    </div>
+                    <div class="gemini-monitor-view-switch" role="group" aria-label="Gemini monitor view">
+                        <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="summary">Compact</button>
+                        <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="full">Workspace</button>
+                    </div>
                 </div>
             </div>
             <div id="gemini-monitor-summary-pane" class="gemini-monitor-summary-pane">

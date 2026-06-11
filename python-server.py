@@ -25,6 +25,7 @@ try:
     from server_modules import lightpanda
     from server_modules import popup_viewer
     from server_modules import eve_state_store
+    from server_modules import gemini_control
 except ImportError as e:
     print(f"Error importing modules: {e}")
     # Fallback or exit? For now, let's assume it works.
@@ -161,6 +162,9 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(b'{"error": "Unknown modular state endpoint"}')
+
+        elif path == '/api/gemini-server/status':
+            gemini_control.send_json(self, gemini_control.get_status())
             
         else:
             # Unknown API endpoint
@@ -190,6 +194,25 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(b'{"error": "Unknown modular state endpoint"}')
+            return
+
+        if path in {'/api/gemini-server/start', '/api/gemini-server/stop'}:
+            if not gemini_control.request_can_control(self):
+                gemini_control.send_json(
+                    self,
+                    {
+                        "ok": False,
+                        "controllerAvailable": True,
+                        "state": "forbidden",
+                        "running": False,
+                        "message": "Gemini server control is limited to local EveOS pages."
+                    },
+                    HTTPStatus.FORBIDDEN
+                )
+                return
+            action = gemini_control.start_server if path.endswith('/start') else gemini_control.stop_server
+            payload = action()
+            gemini_control.send_json(self, payload, HTTPStatus.OK if payload.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
         self.send_response(HTTPStatus.NOT_FOUND)
@@ -235,6 +258,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
             print("  Proxy:   Enabled at /api/proxy?url=...")
             print("  Popup:   Enabled at /api/popup-view?url=...")
             print("  Bridge:  Lightpanda/WSL enabled at /api/lightpanda")
+            print("  Gemini:  Lifecycle control enabled at /api/gemini-server/status")
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the server")
             

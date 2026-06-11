@@ -81,7 +81,7 @@ async function loadExternalStylesheetsAndScripts() {
 /**
  * Loads a script element and waits for it to finish loading
  */
-function loadScriptElement(originalScript) {
+function loadExternalScriptElement(originalScript) {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
 
