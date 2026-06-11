@@ -93,7 +93,11 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
 
             const liveLinks = getLiveLinks();
             const movedFolderLinkIds = liveLinks
-                .filter((link) => toMoveIds.has(normalizeFolderId(link.folderId)))
+                .filter((link) => (
+                    normalizeWorkspaceId(link?.workspace) === sWs
+                    && normalizeCategoryName(link?.category) === sCat
+                    && toMoveIds.has(normalizeFolderId(link?.folderId))
+                ))
                 .map((link) => String(link.id));
             const mergeApi = window.EveBookmarkMerge;
             const duplicateLookup = mergeApi && typeof mergeApi.buildDuplicateLookupForScope === 'function'
@@ -134,7 +138,9 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
             });
             setLiveLinks(liveLinks);
 
-            writeStore(nextStore, true);
+            writeStore(nextStore, options.persist !== false, {
+                source: options.source || 'bookmark-folder-transfer'
+            });
             if (typeof invalidateFolderViewModel === 'function') {
                 invalidateFolderViewModel(sWs, sCat);
                 invalidateFolderViewModel(tWs, tCat);

@@ -50,7 +50,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/bookmark-folders/bookmark-folders.management.toolbar.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.management.editor.js?v=0.1.0",
     "js/modules/features/bookmark-folders/bookmark-folders.management.mutations.basic.js?v=0.1.1",
-    "js/modules/features/bookmark-folders/bookmark-folders.management.mutations.cross-scope.js?v=0.1.2",
+    "js/modules/features/bookmark-folders/bookmark-folders.management.mutations.cross-scope.js?v=0.1.3",
     "js/modules/features/bookmark-folders/bookmark-folders.management.mutations.js?v=0.2.0",
     "js/modules/features/bookmark-folders/bookmark-folders.management.drop.actions.js?v=0.1.4",
     "js/modules/features/bookmark-folders/bookmark-folders.management.drop.js?v=0.2.0",

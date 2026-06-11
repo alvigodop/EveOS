@@ -2,6 +2,11 @@ const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
+const searchPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.search.js');
+const graphPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.graph.js');
+const exactScopePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.exact-scope.js');
+const invalidationPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.invalidation.js');
+const persistencePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.persistence.js');
 const indexPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.js');
 
 const records = [
@@ -56,7 +61,8 @@ function setupWindow() {
     };
     global.localStorage = {
         getItem() { return null; },
-        setItem() {}
+        setItem() {},
+        removeItem() {}
     };
 
     window.EveOS.SearchAdvanced.IndexShared = {
@@ -132,6 +138,11 @@ function assert(condition, message) {
 
 async function main() {
     setupWindow();
+    eval(fs.readFileSync(searchPath, 'utf8'));
+    eval(fs.readFileSync(graphPath, 'utf8'));
+    eval(fs.readFileSync(exactScopePath, 'utf8'));
+    eval(fs.readFileSync(invalidationPath, 'utf8'));
+    eval(fs.readFileSync(persistencePath, 'utf8'));
     eval(fs.readFileSync(indexPath, 'utf8'));
 
     const result = await window.EveOS.SearchAdvanced.Index.suggest('alpha', { workspaceId: 'main' }, {

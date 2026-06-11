@@ -55,7 +55,21 @@
             const mergedLinkIds = [];
             const removedLinkIds = [];
             const touchedScopes = new Map();
+            const folderTransfer = window.EveBulkToolbar.FolderTransfer?.transferFullySelectedBranches?.({
+                allLinks,
+                selectedIds: getSelectedIds(),
+                targetWorkspaceId,
+                targetCategoryName,
+                targetFolderId,
+                resolveTargetWorkspaceId: () => targetWorkspaceId
+            }) || { transferredLinkIds: [], touchedScopes: [] };
+            const transferredLinkIds = new Set(folderTransfer.transferredLinkIds || []);
+            transferredLinkIds.forEach((linkId) => movedLinkIds.push(linkId));
+            (folderTransfer.touchedScopes || []).forEach((scope) => {
+                addTouchedScope(touchedScopes, scope.workspaceId, scope.categoryName);
+            });
             selectedLinks.forEach(selectedLink => {
+                if (transferredLinkIds.has(toBulkId(selectedLink.id))) return;
                 const link = allLinks.find(candidate => String(candidate?.id) === String(selectedLink.id));
                 if (!link) return;
                 addTouchedScope(touchedScopes, link.workspace, link.category);

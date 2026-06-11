@@ -5,12 +5,19 @@ async function runCardMoveWholeFolderPhase(page) {
         links: [
             { id: 'a-folder-1', title: 'Folder Bookmark 1', url: 'https://example.com/folder1', workspace: 'main', category: 'Alpha', folderId: 'folder-x' },
             { id: 'a-folder-2', title: 'Folder Bookmark 2', url: 'https://example.com/folder2', workspace: 'main', category: 'Alpha', folderId: 'folder-x' },
-            { id: 'a-root-1', title: 'Alpha Root Bookmark', url: 'https://example.com/root', workspace: 'main', category: 'Alpha' }
+            { id: 'a-root-1', title: 'Alpha Root Bookmark', url: 'https://example.com/root', workspace: 'main', category: 'Alpha' },
+            { id: 'other-folder-1', title: 'Other Scoped Bookmark', url: 'https://example.com/other-folder', workspace: 'other', category: 'Alpha', folderId: 'folder-x' }
         ],
         bookmarkFolders: {
             'main::Alpha': {
                 nodes: [
                     { id: 'folder-x', name: 'Folder X', parentId: null, order: 0, createdAt: 1, updatedAt: 1 }
+                ],
+                settings: { clickBehaviorMode: 'inherit' }
+            },
+            'other::Alpha': {
+                nodes: [
+                    { id: 'folder-x', name: 'Other Folder X', parentId: null, order: 0, createdAt: 1, updatedAt: 1 }
                 ],
                 settings: { clickBehaviorMode: 'inherit' }
             }
@@ -78,13 +85,88 @@ async function runCardMoveWholeFolderPhase(page) {
     if (!beta || !beta.nodeIds.includes('folder-x')) {
         throw new Error('[card-move] Destination card is missing the transferred folder. ' + JSON.stringify(after));
     }
-    const folderLinks = after.links.filter((l) => l.folderId === 'folder-x');
+    const folderLinks = after.links.filter((l) => l.id === 'a-folder-1' || l.id === 'a-folder-2');
     if (folderLinks.length !== 2 || folderLinks.some((l) => l.category !== 'Beta' || l.workspace !== 'main')) {
         throw new Error('[card-move] Folder bookmarks did not follow into Beta. ' + JSON.stringify(after));
     }
     const rootLink = after.links.find((l) => l.id === 'a-root-1');
     if (!rootLink || rootLink.category !== 'Alpha') {
         throw new Error('[card-move] Unselected root bookmark must stay in Alpha. ' + JSON.stringify(after));
+    }
+    const otherScopedLink = after.links.find((l) => l.id === 'other-folder-1');
+    const otherScopedTree = after.folders['other::Alpha'];
+    if (!otherScopedLink
+        || otherScopedLink.workspace !== 'other'
+        || otherScopedLink.category !== 'Alpha'
+        || otherScopedLink.folderId !== 'folder-x'
+        || !otherScopedTree?.nodeIds.includes('folder-x')) {
+        throw new Error('[card-move] Same-ID folder in another scope must remain untouched. ' + JSON.stringify(after));
+    }
+    return result;
+}
+
+async function runCardMovePartialFolderPhase(page) {
+    await seedState(page, {
+        links: [
+            { id: 'partial-folder-1', title: 'Selected Folder Bookmark', url: 'https://example.com/partial-1', workspace: 'main', category: 'Alpha', folderId: 'folder-partial' },
+            { id: 'partial-folder-2', title: 'Retained Folder Bookmark', url: 'https://example.com/partial-2', workspace: 'main', category: 'Alpha', folderId: 'folder-partial' }
+        ],
+        bookmarkFolders: {
+            'main::Alpha': {
+                nodes: [
+                    { id: 'folder-partial', name: 'Partial Folder', parentId: null, order: 0, createdAt: 1, updatedAt: 1 }
+                ],
+                settings: { clickBehaviorMode: 'inherit' }
+            }
+        },
+        config: buildConfig('main')
+    });
+
+    const result = await page.evaluate((snapshotFnSrc) => {
+        const snapshotState = new Function('return (' + snapshotFnSrc + ')')();
+        window.selectedIds = new Set(['partial-folder-1']);
+        const helpers = window.EveBulkToolbar.ModalModules.createCategoryModalHelpers({
+            getLinks: window.EveBulkToolbar.getLinks,
+            setLinks: window.EveBulkToolbar.setLinks,
+            getConfig: window.EveBulkToolbar.getConfig,
+            getSelectedIds: window.EveBulkToolbar.getSelectedIds,
+            toBulkId: window.EveBulkToolbar.toBulkId,
+            getAllCategoryNames: window.EveBulkToolbar.getAllCategoryNames,
+            getVisibleDashboardCategoryNames: window.EveBulkToolbar.getVisibleDashboardCategoryNames,
+            escapeBulkMoveHtml: window.EveBulkToolbar.escapeBulkMoveHtml,
+            getSelectedCategoryName: window.EveBulkToolbar.getSelectedCategoryName,
+            getSelectedWorkspaceForMove: window.EveBulkToolbar.getSelectedWorkspaceForMove,
+            getWorkspaceList: window.EveBulkToolbar.getWorkspaceList,
+            getSelectedWorkspaceId: window.EveBulkToolbar.getSelectedWorkspaceId,
+            addTouchedScope: window.EveBulkToolbar.addTouchedScope,
+            formatSelectionSummary: window.EveBulkToolbar.formatSelectionSummary
+        });
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'bulkMoveMode';
+        radio.value = 'existing';
+        radio.checked = true;
+        document.body.appendChild(radio);
+        const list = document.getElementById('bulk-move-existing-list') || document.createElement('div');
+        list.id = 'bulk-move-existing-list';
+        list.dataset.selected = 'Beta';
+        if (!list.isConnected) document.body.appendChild(list);
+        const moveResult = helpers.confirmBulkMove();
+        return { moveResult, after: snapshotState() };
+    }, snapshotState.toString());
+
+    const moved = result.after.links.find((link) => link.id === 'partial-folder-1');
+    const retained = result.after.links.find((link) => link.id === 'partial-folder-2');
+    const sourceTree = result.after.folders['main::Alpha'];
+    const targetTree = result.after.folders['main::Beta'];
+    if (!moved || moved.category !== 'Beta' || moved.folderId) {
+        throw new Error('[partial-card-move] Selected bookmark should move without dragging its source folder. ' + JSON.stringify(result.after));
+    }
+    if (!retained || retained.category !== 'Alpha' || retained.folderId !== 'folder-partial') {
+        throw new Error('[partial-card-move] Unselected folder bookmark must remain in place. ' + JSON.stringify(result.after));
+    }
+    if (!sourceTree?.nodeIds.includes('folder-partial') || targetTree?.nodeIds.includes('folder-partial')) {
+        throw new Error('[partial-card-move] Partial selection must retain the source tree only. ' + JSON.stringify(result.after));
     }
     return result;
 }
@@ -258,6 +340,7 @@ async function runBulkMergeAllModePhase(page) {
 
 module.exports = {
     runCardMoveWholeFolderPhase,
+    runCardMovePartialFolderPhase,
     runTabMovePartialCardPhase,
     runBulkMergeTitleModePhase,
     runBulkMergeAllModePhase

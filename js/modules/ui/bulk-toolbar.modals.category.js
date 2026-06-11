@@ -234,7 +234,20 @@ window.EveBulkToolbar.ModalModules = window.EveBulkToolbar.ModalModules || {};
             const mergedLinkIds = [];
             const removedLinkIds = [];
             const touchedScopes = new Map();
+            const folderTransfer = window.EveBulkToolbar.FolderTransfer?.transferFullySelectedBranches?.({
+                allLinks,
+                selectedIds: selectedIdSet,
+                targetCategoryName: categoryName,
+                targetFolderId,
+                resolveTargetWorkspaceId: (scope) => scope.workspaceId
+            }) || { transferredLinkIds: [], touchedScopes: [] };
+            const transferredLinkIds = new Set(folderTransfer.transferredLinkIds || []);
+            transferredLinkIds.forEach((linkId) => movedLinkIds.push(linkId));
+            (folderTransfer.touchedScopes || []).forEach((scope) => {
+                addTouchedScope(touchedScopes, scope.workspaceId, scope.categoryName);
+            });
             selectedLinkIds.forEach((selectedId) => {
+                if (transferredLinkIds.has(selectedId)) return;
                 const link = allLinks.find((candidate) => toBulkId(candidate?.id) === selectedId);
                 if (!link) return;
                 const targetWorkspaceId = String(link.workspace || getSelectedWorkspaceForMove() || '').trim() || 'main';
