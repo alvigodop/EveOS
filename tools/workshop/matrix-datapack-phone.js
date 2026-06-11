@@ -113,11 +113,28 @@
             state.page = 0;
             render();
         });
-        widget.querySelector('[data-phone-content]').addEventListener('click', handleContentClick);
-        widget.querySelector('[data-phone-content]').addEventListener('input', function (event) {
-            if (!event.target.matches('[data-phone-slide-opacity]')) return;
-            slideshow?.setOpacity?.(event.target.value);
-            savePrefs();
+        var content = widget.querySelector('[data-phone-content]');
+        content.addEventListener('click', handleContentClick);
+        content.addEventListener('submit', function (event) {
+            if (!event.target.matches('.eve-matrix-phone-edit-form')) return;
+            event.preventDefault();
+            var saveButton = event.target.querySelector('.eve-matrix-phone-edit-save');
+            if (saveButton && !saveButton.disabled) saveButton.click();
+        });
+        content.addEventListener('input', function (event) {
+            if (event.target.matches('[data-phone-edit-field]')) {
+                var form = event.target.closest('.eve-matrix-phone-edit-form');
+                var saveButton = form?.querySelector('.eve-matrix-phone-edit-save');
+                var status = form?.querySelector('[data-phone-save-status]');
+                form?.classList.add('is-dirty');
+                if (saveButton) saveButton.disabled = false;
+                if (status) status.textContent = '';
+                return;
+            }
+            if (event.target.matches('[data-phone-slide-opacity]')) {
+                slideshow?.setOpacity?.(event.target.value);
+                savePrefs();
+            }
         });
         bindDrag(widget, widget.querySelector('[data-phone-drag]'));
         updateClock();
@@ -259,7 +276,7 @@
             return refresh({ silent: true });
         }).catch(function (error) {
             button.disabled = false;
-            button.textContent = 'SAVE CHANGES';
+            button.textContent = 'SAVE';
             if (status) status.textContent = error?.message || 'SAVE FAILED';
         });
     }

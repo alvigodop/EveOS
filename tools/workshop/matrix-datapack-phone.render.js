@@ -270,7 +270,9 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
             title = 'Cover / ' + route.type;
             html = renderCoverGroups(state, route.type);
         } else if (route.name === 'cover-list') {
-            title = 'Covered Bookmarks';
+            title = route.type === 'tag' && route.key
+                ? 'Tag / ' + route.key
+                : 'Covered Bookmarks';
             html = renderCoverList(state, route.type, route.key);
         } else if (route.name === 'slideshow') { title = 'Cover Slideshow'; html = renderSlideshow(state); }
 

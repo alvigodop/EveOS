@@ -187,8 +187,9 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
         return /^(?:javascript|vbscript|data):/i.test(url) ? '' : url;
     }
 
-    function editNumber(label, field, value) {
-        return '<label><span>' + escapeHtml(label) + '</span><input type="number" min="0" step="1"'
+    function editFact(label, field, value) {
+        return '<label class="eve-matrix-phone-edit-fact"><span>' + escapeHtml(label)
+            + '</span><input type="number" min="0" step="1"'
             + ' data-phone-edit-field="' + escapeHtml(field) + '" value="'
             + escapeHtml(Number(value) || 0) + '"></label>';
     }
@@ -198,27 +199,28 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
             return String(value || '').toLowerCase();
         });
         var hasFilms = mediaTypes.includes('films') || item.season > 0 || item.episode > 0;
-        var numericInputs = [editNumber('Chapter', 'chapter', item.chapter)];
+        var facts = [detailRow('Status', item.status), editFact('Chapter', 'chapter', item.chapter)];
         if (item.graphicChapter > 0 && item.graphicChapter !== item.chapter) {
-            numericInputs.push(editNumber('Graphic Ch.', 'graphicChapter', item.graphicChapter));
+            facts.push(editFact('Graphic Ch.', 'graphicChapter', item.graphicChapter));
         }
         if (item.novelChapter > 0 && item.novelChapter !== item.chapter) {
-            numericInputs.push(editNumber('Novel Ch.', 'novelChapter', item.novelChapter));
+            facts.push(editFact('Novel Ch.', 'novelChapter', item.novelChapter));
         }
         if (hasFilms) {
-            numericInputs.push(editNumber('Season', 'season', item.season));
-            numericInputs.push(editNumber('Episode', 'episode', item.episode));
+            facts.push(editFact('Season', 'season', item.season));
+            facts.push(editFact('Episode', 'episode', item.episode));
         }
         return '<form class="eve-matrix-phone-edit-form" data-phone-bookmark-id="'
-            + escapeHtml(item.sourceId) + '"><div class="eve-matrix-phone-edit-title">'
-            + '<h4>MINI FOCUS</h4><small>Status stays managed by EveOS</small></div>'
-            + '<div class="eve-matrix-phone-edit-grid">' + numericInputs.join('') + '</div>'
-            + '<label class="eve-matrix-phone-edit-notes"><span>MY NOTES</span>'
+            + escapeHtml(item.sourceId) + '"><section class="eve-matrix-phone-detail-facts">'
+            + facts.join('') + '</section>'
+            + '<section class="eve-matrix-phone-detail-section eve-matrix-phone-edit-notes">'
+            + '<div class="eve-matrix-phone-edit-notes-head"><h4>MY NOTES</h4>'
+            + '<span data-phone-save-status aria-live="polite"></span></div>'
             + '<textarea rows="4" data-phone-edit-field="personalNotes"'
-            + ' placeholder="Personal notes only...">' + escapeHtml(item.personalNotes || '') + '</textarea></label>'
-            + '<div class="eve-matrix-phone-edit-actions"><button type="button" data-phone-action="'
-            + escapeHtml(action('save-bookmark', item.sourceId)) + '">SAVE CHANGES</button>'
-            + '<span data-phone-save-status aria-live="polite"></span></div></form>';
+            + ' placeholder="Personal notes only...">' + escapeHtml(item.personalNotes || '') + '</textarea>'
+            + '<button class="eve-matrix-phone-edit-save" type="button" disabled title="Save bookmark changes"'
+            + ' data-phone-action="' + escapeHtml(action('save-bookmark', item.sourceId))
+            + '">SAVE</button></section></form>';
     }
 
     function renderRelatedUrls(item) {
@@ -235,6 +237,17 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
             + '<h4>ADDITIONAL URLS</h4><div>' + links.join('') + '</div></section>';
     }
 
+    function renderTags(item) {
+        if (!Array.isArray(item.tags) || !item.tags.length) return '';
+        return '<section class="eve-matrix-phone-detail-section eve-matrix-phone-tags">'
+            + '<h4>TAGS</h4><div>' + item.tags.map(function (tag) {
+                return '<button type="button" data-phone-action="'
+                    + escapeHtml(action('cover-list', 'tag', tag))
+                    + '" title="Show covered bookmarks tagged ' + escapeHtml(tag) + '">'
+                    + escapeHtml(tag) + '</button>';
+            }).join('') + '</div></section>';
+    }
+
     function renderBookmark(state, id) {
         var item = state.snapshot?.bookmarks?.find(function (bookmark) {
             return bookmark.id === id;
@@ -242,16 +255,9 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
         if (!item) {
             return { title: 'Bookmark', count: 0, html: '<div class="eve-matrix-phone-empty">Bookmark unavailable.</div>' };
         }
-        var progress = [
-            detailRow('Status', item.status)
-        ].join('');
         var aliases = Array.isArray(item.aliases) && item.aliases.length
             ? '<section class="eve-matrix-phone-detail-section"><h4>ALSO KNOWN AS</h4><p>'
                 + escapeHtml(item.aliases.join(' / ')) + '</p></section>'
-            : '';
-        var tags = Array.isArray(item.tags) && item.tags.length
-            ? '<section class="eve-matrix-phone-detail-section"><h4>TAGS</h4><p>'
-                + escapeHtml(item.tags.join(', ')) + '</p></section>'
             : '';
         var mainUrl = safeHref(item.url);
         return {
@@ -264,8 +270,7 @@ window.EveMatrixDatapackPhoneMatrixRenderer = (function () {
                 + '<strong>' + escapeHtml(item.title) + '</strong>'
                 + '<span>' + escapeHtml(workspaceName(state, item.workspaceId) + ' / ' + item.category) + '</span>'
                 + (item.folderName ? '<small>Folder: ' + escapeHtml(item.folderName) + '</small>' : '')
-                + (progress ? '<section class="eve-matrix-phone-detail-facts">' + progress + '</section>' : '')
-                + aliases + renderEditor(item) + renderRelatedUrls(item) + tags
+                + aliases + renderEditor(item) + renderRelatedUrls(item) + renderTags(item)
                 + (mainUrl
                     ? '<a href="' + escapeHtml(mainUrl)
                         + '" target="_blank" rel="noopener noreferrer">OPEN BOOKMARK</a>'

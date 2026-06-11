@@ -65,7 +65,8 @@
     gap: 5px;
 }
 
-.eve-matrix-phone-detail-facts > div {
+.eve-matrix-phone-detail-facts > div,
+.eve-matrix-phone-detail-facts > label {
     min-width: 0;
     padding: 6px;
     display: flex;
@@ -76,7 +77,8 @@
     background: rgba(0, 27, 8, 0.7);
 }
 
-.eve-matrix-phone-detail-facts span {
+.eve-matrix-phone-detail-facts span,
+.eve-matrix-phone-edit-fact > span {
     color: rgba(165, 255, 185, 0.54);
     font-size: 7px;
     letter-spacing: 0.1em;
@@ -89,6 +91,31 @@
     font-size: 10px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.eve-matrix-phone-edit-fact input {
+    width: 100%;
+    height: 17px;
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    outline: none;
+    background: transparent;
+    color: #e6ffeb;
+    font: 700 10px/1 "Courier New", monospace;
+    text-align: center;
+    appearance: textfield;
+}
+
+.eve-matrix-phone-edit-fact input::-webkit-inner-spin-button,
+.eve-matrix-phone-edit-fact input::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
+}
+
+.eve-matrix-phone-edit-fact input:focus {
+    border-bottom-color: var(--matrix-phone-accent);
+    background: rgba(0, 255, 70, 0.04);
 }
 
 .eve-matrix-phone-detail-section {
@@ -120,95 +147,68 @@
 
 .eve-matrix-phone-edit-form {
     width: 100%;
-    padding: 9px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    border: 1px solid color-mix(in srgb, var(--matrix-phone-accent) 34%, transparent);
-    border-radius: 10px;
-    background: rgba(0, 28, 8, 0.76);
-    text-align: left;
 }
 
-.eve-matrix-phone-edit-title,
-.eve-matrix-phone-edit-actions {
+.eve-matrix-phone-edit-notes textarea {
+    width: 100%;
+    min-height: 72px;
+    padding: 1px 0 4px;
+    border: 0;
+    border-bottom: 1px solid rgba(80, 255, 120, 0.12);
+    outline: none;
+    background: transparent;
+    color: rgba(220, 255, 228, 0.8);
+    font: 8px/1.5 "Courier New", monospace;
+    resize: vertical;
+}
+
+.eve-matrix-phone-edit-notes textarea:focus {
+    border-bottom-color: color-mix(in srgb, var(--matrix-phone-accent) 60%, transparent);
+}
+
+.eve-matrix-phone-edit-notes-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 7px;
 }
 
-.eve-matrix-phone-edit-title h4,
-.eve-matrix-phone-edit-title small {
-    margin: 0;
+.eve-matrix-phone-edit-notes-head h4 {
+    margin-bottom: 3px;
 }
 
-.eve-matrix-phone-edit-title h4,
-.eve-matrix-phone-edit-notes > span,
-.eve-matrix-phone-edit-grid label > span {
-    color: color-mix(in srgb, var(--matrix-phone-accent) 78%, white);
-    font-size: 7px;
-    letter-spacing: 0.12em;
-}
-
-.eve-matrix-phone-edit-title small {
-    color: rgba(190, 255, 204, 0.45);
+.eve-matrix-phone-edit-notes-head span {
+    color: var(--matrix-phone-accent);
     font-size: 6px;
 }
 
-.eve-matrix-phone-edit-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 6px;
-}
-
-.eve-matrix-phone-edit-grid label,
-.eve-matrix-phone-edit-notes {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.eve-matrix-phone-edit-grid input,
-.eve-matrix-phone-edit-notes textarea {
-    width: 100%;
-    border: 1px solid rgba(80, 255, 120, 0.25);
-    border-radius: 6px;
-    outline: none;
-    background: rgba(0, 0, 0, 0.58);
-    color: #e8ffed;
-    font: 9px/1.4 "Courier New", monospace;
-}
-
-.eve-matrix-phone-edit-grid input {
-    height: 29px;
+.eve-matrix-phone-edit-save {
+    align-self: flex-end;
+    min-height: 20px;
+    margin-top: 5px;
     padding: 0 7px;
+    border: 1px solid color-mix(in srgb, var(--matrix-phone-accent) 28%, transparent);
+    border-radius: 999px;
+    background: rgba(0, 25, 7, 0.38);
+    color: color-mix(in srgb, var(--matrix-phone-accent) 58%, white);
+    font-size: 6px;
+    letter-spacing: 0.12em;
+    opacity: 0.3;
+    transition: opacity 120ms ease, border-color 120ms ease, background 120ms ease;
 }
 
-.eve-matrix-phone-edit-notes textarea {
-    min-height: 72px;
-    padding: 7px;
-    resize: vertical;
+.eve-matrix-phone-edit-form.is-dirty .eve-matrix-phone-edit-save {
+    border-color: color-mix(in srgb, var(--matrix-phone-accent) 62%, transparent);
+    background: rgba(0, 45, 12, 0.68);
+    opacity: 0.8;
 }
 
-.eve-matrix-phone-edit-grid input:focus,
-.eve-matrix-phone-edit-notes textarea:focus {
-    border-color: var(--matrix-phone-accent);
-}
-
-.eve-matrix-phone-edit-actions button {
-    min-height: 28px;
-    padding: 0 10px;
-    border: 1px solid var(--matrix-phone-accent);
-    border-radius: 7px;
-    background: rgba(0, 50, 14, 0.84);
-    color: #e8ffed;
-    font-size: 8px;
-}
-
-.eve-matrix-phone-edit-actions span {
-    color: var(--matrix-phone-accent);
-    font-size: 7px;
+.eve-matrix-phone-edit-form.is-dirty .eve-matrix-phone-edit-save:hover,
+.eve-matrix-phone-edit-form.is-dirty .eve-matrix-phone-edit-save:focus-visible {
+    opacity: 1;
 }
 
 .eve-matrix-phone-related > div {
@@ -241,4 +241,30 @@
 .eve-matrix-phone-related-link span {
     font-size: 6px;
     opacity: 0.62;
+}
+
+.eve-matrix-phone-tags > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.eve-matrix-phone-tags button {
+    min-height: 20px;
+    margin: 0;
+    padding: 2px 6px;
+    border: 1px solid rgba(80, 255, 120, 0.22);
+    border-radius: 999px;
+    background: rgba(0, 36, 10, 0.62);
+    color: rgba(220, 255, 228, 0.76);
+    font-size: 6px;
+    line-height: 1.2;
+    cursor: pointer;
+}
+
+.eve-matrix-phone-tags button:hover,
+.eve-matrix-phone-tags button:focus-visible {
+    border-color: var(--matrix-phone-accent);
+    color: #effff2;
+    outline: none;
 }

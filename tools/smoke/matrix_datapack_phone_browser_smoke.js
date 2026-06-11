@@ -364,7 +364,10 @@ async function seedLargeDatapack(page, count = 10000) {
             editableValues: Object.fromEntries(Array.from(node.querySelectorAll('[data-phone-edit-field]')).map((item) => [
                 item.dataset.phoneEditField,
                 item.value
-            ]))
+            ])),
+            tagLabels: Array.from(node.querySelectorAll('.eve-matrix-phone-tags button')).map((item) => item.textContent),
+            saveDisabled: !!node.querySelector('.eve-matrix-phone-edit-save')?.disabled,
+            hasMiniFocusLabel: (node.textContent || '').includes('MINI FOCUS')
         }));
         for (const expected of ['Reading', 'Hero Alpha', 'Alfa no Eiyuu']) {
             if (!enrichedBookmarkDetail.text.includes(expected)) {
@@ -385,6 +388,10 @@ async function seedLargeDatapack(page, count = 10000) {
             || enrichedBookmarkDetail.editableValues.chapter !== '42'
             || enrichedBookmarkDetail.editableValues.season !== '2'
             || enrichedBookmarkDetail.editableValues.episode !== '7'
+            || !enrichedBookmarkDetail.tagLabels.includes('Fantasy')
+            || !enrichedBookmarkDetail.tagLabels.includes('Hero')
+            || !enrichedBookmarkDetail.saveDisabled
+            || enrichedBookmarkDetail.hasMiniFocusLabel
         ) {
             throw new Error(`Bookmark detail data projection mismatch: ${JSON.stringify(enrichedBookmarkDetail)}`);
         }
@@ -414,6 +421,26 @@ async function seedLargeDatapack(page, count = 10000) {
         if (savedPhoneEdit.chapter !== '71' || savedPhoneEdit.notes !== 'Phone note changed with real spaces.') {
             throw new Error(`Phone editor did not refresh saved values: ${JSON.stringify(savedPhoneEdit)}`);
         }
+        await frame.getByText('Fantasy', { exact: true }).click();
+        await frame.getByText('Tag / Fantasy', { exact: true }).waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
+        const fantasyCoverBookmarks = await frame.locator(
+            '.eve-matrix-phone-grid--covers .eve-matrix-phone-app strong'
+        ).allTextContents();
+        if (
+            fantasyCoverBookmarks.length !== 2
+            || !fantasyCoverBookmarks.includes('Alpha Hero')
+            || !fantasyCoverBookmarks.includes('Beta Chronicle')
+        ) {
+            throw new Error(`Clickable tag Cover Atlas scope mismatch: ${JSON.stringify(fantasyCoverBookmarks)}`);
+        }
+        await frame.locator('[data-phone-back]').click();
+        await frame.locator('.eve-matrix-phone-edit-form').waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
         const messageBridgeEdit = await frame.locator('body').evaluate(async () => {
             const host = window.parent;
             const capture = host.EveMatrixWorkshop.captureDatapackSnapshot;
@@ -653,6 +680,7 @@ async function seedLargeDatapack(page, count = 10000) {
             favoritesItems,
             enrichedBookmarkDetail,
             savedPhoneEdit,
+            fantasyCoverBookmarks,
             messageBridgeEdit,
             unlinkedEdit,
             mutationState,
