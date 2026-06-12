@@ -9,7 +9,8 @@
         running: false,
         serverState: 'checking',
         busy: false,
-        message: 'Checking Gemini server...'
+        message: 'Checking Gemini server...',
+        connectionPhase: 'idle'
     };
 
     function localCandidateBases() {
@@ -95,6 +96,7 @@
         if (!status || !button || !label || !icon) return;
 
         control.dataset.state = state.serverState;
+        control.dataset.connectionPhase = state.connectionPhase;
         status.textContent = state.serverState === 'running'
             ? 'Online'
             : state.serverState === 'starting'
@@ -132,19 +134,97 @@
     }
 
     function connectClient() {
+        state.connectionPhase = 'requesting';
+        publish();
         if (typeof window.updateConnectionStatus === 'function') {
             window.updateConnectionStatus('connecting', 'Connecting to Gemini...');
         }
-        const connectFn = typeof window.attemptConnection === 'function'
-            ? window.attemptConnection
-            : typeof window.connect === 'function'
-                ? window.connect
-                : window.SocketConnectionCore?.connect;
-        if (typeof connectFn === 'function') {
-            window.setTimeout(function () {
-                connectFn.call(window.SocketConnectionCore || window);
-            }, 200);
+        let attempts = 0;
+        const requestConnection = function () {
+            attempts += 1;
+            const core = window.SocketConnectionCore;
+            if (typeof core?.connect === 'function') {
+                state.connectionPhase = 'requested';
+                publish();
+                core.connect();
+                window.dispatchEvent(new CustomEvent('eve:gemini-connect-requested'));
+                return;
+            }
+            if (typeof window.connect === 'function') {
+                state.connectionPhase = 'requested';
+                publish();
+                window.connect();
+                window.dispatchEvent(new CustomEvent('eve:gemini-connect-requested'));
+                return;
+            }
+            if (attempts < 40) {
+                window.setTimeout(requestConnection, 150);
+            } else {
+                state.connectionPhase = 'unavailable';
+                publish();
+            }
+        };
+        window.setTimeout(requestConnection, 100);
+    }
+
+    function waitForWindowEvent(eventName, readyCheck, timeoutMs) {
+        if (readyCheck()) return Promise.resolve(true);
+        return new Promise(function (resolve) {
+            let settled = false;
+            const finish = function (ready) {
+                if (settled) return;
+                settled = true;
+                window.removeEventListener(eventName, onReady);
+                window.clearInterval(pollTimer);
+                window.clearTimeout(timeoutTimer);
+                resolve(ready);
+            };
+            const onReady = function () {
+                finish(readyCheck());
+            };
+            const pollTimer = window.setInterval(function () {
+                if (readyCheck()) finish(true);
+            }, 150);
+            const timeoutTimer = window.setTimeout(function () {
+                finish(readyCheck());
+            }, timeoutMs || 45000);
+            window.addEventListener(eventName, onReady);
+        });
+    }
+
+    async function ensureWorkspaceReady() {
+        state.connectionPhase = 'booting';
+        publish();
+        window.__GEMINI_BOOT_REQUESTED = true;
+
+        let trigger = window.__loadGeminiScriptsNow;
+        if (typeof trigger !== 'function') {
+            await waitForWindowEvent('eve:gemini-loader-ready', function () {
+                return typeof window.__loadGeminiScriptsNow === 'function';
+            }, 8000);
+            trigger = window.__loadGeminiScriptsNow;
         }
+
+        if (typeof trigger === 'function') {
+            await trigger();
+        }
+
+        await waitForWindowEvent('eve:gemini-workspace-ready', function () {
+            return !!window.__GEMINI_WORKSPACE_READY
+                && !!document.getElementById('textInput')
+                && !!document.getElementById('sendButton')
+                && typeof window.sendTextMessage === 'function';
+        }, 45000);
+
+        await waitForWindowEvent('eve:gemini-socket-ready', function () {
+            return !!window.__GEMINI_SOCKET_READY
+                && typeof window.SocketConnectionCore?.connect === 'function'
+                && !!window.SocketConnectionCore?.EventHandlers;
+        }, 15000);
+
+        state.connectionPhase = 'ready';
+        publish();
+        return !!window.__GEMINI_WORKSPACE_READY && !!window.__GEMINI_SOCKET_READY;
     }
 
     function disconnectClient() {
@@ -200,7 +280,9 @@
         publish();
 
         try {
-            if (shouldStart) setConnectionPreference(true);
+            const workspacePromise = shouldStart
+                ? (setConnectionPreference(true), ensureWorkspaceReady())
+                : null;
             const payload = await fetchJson(`${state.baseUrl}/api/gemini-server/${shouldStart ? 'start' : 'stop'}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -211,9 +293,10 @@
             state.message = payload.message || state.message;
 
             if (shouldStart && !state.running && state.serverState !== 'error') {
-                await waitForReady(15000);
+                await waitForReady(45000);
             }
             if (shouldStart && state.running) {
+                await workspacePromise;
                 connectClient();
             } else if (!shouldStart) {
                 setConnectionPreference(false);
@@ -223,9 +306,17 @@
             if (shouldStart) setConnectionPreference(false);
             state.serverState = 'error';
             state.message = error.message || 'Gemini server control failed.';
+            state.connectionPhase = 'error';
+            console.warn('[GeminiServerControl] Lifecycle action failed:', error);
         } finally {
             state.busy = false;
             await refreshStatus();
+            if (shouldStart && state.running
+                && state.connectionPhase !== 'requested'
+                && state.connectionPhase !== 'requesting') {
+                await workspacePromise;
+                connectClient();
+            }
         }
     }
 

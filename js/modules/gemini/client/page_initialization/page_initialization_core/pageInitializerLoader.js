@@ -4,14 +4,15 @@
  */
 
 console.log("pageInitializerLoader.js loading...");
+let pageInitializationStarted = false;
 
 const COMPONENT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/client/page_initialization/page_initialization_core';
 
 const pageInitScripts = [
     `${COMPONENT_BASE_PATH}/svgLifecycle.js`,
-    `${COMPONENT_BASE_PATH}/displayLoader.js`,
+    `${COMPONENT_BASE_PATH}/displayLoader.js?v=0.1.1`,
     `${COMPONENT_BASE_PATH}/connectivityStartup.js`,
-    `${COMPONENT_BASE_PATH}/initializationCoordinator.js`
+    `${COMPONENT_BASE_PATH}/initializationCoordinator.js?v=0.1.1`
 ];
 
 function loadPageInitScripts() {
@@ -36,8 +37,10 @@ function loadPageInitScripts() {
 }
 
 function setupEntryPoint() {
-    const entryPoint = () => {
+    const startCoordinator = () => {
+        if (pageInitializationStarted) return;
         if (window.PageInitializationCore && window.PageInitializationCore.Coordinator) {
+            pageInitializationStarted = true;
             // Short delay to ensure DOM is ready and other scripts (like svgFixer) have executed
             setTimeout(() => {
                 window.PageInitializationCore.Coordinator.start();
@@ -47,8 +50,19 @@ function setupEntryPoint() {
         }
     };
 
+    const entryPoint = () => {
+        // This loader is near the beginning of the master list. Wait until the
+        // remaining Gemini runtime modules exist before initializing HTML that
+        // binds against them.
+        if (window.__GEMINI_MASTER_LOADER_ACTIVE && !window.__GEMINI_BOOT_STATE?.completedAt) {
+            window.addEventListener('eve:gemini-scripts-ready', startCoordinator, { once: true });
+            return;
+        }
+        startCoordinator();
+    };
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', entryPoint);
+        document.addEventListener('DOMContentLoaded', entryPoint, { once: true });
     } else {
         entryPoint();
     }

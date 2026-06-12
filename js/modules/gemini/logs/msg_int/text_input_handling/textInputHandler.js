@@ -28,8 +28,12 @@ function initializeTextInputHandlers() {
         return;
     }
 
-    // Attach click listener to send button
-    sendButton.addEventListener('click', () => {
+    if (sendButton.dataset.geminiTextInputBound === '1'
+        && textInput.dataset.geminiTextInputBound === '1') {
+        return;
+    }
+
+    const sendCurrentText = function () {
         const text = textInput.value.trim();
         if (text) {
             // Stop audio if "Barge-in" is enabled
@@ -56,41 +60,26 @@ function initializeTextInputHandlers() {
             // Clear the input field
             textInput.value = '';
         }
-    });
+    };
 
-    // Attach keypress listener to text input
-    textInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            const text = e.target.value.trim();
-            if (text) {
-                // Stop audio if "Barge-in" is enabled
-                if (localStorage.getItem('stopAudioOnInput') === 'true' && typeof stopAllAudioPlayback === 'function') {
-                    stopAllAudioPlayback();
-                }
+    // Attach click listener to send button
+    if (sendButton.dataset.geminiTextInputBound !== '1') {
+        sendButton.dataset.geminiTextInputBound = '1';
+        sendButton.addEventListener('click', sendCurrentText);
+    }
 
-                // Display user message in the chat log
-                if (typeof window.displayMessage === 'function') {
-                    window.displayMessage("YOU: " + text);
-                } else {
-                    console.error("displayMessage function not found in textInputHandler");
-                }
-
-                // Send message to server
-                if (typeof window.sendTextMessage === 'function') {
-                    window.sendTextMessage(text);
-                } else {
-                    console.error("sendTextMessage function not found in textInputHandler");
-                }
-
-                // Clear the input field
-                e.target.value = '';
-                e.preventDefault(); // Prevent default form submission if textInput is in a form
+    if (textInput.dataset.geminiTextInputBound !== '1') {
+        textInput.dataset.geminiTextInputBound = '1';
+        textInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendCurrentText();
             }
-        }
-    });
+        });
+    }
 
     console.log('Text input and send button handlers initialized.');
 }
 
 // Expose the initialization function via the namespace
-window.LogInterfaceDisplay.MessagingInterface.TextInputHandling.initializeTextInputHandlers = initializeTextInputHandlers; 
+window.LogInterfaceDisplay.MessagingInterface.TextInputHandling.initializeTextInputHandlers = initializeTextInputHandlers;

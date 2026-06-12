@@ -43,7 +43,7 @@ async function initializeCommunicationPanelHtmlComponents() {
         await loadModule(`${COMMUNICATION_PANEL_MODULE_BASE_PATH}/communicationPanelScriptLoader.js`);
 
         // Load the component initializer last
-        await loadModule(`${COMMUNICATION_PANEL_MODULE_BASE_PATH}/communicationPanelComponentInitializer.js`);
+        await loadModule(`${COMMUNICATION_PANEL_MODULE_BASE_PATH}/communicationPanelComponentInitializer.js?v=0.1.1`);
 
         console.log("comm.js: Modules loaded. Delegating initialization...");
 

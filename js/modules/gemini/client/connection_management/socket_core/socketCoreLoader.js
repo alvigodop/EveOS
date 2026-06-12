@@ -9,7 +9,7 @@ console.log("socketCoreLoader.js loading...");
 const SOCKET_CORE_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/client/connection_management/socket_core';
 
 const socketCoreScripts = [
-    `${SOCKET_CORE_BASE_PATH}/socketGlobalState.js`, // Load Global State FIRST
+    `${SOCKET_CORE_BASE_PATH}/socketGlobalState.js?v=0.1.2`, // Load Global State FIRST
     `${SOCKET_CORE_BASE_PATH}/scc/eh/errorEventHandler.js`,
     `${SOCKET_CORE_BASE_PATH}/scc/eh/openEventHandler.js`, // Load Open Event Handler
     `${SOCKET_CORE_BASE_PATH}/scc/socketLifecycle.js`,
@@ -28,6 +28,8 @@ function loadSocketCoreScripts() {
     const loadSequentially = (index = 0) => {
         if (index >= socketCoreScripts.length) {
             console.log("socketCoreLoader.js finished. All socket core scripts loaded.");
+            window.__GEMINI_SOCKET_READY = true;
+            window.dispatchEvent(new CustomEvent('eve:gemini-socket-ready'));
             return;
         }
 

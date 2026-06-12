@@ -4,22 +4,25 @@
  */
 
 window.PageInitializationCore = window.PageInitializationCore || {};
+let coordinatorPromise = null;
 
 window.PageInitializationCore.Coordinator = {
-    start: async function () {
-        console.log("Initialization Coordinator: Starting sequence...");
+    start: function () {
+        if (coordinatorPromise) return coordinatorPromise;
 
-        const Core = window.PageInitializationCore;
+        coordinatorPromise = (async function () {
+            console.log("Initialization Coordinator: Starting sequence...");
 
-        // 1. Initial SVG Setup & Messages
-        Core.SvgLifecycle.init();
-        Core.ConnectivityStartup.showInitialMessage();
-        Core.ConnectivityStartup.preInitReset();
+            const Core = window.PageInitializationCore;
 
-        console.log("Audio context initialization deferred until user interaction");
+            // 1. Initial SVG Setup & Messages
+            Core.SvgLifecycle.init();
+            Core.ConnectivityStartup.showInitialMessage();
+            Core.ConnectivityStartup.preInitReset();
 
-        // 2. Load HTML Components
-        try {
+            console.log("Audio context initialization deferred until user interaction");
+
+            // 2. Load HTML Components
             await Core.DisplayLoader.loadHtmlComponents();
 
             // 3. Post-Load SVG Fixes
@@ -29,11 +32,23 @@ window.PageInitializationCore.Coordinator = {
             }, 200);
 
             // 4. Start Connectivity & Restore State
-            Core.ConnectivityStartup.init();
-
-        } catch (error) {
+            await Core.ConnectivityStartup.init();
+            const detail = {
+                readyAt: Date.now(),
+                textInputReady: !!document.getElementById('textInput'),
+                sendButtonReady: !!document.getElementById('sendButton')
+            };
+            window.__GEMINI_WORKSPACE_READY = detail;
+            window.dispatchEvent(new CustomEvent('eve:gemini-workspace-ready', { detail }));
+            return detail;
+        })().catch(function (error) {
             console.error("Initialization Coordinator: Failed to load HTML components.", error);
-        }
+            coordinatorPromise = null;
+            throw error;
+        });
+
+        window.__GEMINI_WORKSPACE_PROMISE = coordinatorPromise;
+        return coordinatorPromise;
     }
 };
 

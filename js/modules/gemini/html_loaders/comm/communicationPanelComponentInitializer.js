@@ -3,6 +3,28 @@
  * Depends on communicationPanelScriptLoader.js
  */
 
+const communicationHandlerChecks = [
+    () => window.CommunicationPanel?.MultimodalCommunicationPanel?.VoiceInputMMCommunicationPanel?.VoiceInputButtonHandlers?.initializeVoiceInputButtonHandlers,
+    () => window.CommunicationPanel?.SystemMessageToggleCommunicationPanel?.initializeSystemMessageToggleHandler,
+    () => window.CommunicationPanel?.ReinitiateModelCommunicationPanel?.initializeModelInitializer,
+    () => window.CommunicationPanel?.StartNewChatCommunicationPanel?.initializeNewChatHandler,
+    () => window.CommunicationPanel?.TogglePastChatsCommunicationPanel?.PastChatsUI?.initializePastChatsVisibilityToggler,
+    () => window.CommunicationPanel?.ClearChatCommunicationPanel?.initializeClearChatHandler,
+    () => window.CommunicationPanel?.ClearSystemLogCommunicationPanel?.initializeClearSystemLogHandler
+];
+
+async function waitForCommunicationHandlers(timeoutMs = 12000) {
+    const startedAt = Date.now();
+    while (communicationHandlerChecks.some(check => typeof check() !== 'function')) {
+        if (Date.now() - startedAt >= timeoutMs) {
+            console.warn('Communication Panel handlers did not all become ready before UI initialization.');
+            return false;
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 40));
+    }
+    return true;
+}
+
 async function initializeCommunicationPanelComponents() {
     console.log("communicationPanelComponentInitializer.js: initializeCommunicationPanelComponents started.");
 
@@ -10,6 +32,8 @@ async function initializeCommunicationPanelComponents() {
         if (!window.communicationPanelScriptLoader) {
             throw new Error("communicationPanelScriptLoader not found");
         }
+
+        await waitForCommunicationHandlers();
 
         // First, dynamically load all the individual UI loader aggregator scripts and simple component scripts
         await Promise.all([

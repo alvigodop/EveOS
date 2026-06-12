@@ -195,9 +195,6 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
         }
 
         function ensureWideToggle(indicator) {
-            if (indicator.dataset.togglesWired) return;
-            indicator.dataset.togglesWired = 'true';
-
             // Wide Mode Toggle
             let wideBtn = indicator.querySelector('.monitor-wide-toggle');
             if (!wideBtn) {
@@ -208,15 +205,6 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 wideBtn.innerHTML = '⇔';
                 indicator.insertBefore(wideBtn, indicator.firstChild);
             }
-
-            wideBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isWide = indicator.classList.toggle('wide-mode');
-                if (isWide) {
-                    indicator.classList.remove('fullscreen-mode');
-                }
-                try { localStorage.setItem('searchMonitorWide', isWide ? 'true' : 'false'); } catch (ex) { /* ignore */ }
-            });
 
             // Fullscreen Toggle
             let fsBtn = indicator.querySelector('.monitor-fullscreen-toggle');
@@ -229,13 +217,28 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 indicator.insertBefore(fsBtn, indicator.firstChild);
             }
 
-            fsBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isFs = indicator.classList.toggle('fullscreen-mode');
-                if (isFs) {
-                    indicator.classList.remove('wide-mode'); // Turn off wide so they don't conflict
-                }
-            });
+            if (window.SearchMonitorBoot?.bindModeControls) {
+                window.SearchMonitorBoot.bindModeControls(indicator);
+                return;
+            }
+
+            if (wideBtn.dataset.searchMonitorModeBound !== '1') {
+                wideBtn.dataset.searchMonitorModeBound = '1';
+                wideBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const isWide = indicator.classList.toggle('wide-mode');
+                    if (isWide) indicator.classList.remove('fullscreen-mode');
+                    try { localStorage.setItem('searchMonitorWide', isWide ? 'true' : 'false'); } catch (ex) { /* ignore */ }
+                });
+            }
+            if (fsBtn.dataset.searchMonitorModeBound !== '1') {
+                fsBtn.dataset.searchMonitorModeBound = '1';
+                fsBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const isFs = indicator.classList.toggle('fullscreen-mode');
+                    if (isFs) indicator.classList.remove('wide-mode');
+                });
+            }
         }
 
         return {

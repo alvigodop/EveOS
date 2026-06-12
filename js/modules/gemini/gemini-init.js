@@ -57,18 +57,27 @@
         window.__GEMINI_BOOT_REQUESTED = true;
 
         if (typeof window.__loadGeminiScriptsNow === 'function') {
-            window.__loadGeminiScriptsNow();
-            return;
+            return window.__loadGeminiScriptsNow();
         }
 
-        // Script_Loader may not be parsed yet; retry once shortly.
-        window.setTimeout(function () {
-            if (typeof window.__loadGeminiScriptsNow === 'function') {
-                window.__loadGeminiScriptsNow();
-            } else {
-                debugBootLog(`Gemini Init: Boot requested (${reason || 'manual'}), waiting for Script_Loader.`);
-            }
-        }, 250);
+        // Script_Loader follows this module in the manifest. Keep the request
+        // durable instead of relying on a single timing-sensitive retry.
+        return new Promise(function (resolve) {
+            const startWhenReady = function () {
+                window.removeEventListener('eve:gemini-loader-ready', startWhenReady);
+                if (typeof window.__loadGeminiScriptsNow === 'function') {
+                    Promise.resolve(window.__loadGeminiScriptsNow()).then(resolve);
+                    return;
+                }
+                resolve(null);
+            };
+            window.addEventListener('eve:gemini-loader-ready', startWhenReady, { once: true });
+            window.setTimeout(function () {
+                if (typeof window.__loadGeminiScriptsNow !== 'function') return;
+                startWhenReady();
+            }, 250);
+            debugBootLog(`Gemini Init: Boot requested (${reason || 'manual'}), waiting for Script_Loader.`);
+        });
     }
 
     function isWorkspaceCollapsed() {
@@ -137,6 +146,8 @@
         if (!container) return;
         const normalized = savePreferredMonitorView(view);
         container.dataset.geminiMonitorView = normalized;
+        const indicator = container.closest('#loadingIndicator');
+        indicator?.classList.toggle('gemini-monitor-workspace-active', normalized === 'full');
         syncFullUiReadiness(container);
 
         container.querySelectorAll('[data-gemini-monitor-view-btn]').forEach(function (button) {

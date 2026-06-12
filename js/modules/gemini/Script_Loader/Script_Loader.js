@@ -18,6 +18,7 @@ function debugBootLog() {
 }
 
 debugBootLog('js/modules/gemini/Script_Loader/Script_Loader.js started loading');
+window.__GEMINI_MASTER_LOADER_ACTIVE = true;
 
 const APP_ROOT = window.GEMINI_APP_ROOT || '';
 const BASE_PATHS = {
@@ -37,14 +38,14 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/svg_fixing/svgFixerLoader.js`,
-    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js`,
+    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/themeToggle.js`,
     `${BASE_PATHS.CLIENT_CORE}/response_handling/responseClass.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/idleDetector.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.1.2`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
 
     // 2. Agentic Functions
@@ -61,7 +62,7 @@ const masterScriptList = [
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/msg_int.js`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/popout_chat_feature/popoutChatHandler.js`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_message_operations/textMessageSender.js`,
-    `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_input_handling/textInputHandler.js`,
+    `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_input_handling/textInputHandler.js?v=0.1.1`,
 
     // 4. Communication Panel
     `${BASE_PATHS.COMM_PANEL}/mm_panel/Multimodal_Commuication_Panel.js`,
@@ -76,7 +77,7 @@ const masterScriptList = [
     APP_ROOT + 'js/modules/gemini/client/Client_Core_Control.js',
     APP_ROOT + 'js/modules/gemini/agentic/Agentic_js_Functions.js',
     APP_ROOT + 'js/modules/gemini/logs/Log_Interface_Display.js',
-    APP_ROOT + 'js/modules/gemini/comm/Communication_Panel.js'
+    APP_ROOT + 'js/modules/gemini/comm/Communication_Panel.js?v=0.1.1'
 ];
 
 let bootStarted = false;
@@ -236,7 +237,12 @@ async function loadAllScripts(reason) {
     }
 
     window.__GEMINI_BOOT_STATE.completedAt = Date.now();
+    window.__GEMINI_BOOT_STATE.ready = failedCount === 0;
+    window.dispatchEvent(new CustomEvent('eve:gemini-scripts-ready', {
+        detail: { ...window.__GEMINI_BOOT_STATE }
+    }));
     debugBootLog(`Script_Loader: Gemini boot complete (${loadedCount}/${totalScripts}).`);
+    return { ...window.__GEMINI_BOOT_STATE };
 }
 
 function startGeminiBoot(reason) {
@@ -248,6 +254,7 @@ function startGeminiBoot(reason) {
         console.error('Gemini boot failed:', error);
         throw error;
     });
+    window.__GEMINI_BOOT_PROMISE = bootPromise;
     return bootPromise;
 }
 
@@ -257,6 +264,14 @@ window.__loadGeminiScriptsNow = function () {
     window.__GEMINI_FORCE_BOOT_NOW = true;
     return startGeminiBoot('manual');
 };
+
+window.__whenGeminiScriptsReady = function () {
+    if (window.__GEMINI_BOOT_STATE?.completedAt) {
+        return Promise.resolve({ ...window.__GEMINI_BOOT_STATE });
+    }
+    return bootPromise || startGeminiBoot('readiness-request');
+};
+window.dispatchEvent(new CustomEvent('eve:gemini-loader-ready'));
 
 if (window.__GEMINI_BOOT_REQUESTED || shouldEagerBoot()) {
     startGeminiBoot(window.__GEMINI_BOOT_REQUESTED ? 'pre-requested' : 'eager');

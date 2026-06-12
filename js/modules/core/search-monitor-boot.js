@@ -174,6 +174,49 @@
         }
     }
 
+    function setWideMode(indicator) {
+        if (!indicator) return false;
+        const isWide = indicator.classList.toggle('wide-mode');
+        if (isWide) indicator.classList.remove('fullscreen-mode');
+        try {
+            localStorage.setItem('searchMonitorWide', isWide ? 'true' : 'false');
+        } catch (error) {
+            // Restricted storage must not block the view control.
+        }
+        return isWide;
+    }
+
+    function setFullscreenMode(indicator) {
+        if (!indicator) return false;
+        const isFullscreen = indicator.classList.toggle('fullscreen-mode');
+        if (isFullscreen) indicator.classList.remove('wide-mode');
+        return isFullscreen;
+    }
+
+    function bindModeControls(indicator) {
+        if (!indicator) return;
+        const wideButton = indicator.querySelector('.monitor-wide-toggle');
+        const fullscreenButton = indicator.querySelector('.monitor-fullscreen-toggle');
+
+        if (wideButton && wideButton.dataset.searchMonitorModeBound !== '1') {
+            wideButton.dataset.searchMonitorModeBound = '1';
+            wideButton.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                setWideMode(indicator);
+            });
+        }
+
+        if (fullscreenButton && fullscreenButton.dataset.searchMonitorModeBound !== '1') {
+            fullscreenButton.dataset.searchMonitorModeBound = '1';
+            fullscreenButton.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                setFullscreenMode(indicator);
+            });
+        }
+    }
+
     function shouldIgnoreToggleEvent(event, indicator) {
         if (!event || !indicator) return false;
         const target = event.target;
@@ -270,6 +313,7 @@
         ensureTraceRow(indicator);
         ensureTraceDetails(indicator);
         ensureNexusLauncher(indicator);
+        bindModeControls(indicator);
 
         indicator.addEventListener('click', handleToggle);
         indicator.addEventListener('keydown', function (event) {
@@ -300,6 +344,7 @@
 
     window.SearchMonitorBoot = {
         bind,
+        bindModeControls,
         handleToggle,
         openNexusSearch: function () {
             return openNexusSearch({ scopeMode: 'current' });
