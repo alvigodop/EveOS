@@ -141,6 +141,10 @@ def start_server() -> dict:
             )
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
+        # Hidden Windows processes otherwise inherit a legacy code page and can
+        # crash while printing UTF-8 status text before either server binds.
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
         saved_api_key = gemini_credentials.load_api_key()
         if saved_api_key:
             env["GOOGLE_API_KEY"] = saved_api_key

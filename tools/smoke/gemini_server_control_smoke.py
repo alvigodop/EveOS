@@ -72,8 +72,11 @@ def assert_start_contract():
         result = gemini_control.start_server()
 
     command = popen.call_args.args[0]
+    environment = popen.call_args.kwargs["env"]
     assert command[-2:] == ["--port", "9083"]
     assert command[0] == sys.executable
+    assert environment["PYTHONUTF8"] == "1"
+    assert environment["PYTHONIOENCODING"] == "utf-8"
     assert result["state"] == "starting"
 
 

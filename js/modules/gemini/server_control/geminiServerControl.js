@@ -322,18 +322,6 @@
         return { ...state };
     }
 
-    async function waitForReady(timeoutMs) {
-        const deadline = Date.now() + (timeoutMs || 15000);
-        while (Date.now() < deadline) {
-            await new Promise(function (resolve) {
-                window.setTimeout(resolve, 450);
-            });
-            await refreshStatus();
-            if (state.running || state.serverState === 'error') break;
-        }
-        return state.running;
-    }
-
     async function toggleServer() {
         if (state.busy || !state.controllerAvailable || !state.baseUrl) return;
         const shouldStart = !state.running;
@@ -360,7 +348,18 @@
             state.message = payload.message || state.message;
 
             if (shouldStart && !state.running && state.serverState !== 'error') {
-                await waitForReady(45000);
+                await window.GeminiServerNetwork.waitForServerReady({
+                    timeoutMs: 45000,
+                    refreshStatus,
+                    isRunning: function () { return state.running; },
+                    isError: function () { return state.serverState === 'error'; },
+                    onEarlyExit: function () {
+                        state.serverState = 'error';
+                        state.message = 'Gemini server exited before becoming ready.';
+                        state.connectionPhase = 'error';
+                        publish();
+                    }
+                });
             }
             if (shouldStart && state.running) {
                 await workspacePromise;

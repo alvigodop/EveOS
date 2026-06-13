@@ -38,8 +38,32 @@
         }
     }
 
+    async function waitForServerReady(options) {
+        const deadline = Date.now() + (options.timeoutMs || 15000);
+        const graceDeadline = Date.now() + 2500;
+        let stoppedPolls = 0;
+        while (Date.now() < deadline) {
+            await new Promise(function (resolve) {
+                window.setTimeout(resolve, 450);
+            });
+            const snapshot = await options.refreshStatus();
+            if (options.isRunning() || options.isError()) break;
+            if (Date.now() >= graceDeadline && snapshot.serverState === 'stopped') {
+                stoppedPolls += 1;
+                if (stoppedPolls >= 2) {
+                    options.onEarlyExit();
+                    break;
+                }
+            } else {
+                stoppedPolls = 0;
+            }
+        }
+        return options.isRunning();
+    }
+
     window.GeminiServerNetwork = {
         fetchJson,
-        localCandidateBases
+        localCandidateBases,
+        waitForServerReady
     };
 })();
