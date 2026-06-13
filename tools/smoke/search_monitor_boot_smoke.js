@@ -113,6 +113,36 @@ async function main() {
             throw new Error(`Search Monitor did not stay functional after LoadingIndicator init: ${JSON.stringify(postModuleState)}`);
         }
 
+        const modeControlState = await page.evaluate(() => {
+            const indicator = document.getElementById('loadingIndicator');
+            const wideButton = indicator?.querySelector('.monitor-wide-toggle');
+            const fullscreenButton = indicator?.querySelector('.monitor-fullscreen-toggle');
+            if (!indicator || !wideButton || !fullscreenButton) return null;
+
+            // Late DOM reconstruction can preserve attributes while dropping
+            // element-bound handlers. Delegation must keep both controls alive.
+            wideButton.onclick = null;
+            fullscreenButton.onclick = null;
+            wideButton.click();
+            const wideEnabled = indicator.classList.contains('wide-mode');
+            wideButton.click();
+            fullscreenButton.click();
+            const fullscreenEnabled = indicator.classList.contains('fullscreen-mode');
+            fullscreenButton.click();
+            return {
+                wideEnabled,
+                fullscreenEnabled,
+                restored: !indicator.classList.contains('wide-mode')
+                    && !indicator.classList.contains('fullscreen-mode')
+            };
+        });
+
+        if (!modeControlState?.wideEnabled
+            || !modeControlState.fullscreenEnabled
+            || !modeControlState.restored) {
+            throw new Error(`Search Monitor sizing controls are not stable: ${JSON.stringify(modeControlState)}`);
+        }
+
         const criticalConsoleErrors = consoleErrors.filter((entry) => !isBenignConsoleError(entry));
         if (pageErrors.length) {
             throw new Error(`Page errors detected:\n${pageErrors.join('\n\n')}`);
@@ -121,7 +151,7 @@ async function main() {
             throw new Error(`Console errors detected:\n${criticalConsoleErrors.join('\n')}`);
         }
 
-        console.log(`SEARCH_MONITOR_BOOT_SMOKE_OK ${JSON.stringify(result)}`);
+        console.log(`SEARCH_MONITOR_BOOT_SMOKE_OK ${JSON.stringify({ ...result, modeControlState })}`);
     } finally {
         await browser.close();
     }

@@ -34,8 +34,10 @@ function initiateModel() {
 window.CommunicationPanel.ReinitiateModelCommunicationPanel.initializeModelInitializer = function () {
     const initiateModelButton = document.getElementById('initiateModelButton');
     if (initiateModelButton) {
+        if (initiateModelButton.dataset.modelInitializerBound === '1') return;
+        initiateModelButton.dataset.modelInitializerBound = '1';
         initiateModelButton.addEventListener('click', initiateModel);
     } else {
         console.error("initiateModelButton not found for modelInitializer.js");
     }
-}; 
+};

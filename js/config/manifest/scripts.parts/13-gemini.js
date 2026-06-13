@@ -4,8 +4,11 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Gemini Integration
-    "js/modules/gemini/gemini-init.js?v=0.1.7",
-    "js/modules/gemini/server_control/geminiServerControl.js?v=0.1.4",
-    "js/modules/gemini/Script_Loader/Script_Loader.js?v=0.1.4",
+    "js/modules/gemini/gemini-init.js?v=0.1.8",
+    "js/modules/gemini/server_control/geminiServerNetwork.js?v=0.1.0",
+    "js/modules/gemini/server_control/geminiCredentialBridge.js?v=0.2.0",
+    "js/modules/gemini/server_control/geminiServerControl.js?v=0.2.1",
+    "js/modules/gemini/server_control/geminiCredentialWorkflow.js?v=0.1.0",
+    "js/modules/gemini/Script_Loader/Script_Loader.js?v=0.2.3",
     "js/modules/gemini/ui/geminiSectionCollapse.js?v=0.1.0"
 ]);

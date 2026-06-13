@@ -80,6 +80,8 @@ window.CommunicationPanel.StartNewChatCommunicationPanel = window.CommunicationP
 window.CommunicationPanel.StartNewChatCommunicationPanel.initializeNewChatHandler = function () {
     const newChatButton = document.getElementById('newChatButton');
     if (newChatButton) {
+        if (newChatButton.dataset.newChatBound === '1') return;
+        newChatButton.dataset.newChatBound = '1';
         newChatButton.addEventListener('click', startNewChat);
         console.log('New Chat Button event listener attached by initializeNewChatHandler.');
     } else {

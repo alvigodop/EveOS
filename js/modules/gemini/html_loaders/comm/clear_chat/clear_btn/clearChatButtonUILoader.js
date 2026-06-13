@@ -32,7 +32,7 @@ async function loadClearChatButton() {
             window.CommunicationPanel.ClearChatCommunicationPanel.initializeClearChatHandler();
             console.log('Clear Chat handler initialized from loader.');
         } else {
-            console.error('ClearChatCommunicationPanel namespace or initializeClearChatHandler function not found.');
+            console.debug('Clear Chat handler deferred until Communication Panel handlers are ready.');
         }
 
         return Promise.resolve();

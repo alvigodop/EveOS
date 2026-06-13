@@ -189,31 +189,55 @@
     function setFullscreenMode(indicator) {
         if (!indicator) return false;
         const isFullscreen = indicator.classList.toggle('fullscreen-mode');
-        if (isFullscreen) indicator.classList.remove('wide-mode');
+        if (isFullscreen) {
+            indicator.classList.remove('wide-mode');
+            try {
+                localStorage.setItem('searchMonitorWide', 'false');
+            } catch (error) {
+                // Restricted storage must not block the view control.
+            }
+        }
         return isFullscreen;
+    }
+
+    function handleModeControlClick(event) {
+        const button = event.target?.closest?.('.monitor-wide-toggle, .monitor-fullscreen-toggle');
+        const indicator = button?.closest?.('#loadingIndicator');
+        if (!button || !indicator) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (button.classList.contains('monitor-wide-toggle')) {
+            setWideMode(indicator);
+        } else {
+            setFullscreenMode(indicator);
+        }
     }
 
     function bindModeControls(indicator) {
         if (!indicator) return;
         const wideButton = indicator.querySelector('.monitor-wide-toggle');
         const fullscreenButton = indicator.querySelector('.monitor-fullscreen-toggle');
+        if (!window.__searchMonitorModeDelegateBound) {
+            window.__searchMonitorModeDelegateBound = true;
+            document.addEventListener('click', handleModeControlClick, true);
+        }
 
-        if (wideButton && wideButton.dataset.searchMonitorModeBound !== '1') {
+        if (wideButton) {
             wideButton.dataset.searchMonitorModeBound = '1';
-            wideButton.addEventListener('click', function (event) {
+            wideButton.onclick = function (event) {
                 event.preventDefault();
                 event.stopPropagation();
                 setWideMode(indicator);
-            });
+            };
         }
 
-        if (fullscreenButton && fullscreenButton.dataset.searchMonitorModeBound !== '1') {
+        if (fullscreenButton) {
             fullscreenButton.dataset.searchMonitorModeBound = '1';
-            fullscreenButton.addEventListener('click', function (event) {
+            fullscreenButton.onclick = function (event) {
                 event.preventDefault();
                 event.stopPropagation();
                 setFullscreenMode(indicator);
-            });
+            };
         }
     }
 

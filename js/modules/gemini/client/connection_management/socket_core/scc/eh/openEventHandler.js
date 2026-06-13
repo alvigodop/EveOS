@@ -33,17 +33,6 @@ window.SocketConnectionCore.EventHandlers.handleOpen = function (event) {
         displayMessage("System Message: Connected to server, initializing Gemini API...", true);
     }
 
-    // After 5 seconds, mark as fully connected since API initialization should be complete
-    setTimeout(() => {
-        if (window.webSocket && window.webSocket.readyState === WebSocket.OPEN) {
-            State.geminiApiReady = true;
-            if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connected', 'Connected');
-            if (typeof displayMessage === 'function') {
-                displayMessage("System Message: Gemini API initialized successfully", true);
-            }
-        }
-    }, 5000);
-
     // Automatically send setup message with saved voice configuration
     if (typeof sendAutoSetupMessage === 'function') sendAutoSetupMessage();
 };

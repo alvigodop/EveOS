@@ -32,7 +32,7 @@ async function loadClearSystemLogButton() {
             window.CommunicationPanel.ClearSystemLogCommunicationPanel.initializeClearSystemLogHandler();
             console.log('Clear System Log handler initialized from loader.');
         } else {
-            console.error('ClearSystemLogCommunicationPanel namespace or initializeClearSystemLogHandler function not found.');
+            console.debug('Clear System Log handler deferred until Communication Panel handlers are ready.');
         }
 
         return Promise.resolve();

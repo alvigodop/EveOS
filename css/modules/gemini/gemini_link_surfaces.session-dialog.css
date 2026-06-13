@@ -1,0 +1,364 @@
+#sessionControlsDialog.gemini-session-dialog {
+    position: fixed;
+    inset: 50% auto auto 50%;
+    transform: translate(-50%, -50%);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    width: min(620px, calc(100vw - 28px)) !important;
+    max-width: 620px !important;
+    max-height: min(780px, calc(100dvh - 28px));
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    color: #eaf8ff;
+    border: 1px solid rgba(110, 231, 255, 0.22);
+    border-radius: 22px;
+    background-color: #090e15;
+    background-image:
+        radial-gradient(circle at 88% 4%, rgba(0, 212, 255, 0.14), transparent 32%),
+        linear-gradient(155deg, #101823 0%, #090e15 62%, #070b10 100%);
+    box-shadow:
+        0 28px 90px rgba(0, 0, 0, 0.62),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+#sessionControlsDialog.gemini-session-dialog[open] {
+    display: grid;
+}
+
+#sessionControlsDialog.gemini-session-dialog::backdrop {
+    background: rgba(1, 5, 9, 0.76);
+    backdrop-filter: blur(8px);
+}
+
+#sessionControlsDialog .gemini-session-dialog__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 21px 22px 17px;
+    margin: 0 !important;
+    box-sizing: border-box;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gemini-session-dialog__header h2 {
+    margin: 3px 0 5px;
+    color: #f6fcff;
+    font-size: clamp(1.25rem, 3vw, 1.65rem);
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+}
+
+.gemini-session-dialog__header p {
+    max-width: 460px;
+    margin: 0;
+    color: rgba(224, 242, 250, 0.58);
+    font-size: 0.77rem;
+    line-height: 1.45;
+}
+
+.gemini-session-dialog__kicker,
+.gemini-session-section__kicker {
+    display: block;
+    color: #67e8f9;
+    font-size: 0.62rem;
+    font-weight: 850;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.gemini-session-dialog__icon {
+    display: inline-flex;
+    flex: 0 0 34px;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    color: rgba(231, 248, 255, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.045);
+    cursor: pointer;
+}
+
+.gemini-session-dialog__icon:hover {
+    color: #fff;
+    border-color: rgba(103, 232, 249, 0.28);
+    background: rgba(103, 232, 249, 0.11);
+}
+
+.gemini-session-dialog__icon .material-icons {
+    font-size: 18px;
+}
+
+.gemini-session-dialog__content {
+    display: grid;
+    gap: 11px;
+    min-height: 0;
+    padding: 14px 16px 18px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+
+.gemini-session-section {
+    display: grid;
+    gap: 13px;
+    padding: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.075);
+    border-radius: 16px;
+    background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+}
+
+.gemini-session-section--credential {
+    border-color: rgba(103, 232, 249, 0.18);
+    background:
+        radial-gradient(circle at top right, rgba(103, 232, 249, 0.1), transparent 38%),
+        rgba(255, 255, 255, 0.025);
+}
+
+.gemini-session-section__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.gemini-session-section__heading h3 {
+    margin: 3px 0 0;
+    color: #edfaff;
+    font-size: 0.94rem;
+    line-height: 1.25;
+}
+
+.gemini-session-switch-label {
+    position: absolute;
+    right: calc(100% + 8px);
+    top: 50%;
+    width: max-content;
+    transform: translateY(-50%);
+    color: rgba(230, 246, 255, 0.68);
+    font-size: 0.68rem;
+    font-weight: 750;
+}
+
+.gemini-session-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.gemini-session-field-grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gemini-session-field-grid--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.gemini-session-field {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    min-width: 0;
+    color: rgba(226, 243, 250, 0.62);
+    font-size: 0.67rem;
+    font-weight: 760;
+    letter-spacing: 0.02em;
+}
+
+.gemini-session-field--wide {
+    grid-column: 1 / -1;
+}
+
+.gemini-session-field input,
+.gemini-session-field select,
+.gemini-session-field textarea,
+.gemini-session-secret-row input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    color: #effbff;
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 10px;
+    outline: 0;
+    background: rgba(2, 7, 11, 0.64);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.gemini-session-field input,
+.gemini-session-field select {
+    height: 38px;
+    padding: 0 10px;
+}
+
+.gemini-session-field textarea {
+    min-height: 86px;
+    padding: 10px;
+    resize: vertical;
+    line-height: 1.45;
+}
+
+.gemini-session-field input:focus,
+.gemini-session-field select:focus,
+.gemini-session-field textarea:focus,
+.gemini-session-secret-row input:focus {
+    border-color: rgba(103, 232, 249, 0.52);
+    box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+}
+
+.gemini-session-field select option {
+    color: #edfaff;
+    background: #101821;
+}
+
+.gemini-session-input-unit {
+    position: relative;
+}
+
+.gemini-session-input-unit input {
+    padding-right: 36px;
+}
+
+.gemini-session-input-unit > span {
+    position: absolute;
+    top: 50%;
+    right: 9px;
+    color: rgba(226, 243, 250, 0.36);
+    font-size: 0.6rem;
+    transform: translateY(-50%);
+}
+
+.gemini-session-secret-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 38px;
+    gap: 8px;
+}
+
+.gemini-session-secret-row input {
+    height: 40px;
+    padding: 0 12px;
+    font-family: "Roboto Mono", Consolas, monospace;
+}
+
+.gemini-session-status-badge {
+    flex: 0 0 auto;
+    padding: 5px 8px;
+    color: #d8f9ff;
+    border: 1px solid rgba(103, 232, 249, 0.2);
+    border-radius: 999px;
+    background: rgba(103, 232, 249, 0.09);
+    font-size: 0.58rem;
+    font-weight: 850;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.gemini-session-status-badge[data-state="ready"] {
+    color: #bbf7d0;
+    border-color: rgba(34, 197, 94, 0.26);
+    background: rgba(34, 197, 94, 0.1);
+}
+
+.gemini-session-status-badge[data-state="error"] {
+    color: #fecdd3;
+    border-color: rgba(251, 113, 133, 0.28);
+    background: rgba(251, 113, 133, 0.1);
+}
+
+.gemini-session-status-badge[data-state="saving"] {
+    color: #fde68a;
+    border-color: rgba(251, 191, 36, 0.28);
+    background: rgba(251, 191, 36, 0.1);
+}
+
+.gemini-session-help {
+    margin: -3px 0 0;
+    color: rgba(222, 241, 249, 0.52);
+    font-size: 0.67rem;
+    line-height: 1.45;
+}
+
+#sessionControlsDialog .gemini-session-dialog__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px !important;
+    margin: 0 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(3, 8, 13, 0.78);
+}
+
+.gemini-session-dialog__save-note {
+    flex: 1 1 auto;
+    color: rgba(222, 241, 249, 0.42);
+    font-size: 0.62rem;
+}
+
+.gemini-session-button {
+    min-height: 36px;
+    padding: 0 13px;
+    color: #eafaff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.045);
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 820;
+    cursor: pointer;
+}
+
+.gemini-session-button--primary {
+    color: #041017;
+    border-color: rgba(103, 232, 249, 0.54);
+    background: linear-gradient(135deg, #22d3ee, #67e8f9);
+}
+
+.gemini-session-button:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+@media (max-width: 560px) {
+    #sessionControlsDialog.gemini-session-dialog {
+        width: calc(100vw - 12px) !important;
+        max-height: calc(100dvh - 12px);
+        border-radius: 17px;
+    }
+
+    .gemini-session-dialog__header {
+        padding: 17px 15px 14px;
+    }
+
+    .gemini-session-dialog__content {
+        padding: 10px;
+    }
+
+    .gemini-session-field-grid,
+    .gemini-session-field-grid--three,
+    .gemini-session-field-grid--four {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gemini-session-dialog__save-note {
+        display: none;
+    }
+}
+
+@media (max-width: 390px) {
+    .gemini-session-field-grid,
+    .gemini-session-field-grid--three,
+    .gemini-session-field-grid--four {
+        grid-template-columns: 1fr;
+    }
+
+    .gemini-session-dialog__actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+}

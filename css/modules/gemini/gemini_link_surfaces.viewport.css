@@ -18,6 +18,8 @@
 }
 
 #loadingIndicator:not(.compact) .indicator-content {
+    display: flex;
+    flex-direction: column;
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -41,6 +43,45 @@
     overflow-x: hidden !important;
     overflow-y: auto !important;
     overscroll-behavior: contain;
+    contain: none;
+    scrollbar-gutter: stable;
+}
+
+#loadingIndicator:not(.compact) #gemini-ui-root .gemini-monitor-shell-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    flex: 0 0 auto;
+    background:
+        linear-gradient(145deg, rgba(11, 16, 24, 0.98), rgba(7, 11, 17, 0.97));
+    backdrop-filter: blur(14px);
+}
+
+#loadingIndicator:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout__header {
+    position: relative !important;
+    top: auto !important;
+}
+
+#loadingIndicator:not(.compact):hover {
+    transform: none;
+}
+
+#loadingIndicator:not(.compact) .indicator-title {
+    flex: 0 0 auto;
+    padding-right: 62px;
+}
+
+#loadingIndicator:not(.compact) .status-group {
+    flex: 0 0 auto;
+}
+
+#loadingIndicator.gemini-monitor-workspace-active:not(.compact) .gemini-monitor-shell {
+    max-height: none;
+}
+
+#loadingIndicator.gemini-monitor-workspace-active:not(.compact) #chatLog,
+#loadingIndicator.gemini-monitor-workspace-active:not(.compact) #systemLog {
+    overscroll-behavior: auto;
 }
 
 #loadingIndicator.wide-mode:not(.compact) {
@@ -63,6 +104,22 @@
 #loadingIndicator.fullscreen-mode:not(.compact) #gemini-placeholder {
     height: 100%;
     min-height: 0;
+}
+
+@media (min-width: 920px) {
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content {
+        display: grid !important;
+        grid-template-columns: minmax(300px, 0.9fr) minmax(380px, 1.1fr) !important;
+        align-items: start;
+    }
+
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .left-column,
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .left-column,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
+        min-width: 0;
+    }
 }
 
 @media (max-width: 560px) {
@@ -105,5 +162,9 @@
 
     .gemini-server-control {
         justify-content: space-between;
+    }
+
+    #loadingIndicator:not(.compact) #gemini-ui-root .gemini-monitor-shell-toolbar {
+        position: relative;
     }
 }

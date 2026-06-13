@@ -55,6 +55,8 @@ window.clearAllChats = function () {
 function initializeClearChatHandler() {
     const clearChatButton = document.getElementById('clearChatButton');
     if (clearChatButton) {
+        if (clearChatButton.dataset.clearChatBound === '1') return;
+        clearChatButton.dataset.clearChatBound = '1';
         // Redundant check for clearChat function existence isn't strictly necessary 
         // since we defined it above, but good for safety.
         clearChatButton.addEventListener('click', clearChat);
@@ -73,4 +75,4 @@ if (!window.CommunicationPanel.ClearChatCommunicationPanel) {
 }
 window.CommunicationPanel.ClearChatCommunicationPanel.initializeClearChatHandler = initializeClearChatHandler;
 
-console.log("chatClearHandler.js (Bridge) loaded."); 
+console.log("chatClearHandler.js (Bridge) loaded.");

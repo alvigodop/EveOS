@@ -12,6 +12,7 @@ window.ConnectionStatusCore = window.ConnectionStatusCore || {};
     window.ConnectionStatusCore.updateConnectionUI = function (status, message) {
         const connectionDot = document.getElementById('connectionDot');
         const connectionText = document.getElementById('connectionText');
+        const connectionRoot = document.getElementById('connectionStatus');
 
         if (!connectionDot || !connectionText) {
             // UI not ready yet
@@ -20,6 +21,7 @@ window.ConnectionStatusCore = window.ConnectionStatusCore || {};
         }
 
         connectionElementsAvailable = true;
+        if (connectionRoot) connectionRoot.dataset.status = status || 'unknown';
 
         switch (status) {
             case 'connecting':

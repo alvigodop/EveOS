@@ -33,7 +33,7 @@ async function loadNewChatButtonCard() {
             window.CommunicationPanel.StartNewChatCommunicationPanel.initializeNewChatHandler();
             console.log('New Chat handler initialized from loader.');
         } else {
-            console.error('StartNewChatCommunicationPanel namespace or initializeNewChatHandler function not found.');
+            console.debug('New Chat handler deferred until Communication Panel handlers are ready.');
         }
 
         return Promise.resolve();

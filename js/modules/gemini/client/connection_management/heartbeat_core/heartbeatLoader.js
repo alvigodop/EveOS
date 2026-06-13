@@ -9,6 +9,8 @@
     const SOCKET_HEARTBEAT_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/client/connection_management/heartbeat_core';
 
     const scripts = [
+        `${SOCKET_HEARTBEAT_PATH}/ping_pong/socketCleanup.js`,
+        `${SOCKET_HEARTBEAT_PATH}/ping_pong/pingPongHandlers.js`,
         `${SOCKET_HEARTBEAT_PATH}/ping_pong/connectionHealthMonitor.js`,
         `${SOCKET_HEARTBEAT_PATH}/ping_pong/socketEventWrappers.js`,
         `${SOCKET_HEARTBEAT_PATH}/ping_pong/nativePingPongCoordinator.js`

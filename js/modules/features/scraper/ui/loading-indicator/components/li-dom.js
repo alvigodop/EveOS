@@ -222,23 +222,24 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 return;
             }
 
-            if (wideBtn.dataset.searchMonitorModeBound !== '1') {
-                wideBtn.dataset.searchMonitorModeBound = '1';
-                wideBtn.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    const isWide = indicator.classList.toggle('wide-mode');
-                    if (isWide) indicator.classList.remove('fullscreen-mode');
-                    try { localStorage.setItem('searchMonitorWide', isWide ? 'true' : 'false'); } catch (ex) { /* ignore */ }
-                });
-            }
-            if (fsBtn.dataset.searchMonitorModeBound !== '1') {
-                fsBtn.dataset.searchMonitorModeBound = '1';
-                fsBtn.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    const isFs = indicator.classList.toggle('fullscreen-mode');
-                    if (isFs) indicator.classList.remove('wide-mode');
-                });
-            }
+            wideBtn.dataset.searchMonitorModeBound = '1';
+            wideBtn.onclick = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const isWide = indicator.classList.toggle('wide-mode');
+                if (isWide) indicator.classList.remove('fullscreen-mode');
+                try { localStorage.setItem('searchMonitorWide', isWide ? 'true' : 'false'); } catch (ex) { /* ignore */ }
+            };
+            fsBtn.dataset.searchMonitorModeBound = '1';
+            fsBtn.onclick = (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const isFs = indicator.classList.toggle('fullscreen-mode');
+                if (isFs) {
+                    indicator.classList.remove('wide-mode');
+                    try { localStorage.setItem('searchMonitorWide', 'false'); } catch (ex) { /* ignore */ }
+                }
+            };
         }
 
         return {

@@ -35,7 +35,7 @@ async function loadSystemMessageToggleSwitch() {
             window.CommunicationPanel.SystemMessageToggleCommunicationPanel.initializeSystemMessageToggleHandler();
             console.log('System Message Toggle handler initialized from loader.');
         } else {
-            console.error('SystemMessageToggleCommunicationPanel namespace or initializeSystemMessageToggleHandler function not found.');
+            console.debug('System Message handler deferred until Communication Panel handlers are ready.');
         }
 
         return Promise.resolve();

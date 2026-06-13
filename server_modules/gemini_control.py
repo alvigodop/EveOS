@@ -11,6 +11,8 @@ import sys
 import time
 from pathlib import Path
 
+from . import gemini_credentials
+
 
 WEBSOCKET_PORT = 9083
 STATUS_PORT = 9084
@@ -139,6 +141,9 @@ def start_server() -> dict:
             )
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
+        saved_api_key = gemini_credentials.load_api_key()
+        if saved_api_key:
+            env["GOOGLE_API_KEY"] = saved_api_key
         _PROCESS = subprocess.Popen(
             [sys.executable, str(script), "--port", str(WEBSOCKET_PORT)],
             cwd=str(script.parent),

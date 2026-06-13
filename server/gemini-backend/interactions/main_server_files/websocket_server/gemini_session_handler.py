@@ -6,6 +6,7 @@ import asyncio
 import json
 from main_server_files.session_management.session_manager import cleanup_resources
 from main_server_files.api_configuration.api_client_manager import initialize_api_client
+from main_server_files.api_configuration.api_key_manager import persist_api_key
 
 async def gemini_session_handler(websocket, client):
     """Handles the interaction with Gemini API within a websocket session.
@@ -47,6 +48,7 @@ async def gemini_session_handler(websocket, client):
                 client = session_client
                 # Also update audio processor's client
                 audio_processor.client = client
+                persist_api_key(session_api_key)
                 print(f"Connection {connection_id}: Successfully initialized session-specific client")
             else:
                 print(f"Connection {connection_id}: Failed to initialize session-specific client")
@@ -58,8 +60,15 @@ async def gemini_session_handler(websocket, client):
                     }))
                 return
         elif not client:
-            # Check if we have no client at all (neither server default nor session-specific)
-            print(f"Connection {connection_id}: No API key available (none on server, none provided by client)")
+            # Credentials can be synchronized by EveOS after the backend starts.
+            # Re-read the local vault for each new session before reporting failure.
+            client = initialize_api_client()
+            if client:
+                audio_processor.client = client
+                print(f"Connection {connection_id}: Loaded API credentials from the local EveOS vault")
+            else:
+                print(f"Connection {connection_id}: No API key available (none on server, none provided by client)")
+        if not client:
             if connection_monitor.is_websocket_open():
                 await connection_monitor.safe_send(json.dumps({
                     "text": "Error: No API key configured. Please provide one in Session Controls settings.",

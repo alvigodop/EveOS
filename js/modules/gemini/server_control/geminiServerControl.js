@@ -1,8 +1,6 @@
 (function () {
     'use strict';
-
-    const STATUS_PATH = '/api/gemini-server/status';
-    const POLL_MS = 5000;
+    const STATUS_PATH = '/api/gemini-server/status', POLL_MS = 5000;
     const state = {
         baseUrl: '',
         controllerAvailable: false,
@@ -10,59 +8,23 @@
         serverState: 'checking',
         busy: false,
         message: 'Checking Gemini server...',
-        connectionPhase: 'idle'
+        connectionPhase: 'idle',
+        credentialsConfigured: false
     };
-
-    function localCandidateBases() {
-        const bases = [];
-        if (/^https?:$/.test(window.location.protocol)
-            && /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname)) {
-            bases.push(window.location.origin);
-        }
-
-        const configuredPort = Number(window.config?.bridges?.serverPort) || 3000;
-        [configuredPort, 8765, 3000].forEach(function (port) {
-            bases.push(`http://127.0.0.1:${port}`);
-        });
-        return Array.from(new Set(bases));
-    }
-
-    async function fetchJson(url, options, timeoutMs) {
-        const controller = new AbortController();
-        const timer = window.setTimeout(function () {
-            controller.abort();
-        }, timeoutMs || 1200);
-        try {
-            const response = await fetch(url, {
-                cache: 'no-store',
-                ...options,
-                signal: controller.signal
-            });
-            const payload = await response.json().catch(function () {
-                return {};
-            });
-            if (!response.ok) {
-                throw new Error(payload.message || `Request failed (${response.status})`);
-            }
-            return payload;
-        } finally {
-            window.clearTimeout(timer);
-        }
-    }
-
+    let reconcilePromise = null;
     async function findController() {
+        const network = window.GeminiServerNetwork;
         if (state.baseUrl) {
             try {
-                const payload = await fetchJson(`${state.baseUrl}${STATUS_PATH}`, null, 1000);
+                const payload = await network.fetchJson(`${state.baseUrl}${STATUS_PATH}`, null, 1000);
                 return { baseUrl: state.baseUrl, payload };
             } catch (error) {
                 state.baseUrl = '';
             }
         }
-
-        for (const baseUrl of localCandidateBases()) {
+        for (const baseUrl of network.localCandidateBases()) {
             try {
-                const payload = await fetchJson(`${baseUrl}${STATUS_PATH}`, null, 700);
+                const payload = await network.fetchJson(`${baseUrl}${STATUS_PATH}`, null, 700);
                 state.baseUrl = baseUrl;
                 return { baseUrl, payload };
             } catch (error) {
@@ -74,20 +36,18 @@
 
     async function checkDirectServerStatus() {
         try {
-            const payload = await fetchJson('http://127.0.0.1:9084/status', null, 700);
+            const payload = await window.GeminiServerNetwork.fetchJson('http://127.0.0.1:9084/status', null, 700);
             return payload?.status === 'running';
         } catch (error) {
             return false;
         }
     }
-
     function publish() {
         document.querySelectorAll('[data-gemini-server-control]').forEach(renderControl);
         window.dispatchEvent(new CustomEvent('eve:gemini-server-status', {
             detail: { ...state }
         }));
     }
-
     function renderControl(control) {
         const status = control.querySelector('[data-gemini-server-status]');
         const button = control.querySelector('[data-gemini-server-toggle]');
@@ -133,7 +93,53 @@
         }
     }
 
+    function isConnectionPreferenceEnabled() {
+        try {
+            return localStorage.getItem('geminiConnectionEnabled') !== 'false';
+        } catch (error) {
+            return true;
+        }
+    }
+
+    async function syncCredentials(options) {
+        const found = state.baseUrl ? { baseUrl: state.baseUrl } : await findController();
+        if (!found?.baseUrl || !window.GeminiCredentialBridge) {
+            return { ok: false, configured: false };
+        }
+        try {
+            const payload = await window.GeminiCredentialBridge.sync(found.baseUrl, options);
+            state.credentialsConfigured = !!payload.configured;
+            if (payload.configured && window.SocketGlobalState) {
+                window.SocketGlobalState.credentialRequired = false;
+                if (state.running && isConnectionPreferenceEnabled()) {
+                    window.SocketConnectionCore?.startAutoReconnect?.();
+                }
+            }
+            publish();
+            return payload;
+        } catch (error) {
+            console.warn('[GeminiServerControl] Credential synchronization failed:', error);
+            return { ok: false, configured: false,
+                message: error?.message || 'Gemini credential synchronization failed.' };
+        }
+    }
+
     function connectClient() {
+        if (window.SocketGlobalState?.credentialRequired) {
+            state.connectionPhase = 'credentials-required';
+            publish();
+            return;
+        }
+        if (window.webSocket?.readyState === WebSocket.OPEN) {
+            state.connectionPhase = 'connected';
+            publish();
+            return;
+        }
+        if (window.webSocket?.readyState === WebSocket.CONNECTING || window.SocketGlobalState?.isConnecting) {
+            state.connectionPhase = 'requesting';
+            publish();
+            return;
+        }
         state.connectionPhase = 'requesting';
         publish();
         if (typeof window.updateConnectionStatus === 'function') {
@@ -142,6 +148,15 @@
         let attempts = 0;
         const requestConnection = function () {
             attempts += 1;
+            if (window.webSocket?.readyState === WebSocket.OPEN
+                || window.webSocket?.readyState === WebSocket.CONNECTING
+                || window.SocketGlobalState?.isConnecting) {
+                state.connectionPhase = window.webSocket?.readyState === WebSocket.OPEN
+                    ? 'connected'
+                    : 'requesting';
+                publish();
+                return;
+            }
             const core = window.SocketConnectionCore;
             if (typeof core?.connect === 'function') {
                 state.connectionPhase = 'requested';
@@ -165,6 +180,53 @@
             }
         };
         window.setTimeout(requestConnection, 100);
+    }
+
+    async function reconcileClientConnection() {
+        if (!state.running) {
+            if (!window.webSocket || window.webSocket.readyState >= WebSocket.CLOSING) {
+                state.connectionPhase = 'offline';
+                if (typeof window.updateConnectionStatus === 'function') {
+                    window.updateConnectionStatus('disconnected', 'Gemini Server Offline');
+                }
+                publish();
+            }
+            return false;
+        }
+        if (!isConnectionPreferenceEnabled()) return false;
+        if (window.SocketGlobalState?.credentialRequired) {
+            state.connectionPhase = 'credentials-required';
+            publish();
+            return false;
+        }
+        if (window.webSocket?.readyState === WebSocket.OPEN) {
+            state.connectionPhase = window.SocketGlobalState?.geminiApiReady ? 'connected' : 'initializing';
+            publish();
+            return true;
+        }
+        if (window.webSocket?.readyState === WebSocket.CONNECTING || window.SocketGlobalState?.isConnecting) {
+            return false;
+        }
+
+        const root = document.getElementById('gemini-ui-root');
+        const shouldBoot = !!window.__GEMINI_BOOT_REQUESTED
+            || root?.dataset.geminiMonitorView === 'full'
+            || state.connectionPhase === 'requesting'
+            || state.connectionPhase === 'requested';
+        if (!shouldBoot) return false;
+        if (reconcilePromise) return reconcilePromise;
+
+        reconcilePromise = (async function () {
+            const ready = await ensureWorkspaceReady();
+            if (ready && state.running && isConnectionPreferenceEnabled()) {
+                connectClient();
+                return true;
+            }
+            return false;
+        })().finally(function () {
+            reconcilePromise = null;
+        });
+        return reconcilePromise;
     }
 
     function waitForWindowEvent(eventName, readyCheck, timeoutMs) {
@@ -256,6 +318,7 @@
                 : 'Gemini and its local lifecycle controller are offline.';
         }
         publish();
+        reconcileClientConnection();
         return { ...state };
     }
 
@@ -278,12 +341,16 @@
         state.serverState = shouldStart ? 'starting' : 'stopping';
         state.message = shouldStart ? 'Starting Gemini server...' : 'Stopping Gemini server...';
         publish();
+        let workspacePromise = null;
 
         try {
-            const workspacePromise = shouldStart
+            workspacePromise = shouldStart
                 ? (setConnectionPreference(true), ensureWorkspaceReady())
                 : null;
-            const payload = await fetchJson(`${state.baseUrl}/api/gemini-server/${shouldStart ? 'start' : 'stop'}`, {
+            if (shouldStart) {
+                await syncCredentials({ force: true });
+            }
+            const payload = await window.GeminiServerNetwork.fetchJson(`${state.baseUrl}/api/gemini-server/${shouldStart ? 'start' : 'stop'}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: '{}'
@@ -303,7 +370,6 @@
                 disconnectClient();
             }
         } catch (error) {
-            if (shouldStart) setConnectionPreference(false);
             state.serverState = 'error';
             state.message = error.message || 'Gemini server control failed.';
             state.connectionPhase = 'error';
@@ -345,16 +411,24 @@
         });
         observer.observe(document.documentElement, { childList: true, subtree: true });
         refreshStatus();
+        syncCredentials();
         window.setInterval(function () {
             if (document.visibilityState === 'visible' && document.getElementById('gemini-ui-root')) {
                 refreshStatus();
             }
         }, POLL_MS);
+        window.addEventListener('eve:gemini-workspace-ready', reconcileClientConnection);
+        window.addEventListener('eve:gemini-socket-ready', reconcileClientConnection);
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') refreshStatus();
+        });
     }
 
     window.GeminiServerControl = {
         getState: function () { return { ...state }; },
         refreshStatus,
+        syncCredentials,
+        reconcileClientConnection,
         toggleServer,
         start: async function () {
             if (state.running) return { ...state };

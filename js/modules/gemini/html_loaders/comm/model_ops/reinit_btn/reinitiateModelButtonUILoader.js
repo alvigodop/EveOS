@@ -32,7 +32,7 @@ async function loadReinitiateModelButtonCard() {
             window.CommunicationPanel.ReinitiateModelCommunicationPanel.initializeModelInitializer();
             console.log('Model Initializer handler initialized from loader.');
         } else {
-            console.error('ReinitiateModelCommunicationPanel namespace or initializeModelInitializer function not found.');
+            console.debug('Model initializer deferred until Communication Panel handlers are ready.');
         }
 
         return Promise.resolve();

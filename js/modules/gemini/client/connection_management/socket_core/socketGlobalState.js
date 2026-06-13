@@ -40,9 +40,11 @@ window.SocketGlobalState = {
 
     autoReconnectEnabled: true,
     serverStartupDetection: true,
-    serverStartupMaxChecks: 3,
+    serverStartupMaxChecks: 6,
+    serverOfflinePollInterval: 15000,
     serverOfflinePauseActive: false,
     lastReconnectPauseNoticeAt: 0,
+    credentialRequired: false,
 
     previewModelCooldownStart: null,
     geminiApiReady: false,

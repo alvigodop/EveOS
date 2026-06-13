@@ -135,7 +135,8 @@
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-connection-pill {
     min-height: 30px;
-    max-width: 126px;
+    max-width: 160px;
+    min-width: 0;
     gap: 6px;
     padding: 0 9px;
 }
@@ -225,27 +226,41 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
+    height: auto !important;
     min-height: 0 !important;
+    flex: 0 0 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
-    min-height: 210px !important;
+    height: auto !important;
+    min-height: clamp(140px, 24dvh, 210px) !important;
+    flex: 0 0 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog {
-    min-height: 180px !important;
-    max-height: 300px !important;
+    height: clamp(140px, 24dvh, 210px) !important;
+    min-height: 140px !important;
+    max-height: 240px !important;
+    flex: 0 0 auto !important;
     overflow-y: auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
+    height: auto !important;
     min-height: 0 !important;
+    flex: 0 0 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
-    min-height: 110px !important;
-    max-height: 220px !important;
+    height: clamp(100px, 18dvh, 160px) !important;
+    min-height: 100px !important;
+    max-height: 180px !important;
+    flex: 0 0 auto !important;
     overflow-y: auto !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .system-messages-container {
+    min-height: 0 !important;
 }
 
 @media (max-width: 520px) {

@@ -87,6 +87,9 @@ async function initializeAgenticHtmlComponents() {
 
             if (typeof window.loadSessionControlsSettingsDialogScript === 'function') {
                 await window.loadSessionControlsSettingsDialogScript();
+                if (window.SessionControlsAgenticReady) {
+                    await window.SessionControlsAgenticReady;
+                }
                 // Load the actual dialog HTML component
                 if (typeof window.loadSessionControlsSettingsDialog === 'function') {
                     await window.loadSessionControlsSettingsDialog();

@@ -26,6 +26,13 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
 
     window.webSocket = null;
 
+    if (State.credentialRequired) {
+        if (typeof updateConnectionStatus === 'function') {
+            updateConnectionStatus('error', 'API Key Required');
+        }
+        return;
+    }
+
     if (typeof updateConnectionStatus === 'function') updateConnectionStatus('disconnected', 'Connection Lost');
 
     if (State.autoReconnectEnabled && State.reconnectAttempts < State.MAX_RECONNECT_ATTEMPTS) {

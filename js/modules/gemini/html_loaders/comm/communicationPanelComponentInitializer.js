@@ -12,6 +12,7 @@ const communicationHandlerChecks = [
     () => window.CommunicationPanel?.ClearChatCommunicationPanel?.initializeClearChatHandler,
     () => window.CommunicationPanel?.ClearSystemLogCommunicationPanel?.initializeClearSystemLogHandler
 ];
+const lateCommunicationBindings = communicationHandlerChecks.slice(1);
 
 async function waitForCommunicationHandlers(timeoutMs = 12000) {
     const startedAt = Date.now();
@@ -32,8 +33,6 @@ async function initializeCommunicationPanelComponents() {
         if (!window.communicationPanelScriptLoader) {
             throw new Error("communicationPanelScriptLoader not found");
         }
-
-        await waitForCommunicationHandlers();
 
         // First, dynamically load all the individual UI loader aggregator scripts and simple component scripts
         await Promise.all([
@@ -112,6 +111,13 @@ async function initializeCommunicationPanelComponents() {
             console.log('Clear System Log UI HTML Components initialized.');
         } else {
             console.error('initializeClearSystemLogUIHtmlComponents function not found after dynamic loading.');
+        }
+
+        if (await waitForCommunicationHandlers(30000)) {
+            lateCommunicationBindings.forEach(function (check) {
+                const initialize = check();
+                if (typeof initialize === 'function') initialize();
+            });
         }
 
     } catch (error) {

@@ -26,6 +26,7 @@ try:
     from server_modules import popup_viewer
     from server_modules import eve_state_store
     from server_modules import gemini_control
+    from server_modules import gemini_credentials
 except ImportError as e:
     print(f"Error importing modules: {e}")
     # Fallback or exit? For now, let's assume it works.
@@ -165,6 +166,16 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == '/api/gemini-server/status':
             gemini_control.send_json(self, gemini_control.get_status())
+
+        elif path == '/api/gemini-credentials/status':
+            if not gemini_control.request_can_control(self):
+                gemini_control.send_json(
+                    self,
+                    {"ok": False, "configured": False, "message": "Local access required."},
+                    HTTPStatus.FORBIDDEN
+                )
+                return
+            gemini_control.send_json(self, gemini_credentials.get_status())
             
         else:
             # Unknown API endpoint
@@ -213,6 +224,23 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             action = gemini_control.start_server if path.endswith('/start') else gemini_control.stop_server
             payload = action()
             gemini_control.send_json(self, payload, HTTPStatus.OK if payload.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        if path == '/api/gemini-credentials':
+            if not gemini_control.request_can_control(self):
+                gemini_control.send_json(
+                    self,
+                    {"ok": False, "configured": False, "message": "Local access required."},
+                    HTTPStatus.FORBIDDEN
+                )
+                return
+            body = gemini_credentials.read_json_body(self)
+            payload = gemini_credentials.save_api_key(body.get("apiKey", ""))
+            gemini_control.send_json(
+                self,
+                payload,
+                HTTPStatus.OK if payload.get("ok") else HTTPStatus.BAD_REQUEST
+            )
             return
 
         self.send_response(HTTPStatus.NOT_FOUND)

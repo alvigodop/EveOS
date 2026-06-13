@@ -50,6 +50,14 @@ async function main() {
         }, undefined, { timeout: 10000 });
 
         await page.waitForTimeout(20000);
+        await page.evaluate(() => {
+            const root = document.getElementById('gemini-ui-root');
+            if (root) root.dataset.geminiFullReady = '0';
+            window.dispatchEvent(new CustomEvent('eve:gemini-workspace-ready'));
+        });
+        await page.waitForFunction(() => (
+            document.getElementById('gemini-ui-root')?.dataset.geminiFullReady === '1'
+        ), undefined, { timeout: 10000 });
 
         const result = await page.evaluate(() => {
             function box(selector) {

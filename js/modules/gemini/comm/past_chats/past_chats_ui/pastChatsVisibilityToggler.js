@@ -45,6 +45,8 @@ window.CommunicationPanel.TogglePastChatsCommunicationPanel.PastChatsUI = window
 function initializePastChatsVisibilityToggler() {
     const toggleButton = document.getElementById('togglePastChatsButton');
     if (toggleButton) {
+        if (toggleButton.dataset.pastChatsBound === '1') return;
+        toggleButton.dataset.pastChatsBound = '1';
         toggleButton.addEventListener('click', togglePastChats);
         console.log('Past Chats Visibility Toggler initialized.');
     } else {
@@ -52,4 +54,4 @@ function initializePastChatsVisibilityToggler() {
     }
 }
 
-window.CommunicationPanel.TogglePastChatsCommunicationPanel.PastChatsUI.initializePastChatsVisibilityToggler = initializePastChatsVisibilityToggler; 
+window.CommunicationPanel.TogglePastChatsCommunicationPanel.PastChatsUI.initializePastChatsVisibilityToggler = initializePastChatsVisibilityToggler;

@@ -1,225 +1,231 @@
-// js/modules/gemini/Session_Controls_Agentic/session_controls_settings/sessionControlsSettingsHandler.js
-// Manages UI and logic for session control settings (keep-alive, cleanup interval)
+// Session Controls settings, including secure Gemini credential handoff.
+(function () {
+    'use strict';
 
-// Initialize the SessionControlsAgentic namespace if it doesn't exist
-if (!window.SessionControlsAgentic) {
-    window.SessionControlsAgentic = {};
-}
+    window.SessionControlsAgentic = window.SessionControlsAgentic || {};
 
-// Define the session controls settings handler
-window.SessionControlsAgentic.initializeSessionControlsSettings = function (getWebSocket, displayMessageFunc) {
-    console.log("Initializing session controls settings...");
-
-    // Get all required UI elements
-    const elements = {
-        button: document.getElementById('sessionControlsSettingsButton'),
-        dialog: document.getElementById('sessionControlsDialog'),
-        saveBtn: document.getElementById('sessionControlsSave'),
-        cancelBtn: document.getElementById('sessionControlsCancel'),
-        keepAliveToggle: document.getElementById('keepAliveToggleSess'),
-        heartbeatInput: document.getElementById('heartbeatIntervalInputSess'),
-        cleanupInput: document.getElementById('cleanupIntervalInputSess'),
-        // New elements
-        modelSelect: document.getElementById('modelSelectSess'),
-        temperatureInput: document.getElementById('temperatureInputSess'),
-        topKInput: document.getElementById('topKInputSess'),
-        topPInput: document.getElementById('topPInputSess'),
-        maxTokensInput: document.getElementById('maxTokensInputSess'),
-        apiKeyInput: document.getElementById('apiKeyInputSess'),
-        // New elements
-        systemInstructionInput: document.getElementById('systemInstructionInputSess'),
-        safetyLevelSelect: document.getElementById('safetyLevelSelectSess'),
-        speakingRateInput: document.getElementById('speakingRateInputSess'),
-        pitchInput: document.getElementById('pitchInputSess'),
-        responseTimeoutInput: document.getElementById('responseTimeoutInputSess')
+    const STORAGE_FIELDS = {
+        heartbeatInput: ['heartbeatIntervalSec', '60'],
+        cleanupInput: ['cleanupInterval', '60'],
+        responseTimeoutInput: ['responseTimeout', '75'],
+        modelSelect: ['selectedModel', 'gemini-2.5-flash-native-audio-latest'],
+        temperatureInput: ['generationTemperature', '0.9'],
+        topKInput: ['generationTopK', '1'],
+        topPInput: ['generationTopP', '1'],
+        maxTokensInput: ['generationMaxTokens', '2048'],
+        systemInstructionInput: ['systemInstruction', ''],
+        safetyLevelSelect: ['safetyLevel', 'high'],
+        speakingRateInput: ['speakingRate', '1.0'],
+        pitchInput: ['pitch', '0']
     };
 
-    // Log which elements were found/not found
-    console.log("Session controls UI elements found:", {
-        button: !!elements.button,
-        dialog: !!elements.dialog,
-        saveBtn: !!elements.saveBtn,
-        cancelBtn: !!elements.cancelBtn,
-        modelSelect: !!elements.modelSelect
-    });
-
-    // Ensure all required elements exist
-    if (!elements.button || !elements.dialog || !elements.saveBtn || !elements.cancelBtn) {
-        console.error('Session controls UI elements not found');
-        return;
+    function getElements() {
+        return {
+            button: document.getElementById('sessionControlsSettingsButton'),
+            dialog: document.getElementById('sessionControlsDialog'),
+            saveBtn: document.getElementById('sessionControlsSave'),
+            cancelBtn: document.getElementById('sessionControlsCancel'),
+            closeBtn: document.getElementById('sessionControlsClose'),
+            keepAliveToggle: document.getElementById('keepAliveToggleSess'),
+            heartbeatInput: document.getElementById('heartbeatIntervalInputSess'),
+            cleanupInput: document.getElementById('cleanupIntervalInputSess'),
+            responseTimeoutInput: document.getElementById('responseTimeoutInputSess'),
+            modelSelect: document.getElementById('modelSelectSess'),
+            temperatureInput: document.getElementById('temperatureInputSess'),
+            topKInput: document.getElementById('topKInputSess'),
+            topPInput: document.getElementById('topPInputSess'),
+            maxTokensInput: document.getElementById('maxTokensInputSess'),
+            apiKeyInput: document.getElementById('apiKeyInputSess'),
+            apiKeyReveal: document.getElementById('geminiApiKeyReveal'),
+            credentialStatus: document.getElementById('geminiCredentialStatus'),
+            credentialBadge: document.getElementById('geminiCredentialBadge'),
+            systemInstructionInput: document.getElementById('systemInstructionInputSess'),
+            safetyLevelSelect: document.getElementById('safetyLevelSelectSess'),
+            speakingRateInput: document.getElementById('speakingRateInputSess'),
+            pitchInput: document.getElementById('pitchInputSess')
+        };
     }
 
-    // Initialize dialog if needed
-    if (typeof elements.dialog.showModal !== 'function' && typeof dialogPolyfill !== 'undefined') {
-        dialogPolyfill.registerDialog(elements.dialog);
+    function safeStorageGet(key, fallback) {
+        try {
+            return localStorage.getItem(key) ?? fallback;
+        } catch (error) {
+            return fallback;
+        }
     }
 
-    // Restore saved values
-    function restoreSettings() {
-        if (elements.keepAliveToggle) {
-            const keepAlive = localStorage.getItem('keepSessionAlive') === 'true';
-            elements.keepAliveToggle.checked = keepAlive;
+    function safeStorageSet(key, value) {
+        try {
+            localStorage.setItem(key, String(value));
+        } catch (error) {
+            console.warn(`[SessionControls] Could not persist ${key}:`, error);
+        }
+    }
 
-            // Update MDL component state if needed
-            if (elements.keepAliveToggle.parentElement) {
-                if (elements.keepAliveToggle.parentElement.MaterialSwitch) {
-                    elements.keepAliveToggle.parentElement.MaterialSwitch.checkToggleState();
-                } else if (elements.keepAliveToggle.parentElement.classList.contains('is-upgraded')) {
-                    if (keepAlive) {
-                        elements.keepAliveToggle.parentElement.classList.add('is-checked');
-                    } else {
-                        elements.keepAliveToggle.parentElement.classList.remove('is-checked');
-                    }
-                }
+    function setCredentialStatus(elements, state, message) {
+        if (elements.credentialBadge) {
+            elements.credentialBadge.dataset.state = state;
+            elements.credentialBadge.textContent = {
+                ready: 'Secured',
+                saving: 'Saving',
+                error: 'Needs attention',
+                missing: 'Not set'
+            }[state] || 'Checking';
+        }
+        if (elements.credentialStatus) elements.credentialStatus.textContent = message;
+    }
+
+    async function refreshCredentialStatus(elements) {
+        setCredentialStatus(elements, 'checking', 'Checking the encrypted local credential vault...');
+        const control = window.GeminiServerControl;
+        if (!control?.syncCredentials) {
+            setCredentialStatus(elements, 'error', 'The local Gemini credential service is unavailable.');
+            return false;
+        }
+        const payload = await control.syncCredentials();
+        if (payload?.configured) {
+            setCredentialStatus(elements, 'ready', 'An API key is secured in the local Windows credential vault.');
+            return true;
+        }
+        if (payload?.message && payload.ok === false) {
+            setCredentialStatus(elements, 'error', payload.message);
+            return false;
+        }
+        setCredentialStatus(elements, 'missing', 'No API key is saved. Paste one here to secure it for Gemini startup.');
+        return false;
+    }
+
+    function restoreSettings(elements) {
+        Object.entries(STORAGE_FIELDS).forEach(function ([elementKey, storageConfig]) {
+            if (elements[elementKey]) {
+                elements[elementKey].value = safeStorageGet(storageConfig[0], storageConfig[1]);
             }
-        }
-
-        if (elements.heartbeatInput) {
-            elements.heartbeatInput.value = localStorage.getItem('heartbeatIntervalSec') || '60';
-        }
-
-        if (elements.cleanupInput) {
-            elements.cleanupInput.value = localStorage.getItem('cleanupInterval') || '60';
-        }
-
-        // Restore new settings
-        if (elements.modelSelect) {
-            elements.modelSelect.value = localStorage.getItem('selectedModel') || 'gemini-2.5-flash-native-audio-latest';
-        }
-        if (elements.temperatureInput) {
-            elements.temperatureInput.value = localStorage.getItem('generationTemperature') || '0.9';
-        }
-        if (elements.topKInput) {
-            elements.topKInput.value = localStorage.getItem('generationTopK') || '1';
-        }
-        if (elements.topPInput) {
-            elements.topPInput.value = localStorage.getItem('generationTopP') || '1';
-        }
-        if (elements.maxTokensInput) {
-            elements.maxTokensInput.value = localStorage.getItem('generationMaxTokens') || '2048';
-        }
-
-        // Restore expanded settings
-        if (elements.systemInstructionInput) {
-            elements.systemInstructionInput.value = localStorage.getItem('systemInstruction') || '';
-        }
-        if (elements.safetyLevelSelect) {
-            elements.safetyLevelSelect.value = localStorage.getItem('safetyLevel') || 'high';
-        }
-        if (elements.speakingRateInput) {
-            elements.speakingRateInput.value = localStorage.getItem('speakingRate') || '1.0';
-        }
-        if (elements.pitchInput) {
-            elements.pitchInput.value = localStorage.getItem('pitch') || '0';
-        }
-        if (elements.responseTimeoutInput) {
-            elements.responseTimeoutInput.value = localStorage.getItem('responseTimeout') || '75';
+        });
+        if (elements.keepAliveToggle) {
+            const keepAlive = safeStorageGet('keepSessionAlive', 'false') === 'true';
+            elements.keepAliveToggle.checked = keepAlive;
+            elements.keepAliveToggle.parentElement?.MaterialSwitch?.checkToggleState?.();
         }
         if (elements.apiKeyInput) {
-            elements.apiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
+            // Only legacy unsynchronized keys appear here. Secured keys are never read back into the page.
+            elements.apiKeyInput.value = safeStorageGet('geminiApiKey', '');
+            elements.apiKeyInput.type = 'password';
         }
     }
 
-    // Add click handler for settings button
-    elements.button.addEventListener('click', () => {
-        console.log("Session controls button clicked");
-        restoreSettings();
+    function persistSettings(elements) {
+        safeStorageSet('keepSessionAlive', !!elements.keepAliveToggle?.checked);
+        Object.entries(STORAGE_FIELDS).forEach(function ([elementKey, storageConfig]) {
+            if (elements[elementKey]) safeStorageSet(storageConfig[0], elements[elementKey].value);
+        });
+    }
+
+    function closeDialog(dialog) {
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.style.display = 'none';
+    }
+
+    async function openDialog(elements) {
+        restoreSettings(elements);
+        if (typeof elements.dialog.showModal === 'function') elements.dialog.showModal();
+        else elements.dialog.style.display = 'grid';
+        await refreshCredentialStatus(elements);
+    }
+
+    function announce(displayMessage, message) {
+        if (typeof displayMessage === 'function') displayMessage(`System Message: ${message}`, true);
+    }
+
+    async function saveSettings(elements, getWebSocket, displayMessage) {
+        if (elements.saveBtn.disabled) return;
+        const originalLabel = elements.saveBtn.textContent;
+        elements.saveBtn.disabled = true;
+        elements.saveBtn.textContent = 'Saving...';
 
         try {
-            if (typeof elements.dialog.showModal === 'function') {
-                elements.dialog.showModal();
-            } else {
-                elements.dialog.style.display = 'block';
+            persistSettings(elements);
+            const apiKey = String(elements.apiKeyInput?.value || '').trim();
+            if (apiKey) {
+                setCredentialStatus(elements, 'saving', 'Encrypting the key in the local credential vault...');
+                const workflow = window.GeminiCredentialWorkflow?.saveCredentials
+                    || window.GeminiServerControl?.saveCredentials;
+                if (typeof workflow !== 'function') {
+                    throw new Error('The secure Gemini credential workflow is unavailable.');
+                }
+                await workflow(apiKey);
+                elements.apiKeyInput.value = '';
+                setCredentialStatus(elements, 'ready', 'API key secured. Reconnecting the Gemini workspace...');
             }
+
+            const cleanupInterval = Number.parseInt(elements.cleanupInput?.value || '60', 10);
+            const currentWebSocket = getWebSocket?.();
+            if (currentWebSocket?.readyState === window.WebSocket?.OPEN) {
+                currentWebSocket.send(JSON.stringify({
+                    command: 'set_cleanup_interval',
+                    interval: cleanupInterval
+                }));
+            }
+
+            announce(displayMessage, apiKey
+                ? 'Settings and Gemini credentials saved. Reconnecting now.'
+                : 'Session settings saved. Model changes apply on reconnect.');
+            closeDialog(elements.dialog);
         } catch (error) {
-            console.error('Error showing dialog:', error);
-            displayMessageFunc('System Message: Error showing settings dialog', true);
+            console.error('[SessionControls] Error saving settings:', error);
+            setCredentialStatus(elements, 'error', error?.message || 'Settings could not be saved.');
+            announce(displayMessage, `Settings were not fully saved: ${error?.message || 'Unknown error'}`);
+        } finally {
+            elements.saveBtn.disabled = false;
+            elements.saveBtn.textContent = originalLabel;
         }
-    });
+    }
 
-    // Add click handler for cancel button
-    elements.cancelBtn.addEventListener('click', () => {
-        try {
-            if (typeof elements.dialog.close === 'function') {
-                elements.dialog.close();
-            } else {
-                elements.dialog.style.display = 'none';
-            }
-        } catch (error) {
-            console.error('Error closing dialog:', error);
+    window.SessionControlsAgentic.initializeSessionControlsSettings = function (getWebSocket, displayMessage) {
+        const elements = getElements();
+        if (!elements.button || !elements.dialog || !elements.saveBtn || !elements.cancelBtn) {
+            console.error('[SessionControls] Required UI elements were not found.');
+            return false;
         }
-    });
+        if (elements.dialog.dataset.sessionControlsBound === '1') return true;
+        elements.dialog.dataset.sessionControlsBound = '1';
 
-    // Add click handler for save button
-    elements.saveBtn.addEventListener('click', () => {
-        try {
-            const keep = elements.keepAliveToggle ? elements.keepAliveToggle.checked : false;
-            const hb = parseInt(elements.heartbeatInput ? elements.heartbeatInput.value : '60', 10);
-            const ci = parseInt(elements.cleanupInput ? elements.cleanupInput.value : '60', 10);
-
-            // Get new values
-            const model = elements.modelSelect ? elements.modelSelect.value : 'gemini-2.5-flash-native-audio-latest';
-            const temp = parseFloat(elements.temperatureInput ? elements.temperatureInput.value : '0.9');
-            const topK = parseInt(elements.topKInput ? elements.topKInput.value : '1', 10);
-            const topP = parseFloat(elements.topPInput ? elements.topPInput.value : '1.0');
-            const maxTokens = parseInt(elements.maxTokensInput ? elements.maxTokensInput.value : '2048', 10);
-
-            // New settings
-            const sysInstr = elements.systemInstructionInput ? elements.systemInstructionInput.value : '';
-            const safeLvl = elements.safetyLevelSelect ? elements.safetyLevelSelect.value : 'high';
-            const rate = parseFloat(elements.speakingRateInput ? elements.speakingRateInput.value : '1.0');
-            const pitch = parseInt(elements.pitchInput ? elements.pitchInput.value : '0', 10);
-            const respTimeout = parseInt(elements.responseTimeoutInput ? elements.responseTimeoutInput.value : '75', 10);
-
-            // Save to localStorage
-            localStorage.setItem('keepSessionAlive', keep.toString());
-            localStorage.setItem('heartbeatIntervalSec', hb.toString());
-            localStorage.setItem('cleanupInterval', ci.toString());
-
-            // Save new settings
-            localStorage.setItem('selectedModel', model);
-            localStorage.setItem('generationTemperature', temp.toString());
-            localStorage.setItem('generationTopK', topK.toString());
-            localStorage.setItem('generationTopP', topP.toString());
-            localStorage.setItem('generationMaxTokens', maxTokens.toString());
-
-            localStorage.setItem('systemInstruction', sysInstr);
-            localStorage.setItem('safetyLevel', safeLvl);
-            localStorage.setItem('speakingRate', rate.toString());
-            localStorage.setItem('pitch', pitch.toString());
-            localStorage.setItem('responseTimeout', respTimeout.toString());
-
-            if (elements.apiKeyInput) {
-                localStorage.setItem('geminiApiKey', elements.apiKeyInput.value);
-            }
-
-            // Send cleanup/keep-alive to server if connected (other settings take effect on next connection)
-            const currentWebSocket = getWebSocket();
-            if (currentWebSocket && currentWebSocket.readyState === WebSocket.OPEN) {
-                currentWebSocket.send(JSON.stringify({ command: 'set_cleanup_interval', interval: ci }));
-
-                // Construct a summary message
-                let msg = `System Message: Settings saved. Cleanup: ${ci}s`;
-                if (keep) msg += `, Keep-alive: ${hb}s`;
-                msg += `. Model: ${model}.`;
-                msg += ` (Reconnect to apply Model/Gen config)`;
-
-                displayMessageFunc(msg, true);
-            } else {
-                displayMessageFunc('System Message: Settings saved (Reconnect to apply)', true);
-            }
-
-            // Close dialog
-            if (typeof elements.dialog.close === 'function') {
-                elements.dialog.close();
-            } else {
-                elements.dialog.style.display = 'none';
-            }
-        } catch (error) {
-            console.error('Error saving settings:', error);
-            displayMessageFunc('System Message: Error saving settings', true);
+        if (typeof elements.dialog.showModal !== 'function' && typeof dialogPolyfill !== 'undefined') {
+            dialogPolyfill.registerDialog(elements.dialog);
         }
-    });
-};
 
-// The initialization is now triggered by pageInitializer.js after the HTML component is loaded. 
+        elements.button.addEventListener('click', function () {
+            openDialog(elements).catch(function (error) {
+                console.error('[SessionControls] Could not open settings:', error);
+                announce(displayMessage, 'Could not open Session Controls.');
+            });
+        });
+        [elements.cancelBtn, elements.closeBtn].filter(Boolean).forEach(function (button) {
+            button.addEventListener('click', function () {
+                closeDialog(elements.dialog);
+            });
+        });
+        elements.apiKeyReveal?.addEventListener('click', function () {
+            const showing = elements.apiKeyInput.type === 'text';
+            elements.apiKeyInput.type = showing ? 'password' : 'text';
+            elements.apiKeyReveal.setAttribute('aria-pressed', String(!showing));
+            elements.apiKeyReveal.setAttribute('aria-label', showing ? 'Show API key' : 'Hide API key');
+            const icon = elements.apiKeyReveal.querySelector('.material-icons');
+            if (icon) icon.textContent = showing ? 'visibility' : 'visibility_off';
+        });
+        elements.saveBtn.addEventListener('click', function () {
+            saveSettings(elements, getWebSocket, displayMessage);
+        });
+        elements.dialog.addEventListener('cancel', function (event) {
+            event.preventDefault();
+            closeDialog(elements.dialog);
+        });
+        window.addEventListener('eve:gemini-server-status', function (event) {
+            if (!elements.dialog.open) return;
+            const configured = !!event.detail?.credentialsConfigured;
+            if (configured) {
+                setCredentialStatus(elements, 'ready', 'An API key is secured in the local Windows credential vault.');
+            }
+        });
+        return true;
+    };
+})();

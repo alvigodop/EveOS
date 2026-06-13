@@ -8,20 +8,26 @@ const SESSION_CONTROLS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/
 
 // List of session controls related scripts to load
 const sessionControlsScripts = [
-    `${SESSION_CONTROLS_BASE_PATH}/session_controls_settings/sessionControlsSettingsHandler.js`
+    `${SESSION_CONTROLS_BASE_PATH}/session_controls_settings/sessionControlsSettingsHandler.js?v=0.2.0`
 ];
 
-// Load all session controls related scripts
 function loadSessionControlsScripts() {
-    const fragment = document.createDocumentFragment();
-    sessionControlsScripts.forEach(scriptPath => {
-        const script = document.createElement('script');
-        script.src = scriptPath;
-        script.defer = true;
-        script.onload = initializeSessionControlsModule;
-        fragment.appendChild(script);
+    return Promise.all(sessionControlsScripts.map(scriptPath => {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = scriptPath;
+            script.defer = true;
+            script.onload = () => {
+                initializeSessionControlsModule();
+                resolve();
+            };
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    })).then(() => {
+        initializeSessionControlsModule();
+        return window.SessionControlsAgentic;
     });
-    document.head.appendChild(fragment);
 }
 
 // Initialize session controls functionality after scripts load
@@ -36,10 +42,7 @@ function initializeSessionControlsModule() {
     }
 }
 
-// Initialize session controls functionality
-loadSessionControlsScripts();
-
-// Export session controls related functions for global use
-window.SessionControlsAgentic = {
-    initializeSessionControlsSettings: null // Will be defined by sessionControlsSettingsHandler.js
-}; 
+window.SessionControlsAgentic = window.SessionControlsAgentic || {};
+window.SessionControlsAgentic.initializeSessionControlsSettings =
+    window.SessionControlsAgentic.initializeSessionControlsSettings || null;
+window.SessionControlsAgenticReady = loadSessionControlsScripts();

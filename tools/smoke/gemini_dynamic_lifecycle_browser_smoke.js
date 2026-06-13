@@ -9,6 +9,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 520, height: 700 } });
     const pageErrors = [];
     let mockRunning = false;
+    let credentialSaves = 0;
 
     page.on('pageerror', (error) => {
         pageErrors.push(error?.stack || String(error));
@@ -44,6 +45,7 @@ async function main() {
         try {
             localStorage.setItem('eve.geminiMonitorView', 'summary');
             localStorage.setItem('geminiConnectionEnabled', 'false');
+            localStorage.setItem('geminiApiKey', 'browser-smoke-key-1234567890');
         } catch (error) {
             // file:// storage may be restricted in some browser builds.
         }
@@ -70,6 +72,19 @@ async function main() {
             body: JSON.stringify({ status: mockRunning ? 'running' : 'stopped' })
         });
     });
+    await page.route(/http:\/\/127\.0\.0\.1:(?:3000|8765)\/api\/gemini-credentials(?:\/status)?/, async (route) => {
+        const isSave = route.request().method() === 'POST';
+        if (isSave) credentialSaves += 1;
+        await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+                ok: true,
+                configured: isSave || credentialSaves > 0,
+                protection: 'windows-dpapi'
+            })
+        });
+    });
 
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 240000 });
@@ -88,7 +103,9 @@ async function main() {
             && !!window.__GEMINI_SOCKET_READY
             && document.getElementById('textInput')?.dataset.geminiTextInputBound === '1'
             && document.getElementById('sendButton')?.dataset.geminiTextInputBound === '1'
-            && document.querySelector('[data-gemini-server-control]')?.dataset.connectionPhase === 'requested'
+            && ['requesting', 'requested', 'connected', 'initializing'].includes(
+                document.querySelector('[data-gemini-server-control]')?.dataset.connectionPhase
+            )
         ), undefined, { timeout: 120000 });
 
         await page.fill('#textInput', 'Gemini lifecycle smoke');
@@ -148,6 +165,37 @@ async function main() {
         if (narrowLayout.promptSends !== 1 || narrowLayout.inputValue !== '') {
             throw new Error(`Gemini Send handler was not functional: ${JSON.stringify(narrowLayout)}`);
         }
+        if (credentialSaves < 1) {
+            throw new Error('Saved browser credentials were not synchronized before Gemini startup.');
+        }
+
+        await page.setViewportSize({ width: 768, height: 720 });
+        await page.waitForTimeout(300);
+        const mediumLayout = await page.evaluate(() => {
+            const indicator = document.getElementById('loadingIndicator');
+            const root = document.getElementById('gemini-ui-root');
+            const input = document.getElementById('textInput');
+            root.scrollTop = root.scrollHeight;
+            const indicatorBox = indicator.getBoundingClientRect();
+            const inputBox = input.getBoundingClientRect();
+            return {
+                viewport: { width: innerWidth, height: innerHeight },
+                indicatorRight: indicatorBox.right,
+                indicatorBottom: indicatorBox.bottom,
+                inputTop: inputBox.top,
+                inputBottom: inputBox.bottom,
+                rootScrollTop: root.scrollTop,
+                rootScrollHeight: root.scrollHeight,
+                rootClientHeight: root.clientHeight
+            };
+        });
+        if (mediumLayout.indicatorRight > mediumLayout.viewport.width + 1
+            || mediumLayout.indicatorBottom > mediumLayout.viewport.height + 1
+            || mediumLayout.inputBottom > mediumLayout.viewport.height + 1
+            || mediumLayout.inputTop < -1
+            || mediumLayout.rootScrollTop <= 0) {
+            throw new Error(`Gemini workspace was not usable at medium size: ${JSON.stringify(mediumLayout)}`);
+        }
 
         await page.setViewportSize({ width: 1600, height: 1100 });
         await page.waitForTimeout(500);
@@ -172,6 +220,8 @@ async function main() {
 
         console.log(`GEMINI_DYNAMIC_LIFECYCLE_BROWSER_SMOKE_OK ${JSON.stringify({
             narrowLayout,
+            mediumLayout,
+            credentialSaves,
             wideLayout
         })}`);
     } finally {

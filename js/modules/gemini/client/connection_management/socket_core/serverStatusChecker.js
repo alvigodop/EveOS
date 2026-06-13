@@ -17,20 +17,14 @@ console.log("serverStatusChecker.js loading...");
         }
     }
 
-    function pauseReconnect(message, statusMessage) {
+    function stopReconnectMonitor(message, statusMessage) {
         if (State.continuousReconnectInterval) {
-            clearInterval(State.continuousReconnectInterval);
+            clearTimeout(State.continuousReconnectInterval);
             State.continuousReconnectInterval = null;
         }
 
         State.autoReconnectEnabled = false;
         State.serverOfflinePauseActive = true;
-        State.reconnectAttempts = State.MAX_RECONNECT_ATTEMPTS;
-        try {
-            localStorage.setItem('geminiConnectionEnabled', 'false');
-        } catch (error) {
-            // Ignore storage write errors in restricted environments.
-        }
 
         if (typeof updateConnectionStatus === 'function') {
             updateConnectionStatus('disconnected', statusMessage || 'Gemini Offline');
@@ -75,16 +69,14 @@ console.log("serverStatusChecker.js loading...");
         }
 
         if (isConnectionDisabledByPreference()) {
-            pauseReconnect(
+            stopReconnectMonitor(
                 "System Message: Gemini connection is disabled by preference. Auto reconnect paused.",
                 'Gemini Connection Disabled'
             );
             return;
         }
 
-        if (State.continuousReconnectInterval) {
-            clearInterval(State.continuousReconnectInterval);
-        }
+        if (State.continuousReconnectInterval) clearTimeout(State.continuousReconnectInterval);
 
         console.log("Starting continuous reconnection attempts with server status monitoring...");
         if (typeof updateConnectionStatus === 'function') updateConnectionStatus('waiting', 'Monitoring for Server...');
@@ -95,49 +87,58 @@ console.log("serverStatusChecker.js loading...");
         let serverStatusCheckCount = 0;
         const maxStatusChecks = State.serverStartupMaxChecks || 10;
 
-        State.continuousReconnectInterval = setInterval(async () => {
+        const runCheck = async () => {
             if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
                 if (State.continuousReconnectInterval) {
-                    clearInterval(State.continuousReconnectInterval);
+                    clearTimeout(State.continuousReconnectInterval);
                     State.continuousReconnectInterval = null;
                 }
                 return;
             }
 
+            if (State.credentialRequired) {
+                if (typeof updateConnectionStatus === 'function') {
+                    updateConnectionStatus('error', 'API Key Required');
+                }
+                State.continuousReconnectInterval = setTimeout(
+                    runCheck,
+                    Math.max(State.serverOfflinePollInterval || 15000, 10000)
+                );
+                return;
+            }
+
             // Check if we already have a connection
             if (window.webSocket && window.webSocket.readyState === WebSocket.OPEN) {
-                clearInterval(State.continuousReconnectInterval);
+                clearTimeout(State.continuousReconnectInterval);
                 State.continuousReconnectInterval = null;
                 console.log("Connection established, stopping continuous attempts");
                 return;
             }
 
             // Check server status periodically
-            if (serverStatusCheckCount < maxStatusChecks) {
-                const serverRunning = await checkServerStatus();
-                serverStatusCheckCount++;
+            const serverRunning = await checkServerStatus();
+            serverStatusCheckCount++;
 
-                if (serverRunning) {
-                    console.log("Server detected as running, attempting connection...");
-                    if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connecting', 'Server Found - Connecting...');
-                    if (typeof displayMessage === 'function') {
-                        displayMessage("System Message: Server detected, connecting...", true);
-                    }
-                    serverStatusCheckCount = 0; // Reset counter
-                } else {
-                    if (serverStatusCheckCount === 1 || serverStatusCheckCount % 3 === 0) {
-                        console.log("Server not yet available, continuing to monitor...");
-                    }
-                    if (typeof updateConnectionStatus === 'function') updateConnectionStatus('waiting', `Waiting for Server... (${serverStatusCheckCount}/${maxStatusChecks})`);
-
-                    if (serverStatusCheckCount >= maxStatusChecks) {
-                        pauseReconnect(
-                            "System Message: Gemini server appears offline. Auto reconnect paused (manual reconnect when server is available).",
-                            'Gemini Server Offline'
-                        );
-                    }
-                    return; // Don't attempt connection if server isn't running
+            if (serverRunning) {
+                console.log("Server detected as running, attempting connection...");
+                if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connecting', 'Server Found - Connecting...');
+                if (typeof displayMessage === 'function' && serverStatusCheckCount > 1) {
+                    displayMessage("System Message: Gemini server detected; reconnecting...", true);
                 }
+                serverStatusCheckCount = 0;
+            } else {
+                if (serverStatusCheckCount === 1 || serverStatusCheckCount === maxStatusChecks) {
+                    console.log("Gemini server unavailable; background monitoring remains active.");
+                }
+                const fastProbe = serverStatusCheckCount < maxStatusChecks;
+                if (typeof updateConnectionStatus === 'function') {
+                    updateConnectionStatus('waiting', fastProbe ? 'Waiting for Gemini Server...' : 'Gemini Server Offline - Monitoring');
+                }
+                const delay = fastProbe
+                    ? Math.max(State.connectionBackoffDelay, 5000)
+                    : Math.max(State.serverOfflinePollInterval || 15000, 10000);
+                State.continuousReconnectInterval = setTimeout(runCheck, delay);
+                return;
             }
 
             // Attempt connection
@@ -147,7 +148,12 @@ console.log("serverStatusChecker.js loading...");
                     window.attemptConnection();
                 }
             }
-        }, Math.max(State.connectionBackoffDelay, 5000)); // At least 5 seconds between attempts
+            State.continuousReconnectInterval = setTimeout(
+                runCheck,
+                Math.max(State.connectionBackoffDelay, 5000)
+            );
+        };
+        State.continuousReconnectInterval = setTimeout(runCheck, 250);
     }
 
     // Export functions

@@ -189,6 +189,14 @@
         container.addEventListener('keydown', trigger, { once: true });
     }
 
+    window.addEventListener('eve:gemini-workspace-ready', function () {
+        const container = document.getElementById('gemini-ui-root');
+        syncFullUiReadiness(container);
+        if (container?.dataset.geminiMonitorView === 'full') {
+            ensureExpandedWorkspace(container);
+        }
+    });
+
     function injectGeminiUI() {
         if (document.getElementById('gemini-ui-root')) {
             return;

@@ -4,6 +4,8 @@ This module handles the API key storage and retrieval.
 """
 
 import os
+import sys
+from pathlib import Path
 
 # Default API key - Note: This can be set via GOOGLE_API_KEY environment variable. 
 # If empty, the server will rely on the client providing a key or an environment variable being set.
@@ -14,7 +16,33 @@ def get_api_key():
     Get the API key for Gemini services.
     Prioritizes environment variable GOOGLE_API_KEY.
     """
-    return os.environ.get("GOOGLE_API_KEY", DEFAULT_API_KEY)
+    environment_key = os.environ.get("GOOGLE_API_KEY", DEFAULT_API_KEY)
+    if environment_key:
+        return environment_key
+
+    try:
+        project_root = Path(__file__).resolve().parents[5]
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        from server_modules.gemini_credentials import load_api_key
+        return load_api_key()
+    except (ImportError, OSError, ValueError):
+        return DEFAULT_API_KEY
+
+
+def persist_api_key(api_key):
+    """Persist a validated client key into the local EveOS credential vault."""
+    if not validate_api_key(api_key):
+        return False
+    try:
+        project_root = Path(__file__).resolve().parents[5]
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        from server_modules.gemini_credentials import save_api_key
+        return bool(save_api_key(api_key).get("ok"))
+    except (ImportError, OSError, ValueError):
+        return False
+
 
 def validate_api_key(api_key):
     """
@@ -25,4 +53,4 @@ def validate_api_key(api_key):
         return False
     if len(api_key) < 10:  # Basic length check
         return False
-    return True 
+    return True

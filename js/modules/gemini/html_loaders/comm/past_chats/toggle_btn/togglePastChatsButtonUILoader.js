@@ -35,7 +35,7 @@ async function loadTogglePastChatsButton() {
             window.CommunicationPanel.TogglePastChatsCommunicationPanel.PastChatsUI.initializePastChatsVisibilityToggler();
             console.log('Past Chats Visibility Toggler handler initialized from loader.');
         } else {
-            console.error('PastChatsUI namespace or initializePastChatsVisibilityToggler function not found.');
+            console.debug('Past Chats handler deferred until Communication Panel handlers are ready.');
         }
 
         return Promise.resolve();

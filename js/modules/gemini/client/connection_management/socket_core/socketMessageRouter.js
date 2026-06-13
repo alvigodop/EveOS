@@ -48,13 +48,32 @@ console.log("socketMessageRouter.js loading...");
                     console.error('Error handling audio_ack', e);
                 }
             } else if (data.text) {
-                // Mark Gemini API as ready on first text response
-                if (!State.geminiApiReady) {
+                const messageText = String(data.text || '').trim();
+                if (data.is_system_message && /^Error: No API key configured/i.test(messageText)) {
+                    State.credentialRequired = true;
+                    State.geminiApiReady = false;
+                    if (typeof updateConnectionStatus === 'function') {
+                        updateConnectionStatus('error', 'API Key Required');
+                    }
+                    if (typeof displayMessage === 'function') {
+                        displayMessage(data.text, true);
+                    }
+                    return;
+                }
+                const apiReadyMessage = data.is_system_message
+                    && /^Connected to (?!server\b)/i.test(messageText);
+                if (!State.geminiApiReady && apiReadyMessage) {
+                    State.credentialRequired = false;
                     State.geminiApiReady = true;
                     if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connected', 'Connected');
                     if (typeof displayMessage === 'function') {
                         displayMessage("System Message: Gemini API initialized successfully", true);
                     }
+                } else if (!State.geminiApiReady
+                    && data.is_system_message
+                    && /^Connecting to Gemini API/i.test(messageText)
+                    && typeof updateConnectionStatus === 'function') {
+                    updateConnectionStatus('connecting', 'Initializing Gemini API...');
                 }
 
                 if (data.is_system_message && typeof displayMessage === 'function') {

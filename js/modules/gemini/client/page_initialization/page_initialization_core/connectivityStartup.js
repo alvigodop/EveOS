@@ -39,16 +39,10 @@ async function isGeminiServerReachable() {
     }
 }
 
-function pauseGeminiAutoConnect(statusMessage, systemMessage) {
+function setGeminiWaitingState(statusMessage, systemMessage) {
     if (window.SocketGlobalState) {
-        window.SocketGlobalState.autoReconnectEnabled = false;
-        window.SocketGlobalState.serverOfflinePauseActive = true;
-    }
-
-    try {
-        localStorage.setItem('geminiConnectionEnabled', 'false');
-    } catch (error) {
-        // Ignore storage write errors in restricted environments.
+        window.SocketGlobalState.autoReconnectEnabled = true;
+        window.SocketGlobalState.serverOfflinePauseActive = false;
     }
 
     if (typeof updateConnectionStatus === 'function') {
@@ -79,17 +73,26 @@ window.PageInitializationCore.ConnectivityStartup = {
         console.log('HTML components loaded. Starting WebSocket connection...');
 
         if (!isGeminiConnectionEnabledByPreference()) {
-            pauseGeminiAutoConnect('Gemini Connection Disabled', null);
+            if (window.SocketGlobalState) {
+                window.SocketGlobalState.autoReconnectEnabled = false;
+                window.SocketGlobalState.serverOfflinePauseActive = true;
+            }
+            if (typeof updateConnectionStatus === 'function') {
+                updateConnectionStatus('disconnected', 'Gemini Connection Disabled');
+            }
             restoreClientState();
             return;
         }
 
         const serverReachable = await isGeminiServerReachable();
         if (!serverReachable) {
-            pauseGeminiAutoConnect(
+            setGeminiWaitingState(
                 'Gemini Server Offline',
-                'System Message: Gemini server offline; auto-connect paused.'
+                'System Message: Gemini server offline; EveOS will reconnect when it becomes available.'
             );
+            if (typeof window.startContinuousReconnectAttempts === 'function') {
+                window.startContinuousReconnectAttempts();
+            }
             restoreClientState();
             return;
         }
