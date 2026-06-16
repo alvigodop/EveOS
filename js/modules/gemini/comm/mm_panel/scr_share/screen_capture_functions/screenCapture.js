@@ -85,7 +85,7 @@ window.ScreenShareMMCommunicationPanel.ScreenCaptureFunctions.initializeScreenCa
     const screenCaptureSettingsDialog = document.getElementById('screenCaptureSettingsDialog');
     const screenCaptureSettingsSave = document.getElementById('screenCaptureSettingsSave');
     const screenCaptureSettingsCancel = document.getElementById('screenCaptureSettingsCancel');
-    const screenCaptureIntervalInput = document.getElementById('screenCaptureIntervalInput');
+    const Prefs = window.ScreenShareMMCommunicationPanel.CapturePreferences;
 
     if (screenCaptureSettingsDialog) {
         if (typeof screenCaptureSettingsDialog.showModal !== 'function') {
@@ -97,22 +97,13 @@ window.ScreenShareMMCommunicationPanel.ScreenCaptureFunctions.initializeScreenCa
         if (screenCaptureSettingsSave) {
             // Remove old listener if possible (hard without reference), but adding new one is fine if we assume reload
             screenCaptureSettingsSave.onclick = function () { // Use onclick to override previous
-                const newInterval = screenCaptureIntervalInput ? parseInt(screenCaptureIntervalInput.value, 10) : NaN;
-                if (!isNaN(newInterval) && newInterval >= 1) {
-                    console.log('Screen capture interval saved:', newInterval);
-
-                    if (window.isScreenShared && State.screenCaptureInterval) {
-                        clearInterval(State.screenCaptureInterval);
-                        State.screenCaptureInterval = setInterval(() => {
-                            const imgData = window.ScreenShareMMCommunicationPanel.FrameProcessor.captureImage();
-                            if (imgData) {
-                                window.ScreenShareMMCommunicationPanel.CaptureSender.sendScreenCapture(imgData);
-                            }
-                        }, newInterval * 1000);
+                if (Prefs) {
+                    const prefs = Prefs.readFromFields();
+                    Prefs.restartIntervalIfSharing();
+                    if (typeof window.displayMessage === 'function') {
+                        const mode = prefs.silentObservation ? 'silent observation' : 'response allowed';
+                        window.displayMessage(`System Message: Screen capture set to ${prefs.intervalMs}ms (${mode}).`, true);
                     }
-                    if (typeof window.displayMessage === 'function') window.displayMessage(`System Message: Screen capture interval set to ${newInterval}s.`);
-                } else {
-                    if (typeof window.displayMessage === 'function') window.displayMessage("System Message: Invalid screen capture interval.", true);
                 }
                 if (screenCaptureSettingsDialog.close) screenCaptureSettingsDialog.close();
             };

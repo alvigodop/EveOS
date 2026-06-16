@@ -26,15 +26,24 @@ window.ScreenShareMMCommunicationPanel.FrameProcessor = {
 
         if (window.stream && videoElement && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
             try {
-                // Set canvas size to match video dimensions
-                canvasElement.width = videoElement.videoWidth;
-                canvasElement.height = videoElement.videoHeight;
+                const Prefs = window.ScreenShareMMCommunicationPanel.CapturePreferences;
+                const prefs = Prefs ? Prefs.get() : { maxDimension: 1920, quality: 0.95 };
+                const sourceWidth = videoElement.videoWidth;
+                const sourceHeight = videoElement.videoHeight;
+                const maxSide = Math.max(sourceWidth, sourceHeight);
+                const scale = maxSide > prefs.maxDimension ? prefs.maxDimension / maxSide : 1;
+                const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+                const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+
+                // Preserve high-quality source frames while bounding payload size.
+                canvasElement.width = targetWidth;
+                canvasElement.height = targetHeight;
 
                 // Draw the current video frame
                 context.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
 
                 // Get image data with better quality
-                const imageData = canvasElement.toDataURL("image/jpeg", 0.95);
+                const imageData = canvasElement.toDataURL("image/jpeg", prefs.quality);
 
                 // Store in global state as per original logic (optional, but good for consistency)
                 const base64Data = imageData.split(",")[1].trim();

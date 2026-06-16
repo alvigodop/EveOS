@@ -11,7 +11,7 @@ const MM_PANEL_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/c
 // List of Multimodal Communication Panel scripts to load
 const mmPanelScriptsToLoad = [
     // Screen Share MM Communication Panel
-    `${MM_PANEL_BASE_PATH}/scr_share/Screen_Share_MM_Commuication_Panel.js`,
+    `${MM_PANEL_BASE_PATH}/scr_share/Screen_Share_MM_Commuication_Panel.js?v=0.2.0`,
 
     // Voice Input MM Communication Panel
     `${MM_PANEL_BASE_PATH}/voice_input/Voice_Input_MM_Commuication_Panel.js`
@@ -57,4 +57,4 @@ console.log("js/modules/gemini/comm/mm_panel/Multimodal_Commuication_Panel.js fi
 window.MultimodalCommuicationPanel = {
     ScreenShare: {},
     VoiceInput: {}
-}; 
+};

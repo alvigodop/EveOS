@@ -3,10 +3,18 @@ import base64
 from google.genai import types
 from main_server_files.chat_history.chat_history_handler import save_chat_history
 import asyncio
+import time
 
 async def process_realtime_input(data, session, connection_monitor, audio_processor):
     """Process realtime input data from the client."""
     print(f"Processing realtime_input with {len(data['realtime_input']['media_chunks'])} chunks")
+    screen_share_meta = data.get("screen_share") if isinstance(data.get("screen_share"), dict) else {}
+    is_screen_share = data.get("source") == "screen_share" or bool(screen_share_meta)
+    screen_share_silent = bool(
+        data.get("silent_response")
+        or data.get("suppress_response")
+        or screen_share_meta.get("silent")
+    )
     image_b64_string = None
     image_bytes = None
     text_part_content = None
@@ -36,13 +44,15 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
                 image_bytes = base64.b64decode(chunk_data)
                 has_image = True
                 
-                # DEBUG: Save image to check what the server is receiving
-                try:
-                    with open("debug_received_image.jpg", "wb") as f:
-                        f.write(image_bytes)
-                    print("DEBUG: Saved received image to debug_received_image.jpg")
-                except Exception as save_err:
-                    print(f"DEBUG: Failed to save image: {save_err}")
+                # DEBUG: Save image only when explicitly requested. Writing every
+                # screen-share frame was noisy and created avoidable disk churn.
+                if data.get("debug_capture"):
+                    try:
+                        with open("debug_received_image.jpg", "wb") as f:
+                            f.write(image_bytes)
+                        print("DEBUG: Saved received image to debug_received_image.jpg")
+                    except Exception as save_err:
+                        print(f"DEBUG: Failed to save image: {save_err}")
             except Exception as e:
                 print(f"Error processing image: {e}")
                 image_bytes = None
@@ -65,6 +75,8 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
             if is_sys_context:
                 is_system_context = True
                 print("Detected system context - will handle as background context")
+            elif is_screen_share:
+                print("Detected screen-share instruction chunk - not saving as user chat")
             elif not is_selftalk:
                 is_user_message = True
         else:
@@ -123,6 +135,10 @@ Please acknowledge that you've received this context and can now continue the co
         text_part_string = text_part_content
         print(f"Preparing text part string for sending: {text_part_string[:100]}...")
         if is_user_message:
+             # A direct user message should always be answerable, even if a
+             # silent screen-share frame was pending just before it.
+             setattr(connection_monitor, "screen_share_silent_response_pending", False)
+             setattr(connection_monitor, "screen_share_silent_response_started_at", 0)
              save_chat_history(text_part_content, is_user=True)
              if connection_monitor.is_websocket_open():
                  await connection_monitor.safe_send(json.dumps({
@@ -149,6 +165,11 @@ Please acknowledge that you've received this context and can now continue the co
         if content_parts:
             if session is not None:
                 try:
+                    if is_screen_share and screen_share_silent:
+                        setattr(connection_monitor, "screen_share_silent_response_pending", True)
+                        setattr(connection_monitor, "screen_share_silent_response_started_at", time.time())
+                        print("Screen-share silent observation enabled for next model turn.")
+
                     # Wrap parts in types.Content as session.send_client_content expects Content (or dict)
                     input_content = types.Content(parts=content_parts, role="user")
                     
@@ -173,4 +194,4 @@ Please acknowledge that you've received this context and can now continue the co
          traceback.print_exc()
          await connection_monitor.safe_send(json.dumps({
              "text": f"Error sending message to Gemini: {str(e)}",
-             "is_system_message": True, "is_error": True })) 
+             "is_system_message": True, "is_error": True }))

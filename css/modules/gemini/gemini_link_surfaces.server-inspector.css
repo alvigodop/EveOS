@@ -1,0 +1,160 @@
+.gemini-server-inspector-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(94, 234, 212, 0.22);
+    border-radius: 999px;
+    background: rgba(8, 20, 30, 0.78);
+    color: rgba(226, 250, 255, 0.88);
+    cursor: pointer;
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.gemini-server-inspector-toggle:hover {
+    transform: translateY(-1px);
+    border-color: rgba(34, 211, 238, 0.48);
+    background: rgba(34, 211, 238, 0.13);
+}
+
+.gemini-server-inspector-toggle .material-icons {
+    font-size: 1rem;
+}
+
+.gemini-server-inspector-panel {
+    position: absolute;
+    top: 58px;
+    right: 10px;
+    z-index: 75;
+    width: min(520px, calc(100% - 20px));
+    max-height: min(62dvh, 560px);
+    overflow: auto;
+    border: 1px solid rgba(34, 211, 238, 0.26);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 34%),
+        linear-gradient(145deg, rgba(7, 13, 21, 0.98), rgba(12, 23, 33, 0.98));
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.62);
+    color: #e8f8ff;
+}
+
+.gemini-server-inspector-panel[hidden] {
+    display: none !important;
+}
+
+.gemini-server-inspector-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 14px;
+    border-bottom: 1px solid rgba(148, 197, 255, 0.14);
+    background: rgba(7, 13, 21, 0.9);
+    backdrop-filter: blur(14px);
+}
+
+.gemini-server-inspector-kicker {
+    color: rgba(125, 241, 255, 0.78);
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+}
+
+.gemini-server-inspector-head h4 {
+    margin: 2px 0 0;
+    color: #f3fbff;
+    font-size: 0.95rem;
+}
+
+.gemini-server-inspector-actions {
+    display: inline-flex;
+    gap: 6px;
+}
+
+.gemini-server-inspector-actions button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(148, 197, 255, 0.16);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #e8f8ff;
+    cursor: pointer;
+}
+
+.gemini-server-inspector-actions .material-icons {
+    font-size: 1rem;
+}
+
+.gemini-server-inspector-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px;
+}
+
+.gemini-server-inspector-card {
+    min-width: 0;
+    border: 1px solid rgba(148, 197, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+    overflow: hidden;
+}
+
+.gemini-server-inspector-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    border-bottom: 1px solid rgba(148, 197, 255, 0.1);
+    color: rgba(232, 248, 255, 0.78);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.gemini-server-inspector-card strong {
+    color: #f97316;
+    font-size: 0.68rem;
+}
+
+.gemini-server-inspector-card.is-online strong {
+    color: #67e8f9;
+}
+
+.gemini-server-inspector-card.is-offline strong {
+    color: #fb7185;
+}
+
+.gemini-server-inspector-card pre {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 76px;
+    max-height: 160px;
+    margin: 0;
+    padding: 10px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: rgba(232, 248, 255, 0.76);
+    font: 0.7rem/1.45 "Cascadia Mono", "Consolas", monospace;
+}
+
+@media (max-width: 720px) {
+    .gemini-server-inspector-panel {
+        left: 10px;
+        width: auto;
+    }
+
+    .gemini-server-inspector-grid {
+        grid-template-columns: 1fr;
+    }
+}

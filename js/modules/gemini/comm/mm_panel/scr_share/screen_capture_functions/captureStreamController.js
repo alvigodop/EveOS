@@ -4,6 +4,8 @@ window.ScreenShareMMCommunicationPanel.CaptureStreamController = {
         const State = window.ScreenShareMMCommunicationPanel.ScreenCaptureState;
         const Processor = window.ScreenShareMMCommunicationPanel.FrameProcessor;
         const Sender = window.ScreenShareMMCommunicationPanel.CaptureSender;
+        const Prefs = window.ScreenShareMMCommunicationPanel.CapturePreferences;
+        const prefs = Prefs ? Prefs.get() : { intervalMs: 1000, maxDimension: 1920 };
 
         try {
             // Clean up any existing screen share first
@@ -11,8 +13,8 @@ window.ScreenShareMMCommunicationPanel.CaptureStreamController = {
 
             window.stream = await navigator.mediaDevices.getDisplayMedia({
                 video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
+                    width: { ideal: prefs.maxDimension },
+                    height: { ideal: Math.round(prefs.maxDimension * 9 / 16) },
                     frameRate: { ideal: 1 }
                 },
             });
@@ -53,13 +55,7 @@ window.ScreenShareMMCommunicationPanel.CaptureStreamController = {
             if (settingsBtn) settingsBtn.disabled = false;
 
             // Start interval
-            // Get interval from settings (default 1000ms), checking global var first
-            let intervalMs = 1000;
-            if (typeof window.screenCaptureIntervalGlobal !== 'undefined') {
-                intervalMs = window.screenCaptureIntervalGlobal;
-            } else {
-                intervalMs = parseInt(localStorage.getItem('screenCaptureInterval') || '1000', 10);
-            }
+            const intervalMs = prefs.intervalMs;
 
             console.log(`Starting screen capture with interval: ${intervalMs}ms`);
 
@@ -122,7 +118,7 @@ window.ScreenShareMMCommunicationPanel.CaptureStreamController = {
         if (intervalInput) intervalInput.disabled = true;
 
         const settingsBtn2 = document.getElementById('screenCaptureSettingsButton');
-        if (settingsBtn2) settingsBtn2.disabled = true;
+        if (settingsBtn2) settingsBtn2.disabled = false;
 
         State.resetContext();
     }

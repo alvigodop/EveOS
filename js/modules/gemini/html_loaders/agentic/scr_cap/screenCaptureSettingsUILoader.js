@@ -1,7 +1,148 @@
 /**
- * Loads the Screen Capture Interval card HTML component and inserts it into the page.
- * Returns a Promise that resolves when the loading and insertion is complete.
+ * Loads the Screen Capture Settings card and dialog.
  */
+function getScreenCapturePrefs() {
+    const Prefs = window.ScreenShareMMCommunicationPanel?.CapturePreferences;
+    if (Prefs) return Prefs.get();
+    return {
+        intervalMs: parseInt(localStorage.getItem('screenCaptureInterval') || '1000', 10),
+        quality: parseFloat(localStorage.getItem('screenCaptureQuality') || '0.95'),
+        maxDimension: parseInt(localStorage.getItem('screenCaptureMaxDimension') || '1920', 10),
+        silentObservation: localStorage.getItem('screenCaptureSilentObservation') === 'true'
+    };
+}
+
+function saveScreenCapturePrefsFromDialog() {
+    const Prefs = window.ScreenShareMMCommunicationPanel?.CapturePreferences;
+    if (Prefs) {
+        const prefs = Prefs.readFromFields();
+        Prefs.restartIntervalIfSharing();
+        return prefs;
+    }
+
+    const prefs = {
+        intervalMs: parseInt(document.getElementById('screenCaptureIntervalInput')?.value || '1000', 10),
+        quality: parseFloat(document.getElementById('screenCaptureQualityInput')?.value || '0.95'),
+        maxDimension: parseInt(document.getElementById('screenCaptureMaxDimensionInput')?.value || '1920', 10),
+        silentObservation: !!document.getElementById('screenCaptureSilentToggle')?.checked
+    };
+    localStorage.setItem('screenCaptureInterval', String(prefs.intervalMs));
+    localStorage.setItem('screenCaptureQuality', String(prefs.quality));
+    localStorage.setItem('screenCaptureMaxDimension', String(prefs.maxDimension));
+    localStorage.setItem('screenCaptureSilentObservation', prefs.silentObservation ? 'true' : 'false');
+    window.screenCaptureIntervalGlobal = prefs.intervalMs;
+    return prefs;
+}
+
+function syncScreenCaptureDialogFields() {
+    const Prefs = window.ScreenShareMMCommunicationPanel?.CapturePreferences;
+    if (Prefs) return Prefs.applyToFields();
+    const prefs = getScreenCapturePrefs();
+    const fields = {
+        screenCaptureIntervalInput: prefs.intervalMs,
+        screenCaptureQualityInput: prefs.quality,
+        screenCaptureMaxDimensionInput: prefs.maxDimension
+    };
+    Object.keys(fields).forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = String(fields[id]);
+    });
+    const silent = document.getElementById('screenCaptureSilentToggle');
+    if (silent) silent.checked = !!prefs.silentObservation;
+    return prefs;
+}
+
+function ensureScreenCaptureSettingsStyles() {
+    if (document.getElementById('screenCaptureSettingsStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'screenCaptureSettingsStyles';
+    style.textContent = `
+#screenCaptureSettingsDialog.gemini-screen-capture-dialog {
+    width: min(440px, calc(100vw - 28px));
+    border: 1px solid rgba(34, 211, 238, 0.28);
+    border-radius: 18px;
+    padding: 0;
+    background: linear-gradient(150deg, rgba(10, 16, 24, 0.98), rgba(14, 24, 35, 0.98));
+    color: #e8f8ff;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+#screenCaptureSettingsDialog::backdrop {
+    background: rgba(2, 8, 14, 0.72);
+    backdrop-filter: blur(10px);
+}
+.gemini-screen-capture-dialog .mdl-dialog__title {
+    padding: 18px 20px 8px;
+    color: #f3fbff;
+    font-size: 1.25rem;
+    line-height: 1.1;
+}
+.gemini-screen-capture-copy {
+    margin: 0 20px 14px;
+    color: rgba(220, 242, 255, 0.68);
+    font-size: 0.78rem;
+}
+.gemini-screen-capture-grid {
+    display: grid;
+    gap: 10px;
+    padding: 0 20px 16px;
+}
+.gemini-screen-capture-field {
+    display: grid;
+    gap: 5px;
+    padding: 10px;
+    border: 1px solid rgba(148, 197, 255, 0.16);
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.035);
+}
+.gemini-screen-capture-field label {
+    color: rgba(232, 248, 255, 0.72);
+    font-size: 0.67rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+.gemini-screen-capture-field input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(94, 234, 212, 0.28);
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: rgba(1, 10, 18, 0.76);
+    color: #f4fcff;
+}
+.gemini-screen-capture-hint {
+    color: rgba(220, 242, 255, 0.52);
+    font-size: 0.7rem;
+}
+.gemini-screen-capture-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.gemini-screen-capture-toggle input {
+    width: 42px;
+    height: 22px;
+    accent-color: #22d3ee;
+}
+.gemini-screen-capture-dialog .mdl-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px 16px;
+    border-top: 1px solid rgba(148, 197, 255, 0.12);
+}
+.gemini-screen-capture-dialog .mdl-button {
+    color: #e8f8ff;
+    border-radius: 999px;
+}
+.gemini-screen-capture-dialog .gemini-screen-capture-save {
+    background: rgba(34, 211, 238, 0.2);
+    color: #effcff;
+}`;
+    document.head.appendChild(style);
+}
+
 async function loadScreenCaptureSettingsCard() {
     const placeholder = document.getElementById('screen-capture-settings-card-placeholder');
     if (!placeholder) {
@@ -15,14 +156,14 @@ async function loadScreenCaptureSettingsCard() {
     <div class="gemini-agentic-card-head">
         <div>
             <div class="gemini-agentic-card-kicker">Share Sampling</div>
-            <span class="gemini-agentic-card-title">Screen Capture Interval</span>
+            <span class="gemini-agentic-card-title">Screen Observation</span>
         </div>
         <button id="screenCaptureSettingsButton" class="mdl-button mdl-js-button mdl-button--icon gemini-agentic-icon-btn">
             <i class="material-icons">settings</i>
         </button>
     </div>
     <div class="gemini-agentic-card-copy">
-        Interval in seconds between periodic screen captures when sharing
+        Configure screen-share cadence, image quality, and silent observation mode.
     </div>
 </div>
 `;
@@ -32,12 +173,7 @@ async function loadScreenCaptureSettingsCard() {
         }
 
         const settingsButton = document.getElementById('screenCaptureSettingsButton');
-        if (settingsButton && typeof window.isScreenShared !== 'undefined') {
-            settingsButton.disabled = !window.isScreenShared;
-        } else if (settingsButton) {
-            console.warn('window.isScreenShared not defined when initializing screenCaptureSettingsUILoader.js. Button state may be incorrect.');
-            settingsButton.disabled = true;
-        }
+        if (settingsButton) settingsButton.disabled = false;
 
         return Promise.resolve();
 
@@ -55,16 +191,40 @@ async function loadScreenCaptureSettingsDialog() {
     }
 
     try {
+        ensureScreenCaptureSettingsStyles();
         const htmlContent = `
-<dialog id="screenCaptureSettingsDialog" class="mdl-dialog" style="width: 300px;">
+<dialog id="screenCaptureSettingsDialog" class="mdl-dialog gemini-screen-capture-dialog">
     <h4 class="mdl-dialog__title">Screen Capture Settings</h4>
+    <p class="gemini-screen-capture-copy">Screen frames can remain visible to Gemini without forcing voice/chat output for every passive update.</p>
     <div class="mdl-dialog__content">
-        <label for="screenCaptureIntervalInput" style="font-size:12px; color:#333;">Interval (ms):</label>
-        <input type="number" id="screenCaptureIntervalInput" min="100" max="10000" step="100" value="1000" style="width:60px;">
+        <div class="gemini-screen-capture-grid">
+            <div class="gemini-screen-capture-field">
+                <label for="screenCaptureIntervalInput">Interval (ms)</label>
+                <input type="number" id="screenCaptureIntervalInput" min="250" max="30000" step="250" value="1000">
+                <span class="gemini-screen-capture-hint">Lower is more responsive; higher is quieter and cheaper.</span>
+            </div>
+            <div class="gemini-screen-capture-field">
+                <label for="screenCaptureQualityInput">JPEG Quality</label>
+                <input type="number" id="screenCaptureQualityInput" min="0.6" max="1" step="0.05" value="0.95">
+                <span class="gemini-screen-capture-hint">Use 0.9-1.0 for text-heavy screens.</span>
+            </div>
+            <div class="gemini-screen-capture-field">
+                <label for="screenCaptureMaxDimensionInput">Max Frame Side</label>
+                <input type="number" id="screenCaptureMaxDimensionInput" min="720" max="3840" step="160" value="1920">
+                <span class="gemini-screen-capture-hint">Caps payload size while keeping captures readable.</span>
+            </div>
+            <div class="gemini-screen-capture-field gemini-screen-capture-toggle">
+                <div>
+                    <label for="screenCaptureSilentToggle">Silent Observation</label>
+                    <span class="gemini-screen-capture-hint">Gemini sees frames but responses/audio from passive frames are suppressed.</span>
+                </div>
+                <input type="checkbox" id="screenCaptureSilentToggle">
+            </div>
+        </div>
     </div>
     <div class="mdl-dialog__actions">
         <button type="button" class="mdl-button" id="screenCaptureSettingsCancel">Cancel</button>
-        <button type="button" class="mdl-button" id="screenCaptureSettingsSave">Save</button>
+        <button type="button" class="mdl-button gemini-screen-capture-save" id="screenCaptureSettingsSave">Save</button>
     </div>
 </dialog>
 `;
@@ -78,6 +238,7 @@ async function loadScreenCaptureSettingsDialog() {
         if (dialog && typeof window.dialogPolyfill !== 'undefined') {
             window.dialogPolyfill.registerDialog(dialog);
         }
+        syncScreenCaptureDialogFields();
 
         console.log('Screen Capture Settings Dialog loaded successfully.');
         return Promise.resolve();
@@ -102,11 +263,7 @@ function initializeScreenCaptureSettingsHandler() {
 
     settingsButton.addEventListener('click', () => {
         console.log('Screen Capture Settings button clicked. Opening dialog.');
-        const currentInterval = localStorage.getItem('screenCaptureInterval') || '1000';
-        const input = document.getElementById('screenCaptureIntervalInput');
-        if (input) {
-            input.value = currentInterval;
-        }
+        syncScreenCaptureDialogFields();
 
         if (settingsDialog.showModal) {
             settingsDialog.showModal();
@@ -130,15 +287,10 @@ function initializeScreenCaptureSettingsHandler() {
     if (saveButton) {
         saveButton.addEventListener('click', () => {
             console.log('Screen Capture Settings dialog Save button clicked.');
-            const input = document.getElementById('screenCaptureIntervalInput');
-            if (input) {
-                let interval = parseInt(input.value, 10);
-                if (isNaN(interval) || interval < 100) interval = 1000;
-                localStorage.setItem('screenCaptureInterval', interval.toString());
-                window.screenCaptureIntervalGlobal = interval;
-                if (typeof window.displayMessage === 'function') {
-                    window.displayMessage(`System Message: Screen capture interval set to ${interval}ms`, true);
-                }
+            const prefs = saveScreenCapturePrefsFromDialog();
+            if (typeof window.displayMessage === 'function') {
+                const mode = prefs.silentObservation ? 'silent observation' : 'response allowed';
+                window.displayMessage(`System Message: Screen capture set to ${prefs.intervalMs}ms (${mode})`, true);
             }
 
             if (settingsDialog.close) {

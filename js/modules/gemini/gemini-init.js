@@ -221,6 +221,9 @@
                             <span data-gemini-server-action-label>Start</span>
                         </button>
                     </div>
+                    <button type="button" class="gemini-server-inspector-toggle" data-gemini-server-inspector-toggle title="Open Gemini server monitor" aria-label="Open Gemini server monitor">
+                        <i class="material-icons" aria-hidden="true">dns</i>
+                    </button>
                     <div class="gemini-monitor-view-switch" role="group" aria-label="Gemini monitor view">
                         <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="summary">Compact</button>
                         <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="full">Workspace</button>
