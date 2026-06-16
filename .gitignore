@@ -169,6 +169,21 @@ test_comick.txt
 tmp_comick_data.json
 tmp_comick_out.txt
 
+# System
+Thumbs.db
+
+# EveOS local modular state store (generated at runtime)
+data/modular-state/
+
+# EveOS local runtime path/session state (machine-specific)
+data/launcher-last-pack.txt
+data/modular-store-settings.json
+out.txt
+out_win.txt
+test_comick.txt
+tmp_comick_data.json
+tmp_comick_out.txt
+
 
 # Lightpanda binary
 bin/lightpanda
@@ -176,3 +191,7 @@ bin/lightpanda
 # Local Windows admin helper
 tools/windows/allow-eveos-lightpanda.ps1
 
+
+# Gemini Backend history and debug assets
+server/gemini-backend/interactions/chat_history.json
+server/gemini-backend/interactions/debug_received_image.jpg
