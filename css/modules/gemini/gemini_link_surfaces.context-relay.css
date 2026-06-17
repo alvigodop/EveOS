@@ -1,0 +1,52 @@
+.gemini-live-link-manifest {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 10px 11px;
+    border: 1px solid rgba(110, 231, 255, 0.14);
+    border-radius: 14px;
+    background:
+        linear-gradient(145deg, rgba(13, 24, 32, 0.72), rgba(8, 13, 18, 0.68));
+    color: rgba(232, 247, 255, 0.78);
+}
+
+.gemini-live-link-manifest-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(232, 247, 255, 0.56);
+}
+
+.gemini-live-link-manifest-head strong {
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(0, 212, 255, 0.11);
+    color: rgba(148, 236, 255, 0.92);
+    font-size: 0.68rem;
+}
+
+.gemini-live-link-manifest-grid {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 5px 10px;
+    font-size: 0.72rem;
+    line-height: 1.35;
+}
+
+.gemini-live-link-manifest-grid span {
+    color: rgba(232, 247, 255, 0.45);
+}
+
+.gemini-live-link-manifest-grid b {
+    min-width: 0;
+    color: rgba(244, 251, 255, 0.84);
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+

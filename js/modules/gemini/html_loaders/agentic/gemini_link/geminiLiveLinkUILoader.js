@@ -51,6 +51,92 @@ function _setGeminiLiveLinkEnabled(enabled) {
     return value;
 }
 
+function _formatGeminiLiveLinkNumber(value) {
+    const number = Number(value) || 0;
+    return number.toLocaleString();
+}
+
+function _escapeGeminiLiveLinkHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[char]);
+}
+
+function _getGeminiLiveLinkActiveWorkspaceLabel() {
+    const cfg = _getGeminiLiveLinkConfig() || {};
+    const activeId = String(cfg.activeWorkspace || 'main');
+    const workspace = Array.isArray(cfg.workspaces)
+        ? cfg.workspaces.find((item) => String(item?.id || '') === activeId)
+        : null;
+    return workspace?.name || activeId;
+}
+
+function _getGeminiLiveLinkRouteLabel(route) {
+    if (route === 'websocket') return 'Live WebSocket';
+    if (route === 'queued-websocket') return 'Queued for WebSocket';
+    if (route === 'clipboard') return 'Clipboard fallback';
+    if (window.webSocket && window.webSocket.readyState === WebSocket.OPEN) return 'Live WebSocket';
+    if (typeof window.waitForConnection === 'function') return 'Auto-queue if offline';
+    return 'Clipboard fallback';
+}
+
+function _buildPendingGeminiLiveLinkManifest(mode) {
+    return {
+        mode: _normalizeGeminiLiveLinkMode(mode || _getGeminiLiveLinkMode()),
+        scope: 'current modular datapack',
+        activeWorkspaceName: _getGeminiLiveLinkActiveWorkspaceLabel(),
+        sampleLimit: 30,
+        messageChars: 0,
+        counts: null,
+        route: ''
+    };
+}
+
+function _renderGeminiLiveLinkManifest(manifest, stateLabel) {
+    const manifestEl = document.getElementById('geminiLiveLinkManifest');
+    if (!manifestEl) return;
+    const data = manifest || _buildPendingGeminiLiveLinkManifest();
+    const counts = data.counts || {};
+    const countSummary = data.counts
+        ? `${_formatGeminiLiveLinkNumber(counts.bookmarks)} bookmarks / ${_formatGeminiLiveLinkNumber(counts.cards)} cards`
+        : 'Counts appear after prepare';
+    const sizeSummary = data.messageChars
+        ? `${_formatGeminiLiveLinkNumber(data.messageChars)} chars`
+        : 'Not generated yet';
+
+    manifestEl.innerHTML = `
+        <div class="gemini-live-link-manifest-head">
+            <span>${_escapeGeminiLiveLinkHtml(stateLabel || 'Inspectable relay manifest')}</span>
+            <strong>${_escapeGeminiLiveLinkHtml(String(data.mode || 'summary').toUpperCase())}</strong>
+        </div>
+        <div class="gemini-live-link-manifest-grid">
+            <span>Scope</span><b>${_escapeGeminiLiveLinkHtml(data.scope || 'current modular datapack')}</b>
+            <span>Active tab</span><b>${_escapeGeminiLiveLinkHtml(data.activeWorkspaceName || data.activeWorkspaceId || 'main')}</b>
+            <span>Contents</span><b>${_escapeGeminiLiveLinkHtml(countSummary)}</b>
+            <span>Size / route</span><b>${_escapeGeminiLiveLinkHtml(`${sizeSummary} · ${_getGeminiLiveLinkRouteLabel(data.route)}`)}</b>
+        </div>
+    `;
+}
+
+function _summarizeGeminiLiveLinkResult(result) {
+    const manifest = result?.manifest || {};
+    const counts = manifest.counts || {};
+    const bits = [
+        `${manifest.mode || result?.mode || 'summary'} mode`,
+        `${_formatGeminiLiveLinkNumber(manifest.messageChars)} chars`
+    ];
+    if (counts.bookmarks || counts.cards) {
+        bits.push(`${_formatGeminiLiveLinkNumber(counts.bookmarks)} bookmarks`);
+        bits.push(`${_formatGeminiLiveLinkNumber(counts.cards)} cards`);
+    }
+    bits.push(_getGeminiLiveLinkRouteLabel(result?.route));
+    return bits.join(' · ');
+}
+
 function _setGeminiLiveLinkStatus(message, isError) {
     const statusEl = document.getElementById('geminiLiveLinkStatus');
     if (!statusEl) return;
@@ -78,16 +164,17 @@ function _applyGeminiLiveLinkEnabledState(enabled) {
     }
 
     if (!isEnabled) {
-        _setGeminiLiveLinkStatus('Gemini Live Link paused.', false);
+        _setGeminiLiveLinkStatus('EveOS Context Relay paused.', false);
     } else {
-        _setGeminiLiveLinkStatus('Ready. Send active data-pack context to Gemini.', false);
+        _setGeminiLiveLinkStatus('Ready. Review the manifest, then send EveOS context to Gemini.', false);
     }
+    _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(), isEnabled ? 'Ready to prepare' : 'Relay paused');
 }
 
 async function sendGeminiLiveLinkContext() {
     if (!_isGeminiLiveLinkEnabled()) {
-        _setGeminiLiveLinkStatus('Enable Gemini Live Link to send context.', true);
-        return { ok: false, error: 'Gemini Live Link is disabled.' };
+        _setGeminiLiveLinkStatus('Enable EveOS Context Relay to send context.', true);
+        return { ok: false, error: 'EveOS Context Relay is disabled.' };
     }
 
     const modeSelect = document.getElementById('geminiLiveLinkMode');
@@ -98,19 +185,21 @@ async function sendGeminiLiveLinkContext() {
         return { ok: false, error: 'Modular sync module is unavailable.' };
     }
 
-    _setGeminiLiveLinkStatus(`Sending ${mode} context...`, false);
+    _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(mode), 'Preparing payload');
+    _setGeminiLiveLinkStatus(`Preparing ${mode} EveOS context snapshot...`, false);
     const result = await window.EveDataStore.ModularSync.sendContextToGemini(mode, 30);
     if (!result?.ok) {
         _setGeminiLiveLinkStatus(result?.error || 'Could not send context.', true);
         return result;
     }
 
+    _renderGeminiLiveLinkManifest(result.manifest, result.queued ? 'Queued payload' : (result.copied ? 'Copied payload' : 'Sent payload'));
     if (result.sent) {
-        _setGeminiLiveLinkStatus(`Sent ${mode} context to Gemini chat.`, false);
+        _setGeminiLiveLinkStatus(`${result.queued ? 'Queued' : 'Sent'} EveOS context: ${_summarizeGeminiLiveLinkResult(result)}.`, false);
         return result;
     }
     if (result.copied) {
-        _setGeminiLiveLinkStatus('Context copied to clipboard.', false);
+        _setGeminiLiveLinkStatus(`Gemini offline; copied context: ${_summarizeGeminiLiveLinkResult(result)}.`, false);
         return result;
     }
 
@@ -130,7 +219,8 @@ async function initializeGeminiLiveLinkCard() {
         modeSelect.value = _getGeminiLiveLinkMode();
         modeSelect.addEventListener('change', () => {
             _setGeminiLiveLinkMode(modeSelect.value);
-            _setGeminiLiveLinkStatus(`Mode set to ${_normalizeGeminiLiveLinkMode(modeSelect.value)}.`, false);
+            _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(modeSelect.value), 'Mode changed');
+            _setGeminiLiveLinkStatus(`Payload mode set to ${_normalizeGeminiLiveLinkMode(modeSelect.value)}.`, false);
         });
     }
 
@@ -170,9 +260,9 @@ async function loadGeminiLiveLinkCard() {
 <div id="gemini-live-link-card" class="agentic-function-card gemini-live-link-card">
     <div class="gemini-live-link-head">
         <div>
-            <div class="gemini-live-link-kicker">Context Relay</div>
-            <span class="gemini-live-link-title">Gemini Live Link</span>
-            <div class="gemini-live-link-subtitle">Push the active data-pack into Gemini without leaving the current workflow.</div>
+            <div class="gemini-live-link-kicker">EveOS Relay</div>
+            <span class="gemini-live-link-title">EveOS Context Relay</span>
+            <div class="gemini-live-link-subtitle">Prepare an inspectable EveOS snapshot, then send it into the Gemini session.</div>
         </div>
         <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-live-link-toggle" for="geminiLiveLinkToggle">
             <input type="checkbox" id="geminiLiveLinkToggle" class="mdl-switch__input" checked>
@@ -180,19 +270,20 @@ async function loadGeminiLiveLinkCard() {
         </label>
     </div>
     <div id="geminiLiveLinkStatus" class="gemini-live-link-status"></div>
+    <div id="geminiLiveLinkManifest" class="gemini-live-link-manifest"></div>
     <div id="geminiLiveLinkControls" class="gemini-live-link-controls" style="display:block;">
         <div class="gemini-live-link-row">
             <div class="gemini-live-link-select-wrap">
-                <label for="geminiLiveLinkMode" class="gemini-live-link-label">Context Mode</label>
+                <label for="geminiLiveLinkMode" class="gemini-live-link-label">Payload Mode</label>
                 <select id="geminiLiveLinkMode" class="gemini-live-link-select">
                     <option value="summary">Summary</option>
                     <option value="full">Full JSON</option>
                 </select>
             </div>
-            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send Context</button>
+            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send EveOS Context</button>
         </div>
         <div class="gemini-live-link-help">
-            Sends the active data-pack context into the Gemini session and keeps the relay scoped to the current working surface.
+            Summary sends counts and representative samples. Full JSON sends the complete modular snapshot. The manifest above shows the route and size before the relay leaves EveOS.
         </div>
     </div>
 </div>

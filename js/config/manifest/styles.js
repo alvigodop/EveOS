@@ -92,7 +92,7 @@ window.EveModuleManifestParts.styles = [
         'css/modules/gemini/chat_log_ui/chat_log.css',
         'css/modules/gemini/chat_message_ui/chat_message.css',
         'css/modules/gemini/chat_popup_ui/chat_popup.css',
-        'css/modules/gemini/gemini_link_surfaces.css?v=0.4.7',
+        'css/modules/gemini/gemini_link_surfaces.css?v=0.4.8',
         'css/modules/gemini/layout_ui/app_container.css',
         'css/modules/gemini/layout_ui/demo_content.css',
         'css/modules/gemini/layout_ui/large_screen_layout.css',

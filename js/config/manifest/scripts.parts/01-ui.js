@@ -66,7 +66,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js?v=0.4.0",
     "js/modules/features/modular-state-sync/modular-state-sync.engine.runtime.js?v=0.4.0",
     "js/modules/features/modular-state-sync/modular-state-sync.engine.js?v=0.3.1",
-    "js/modules/features/modular-state-sync/modular-state-sync.api.context.js?v=0.3.1",
+    "js/modules/features/modular-state-sync/modular-state-sync.api.context.js?v=0.3.2",
     "js/modules/features/modular-state-sync/modular-state-sync.api.store.js?v=0.3.2",
     "js/modules/features/modular-state-sync/modular-state-sync.api.js?v=0.3.1",
     "js/modules/features/modular-state-sync/modular-state-sync.core.js?v=0.3.0",

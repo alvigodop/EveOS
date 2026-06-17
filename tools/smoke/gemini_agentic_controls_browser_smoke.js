@@ -103,10 +103,15 @@ async function main() {
             return {
                 missing: ids.filter((id) => !document.getElementById(id)),
                 sessionBound: document.getElementById('sessionControlsDialog')?.dataset.sessionControlsBound,
-                liveLinkBound: document.getElementById('gemini-live-link-card')?.dataset.bound
+                liveLinkBound: document.getElementById('gemini-live-link-card')?.dataset.bound,
+                liveLinkTitle: document.querySelector('#gemini-live-link-card .gemini-live-link-title')?.textContent?.trim(),
+                liveLinkManifest: document.getElementById('geminiLiveLinkManifest')?.textContent || ''
             };
         });
-        if (controls.missing.length || controls.sessionBound !== '1' || controls.liveLinkBound !== '1') {
+        if (controls.missing.length || controls.sessionBound !== '1' || controls.liveLinkBound !== '1'
+            || controls.liveLinkTitle !== 'EveOS Context Relay'
+            || !/Scope/i.test(controls.liveLinkManifest)
+            || !/Active tab/i.test(controls.liveLinkManifest)) {
             throw new Error(`Agentic controls are not fully wired: ${JSON.stringify(controls)}`);
         }
 
