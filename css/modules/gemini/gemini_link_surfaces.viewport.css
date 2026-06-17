@@ -14,7 +14,14 @@
 }
 
 #loadingIndicator.gemini-monitor-workspace-active:not(.compact) {
-    height: min(940px, calc(100dvh - 24px));
+    height: calc(100dvh - 24px);
+}
+
+#loadingIndicator.gemini-monitor-workspace-active.wide-mode:not(.compact) {
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: none !important;
 }
 
 #loadingIndicator:not(.compact) .indicator-content {
@@ -123,7 +130,7 @@
 
     #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column,
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
-        min-height: clamp(560px, 68dvh, 820px);
+        min-height: 0;
     }
 }
 
