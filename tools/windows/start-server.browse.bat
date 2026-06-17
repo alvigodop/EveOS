@@ -84,30 +84,30 @@ set "BATCH_NOTE=General batch launcher script."
 set "rel=%~1"
 
 if /I "%rel%"=="server\server-menu.bat" (
-    set "BATCH_NOTE=Gemini backend console (start/stop Launcher and WebSocket servers)."
+    set "BATCH_NOTE=Gemini backend console (start/stop WebSocket plus status server)."
     exit /b 0
 )
 if /I "%rel%"=="server\start-gemini.bat" (
-    set "BATCH_NOTE=Quick launcher: starts both Gemini backend servers."
+    set "BATCH_NOTE=Quick launcher: starts the canonical Gemini backend."
     exit /b 0
 )
 if /I "%rel%"=="start-server.bat" (
     set "BATCH_NOTE=Master EveOS launcher menu (this script)."
     exit /b 0
 )
-if /I "%rel%"=="start-lightpanda-bridge.bat" (
+if /I "%rel%"=="tools\batch\start-lightpanda-bridge.bat" (
     set "BATCH_NOTE=Standalone Lightpanda controller for manual start/stop."
     exit /b 0
 )
-if /I "%rel%"=="start-camofox-bridge.bat" (
+if /I "%rel%"=="tools\batch\start-camofox-bridge.bat" (
     set "BATCH_NOTE=Standalone Camofox controller for manual start/stop."
     exit /b 0
 )
-if /I "%rel%"=="start-wikimedia-bridge.bat" (
+if /I "%rel%"=="tools\batch\start-wikimedia-bridge.bat" (
     set "BATCH_NOTE=Legacy Wikimedia-only controller. The Popup bridge now covers Wikimedia fetches too."
     exit /b 0
 )
-if /I "%rel%"=="start-popup-bridge.bat" (
+if /I "%rel%"=="tools\batch\start-popup-bridge.bat" (
     set "BATCH_NOTE=Standalone Popup+Wikimedia bridge controller for in-site popups and compliant Wikipedia fetches."
     exit /b 0
 )

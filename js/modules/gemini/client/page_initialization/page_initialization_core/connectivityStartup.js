@@ -17,7 +17,16 @@ function isGeminiConnectionEnabledByPreference() {
 function getGeminiStatusUrl() {
     const wsUrl = (window.SocketGlobalState && window.SocketGlobalState.WS_URL) || 'ws://localhost:9083';
     const wsPort = parseInt(wsUrl.split(':')[2], 10) || 9083;
-    return `http://localhost:${wsPort + 1}/status`;
+    return `http://127.0.0.1:${wsPort + 1}/status`;
+}
+
+function isGeminiStatusPayloadRunning(data) {
+    if (data?.websocketReady === false) return false;
+    return !!data && (
+        data.running === true
+        || data.status === 'running'
+        || data.message === 'running'
+    );
 }
 
 async function isGeminiServerReachable() {
@@ -33,7 +42,7 @@ async function isGeminiServerReachable() {
         }
 
         const data = await response.json();
-        return data && data.status === 'running';
+        return isGeminiStatusPayloadRunning(data);
     } catch (error) {
         return false;
     }

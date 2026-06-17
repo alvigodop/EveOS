@@ -37,10 +37,18 @@
     async function checkDirectServerStatus() {
         try {
             const payload = await window.GeminiServerNetwork.fetchJson('http://127.0.0.1:9084/status', null, 700);
-            return payload?.status === 'running';
+            return isStatusPayloadRunning(payload);
         } catch (error) {
             return false;
         }
+    }
+
+    function isStatusPayloadRunning(payload) {
+        if (!payload || typeof payload !== 'object') return false;
+        if (payload.websocketReady === false) return false;
+        return payload.running === true
+            || payload.status === 'running'
+            || payload.message === 'running';
     }
     function publish() {
         document.querySelectorAll('[data-gemini-server-control]').forEach(renderControl);

@@ -1,23 +1,24 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-pushd "%~dp0"
+pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
-set "BRIDGE_PORT=3039"
-set "BRIDGE_SCRIPT=%PROJECT_ROOT%\wikimedia-bridge.py"
-set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\wikimedia_activity.log"
-set "MONITOR_TITLE=EveOS Wikimedia Monitor"
+set "BRIDGE_PORT=3037"
+set "BRIDGE_SCRIPT=%PROJECT_ROOT%\lightpanda-bridge.py"
+set "LIGHTPANDA_BIN=%PROJECT_ROOT%\bin\lightpanda"
+set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"
+set "MONITOR_TITLE=EveOS Lightpanda Monitor"
 
 :menu
 cls
 echo ========================================
-echo   Wikimedia Standalone Controller
+echo   Lightpanda Standalone Controller
 echo ========================================
 echo.
 call :showStatus
 echo.
-echo [1] Start Wikimedia bridge
-echo [2] Stop Wikimedia bridge
+echo [1] Start Lightpanda bridge
+echo [2] Stop Lightpanda bridge
 echo [3] Open shared activity monitor
 echo [4] Refresh
 echo [5] Exit
@@ -45,12 +46,12 @@ timeout /t 1 /nobreak >nul
 goto :menu
 
 :showStatus
-if exist "%BRIDGE_SCRIPT%" (
-    echo [STATUS] Bridge script: READY
-    echo          %BRIDGE_SCRIPT%
+if exist "%LIGHTPANDA_BIN%" (
+    echo [STATUS] Lightpanda binary: READY
+    echo          %LIGHTPANDA_BIN%
 ) else (
-    echo [STATUS] Bridge script: NOT FOUND
-    echo          Expected: %BRIDGE_SCRIPT%
+    echo [STATUS] Lightpanda binary: NOT FOUND
+    echo          Expected: %LIGHTPANDA_BIN%
 )
 
 set "BRIDGE_PID="
@@ -61,7 +62,7 @@ for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%BRIDGE_PORT% .*LISTE
 :showStatusPortDone
 if defined BRIDGE_PID (
     echo [STATUS] Bridge: RUNNING on http://127.0.0.1:%BRIDGE_PORT% ^(PID !BRIDGE_PID!^)
-    echo          Use this for policy-compliant Wikipedia/Wikimedia fetches from file://
+    echo          Use Lightpanda in EveOS will target this bridge.
 ) else (
     echo [STATUS] Bridge: STOPPED
 )
@@ -72,6 +73,14 @@ if not exist "%BRIDGE_SCRIPT%" (
     echo.
     echo [ERROR] Bridge script not found:
     echo         %BRIDGE_SCRIPT%
+    echo.
+    pause
+    exit /b 1
+)
+if not exist "%LIGHTPANDA_BIN%" (
+    echo.
+    echo [ERROR] Lightpanda binary not found:
+    echo         %LIGHTPANDA_BIN%
     echo.
     pause
     exit /b 1
@@ -88,8 +97,8 @@ if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
 if not exist "%ACTIVITY_LOG%" type nul > "%ACTIVITY_LOG%"
 
 echo.
-echo [OK] Starting Wikimedia bridge on port %BRIDGE_PORT%...
-start "EveOS Wikimedia Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && python ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
+echo [OK] Starting Lightpanda bridge on port %BRIDGE_PORT%...
+start "EveOS Lightpanda Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && python ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
 timeout /t 2 /nobreak >nul
 exit /b 0
 

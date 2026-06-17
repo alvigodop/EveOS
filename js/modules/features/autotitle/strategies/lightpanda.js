@@ -156,7 +156,7 @@
         }
 
         if (isFileProtocol) {
-            console.error("Autotitle: Could not connect to a local Lightpanda bridge. Start 'start-lightpanda-bridge.bat' from 'start-server.bat', then retry.");
+            console.error("Autotitle: Could not connect to a local Lightpanda bridge. Start 'tools\\\\batch\\\\start-lightpanda-bridge.bat' from 'start-server.bat', then retry.");
         }
 
         return null;

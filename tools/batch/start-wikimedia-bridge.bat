@@ -1,23 +1,23 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-pushd "%~dp0"
+pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
-set "BRIDGE_PORT=3040"
-set "BRIDGE_SCRIPT=%PROJECT_ROOT%\popup-bridge.py"
-set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\popup_activity.log"
-set "MONITOR_TITLE=EveOS Popup Bridge Monitor"
+set "BRIDGE_PORT=3039"
+set "BRIDGE_SCRIPT=%PROJECT_ROOT%\wikimedia-bridge.py"
+set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\wikimedia_activity.log"
+set "MONITOR_TITLE=EveOS Wikimedia Monitor"
 
 :menu
 cls
 echo ========================================
-echo   Popup + Wikimedia Standalone Controller
+echo   Wikimedia Standalone Controller
 echo ========================================
 echo.
 call :showStatus
 echo.
-echo [1] Start popup bridge
-echo [2] Stop popup bridge
+echo [1] Start Wikimedia bridge
+echo [2] Stop Wikimedia bridge
 echo [3] Open shared activity monitor
 echo [4] Refresh
 echo [5] Exit
@@ -61,7 +61,7 @@ for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%BRIDGE_PORT% .*LISTE
 :showStatusPortDone
 if defined BRIDGE_PID (
     echo [STATUS] Bridge: RUNNING on http://127.0.0.1:%BRIDGE_PORT% ^(PID !BRIDGE_PID!^)
-    echo          Use this for in-site popups plus Wikimedia/Wikipedia transport from file://
+    echo          Use this for policy-compliant Wikipedia/Wikimedia fetches from file://
 ) else (
     echo [STATUS] Bridge: STOPPED
 )
@@ -88,8 +88,8 @@ if not exist "%PROJECT_ROOT%\bin" mkdir "%PROJECT_ROOT%\bin" >nul 2>nul
 if not exist "%ACTIVITY_LOG%" type nul > "%ACTIVITY_LOG%"
 
 echo.
-echo [OK] Starting popup + Wikimedia bridge on port %BRIDGE_PORT%...
-start "EveOS Popup Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && python ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
+echo [OK] Starting Wikimedia bridge on port %BRIDGE_PORT%...
+start "EveOS Wikimedia Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && python ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
 timeout /t 2 /nobreak >nul
 exit /b 0
 

@@ -10,10 +10,10 @@ set "START_SERVER_BROWSER_BAT=%PROJECT_ROOT%\tools\windows\start-server.browser.
 
 set "GEMINI_MENU_BAT=%PROJECT_ROOT%\server\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%PROJECT_ROOT%\server\start-gemini.bat"
-set "LIGHTPANDA_CONTROLLER_BAT=%PROJECT_ROOT%\start-lightpanda-bridge.bat"
-set "CAMOFOX_CONTROLLER_BAT=%PROJECT_ROOT%\start-camofox-bridge.bat"
-set "WIKIMEDIA_CONTROLLER_BAT=%PROJECT_ROOT%\start-wikimedia-bridge.bat"
-set "POPUP_CONTROLLER_BAT=%PROJECT_ROOT%\start-popup-bridge.bat"
+set "LIGHTPANDA_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-lightpanda-bridge.bat"
+set "CAMOFOX_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-camofox-bridge.bat"
+set "WIKIMEDIA_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-wikimedia-bridge.bat"
+set "POPUP_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-popup-bridge.bat"
 set "LIGHTPANDA_BRIDGE_PORT=3037"
 set "LIGHTPANDA_MONITOR_TITLE=EveOS Lightpanda Monitor"
 set "LIGHTPANDA_ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"
@@ -86,9 +86,9 @@ echo.
 echo [1] Start EveOS instance ^(choose port + data-pack^)
 echo     - Port 3000 uses active modular path; other ports default to per-instance packs.
 echo [2] Open Gemini Backend Console ^(server\server-menu.bat^)
-echo     - Start/stop Launcher ^(9084^) and Main WebSocket ^(9083^) servers.
+echo     - Start/stop the canonical Gemini Live backend ^(9083 WebSocket + 9084 status^).
 echo [3] Run Gemini auto-start helper ^(server\start-gemini.bat^)
-echo     - Quick launcher: starts both Gemini servers in one step.
+echo     - Quick launcher: starts the Gemini backend in one step.
 echo [4] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
 echo [5] Browser fallback controls

@@ -604,8 +604,8 @@ The scraper fallback stack is not just frontend code. Agents touching browser-as
 
 Available controllers:
 
-- `start-lightpanda-bridge.bat`
-- `start-camofox-bridge.bat`
+- `tools\batch\start-lightpanda-bridge.bat`
+- `tools\batch\start-camofox-bridge.bat`
 - `start-server.bat`
 
 Expected local endpoints:
@@ -626,13 +626,13 @@ If a change touches bridge detection, timeout behavior, headless ordering, or bl
 Lightpanda:
 
 ```bash
-start-lightpanda-bridge.bat
+tools\batch\start-lightpanda-bridge.bat
 ```
 
 Camofox:
 
 ```bash
-start-camofox-bridge.bat
+tools\batch\start-camofox-bridge.bat
 ```
 
 General launcher:

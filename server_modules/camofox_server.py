@@ -150,7 +150,7 @@ def ensure_camofox_server():
 
     if not is_camofox_runtime_available():
         raise RuntimeError(
-            "Camofox runtime is not installed. Run start-camofox-bridge.bat and choose Install/Update Camofox runtime first."
+            "Camofox runtime is not installed. Run tools\\batch\\start-camofox-bridge.bat and choose Install/Update Camofox runtime first."
         )
 
     with _SERVER_LOCK:

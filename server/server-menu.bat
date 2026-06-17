@@ -2,9 +2,16 @@
 setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0"
+set "SERVER_ROOT=%CD%"
+set "PROJECT_ROOT=%SERVER_ROOT%\.."
+set "GEMINI_MAIN_DIR=%SERVER_ROOT%\gemini-backend\interactions"
+set "GEMINI_MAIN_SCRIPT=%GEMINI_MAIN_DIR%\main.py"
+set "GEMINI_WS_PORT=9083"
+set "GEMINI_STATUS_PORT=9084"
+set "GEMINI_WINDOW_TITLE=EveOS Gemini Main 9083-9084"
 
 if /I "%~1"=="stop" (
-    call :StopAllServers
+    call :StopGemini
     exit /b %ERRORLEVEL%
 )
 
@@ -23,78 +30,69 @@ if not "%~1"=="" (
 :MainMenu
 cls
 echo ====================================
-echo Gemini Backend Management Console
+echo EveOS Gemini Backend Console
 echo ====================================
 echo.
 echo Current Status:
-call :CheckServerStatus "Launcher Server" "9084"
-call :CheckServerStatus "Main WebSocket Server" "9083"
+call :ShowStatus
 echo.
 echo Options:
-echo [1] Start Launcher Server (9084)
-echo [2] Start Main WebSocket Server (9083)
-echo [3] Stop Launcher Server (9084)
-echo [4] Stop Main WebSocket Server (9083)
-echo [5] Stop All Servers
-echo [6] Start All Servers
-echo [7] Check Status
-echo [8] Exit
+echo [1] Start Gemini server ^(WebSocket %GEMINI_WS_PORT% + Status %GEMINI_STATUS_PORT%^)
+echo [2] Stop Gemini server
+echo [3] Restart Gemini server
+echo [4] Check Status
+echo [5] Exit
 echo.
-echo Note: EveOS serves files via python-server.py (port 3000).
-echo       These servers handle Gemini Live API connections only.
+echo Note: EveOS itself is served by python-server.py on your chosen site port.
+echo       This menu only controls the Gemini Live backend used by file:// and localhost EveOS.
 echo.
-set /P "choice=Enter your choice (1-8): "
+set /P "choice=Enter your choice (1-5): "
 if "%choice%"=="" goto :MainMenu
 
 call :HandleChoice "%choice%"
-if "%choice%"=="8" exit /b 0
+if "%choice%"=="5" exit /b 0
 goto :MainMenu
 
 :HandleChoice
 set "choice=%~1"
 
+rem Current menu.
 if "%choice%"=="1" (
-    call :StopServer "Launcher Server" "9084"
-    timeout /t 2 /nobreak >nul
-    call :StartServer "Launcher Server" "gemini-backend/environment_setup/server_launcher.py" "9084"
-    exit /b 0
+    call :StartGemini
+    exit /b %ERRORLEVEL%
 )
 if "%choice%"=="2" (
-    call :StopServer "Main WebSocket Server" "9083"
-    timeout /t 2 /nobreak >nul
-    call :StartServer "Main WebSocket Server" "gemini-backend/interactions/main.py" "9083"
-    exit /b 0
+    call :StopGemini
+    exit /b %ERRORLEVEL%
 )
 if "%choice%"=="3" (
-    call :StopServer "Launcher Server" "9084"
-    exit /b 0
+    call :StopGemini
+    call :Sleep 2
+    call :StartGemini
+    exit /b %ERRORLEVEL%
 )
 if "%choice%"=="4" (
-    call :StopServer "Main WebSocket Server" "9083"
+    echo.
+    echo === Gemini Server Status ===
+    call :ShowStatus
+    echo.
+    pause
     exit /b 0
 )
 if "%choice%"=="5" (
-    call :StopAllServers
     exit /b 0
 )
+
+rem Legacy compatibility from the older two-server menu:
+rem 1/2 both started split pieces before; use the canonical combined server now.
 if "%choice%"=="6" (
-    call :StopAllServers
-    timeout /t 2 /nobreak >nul
-
-    echo Starting Launcher Server...
-    start "Launcher Server Port 9084" /min cmd /c "cd /d "%~dp0" && python -u gemini-backend/environment_setup/server_launcher.py"
-    timeout /t 2 /nobreak >nul
-
-    echo Starting Main WebSocket Server...
-    start "Main Server Port 9083" /min cmd /c "cd /d "%~dp0" && python -u gemini-backend/interactions/main.py --port 9083 2>&1"
-    timeout /t 2 /nobreak >nul
-    exit /b 0
+    call :StartGemini
+    exit /b %ERRORLEVEL%
 )
 if "%choice%"=="7" (
     echo.
-    echo === Server Status ===
-    call :CheckServerStatus "Launcher Server" "9084"
-    call :CheckServerStatus "Main WebSocket Server" "9083"
+    echo === Gemini Server Status ===
+    call :ShowStatus
     echo.
     pause
     exit /b 0
@@ -102,109 +100,128 @@ if "%choice%"=="7" (
 if "%choice%"=="8" (
     exit /b 0
 )
-
-rem Legacy compatibility: map old option numbers to new behavior
 if "%choice%"=="10" (
-    echo.
-    echo NOTE: Auto-start monitor flow has been removed.
-    echo Use option 6 to start all Gemini servers.
-    echo EveOS serves files via python-server.py on port 3000.
-    echo.
-    call :HandleChoice "6"
-    exit /b 0
+    call :StartGemini
+    exit /b %ERRORLEVEL%
 )
 
 echo Invalid choice: %choice%
 exit /b 1
 
-:StopAllServers
-echo.
-echo Stopping all Gemini servers...
-echo Ports: 9084 (Launcher), 9083 (WebSocket)
-echo.
-
-echo === Stopping Main WebSocket Server (9083) ===
-call :StopServer "Main WebSocket Server" "9083"
-timeout /t 2 /nobreak >nul
-
-echo.
-echo === Stopping Launcher Server (9084) ===
-call :StopServer "Launcher Server" "9084"
-timeout /t 2 /nobreak >nul
-
-echo.
-echo === Final Status Check ===
-call :CheckServerStatus "Main WebSocket Server" "9083"
-call :CheckServerStatus "Launcher Server" "9084"
-
-set "all_stopped=1"
-netstat -ano | findstr ":9083\|:9084" >nul && set "all_stopped=0"
-
-if "!all_stopped!"=="1" (
-    echo.
-    echo All servers stopped successfully.
-) else (
-    echo.
-    echo WARNING: Some servers may still be running.
-    netstat -ano | findstr ":9083\|:9084"
+:StartGemini
+if not exist "%GEMINI_MAIN_SCRIPT%" (
+    echo ERROR: Gemini entry point not found:
+    echo        %GEMINI_MAIN_SCRIPT%
+    exit /b 1
 )
-exit /b 0
 
-:StartServer
-set "server_type=%~1"
-set "script_name=%~2"
-set "port_number=%~3"
-echo Starting %server_type%...
-
-if "%server_type%"=="Main WebSocket Server" (
-    echo Performing thorough cleanup for Main WebSocket Server...
-    taskkill /F /FI "WINDOWTITLE eq *Main Server Port 9083*" /T >nul 2>&1
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":9083.*LISTENING"') do (
-        taskkill /F /PID %%a >nul 2>&1
+call :CheckPort "%GEMINI_WS_PORT%" WS_PID
+call :CheckPort "%GEMINI_STATUS_PORT%" STATUS_PID
+if defined WS_PID (
+    if defined STATUS_PID (
+        echo Gemini server is already running.
+        call :ShowStatus
+        exit /b 0
     )
-    timeout /t 3 /nobreak >nul
 )
 
-if not exist "%script_name%" (
-    echo ERROR: %script_name% not found
-    exit /b 1
-)
+echo.
+echo Starting EveOS Gemini server...
+echo   WebSocket: ws://127.0.0.1:%GEMINI_WS_PORT%
+echo   Status:    http://127.0.0.1:%GEMINI_STATUS_PORT%/status
+echo.
 
-if "%server_type%"=="Main WebSocket Server" (
-    start "Main Server Port 9083" /min cmd /c "cd /d "%~dp0" && python -u gemini-backend/interactions/main.py --port 9083 2>&1"
-) else if "%server_type%"=="Launcher Server" (
-    start "Launcher Server Port 9084" /min cmd /c "cd /d "%~dp0" && python -u gemini-backend/environment_setup/server_launcher.py"
-)
+rem Clear stale partial listeners. The canonical Gemini process must own both ports.
+call :StopGeminiSilent
+call :Sleep 1
 
-timeout /t 3 /nobreak >nul
-exit /b 0
+start "%GEMINI_WINDOW_TITLE%" /min cmd /k "cd /d ""%GEMINI_MAIN_DIR%"" && set ""PYTHONUNBUFFERED=1"" && set ""PYTHONUTF8=1"" && set ""PYTHONIOENCODING=utf-8"" && python -u ""%GEMINI_MAIN_SCRIPT%"" --port %GEMINI_WS_PORT%"
 
-:StopServer
-echo Stopping %~1...
-if "%~1"=="Main WebSocket Server" (
-    taskkill /F /FI "WINDOWTITLE eq *Main Server Port 9083*" /T >nul 2>&1
-) else if "%~1"=="Launcher Server" (
-    taskkill /F /FI "WINDOWTITLE eq *Launcher Server Port 9084*" /T >nul 2>&1
-)
-
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%~2.*LISTENING"') do (
-    taskkill /F /PID %%a /T >nul 2>&1
-)
-
-timeout /t 2 /nobreak >nul
-exit /b 0
-
-:CheckServerStatus
-set "server_name=%~1"
-set "port=%~2"
-set "is_running=0"
-netstat -ano | findstr /R ":%port%.*LISTENING" >nul
-if %ERRORLEVEL%==0 set "is_running=1"
-
-if "!is_running!"=="1" (
-    echo %server_name%: RUNNING ^(Port %port%^)
+call :WaitForReady 18
+if %ERRORLEVEL% EQU 0 (
+    echo [OK] Gemini server is running.
+    call :ShowStatus
     exit /b 0
-) else (
-    echo %server_name%: STOPPED ^(Port %port%^)
-    exit /b 1
 )
+
+echo [WARN] Gemini server was launched, but both ports were not ready yet.
+echo        Check the "%GEMINI_WINDOW_TITLE%" window for startup/API key errors.
+call :ShowStatus
+exit /b 1
+
+:StopGemini
+echo.
+echo Stopping EveOS Gemini server...
+call :StopGeminiSilent
+call :Sleep 1
+call :ShowStatus
+exit /b 0
+
+:StopGeminiSilent
+taskkill /F /FI "WINDOWTITLE eq %GEMINI_WINDOW_TITLE%*" /T >nul 2>&1
+call :KillPort "%GEMINI_WS_PORT%"
+call :KillPort "%GEMINI_STATUS_PORT%"
+exit /b 0
+
+:ShowStatus
+call :CheckPort "%GEMINI_WS_PORT%" WS_PID
+call :CheckPort "%GEMINI_STATUS_PORT%" STATUS_PID
+if defined WS_PID (
+    echo Main WebSocket Server: RUNNING ^(Port %GEMINI_WS_PORT%, PID !WS_PID!^)
+) else (
+    echo Main WebSocket Server: STOPPED ^(Port %GEMINI_WS_PORT%^)
+)
+if defined STATUS_PID (
+    echo Status Server: RUNNING ^(Port %GEMINI_STATUS_PORT%, PID !STATUS_PID!^)
+) else (
+    echo Status Server: STOPPED ^(Port %GEMINI_STATUS_PORT%^)
+)
+if defined WS_PID (
+    if defined STATUS_PID (
+        echo Overall: ONLINE
+    ) else (
+        echo Overall: PARTIAL - status endpoint is offline.
+    )
+) else (
+    if defined STATUS_PID (
+        echo Overall: PARTIAL - stale status/launcher listener; restart recommended.
+    ) else (
+        echo Overall: OFFLINE
+    )
+)
+exit /b 0
+
+:WaitForReady
+set "TRIES=%~1"
+if "%TRIES%"=="" set "TRIES=12"
+for /L %%I in (1,1,%TRIES%) do (
+    call :CheckPort "%GEMINI_WS_PORT%" WS_PID
+    call :CheckPort "%GEMINI_STATUS_PORT%" STATUS_PID
+    if defined WS_PID (
+        if defined STATUS_PID exit /b 0
+    )
+    call :Sleep 1
+)
+exit /b 1
+
+:Sleep
+set "SLEEP_SECONDS=%~1"
+if "%SLEEP_SECONDS%"=="" set "SLEEP_SECONDS=1"
+set /a SLEEP_PINGS=SLEEP_SECONDS + 1
+ping -n %SLEEP_PINGS% 127.0.0.1 >nul
+exit /b 0
+
+:CheckPort
+set "%~2="
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr /R /C:":%~1 .*LISTENING"') do (
+    set "%~2=%%P"
+    goto :CheckPortDone
+)
+:CheckPortDone
+exit /b 0
+
+:KillPort
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr /R /C:":%~1 .*LISTENING"') do (
+    taskkill /F /PID %%P /T >nul 2>&1
+)
+exit /b 0

@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-pushd "%~dp0"
+pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
 set "BRIDGE_PORT=3038"

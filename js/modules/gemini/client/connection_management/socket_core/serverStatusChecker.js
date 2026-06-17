@@ -37,24 +37,36 @@ console.log("serverStatusChecker.js loading...");
         }
     }
 
+    function isStatusPayloadRunning(data) {
+        if (data?.websocketReady === false) return false;
+        return !!data && (
+            data.running === true
+            || data.status === 'running'
+            || data.message === 'running'
+        );
+    }
+
+    async function fetchStatusJson(url) {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+            },
+            signal: AbortSignal.timeout(5000)
+        });
+        if (!response.ok) return null;
+        return response.json();
+    }
+
     async function checkServerStatus() {
         try {
             // Extract port from WebSocket URL and calculate status port
             const wsPort = parseInt(State.WS_URL.split(':')[2]) || 9083;
             const statusPort = wsPort + 1; // Status server is always WebSocket port + 1
-            const statusUrl = `http://localhost:${statusPort}/status`;
-
-            const response = await fetch(statusUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                },
-                signal: AbortSignal.timeout(5000) // 5 second timeout
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                return data.status === 'running';
+            const hosts = ['127.0.0.1', 'localhost'];
+            for (const host of hosts) {
+                const data = await fetchStatusJson(`http://${host}:${statusPort}/status`);
+                if (isStatusPayloadRunning(data)) return true;
             }
             return false;
         } catch (error) {
