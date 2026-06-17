@@ -35,7 +35,6 @@ function sendAutoSetupMessage() {
     const maxTokens = parseInt(localStorage.getItem('generationMaxTokens') || '2048', 10);
 
     // New settings
-    const sysInstr = localStorage.getItem('systemInstruction') || null;
     const safetyLevel = localStorage.getItem('safetyLevel') || 'high';
     const speakingRate = parseFloat(localStorage.getItem('speakingRate') || '1.0');
     const pitch = parseInt(localStorage.getItem('pitch') || '0', 10);
@@ -55,14 +54,6 @@ function sendAutoSetupMessage() {
         { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: harmBlockThreshold }
     ];
 
-    // Combine base system instruction with custom injection prompt
-    let combinedSysInstr = sysInstr || "";
-    if (window.AudioProcessingControlsAgentic && window.AudioProcessingControlsAgentic.TranscriptionModeState &&
-        window.AudioProcessingControlsAgentic.TranscriptionModeState.isInjectionEnabled()) {
-        const injection = window.AudioProcessingControlsAgentic.TranscriptionModeState.getInjectionPrompt();
-        combinedSysInstr = sysInstr ? `${sysInstr}\n\n${injection}` : injection;
-    }
-
     // Create setup message with saved voice and new config
     const setup_client_message = {
         model: savedModel,
@@ -74,8 +65,7 @@ function sendAutoSetupMessage() {
                     text: `You are a helpful AI assistant speaking with the voice of ${savedVoice}. Please maintain this voice throughout our conversation. You should respond naturally to questions and engage in conversation.`
                 }]
             }],
-            // If system instruction is present, we pass it separately to be handled by server
-            systemInstruction: combinedSysInstr ? { parts: [{ text: combinedSysInstr }] } : null,
+            systemInstruction: null,
             tools: [],
             generationConfig: {
                 temperature: temp,
@@ -105,6 +95,16 @@ function sendAutoSetupMessage() {
             ? window.AudioProcessingControlsAgentic.TranscriptionModeState.isInlineTranscriptionEnabled()
             : true
     };
+
+    if (window.GeminiInstructionState?.applyToSetupMessage) {
+        window.GeminiInstructionState.applyToSetupMessage(setup_client_message, {
+            includeTranscriptionInjection: true,
+            includeScreenPolicy: true
+        });
+    } else {
+        const sysInstr = localStorage.getItem('systemInstruction') || '';
+        setup_client_message.setup.systemInstruction = sysInstr ? { parts: [{ text: sysInstr }] } : null;
+    }
 
     if (window.webSocket && window.webSocket.readyState === WebSocket.OPEN) {
         try {

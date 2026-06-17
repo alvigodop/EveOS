@@ -48,9 +48,26 @@ async function main() {
       const panel = document.getElementById('geminiServerInspectorPanel');
       return panel && !panel.hidden && panel.querySelectorAll('.gemini-server-inspector-card').length >= 4;
     }, undefined, { timeout: 10000 });
+    await page.evaluate(() => {
+      window.GeminiServerInspector.record('out', {
+        realtime_input: {
+          media_chunks: [
+            { mime_type: 'image/jpeg', data: 'redacted-test-frame' },
+            { mime_type: 'text/plain', data: 'silent observation test' }
+          ]
+        },
+        silent_response: true,
+        screen_share: { silent: true }
+      });
+    });
+    await page.waitForFunction(() => (
+      document.querySelectorAll('.gemini-server-inspector-event').length >= 1
+      && /Silent screen\/context input/i.test(document.querySelector('.gemini-server-inspector-event strong')?.textContent || '')
+    ), undefined, { timeout: 10000 });
 
     const inspector = await page.evaluate(() => ({
       cards: Array.from(document.querySelectorAll('.gemini-server-inspector-card-head span')).map((node) => node.textContent.trim()),
+      trafficEvents: document.querySelectorAll('.gemini-server-inspector-event').length,
       visible: !document.getElementById('geminiServerInspectorPanel')?.hidden
     }));
     ['EveOS Page', 'Lifecycle Controller', 'Gemini WebSocket', 'Gemini Status Server'].forEach((name) => {
@@ -58,6 +75,9 @@ async function main() {
         throw new Error(`Missing inspector card "${name}": ${JSON.stringify(inspector)}`);
       }
     });
+    if (inspector.trafficEvents < 1) {
+      throw new Error(`Inspector traffic log did not render: ${JSON.stringify(inspector)}`);
+    }
 
     await page.click('[data-gemini-monitor-view-btn="full"]');
     await page.waitForFunction(() => (

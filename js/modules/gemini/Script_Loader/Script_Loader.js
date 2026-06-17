@@ -44,7 +44,8 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/idleDetector.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=0.1.1`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=0.1.0`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.0`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.3`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
 
@@ -52,7 +53,7 @@ const masterScriptList = [
     `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js`,
     `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js`,
-    `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=0.2.0`,
+    `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=0.2.1`,
     `${BASE_PATHS.AGENTIC}/conv_mem/conv_mem.js`,
     `${BASE_PATHS.AGENTIC}/time_perc/time_perc.js`,
 
@@ -71,7 +72,7 @@ const masterScriptList = [
     `${BASE_PATHS.COMM_PANEL}/clear_sys_log/Clear_System_Log_Commuication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/past_chats/Toggle_Past_Chats_Commuication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/sys_msg_toggle/System_Message_Toggle_Commuication_Panel.js`,
-    `${BASE_PATHS.COMM_PANEL}/reinit_model/Reinitiate_Model_Commuication_Panel.js`,
+    `${BASE_PATHS.COMM_PANEL}/reinit_model/Reinitiate_Model_Commuication_Panel.js?v=0.2.0`,
 
     // 5. Aggregator Modules
     APP_ROOT + 'js/modules/gemini/client/Client_Core_Control.js',

@@ -98,7 +98,9 @@
     function restoreSettings(elements) {
         Object.entries(STORAGE_FIELDS).forEach(function ([elementKey, storageConfig]) {
             if (elements[elementKey]) {
-                elements[elementKey].value = safeStorageGet(storageConfig[0], storageConfig[1]);
+                elements[elementKey].value = elementKey === 'systemInstructionInput' && window.GeminiInstructionState?.getBaseInstruction
+                    ? window.GeminiInstructionState.getBaseInstruction()
+                    : safeStorageGet(storageConfig[0], storageConfig[1]);
             }
         });
         if (elements.keepAliveToggle) {
@@ -116,7 +118,12 @@
     function persistSettings(elements) {
         safeStorageSet('keepSessionAlive', !!elements.keepAliveToggle?.checked);
         Object.entries(STORAGE_FIELDS).forEach(function ([elementKey, storageConfig]) {
-            if (elements[elementKey]) safeStorageSet(storageConfig[0], elements[elementKey].value);
+            if (!elements[elementKey]) return;
+            if (elementKey === 'systemInstructionInput' && window.GeminiInstructionState?.setBaseInstruction) {
+                window.GeminiInstructionState.setBaseInstruction(elements[elementKey].value);
+                return;
+            }
+            safeStorageSet(storageConfig[0], elements[elementKey].value);
         });
     }
 

@@ -97,7 +97,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
-    padding: 12px;
+    padding: 12px 12px 8px;
 }
 
 .gemini-server-inspector-card {
@@ -146,6 +146,95 @@
     word-break: break-word;
     color: rgba(232, 248, 255, 0.76);
     font: 0.7rem/1.45 "Cascadia Mono", "Consolas", monospace;
+}
+
+.gemini-server-inspector-traffic {
+    margin: 0 12px 12px;
+    border: 1px solid rgba(148, 197, 255, 0.14);
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.18);
+    overflow: hidden;
+}
+
+.gemini-server-inspector-traffic-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    border-bottom: 1px solid rgba(148, 197, 255, 0.1);
+    color: rgba(232, 248, 255, 0.86);
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.gemini-server-inspector-traffic-head small {
+    color: rgba(148, 197, 255, 0.58);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.gemini-server-inspector-traffic-list {
+    display: grid;
+    gap: 6px;
+    max-height: 230px;
+    padding: 8px;
+    overflow: auto;
+}
+
+.gemini-server-inspector-event {
+    border: 1px solid rgba(148, 197, 255, 0.12);
+    border-left-width: 3px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 8px 9px;
+}
+
+.gemini-server-inspector-event.is-out {
+    border-left-color: rgba(34, 211, 238, 0.78);
+}
+
+.gemini-server-inspector-event.is-in {
+    border-left-color: rgba(167, 139, 250, 0.78);
+}
+
+.gemini-server-inspector-event.is-silent {
+    border-left-color: rgba(45, 212, 191, 0.78);
+}
+
+.gemini-server-inspector-event-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: rgba(148, 197, 255, 0.66);
+    font-size: 0.6rem;
+    font-weight: 900;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.gemini-server-inspector-event strong {
+    display: block;
+    margin-top: 3px;
+    color: rgba(232, 248, 255, 0.92);
+    font-size: 0.72rem;
+}
+
+.gemini-server-inspector-event p,
+.gemini-server-inspector-empty {
+    margin: 4px 0 0;
+    color: rgba(232, 248, 255, 0.68);
+    font: 0.66rem/1.4 "Cascadia Mono", "Consolas", monospace;
+    word-break: break-word;
+}
+
+.gemini-server-inspector-empty {
+    padding: 10px;
+    text-align: center;
 }
 
 @media (max-width: 720px) {

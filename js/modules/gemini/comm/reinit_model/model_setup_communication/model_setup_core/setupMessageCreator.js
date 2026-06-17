@@ -43,12 +43,7 @@ window.ModelSetupCore.createSetupMessage = function (selectedVoice, sequentialAu
                     "threshold": "BLOCK_ONLY_HIGH"
                 }
             ],
-            // Include prompt injection if enabled
-            systemInstruction: (window.AudioProcessingControlsAgentic &&
-                window.AudioProcessingControlsAgentic.TranscriptionModeState &&
-                window.AudioProcessingControlsAgentic.TranscriptionModeState.isInjectionEnabled())
-                ? { parts: [{ text: window.AudioProcessingControlsAgentic.TranscriptionModeState.getInjectionPrompt() }] }
-                : null
+            systemInstruction: null
         },
         // Pass the sequential audio play setting to the server
         sequentialAudioPlay: sequentialAudioPlay,
@@ -69,6 +64,19 @@ window.ModelSetupCore.createSetupMessage = function (selectedVoice, sequentialAu
             }
         }
     };
+
+    if (window.GeminiInstructionState?.applyToSetupMessage) {
+        window.GeminiInstructionState.applyToSetupMessage(setup_client_message, {
+            includeTranscriptionInjection: true,
+            includeScreenPolicy: true
+        });
+    } else if (window.AudioProcessingControlsAgentic &&
+        window.AudioProcessingControlsAgentic.TranscriptionModeState &&
+        window.AudioProcessingControlsAgentic.TranscriptionModeState.isInjectionEnabled()) {
+        setup_client_message.setup.systemInstruction = {
+            parts: [{ text: window.AudioProcessingControlsAgentic.TranscriptionModeState.getInjectionPrompt() }]
+        };
+    }
 
     return setup_client_message;
 };

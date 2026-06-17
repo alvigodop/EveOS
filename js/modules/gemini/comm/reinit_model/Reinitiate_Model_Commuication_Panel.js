@@ -13,7 +13,7 @@ const MODEL_REINIT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemi
 const modelReinitScripts = [
     // Core Model Initialization
     `${MODEL_REINIT_BASE_PATH}/model_initialization/modelInitializer.js`,
-    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/setupMessageCreator.js`,
+    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/setupMessageCreator.js?v=0.2.0`,
     `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/sessionFlowManager.js`,
     `${MODEL_REINIT_BASE_PATH}/model_setup_communication/initialSetupMessageHandler.js`
 ];
@@ -48,4 +48,4 @@ loadModelReinitScripts();
 // Initialize after a short delay to ensure scripts are loaded
 setTimeout(initializeModelReinitModule, 500);
 
-console.log("js/modules/gemini/comm/reinit_model/Reinitiate_Model_Commuication_Panel.js finished loading and initial execution"); 
+console.log("js/modules/gemini/comm/reinit_model/Reinitiate_Model_Commuication_Panel.js finished loading and initial execution");
