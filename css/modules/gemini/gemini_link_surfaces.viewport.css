@@ -14,7 +14,7 @@
 }
 
 #loadingIndicator.gemini-monitor-workspace-active:not(.compact) {
-    height: min(820px, calc(100dvh - 24px));
+    height: min(940px, calc(100dvh - 24px));
 }
 
 #loadingIndicator:not(.compact) .indicator-content {
@@ -110,8 +110,8 @@
     #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content,
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content {
         display: grid !important;
-        grid-template-columns: minmax(300px, 0.9fr) minmax(380px, 1.1fr) !important;
-        align-items: start;
+        grid-template-columns: minmax(420px, 0.95fr) minmax(520px, 1.25fr) !important;
+        align-items: stretch;
     }
 
     #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .left-column,
@@ -119,6 +119,18 @@
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .left-column,
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
         min-width: 0;
+    }
+
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
+        min-height: clamp(560px, 68dvh, 820px);
+    }
+}
+
+@media (min-width: 920px) and (max-width: 1120px) {
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content {
+        grid-template-columns: minmax(340px, 0.9fr) minmax(430px, 1.1fr) !important;
     }
 }
 

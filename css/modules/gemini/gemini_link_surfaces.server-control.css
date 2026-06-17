@@ -154,6 +154,13 @@
     gap: 8px !important;
 }
 
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
+    display: grid !important;
+    grid-template-rows: minmax(0, 1fr) auto;
+    align-content: stretch;
+    min-height: clamp(520px, 64dvh, 760px);
+}
+
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .video-section {
     min-height: 0 !important;
     padding: 10px !important;
@@ -204,13 +211,14 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
     gap: 8px;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div,
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-card {
-    flex: 1 1 160px;
-    min-width: 160px;
+    min-width: 0;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-card {
@@ -226,36 +234,38 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
+    display: grid !important;
+    grid-template-rows: minmax(300px, 1.75fr) minmax(170px, 0.85fr);
     height: auto !important;
-    min-height: 0 !important;
-    flex: 0 0 auto !important;
+    min-height: clamp(480px, 58dvh, 720px) !important;
+    flex: 1 1 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
     height: auto !important;
-    min-height: clamp(140px, 24dvh, 210px) !important;
-    flex: 0 0 auto !important;
+    min-height: clamp(300px, 37dvh, 470px) !important;
+    flex: 1 1 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog {
-    height: clamp(140px, 24dvh, 210px) !important;
-    min-height: 140px !important;
-    max-height: 240px !important;
-    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: clamp(300px, 37dvh, 470px) !important;
+    max-height: none !important;
+    flex: 1 1 auto !important;
     overflow-y: auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
     height: auto !important;
-    min-height: 0 !important;
-    flex: 0 0 auto !important;
+    min-height: clamp(170px, 21dvh, 300px) !important;
+    flex: 1 1 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
-    height: clamp(100px, 18dvh, 160px) !important;
-    min-height: 100px !important;
-    max-height: 180px !important;
-    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: clamp(170px, 21dvh, 300px) !important;
+    max-height: none !important;
+    flex: 1 1 auto !important;
     overflow-y: auto !important;
 }
 
