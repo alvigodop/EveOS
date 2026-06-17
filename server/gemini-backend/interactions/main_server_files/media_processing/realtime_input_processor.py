@@ -20,12 +20,9 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
             or screen_share_meta.get("silent")
         )
     )
-    image_b64_string = None
-    image_mime_type = None
-    image_bytes = None
+    image_chunks = []
     text_part_content = None
     is_user_message = False
-    has_image = False
     is_system_context = False
 
     for idx, chunk in enumerate(data["realtime_input"]["media_chunks"]):
@@ -43,30 +40,28 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
                 print(f"Failed to send audio ACK for seq {seq}: {e}")
         elif mime_type in ("image/jpeg", "image/png", "image/webp"):
             try:
-                # Store the base64 string directly for API usage
-                image_b64_string = chunk_data
-                image_mime_type = mime_type
-                
                 # Decode only for debug saving/logging
                 image_bytes = base64.b64decode(chunk_data)
-                has_image = True
+                image_chunks.append({
+                    "mime_type": mime_type,
+                    "data": chunk_data,
+                    "bytes": image_bytes,
+                    "name": chunk.get("name") or f"image-{len(image_chunks) + 1}"
+                })
                 
                 # DEBUG: Save image only when explicitly requested. Writing every
                 # screen-share frame was noisy and created avoidable disk churn.
                 if data.get("debug_capture"):
                     try:
                         ext = "png" if mime_type == "image/png" else ("webp" if mime_type == "image/webp" else "jpg")
-                        with open(f"debug_received_image.{ext}", "wb") as f:
+                        with open(f"debug_received_image_{len(image_chunks)}.{ext}", "wb") as f:
                             f.write(image_bytes)
-                        print(f"DEBUG: Saved received image to debug_received_image.{ext}")
+                        print(f"DEBUG: Saved received image to debug_received_image_{len(image_chunks)}.{ext}")
                     except Exception as save_err:
                         print(f"DEBUG: Failed to save image: {save_err}")
             except Exception as e:
                 print(f"Error processing image: {e}")
-                image_bytes = None
-                image_b64_string = None
-                has_image = False
-                await connection_monitor.safe_send(json.dumps({"text": "Error processing screen capture."}))
+                await connection_monitor.safe_send(json.dumps({"text": "Error processing image input."}))
         elif mime_type == "text/plain":
             print("Found text/plain chunk in realtime_input")
             is_selftalk = data.get("is_selftalk", False)
@@ -139,8 +134,8 @@ Please acknowledge that you've received this context and can now continue the co
     # Construct individual parts (string for text)
     text_part_string = None
 
-    if image_b64_string:
-        print("Image data was received alongside other chunks.")
+    if image_chunks:
+        print(f"{len(image_chunks)} image chunk(s) were received alongside other chunks.")
 
     if text_part_content and not is_system_context:
         text_part_string = text_part_content
@@ -162,11 +157,11 @@ Please acknowledge that you've received this context and can now continue the co
         # Combine content into a single turn using google.genai.types
         content_parts = []
         
-        if image_b64_string:
-            print(f"Adding image chunk of size {len(image_b64_string)} chars to content parts...")
+        for image_index, image_chunk in enumerate(image_chunks, start=1):
+            print(f"Adding image chunk {image_index} ({image_chunk['mime_type']}) of size {len(image_chunk['data'])} chars to content parts...")
             # Use types.Blob and types.Part explicitly
             # Pass base64 string directly to data
-            blob = types.Blob(mime_type=image_mime_type or "image/jpeg", data=image_b64_string)
+            blob = types.Blob(mime_type=image_chunk["mime_type"], data=image_chunk["data"])
             content_parts.append(types.Part(inline_data=blob))
             
         if text_part_string:
@@ -195,7 +190,7 @@ Please acknowledge that you've received this context and can now continue the co
         else:
              print("No valid text or image part prepared to send for this realtime_input.")
         
-        if not text_part_string and not image_bytes:
+        if not text_part_string and not image_chunks:
              print("No valid text or image part prepared to send for this realtime_input.")
 
         await asyncio.sleep(0.1)

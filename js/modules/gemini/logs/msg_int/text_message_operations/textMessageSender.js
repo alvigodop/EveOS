@@ -1,5 +1,42 @@
-function sendTextMessage(text, isSystemMessage = false) {
-    if (!isSystemMessage && !text.startsWith("[SYSTEM:")) {
+function normalizeImageAttachments(options) {
+    const attachments = Array.isArray(options?.attachments) ? options.attachments : [];
+    return attachments
+        .filter((item) => item && item.data && item.mimeType && String(item.mimeType).startsWith('image/'))
+        .map((item) => ({
+            name: item.name || 'attached-image',
+            mimeType: item.mimeType,
+            data: item.data,
+            bytes: item.bytes || Math.ceil((String(item.data).length * 3) / 4),
+            source: item.source || 'chat'
+        }));
+}
+
+function appendImageAttachmentChunks(mediaChunks, attachments) {
+    attachments.forEach((item) => {
+        mediaChunks.push({
+            mime_type: item.mimeType,
+            data: item.data,
+            name: item.name,
+            bytes: item.bytes,
+            source: item.source
+        });
+    });
+}
+
+function buildAttachmentMeta(attachments) {
+    return attachments.map((item) => ({
+        name: item.name,
+        mime_type: item.mimeType,
+        bytes: item.bytes,
+        source: item.source
+    }));
+}
+
+function sendTextMessage(text, isSystemMessage = false, options = {}) {
+    const messageText = String(text || '');
+    const imageAttachments = normalizeImageAttachments(options);
+
+    if (!isSystemMessage && !messageText.startsWith("[SYSTEM:")) {
         // Regular user message, reset consecutive self-talks counter
         consecutiveSelfTalks = 0;
     }
@@ -7,7 +44,7 @@ function sendTextMessage(text, isSystemMessage = false) {
     let payload;
 
     // If screen sharing is active, capture and send frame WITH the text in the same payload
-    if (isScreenShared && !isSystemMessage && !text.startsWith("[SYSTEM:")) {
+    if (isScreenShared && !isSystemMessage && !messageText.startsWith("[SYSTEM:")) {
         console.log("Screen sharing active, sending frame WITH text");
         const imageData = typeof window.captureScreenFrame === 'function'
             ? window.captureScreenFrame()
@@ -20,7 +57,10 @@ function sendTextMessage(text, isSystemMessage = false) {
         );
 
         // Add explicit role indication to the text
-        const textWithRole = `[USER asks while sharing screen]: ${text}`;
+        const attachmentNote = imageAttachments.length
+            ? ` The user also attached ${imageAttachments.length} image${imageAttachments.length === 1 ? '' : 's'} in chat.`
+            : '';
+        const textWithRole = `[USER asks while sharing screen]: ${messageText}${attachmentNote}`;
 
         // Append time perception if enabled
         let finalText = textWithRole;
@@ -58,6 +98,7 @@ function sendTextMessage(text, isSystemMessage = false) {
                 track_settings: frame?.trackSettings || {},
                 sent_at: Date.now()
             },
+            chat_attachments: buildAttachmentMeta(imageAttachments),
             realtime_input: {
                 media_chunks: []
             },
@@ -75,6 +116,8 @@ function sendTextMessage(text, isSystemMessage = false) {
             // Optionally, send text anyway or notify user? For now, send text.
         }
 
+        appendImageAttachmentChunks(payload.realtime_input.media_chunks, imageAttachments);
+
         // Add text chunk
         payload.realtime_input.media_chunks.push({
             mime_type: "text/plain",
@@ -85,7 +128,7 @@ function sendTextMessage(text, isSystemMessage = false) {
         // Standard text message payload (or system message)
 
         // Append current time if time perception is enabled and this is a user message (not system)
-        let finalText = text;
+        let finalText = messageText;
         const timePerceptionEnabled = window.TimePerceptionAgentic?.isTimePerceptionEnabled?.() || false;
 
         let systemContextAppend = "";
@@ -104,19 +147,23 @@ function sendTextMessage(text, isSystemMessage = false) {
             systemContextAppend += "\n[SYSTEM: Start your response with <Transcription-Start> tags NOW!]";
         }
 
-        if (systemContextAppend && !isSystemMessage && !text.startsWith("[SYSTEM:")) {
+        if (systemContextAppend && !isSystemMessage && !messageText.startsWith("[SYSTEM:")) {
             finalText += systemContextAppend;
         }
 
         payload = {
+            source: imageAttachments.length ? "chat_image_attachment" : "text_message",
+            chat_attachments: buildAttachmentMeta(imageAttachments),
             realtime_input: {
-                media_chunks: [{
-                    mime_type: "text/plain",
-                    data: finalText
-                }]
+                media_chunks: []
             },
             is_system_message: isSystemMessage
         };
+        appendImageAttachmentChunks(payload.realtime_input.media_chunks, imageAttachments);
+        payload.realtime_input.media_chunks.push({
+            mime_type: "text/plain",
+            data: finalText
+        });
     }
 
     // Send the constructed payload using waitForConnection

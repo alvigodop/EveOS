@@ -30,21 +30,30 @@ function initializeTextInputHandlers() {
 
     if (sendButton.dataset.geminiTextInputBound === '1'
         && textInput.dataset.geminiTextInputBound === '1') {
+        window.LogInterfaceDisplay?.MessagingInterface?.ImageAttachments?.bind?.(textInput);
         return;
     }
 
     const sendCurrentText = function () {
         const text = textInput.value.trim();
-        if (text) {
+        const attachmentsApi = window.LogInterfaceDisplay?.MessagingInterface?.ImageAttachments;
+        const hasAttachments = !!attachmentsApi?.hasAttachments?.();
+        if (text || hasAttachments) {
             // Stop audio if "Barge-in" is enabled
             if (localStorage.getItem('stopAudioOnInput') === 'true' && typeof stopAllAudioPlayback === 'function') {
                 stopAllAudioPlayback();
             }
 
+            const attachments = hasAttachments ? attachmentsApi.consume() : [];
+            const imageLabel = attachments.length
+                ? ` ${attachments.length} image${attachments.length === 1 ? '' : 's'}`
+                : '';
+            const displayText = text || '[Image attachment]';
+
             // Display user message in the chat log
             // displayMessage is expected to be globally available
             if (typeof window.displayMessage === 'function') {
-                window.displayMessage("YOU: " + text);
+                window.displayMessage(`YOU:${imageLabel ? imageLabel + ' -' : ''} ${displayText}`);
             } else {
                 console.error("displayMessage function not found in textInputHandler");
             }
@@ -52,7 +61,7 @@ function initializeTextInputHandlers() {
             // Send message to server
             // sendTextMessage is expected to be globally available
             if (typeof window.sendTextMessage === 'function') {
-                window.sendTextMessage(text);
+                window.sendTextMessage(text || 'Please analyze the attached image.', false, { attachments });
             } else {
                 console.error("sendTextMessage function not found in textInputHandler");
             }
@@ -70,6 +79,7 @@ function initializeTextInputHandlers() {
 
     if (textInput.dataset.geminiTextInputBound !== '1') {
         textInput.dataset.geminiTextInputBound = '1';
+        window.LogInterfaceDisplay?.MessagingInterface?.ImageAttachments?.bind?.(textInput);
         textInput.addEventListener('keydown', function (event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
