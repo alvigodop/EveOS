@@ -21,9 +21,15 @@ window.stopScreenShare = function () {
     window.ScreenShareMMCommunicationPanel.CaptureStreamController.stopScreenShare();
 };
 
-// Also expose captureImage and sendScreenCapture if other scripts used them
-window.captureImage = function () {
+// Rich frame object for current EveOS/Gemini screen-share routing.
+window.captureScreenFrame = function () {
     return window.ScreenShareMMCommunicationPanel.FrameProcessor.captureImage();
+};
+
+// Legacy compatibility: older callers expect only the base64 image string.
+window.captureImage = function () {
+    const frame = window.captureScreenFrame();
+    return frame && typeof frame === 'object' ? frame.data : frame;
 };
 
 window.sendScreenCapture = function (data) {

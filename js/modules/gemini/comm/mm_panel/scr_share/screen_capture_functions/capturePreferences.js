@@ -5,13 +5,15 @@ window.ScreenShareMMCommunicationPanel = window.ScreenShareMMCommunicationPanel 
         intervalMs: 'screenCaptureInterval',
         quality: 'screenCaptureQuality',
         maxDimension: 'screenCaptureMaxDimension',
+        format: 'screenCaptureFormat',
         silent: 'screenCaptureSilentObservation'
     };
 
     const DEFAULTS = {
         intervalMs: 1000,
-        quality: 0.95,
-        maxDimension: 1920,
+        quality: 0.98,
+        maxDimension: 2560,
+        format: 'png',
         silentObservation: false
     };
 
@@ -37,6 +39,13 @@ window.ScreenShareMMCommunicationPanel = window.ScreenShareMMCommunicationPanel 
         }
     }
 
+    function normalizeFormat(value, fallback = DEFAULTS.format) {
+        const normalized = String(value || fallback).toLowerCase();
+        if (normalized === 'jpeg' || normalized === 'jpg') return 'jpeg';
+        if (normalized === 'webp') return 'webp';
+        return 'png';
+    }
+
     function get() {
         const intervalMs = clampNumber(
             window.screenCaptureIntervalGlobal ?? readStorage(STORAGE_KEYS.intervalMs),
@@ -56,9 +65,10 @@ window.ScreenShareMMCommunicationPanel = window.ScreenShareMMCommunicationPanel 
             720,
             3840
         );
+        const format = normalizeFormat(readStorage(STORAGE_KEYS.format), DEFAULTS.format);
         const silentObservation = readStorage(STORAGE_KEYS.silent) === 'true';
         window.screenCaptureIntervalGlobal = intervalMs;
-        return { intervalMs, quality, maxDimension, silentObservation };
+        return { intervalMs, quality, maxDimension, format, silentObservation };
     }
 
     function save(next) {
@@ -67,12 +77,14 @@ window.ScreenShareMMCommunicationPanel = window.ScreenShareMMCommunicationPanel 
             intervalMs: clampNumber(next?.intervalMs, current.intervalMs, 250, 30000),
             quality: clampNumber(next?.quality, current.quality, 0.6, 1),
             maxDimension: clampNumber(next?.maxDimension, current.maxDimension, 720, 3840),
+            format: normalizeFormat(next?.format, current.format),
             silentObservation: !!next?.silentObservation
         };
 
         writeStorage(STORAGE_KEYS.intervalMs, prefs.intervalMs);
         writeStorage(STORAGE_KEYS.quality, prefs.quality);
         writeStorage(STORAGE_KEYS.maxDimension, prefs.maxDimension);
+        writeStorage(STORAGE_KEYS.format, prefs.format);
         writeStorage(STORAGE_KEYS.silent, prefs.silentObservation ? 'true' : 'false');
         window.screenCaptureIntervalGlobal = prefs.intervalMs;
         return prefs;
@@ -101,10 +113,12 @@ window.ScreenShareMMCommunicationPanel = window.ScreenShareMMCommunicationPanel 
         const intervalInput = document.getElementById('screenCaptureIntervalInput');
         const qualityInput = document.getElementById('screenCaptureQualityInput');
         const maxInput = document.getElementById('screenCaptureMaxDimensionInput');
+        const formatInput = document.getElementById('screenCaptureFormatInput');
         const silentInput = document.getElementById('screenCaptureSilentToggle');
         if (intervalInput) intervalInput.value = String(prefs.intervalMs);
         if (qualityInput) qualityInput.value = String(prefs.quality);
         if (maxInput) maxInput.value = String(prefs.maxDimension);
+        if (formatInput) formatInput.value = prefs.format;
         if (silentInput) silentInput.checked = !!prefs.silentObservation;
         return prefs;
     }
@@ -114,6 +128,7 @@ window.ScreenShareMMCommunicationPanel = window.ScreenShareMMCommunicationPanel 
             intervalMs: document.getElementById('screenCaptureIntervalInput')?.value,
             quality: document.getElementById('screenCaptureQualityInput')?.value,
             maxDimension: document.getElementById('screenCaptureMaxDimensionInput')?.value,
+            format: document.getElementById('screenCaptureFormatInput')?.value,
             silentObservation: document.getElementById('screenCaptureSilentToggle')?.checked
         });
     }

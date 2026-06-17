@@ -8,14 +8,20 @@ import time
 async def process_realtime_input(data, session, connection_monitor, audio_processor):
     """Process realtime input data from the client."""
     print(f"Processing realtime_input with {len(data['realtime_input']['media_chunks'])} chunks")
+    source = data.get("source")
     screen_share_meta = data.get("screen_share") if isinstance(data.get("screen_share"), dict) else {}
-    is_screen_share = data.get("source") == "screen_share" or bool(screen_share_meta)
+    is_screen_share_user_message = source == "screen_share_user_message"
+    is_screen_share = source == "screen_share" or bool(screen_share_meta)
     screen_share_silent = bool(
-        data.get("silent_response")
-        or data.get("suppress_response")
-        or screen_share_meta.get("silent")
+        not is_screen_share_user_message
+        and (
+            data.get("silent_response")
+            or data.get("suppress_response")
+            or screen_share_meta.get("silent")
+        )
     )
     image_b64_string = None
+    image_mime_type = None
     image_bytes = None
     text_part_content = None
     is_user_message = False
@@ -35,10 +41,11 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
                     print(f"Sent audio ACK for seq {seq}")
             except Exception as e:
                 print(f"Failed to send audio ACK for seq {seq}: {e}")
-        elif mime_type == "image/jpeg":
+        elif mime_type in ("image/jpeg", "image/png", "image/webp"):
             try:
                 # Store the base64 string directly for API usage
                 image_b64_string = chunk_data
+                image_mime_type = mime_type
                 
                 # Decode only for debug saving/logging
                 image_bytes = base64.b64decode(chunk_data)
@@ -48,9 +55,10 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
                 # screen-share frame was noisy and created avoidable disk churn.
                 if data.get("debug_capture"):
                     try:
-                        with open("debug_received_image.jpg", "wb") as f:
+                        ext = "png" if mime_type == "image/png" else ("webp" if mime_type == "image/webp" else "jpg")
+                        with open(f"debug_received_image.{ext}", "wb") as f:
                             f.write(image_bytes)
-                        print("DEBUG: Saved received image to debug_received_image.jpg")
+                        print(f"DEBUG: Saved received image to debug_received_image.{ext}")
                     except Exception as save_err:
                         print(f"DEBUG: Failed to save image: {save_err}")
             except Exception as e:
@@ -75,6 +83,9 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
             if is_sys_context:
                 is_system_context = True
                 print("Detected system context - will handle as background context")
+            elif is_screen_share_user_message:
+                is_user_message = True
+                print("Detected user message with screen-share frame")
             elif is_screen_share:
                 print("Detected screen-share instruction chunk - not saving as user chat")
             elif not is_selftalk:
@@ -155,7 +166,7 @@ Please acknowledge that you've received this context and can now continue the co
             print(f"Adding image chunk of size {len(image_b64_string)} chars to content parts...")
             # Use types.Blob and types.Part explicitly
             # Pass base64 string directly to data
-            blob = types.Blob(mime_type="image/jpeg", data=image_b64_string)
+            blob = types.Blob(mime_type=image_mime_type or "image/jpeg", data=image_b64_string)
             content_parts.append(types.Part(inline_data=blob))
             
         if text_part_string:

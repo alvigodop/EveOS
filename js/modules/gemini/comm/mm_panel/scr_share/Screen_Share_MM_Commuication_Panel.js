@@ -12,11 +12,11 @@ const SCREEN_SHARE_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemi
 const screenShareScripts = [
     `${SCREEN_SHARE_BASE_PATH}/canvas_context_initialization/canvasContextState.js`, // Declares the global state for the canvas 2D rendering context.
     `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/captureState.js`,
-    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/capturePreferences.js?v=0.1.0`,
-    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/captureSender.js?v=0.2.0`,
-    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/frameProcessor.js?v=0.2.0`,
-    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/captureStreamController.js?v=0.2.0`,
-    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/screenCapture.js?v=0.2.0`, // Handles UI interactions and communication
+    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/capturePreferences.js?v=0.3.0`,
+    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/captureSender.js?v=0.3.0`,
+    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/frameProcessor.js?v=0.3.0`,
+    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/captureStreamController.js?v=0.3.0`,
+    `${SCREEN_SHARE_BASE_PATH}/screen_capture_functions/screenCapture.js?v=0.3.0`, // Handles UI interactions and communication
     `${SCREEN_SHARE_BASE_PATH}/canvas_context_initialization/canvasContextInitializer.js`, // Initializes the global canvas 2D rendering context.
     `${SCREEN_SHARE_BASE_PATH}/screen_share_elements/canvasElementProvider.js`, // Provides a global reference to the canvas DOM element.
     `${SCREEN_SHARE_BASE_PATH}/screen_share_elements/videoElementProvider.js` // Provides a global reference to the video DOM element.

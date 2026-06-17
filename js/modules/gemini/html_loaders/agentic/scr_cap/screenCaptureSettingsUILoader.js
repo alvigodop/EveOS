@@ -6,8 +6,9 @@ function getScreenCapturePrefs() {
     if (Prefs) return Prefs.get();
     return {
         intervalMs: parseInt(localStorage.getItem('screenCaptureInterval') || '1000', 10),
-        quality: parseFloat(localStorage.getItem('screenCaptureQuality') || '0.95'),
-        maxDimension: parseInt(localStorage.getItem('screenCaptureMaxDimension') || '1920', 10),
+        quality: parseFloat(localStorage.getItem('screenCaptureQuality') || '0.98'),
+        maxDimension: parseInt(localStorage.getItem('screenCaptureMaxDimension') || '2560', 10),
+        format: localStorage.getItem('screenCaptureFormat') || 'png',
         silentObservation: localStorage.getItem('screenCaptureSilentObservation') === 'true'
     };
 }
@@ -22,13 +23,15 @@ function saveScreenCapturePrefsFromDialog() {
 
     const prefs = {
         intervalMs: parseInt(document.getElementById('screenCaptureIntervalInput')?.value || '1000', 10),
-        quality: parseFloat(document.getElementById('screenCaptureQualityInput')?.value || '0.95'),
-        maxDimension: parseInt(document.getElementById('screenCaptureMaxDimensionInput')?.value || '1920', 10),
+        quality: parseFloat(document.getElementById('screenCaptureQualityInput')?.value || '0.98'),
+        maxDimension: parseInt(document.getElementById('screenCaptureMaxDimensionInput')?.value || '2560', 10),
+        format: document.getElementById('screenCaptureFormatInput')?.value || 'png',
         silentObservation: !!document.getElementById('screenCaptureSilentToggle')?.checked
     };
     localStorage.setItem('screenCaptureInterval', String(prefs.intervalMs));
     localStorage.setItem('screenCaptureQuality', String(prefs.quality));
     localStorage.setItem('screenCaptureMaxDimension', String(prefs.maxDimension));
+    localStorage.setItem('screenCaptureFormat', String(prefs.format));
     localStorage.setItem('screenCaptureSilentObservation', prefs.silentObservation ? 'true' : 'false');
     window.screenCaptureIntervalGlobal = prefs.intervalMs;
     return prefs;
@@ -49,6 +52,8 @@ function syncScreenCaptureDialogFields() {
     });
     const silent = document.getElementById('screenCaptureSilentToggle');
     if (silent) silent.checked = !!prefs.silentObservation;
+    const format = document.getElementById('screenCaptureFormatInput');
+    if (format) format.value = prefs.format || 'png';
     return prefs;
 }
 
@@ -101,7 +106,8 @@ function ensureScreenCaptureSettingsStyles() {
     letter-spacing: 0.07em;
     text-transform: uppercase;
 }
-.gemini-screen-capture-field input {
+.gemini-screen-capture-field input,
+.gemini-screen-capture-field select {
     width: 100%;
     box-sizing: border-box;
     border: 1px solid rgba(94, 234, 212, 0.28);
@@ -205,13 +211,22 @@ async function loadScreenCaptureSettingsDialog() {
             </div>
             <div class="gemini-screen-capture-field">
                 <label for="screenCaptureQualityInput">JPEG Quality</label>
-                <input type="number" id="screenCaptureQualityInput" min="0.6" max="1" step="0.05" value="0.95">
-                <span class="gemini-screen-capture-hint">Use 0.9-1.0 for text-heavy screens.</span>
+                <input type="number" id="screenCaptureQualityInput" min="0.6" max="1" step="0.05" value="0.98">
+                <span class="gemini-screen-capture-hint">Used by JPEG/WebP. PNG stays lossless for text-heavy screens.</span>
             </div>
             <div class="gemini-screen-capture-field">
                 <label for="screenCaptureMaxDimensionInput">Max Frame Side</label>
-                <input type="number" id="screenCaptureMaxDimensionInput" min="720" max="3840" step="160" value="1920">
+                <input type="number" id="screenCaptureMaxDimensionInput" min="720" max="3840" step="160" value="2560">
                 <span class="gemini-screen-capture-hint">Caps payload size while keeping captures readable.</span>
+            </div>
+            <div class="gemini-screen-capture-field">
+                <label for="screenCaptureFormatInput">Image Mode</label>
+                <select id="screenCaptureFormatInput">
+                    <option value="png">PNG / sharp text</option>
+                    <option value="webp">WebP / balanced</option>
+                    <option value="jpeg">JPEG / small payload</option>
+                </select>
+                <span class="gemini-screen-capture-hint">PNG is default so Gemini receives cleaner text and UI edges.</span>
             </div>
             <div class="gemini-screen-capture-field gemini-screen-capture-toggle">
                 <div>
@@ -290,7 +305,7 @@ function initializeScreenCaptureSettingsHandler() {
             const prefs = saveScreenCapturePrefsFromDialog();
             if (typeof window.displayMessage === 'function') {
                 const mode = prefs.silentObservation ? 'silent observation' : 'response allowed';
-                window.displayMessage(`System Message: Screen capture set to ${prefs.intervalMs}ms (${mode})`, true);
+                window.displayMessage(`System Message: Screen capture set to ${prefs.intervalMs}ms, ${prefs.format || 'png'} @ ${prefs.maxDimension}px (${mode})`, true);
             }
 
             if (settingsDialog.close) {

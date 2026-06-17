@@ -9,7 +9,15 @@ function sendTextMessage(text, isSystemMessage = false) {
     // If screen sharing is active, capture and send frame WITH the text in the same payload
     if (isScreenShared && !isSystemMessage && !text.startsWith("[SYSTEM:")) {
         console.log("Screen sharing active, sending frame WITH text");
-        const imageData = captureImage();
+        const imageData = typeof window.captureScreenFrame === 'function'
+            ? window.captureScreenFrame()
+            : captureImage();
+        const Prefs = window.ScreenShareMMCommunicationPanel?.CapturePreferences;
+        const prefs = Prefs?.get ? Prefs.get() : null;
+        const Processor = window.ScreenShareMMCommunicationPanel?.FrameProcessor;
+        const frame = Processor?.normalizeFrame ? Processor.normalizeFrame(imageData, prefs) : (
+            typeof imageData === 'string' ? { data: imageData, mimeType: 'image/jpeg' } : imageData
+        );
 
         // Add explicit role indication to the text
         const textWithRole = `[USER asks while sharing screen]: ${text}`;
@@ -32,6 +40,24 @@ function sendTextMessage(text, isSystemMessage = false) {
         }
 
         payload = {
+            source: "screen_share_user_message",
+            screen_share: {
+                active: !!window.isScreenShared,
+                silent: false,
+                interval_ms: prefs?.intervalMs || window.screenCaptureIntervalGlobal || 1000,
+                quality: prefs?.quality || frame?.prefs?.quality || 0.98,
+                max_dimension: prefs?.maxDimension || frame?.prefs?.maxDimension || 2560,
+                format: prefs?.format || frame?.prefs?.format || 'png',
+                mime_type: frame?.mimeType || 'image/jpeg',
+                width: frame?.width || 0,
+                height: frame?.height || 0,
+                source_width: frame?.sourceWidth || 0,
+                source_height: frame?.sourceHeight || 0,
+                scale: typeof frame?.scale === 'number' ? frame.scale : 1,
+                encoded_bytes: frame?.encodedBytes || (frame?.data ? Math.ceil((String(frame.data).length * 3) / 4) : 0),
+                track_settings: frame?.trackSettings || {},
+                sent_at: Date.now()
+            },
             realtime_input: {
                 media_chunks: []
             },
@@ -39,10 +65,10 @@ function sendTextMessage(text, isSystemMessage = false) {
         };
 
         // Add image chunk if available
-        if (imageData) {
+        if (frame?.data) {
             payload.realtime_input.media_chunks.push({
-                mime_type: "image/jpeg",
-                data: imageData
+                mime_type: frame.mimeType || "image/jpeg",
+                data: frame.data
             });
         } else {
             console.warn("Could not capture image data to send with text.");
@@ -109,4 +135,4 @@ function sendTextMessage(text, isSystemMessage = false) {
 }
 
 // Explicitly expose to window
-window.sendTextMessage = sendTextMessage; 
+window.sendTextMessage = sendTextMessage;

@@ -5,19 +5,49 @@ window.ScreenShareMMCommunicationPanel.CaptureStreamController = {
         const Processor = window.ScreenShareMMCommunicationPanel.FrameProcessor;
         const Sender = window.ScreenShareMMCommunicationPanel.CaptureSender;
         const Prefs = window.ScreenShareMMCommunicationPanel.CapturePreferences;
-        const prefs = Prefs ? Prefs.get() : { intervalMs: 1000, maxDimension: 1920 };
+        const prefs = Prefs ? Prefs.get() : { intervalMs: 1000, maxDimension: 2560 };
 
         try {
             // Clean up any existing screen share first
             this.stopScreenShare();
 
-            window.stream = await navigator.mediaDevices.getDisplayMedia({
+            const targetDimension = Math.max(720, Math.min(3840, Number(prefs.maxDimension) || 2560));
+            const displayConstraints = {
                 video: {
-                    width: { ideal: prefs.maxDimension },
-                    height: { ideal: Math.round(prefs.maxDimension * 9 / 16) },
-                    frameRate: { ideal: 1 }
+                    width: { ideal: targetDimension },
+                    height: { ideal: targetDimension },
+                    frameRate: { ideal: 1, max: 2 },
+                    resizeMode: 'none'
                 },
-            });
+                audio: false
+            };
+
+            try {
+                window.stream = await navigator.mediaDevices.getDisplayMedia(displayConstraints);
+            } catch (constraintError) {
+                console.warn("Screen share high-quality constraints failed; retrying with browser defaults.", constraintError);
+                window.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+            }
+
+            const videoTrack = window.stream?.getVideoTracks?.()[0] || null;
+            if (videoTrack?.applyConstraints) {
+                try {
+                    await videoTrack.applyConstraints({
+                        width: { ideal: targetDimension },
+                        height: { ideal: targetDimension },
+                        frameRate: { ideal: 1, max: 2 },
+                        resizeMode: 'none'
+                    });
+                } catch (applyError) {
+                    console.warn("Screen share applyConstraints skipped; using selected source settings.", applyError);
+                }
+            }
+
+            if (videoTrack?.getSettings) {
+                const trackSettings = videoTrack.getSettings();
+                window.ScreenShareMMCommunicationPanel.ScreenCaptureState.lastTrackSettings = trackSettings;
+                console.log("Screen share track settings:", trackSettings);
+            }
 
             const videoElement = State.getVideoElement();
             if (videoElement) {

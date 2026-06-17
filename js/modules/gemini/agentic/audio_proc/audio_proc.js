@@ -58,7 +58,7 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/interim_audio_toggle/interimAudioToggleHandler.js`,
 
     // Speech Recognition (Client-Side)
-    `${AUDIO_PROCESSING_BASE_PATH}/speech_recognition/speechRecognitionHandler.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/speech_recognition/speechRecognitionHandler.js?v=0.2.0`,
 
     // Voice Settings and Controls
     `${AUDIO_PROCESSING_BASE_PATH}/voice_announcements_handler/voiceAnnouncementsHandler.js`,
@@ -117,4 +117,4 @@ window.AudioProcessingControlsAgentic = {
     isVoiceAnnouncementsEnabled: null, // Will be defined by voiceAnnouncementsHandler.js
     restoreVoiceSelection: null,    // Will be defined by voiceSelectionHandler.js
     saveVoiceAndReinitialize: null  // Will be defined by voiceSelectionHandler.js
-}; 
+};

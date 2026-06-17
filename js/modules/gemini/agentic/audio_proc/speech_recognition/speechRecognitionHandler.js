@@ -18,12 +18,17 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
         let isRecognizing = false;
         let finalTranscript = '';
         let interimTranscript = '';
+        let pendingFinalText = '';
+        let pendingFinalTimer = 0;
+        let lastSubmittedText = '';
+        let lastSubmittedAt = 0;
 
         // Configuration
         const config = {
             lang: 'en-US',
             continuous: true,
-            interimResults: true
+            interimResults: true,
+            autoSendFinalTranscript: true
         };
 
         /**
@@ -65,9 +70,12 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
 
             recognition.onresult = function (event) {
                 interimTranscript = '';
+                const finalParts = [];
                 for (let i = event.resultIndex; i < event.results.length; ++i) {
                     if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
+                        const transcript = normalizeTranscript(event.results[i][0].transcript);
+                        if (transcript) finalParts.push(transcript);
+                        finalTranscript = normalizeTranscript([finalTranscript, transcript].filter(Boolean).join(' '));
                         console.log("[SpeechRecognition] Final:", finalTranscript);
                         // Here we would send the final text to the UI
                         updateTranscriptionUI(finalTranscript, true);
@@ -79,6 +87,10 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
                 if (interimTranscript) {
                     // Update UI with interim results
                     updateTranscriptionUI(finalTranscript + interimTranscript, false);
+                }
+
+                if (finalParts.length) {
+                    queueFinalTranscriptSubmit(finalParts.join(' '));
                 }
             };
 
@@ -92,6 +104,11 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
             if (recognition && !isRecognizing) {
                 finalTranscript = ''; // Reset for new turn
                 interimTranscript = '';
+                pendingFinalText = '';
+                if (pendingFinalTimer) {
+                    clearTimeout(pendingFinalTimer);
+                    pendingFinalTimer = 0;
+                }
                 try {
                     recognition.start();
                 } catch (e) {
@@ -107,6 +124,50 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
             if (recognition && isRecognizing) {
                 recognition.stop();
             }
+            flushPendingFinalTranscript();
+        }
+
+        function normalizeTranscript(text) {
+            return String(text || '').replace(/\s+/g, ' ').trim();
+        }
+
+        function queueFinalTranscriptSubmit(text) {
+            if (!config.autoSendFinalTranscript) return;
+            const normalized = normalizeTranscript(text);
+            if (!normalized) return;
+            pendingFinalText = normalizeTranscript([pendingFinalText, normalized].filter(Boolean).join(' '));
+            if (pendingFinalTimer) clearTimeout(pendingFinalTimer);
+            pendingFinalTimer = setTimeout(flushPendingFinalTranscript, 450);
+        }
+
+        function flushPendingFinalTranscript() {
+            if (pendingFinalTimer) {
+                clearTimeout(pendingFinalTimer);
+                pendingFinalTimer = 0;
+            }
+            const text = normalizeTranscript(pendingFinalText);
+            pendingFinalText = '';
+            if (!text) return;
+
+            const now = Date.now();
+            if (text === lastSubmittedText && now - lastSubmittedAt < 3000) return;
+            lastSubmittedText = text;
+            lastSubmittedAt = now;
+
+            if (typeof window.displayMessage === 'function') {
+                window.displayMessage("YOU: " + text);
+            }
+
+            if (typeof window.sendTextMessage === 'function') {
+                window.sendTextMessage(text);
+                return;
+            }
+
+            const textInput = document.getElementById('textInput');
+            if (textInput) {
+                textInput.value = text;
+            }
+            console.warn("[SpeechRecognition] sendTextMessage unavailable; transcript placed in text input.");
         }
 
         /**
@@ -137,6 +198,7 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
             initialize: initialize,
             start: start,
             stop: stop,
+            flushPendingFinalTranscript: flushPendingFinalTranscript,
             isSupported: function () { return !!recognition; }
         };
 

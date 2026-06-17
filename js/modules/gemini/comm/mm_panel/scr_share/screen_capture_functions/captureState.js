@@ -1,6 +1,7 @@
 window.ScreenShareMMCommunicationPanel = window.ScreenShareMMCommunicationPanel || {};
 window.ScreenShareMMCommunicationPanel.ScreenCaptureState = {
     screenCaptureInterval: null,
+    lastTrackSettings: null,
 
     // Getters for global elements (managed by loader or other scripts)
     getVideoElement: () => window.video, // window.video is set by video_canvas_elements_loader.js
