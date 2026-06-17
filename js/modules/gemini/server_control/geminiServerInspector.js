@@ -160,6 +160,9 @@
                     <h4>Gemini Server Monitor</h4>
                 </div>
                 <div class="gemini-server-inspector-actions">
+                    <button type="button" data-gemini-server-inspector-copy title="Copy server monitor report">
+                        <i class="material-icons" aria-hidden="true">content_copy</i>
+                    </button>
                     <button type="button" data-gemini-server-inspector-clear title="Clear traffic log">
                         <i class="material-icons" aria-hidden="true">playlist_remove</i>
                     </button>
@@ -185,6 +188,7 @@
         root.appendChild(panel);
         panel.querySelector('[data-gemini-server-inspector-close]')?.addEventListener('click', closePanel);
         panel.querySelector('[data-gemini-server-inspector-refresh]')?.addEventListener('click', refreshPanel);
+        panel.querySelector('[data-gemini-server-inspector-copy]')?.addEventListener('click', copyReport);
         panel.querySelector('[data-gemini-server-inspector-clear]')?.addEventListener('click', function () {
             traffic.length = 0;
             renderTraffic();
@@ -236,6 +240,54 @@
             card('Gemini WebSocket', socketState, `URL: ${window.SocketGlobalState?.WS_URL || WS_FALLBACK}\nAPI ready: ${window.SocketGlobalState?.geminiApiReady ? 'yes' : 'no'}\nAuto reconnect: ${window.SocketGlobalState?.autoReconnectEnabled === false ? 'off' : 'on'}`, ws?.readyState === window.WebSocket?.OPEN),
             card('Gemini Status Server', status.ok ? 'Online' : 'Offline', status.ok ? shortJson(status.payload) : status.error, status.ok)
         ].join('');
+    }
+
+    async function buildReport() {
+        const control = window.GeminiServerControl?.getState?.() || {};
+        const ws = window.webSocket || null;
+        const status = await fetchStatusServer();
+        const bases = window.GeminiServerNetwork?.localCandidateBases?.() || [];
+        const currentOrigin = /^https?:$/i.test(window.location.protocol)
+            ? window.location.origin
+            : window.location.href.split(/[?#]/)[0];
+        const recent = traffic.slice(-16).map(function (entry) {
+            return `- ${entry.time} ${entry.direction.toUpperCase()} ${entry.title}: ${entry.detail}`;
+        }).join('\n') || '- no websocket traffic observed';
+        return [
+            'EveOS Gemini Runtime Monitor',
+            `Generated: ${new Date().toISOString()}`,
+            '',
+            `[EveOS Page]\nCurrent: ${currentOrigin}\nCandidates:\n${bases.join('\n') || 'None'}`,
+            '',
+            `[Lifecycle Controller]\nState: ${control.serverState || 'Unknown'}\nBase: ${control.baseUrl || 'not found'}\nRunning: ${control.running ? 'yes' : 'no'}\nPhase: ${control.connectionPhase || 'n/a'}\nMessage: ${control.message || ''}`,
+            '',
+            `[Gemini WebSocket]\nState: ${ws ? wsLabel(ws.readyState) : 'Not created'}\nURL: ${window.SocketGlobalState?.WS_URL || WS_FALLBACK}\nAPI ready: ${window.SocketGlobalState?.geminiApiReady ? 'yes' : 'no'}\nAuto reconnect: ${window.SocketGlobalState?.autoReconnectEnabled === false ? 'off' : 'on'}`,
+            '',
+            `[Gemini Status Server]\n${status.ok ? shortJson(status.payload).replace(/"apiKey"\s*:\s*"[^"]+"/g, '"apiKey":"[redacted]"') : status.error}`,
+            '',
+            `[Recent Traffic]\n${recent}`
+        ].join('\n');
+    }
+
+    async function copyText(value) {
+        if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(value);
+        const textarea = document.createElement('textarea');
+        textarea.value = value;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+        return true;
+    }
+
+    async function copyReport() {
+        const report = await buildReport();
+        await copyText(report);
+        if (typeof window.displayMessage === 'function') {
+            window.displayMessage('System Message: Gemini runtime monitor report copied.', true);
+        }
     }
 
     async function refreshPanel() {
@@ -300,6 +352,7 @@
         open: openPanel,
         close: closePanel,
         refresh: refreshPanel,
+        copyReport,
         record,
         getTraffic: function () { return traffic.slice(); }
     };

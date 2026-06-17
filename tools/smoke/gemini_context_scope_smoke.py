@@ -26,7 +26,18 @@ def build_state():
                 ],
             },
             "links": [
-                {"id": "m1", "title": "Main Bookmark", "workspace": "main", "category": "Alpha"},
+                {
+                    "id": "m1",
+                    "title": "Main Bookmark",
+                    "workspace": "main",
+                    "category": "Alpha",
+                    "notes": "Main notes",
+                    "chapter": "12",
+                    "status": "Reading",
+                    "tags": ["Action", "Nexus"],
+                    "updatedAt": "2026-06-17T01:02:03Z",
+                    "relatedUrls": ["https://example.test/mirror"],
+                },
                 {"id": "c1", "title": "Child Bookmark", "workspace": "child", "category": "Beta"},
                 {"id": "o1", "title": "Other Bookmark", "workspace": "other", "category": "Gamma"},
             ],
@@ -84,6 +95,16 @@ def main():
     assert_true("main" in branch["breakdown"]["bookmarksByWorkspace"], "main workspace missing")
     assert_true("child" in branch["breakdown"]["bookmarksByWorkspace"], "child workspace missing")
     assert_true("other" not in branch["breakdown"]["bookmarksByWorkspace"], "unrelated workspace leaked")
+    assert_true(branch["breakdown"]["folders"]["totalFolders"] == 2, "folder overview should be scoped")
+    assert_true(branch["breakdown"]["nexusSignals"]["health"]["withNotes"] == 1, "Nexus note signal missing")
+    assert_true(branch["breakdown"]["nexusSignals"]["health"]["withProgress"] == 1, "Nexus progress signal missing")
+    assert_true(branch["breakdown"]["nexusSignals"]["health"]["withRelatedUrls"] == 1, "Nexus related-url signal missing")
+    assert_true(branch["breakdown"]["nexusSignals"]["topTags"]["Action"] == 1, "Nexus tag signal missing")
+    sample = branch["samples"]["bookmarks"][0]
+    assert_true(sample["notes"] == "Main notes", "bookmark notes missing from context sample")
+    assert_true(sample["progress"]["chapter"] == "12", "chapter progress missing from context sample")
+    assert_true(sample["timestamps"]["updated"] == "2026-06-17T01:02:03Z", "updated timestamp missing")
+    assert_true(sample["relatedUrls"] == ["https://example.test/mirror"], "related URLs missing")
 
     card = build_gemini_context_from_state(
         state,
@@ -107,6 +128,17 @@ def main():
     )["payload"]
     assert_true(all_scope["scope"]["scope"] == "all", "all scope metadata missing")
     assert_true(all_scope["counts"]["bookmarks"] == 3, "all scope should include full datapack")
+
+    selected_group = build_gemini_context_from_state(
+        state,
+        mode="summary",
+        sample_limit=25,
+        scope="all",
+        workspace_ids="main,child",
+    )["payload"]
+    assert_true(selected_group["scope"]["scope"] == "all", "selected group should keep all-scope metadata")
+    assert_true(selected_group["counts"]["bookmarks"] == 2, "selected group should filter to workspaceIds")
+    assert_true("other" not in selected_group["breakdown"]["bookmarksByWorkspace"], "selected group leaked unrelated workspace")
 
     print("GEMINI_CONTEXT_SCOPE_SMOKE_OK")
 

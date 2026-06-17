@@ -152,16 +152,28 @@
         try {
             persistSettings(elements);
             const apiKey = String(elements.apiKeyInput?.value || '').trim();
+            let apiKeySyncState = '';
             if (apiKey) {
-                setCredentialStatus(elements, 'saving', 'Encrypting the key in the local credential vault...');
+                safeStorageSet('geminiApiKey', apiKey);
+                setCredentialStatus(elements, 'saving', 'Saved locally. Syncing the key into the local credential vault...');
                 const workflow = window.GeminiCredentialWorkflow?.saveCredentials
                     || window.GeminiServerControl?.saveCredentials;
                 if (typeof workflow !== 'function') {
-                    throw new Error('The secure Gemini credential workflow is unavailable.');
+                    apiKeySyncState = 'local';
+                    setCredentialStatus(elements, 'missing', 'Saved locally. Start the Gemini controller to sync it into the credential vault.');
+                } else {
+                    try {
+                        await workflow(apiKey);
+                        try { localStorage.removeItem('geminiApiKey'); } catch (error) {}
+                        elements.apiKeyInput.value = '';
+                        apiKeySyncState = 'secured';
+                        setCredentialStatus(elements, 'ready', 'API key secured. Reconnecting the Gemini workspace...');
+                    } catch (error) {
+                        apiKeySyncState = 'local';
+                        console.warn('[SessionControls] Secure credential sync failed; local fallback kept:', error);
+                        setCredentialStatus(elements, 'error', `Saved locally, but secure vault sync failed: ${error?.message || 'Unknown error'}`);
+                    }
                 }
-                await workflow(apiKey);
-                elements.apiKeyInput.value = '';
-                setCredentialStatus(elements, 'ready', 'API key secured. Reconnecting the Gemini workspace...');
             }
 
             const cleanupInterval = Number.parseInt(elements.cleanupInput?.value || '60', 10);
@@ -174,7 +186,9 @@
             }
 
             announce(displayMessage, apiKey
-                ? 'Settings and Gemini credentials saved. Reconnecting now.'
+                ? (apiKeySyncState === 'secured'
+                    ? 'Settings and Gemini credentials secured. Reconnecting now.'
+                    : 'Settings saved. Gemini API key kept locally and will sync when the controller is available.')
                 : 'Session settings saved. Model changes apply on reconnect.');
             closeDialog(elements.dialog);
         } catch (error) {

@@ -1,6 +1,6 @@
 /* Gemini Link Surfaces CSS Facade */
 @import url('./gemini_link_surfaces.monitor.css');
-@import url('./gemini_link_surfaces.context-relay.css?v=0.1.0');
+@import url('./gemini_link_surfaces.context-relay.css?v=0.2.0');
 @import url('./gemini_link_surfaces.agentic.css');
 @import url('./gemini_link_surfaces.command.css');
 @import url('./gemini_link_surfaces.overrides.css');

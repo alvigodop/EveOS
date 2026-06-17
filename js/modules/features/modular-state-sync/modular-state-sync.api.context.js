@@ -80,6 +80,11 @@ window.EveDataStore = window.EveDataStore || {};
             || null;
     }
 
+    function text(value, fallback = '') {
+        const normalized = String(value == null ? '' : value).trim();
+        return normalized || String(fallback || '').trim();
+    }
+
     function getConfigForContextManifest(payload) {
         return getRuntimeConfigForContext()
             || payload?.bookmarks?.config
@@ -93,9 +98,61 @@ window.EveDataStore = window.EveDataStore || {};
         return 'workspace';
     }
 
+    function getContextWorkspaces() {
+        const cfg = getRuntimeConfigForContext() || {};
+        return Array.isArray(cfg.workspaces) ? cfg.workspaces : [];
+    }
+
+    function findContextWorkspace(workspaceId, nodes = getContextWorkspaces()) {
+        const target = text(workspaceId, '').toLowerCase();
+        if (!target) return null;
+        for (const workspace of Array.isArray(nodes) ? nodes : []) {
+            if (text(workspace?.id, '').toLowerCase() === target) return workspace;
+            const nested = findContextWorkspace(workspaceId, workspace?.subTabs);
+            if (nested) return nested;
+        }
+        return null;
+    }
+
+    function collectContextWorkspaceBranchIds(workspaceId) {
+        const root = findContextWorkspace(workspaceId);
+        const ids = new Set([text(workspaceId, 'main')]);
+        function visit(node) {
+            (Array.isArray(node?.subTabs) ? node.subTabs : []).forEach((child) => {
+                if (!child?.id || child.hiddenInParent) return;
+                ids.add(text(child.id, ''));
+                if (!child.hideSubTabs) visit(child);
+            });
+        }
+        if (root && !root.hideSubTabs) visit(root);
+        return Array.from(ids).filter(Boolean);
+    }
+
+    function getGroupOverviewContextScope(cfg) {
+        const groupId = text(cfg?.groupOverviewId, '');
+        const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime;
+        if (!groupId || typeof groupsApi?.getGroupRoots !== 'function') return null;
+        const ids = new Set();
+        (groupsApi.getGroupRoots(groupId, cfg) || []).forEach((root) => {
+            if (!root?.id) return;
+            collectContextWorkspaceBranchIds(root.id).forEach((id) => ids.add(id));
+        });
+        const group = typeof groupsApi.findGroupById === 'function' ? groupsApi.findGroupById(groupId, cfg) : null;
+        return ids.size ? {
+            scope: 'all',
+            workspaceId: Array.from(ids)[0] || '',
+            workspaceIds: Array.from(ids),
+            categoryName: '',
+            label: text(group?.name, 'Group overview'),
+            source: 'group-overview'
+        } : null;
+    }
+
     function getCurrentGeminiContextScope() {
         const cfg = getRuntimeConfigForContext();
         const activeWorkspace = String(cfg.activeWorkspace || 'main').trim() || 'main';
+        const groupScope = getGroupOverviewContextScope(cfg);
+        if (groupScope) return groupScope;
         const isUnidex = String(cfg.viewMode || '').toLowerCase() === 'unidex';
         if (isUnidex) {
             const stage = String(cfg.unidexStage || 'tabs').toLowerCase();
@@ -113,6 +170,7 @@ window.EveDataStore = window.EveDataStore || {};
                 return {
                     scope: 'workspace',
                     workspaceId: selectedWorkspace,
+                    workspaceIds: collectContextWorkspaceBranchIds(selectedWorkspace),
                     categoryName: '',
                     source: 'unidex-workspace'
                 };
@@ -127,6 +185,7 @@ window.EveDataStore = window.EveDataStore || {};
         return {
             scope: 'workspace',
             workspaceId: activeWorkspace,
+            workspaceIds: collectContextWorkspaceBranchIds(activeWorkspace),
             categoryName: '',
             source: 'search-monitor'
         };
@@ -207,6 +266,9 @@ window.EveDataStore = window.EveDataStore || {};
         params.set('limit', String(safeLimit));
         params.set('scope', safeScope);
         if (scopeOptions.workspaceId) params.set('workspaceId', String(scopeOptions.workspaceId));
+        if (Array.isArray(scopeOptions.workspaceIds) && scopeOptions.workspaceIds.length) {
+            params.set('workspaceIds', scopeOptions.workspaceIds.join(','));
+        }
         if (safeScope === 'card' && scopeOptions.categoryName) {
             params.set('categoryName', String(scopeOptions.categoryName));
         }

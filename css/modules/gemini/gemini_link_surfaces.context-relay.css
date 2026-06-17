@@ -50,3 +50,50 @@
     white-space: nowrap;
 }
 
+.gemini-live-link-scope-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.gemini-live-link-stream-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 9px;
+    padding: 9px 10px;
+    border: 1px solid rgba(110, 231, 255, 0.12);
+    border-radius: 13px;
+    background: rgba(2, 12, 18, 0.42);
+    color: rgba(232, 247, 255, 0.82);
+    cursor: pointer;
+}
+
+.gemini-live-link-stream-row b {
+    display: block;
+    font-size: 0.74rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgba(115, 228, 255, 0.94);
+}
+
+.gemini-live-link-stream-row small {
+    display: block;
+    margin-top: 2px;
+    color: rgba(232, 247, 255, 0.52);
+    line-height: 1.25;
+}
+
+.gemini-live-link-stream-row input {
+    width: 20px;
+    height: 20px;
+    accent-color: #19d3f3;
+}
+
+@media (min-width: 760px) {
+    .gemini-live-link-scope-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+}

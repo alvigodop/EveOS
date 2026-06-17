@@ -1,0 +1,207 @@
+// --- Modular State Sync API: Gemini Data Stream ---
+window.EveDataStore = window.EveDataStore || {};
+
+(function () {
+    const ns = window.EveDataStore._modularSync = window.EveDataStore._modularSync || {};
+    if (ns.apiDataStreamReady) return;
+    if (!ns.apiContextReady) {
+        console.warn('[ModularStateSync] Context API missing; Gemini data stream not initialized.');
+        return;
+    }
+
+    function text(value, fallback = '') {
+        const normalized = String(value == null ? '' : value).trim();
+        return normalized || String(fallback || '').trim();
+    }
+
+    function normalizeScope(scope) {
+        const value = text(scope, 'workspace').toLowerCase();
+        if (['all', 'store', 'datapack'].includes(value)) return 'all';
+        if (['card', 'category'].includes(value)) return 'card';
+        return 'workspace';
+    }
+
+    function getConfig() {
+        return window.eveState?.config || window.config || (typeof config !== 'undefined' ? config : {}) || {};
+    }
+
+    function getLinks() {
+        if (Array.isArray(window.eveState?.links)) return window.eveState.links;
+        if (Array.isArray(window.links)) return window.links;
+        return [];
+    }
+
+    function toList(value, limit = 80) {
+        return Array.isArray(value) ? value.filter(Boolean).slice(0, limit) : [];
+    }
+
+    function asSet(values) {
+        return new Set(toList(values, 500).map((value) => text(value, '').toLowerCase()).filter(Boolean));
+    }
+
+    function intersects(values, set) {
+        if (!set || set.size === 0) return false;
+        return toList(values, 500).some((value) => set.has(text(value, '').toLowerCase()));
+    }
+
+    function normalizeScopeOptions(options = {}) {
+        const base = ns.getCurrentGeminiContextScope?.() || {
+            scope: 'workspace',
+            workspaceId: text(getConfig().activeWorkspace, 'main')
+        };
+        const raw = options?.scope || options || {};
+        const merged = Object.assign({}, base, raw);
+        const scope = normalizeScope(merged.scope);
+        const workspaceId = text(merged.workspaceId, text(getConfig().activeWorkspace, 'main'));
+        let workspaceIds = Array.isArray(merged.workspaceIds) ? merged.workspaceIds.map((id) => text(id, '')).filter(Boolean) : [];
+        if (!workspaceIds.length && scope !== 'all') workspaceIds = [workspaceId];
+        return {
+            scope,
+            workspaceId,
+            workspaceIds,
+            categoryName: text(merged.categoryName, ''),
+            label: text(merged.label, ''),
+            source: text(merged.source, 'search-monitor')
+        };
+    }
+
+    function getGeminiContextCardOptions(scopeOptions = {}) {
+        const scope = normalizeScopeOptions(scopeOptions);
+        const workspaceSet = asSet(scope.workspaceIds.length ? scope.workspaceIds : [scope.workspaceId]);
+        const counts = new Map();
+        getLinks().forEach((link) => {
+            const workspace = text(link?.workspace, 'main');
+            if (scope.scope !== 'all' && !workspaceSet.has(workspace.toLowerCase())) return;
+            const categoryName = text(link?.category, 'Unsorted');
+            const key = `${workspace}::${categoryName}`;
+            const existing = counts.get(key) || { workspaceId: workspace, categoryName, count: 0 };
+            existing.count += 1;
+            counts.set(key, existing);
+        });
+        return Array.from(counts.values())
+            .sort((a, b) => a.workspaceId.localeCompare(b.workspaceId) || a.categoryName.localeCompare(b.categoryName));
+    }
+
+    function mutationMatchesScope(detail, scopeOptions = {}) {
+        const scope = normalizeScopeOptions(scopeOptions);
+        if (scope.scope === 'all' && !scope.workspaceIds.length) return true;
+        const delta = detail?.meta?.dataDelta || {};
+        if (!delta || typeof delta !== 'object') return true;
+        const hasDeltaScope = toList(delta.workspaceIds).length
+            || toList(delta.categoryNames).length
+            || toList(delta.affectedScopes).length;
+        if (!hasDeltaScope && detail?.meta?.configDelta) return true;
+        const workspaceSet = asSet(scope.workspaceIds.length ? scope.workspaceIds : [scope.workspaceId]);
+        const category = text(scope.categoryName, '').toLowerCase();
+        const workspacesMatch = intersects(delta.workspaceIds, workspaceSet)
+            || toList(delta.affectedScopes, 500).some((item) => workspaceSet.has(text(item?.workspaceId || item?.workspace, '').toLowerCase()));
+        if (scope.scope === 'workspace') return workspacesMatch || !!delta.hasFolderStoreChanges;
+        if (scope.scope !== 'card') return workspacesMatch;
+        const categoriesMatch = intersects(delta.categoryNames, new Set([category]))
+            || toList(delta.affectedScopes, 500).some((item) => text(item?.categoryName || item?.category, '').toLowerCase() === category);
+        return (workspacesMatch || !toList(delta.workspaceIds).length) && categoriesMatch;
+    }
+
+    function getLatestNexusTraceSummary() {
+        const trace = window.SearchMonitorBoot?.getLatestNexusTrace?.();
+        if (!trace) return null;
+        return {
+            id: trace.id || '',
+            query: trace.query || trace.input || '',
+            scope: trace.scope || trace.scopeMode || '',
+            summary: trace.summary || '',
+            totalMs: Number(trace.totalMs) || 0,
+            resultCount: Number(trace.resultCount || trace.resultsFound || trace.totalResults) || 0
+        };
+    }
+
+    function buildDataStreamContext(detail, scopeOptions = {}) {
+        const scope = normalizeScopeOptions(scopeOptions);
+        const delta = detail?.meta?.dataDelta || {};
+        const configDelta = detail?.meta?.configDelta || {};
+        return {
+            schema: 'eveos.gemini-data-stream.v1',
+            kind: 'eveos_data_stream_update',
+            generatedAt: new Date().toISOString(),
+            silent: true,
+            scope,
+            mutation: {
+                source: detail?.source || 'state-mutated',
+                kind: detail?.kind || 'data',
+                mutationSeq: Number(detail?.mutationSeq) || 0,
+                at: detail?.at || Date.now(),
+                immediate: !!detail?.immediate
+            },
+            delta: {
+                complete: delta.complete !== false,
+                workspaceIds: toList(delta.workspaceIds),
+                categoryNames: toList(delta.categoryNames),
+                folderIds: toList(delta.folderIds),
+                linkIds: toList(delta.linkIds),
+                addedLinkIds: toList(delta.addedLinkIds),
+                updatedLinkIds: toList(delta.updatedLinkIds),
+                removedLinkIds: toList(delta.removedLinkIds),
+                affectedScopes: toList(delta.affectedScopes, 40),
+                hasFolderStoreChanges: !!delta.hasFolderStoreChanges,
+                hasQuickPinChanges: !!delta.hasQuickPinChanges,
+                hasConstellationChanges: !!delta.hasConstellationChanges
+            },
+            configDelta: {
+                changedKeys: toList(configDelta.changedKeys || configDelta.keys || Object.keys(configDelta || {}), 40)
+            },
+            nexus: getLatestNexusTraceSummary()
+        };
+    }
+
+    function getSocket() {
+        return window.webSocket && window.webSocket.readyState === (window.WebSocket?.OPEN || 1)
+            ? window.webSocket
+            : null;
+    }
+
+    function sendDataStreamToGemini(detail, options = {}) {
+        const scope = normalizeScopeOptions(options?.scope || options);
+        if (!mutationMatchesScope(detail, scope)) {
+            return { ok: true, sent: false, skipped: true, reason: 'outside-scope', scope };
+        }
+        const socket = getSocket();
+        if (!socket) return { ok: false, sent: false, skipped: true, reason: 'socket-offline', scope };
+        const context = buildDataStreamContext(detail, scope);
+        const message = [
+            '[LIVE EVEOS DATA STREAM UPDATE: silent context. Observe this update without replying unless the user asks or the update is safety-critical.]',
+            JSON.stringify(context, null, 2)
+        ].join('\n');
+        socket.send(JSON.stringify({
+            source: 'modular_gemini_data_stream',
+            silent_response: true,
+            silentResponseRequested: true,
+            data_stream: { active: true, silent: true, scope: context.scope, sent_at: Date.now() },
+            realtime_input: { media_chunks: [{ mime_type: 'text/plain', data: message }] },
+            is_system_context: true,
+            is_modular_context: true,
+            context_manifest: {
+                schema: 'eveos.gemini-context-manifest.v1',
+                label: 'EveOS Data Stream Update',
+                mode: 'stream',
+                scope: scope.label || scope.scope,
+                scopeMode: scope.scope,
+                activeWorkspaceId: scope.workspaceId,
+                workspaceIds: scope.workspaceIds,
+                categoryName: scope.categoryName,
+                messageChars: message.length,
+                route: 'websocket',
+                generatedAt: context.generatedAt
+            }
+        }));
+        return { ok: true, sent: true, route: 'websocket', scope, manifest: context };
+    }
+
+    Object.assign(ns, {
+        getGeminiContextCardOptions,
+        sendDataStreamToGemini,
+        mutationMatchesScope,
+        buildDataStreamContext
+    });
+
+    ns.apiDataStreamReady = true;
+})();
