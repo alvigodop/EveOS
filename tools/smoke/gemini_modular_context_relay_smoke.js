@@ -5,11 +5,13 @@ const vm = require('vm');
 const root = path.resolve(__dirname, '..', '..');
 const sent = [];
 const displayed = [];
+const requests = [];
 
 const context = {
   console,
   Date,
   JSON,
+  URLSearchParams,
   WebSocket: { OPEN: 1 },
   navigator: {},
   window: {
@@ -21,13 +23,23 @@ const context = {
       _modularSync: {
         sharedReady: true,
         engineReady: true,
-        requestJson: async (query) => ({
-          ok: true,
-          payload: {
+        requestJson: async (query) => {
+          requests.push(query);
+          const parsed = new URL(`http://localhost${query}`);
+          return {
             ok: true,
-            mode: query.includes('mode=full') ? 'full' : 'summary',
-            contextText: '[EVEOS MODULAR CONTEXT]\nActive tab: Main',
             payload: {
+              ok: true,
+              mode: parsed.searchParams.get('mode') === 'full' ? 'full' : 'summary',
+              contextText: '[EVEOS MODULAR CONTEXT]\nActive tab: Main',
+              payload: {
+                scope: {
+                  scope: parsed.searchParams.get('scope'),
+                  label: 'Current tab branch',
+                  workspaceId: parsed.searchParams.get('workspaceId'),
+                  workspaceIds: ['main'],
+                  source: 'search-monitor'
+                },
               bookmarks: {
                 config: {
                   activeWorkspace: 'main',
@@ -43,8 +55,9 @@ const context = {
                 connections: [{ source: 'Alpha', target: 'Beta' }]
               }
             }
-          }
-        })
+            }
+          };
+        }
       }
     },
     WebSocket: { OPEN: 1 },
@@ -77,6 +90,8 @@ function assert(condition, message) {
 
   const result = await api.sendContextToGemini('full', 30);
   assert(result.ok && result.sent && result.mode === 'full', 'context relay should report sent full context');
+  assert(/scope=workspace/.test(requests[0]), 'default relay should request current workspace branch scope');
+  assert(/workspaceId=main/.test(requests[0]), 'default relay should include active workspace id');
   assert(sent.length === 1, 'one Gemini context payload should be sent');
 
   const payload = sent[0];
@@ -86,6 +101,7 @@ function assert(condition, message) {
   assert(payload.realtime_input.media_chunks[0].mime_type === 'text/plain', 'context should be sent as text/plain');
   assert(payload.realtime_input.media_chunks[0].data.includes('Active tab: Main'), 'context text should be preserved');
   assert(payload.context_manifest?.label === 'EveOS Context Snapshot', 'payload should include a readable manifest');
+  assert(payload.context_manifest?.scopeMode === 'workspace', 'manifest should preserve scoped workspace mode');
   assert(payload.context_manifest?.counts?.bookmarks === 2, 'manifest should expose bookmark counts');
   assert(payload.context_manifest?.route === 'websocket', 'manifest should expose send route');
   assert(result.manifest?.activeWorkspaceName === 'Main', 'result should expose active workspace');

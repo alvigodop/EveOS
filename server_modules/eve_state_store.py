@@ -241,9 +241,16 @@ def _make_progress_callback(*, kind=""):
     return _make_progress_callback_impl(_update_operation_progress, kind=kind)
 
 
-def build_gemini_context(mode="summary", sample_limit=25):
+def build_gemini_context(mode="summary", sample_limit=25, scope="workspace", workspace_id="", category_name=""):
     state = read_modular_state()
-    return _build_gemini_context_from_state(state, mode=mode, sample_limit=sample_limit)
+    return _build_gemini_context_from_state(
+        state,
+        mode=mode,
+        sample_limit=sample_limit,
+        scope=scope,
+        workspace_id=workspace_id,
+        category_name=category_name,
+    )
 
 
 def _write_modular_state_full(state, progress_callback=None):

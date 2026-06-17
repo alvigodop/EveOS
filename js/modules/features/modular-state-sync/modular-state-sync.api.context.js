@@ -73,12 +73,63 @@ window.EveDataStore = window.EveDataStore || {};
         return { ok: true, status: payload?.status || null };
     }
 
-    function getConfigForContextManifest(payload) {
+    function getRuntimeConfigForContext() {
         return window.eveState?.config
             || window.config
-            || payload?.bookmarks?.config
             || (typeof config !== 'undefined' ? config : null)
+            || null;
+    }
+
+    function getConfigForContextManifest(payload) {
+        return getRuntimeConfigForContext()
+            || payload?.bookmarks?.config
             || {};
+    }
+
+    function normalizeContextScope(scope) {
+        const value = String(scope || '').trim().toLowerCase();
+        if (value === 'all' || value === 'store' || value === 'datapack') return 'all';
+        if (value === 'card' || value === 'category') return 'card';
+        return 'workspace';
+    }
+
+    function getCurrentGeminiContextScope() {
+        const cfg = getRuntimeConfigForContext();
+        const activeWorkspace = String(cfg.activeWorkspace || 'main').trim() || 'main';
+        const isUnidex = String(cfg.viewMode || '').toLowerCase() === 'unidex';
+        if (isUnidex) {
+            const stage = String(cfg.unidexStage || 'tabs').toLowerCase();
+            const selectedWorkspace = String(cfg.unidexSelectedWorkspaceId || activeWorkspace).trim() || activeWorkspace;
+            const selectedCategory = String(cfg.unidexSelectedCategory || '').trim();
+            if (stage === 'entries' && selectedCategory) {
+                return {
+                    scope: 'card',
+                    workspaceId: selectedWorkspace,
+                    categoryName: selectedCategory,
+                    source: 'unidex-card'
+                };
+            }
+            if (stage === 'cards' && selectedWorkspace) {
+                return {
+                    scope: 'workspace',
+                    workspaceId: selectedWorkspace,
+                    categoryName: '',
+                    source: 'unidex-workspace'
+                };
+            }
+            return {
+                scope: 'all',
+                workspaceId: '',
+                categoryName: '',
+                source: 'unidex-global'
+            };
+        }
+        return {
+            scope: 'workspace',
+            workspaceId: activeWorkspace,
+            categoryName: '',
+            source: 'search-monitor'
+        };
     }
 
     function countLibraryEntries(categories) {
@@ -118,17 +169,26 @@ window.EveDataStore = window.EveDataStore || {};
     function buildContextManifest(context, message, limit) {
         const payload = context?.payload || {};
         const cfg = getConfigForContextManifest(payload);
-        const activeWorkspaceId = String(cfg.activeWorkspace || 'main');
+        const payloadScope = payload?.scope || payload?.metadata?.geminiScope || context?.scope || getCurrentGeminiContextScope();
+        const scopeMode = normalizeContextScope(payloadScope?.scope);
+        const activeWorkspaceId = String(payloadScope?.workspaceId || cfg.activeWorkspace || 'main');
         const activeWorkspace = Array.isArray(cfg.workspaces)
             ? cfg.workspaces.find((workspace) => String(workspace?.id || '') === activeWorkspaceId)
             : null;
+        const defaultLabel = scopeMode === 'all'
+            ? 'Whole datapack'
+            : (scopeMode === 'card' ? 'Current card' : 'Current tab branch');
         return {
             schema: 'eveos.gemini-context-manifest.v1',
             label: 'EveOS Context Snapshot',
             mode: context?.mode || 'summary',
-            scope: 'current modular datapack',
+            scope: payloadScope?.label || defaultLabel,
+            scopeMode,
+            source: payloadScope?.source || 'search-monitor',
             activeWorkspaceId,
             activeWorkspaceName: activeWorkspace?.name || activeWorkspaceId,
+            workspaceIds: Array.isArray(payloadScope?.workspaceIds) ? payloadScope.workspaceIds : [],
+            categoryName: payloadScope?.categoryName || '',
             sampleLimit: Math.max(5, Math.min(200, Number(limit) || 25)),
             messageChars: String(message || '').length,
             messageLines: String(message || '').split(/\r?\n/).length,
@@ -137,10 +197,20 @@ window.EveDataStore = window.EveDataStore || {};
         };
     }
 
-    async function fetchGeminiContext(mode = 'summary', limit = 25) {
+    async function fetchGeminiContext(mode = 'summary', limit = 25, options = {}) {
         const safeMode = String(mode || 'summary').toLowerCase() === 'full' ? 'full' : 'summary';
         const safeLimit = Math.max(5, Math.min(200, Number(limit) || 25));
-        const query = `/api/eve-state/modular/gemini-context?mode=${encodeURIComponent(safeMode)}&limit=${encodeURIComponent(safeLimit)}`;
+        const scopeOptions = Object.assign({}, getCurrentGeminiContextScope(), options?.scope || {});
+        const safeScope = normalizeContextScope(scopeOptions.scope);
+        const params = new URLSearchParams();
+        params.set('mode', safeMode);
+        params.set('limit', String(safeLimit));
+        params.set('scope', safeScope);
+        if (scopeOptions.workspaceId) params.set('workspaceId', String(scopeOptions.workspaceId));
+        if (safeScope === 'card' && scopeOptions.categoryName) {
+            params.set('categoryName', String(scopeOptions.categoryName));
+        }
+        const query = `/api/eve-state/modular/gemini-context?${params.toString()}`;
         const { ok, payload } = await ns.requestJson(query);
         if (!ok || !payload?.ok) {
             return { ok: false, error: payload?.error || 'Failed to build Gemini context.' };
@@ -152,13 +222,14 @@ window.EveDataStore = window.EveDataStore || {};
             payload: payload.payload || null,
             manifest: buildContextManifest({
                 mode: payload.mode || safeMode,
-                payload: payload.payload || null
+                payload: payload.payload || null,
+                scope: scopeOptions
             }, payload.contextText || '', safeLimit)
         };
     }
 
-    async function sendContextToGemini(mode = 'summary', limit = 25) {
-        const context = await fetchGeminiContext(mode, limit);
+    async function sendContextToGemini(mode = 'summary', limit = 25, options = {}) {
+        const context = await fetchGeminiContext(mode, limit, options);
         if (!context.ok) return context;
 
         const message = context.contextText || '';
@@ -216,6 +287,7 @@ window.EveDataStore = window.EveDataStore || {};
         syncNow,
         pullNow,
         normalizeBookmarkFilenames,
+        getCurrentGeminiContextScope,
         fetchGeminiContext,
         sendContextToGemini
     });

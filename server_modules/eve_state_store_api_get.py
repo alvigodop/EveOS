@@ -94,7 +94,16 @@ def handle_get_request(handler, path, query, deps):
         try:
             mode = (query.get("mode") or ["summary"])[0]
             sample_limit = (query.get("limit") or [25])[0]
-            context = build_gemini_context(mode=mode, sample_limit=sample_limit)
+            scope = (query.get("scope") or ["workspace"])[0]
+            workspace_id = (query.get("workspaceId") or [""])[0]
+            category_name = (query.get("categoryName") or [""])[0]
+            context = build_gemini_context(
+                mode=mode,
+                sample_limit=sample_limit,
+                scope=scope,
+                workspace_id=workspace_id,
+                category_name=category_name,
+            )
             send_json(handler, HTTPStatus.OK, {
                 "ok": True,
                 "mode": context["mode"],

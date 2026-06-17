@@ -66,9 +66,9 @@ function _escapeGeminiLiveLinkHtml(value) {
     })[char]);
 }
 
-function _getGeminiLiveLinkActiveWorkspaceLabel() {
+function _getGeminiLiveLinkActiveWorkspaceLabel(workspaceId) {
     const cfg = _getGeminiLiveLinkConfig() || {};
-    const activeId = String(cfg.activeWorkspace || 'main');
+    const activeId = String(workspaceId || cfg.activeWorkspace || 'main');
     const workspace = Array.isArray(cfg.workspaces)
         ? cfg.workspaces.find((item) => String(item?.id || '') === activeId)
         : null;
@@ -85,10 +85,21 @@ function _getGeminiLiveLinkRouteLabel(route) {
 }
 
 function _buildPendingGeminiLiveLinkManifest(mode) {
+    const scope = window.EveDataStore?.ModularSync?.getCurrentGeminiContextScope?.()
+        || window.EveDataStore?._modularSync?.getCurrentGeminiContextScope?.()
+        || { scope: 'workspace', workspaceId: String(_getGeminiLiveLinkConfig()?.activeWorkspace || 'main') };
+    const scopeMode = String(scope.scope || 'workspace').toLowerCase();
+    const scopeLabel = scopeMode === 'all'
+        ? 'Whole datapack'
+        : (scopeMode === 'card' ? 'Current card' : 'Current tab branch');
     return {
         mode: _normalizeGeminiLiveLinkMode(mode || _getGeminiLiveLinkMode()),
-        scope: 'current modular datapack',
-        activeWorkspaceName: _getGeminiLiveLinkActiveWorkspaceLabel(),
+        scope: scopeLabel,
+        scopeMode,
+        source: scope.source || 'search-monitor',
+        activeWorkspaceId: scope.workspaceId || String(_getGeminiLiveLinkConfig()?.activeWorkspace || 'main'),
+        activeWorkspaceName: scope.workspaceId ? _getGeminiLiveLinkActiveWorkspaceLabel(scope.workspaceId) : 'All tabs',
+        categoryName: scope.categoryName || '',
         sampleLimit: 30,
         messageChars: 0,
         counts: null,
@@ -116,6 +127,7 @@ function _renderGeminiLiveLinkManifest(manifest, stateLabel) {
         <div class="gemini-live-link-manifest-grid">
             <span>Scope</span><b>${_escapeGeminiLiveLinkHtml(data.scope || 'current modular datapack')}</b>
             <span>Active tab</span><b>${_escapeGeminiLiveLinkHtml(data.activeWorkspaceName || data.activeWorkspaceId || 'main')}</b>
+            ${data.categoryName ? `<span>Card</span><b>${_escapeGeminiLiveLinkHtml(data.categoryName)}</b>` : ''}
             <span>Contents</span><b>${_escapeGeminiLiveLinkHtml(countSummary)}</b>
             <span>Size / route</span><b>${_escapeGeminiLiveLinkHtml(`${sizeSummary} · ${_getGeminiLiveLinkRouteLabel(data.route)}`)}</b>
         </div>
