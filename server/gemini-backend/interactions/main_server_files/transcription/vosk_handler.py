@@ -4,6 +4,11 @@ import wave
 import sys
 from vosk import Model, KaldiRecognizer
 import logging
+from main_server_files.transcription.transcription_normalizer import (
+    get_vosk_phrase_list,
+    hint_grammar_enabled,
+    normalize_transcript,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -55,8 +60,11 @@ class VoskTranscriber:
             # Note: Gemini output is 24kHz. Vosk small model might be 16k or whatever.
             # But the recognizer accepts the sample rate in constructor.
             
-            rec = KaldiRecognizer(self.model, sample_rate)
-            rec.SetWords(False) # We just want the text
+            if hint_grammar_enabled():
+                rec = KaldiRecognizer(self.model, sample_rate, json.dumps(get_vosk_phrase_list()))
+            else:
+                rec = KaldiRecognizer(self.model, sample_rate)
+            rec.SetWords(True)
             
             # We need to feed data. 
             # AcceptWaveform accepts bytes.
@@ -67,7 +75,7 @@ class VoskTranscriber:
             
             # FinalResult flushes the decoder and returns the full content
             result = json.loads(rec.FinalResult())
-            return result.get("text", "")
+            return normalize_transcript(result.get("text", ""))
                 
         except Exception as e:
             logger.error(f"Error during transcription: {e}")

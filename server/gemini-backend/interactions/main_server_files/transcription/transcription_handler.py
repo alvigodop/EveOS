@@ -5,6 +5,7 @@ import wave
 from pydub import AudioSegment
 import google.generativeai as generative
 from main_server_files.api_configuration.gemini_config import TRANSCRIPTION_MODEL, TRANSCRIPTION_CONFIG
+from main_server_files.transcription.transcription_normalizer import get_hint_phrases, normalize_transcript
 
 async def transcribe_audio(audio_data, client):
     """Transcribe audio data using the Gemini API."""
@@ -21,8 +22,11 @@ async def transcribe_audio(audio_data, client):
         )
         
         # Create the prompt for transcription
-        prompt = """Please transcribe the following audio accurately. 
+        hints = ", ".join(get_hint_phrases())
+        prompt = f"""Please transcribe the following audio accurately.
         Output only the transcribed text without any additional formatting or commentary.
+        Preserve EveOS domain terms and product names when they are spoken.
+        Domain hints: {hints}.
         If the audio is not clear enough to transcribe, respond with '<Not recognizable>'."""
         
         # Process the transcription
@@ -77,7 +81,7 @@ async def transcribe_audio(audio_data, client):
             text = text.replace(" P P P P P", "").replace(" P P P", "").replace(" P P", "").replace(" P", "")
             text = text.rstrip(" P").rstrip(".")
             text = text.replace("I.O.D.E.", "Puck")
-            text = " ".join(text.split())
+            text = normalize_transcript(text)
             
             # Final validation - ensure we have meaningful content
             if not text.strip() or text.strip() == '<Not recognizable>':
@@ -129,4 +133,4 @@ async def convert_pcm_to_mp3(pcm_data, sample_rate=24000, channels=1):
         
     except Exception as e:
         print(f"Error converting PCM to MP3: {e}")
-        return None 
+        return None

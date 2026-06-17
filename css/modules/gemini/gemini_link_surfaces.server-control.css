@@ -233,6 +233,64 @@
     padding: 10px 12px;
 }
 
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-system-header-actions {
+    align-items: flex-start;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    max-width: 48%;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #rebootButton.gemini-system-reboot-btn {
+    align-items: center;
+    animation: geminiRebootPulse 1.8s ease-in-out infinite;
+    background: rgba(255, 80, 80, 0.12) !important;
+    border: 1px solid rgba(255, 102, 102, 0.42) !important;
+    border-radius: 999px !important;
+    box-shadow: 0 0 14px rgba(255, 68, 68, 0.18) !important;
+    box-sizing: border-box;
+    color: #ffd9d9 !important;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 0.67rem !important;
+    font-weight: 800;
+    gap: 5px;
+    height: 26px;
+    justify-content: center;
+    letter-spacing: 0.08em;
+    line-height: 1 !important;
+    margin: 0 !important;
+    max-width: 100%;
+    min-width: 0 !important;
+    overflow: hidden;
+    padding: 0 9px !important;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #rebootButton.gemini-system-reboot-btn i {
+    font-size: 14px;
+    line-height: 1;
+    margin: 0;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #rebootButton.gemini-system-reboot-btn:hover {
+    animation: none;
+    background: rgba(255, 90, 90, 0.22) !important;
+    border-color: rgba(255, 138, 138, 0.68) !important;
+}
+
+@keyframes geminiRebootPulse {
+    0%,
+    100% {
+        box-shadow: 0 0 10px rgba(255, 68, 68, 0.12);
+    }
+
+    50% {
+        box-shadow: 0 0 16px rgba(255, 68, 68, 0.32);
+    }
+}
+
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
     display: grid !important;
     grid-template-rows: auto auto;
@@ -267,21 +325,22 @@
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
     height: auto !important;
-    min-height: max(190px, 20dvh) !important;
-    max-height: max(190px, 20dvh) !important;
+    min-height: clamp(152px, 17dvh, 210px) !important;
+    max-height: clamp(152px, 17dvh, 210px) !important;
     flex: 0 0 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
-    height: max(190px, 20dvh) !important;
-    min-height: max(190px, 20dvh) !important;
-    max-height: max(190px, 20dvh) !important;
+    height: clamp(152px, 17dvh, 210px) !important;
+    min-height: clamp(152px, 17dvh, 210px) !important;
+    max-height: clamp(152px, 17dvh, 210px) !important;
     flex: 0 0 auto !important;
     overflow-y: auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .system-messages-container {
     min-height: 0 !important;
+    padding: 10px 12px !important;
 }
 
 @media (max-width: 520px) {
@@ -304,5 +363,14 @@
 
     #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-connection-pill {
         max-width: 106px;
+    }
+
+    #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-system-header-actions {
+        max-width: 100%;
+        width: 100%;
+    }
+
+    #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #rebootButton.gemini-system-reboot-btn {
+        width: 100%;
     }
 }
