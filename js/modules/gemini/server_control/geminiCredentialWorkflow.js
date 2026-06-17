@@ -19,8 +19,15 @@
             throw new Error(payload?.message || 'Gemini credentials could not be saved.');
         }
 
+        try {
+            localStorage.removeItem('geminiApiKey');
+        } catch (error) {
+            // The secure vault is now the durable source; restricted storage should not block reconnect.
+        }
+
         if (window.SocketGlobalState) {
             window.SocketGlobalState.credentialRequired = false;
+            window.SocketGlobalState.apiPolicyBlocked = false;
             window.SocketGlobalState.geminiApiReady = false;
             window.SocketGlobalState.reconnectAttempts = 0;
             window.SocketGlobalState.resetState?.();

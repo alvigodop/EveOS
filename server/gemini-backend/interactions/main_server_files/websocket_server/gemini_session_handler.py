@@ -59,14 +59,16 @@ async def gemini_session_handler(websocket, client):
                         "is_system_message": True
                     }))
                 return
-        elif not client:
+        else:
             # Credentials can be synchronized by EveOS after the backend starts.
-            # Re-read the local vault for each new session before reporting failure.
-            client = initialize_api_client()
-            if client:
+            # Refresh from the local vault for every new session so an older
+            # startup client cannot keep using a stale/restricted key.
+            refreshed_client = initialize_api_client()
+            if refreshed_client:
+                client = refreshed_client
                 audio_processor.client = client
-                print(f"Connection {connection_id}: Loaded API credentials from the local EveOS vault")
-            else:
+                print(f"Connection {connection_id}: Loaded fresh API credentials from the local EveOS vault")
+            elif not client:
                 print(f"Connection {connection_id}: No API key available (none on server, none provided by client)")
         if not client:
             if connection_monitor.is_websocket_open():

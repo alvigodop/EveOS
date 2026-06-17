@@ -45,6 +45,7 @@ window.SocketGlobalState = {
     serverOfflinePauseActive: false,
     lastReconnectPauseNoticeAt: 0,
     credentialRequired: false,
+    apiPolicyBlocked: false,
 
     previewModelCooldownStart: null,
     geminiApiReady: false,
@@ -65,6 +66,7 @@ window.SocketGlobalState = {
         }
 
         this.geminiApiReady = false;
+        this.apiPolicyBlocked = false;
         this.serverOfflinePauseActive = false;
         this.lastReconnectPauseNoticeAt = 0;
     }

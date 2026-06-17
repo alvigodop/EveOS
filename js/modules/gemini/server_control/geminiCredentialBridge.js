@@ -63,8 +63,25 @@
     }
 
     async function sync(baseUrl, options) {
+        if (!baseUrl) {
+            return getStatus(baseUrl);
+        }
+
+        const force = !!options?.force;
+        if (!force) {
+            const status = await getStatus(baseUrl);
+            if (status?.configured) {
+                try {
+                    localStorage.removeItem('geminiApiKey');
+                } catch (error) {
+                    // Secure vault remains the durable source.
+                }
+                return status;
+            }
+        }
+
         const apiKey = String(options?.apiKey || getSavedBrowserKey()).trim();
-        if (!baseUrl || !apiKey) {
+        if (!apiKey) {
             return getStatus(baseUrl);
         }
         if (!options?.force && apiKey === lastSyncedKey) {

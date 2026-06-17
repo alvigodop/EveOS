@@ -38,15 +38,15 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/svg_fixing/svgFixerLoader.js`,
-    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=0.1.1`,
+    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=0.1.3`,
     `${BASE_PATHS.CLIENT_CORE}/themeToggle.js`,
     `${BASE_PATHS.CLIENT_CORE}/response_handling/responseClass.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/idleDetector.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=0.1.0`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.0`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.3`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.2`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.5`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
 
     // 2. Agentic Functions
@@ -86,7 +86,15 @@ let bootStarted = false;
 let bootPromise = null;
 
 function normalizeScriptPath(path) {
-    return String(path || '').replace(/^https?:\/\/[^/]+\//i, '/');
+    const raw = String(path || '');
+    try {
+        const url = new URL(raw, window.location.href);
+        return `${url.pathname.replace(/^\/+/, '')}${url.search || ''}`;
+    } catch (error) {
+        return raw
+            .replace(/^https?:\/\/[^/]+\//i, '')
+            .replace(/^\/+/, '');
+    }
 }
 
 function hasScriptTag(path) {

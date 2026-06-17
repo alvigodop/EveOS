@@ -6,10 +6,10 @@ window.EveModuleManifestScriptChunks.push([
     // Gemini Integration
     "js/modules/gemini/gemini-init.js?v=0.1.9",
     "js/modules/gemini/server_control/geminiServerNetwork.js?v=0.3.0",
-    "js/modules/gemini/server_control/geminiCredentialBridge.js?v=0.2.0",
-    "js/modules/gemini/server_control/geminiServerControl.js?v=0.2.4",
+    "js/modules/gemini/server_control/geminiCredentialBridge.js?v=0.2.1",
+    "js/modules/gemini/server_control/geminiServerControl.js?v=0.2.5",
     "js/modules/gemini/server_control/geminiServerInspector.js?v=0.2.1",
-    "js/modules/gemini/server_control/geminiCredentialWorkflow.js?v=0.1.0",
-    "js/modules/gemini/Script_Loader/Script_Loader.js?v=0.2.6",
+    "js/modules/gemini/server_control/geminiCredentialWorkflow.js?v=0.1.2",
+    "js/modules/gemini/Script_Loader/Script_Loader.js?v=0.3.0",
     "js/modules/gemini/ui/geminiSectionCollapse.js?v=0.1.0"
 ]);

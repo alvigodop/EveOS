@@ -11,7 +11,7 @@ const COMPONENT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/
 const pageInitScripts = [
     `${COMPONENT_BASE_PATH}/svgLifecycle.js`,
     `${COMPONENT_BASE_PATH}/displayLoader.js?v=0.1.1`,
-    `${COMPONENT_BASE_PATH}/connectivityStartup.js?v=0.1.1`,
+    `${COMPONENT_BASE_PATH}/connectivityStartup.js?v=0.1.2`,
     `${COMPONENT_BASE_PATH}/initializationCoordinator.js?v=0.1.1`
 ];
 
@@ -56,6 +56,11 @@ function setupEntryPoint() {
         // binds against them.
         if (window.__GEMINI_MASTER_LOADER_ACTIVE && !window.__GEMINI_BOOT_STATE?.completedAt) {
             window.addEventListener('eve:gemini-scripts-ready', startCoordinator, { once: true });
+            window.setTimeout(() => {
+                if (window.__GEMINI_BOOT_STATE?.completedAt || !window.__GEMINI_MASTER_LOADER_ACTIVE) {
+                    startCoordinator();
+                }
+            }, 0);
             return;
         }
         startCoordinator();

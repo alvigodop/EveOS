@@ -49,8 +49,25 @@ console.log("socketMessageRouter.js loading...");
                 }
             } else if (data.text) {
                 const messageText = String(data.text || '').trim();
+                if (data.is_system_message
+                    && /(1008|policy violation|unrestricted keys|temporary service disruptions)/i.test(messageText)) {
+                    State.credentialRequired = true;
+                    State.apiPolicyBlocked = true;
+                    State.geminiApiReady = false;
+                    State.autoReconnectEnabled = false;
+                    State.serverOfflinePauseActive = true;
+                    if (typeof updateConnectionStatus === 'function') {
+                        updateConnectionStatus('error', 'API Key Restricted');
+                    }
+                    if (typeof displayMessage === 'function') {
+                        displayMessage('System Message: Gemini Live rejected the current API key policy. Use a restricted Gemini API key, then save credentials and reconnect.', true);
+                        displayMessage(data.text, true);
+                    }
+                    return;
+                }
                 if (data.is_system_message && /^Error: No API key configured/i.test(messageText)) {
                     State.credentialRequired = true;
+                    State.apiPolicyBlocked = false;
                     State.geminiApiReady = false;
                     if (typeof updateConnectionStatus === 'function') {
                         updateConnectionStatus('error', 'API Key Required');

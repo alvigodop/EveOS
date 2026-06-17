@@ -48,6 +48,48 @@ async function isGeminiServerReachable() {
     }
 }
 
+function getReadySocketConnect() {
+    if (window.SocketConnectionCore && typeof window.SocketConnectionCore.connect === 'function') {
+        return window.SocketConnectionCore.connect.bind(window.SocketConnectionCore);
+    }
+    return null;
+}
+
+function waitForSocketConnect(timeoutMs = 15000) {
+    const ready = getReadySocketConnect();
+    if (ready) return Promise.resolve(ready);
+
+    return new Promise((resolve) => {
+        const startedAt = Date.now();
+        let timer = null;
+
+        const cleanup = () => {
+            if (timer) clearTimeout(timer);
+            window.removeEventListener('eve:gemini-socket-ready', check);
+        };
+
+        const check = () => {
+            const connect = getReadySocketConnect();
+            if (connect) {
+                cleanup();
+                resolve(connect);
+                return;
+            }
+
+            if (Date.now() - startedAt >= timeoutMs) {
+                cleanup();
+                resolve(null);
+                return;
+            }
+
+            timer = setTimeout(check, 100);
+        };
+
+        window.addEventListener('eve:gemini-socket-ready', check, { once: true });
+        timer = setTimeout(check, 100);
+    });
+}
+
 function setGeminiWaitingState(statusMessage, systemMessage) {
     if (window.SocketGlobalState) {
         window.SocketGlobalState.autoReconnectEnabled = true;
@@ -106,37 +148,27 @@ window.PageInitializationCore.ConnectivityStartup = {
             return;
         }
 
-        // Connection Logic with Polling
-        const maxAttempts = 150;
-        let attempts = 0;
-
-        const attemptConnect = () => {
-            const connectFn =
-                (typeof window.connect === 'function' && window.connect) ||
-                (window.SocketConnectionCore && typeof window.SocketConnectionCore.connect === 'function'
-                    ? window.SocketConnectionCore.connect.bind(window.SocketConnectionCore)
-                    : null);
-
+        // Wait for the real socket core method, not just the lazy global wrapper.
+        // The wrapper can exist before SocketConnectionCore.connect is installed;
+        // calling it once at that point no-ops and leaves the UI stuck at
+        // "Server Found - Connecting...".
+        waitForSocketConnect().then((connectFn) => {
             if (connectFn) {
                 if (typeof window.displayMessage === 'function') {
                     window.displayMessage("System Message: Attempting to connect to server automatically...", true);
                 }
                 connectFn();
-            } else {
-                attempts++;
-                if (attempts < maxAttempts) {
-                    // console.log(`Waiting for window.connect... (${attempts}/${maxAttempts})`);
-                    setTimeout(attemptConnect, 100);
-                } else {
-                    console.error("Failed to find window.connect after maximum attempts. Connection scripts might not have loaded.");
-                    if (typeof window.displayMessage === 'function') {
-                        window.displayMessage("System Error: Connection scripts failed to load.", true);
-                    }
-                }
+                return;
             }
-        };
 
-        setTimeout(attemptConnect, 200);
+            console.error("Failed to find SocketConnectionCore.connect. Connection scripts might not have loaded.");
+            if (typeof updateConnectionStatus === 'function') {
+                updateConnectionStatus('error', 'Socket Runtime Unavailable');
+            }
+            if (typeof window.displayMessage === 'function') {
+                window.displayMessage("System Error: Gemini socket runtime failed to load.", true);
+            }
+        });
 
         restoreClientState();
     },

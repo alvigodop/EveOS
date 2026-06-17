@@ -109,6 +109,16 @@
         }
     }
 
+    function shouldAutoRecoverDisabledConnection() {
+        const root = document.getElementById('gemini-ui-root');
+        return !!state.running && (
+            !!window.__GEMINI_BOOT_REQUESTED
+            || root?.dataset.geminiMonitorView === 'full'
+            || state.connectionPhase === 'requesting'
+            || state.connectionPhase === 'requested'
+        );
+    }
+
     async function syncCredentials(options) {
         const found = state.baseUrl ? { baseUrl: state.baseUrl } : await findController();
         if (!found?.baseUrl || !window.GeminiCredentialBridge) {
@@ -119,6 +129,7 @@
             state.credentialsConfigured = !!payload.configured;
             if (payload.configured && window.SocketGlobalState) {
                 window.SocketGlobalState.credentialRequired = false;
+                window.SocketGlobalState.apiPolicyBlocked = false;
                 if (state.running && isConnectionPreferenceEnabled()) {
                     window.SocketConnectionCore?.startAutoReconnect?.();
                 }
@@ -201,7 +212,10 @@
             }
             return false;
         }
-        if (!isConnectionPreferenceEnabled()) return false;
+        if (!isConnectionPreferenceEnabled()) {
+            if (!shouldAutoRecoverDisabledConnection()) return false;
+            setConnectionPreference(true);
+        }
         if (window.SocketGlobalState?.credentialRequired) {
             state.connectionPhase = 'credentials-required';
             publish();
@@ -324,6 +338,9 @@
             state.message = state.running
                 ? 'Gemini is online; lifecycle controller is unavailable.'
                 : 'Gemini is offline. Start server\\start-gemini-control.bat or an EveOS local preview port to enable in-page startup from file://.';
+        }
+        if (state.running && shouldAutoRecoverDisabledConnection() && !isConnectionPreferenceEnabled()) {
+            setConnectionPreference(true);
         }
         publish();
         reconcileClientConnection();

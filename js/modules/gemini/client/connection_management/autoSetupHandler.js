@@ -5,8 +5,40 @@
 
 console.log("autoSetupHandler.js started loading");
 
+function getSecureCredentialState() {
+    try {
+        return window.GeminiServerControl?.getState?.() || {};
+    } catch (error) {
+        return {};
+    }
+}
+
+async function getGeminiApiKeyForSetup() {
+    let secureCredentialsConfigured = !!getSecureCredentialState().credentialsConfigured;
+    if (!secureCredentialsConfigured && typeof window.GeminiServerControl?.syncCredentials === 'function') {
+        try {
+            const payload = await window.GeminiServerControl.syncCredentials();
+            secureCredentialsConfigured = !!payload?.configured;
+        } catch (error) {
+            secureCredentialsConfigured = !!getSecureCredentialState().credentialsConfigured;
+        }
+    }
+    if (secureCredentialsConfigured) {
+        // When the encrypted EveOS vault is configured, let the backend load it.
+        // A stale legacy browser-local key can otherwise shadow the vault and
+        // keep reconnecting with an old restricted key.
+        try { localStorage.removeItem('geminiApiKey'); } catch (error) {}
+        return null;
+    }
+    try {
+        return localStorage.getItem('geminiApiKey') || null;
+    } catch (error) {
+        return null;
+    }
+}
+
 // Enhanced auto-setup message function
-function sendAutoSetupMessage() {
+async function sendAutoSetupMessage() {
     console.log('Sending automatic setup message with saved voice configuration...');
 
     // Get saved voice from localStorage or default to Aoede
@@ -39,7 +71,7 @@ function sendAutoSetupMessage() {
     const speakingRate = parseFloat(localStorage.getItem('speakingRate') || '1.0');
     const pitch = parseInt(localStorage.getItem('pitch') || '0', 10);
     const responseTimeout = parseInt(localStorage.getItem('responseTimeout') || '75', 10);
-    const geminiApiKey = localStorage.getItem('geminiApiKey') || null;
+    const geminiApiKey = await getGeminiApiKeyForSetup();
 
     // Map safety level
     let harmBlockThreshold = "BLOCK_ONLY_HIGH";

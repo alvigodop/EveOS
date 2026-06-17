@@ -58,6 +58,22 @@ console.log("serverStatusChecker.js loading...");
         return response.json();
     }
 
+    function getReadySocketAttempt() {
+        if (window.SocketConnectionCore && typeof window.SocketConnectionCore.attemptConnection === 'function') {
+            return window.SocketConnectionCore.attemptConnection.bind(window.SocketConnectionCore);
+        }
+        if (window.SocketConnectionCore && typeof window.SocketConnectionCore.connect === 'function') {
+            return window.SocketConnectionCore.connect.bind(window.SocketConnectionCore);
+        }
+        if (typeof window.attemptConnection === 'function') {
+            return window.attemptConnection;
+        }
+        if (typeof window.connect === 'function') {
+            return window.connect;
+        }
+        return null;
+    }
+
     async function checkServerStatus() {
         try {
             // Extract port from WebSocket URL and calculate status port
@@ -153,11 +169,19 @@ console.log("serverStatusChecker.js loading...");
                 return;
             }
 
-            // Attempt connection
-            if (!window.webSocket || window.webSocket.readyState === WebSocket.CLOSED) {
-                console.log("Attempting automatic reconnection...");
-                if (typeof window.attemptConnection === 'function') {
-                    window.attemptConnection();
+            // Attempt connection. Require the real SocketConnectionCore method,
+            // not only the lazy global wrapper, because the wrapper can exist
+            // before the underlying runtime is ready and silently no-op.
+            if (!window.webSocket || window.webSocket.readyState >= WebSocket.CLOSING) {
+                const attempt = getReadySocketAttempt();
+                if (attempt) {
+                    console.log("Attempting automatic reconnection...");
+                    attempt();
+                } else {
+                    console.warn("Gemini socket runtime not ready for automatic reconnection.");
+                    if (typeof updateConnectionStatus === 'function') {
+                        updateConnectionStatus('connecting', 'Socket Runtime Loading...');
+                    }
                 }
             }
             State.continuousReconnectInterval = setTimeout(

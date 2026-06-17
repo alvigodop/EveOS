@@ -28,7 +28,7 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
 
     if (State.credentialRequired) {
         if (typeof updateConnectionStatus === 'function') {
-            updateConnectionStatus('error', 'API Key Required');
+            updateConnectionStatus('error', State.apiPolicyBlocked ? 'API Key Restricted' : 'API Key Required');
         }
         return;
     }
