@@ -60,7 +60,7 @@ console.log("socketMessageRouter.js loading...");
                         updateConnectionStatus('error', 'API Key Restricted');
                     }
                     if (typeof displayMessage === 'function') {
-                        displayMessage('System Message: Gemini Live rejected the current API key policy. Use a restricted Gemini API key, then save credentials and reconnect.', true);
+                        displayMessage('System Message: Gemini Live rejected the current API key restrictions. Update the key allowlist for this network/IP, or save a compatible Gemini key and reconnect.', true);
                         displayMessage(data.text, true);
                     }
                     return;
@@ -81,6 +81,7 @@ console.log("socketMessageRouter.js loading...");
                     && /^Connected to (?!server\b)/i.test(messageText);
                 if (!State.geminiApiReady && apiReadyMessage) {
                     State.credentialRequired = false;
+                    State.apiPolicyBlocked = false;
                     State.geminiApiReady = true;
                     if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connected', 'Connected');
                     if (typeof displayMessage === 'function') {

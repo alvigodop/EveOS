@@ -142,6 +142,24 @@
         }
     }
 
+    function clearMissingCredentialGateIfVaultReady() {
+        if (!window.SocketGlobalState?.credentialRequired) return true;
+        if (window.SocketGlobalState.apiPolicyBlocked) return false;
+        if (!state.credentialsConfigured) return false;
+
+        window.SocketGlobalState.credentialRequired = false;
+        window.SocketGlobalState.geminiApiReady = false;
+        window.SocketGlobalState.reconnectAttempts = 0;
+        window.SocketGlobalState.serverOfflinePauseActive = false;
+        state.connectionPhase = 'credential-ready';
+        state.message = 'Gemini credentials are saved; reconnecting Live Workspace.';
+        if (typeof window.updateConnectionStatus === 'function') {
+            window.updateConnectionStatus('connecting', 'Gemini credentials ready - reconnecting...');
+        }
+        publish();
+        return true;
+    }
+
     function shouldAutoRecoverDisabledConnection() {
         const root = document.getElementById('gemini-ui-root');
         return !!state.running && (
@@ -177,7 +195,7 @@
     }
 
     function connectClient() {
-        if (window.SocketGlobalState?.credentialRequired) {
+        if (window.SocketGlobalState?.credentialRequired && !clearMissingCredentialGateIfVaultReady()) {
             state.connectionPhase = 'credentials-required';
             publish();
             return;
@@ -252,7 +270,7 @@
             if (!shouldAutoRecoverDisabledConnection()) return false;
             setConnectionPreference(true);
         }
-        if (window.SocketGlobalState?.credentialRequired) {
+        if (window.SocketGlobalState?.credentialRequired && !clearMissingCredentialGateIfVaultReady()) {
             state.connectionPhase = 'credentials-required';
             publish();
             return false;

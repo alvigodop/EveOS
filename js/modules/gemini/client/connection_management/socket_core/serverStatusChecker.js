@@ -54,6 +54,20 @@ console.log("serverStatusChecker.js loading...");
         );
     }
 
+    function clearMissingCredentialGateIfVaultReady() {
+        if (!State.credentialRequired || State.apiPolicyBlocked) return !State.credentialRequired;
+        const controlState = window.GeminiServerControl?.getState?.();
+        if (!controlState?.credentialsConfigured) return false;
+        State.credentialRequired = false;
+        State.geminiApiReady = false;
+        State.reconnectAttempts = 0;
+        State.serverOfflinePauseActive = false;
+        if (typeof updateConnectionStatus === 'function') {
+            updateConnectionStatus('connecting', 'Gemini credentials ready - reconnecting...');
+        }
+        return true;
+    }
+
     async function fetchStatusJson(url) {
         const response = await fetch(url, {
             method: 'GET',
@@ -145,7 +159,7 @@ console.log("serverStatusChecker.js loading...");
                 return;
             }
 
-            if (State.credentialRequired) {
+            if (State.credentialRequired && !clearMissingCredentialGateIfVaultReady()) {
                 if (typeof updateConnectionStatus === 'function') {
                     updateConnectionStatus('error', 'API Key Required');
                 }

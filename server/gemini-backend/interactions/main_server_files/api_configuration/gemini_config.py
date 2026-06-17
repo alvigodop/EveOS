@@ -1,4 +1,6 @@
 import json
+import os
+import socket
 import sys
 from google import genai
 import google.generativeai as generative
@@ -62,6 +64,48 @@ class APIUsageMonitor:
 # Global usage monitor instance
 usage_monitor = APIUsageMonitor()
 
+_LIVE_IPV4_PATCHED = False
+
+def _env_enabled(name, default=True):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() not in {"0", "false", "off", "no"}
+
+def install_live_websocket_ipv4_patch():
+    """Force Gemini Live's WebSocket connector through IPv4 when enabled.
+
+    Google can reject IP-restricted API keys when the Live WebSocket exits over
+    an IPv6 address that is not on the key allowlist. The google-genai client
+    currently drops low-level WebSocket kwargs passed through HttpOptions, so we
+    patch only the module-level Live connector used by this backend.
+    """
+    global _LIVE_IPV4_PATCHED
+    if _LIVE_IPV4_PATCHED or not _env_enabled("EVEOS_GEMINI_FORCE_IPV4", True):
+        return _LIVE_IPV4_PATCHED
+
+    try:
+        import google.genai.live as live_module
+
+        original_connect = live_module.ws_connect
+        if getattr(live_module, "_eveos_ipv4_ws_connect", False):
+            _LIVE_IPV4_PATCHED = True
+            return True
+
+        def eveos_ipv4_ws_connect(*args, **kwargs):
+            kwargs.setdefault("family", socket.AF_INET)
+            return original_connect(*args, **kwargs)
+
+        eveos_ipv4_ws_connect.__name__ = "eveos_ipv4_ws_connect"
+        live_module.ws_connect = eveos_ipv4_ws_connect
+        live_module._eveos_ipv4_ws_connect = True
+        _LIVE_IPV4_PATCHED = True
+        print("[OK] Gemini Live WebSocket IPv4 routing enabled")
+        return True
+    except Exception as exc:
+        print(f"[WARN] Gemini Live IPv4 routing patch unavailable: {exc}")
+        return False
+
 def configure_gemini_api(api_key):
     """Configure the Gemini API with the given key."""
     try:
@@ -82,6 +126,7 @@ def create_gemini_client(api_key):
     """Create and configure a Gemini client with enhanced timeout settings."""
     try:
         print("\nConfiguring Gemini client with enhanced timeout settings...")
+        install_live_websocket_ipv4_patch()
         client = genai.Client(
             api_key=api_key,
             http_options={
