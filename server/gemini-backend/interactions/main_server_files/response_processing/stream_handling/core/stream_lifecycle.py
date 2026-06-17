@@ -4,7 +4,8 @@ import websockets
 from .stream_error_logic import StreamErrorHandler
 from ..response_parser import _receive_responses
 from ...response_handler import GeminiResponseHandler
-from ....api_configuration.gemini_config import TimeoutConfig, usage_monitor
+from ....api_configuration.gemini_config import MODEL, TimeoutConfig, usage_monitor
+from ....error_handling.api_error_handler import api_error_handler
 from ....server_initialization.reconnection_handler import reconnect_to_gemini
 from ....status_monitoring.api_usage_monitor import api_usage_tracker
 
@@ -183,8 +184,6 @@ class StreamSession:
         
         api_usage_tracker.log_error(str(self.connection_id), "connection_error", str(e), is_deadline_error=False)
         
-        from .....error_handling.api_error_handler import api_error_handler
-        from .....api_configuration.gemini_config import MODEL
         should_retry, error_msg = await api_error_handler.handle_api_error(e, self.connection_id, MODEL)
         
         if should_retry and self.error_handler.consecutive_errors < self.error_handler.max_consecutive_errors:

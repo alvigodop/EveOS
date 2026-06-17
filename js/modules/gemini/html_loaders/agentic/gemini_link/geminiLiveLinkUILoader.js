@@ -19,6 +19,10 @@ function _getGeminiLiveLinkMode() {
     return _normalizeGeminiLiveLinkMode(cfg?.modularGeminiMode || 'summary');
 }
 
+function _getGeminiLiveLinkApi() {
+    return window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync || null;
+}
+
 function _isGeminiLiveLinkEnabled() {
     const cfg = _getGeminiLiveLinkConfig();
     if (cfg && typeof cfg.geminiLiveLinkEnabled === 'boolean') {
@@ -130,6 +134,24 @@ function _buildPendingGeminiLiveLinkManifest(mode, selectedScope) {
     };
 }
 
+function _formatGeminiLiveLinkModeLabel(mode) {
+    return _normalizeGeminiLiveLinkMode(mode) === 'full'
+        ? 'Complete Scoped Snapshot'
+        : 'Rich Scoped Summary';
+}
+
+function _withGeminiLiveLinkTimeout(promise, timeoutMs, label) {
+    let timer = 0;
+    const timeout = new Promise((_, reject) => {
+        timer = window.setTimeout(() => {
+            reject(new Error(`${label || 'Operation'} timed out after ${Math.round(timeoutMs / 1000)}s.`));
+        }, timeoutMs);
+    });
+    return Promise.race([promise, timeout]).finally(() => {
+        if (timer) window.clearTimeout(timer);
+    });
+}
+
 function _refreshGeminiLiveLinkCardOptions() {
     const select = document.getElementById('geminiLiveLinkCardScope');
     const scopeMode = document.getElementById('geminiLiveLinkScopeMode')?.value || _getGeminiLiveLinkScopeMode();
@@ -137,7 +159,7 @@ function _refreshGeminiLiveLinkCardOptions() {
     const cardWrap = document.getElementById('geminiLiveLinkCardScopeWrap');
     if (cardWrap) cardWrap.hidden = scopeMode !== 'card';
     if (!select) return;
-    const api = window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync;
+    const api = _getGeminiLiveLinkApi();
     const options = api?.getGeminiContextCardOptions?.({ scope: _getGeminiLiveLinkSelectedScope() }) || [];
     const currentValue = `${cfg.geminiContextSelectedCardWorkspaceId || ''}::${cfg.geminiContextSelectedCardCategory || ''}`;
     select.innerHTML = options.length
@@ -215,7 +237,7 @@ function _bindGeminiLiveLinkDataStream() {
         if (_geminiLiveLinkStreamTimer) window.clearTimeout(_geminiLiveLinkStreamTimer);
         _geminiLiveLinkStreamTimer = window.setTimeout(function () {
             _geminiLiveLinkStreamTimer = 0;
-            const api = window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync;
+            const api = _getGeminiLiveLinkApi();
             const result = api?.sendDataStreamToGemini?.(_geminiLiveLinkPendingDetail, {
                 scope: _getGeminiLiveLinkSelectedScope()
             });
@@ -265,18 +287,35 @@ async function sendGeminiLiveLinkContext() {
 
     const modeSelect = document.getElementById('geminiLiveLinkMode');
     const mode = _setGeminiLiveLinkMode(modeSelect?.value || _getGeminiLiveLinkMode());
+    const api = _getGeminiLiveLinkApi();
 
-    if (!window.EveDataStore?.ModularSync?.sendContextToGemini) {
+    if (!api?.sendContextToGemini) {
         _setGeminiLiveLinkStatus('Modular sync module is unavailable.', true);
         return { ok: false, error: 'Modular sync module is unavailable.' };
     }
 
     const selectedScope = _getGeminiLiveLinkSelectedScope();
-    _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(mode, selectedScope), 'Preparing payload');
-    _setGeminiLiveLinkStatus(`Preparing ${mode} EveOS context snapshot...`, false);
-    const result = await window.EveDataStore.ModularSync.sendContextToGemini(mode, 30, { scope: selectedScope });
+    const scopeLabel = selectedScope?.label || selectedScope?.scope || 'selected scope';
+    _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(mode, selectedScope), 'Preparing selected scope');
+    _setGeminiLiveLinkStatus(`Preparing ${_formatGeminiLiveLinkModeLabel(mode)} for ${scopeLabel}...`, false);
+
+    let result = null;
+    try {
+        result = await _withGeminiLiveLinkTimeout(
+            api.sendContextToGemini(mode, 30, { scope: selectedScope }),
+            15000,
+            'EveOS context preparation'
+        );
+    } catch (error) {
+        const message = error?.message || String(error || 'Unknown relay error');
+        _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(mode, selectedScope), 'Prepare failed');
+        _setGeminiLiveLinkStatus(`Context relay failed: ${message}`, true);
+        return { ok: false, error: message };
+    }
+
     if (!result?.ok) {
-        _setGeminiLiveLinkStatus(result?.error || 'Could not send context.', true);
+        _renderGeminiLiveLinkManifest(result?.manifest || _buildPendingGeminiLiveLinkManifest(mode, selectedScope), 'Prepare failed');
+        _setGeminiLiveLinkStatus(result?.error || 'Could not send selected EveOS context.', true);
         return result;
     }
 
@@ -307,7 +346,7 @@ async function initializeGeminiLiveLinkCard() {
         modeSelect.addEventListener('change', () => {
             _setGeminiLiveLinkMode(modeSelect.value);
             _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(modeSelect.value), 'Mode changed');
-            _setGeminiLiveLinkStatus(`Payload mode set to ${_normalizeGeminiLiveLinkMode(modeSelect.value)}.`, false);
+            _setGeminiLiveLinkStatus(`Context detail set to ${_formatGeminiLiveLinkModeLabel(modeSelect.value)}.`, false);
         });
     }
 
@@ -381,7 +420,7 @@ async function loadGeminiLiveLinkCard() {
         <div>
             <div class="gemini-live-link-kicker">EveOS Relay</div>
             <span class="gemini-live-link-title">EveOS Context Relay</span>
-            <div class="gemini-live-link-subtitle">Prepare an inspectable EveOS snapshot, then send it into the Gemini session.</div>
+            <div class="gemini-live-link-subtitle">Choose a tab/card scope, inspect what will be sent, then relay it into Gemini.</div>
         </div>
         <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-live-link-toggle" for="geminiLiveLinkToggle">
             <input type="checkbox" id="geminiLiveLinkToggle" class="mdl-switch__input" checked>
@@ -393,13 +432,13 @@ async function loadGeminiLiveLinkCard() {
     <div id="geminiLiveLinkControls" class="gemini-live-link-controls" style="display:block;">
         <div class="gemini-live-link-row">
             <div class="gemini-live-link-select-wrap">
-                <label for="geminiLiveLinkMode" class="gemini-live-link-label">Payload Mode</label>
+                <label for="geminiLiveLinkMode" class="gemini-live-link-label">Context Detail</label>
                 <select id="geminiLiveLinkMode" class="gemini-live-link-select">
-                    <option value="summary">Summary</option>
-                    <option value="full">Full JSON</option>
+                    <option value="summary">Rich Scoped Summary</option>
+                    <option value="full">Complete Scoped Snapshot</option>
                 </select>
             </div>
-            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send EveOS Context</button>
+            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send Selected Context</button>
         </div>
         <div class="gemini-live-link-scope-grid">
             <div class="gemini-live-link-select-wrap">
@@ -424,7 +463,7 @@ async function loadGeminiLiveLinkCard() {
             <input id="geminiLiveLinkDataStreamToggle" type="checkbox">
         </label>
         <div class="gemini-live-link-help">
-            Summary sends rich scoped samples. Full JSON sends the selected scope snapshot. Data Stream sends only live deltas for this selected scope.
+            Scope decides what Gemini sees. Rich Summary sends readable samples; Complete Snapshot sends the selected scope payload. Data Stream sends only silent live deltas for this scope.
         </div>
     </div>
 </div>

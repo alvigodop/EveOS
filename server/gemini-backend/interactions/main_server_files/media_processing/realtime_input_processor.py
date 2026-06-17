@@ -9,6 +9,10 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
     """Process realtime input data from the client."""
     print(f"Processing realtime_input with {len(data['realtime_input']['media_chunks'])} chunks")
     source = data.get("source")
+    is_modular_context_payload = bool(
+        data.get("is_modular_context")
+        or source in ("modular_gemini_context", "modular_gemini_data_stream")
+    )
     screen_share_meta = data.get("screen_share") if isinstance(data.get("screen_share"), dict) else {}
     is_screen_share_user_message = source == "screen_share_user_message"
     is_screen_share = source == "screen_share" or bool(screen_share_meta)
@@ -18,6 +22,15 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
             data.get("silent_response")
             or data.get("suppress_response")
             or screen_share_meta.get("silent")
+        )
+    )
+    modular_context_silent = bool(
+        is_modular_context_payload
+        and (
+            data.get("silent_response")
+            or data.get("silentResponseRequested")
+            or data.get("suppress_response")
+            or (isinstance(data.get("data_stream"), dict) and data["data_stream"].get("silent"))
         )
     )
     image_chunks = []
@@ -92,40 +105,62 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
     if is_system_context and text_part_content:
         print("Processing system context - adding as background context to session")
         try:
-            # Extract just the conversation history without the prefix
-            if text_part_content.startswith("[SYSTEM CONTEXT - Chat History]:"):
-                history_content = text_part_content.replace("[SYSTEM CONTEXT - Chat History]:", "").strip()
+            if is_modular_context_payload:
+                context_kind = "live EveOS data stream update" if source == "modular_gemini_data_stream" else "selected EveOS context snapshot"
+                response_instruction = (
+                    "This payload is marked silent. Absorb it and do not answer unless the user asks about it or it is safety-critical."
+                    if modular_context_silent
+                    else "Briefly acknowledge that this EveOS context is available, then wait for the user's next request."
+                )
+                system_instruction = f"""System: EveOS Context Relay provided a {context_kind}.
+This is background application context, not a direct user chat message.
+Use it to answer future questions about the selected tab, card, folders, bookmarks, notes, progress, timestamps, and Nexus/state changes.
+{response_instruction}
+
+{text_part_content}"""
+                success_text = "EveOS context added to Gemini session."
             else:
-                history_content = text_part_content
-            
-            # Format as a system instruction that won't confuse the AI
-            system_instruction = f"""System: The following is your conversation history with this user for context. This is NOT a new message from the user, but information to help you understand the conversation context:
+                # Extract just the conversation history without the prefix
+                if text_part_content.startswith("[SYSTEM CONTEXT - Chat History]:"):
+                    history_content = text_part_content.replace("[SYSTEM CONTEXT - Chat History]:", "").strip()
+                else:
+                    history_content = text_part_content
+
+                # Format as a system instruction that won't confuse the AI
+                system_instruction = f"""System: The following is your conversation history with this user for context. This is NOT a new message from the user, but information to help you understand the conversation context:
 
 {history_content}
 
 Please acknowledge that you've received this context and can now continue the conversation with full awareness of what was discussed previously."""
+                success_text = "Chat history context added successfully. AI now has access to previous conversation."
             
             # Send as system instruction to Gemini with proper formatting
             if session is not None:
+                if modular_context_silent:
+                    setattr(connection_monitor, "screen_share_silent_response_pending", True)
+                    setattr(connection_monitor, "screen_share_silent_response_started_at", time.time())
+                    print("Silent modular EveOS context enabled for next model turn.")
+
                 await session.send(input=system_instruction, end_of_turn=True)
                 print("System context sent to Gemini as system instruction")
                 
-                # Inform the client that context was added
-                await connection_monitor.safe_send(json.dumps({
-                    "text": "Chat history context added successfully. AI now has access to previous conversation.",
-                    "is_system_message": True
-                }))
+                # Live data stream updates are intentionally silent and frequent.
+                if not modular_context_silent:
+                    await connection_monitor.safe_send(json.dumps({
+                        "text": success_text,
+                        "is_system_message": True
+                    }))
             else:
                 print("ERROR: Cannot send system context, session is None.")
                 await connection_monitor.safe_send(json.dumps({
-                    "text": "Error: Could not add chat history context - no active session.",
+                    "text": "Error: Could not add background context - no active session.",
                     "is_system_message": True,
                     "is_error": True
                 }))
         except Exception as e:
             print(f"ERROR: Exception during system context processing: {e}")
             await connection_monitor.safe_send(json.dumps({
-                "text": f"Error adding chat history context: {str(e)}",
+                "text": f"Error adding background context: {str(e)}",
                 "is_system_message": True,
                 "is_error": True
             }))
