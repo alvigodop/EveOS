@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse
 
 logger = logging.getLogger("FandomDiscoveryServer")
+DEFAULT_CAMOFOX_SERVER_PORT = 9377
 
 def _project_root():
     return (

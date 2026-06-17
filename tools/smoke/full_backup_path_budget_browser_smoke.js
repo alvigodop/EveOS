@@ -202,7 +202,7 @@ async function runSmoke(page) {
 async function main() {
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-full-backup-budget-'));
     let browser = null;
-    const server = spawn('python', ['python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });

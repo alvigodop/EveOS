@@ -204,7 +204,7 @@ window.modalTemplate += `
                             <input type="number" id="integrationsStatusTimeoutMs" min="50" max="10000" step="50" placeholder="350" onchange="saveSettingsIntegrationsBridges()">
                         </label>
                     </div>
-                    <div style="font-size:0.76rem; opacity:0.7; margin-top:4px;">Change these only if you've reconfigured the matching <code>start-*.bat</code> / <code>python-server.py</code> ports. Leave blank for defaults.</div>
+                    <div style="font-size:0.76rem; opacity:0.7; margin-top:4px;">Change these only if you've reconfigured the matching <code>start-*.bat</code> / <code>server/python-server.py</code> ports. Leave blank for defaults.</div>
 
                     <h5 style="margin:14px 0 4px 0; font-size:0.85rem; color:var(--accent);">CORS Proxy</h5>
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:10px;">

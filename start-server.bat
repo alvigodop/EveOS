@@ -85,15 +85,17 @@ if defined POPUP_STANDALONE_PID (
 echo.
 echo [1] Start EveOS instance ^(choose port + data-pack^)
 echo     - Port 3000 uses active modular path; other ports default to per-instance packs.
-echo [2] Open Gemini Backend Console ^(server\server-menu.bat^)
+echo [2] Start EveOS port only ^(no data-pack prompt^)
+echo     - Serves EveOS at a chosen port using the current active data-pack.
+echo [3] Open Gemini Backend Console ^(server\server-menu.bat^)
 echo     - Start/stop the canonical Gemini Live backend ^(9083 WebSocket + 9084 status^).
-echo [3] Run Gemini auto-start helper ^(server\start-gemini.bat^)
-echo     - Quick launcher: starts the Gemini backend in one step.
-echo [4] Browse and launch any .bat in this EveOS project
+echo [4] Run Gemini auto-start helper ^(server\start-gemini.bat^)
+echo     - Starts the file:// control helper, then starts the Gemini backend.
+echo [5] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
-echo [5] Browser fallback controls
+echo [6] Browser fallback controls
 echo     - Lightpanda, Camofox, and the merged Popup+Wikimedia controller plus monitors.
-echo [6] Exit
+echo [7] Exit
 echo.
 set /p "choice=Enter your choice: "
 
@@ -102,21 +104,25 @@ if "%choice%"=="1" (
     goto :MainMenu
 )
 if "%choice%"=="2" (
-    call :LaunchBatch "%GEMINI_MENU_BAT%"
+    call :StartEvePortOnly
     goto :MainMenu
 )
 if "%choice%"=="3" (
-    call :LaunchBatch "%GEMINI_AUTOSTART_BAT%"
+    call :LaunchBatch "%GEMINI_MENU_BAT%"
     goto :MainMenu
 )
 if "%choice%"=="4" (
-    call :BrowseProjectBatchFiles
+    call :LaunchBatch "%GEMINI_AUTOSTART_BAT%"
     goto :MainMenu
 )
 if "%choice%"=="5" (
+    call :BrowseProjectBatchFiles
+    goto :MainMenu
+)
+if "%choice%"=="6" (
     goto :BrowserFallbackMenu
 )
-if "%choice%"=="6" exit /b 0
+if "%choice%"=="7" exit /b 0
 
 echo.
 echo [ERROR] Invalid option.
@@ -262,6 +268,26 @@ call :PromptDataPackPath "%DEFAULT_PACK_PATH%" INSTANCE_PACK_PATH
 call :LaunchEveInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%" "%PORT_MODE%"
 exit /b %ERRORLEVEL%
 
+:StartEvePortOnly
+echo.
+echo ========================================
+echo   Start EveOS Port Only
+echo ========================================
+echo.
+echo This serves EveOS without changing or prompting for a data-pack.
+echo Use this for local preview URLs like http://127.0.0.1:8765/EveOS.html.
+echo.
+set "INSTANCE_PORT_INPUT="
+set /p "INSTANCE_PORT_INPUT=Port (default 8765): "
+call :NormalizePortInput "%INSTANCE_PORT_INPUT%" "8765" INSTANCE_PORT
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Port must be a numeric value between 1 and 65535.
+    goto :StartEvePortOnly
+)
+
+call :LaunchEvePortOnly "%INSTANCE_PORT%"
+exit /b %ERRORLEVEL%
+
 :ResolveMainDataPackPath
 call "%START_SERVER_PATHS_BAT%" :ResolveMainDataPackPath
 exit /b %ERRORLEVEL%
@@ -329,8 +355,38 @@ if "%LP_ENABLED_STATE%"=="0" (
     call :EnsureLightpandaMonitor
 )
 
-start "EveOS Instance %INSTANCE_PORT%" cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python python-server.py %INSTANCE_PORT%"
+start "EveOS Instance %INSTANCE_PORT%" cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
 call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
+exit /b 0
+
+:LaunchEvePortOnly
+set "INSTANCE_PORT=%~1"
+
+where python >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Python is not installed or not in PATH.
+    echo Install Python from https://www.python.org/downloads/
+    echo Make sure "Add Python to PATH" is enabled.
+    echo.
+    pause
+    exit /b 1
+)
+
+netstat -ano | findstr ":%INSTANCE_PORT%" | find "LISTENING" >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    echo [ERROR] Port %INSTANCE_PORT% is already in use. Pick another port.
+    timeout /t 1 /nobreak >nul
+    exit /b 1
+)
+
+echo.
+echo [OK] Launching EveOS HTTP port in a new window:
+echo      URL: http://127.0.0.1:%INSTANCE_PORT%/EveOS.html
+echo      Data: current active modular data-pack
+echo.
+
+start "EveOS Port %INSTANCE_PORT%" cmd /k "cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
+call :TrackInstance "%INSTANCE_PORT%" "active modular data-pack" "PortOnly"
 exit /b 0
 
 :LaunchBatch

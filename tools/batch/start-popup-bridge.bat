@@ -4,7 +4,7 @@ pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
 set "BRIDGE_PORT=3040"
-set "BRIDGE_SCRIPT=%PROJECT_ROOT%\popup-bridge.py"
+set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\popup-bridge.py"
 set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\popup_activity.log"
 set "MONITOR_TITLE=EveOS Popup Bridge Monitor"
 

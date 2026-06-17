@@ -89,6 +89,7 @@ let config = {
         camofoxPort: 3038,
         wikimediaPort: 3039,
         popupPort: 3040,
+        geminiControlPort: 9082,
         corsProxyUrl: "",
         codetabsProxyUrl: "",
         statusTimeoutMs: 350

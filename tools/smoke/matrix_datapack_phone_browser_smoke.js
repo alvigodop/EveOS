@@ -16,7 +16,7 @@ const { runScopeScaleDetach } = require('./matrix_datapack_phone_browser_smoke.s
     const port = await getFreePort();
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-matrix-phone-store-'));
     const server = spawn('python', [
-        'python-server.py',
+        'server/python-server.py',
         String(port),
         '--no-browser',
         '--modular-root',

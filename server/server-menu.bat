@@ -43,7 +43,7 @@ echo [3] Restart Gemini server
 echo [4] Check Status
 echo [5] Exit
 echo.
-echo Note: EveOS itself is served by python-server.py on your chosen site port.
+echo Note: EveOS itself is served by server/python-server.py on your chosen site port.
 echo       This menu only controls the Gemini Live backend used by file:// and localhost EveOS.
 echo.
 set /P "choice=Enter your choice (1-5): "

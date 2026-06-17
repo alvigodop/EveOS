@@ -152,7 +152,7 @@ def collect_tab_records(tabs_root, records=None, parent_chain=None):
 def main():
     modular_root = tempfile.mkdtemp(prefix="eve-nested-workspace-store-")
     server = subprocess.Popen(
-        ["python", "python-server.py", str(PORT), "--no-browser", "--modular-root", modular_root],
+        ["python", "server/python-server.py", str(PORT), "--no-browser", "--modular-root", modular_root],
         cwd=str(REPO_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

@@ -21,7 +21,7 @@ window.EveOS.API = window.EveOS.API || {};
     function warnWikimediaDirectMode() {
         if (rt._wikimediaDirectWarningShown) return;
         rt._wikimediaDirectWarningShown = true;
-        console.warn('API Core: Wikimedia live requests are running without the local EveOS proxy/bridge, so the browser cannot send a custom bot User-Agent. Start python-server.py or tools\\\\batch\\\\start-popup-bridge.bat for policy-compliant Wikimedia transport.');
+        console.warn('API Core: Wikimedia live requests are running without the local EveOS proxy/bridge, so the browser cannot send a custom bot User-Agent. Start server/python-server.py or tools\\\\batch\\\\start-popup-bridge.bat for policy-compliant Wikimedia transport.');
     }
 
     async function enqueueWikimediaRequest(task) {

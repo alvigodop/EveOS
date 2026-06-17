@@ -236,7 +236,7 @@ async function main() {
     fs.writeFileSync(LOG_FILE, '');
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-duplicate-store-'));
     let browser = null;
-    const server = spawn('python', ['python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });

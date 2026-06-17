@@ -48,7 +48,7 @@ async function main() {
     const modularRoot = path.join(os.tmpdir(), `eve-api-provider-matrix-${Date.now()}`);
     let browser = null;
     let camofoxBridge = null;
-    const server = spawn('python', ['python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -65,7 +65,7 @@ async function main() {
         try {
             await waitForStatus(`http://localhost:${CAMOFOX_BRIDGE_PORT}/api/status`, 1500);
         } catch (_) {
-            camofoxBridge = spawn('python', ['camofox-bridge.py', String(CAMOFOX_BRIDGE_PORT)], {
+            camofoxBridge = spawn('python', ['server/bridges/camofox-bridge.py', String(CAMOFOX_BRIDGE_PORT)], {
                 cwd: REPO_ROOT,
                 stdio: ['ignore', 'pipe', 'pipe']
             });

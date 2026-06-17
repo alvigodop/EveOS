@@ -17,6 +17,11 @@ import webbrowser
 from urllib.parse import urlparse, parse_qs
 from http import HTTPStatus
 
+SERVER_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SERVER_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 # Import modular handlers
 # Ensure the directory is in path if needed (implicit for same dir)
 try:
@@ -72,8 +77,9 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Custom HTTP request handler with CORS support"""
     
     def __init__(self, *args, **kwargs):
-        # Set default directory to current directory
-        directory = os.getcwd()
+        # Serve EveOS assets from the project root even though this entrypoint
+        # lives under server/ to keep the repo root clean.
+        directory = PROJECT_ROOT
         super().__init__(*args, directory=directory, **kwargs)
     
     def end_headers(self):
@@ -305,7 +311,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
         if isinstance(e, OSError) and e.errno == 98:  # Address already in use
             suggested_port = port + 1
             print(f"[WARN] Port {port} is already in use. Try using port {suggested_port}:")
-            print(f"   python python-server.py {suggested_port}")
+            print(f"   python server/python-server.py {suggested_port}")
         return 1
     return 0
 

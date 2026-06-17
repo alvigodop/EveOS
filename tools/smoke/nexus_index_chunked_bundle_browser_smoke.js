@@ -92,7 +92,7 @@ function summarize(records) {
 async function main() {
   const port = await getFreePort();
   const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-index-chunk-store-'));
-  const server = spawn('python', ['python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
+  const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
     cwd: REPO_ROOT,
     stdio: ['ignore', 'pipe', 'pipe']
   });

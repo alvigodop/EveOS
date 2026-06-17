@@ -195,7 +195,7 @@ def main():
     modular_root = tempfile.mkdtemp(prefix="eve-folder-api-store-")
     backup_parent = tempfile.mkdtemp(prefix="eve-folder-api-backups-")
     server = subprocess.Popen(
-        ["python", "python-server.py", str(PORT), "--no-browser", "--modular-root", modular_root],
+        ["python", "server/python-server.py", str(PORT), "--no-browser", "--modular-root", modular_root],
         cwd=str(REPO_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

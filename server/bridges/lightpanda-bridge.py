@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Standalone Wikimedia bridge for EveOS.
+Standalone Lightpanda bridge for EveOS.
 
-Provides a small CORS-safe local service that keeps Wikimedia/Wikipedia requests
-policy-compliant while the UI itself still runs from file://.
+Exposes only the Lightpanda endpoints needed by the HTML app so the user can
+run it on demand without the full EveOS backend.
 """
 
 import argparse
@@ -17,28 +17,23 @@ import sys
 from http import HTTPStatus
 from urllib.parse import parse_qs, urlparse
 
-from server_modules import proxy
-from server_modules import wikipedia
+BRIDGE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVER_DIR = os.path.dirname(BRIDGE_DIR)
+PROJECT_ROOT = os.path.dirname(SERVER_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-DEFAULT_PORT = 3039
+from server_modules import lightpanda
+from server_modules import proxy
+
+DEFAULT_PORT = 3037
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[WikimediaBridge] %(message)s",
+    format="[LightpandaBridge] %(message)s",
     handlers=[logging.StreamHandler()],
 )
-logger = logging.getLogger("WikimediaBridge")
-
-
-def _extract_target_url(query):
-    target = query.get("url")
-    if not target:
-        return ""
-    return str(target[0] or "").strip()
-
-
-def _is_allowed_target(target_url):
-    return bool(target_url) and proxy._is_wikimedia_request(target_url)
+logger = logging.getLogger("LightpandaBridge")
 
 
 class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
@@ -76,11 +71,13 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         if parsed.path == "/api/proxy":
-            target_url = _extract_target_url(query)
-            if not _is_allowed_target(target_url):
-                self._send_target_error(target_url)
-                return
             proxy.handle_proxy_post_request(self, query)
+            return
+
+        if parsed.path == "/api/lightpanda":
+            # Note: handle_lightpanda_fetch currently ignores POST body, 
+            # but we allow the call.
+            lightpanda.handle_lightpanda_fetch(self, query)
             return
 
         self.send_response(HTTPStatus.NOT_FOUND)
@@ -95,10 +92,9 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         if parsed.path == "/api/status":
             payload = {
                 "status": "ok",
-                "service": "wikimedia-bridge",
-                "bridgePort": self.server.server_address[1],
-                "scope": ["wikipedia.org", "wikimedia.org"],
-                "userAgent": proxy.WMF_USER_AGENT,
+                "service": "lightpanda-bridge",
+                "lightpandaAvailable": bool(lightpanda.is_lightpanda_available()),
+                "port": self.server.server_address[1],
             }
             body = json.dumps(payload).encode("utf-8")
             self.send_response(HTTPStatus.OK)
@@ -108,15 +104,11 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/proxy":
-            target_url = _extract_target_url(query)
-            if not _is_allowed_target(target_url):
-                self._send_target_error(target_url)
-                return
             proxy.handle_proxy_request(self, query)
             return
 
-        if parsed.path == "/api/wikipedia/search":
-            wikipedia.handle_wikipedia_search(self, query)
+        if parsed.path == "/api/lightpanda":
+            lightpanda.handle_lightpanda_fetch(self, query)
             return
 
         self.send_response(HTTPStatus.NOT_FOUND)
@@ -124,45 +116,33 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'{"error":"Unknown GET endpoint"}')
 
-    def _send_target_error(self, target_url):
-        self.send_response(HTTPStatus.FORBIDDEN)
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        body = json.dumps({
-            "error": "Wikimedia bridge only proxies wikipedia.org and wikimedia.org targets",
-            "url": target_url,
-        }).encode("utf-8")
-        self.wfile.write(body)
-
     def log_message(self, fmt, *args):
         logger.info(fmt % args)
 
 
 def run_server(port):
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    os.environ.setdefault("EVEOS_PROJECT_ROOT", project_root)
+    os.environ.setdefault("EVEOS_PROJECT_ROOT", PROJECT_ROOT)
     try:
         with ReusableThreadingTCPServer(("127.0.0.1", port), BridgeHandler) as httpd:
-            print("[OK] EveOS Wikimedia Standalone Bridge")
+            print("[OK] EveOS Lightpanda Standalone Bridge")
             print("  ------------------------------")
-            print(f"  Local:   http://127.0.0.1:{port}/api/proxy?url=...")
-            print(f"  Search:  http://127.0.0.1:{port}/api/wikipedia/search?q=...")
+            print(f"  Local:   http://127.0.0.1:{port}/api/lightpanda?url=...")
             print(f"  Status:  http://127.0.0.1:{port}/api/status")
-            print("  Scope:   wikipedia.org + wikimedia.org only")
+            print(f"  Binary:  {lightpanda._lightpanda_binary_path()}")
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the bridge")
             httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n[OK] Wikimedia bridge stopped")
+        print("\n[OK] Lightpanda bridge stopped")
         return 0
     except Exception as exc:
-        print(f"[ERROR] Wikimedia bridge failed: {exc}")
+        print(f"[ERROR] Lightpanda bridge failed: {exc}")
         return 1
     return 0
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="EveOS standalone Wikimedia bridge")
+    parser = argparse.ArgumentParser(description="EveOS standalone Lightpanda bridge")
     parser.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT, help=f"HTTP port (default: {DEFAULT_PORT})")
     args = parser.parse_args()
     sys.exit(run_server(args.port))

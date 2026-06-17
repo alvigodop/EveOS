@@ -101,7 +101,7 @@ function buildLocalLinks(count = 60) {
 (async () => {
     const port = await findFreePort();
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eveos-shrink-guard-'));
-    const server = spawn('python', ['python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });

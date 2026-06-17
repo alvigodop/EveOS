@@ -351,7 +351,7 @@ async function main() {
   const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-smart-views-store-'));
   const port = await getFreePort();
   let browser = null;
-  const server = spawn('python', ['python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
+  const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
     cwd: REPO_ROOT,
     stdio: ['ignore', 'pipe', 'pipe']
   });

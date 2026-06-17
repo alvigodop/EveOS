@@ -80,7 +80,7 @@
         button.classList.toggle('is-busy', state.busy);
 
         const unavailable = !state.controllerAvailable
-            ? 'Start EveOS through its local preview server to enable server control.'
+            ? 'Start server\\start-gemini-control.bat, or run EveOS through a local preview port, to enable Gemini Start/Stop from file://.'
             : '';
         control.title = unavailable || state.message;
         button.setAttribute('aria-label', state.running ? 'Stop Gemini server' : 'Start Gemini server');
@@ -323,7 +323,7 @@
             state.serverState = state.running ? 'running' : 'stopped';
             state.message = state.running
                 ? 'Gemini is online; lifecycle controller is unavailable.'
-                : 'Gemini and its local lifecycle controller are offline.';
+                : 'Gemini is offline. Start server\\start-gemini-control.bat or an EveOS local preview port to enable in-page startup from file://.';
         }
         publish();
         reconcileClientConnection();

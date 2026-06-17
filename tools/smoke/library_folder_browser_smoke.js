@@ -156,7 +156,7 @@ async function main() {
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-lib-browser-store-'));
     logStep(`main:modularRoot:${modularRoot}`);
     let browser = null;
-    const server = spawn('python', ['python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });

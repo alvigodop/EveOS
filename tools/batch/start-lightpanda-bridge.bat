@@ -4,7 +4,7 @@ pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
 set "BRIDGE_PORT=3037"
-set "BRIDGE_SCRIPT=%PROJECT_ROOT%\lightpanda-bridge.py"
+set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\lightpanda-bridge.py"
 set "LIGHTPANDA_BIN=%PROJECT_ROOT%\bin\lightpanda"
 set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"
 set "MONITOR_TITLE=EveOS Lightpanda Monitor"

@@ -2,6 +2,7 @@
 setlocal EnableExtensions
 
 cd /d "%~dp0"
+set "GEMINI_CONTROL_PORT=9082"
 
 if not exist "%~dp0server-menu.bat" (
     echo ERROR: server-menu.bat not found in %~dp0
@@ -11,10 +12,21 @@ if not exist "%~dp0server-menu.bat" (
 
 if "%~1"=="" (
     rem Default: start all Gemini backend servers.
+    call :EnsureControlHelper
     call "%~dp0server-menu.bat" 6
     exit /b %ERRORLEVEL%
 )
 
+if "%~1"=="1" call :EnsureControlHelper
+if "%~1"=="3" call :EnsureControlHelper
+if "%~1"=="6" call :EnsureControlHelper
+if "%~1"=="10" call :EnsureControlHelper
+
 rem Forward any provided option to the canonical Gemini backend menu script.
 call "%~dp0server-menu.bat" %*
 exit /b %ERRORLEVEL%
+
+:EnsureControlHelper
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr /R /C:":%GEMINI_CONTROL_PORT% .*LISTENING"') do exit /b 0
+start "EveOS Gemini File Control %GEMINI_CONTROL_PORT%" /min cmd /c "cd /d ""%~dp0.."" && python server/gemini-control-helper.py %GEMINI_CONTROL_PORT%"
+exit /b 0

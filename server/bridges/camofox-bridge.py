@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Standalone Lightpanda bridge for EveOS.
+Standalone Camofox bridge for EveOS.
 
-Exposes only the Lightpanda endpoints needed by the HTML app so the user can
-run it on demand without the full EveOS backend.
+Starts the local camofox-browser server on demand and exposes a small CORS-safe
+API that the file:// EveOS app can call directly.
 """
 
 import argparse
@@ -17,17 +17,23 @@ import sys
 from http import HTTPStatus
 from urllib.parse import parse_qs, urlparse
 
-from server_modules import lightpanda
+BRIDGE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVER_DIR = os.path.dirname(BRIDGE_DIR)
+PROJECT_ROOT = os.path.dirname(SERVER_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from server_modules import camofox
 from server_modules import proxy
 
-DEFAULT_PORT = 3037
+DEFAULT_PORT = 3038
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[LightpandaBridge] %(message)s",
+    format="[CamofoxBridge] %(message)s",
     handlers=[logging.StreamHandler()],
 )
-logger = logging.getLogger("LightpandaBridge")
+logger = logging.getLogger("CamofoxBridge")
 
 
 class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):
@@ -68,10 +74,8 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             proxy.handle_proxy_post_request(self, query)
             return
 
-        if parsed.path == "/api/lightpanda":
-            # Note: handle_lightpanda_fetch currently ignores POST body, 
-            # but we allow the call.
-            lightpanda.handle_lightpanda_fetch(self, query)
+        if parsed.path == "/api/camofox":
+            camofox.handle_camofox_fetch(self, query)
             return
 
         self.send_response(HTTPStatus.NOT_FOUND)
@@ -86,9 +90,10 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
         if parsed.path == "/api/status":
             payload = {
                 "status": "ok",
-                "service": "lightpanda-bridge",
-                "lightpandaAvailable": bool(lightpanda.is_lightpanda_available()),
-                "port": self.server.server_address[1],
+                "service": "camofox-bridge",
+                "runtimeAvailable": bool(camofox.is_camofox_runtime_available()),
+                "bridgePort": self.server.server_address[1],
+                "serverPort": camofox.current_camofox_server_port(),
             }
             body = json.dumps(payload).encode("utf-8")
             self.send_response(HTTPStatus.OK)
@@ -101,8 +106,8 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
             proxy.handle_proxy_request(self, query)
             return
 
-        if parsed.path == "/api/lightpanda":
-            lightpanda.handle_lightpanda_fetch(self, query)
+        if parsed.path == "/api/camofox":
+            camofox.handle_camofox_fetch(self, query)
             return
 
         self.send_response(HTTPStatus.NOT_FOUND)
@@ -115,29 +120,28 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
 
 
 def run_server(port):
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    os.environ.setdefault("EVEOS_PROJECT_ROOT", project_root)
+    os.environ.setdefault("EVEOS_PROJECT_ROOT", PROJECT_ROOT)
     try:
         with ReusableThreadingTCPServer(("127.0.0.1", port), BridgeHandler) as httpd:
-            print("[OK] EveOS Lightpanda Standalone Bridge")
+            print("[OK] EveOS Camofox Standalone Bridge")
             print("  ------------------------------")
-            print(f"  Local:   http://127.0.0.1:{port}/api/lightpanda?url=...")
+            print(f"  Local:   http://127.0.0.1:{port}/api/camofox?url=...")
             print(f"  Status:  http://127.0.0.1:{port}/api/status")
-            print(f"  Binary:  {lightpanda._lightpanda_binary_path()}")
+            print(f"  Runtime: {camofox._runtime_root()}")
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the bridge")
             httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n[OK] Lightpanda bridge stopped")
+        print("\n[OK] Camofox bridge stopped")
         return 0
     except Exception as exc:
-        print(f"[ERROR] Lightpanda bridge failed: {exc}")
+        print(f"[ERROR] Camofox bridge failed: {exc}")
         return 1
     return 0
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="EveOS standalone Lightpanda bridge")
+    parser = argparse.ArgumentParser(description="EveOS standalone Camofox bridge")
     parser.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT, help=f"HTTP port (default: {DEFAULT_PORT})")
     args = parser.parse_args()
     sys.exit(run_server(args.port))

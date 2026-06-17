@@ -8,7 +8,7 @@ Local workspace folder is currently `EveOS-0.4`.
 
 - Frontend entry: `EveOS.html`
 - Frontend modules: `js/modules/*` and `css/modules/*`
-- Backend runtime: `python-server.py`, `server/`, `server/gemini-backend/`
+- Backend runtime: `server/python-server.py`, `server/`, `server/gemini-backend/`
 - Utility backend helpers: `server_modules/`
 
 The system is intentionally compartmentalized. Workspace tabs, category cards, bookmark records, and library records can evolve independently, then connect through explicit state links.
@@ -28,8 +28,8 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
 - `server/`
 - `server/gemini-backend/`
 - `server_modules/`
-- `python-server.py`
-- `config.js`
+- `server/python-server.py`
+- `tools/legacy/` (retired migration/fix artifacts)
 - `data/unified-state-template.json`
 - `data/modular-state/` (generated at runtime in server mode)
 
@@ -147,7 +147,7 @@ Reference JSON schema: `data/unified-state-template.json`
 
 ## Modular Flat-File Store (Live Sync)
 
-When running via `python-server.py` (`http://localhost:*`), EveOS can keep a folder-structured JSON store in:
+When running via `server/python-server.py` (`http://localhost:*`), EveOS can keep a folder-structured JSON store in:
 
 - default: `data/modular-state/`
 - or any configured folder path set in Settings (`Modular JSON Store`)
@@ -186,8 +186,8 @@ This keeps on-disk data modular for drag/drop reorganization while preserving th
 You can run multiple EveOS servers simultaneously, each with its own data-pack folder:
 
 ```bash
-python python-server.py 3000 --modular-root "data/modular-packs/work"
-python python-server.py 3001 --modular-root "data/modular-packs/personal"
+python server/python-server.py 3000 --modular-root "data/modular-packs/work"
+python server/python-server.py 3001 --modular-root "data/modular-packs/personal"
 ```
 
 Notes:
@@ -195,7 +195,9 @@ Notes:
 - Different ports = different browser origins, so localStorage/config are isolated per instance.
 - `--modular-root` is process-local by default (does not overwrite shared store-path settings).
 - Use `--persist-modular-root` only if you want to make a chosen path the default for future server starts.
-- `start-server.bat` now includes `Start additional EveOS instance` for quick multi-instance launch.
+- `start-server.bat` includes both `Start EveOS instance` for port + data-pack and `Start EveOS port only` for a plain local preview such as `http://127.0.0.1:8765/EveOS.html`.
+- `server/start-eveos-port.bat` is the direct helper for starting a plain EveOS HTTP port without a data-pack prompt.
+- `server/start-gemini-control.bat` starts the file-mode Gemini lifecycle helper on `9082`; `server/start-gemini.bat` starts that helper before launching the Gemini backend.
 
 ## Data and Sync Behavior
 
@@ -263,7 +265,7 @@ pip install -r requirements.txt
 2. Start backend:
 
 ```bash
-python python-server.py
+python server/python-server.py
 ```
 
 3. Open `EveOS.html` in a browser.
@@ -312,7 +314,7 @@ Use `rg` to identify the closest existing smoke instead of inventing a new manua
 
 Most UI smokes under `tools/smoke/` are the correct terminal path for validating frontend behavior. They typically:
 
-- launch `python-server.py` themselves
+- launch `server/python-server.py` themselves
 - use an isolated temporary modular root
 - seed runtime state directly
 - drive a real browser with Playwright
@@ -380,8 +382,8 @@ Use when touching:
 - `js/modules/features/autotitle/*`
 - `server_modules/lightpanda.py`
 - `server_modules/camofox.py`
-- `lightpanda-bridge.py`
-- `camofox-bridge.py`
+- `server/bridges/lightpanda-bridge.py`
+- `server/bridges/camofox-bridge.py`
 - fallback ordering, cover scoring, blocked-page behavior, or bookmark edit auto-fetch flows
 
 Recommended command set:
@@ -682,10 +684,10 @@ Agents should assume EveOS state can be polluted by previous runs if they test c
 - use temporary modular roots when launching local server instances for validation
 - avoid drawing conclusions from one manually reused browser tab
 
-For server-backed validation, `python-server.py` supports isolated modular roots:
+For server-backed validation, `server/python-server.py` supports isolated modular roots:
 
 ```bash
-python python-server.py 3000 --no-browser --modular-root "data/modular-packs/agent-smoke"
+python server/python-server.py 3000 --no-browser --modular-root "data/modular-packs/agent-smoke"
 ```
 
 This matters for:

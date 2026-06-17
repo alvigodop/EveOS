@@ -18,7 +18,7 @@
                 if (window.FandomCSUI) {
                     FandomCSUI.showInfoMessage(
                         '<h3 style="color: #ff6b35;">🦁 Brave Scraper Requires Local Server</h3>' +
-                        '<p>Run <code>python python-server.py</code> and access via localhost:3000</p>'
+                        '<p>Run <code>python server/python-server.py</code> and access via localhost:3000</p>'
                     );
                 }
                 if (window.FandomCSCore) FandomCSCore.setLoading(false);

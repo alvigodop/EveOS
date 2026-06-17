@@ -17,12 +17,17 @@ import sys
 from http import HTTPStatus
 from urllib.parse import parse_qs, urlparse
 
+BRIDGE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVER_DIR = os.path.dirname(BRIDGE_DIR)
+PROJECT_ROOT = os.path.dirname(SERVER_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 from server_modules import popup_viewer
 from server_modules import proxy
 from server_modules import wikipedia
 
 DEFAULT_PORT = 3040
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(PROJECT_ROOT, "bin")
 LOG_PATH = os.path.join(LOG_DIR, "popup_activity.log")
 

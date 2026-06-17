@@ -1,4 +1,8 @@
 @echo off
+if not defined PROJECT_ROOT (
+    for %%R in ("%~dp0..\..") do set "PROJECT_ROOT=%%~fR"
+)
+if not defined SELF_PATH set "SELF_PATH=%~f0"
 if "%~1"=="" exit /b 0
 set "_START_SERVER_BROWSE_LABEL=%~1"
 shift
@@ -89,6 +93,14 @@ if /I "%rel%"=="server\server-menu.bat" (
 )
 if /I "%rel%"=="server\start-gemini.bat" (
     set "BATCH_NOTE=Quick launcher: starts the canonical Gemini backend."
+    exit /b 0
+)
+if /I "%rel%"=="server\start-gemini-control.bat" (
+    set "BATCH_NOTE=File-mode helper: lets file:// EveOS start/stop Gemini without an EveOS HTTP port."
+    exit /b 0
+)
+if /I "%rel%"=="server\start-eveos-port.bat" (
+    set "BATCH_NOTE=Starts EveOS on a chosen HTTP port without prompting for a data-pack."
     exit /b 0
 )
 if /I "%rel%"=="start-server.bat" (

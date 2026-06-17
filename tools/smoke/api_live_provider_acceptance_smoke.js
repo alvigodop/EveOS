@@ -31,7 +31,7 @@ async function waitForStatus(url, timeoutMs = 30000) {
 async function main() {
     const modularRoot = path.join(os.tmpdir(), `eve-api-live-${Date.now()}`);
     let browser = null;
-    const server = spawn('python', ['python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });

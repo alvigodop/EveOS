@@ -44,7 +44,7 @@ async function waitForStatus(url, timeoutMs = 30000) {
     const port = await getFreePort();
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-matrix-store-'));
     const server = spawn('python', [
-        'python-server.py',
+        'server/python-server.py',
         String(port),
         '--no-browser',
         '--modular-root',
