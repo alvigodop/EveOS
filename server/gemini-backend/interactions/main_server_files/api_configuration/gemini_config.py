@@ -67,7 +67,7 @@ def configure_gemini_api(api_key):
     try:
         print("\nInitializing Gemini API...")
         generative.configure(api_key=api_key)
-        print("✓ API configuration successful")
+        print("[OK] API configuration successful")
     except Exception as e:
         print(f"\n====== ERROR: FAILED TO CONFIGURE API ======")
         print(f"Error details: {str(e)}")
@@ -91,8 +91,8 @@ def create_gemini_client(api_key):
                 'timeout': TimeoutConfig.CLIENT_TIMEOUT,  # Use configurable timeout
             }
         )
-        print(f"✓ Client configured successfully with {TimeoutConfig.CLIENT_TIMEOUT}s timeout")
-        print(f"✓ Response timeout set to {TimeoutConfig.RESPONSE_TIMEOUT}s (extended to {TimeoutConfig.RESPONSE_TIMEOUT_EXTENDED}s for retries)")
+        print(f"[OK] Client configured successfully with {TimeoutConfig.CLIENT_TIMEOUT}s timeout")
+        print(f"[OK] Response timeout set to {TimeoutConfig.RESPONSE_TIMEOUT}s (extended to {TimeoutConfig.RESPONSE_TIMEOUT_EXTENDED}s for retries)")
         return client
     except Exception as e:
         print(f"\n====== ERROR: FAILED TO INITIALIZE GEMINI CLIENT ======")

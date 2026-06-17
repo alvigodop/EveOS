@@ -1,17 +1,26 @@
 (function () {
     'use strict';
     const STATUS_PATH = '/api/gemini-server/status', POLL_MS = 5000;
+    const DESIRED_STATE_KEY = 'geminiServerDesiredState';
+    const RECOVERY_MIN_INTERVAL_MS = 12000;
+    const STATUS_GRACE_MS = 20000;
     const state = {
         baseUrl: '',
         controllerAvailable: false,
         running: false,
+        desiredRunning: false,
         serverState: 'checking',
         busy: false,
         message: 'Checking Gemini server...',
         connectionPhase: 'idle',
-        credentialsConfigured: false
+        credentialsConfigured: false,
+        statusFailureCount: 0,
+        lastKnownRunningAt: 0,
+        lastRecoveryAttemptAt: 0,
+        recoveryAttempts: 0
     };
     let reconcilePromise = null;
+    let recoveryPromise = null;
     async function findController() {
         const network = window.GeminiServerNetwork;
         if (state.baseUrl) {
@@ -71,19 +80,43 @@
                 ? 'Starting'
                 : state.serverState === 'stopping'
                     ? 'Stopping'
+                    : state.serverState === 'recovering'
+                        ? 'Recovering'
+                        : state.serverState === 'reconnecting'
+                            ? 'Reconnecting'
                 : state.serverState === 'error'
                     ? 'Error'
                     : 'Offline';
-        label.textContent = state.running ? 'Stop' : 'Start';
-        icon.textContent = state.busy ? 'sync' : (state.running ? 'stop' : 'play_arrow');
-        button.disabled = state.busy || !state.controllerAvailable;
+        const shouldOfferStop = state.running || state.desiredRunning || state.serverState === 'recovering';
+        label.textContent = shouldOfferStop ? 'Stop' : 'Start';
+        icon.textContent = state.busy || state.serverState === 'recovering' || state.serverState === 'reconnecting'
+            ? 'sync'
+            : (shouldOfferStop ? 'stop' : 'play_arrow');
+        button.disabled = state.busy || (!state.controllerAvailable && !shouldOfferStop);
         button.classList.toggle('is-busy', state.busy);
 
         const unavailable = !state.controllerAvailable
             ? 'Start server\\start-gemini-control.bat, or run EveOS through a local preview port, to enable Gemini Start/Stop from file://.'
             : '';
         control.title = unavailable || state.message;
-        button.setAttribute('aria-label', state.running ? 'Stop Gemini server' : 'Start Gemini server');
+        button.setAttribute('aria-label', shouldOfferStop ? 'Stop Gemini server' : 'Start Gemini server');
+    }
+
+    function readDesiredServerState() {
+        try {
+            return localStorage.getItem(DESIRED_STATE_KEY) === 'running';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function setDesiredServerState(enabled) {
+        state.desiredRunning = !!enabled;
+        try {
+            localStorage.setItem(DESIRED_STATE_KEY, enabled ? 'running' : 'stopped');
+        } catch (error) {
+            // Storage restrictions should not prevent the current session state.
+        }
     }
 
     function setConnectionPreference(enabled) {
@@ -204,9 +237,12 @@
     async function reconcileClientConnection() {
         if (!state.running) {
             if (!window.webSocket || window.webSocket.readyState >= WebSocket.CLOSING) {
-                state.connectionPhase = 'offline';
+                state.connectionPhase = state.desiredRunning ? 'recovering' : 'offline';
                 if (typeof window.updateConnectionStatus === 'function') {
-                    window.updateConnectionStatus('disconnected', 'Gemini Server Offline');
+                    window.updateConnectionStatus(
+                        state.desiredRunning ? 'waiting' : 'disconnected',
+                        state.desiredRunning ? 'Gemini Recovering...' : 'Gemini Server Offline'
+                    );
                 }
                 publish();
             }
@@ -276,6 +312,29 @@
         });
     }
 
+    function bootWorkspaceForConnection() {
+        return ensureWorkspaceReady().catch(function (error) {
+            state.connectionPhase = 'workspace-error';
+            state.message = error?.message || 'Gemini workspace boot failed.';
+            publish();
+            console.warn('[GeminiServerControl] Workspace boot failed:', error);
+            return false;
+        });
+    }
+
+    function connectWhenWorkspaceReady(workspacePromise) {
+        Promise.resolve(workspacePromise).then(function (ready) {
+            if (ready && state.running && isConnectionPreferenceEnabled()) {
+                connectClient();
+            }
+        }).catch(function (error) {
+            state.connectionPhase = 'workspace-error';
+            state.message = error?.message || 'Gemini workspace boot failed.';
+            publish();
+            console.warn('[GeminiServerControl] Deferred workspace connect failed:', error);
+        });
+    }
+
     async function ensureWorkspaceReady() {
         state.connectionPhase = 'booting';
         publish();
@@ -289,22 +348,43 @@
             trigger = window.__loadGeminiScriptsNow;
         }
 
+        if (typeof trigger !== 'function') {
+            state.connectionPhase = 'loader-unavailable';
+            state.message = 'Gemini server is online, but the workspace loader is not ready yet.';
+            publish();
+            return false;
+        }
+
         if (typeof trigger === 'function') {
             await trigger();
         }
 
-        await waitForWindowEvent('eve:gemini-workspace-ready', function () {
+        const workspaceReady = await waitForWindowEvent('eve:gemini-workspace-ready', function () {
             return !!window.__GEMINI_WORKSPACE_READY
                 && !!document.getElementById('textInput')
                 && !!document.getElementById('sendButton')
                 && typeof window.sendTextMessage === 'function';
         }, 45000);
 
-        await waitForWindowEvent('eve:gemini-socket-ready', function () {
+        if (!workspaceReady) {
+            state.connectionPhase = 'workspace-timeout';
+            state.message = 'Gemini server is online, but the workspace did not finish loading yet.';
+            publish();
+            return false;
+        }
+
+        const socketReady = await waitForWindowEvent('eve:gemini-socket-ready', function () {
             return !!window.__GEMINI_SOCKET_READY
                 && typeof window.SocketConnectionCore?.connect === 'function'
                 && !!window.SocketConnectionCore?.EventHandlers;
         }, 15000);
+
+        if (!socketReady) {
+            state.connectionPhase = 'socket-timeout';
+            state.message = 'Gemini server is online, but the socket client did not finish loading yet.';
+            publish();
+            return false;
+        }
 
         state.connectionPhase = 'ready';
         publish();
@@ -324,41 +404,142 @@
         }
     }
 
+    async function recoverServerIfNeeded(reason) {
+        if (!state.desiredRunning || state.running || state.busy || recoveryPromise) return false;
+        if (!state.controllerAvailable || !state.baseUrl) return false;
+        const now = Date.now();
+        if (now - (state.lastRecoveryAttemptAt || 0) < RECOVERY_MIN_INTERVAL_MS) return false;
+
+        state.lastRecoveryAttemptAt = now;
+        state.recoveryAttempts += 1;
+        state.serverState = 'recovering';
+        state.connectionPhase = 'recovering';
+        state.message = `Gemini connection dropped; recovery attempt ${state.recoveryAttempts} is starting.`;
+        setConnectionPreference(true);
+        publish();
+
+        recoveryPromise = (async function () {
+            try {
+                await syncCredentials({ force: true });
+                const payload = await window.GeminiServerNetwork.fetchJson(`${state.baseUrl}/api/gemini-server/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: reason || 'auto-recovery' })
+                }, 5000);
+
+                state.running = !!payload.running;
+                state.serverState = payload.state || (state.running ? 'running' : 'recovering');
+                state.message = payload.message || state.message;
+
+                if (!state.running && state.serverState !== 'error') {
+                    await window.GeminiServerNetwork.waitForServerReady({
+                        timeoutMs: 45000,
+                        refreshStatus,
+                        isRunning: function () { return state.running; },
+                        isError: function () { return state.serverState === 'error'; },
+                        onEarlyExit: function () {
+                            state.serverState = 'recovering';
+                            state.connectionPhase = 'recovering';
+                            state.message = 'Gemini server exited during recovery. EveOS will retry.';
+                            publish();
+                        }
+                    });
+                }
+
+                if (state.running) {
+                    state.lastKnownRunningAt = Date.now();
+                    state.statusFailureCount = 0;
+                    state.recoveryAttempts = 0;
+                    connectWhenWorkspaceReady(bootWorkspaceForConnection());
+                    return true;
+                }
+            } catch (error) {
+                state.serverState = 'recovering';
+                state.connectionPhase = 'recovering';
+                state.message = `Gemini recovery is still retrying: ${error?.message || 'status unavailable'}`;
+                console.warn('[GeminiServerControl] Auto-recovery failed:', error);
+            } finally {
+                recoveryPromise = null;
+                publish();
+            }
+            return false;
+        })();
+
+        return recoveryPromise;
+    }
+
     async function refreshStatus() {
+        state.desiredRunning = readDesiredServerState();
         const found = await findController();
         if (found) {
             state.controllerAvailable = true;
             state.running = !!found.payload.running;
             state.serverState = found.payload.state || (state.running ? 'running' : 'stopped');
             state.message = found.payload.message || `Gemini server is ${state.serverState}.`;
+            state.statusFailureCount = 0;
+            if (state.running) {
+                state.lastKnownRunningAt = Date.now();
+                state.recoveryAttempts = 0;
+                if (isConnectionPreferenceEnabled()) setDesiredServerState(true);
+            } else if (state.desiredRunning && state.serverState !== 'starting' && state.serverState !== 'recovering') {
+                state.serverState = 'recovering';
+                state.message = 'Gemini should be running; EveOS is restarting it.';
+            }
         } else {
             state.controllerAvailable = false;
             state.running = await checkDirectServerStatus();
-            state.serverState = state.running ? 'running' : 'stopped';
-            state.message = state.running
-                ? 'Gemini is online; lifecycle controller is unavailable.'
-                : 'Gemini is offline. Start server\\start-gemini-control.bat or an EveOS local preview port to enable in-page startup from file://.';
+            state.statusFailureCount += 1;
+            if (state.running) {
+                state.serverState = 'running';
+                state.lastKnownRunningAt = Date.now();
+                state.statusFailureCount = 0;
+                if (isConnectionPreferenceEnabled()) setDesiredServerState(true);
+                state.message = 'Gemini is online; lifecycle controller is unavailable.';
+            } else if (state.desiredRunning && Date.now() - (state.lastKnownRunningAt || 0) < STATUS_GRACE_MS) {
+                state.serverState = 'reconnecting';
+                state.message = 'Gemini status check missed; keeping reconnect active.';
+            } else {
+                state.serverState = state.desiredRunning ? 'recovering' : 'stopped';
+                state.message = state.desiredRunning
+                    ? 'Gemini should be running, but the lifecycle controller is unavailable.'
+                    : 'Gemini is offline. Start server\\start-gemini-control.bat or an EveOS local preview port to enable in-page startup from file://.';
+            }
         }
         if (state.running && shouldAutoRecoverDisabledConnection() && !isConnectionPreferenceEnabled()) {
             setConnectionPreference(true);
         }
         publish();
         reconcileClientConnection();
+        if (state.desiredRunning && !state.running && state.controllerAvailable) {
+            recoverServerIfNeeded('status-refresh');
+        }
         return { ...state };
     }
 
     async function toggleServer() {
-        if (state.busy || !state.controllerAvailable || !state.baseUrl) return;
-        const shouldStart = !state.running;
+        const shouldStart = !(state.running || state.desiredRunning || state.serverState === 'recovering');
+        if (state.busy) return;
+        if (!shouldStart && !state.controllerAvailable) {
+            setDesiredServerState(false);
+            setConnectionPreference(false);
+            disconnectClient();
+            state.running = false;
+            state.serverState = 'stopped';
+            state.message = 'Gemini auto-recovery stopped for this browser.';
+            publish();
+            return;
+        }
+        if (!state.controllerAvailable || !state.baseUrl) return;
         state.busy = true;
         state.serverState = shouldStart ? 'starting' : 'stopping';
         state.message = shouldStart ? 'Starting Gemini server...' : 'Stopping Gemini server...';
+        setDesiredServerState(shouldStart);
         publish();
         let workspacePromise = null;
 
         try {
             workspacePromise = shouldStart
-                ? (setConnectionPreference(true), ensureWorkspaceReady())
+                ? (setConnectionPreference(true), bootWorkspaceForConnection())
                 : null;
             if (shouldStart) {
                 await syncCredentials({ force: true });
@@ -387,9 +568,9 @@
                 });
             }
             if (shouldStart && state.running) {
-                await workspacePromise;
-                connectClient();
+                connectWhenWorkspaceReady(workspacePromise);
             } else if (!shouldStart) {
+                setDesiredServerState(false);
                 setConnectionPreference(false);
                 disconnectClient();
             }
@@ -397,6 +578,7 @@
             state.serverState = 'error';
             state.message = error.message || 'Gemini server control failed.';
             state.connectionPhase = 'error';
+            if (!shouldStart) setDesiredServerState(false);
             console.warn('[GeminiServerControl] Lifecycle action failed:', error);
         } finally {
             state.busy = false;
@@ -404,8 +586,7 @@
             if (shouldStart && state.running
                 && state.connectionPhase !== 'requested'
                 && state.connectionPhase !== 'requesting') {
-                await workspacePromise;
-                connectClient();
+                connectWhenWorkspaceReady(workspacePromise);
             }
         }
     }
@@ -420,6 +601,7 @@
     }
 
     function initialize() {
+        state.desiredRunning = readDesiredServerState();
         bindControls(document);
         const observer = new MutationObserver(function (records) {
             if (records.some(function (record) {

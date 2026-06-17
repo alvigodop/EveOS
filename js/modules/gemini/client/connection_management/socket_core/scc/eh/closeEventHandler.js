@@ -33,7 +33,12 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
         return;
     }
 
-    if (typeof updateConnectionStatus === 'function') updateConnectionStatus('disconnected', 'Connection Lost');
+    if (typeof updateConnectionStatus === 'function') {
+        updateConnectionStatus(
+            State.autoReconnectEnabled ? 'waiting' : 'disconnected',
+            State.autoReconnectEnabled ? 'Connection Interrupted - Reconnecting...' : 'Connection Lost'
+        );
+    }
 
     if (State.autoReconnectEnabled && State.reconnectAttempts < State.MAX_RECONNECT_ATTEMPTS) {
         if (typeof displayMessage === 'function') {

@@ -17,6 +17,14 @@ console.log("serverStatusChecker.js loading...");
         }
     }
 
+    function isServerDesiredRunning() {
+        try {
+            return localStorage.getItem('geminiServerDesiredState') === 'running';
+        } catch (error) {
+            return false;
+        }
+    }
+
     function stopReconnectMonitor(message, statusMessage) {
         if (State.continuousReconnectInterval) {
             clearTimeout(State.continuousReconnectInterval);
@@ -92,16 +100,29 @@ console.log("serverStatusChecker.js loading...");
     }
 
     async function startContinuousReconnectAttempts() {
+        if (isServerDesiredRunning()) {
+            State.autoReconnectEnabled = true;
+            State.serverOfflinePauseActive = false;
+        }
+
         if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
             return;
         }
 
-        if (isConnectionDisabledByPreference()) {
+        if (isConnectionDisabledByPreference() && !isServerDesiredRunning()) {
             stopReconnectMonitor(
                 "System Message: Gemini connection is disabled by preference. Auto reconnect paused.",
                 'Gemini Connection Disabled'
             );
             return;
+        } else if (isConnectionDisabledByPreference() && isServerDesiredRunning()) {
+            try {
+                localStorage.setItem('geminiConnectionEnabled', 'true');
+            } catch (error) {
+                // Keep the in-memory reconnect path alive even if storage is blocked.
+            }
+            State.autoReconnectEnabled = true;
+            State.serverOfflinePauseActive = false;
         }
 
         if (State.continuousReconnectInterval) clearTimeout(State.continuousReconnectInterval);

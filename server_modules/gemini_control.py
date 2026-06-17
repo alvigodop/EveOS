@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import socket
+import http.client
 import subprocess
 import sys
 import time
@@ -33,6 +34,26 @@ def _port_open(port: int) -> bool:
             return True
     except OSError:
         return False
+
+
+def _status_http_ready() -> bool:
+    connection = None
+    try:
+        connection = http.client.HTTPConnection("127.0.0.1", STATUS_PORT, timeout=0.6)
+        connection.request("GET", "/status", headers={"Connection": "close"})
+        response = connection.getresponse()
+        response.read(256)
+        return response.status == 200
+    except OSError:
+        return False
+    except Exception:
+        return False
+    finally:
+        if connection is not None:
+            try:
+                connection.close()
+            except Exception:
+                pass
 
 
 def _listener_pids(port: int) -> list[int]:
@@ -86,7 +107,8 @@ def _status_payload(message: str = "") -> dict:
     websocket_pids = _listener_pids(WEBSOCKET_PORT)
     status_pids = _listener_pids(STATUS_PORT)
     websocket_ready = bool(websocket_pids) and _port_open(WEBSOCKET_PORT)
-    status_ready = bool(status_pids) and _port_open(STATUS_PORT)
+    status_port_open = bool(status_pids) and _port_open(STATUS_PORT)
+    status_ready = status_port_open and _status_http_ready()
     process_alive = bool(_PROCESS and _PROCESS.poll() is None)
     running = websocket_ready and status_ready
     state = "running" if running else ("starting" if process_alive else "stopped")
@@ -97,6 +119,7 @@ def _status_payload(message: str = "") -> dict:
         "running": running,
         "websocketReady": websocket_ready,
         "statusReady": status_ready,
+        "statusPortOpen": status_port_open,
         "websocketPort": WEBSOCKET_PORT,
         "statusPort": STATUS_PORT,
         "pids": sorted(set(websocket_pids + status_pids)),
@@ -116,11 +139,14 @@ def start_server() -> dict:
         current["message"] = "Gemini server is already running."
         return current
 
-    # A stale status listener prevents the real Gemini process from owning 9084.
-    if current["statusReady"] and not current["websocketReady"]:
-        for pid in _listener_pids(STATUS_PORT):
+    # Partial listeners are a bad state: the UI sees a port but cannot complete
+    # health checks. Restart the Gemini backend instead of leaving it "starting"
+    # forever.
+    if (current["websocketReady"] or current.get("statusPortOpen")) and not current["running"]:
+        for pid in sorted(set(_listener_pids(WEBSOCKET_PORT) + _listener_pids(STATUS_PORT))):
             _terminate_pid(pid)
-        time.sleep(0.15)
+        _PROCESS = None
+        time.sleep(0.35)
 
     script = _main_script()
     if not script.exists():

@@ -8,6 +8,16 @@ window.SocketConnectionCore.EventHandlers = window.SocketConnectionCore.EventHan
 
 window.SocketConnectionCore.EventHandlers.handleError = function (event) {
     const State = window.SocketGlobalState;
+    let desiredRunning = false;
+    try {
+        desiredRunning = localStorage.getItem('geminiServerDesiredState') === 'running';
+    } catch (error) {
+        desiredRunning = false;
+    }
+    if (desiredRunning) {
+        State.autoReconnectEnabled = true;
+        State.serverOfflinePauseActive = false;
+    }
     if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
         State.isConnecting = false;
         return;
