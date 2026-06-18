@@ -213,10 +213,9 @@
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid {
     align-content: start !important;
     align-items: start !important;
-    display: grid !important;
-    grid-auto-rows: max-content !important;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(240px, 18vw, 320px)), 1fr));
-    gap: 8px;
+    column-gap: 8px !important;
+    column-width: 260px !important;
+    display: block !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div,
@@ -230,6 +229,14 @@
     gap: 6px;
     padding: 10px 11px;
     border-radius: 14px;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div {
+    break-inside: avoid;
+    display: block !important;
+    margin: 0 0 8px !important;
+    page-break-inside: avoid;
+    width: 100% !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-chat-header,

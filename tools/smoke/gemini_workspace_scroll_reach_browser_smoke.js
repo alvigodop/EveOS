@@ -62,7 +62,18 @@ async function main() {
         agentic: read(agentic),
         cardHeights: Array.from(document.querySelectorAll('.gemini-agentic-card'))
           .slice(0, 6)
-          .map((card) => Math.round(card.getBoundingClientRect().height))
+          .map((card) => Math.round(card.getBoundingClientRect().height)),
+        cardRects: Array.from(document.querySelectorAll('.gemini-agentic-grid > div'))
+          .slice(0, 8)
+          .map((card) => {
+            const rect = card.getBoundingClientRect();
+            return {
+              left: Math.round(rect.left),
+              top: Math.round(rect.top),
+              bottom: Math.round(rect.bottom),
+              height: Math.round(rect.height)
+            };
+          })
       };
     });
     if (!metrics.root || !metrics.target || !metrics.agentic) {
@@ -73,6 +84,21 @@ async function main() {
     }
     if (!metrics.cardHeights.length || Math.max(...metrics.cardHeights) > 180) {
       throw new Error(`Standard agentic cards are stretched too tall: ${JSON.stringify(metrics)}`);
+    }
+    const grouped = new Map();
+    for (const rect of metrics.cardRects) {
+      const key = String(rect.left);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(rect);
+    }
+    for (const rects of grouped.values()) {
+      rects.sort((a, b) => a.top - b.top);
+      for (let i = 1; i < rects.length; i += 1) {
+        const gap = rects[i].top - rects[i - 1].bottom;
+        if (gap > 18) {
+          throw new Error(`Agentic masonry column has an excessive vertical gap: ${JSON.stringify(metrics)}`);
+        }
+      }
     }
     if (metrics.target.bottom > metrics.root.bottom + 8) {
       throw new Error(`Lower EveOS Relay controls are not reachable after scroll: ${JSON.stringify(metrics)}`);
