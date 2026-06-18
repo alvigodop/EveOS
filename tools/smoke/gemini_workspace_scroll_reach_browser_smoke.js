@@ -59,7 +59,10 @@ async function main() {
       return {
         root: read(root),
         target: read(target),
-        agentic: read(agentic)
+        agentic: read(agentic),
+        cardHeights: Array.from(document.querySelectorAll('.gemini-agentic-card'))
+          .slice(0, 6)
+          .map((card) => Math.round(card.getBoundingClientRect().height))
       };
     });
     if (!metrics.root || !metrics.target || !metrics.agentic) {
@@ -67,6 +70,9 @@ async function main() {
     }
     if (metrics.agentic.overflowY === 'hidden' && metrics.agentic.scrollHeight > metrics.agentic.clientHeight) {
       throw new Error(`Agentic functions are clipping content: ${JSON.stringify(metrics)}`);
+    }
+    if (!metrics.cardHeights.length || Math.max(...metrics.cardHeights) > 180) {
+      throw new Error(`Standard agentic cards are stretched too tall: ${JSON.stringify(metrics)}`);
     }
     if (metrics.target.bottom > metrics.root.bottom + 8) {
       throw new Error(`Lower EveOS Relay controls are not reachable after scroll: ${JSON.stringify(metrics)}`);

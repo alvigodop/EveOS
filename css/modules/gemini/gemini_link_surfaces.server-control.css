@@ -211,13 +211,18 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid {
+    align-content: start !important;
+    align-items: start !important;
     display: grid !important;
+    grid-auto-rows: max-content !important;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, clamp(240px, 18vw, 320px)), 1fr));
     gap: 8px;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div,
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-card {
+    align-self: start !important;
+    height: auto !important;
     min-width: 0;
 }
 
