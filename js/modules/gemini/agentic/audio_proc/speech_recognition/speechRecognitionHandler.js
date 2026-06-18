@@ -22,6 +22,8 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
         let pendingFinalTimer = 0;
         let lastSubmittedText = '';
         let lastSubmittedAt = 0;
+        let transcriptionHideTimer = 0;
+        const TRANSCRIPTION_PREVIEW_MAX_CHARS = 180;
 
         // Configuration
         const config = {
@@ -77,16 +79,14 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
                         if (transcript) finalParts.push(transcript);
                         finalTranscript = normalizeTranscript([finalTranscript, transcript].filter(Boolean).join(' '));
                         console.log("[SpeechRecognition] Final:", finalTranscript);
-                        // Here we would send the final text to the UI
-                        updateTranscriptionUI(finalTranscript, true);
+                        updateTranscriptionUI(transcript, true);
                     } else {
                         interimTranscript += event.results[i][0].transcript;
                     }
                 }
 
                 if (interimTranscript) {
-                    // Update UI with interim results
-                    updateTranscriptionUI(finalTranscript + interimTranscript, false);
+                    updateTranscriptionUI(interimTranscript, false);
                 }
 
                 if (finalParts.length) {
@@ -190,8 +190,27 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
                 return;
             }
 
-            displayElement.textContent = text;
+            const normalized = normalizeTranscript(text);
+            const clipped = normalized.length > TRANSCRIPTION_PREVIEW_MAX_CHARS
+                ? `...${normalized.slice(-TRANSCRIPTION_PREVIEW_MAX_CHARS)}`
+                : normalized;
+            displayElement.textContent = clipped;
+            displayElement.title = normalized;
+            displayElement.style.display = normalized ? '' : 'none';
             displayElement.style.opacity = isFinal ? '1' : '0.7'; // Visual cue for interim
+
+            if (transcriptionHideTimer) {
+                clearTimeout(transcriptionHideTimer);
+                transcriptionHideTimer = 0;
+            }
+            if (isFinal) {
+                transcriptionHideTimer = setTimeout(() => {
+                    displayElement.style.display = 'none';
+                    displayElement.textContent = '';
+                    displayElement.title = '';
+                    transcriptionHideTimer = 0;
+                }, 5000);
+            }
         }
 
         return {

@@ -321,22 +321,54 @@ window.EveDataStore = window.EveDataStore || {};
         if (safeScope === 'card' && scopeOptions.categoryName) {
             params.set('categoryName', String(scopeOptions.categoryName));
         }
-        const query = `/api/eve-state/modular/gemini-context?${params.toString()}`;
-        const { ok, payload } = await ns.requestJson(query);
-        if (!ok || !payload?.ok) {
-            return { ok: false, error: payload?.error || 'Failed to build Gemini context.' };
+        let remoteError = '';
+        if (typeof ns.isHttpContext !== 'function' || ns.isHttpContext()) {
+            try {
+                const query = `/api/eve-state/modular/gemini-context?${params.toString()}`;
+                const { ok, payload } = await ns.requestJson(query);
+                if (ok && payload?.ok) {
+                    return {
+                        ok: true,
+                        mode: payload.mode || safeMode,
+                        contextText: payload.contextText || '',
+                        payload: payload.payload || null,
+                        manifest: buildContextManifest({
+                            mode: payload.mode || safeMode,
+                            payload: payload.payload || null,
+                            scope: scopeOptions
+                        }, payload.contextText || '', safeLimit)
+                    };
+                }
+                remoteError = payload?.error || 'Failed to build Gemini context.';
+            } catch (error) {
+                remoteError = error?.message || String(error || 'Failed to fetch Gemini context.');
+            }
+        } else {
+            remoteError = 'Server context API unavailable in file:// mode.';
         }
-        return {
-            ok: true,
-            mode: payload.mode || safeMode,
-            contextText: payload.contextText || '',
-            payload: payload.payload || null,
-            manifest: buildContextManifest({
-                mode: payload.mode || safeMode,
-                payload: payload.payload || null,
-                scope: scopeOptions
-            }, payload.contextText || '', safeLimit)
-        };
+
+        if (typeof ns.buildLocalGeminiContext === 'function') {
+            const localContext = ns.buildLocalGeminiContext(safeMode, safeLimit, { scope: scopeOptions });
+            if (localContext?.ok) {
+                const contextText = localContext.contextText || '';
+                return {
+                    ok: true,
+                    mode: localContext.mode || safeMode,
+                    contextText,
+                    payload: localContext.payload || null,
+                    localFallback: true,
+                    remoteError,
+                    manifest: buildContextManifest({
+                        mode: localContext.mode || safeMode,
+                        payload: localContext.payload || null,
+                        scope: scopeOptions
+                    }, contextText, safeLimit)
+                };
+            }
+            remoteError = `${remoteError || 'Server context API unavailable.'} Local fallback failed: ${localContext?.error || 'unknown error'}`;
+        }
+
+        return { ok: false, error: remoteError || 'Failed to build Gemini context.' };
     }
 
     async function sendContextToGemini(mode = 'summary', limit = 25, options = {}) {
@@ -351,7 +383,9 @@ window.EveDataStore = window.EveDataStore || {};
             ...(context.manifest || buildContextManifest(context, message, limit)),
             messageChars: message.length,
             messageLines: message.split(/\r?\n/).length,
-            nexusTraceCount: recentNexusTraces.length
+            nexusTraceCount: recentNexusTraces.length,
+            localFallback: !!context.localFallback,
+            contextSource: context.localFallback ? 'browser-state-fallback' : 'server-api'
         };
         const payload = {
             source: 'modular_gemini_context',
@@ -376,7 +410,7 @@ window.EveDataStore = window.EveDataStore || {};
             window.webSocket.send(JSON.stringify(payload));
             if (typeof window.displayMessage === 'function') {
                 window.displayMessage(
-                    `System Message: Sent EveOS context snapshot (${context.mode}, ${manifest.messageChars} chars) to Gemini`,
+                    `System Message: Sent EveOS context snapshot (${context.mode}, ${manifest.messageChars} chars, ${manifest.contextSource}) to Gemini`,
                     true
                 );
             }
@@ -384,17 +418,17 @@ window.EveDataStore = window.EveDataStore || {};
 
         if (window.webSocket && window.webSocket.readyState === WebSocket.OPEN) {
             sendPayload('websocket');
-            return { ok: true, sent: true, route: 'websocket', mode: context.mode, manifest };
+            return { ok: true, sent: true, route: 'websocket', mode: context.mode, manifest, localFallback: !!context.localFallback };
         }
 
         if (typeof window.waitForConnection === 'function') {
             window.waitForConnection(() => sendPayload('queued-websocket'), 1000);
-            return { ok: true, sent: true, queued: true, route: 'queued-websocket', mode: context.mode, manifest };
+            return { ok: true, sent: true, queued: true, route: 'queued-websocket', mode: context.mode, manifest, localFallback: !!context.localFallback };
         }
 
         if (navigator.clipboard?.writeText) {
             await navigator.clipboard.writeText(message);
-            return { ok: true, sent: false, copied: true, route: 'clipboard', mode: context.mode, manifest };
+            return { ok: true, sent: false, copied: true, route: 'clipboard', mode: context.mode, manifest, localFallback: !!context.localFallback };
         }
 
         return { ok: false, error: 'Gemini socket unavailable and clipboard access denied.' };

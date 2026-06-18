@@ -115,6 +115,14 @@
     min-height: 0;
 }
 
+#loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] {
+    display: flex;
+    flex-direction: column;
+    height: 100% !important;
+    max-height: none !important;
+    min-height: 0;
+}
+
 @media (min-width: 920px) {
     #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content,
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content {
@@ -133,6 +141,50 @@
     #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column,
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
         min-height: 0;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content {
+        min-height: clamp(640px, calc(100dvh - 190px), 1180px);
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .left-column,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
+        align-self: stretch;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
+        display: grid !important;
+        grid-template-rows: minmax(0, 1fr) auto !important;
+        align-content: stretch !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
+        display: flex !important;
+        flex-direction: column;
+        height: 100% !important;
+        min-height: 0 !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
+        flex: 1.35 1 360px !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
+        flex: 0.85 1 220px !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
+        height: 100% !important;
+        max-height: none !important;
+        min-height: 0 !important;
     }
 }
 

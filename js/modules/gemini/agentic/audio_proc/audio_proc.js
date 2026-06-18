@@ -58,7 +58,7 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/interim_audio_toggle/interimAudioToggleHandler.js`,
 
     // Speech Recognition (Client-Side)
-    `${AUDIO_PROCESSING_BASE_PATH}/speech_recognition/speechRecognitionHandler.js?v=0.2.0`,
+    `${AUDIO_PROCESSING_BASE_PATH}/speech_recognition/speechRecognitionHandler.js?v=0.2.1`,
 
     // Voice Settings and Controls
     `${AUDIO_PROCESSING_BASE_PATH}/voice_announcements_handler/voiceAnnouncementsHandler.js`,
