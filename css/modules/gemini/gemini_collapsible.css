@@ -80,6 +80,14 @@
     flex: 0 0 auto !important;
 }
 
+#system-log-display-placeholder.is-gemini-section-collapsed,
+#main-chat-log-placeholder.is-gemini-section-collapsed {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    flex: 0 0 auto !important;
+}
+
 /* Subtle header highlight on hover */
 [data-collapsible-header]:hover {
     background-color: rgba(0, 212, 255, 0.04);

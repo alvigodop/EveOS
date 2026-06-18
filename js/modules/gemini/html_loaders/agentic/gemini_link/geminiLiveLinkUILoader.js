@@ -404,6 +404,7 @@ async function initializeGeminiLiveLinkCard() {
     _refreshGeminiLiveLinkCardOptions();
     _bindGeminiLiveLinkDataStream();
     _applyGeminiLiveLinkEnabledState(_isGeminiLiveLinkEnabled());
+    window.GeminiLiveLinkAssistRuntime?.update?.();
 }
 
 async function loadGeminiLiveLinkCard() {

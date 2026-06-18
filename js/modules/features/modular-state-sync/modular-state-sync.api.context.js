@@ -9,6 +9,9 @@ window.EveDataStore = window.EveDataStore || {};
         return;
     }
 
+    const LIVE_CONTEXT_CHUNK_CHARS = 45000;
+    const LIVE_CONTEXT_MAX_CHARS = 360000;
+
     async function syncNow(force = true) {
         if (!ns.isHttpContext()) return false;
         const store = ns.getStore();
@@ -273,6 +276,19 @@ window.EveDataStore = window.EveDataStore || {};
             }, null, 2);
     }
 
+    function prepareLiveContextMessage(message) {
+        const raw = String(message || '');
+        const truncated = raw.length > LIVE_CONTEXT_MAX_CHARS;
+        const clipped = truncated
+            ? `${raw.slice(0, LIVE_CONTEXT_MAX_CHARS)}\n\n[TRANSPORT NOTICE: EveOS context was clipped at ${LIVE_CONTEXT_MAX_CHARS.toLocaleString()} characters to avoid a Gemini Live oversized-frame disconnect. Narrow the scope or use Rich Summary for the full live session.]`
+            : raw;
+        const parts = [];
+        for (let index = 0; index < clipped.length; index += LIVE_CONTEXT_CHUNK_CHARS) {
+            parts.push(clipped.slice(index, index + LIVE_CONTEXT_CHUNK_CHARS));
+        }
+        return { message: clipped, parts: parts.length ? parts : [''], truncated };
+    }
+
     function buildContextManifest(context, message, limit) {
         const payload = context?.payload || {};
         const cfg = getConfigForContextManifest(payload);
@@ -376,7 +392,9 @@ window.EveDataStore = window.EveDataStore || {};
         if (!context.ok) return context;
 
         const recentNexusTraces = getRecentNexusTraces(5);
-        const message = (context.contextText || '') + buildNexusTraceContextBlock(recentNexusTraces);
+        const rawMessage = (context.contextText || '') + buildNexusTraceContextBlock(recentNexusTraces);
+        const prepared = prepareLiveContextMessage(rawMessage);
+        const message = prepared.message;
         if (!message) return { ok: false, error: 'Empty Gemini context payload.' };
 
         const manifest = {
@@ -385,32 +403,40 @@ window.EveDataStore = window.EveDataStore || {};
             messageLines: message.split(/\r?\n/).length,
             nexusTraceCount: recentNexusTraces.length,
             localFallback: !!context.localFallback,
-            contextSource: context.localFallback ? 'browser-state-fallback' : 'server-api'
-        };
-        const payload = {
-            source: 'modular_gemini_context',
-            realtime_input: {
-                media_chunks: [{
-                    mime_type: 'text/plain',
-                    data: message
-                }]
-            },
-            is_system_context: true,
-            is_modular_context: true,
-            context_mode: context.mode,
-            context_manifest: manifest
+            contextSource: context.localFallback ? 'browser-state-fallback' : 'server-api',
+            transportChunkCount: prepared.parts.length,
+            transportChunkChars: LIVE_CONTEXT_CHUNK_CHARS,
+            transportTruncated: prepared.truncated
         };
 
         const sendPayload = (route = 'websocket') => {
-            payload.context_manifest = {
-                ...manifest,
-                route,
-                sentAt: new Date().toISOString()
-            };
-            window.webSocket.send(JSON.stringify(payload));
+            prepared.parts.forEach((part, index) => {
+                const payload = {
+                    source: 'modular_gemini_context',
+                    realtime_input: {
+                        media_chunks: [{
+                            mime_type: 'text/plain',
+                            data: prepared.parts.length > 1
+                                ? `[EveOS context chunk ${index + 1}/${prepared.parts.length}]\n${part}`
+                                : part
+                        }]
+                    },
+                    is_system_context: true,
+                    is_modular_context: true,
+                    context_mode: context.mode,
+                    context_manifest: {
+                        ...manifest,
+                        route,
+                        chunkIndex: index + 1,
+                        chunkCount: prepared.parts.length,
+                        sentAt: new Date().toISOString()
+                    }
+                };
+                window.webSocket.send(JSON.stringify(payload));
+            });
             if (typeof window.displayMessage === 'function') {
                 window.displayMessage(
-                    `System Message: Sent EveOS context snapshot (${context.mode}, ${manifest.messageChars} chars, ${manifest.contextSource}) to Gemini`,
+                    `System Message: Sent EveOS context snapshot (${context.mode}, ${manifest.messageChars} chars, ${manifest.transportChunkCount} chunk(s), ${manifest.contextSource}) to Gemini`,
                     true
                 );
             }

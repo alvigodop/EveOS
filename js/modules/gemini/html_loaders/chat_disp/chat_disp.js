@@ -8,6 +8,7 @@ const CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') +
 // List of scripts to be loaded for Chat Log Display components (includes both UI loaders and handlers)
 const chatLogDisplayScripts = [
     `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/main_chat/mainChatLogUILoader.js`,
+    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/logCopyRuntime.js?v=0.1.0`,
     `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/prev_conv/previousConversationLogDisplayLoader.js`,
     `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/toggle_hist/toggleConversationHistoryButtonUILoader.js`,
     `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/sys_log/systemLogDisplayUILoader.js`,
@@ -107,4 +108,4 @@ async function initializeChatLogDisplayHtmlComponents() {
 }
 
 // Export the initialization function to be called by html_initialization_loaders.js
-window.initializeChatLogDisplayHtmlComponents = initializeChatLogDisplayHtmlComponents; 
+window.initializeChatLogDisplayHtmlComponents = initializeChatLogDisplayHtmlComponents;

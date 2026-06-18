@@ -20,7 +20,13 @@ async function loadMainChatLog() {
             <div class="gemini-chat-kicker">Conversation Feed</div>
             <span class="gemini-chat-title">Conversations</span>
         </div>
-        <div class="gemini-chat-header-pill">Live</div>
+        <div class="gemini-chat-header-actions">
+            <button type="button" class="gemini-log-copy-btn" data-gemini-copy-log="chat" title="Copy conversation messages">
+                <i class="material-icons" aria-hidden="true">content_copy</i>
+                <span>Copy</span>
+            </button>
+            <div class="gemini-chat-header-pill">Live</div>
+        </div>
     </div>
     <div class="chat-messages-container gemini-chat-messages" data-collapsible-body></div>
 </div>

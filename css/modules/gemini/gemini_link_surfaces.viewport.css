@@ -173,11 +173,12 @@
     }
 
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
-        flex: 1.35 1 360px !important;
+        flex: 1.45 1 380px !important;
     }
 
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
-        flex: 0.85 1 220px !important;
+        flex: 0 1 clamp(150px, 18dvh, 260px) !important;
+        max-height: clamp(150px, 18dvh, 260px) !important;
     }
 
     #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog,
@@ -185,6 +186,26 @@
         height: 100% !important;
         max-height: none !important;
         min-height: 0 !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
+        max-height: clamp(150px, 18dvh, 260px) !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed {
+        flex: 0 0 auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed #chatLog,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed #systemLog {
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: hidden !important;
     }
 }
 

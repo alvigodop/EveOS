@@ -246,12 +246,42 @@
 }
 
 #gemini-ui-root .gemini-history-actions,
+#gemini-ui-root .gemini-chat-header-actions,
 #gemini-ui-root .gemini-system-header-actions,
 #gemini-ui-root .gemini-input-actions {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+}
+
+#gemini-ui-root .gemini-log-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    padding: 0 10px;
+    border: 1px solid rgba(110, 231, 255, 0.18);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(232, 247, 255, 0.82);
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+#gemini-ui-root .gemini-log-copy-btn:hover,
+#gemini-ui-root .gemini-log-copy-btn.is-copied {
+    border-color: rgba(110, 231, 255, 0.42);
+    background: rgba(0, 212, 255, 0.12);
+    color: #dff9ff;
+}
+
+#gemini-ui-root .gemini-log-copy-btn .material-icons {
+    font-size: 15px;
+    line-height: 1;
 }
 
 #gemini-ui-root .gemini-history-btn,

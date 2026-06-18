@@ -19,6 +19,10 @@ async function loadSystemLogDisplay() {
             <div class="gemini-system-header-copy">Connection, voice, and runtime notices stay scoped to this workspace.</div>
         </div>
         <div class="gemini-system-header-actions">
+            <button type="button" class="gemini-log-copy-btn" data-gemini-copy-log="system" title="Copy system messages">
+                <i class="material-icons" aria-hidden="true">content_copy</i>
+                <span>Copy</span>
+            </button>
             <button id="rebootButton" class="mdl-button mdl-js-button gemini-system-reboot-btn" style="display: none;">
                 <i class="material-icons">refresh</i>
                 Reboot Server

@@ -53,6 +53,7 @@
                 '#system-log-display-placeholder, #main-chat-log-placeholder, #agentic-functions-section-placeholder'
             );
             if (placeholder) {
+                placeholder.classList.toggle('is-gemini-section-collapsed', collapsed);
                 if (collapsed) {
                     placeholder.style.minHeight = '0';
                     placeholder.style.flex = '0 0 auto';

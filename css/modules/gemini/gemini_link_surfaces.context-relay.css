@@ -57,6 +57,17 @@
     margin-top: 9px;
 }
 
+.gemini-live-link-scope-explain {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border: 1px solid rgba(110, 231, 255, 0.11);
+    border-radius: 13px;
+    background: rgba(6, 18, 25, 0.44);
+    color: rgba(232, 247, 255, 0.62);
+    font-size: 0.72rem;
+    line-height: 1.42;
+}
+
 .gemini-live-link-stream-row {
     display: flex;
     align-items: center;

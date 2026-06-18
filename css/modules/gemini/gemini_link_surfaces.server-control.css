@@ -325,15 +325,15 @@
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
     height: auto !important;
-    min-height: clamp(152px, 17dvh, 210px) !important;
-    max-height: clamp(152px, 17dvh, 210px) !important;
+    min-height: clamp(185px, 18dvh, 360px) !important;
+    max-height: clamp(185px, 18dvh, 360px) !important;
     flex: 0 0 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
-    height: clamp(152px, 17dvh, 210px) !important;
-    min-height: clamp(152px, 17dvh, 210px) !important;
-    max-height: clamp(152px, 17dvh, 210px) !important;
+    height: clamp(185px, 18dvh, 360px) !important;
+    min-height: clamp(185px, 18dvh, 360px) !important;
+    max-height: clamp(185px, 18dvh, 360px) !important;
     flex: 0 0 auto !important;
     overflow-y: auto !important;
 }
