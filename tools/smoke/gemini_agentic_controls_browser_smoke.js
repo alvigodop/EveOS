@@ -116,9 +116,43 @@ async function main() {
         }
 
         await page.click('label[for="geminiLiveLinkToggle"]');
-        const liveLinkHidden = await page.locator('#geminiLiveLinkControls').getAttribute('aria-hidden');
+        const relayPaused = await page.evaluate(() => {
+            const box = (selector) => {
+                const element = document.querySelector(selector);
+                if (!element) return null;
+                const rect = element.getBoundingClientRect();
+                const style = getComputedStyle(element);
+                return {
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height),
+                    display: style.display
+                };
+            };
+            return {
+                controlsHidden: document.getElementById('geminiLiveLinkControls')?.getAttribute('aria-hidden'),
+                card: box('#gemini-live-link-card'),
+                toggle: box('label[for="geminiLiveLinkToggle"]'),
+                track: box('label[for="geminiLiveLinkToggle"] .mdl-switch__track'),
+                thumb: box('label[for="geminiLiveLinkToggle"] .mdl-switch__thumb'),
+                manifest: box('#geminiLiveLinkManifest'),
+                status: box('#geminiLiveLinkStatus'),
+                paused: document.getElementById('gemini-live-link-card')?.classList.contains('is-relay-paused')
+            };
+        });
+        const liveLinkHidden = relayPaused.controlsHidden;
         if (liveLinkHidden !== 'true') {
             throw new Error(`Gemini Live Link toggle is not wired: ${liveLinkHidden}`);
+        }
+        if (!relayPaused.paused
+            || relayPaused.card.height > 150
+            || relayPaused.toggle.width !== 52
+            || relayPaused.track.width !== 36
+            || relayPaused.track.height !== 14
+            || relayPaused.thumb.width !== 20
+            || relayPaused.thumb.height !== 20
+            || relayPaused.manifest.display !== 'none'
+            || relayPaused.status.display !== 'none') {
+            throw new Error(`Gemini Live Link paused state is not compact: ${JSON.stringify(relayPaused)}`);
         }
         await page.click('label[for="geminiLiveLinkToggle"]');
 

@@ -334,10 +334,33 @@
 }
 
 .gemini-live-link-toggle {
-    padding: 2px 4px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    flex: 0 0 52px;
+    margin: 0;
+}
+
+.gemini-live-link-toggle .mdl-switch__label {
+    display: none;
+}
+
+.gemini-live-link-card.is-relay-paused {
+    gap: 6px;
+    padding-bottom: 12px;
+}
+
+.gemini-live-link-card.is-relay-paused .gemini-live-link-head {
+    margin-bottom: 8px;
+}
+
+.gemini-live-link-card.is-relay-paused .gemini-live-link-status {
+    display: none;
+}
+
+.gemini-live-link-card.is-relay-paused .gemini-live-link-subtitle {
+    display: none;
+}
+
+.gemini-live-link-card.is-relay-paused .gemini-live-link-manifest {
+    display: none;
 }
 
 .gemini-live-link-status {

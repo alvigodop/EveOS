@@ -248,6 +248,7 @@ function _bindGeminiLiveLinkDataStream() {
 
 function _applyGeminiLiveLinkEnabledState(enabled) {
     const isEnabled = !!enabled;
+    const root = document.getElementById('gemini-live-link-card');
     const toggle = document.getElementById('geminiLiveLinkToggle');
     const modeSelect = document.getElementById('geminiLiveLinkMode');
     const scopeSelect = document.getElementById('geminiLiveLinkScopeMode');
@@ -257,6 +258,7 @@ function _applyGeminiLiveLinkEnabledState(enabled) {
     const controls = document.getElementById('geminiLiveLinkControls');
     const statusEl = document.getElementById('geminiLiveLinkStatus');
 
+    if (root) root.classList.toggle('is-relay-paused', !isEnabled);
     if (toggle) toggle.checked = isEnabled;
     if (modeSelect) modeSelect.disabled = !isEnabled;
     if (scopeSelect) scopeSelect.disabled = !isEnabled;
@@ -423,7 +425,7 @@ async function loadGeminiLiveLinkCard() {
             <span class="gemini-live-link-title">EveOS Context Relay</span>
             <div class="gemini-live-link-subtitle">Choose a tab/card scope, inspect what will be sent, then relay it into Gemini.</div>
         </div>
-        <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-live-link-toggle" for="geminiLiveLinkToggle">
+        <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch gemini-live-link-toggle" for="geminiLiveLinkToggle" style="width:52px;height:32px;min-height:32px;flex:0 0 52px;">
             <input type="checkbox" id="geminiLiveLinkToggle" class="mdl-switch__input" checked>
             <span class="mdl-switch__label"></span>
         </label>
