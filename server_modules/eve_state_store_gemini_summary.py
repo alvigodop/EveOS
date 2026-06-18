@@ -5,6 +5,10 @@ from server_modules.eve_state_store_layers_shared import (
     _parse_scoped_category_key,
     _scoped_key,
 )
+from server_modules.eve_state_store_gemini_structure import (
+    _bookmark_context,
+    build_structured_scope,
+)
 
 
 def _summary_text(value, fallback=""):
@@ -59,6 +63,20 @@ def _summary_related_urls(link):
         if candidate:
             urls.append(candidate)
     return list(dict.fromkeys(urls))[:8]
+
+
+def _summary_covers(link):
+    additional = []
+    for key in ["additionalCovers", "coverImages", "extraCovers"]:
+        additional.extend(_summary_text(item.get("url") or item.get("src")) if isinstance(item, dict) else _summary_text(item) for item in _summary_list((link or {}).get(key)))
+    additional = [value for value in dict.fromkeys(additional) if value]
+    primary = _summary_text(_summary_first(link, ["coverImage", "cover", "imageUrl", "thumbnail", "thumbnailUrl"]))
+    return {
+        "primary": primary,
+        "additional": additional[:8],
+        "hasCover": bool(primary or additional),
+        "hasAdditionalCovers": bool(additional),
+    }
 
 
 def _summary_aliases(entry):
@@ -187,10 +205,13 @@ def _build_nexus_signals(bookmarks, categories, connections):
 
 def build_gemini_summary(state, sample_limit=25):
     metadata = (state or {}).get("metadata") or {}
-    bookmarks = list((state or {}).get("bookmarks", {}).get("links") or [])
+    bookmark_state = (state or {}).get("bookmarks", {}) or {}
+    bookmarks = list(bookmark_state.get("links") or [])
+    config = bookmark_state.get("config") or {}
     categories = (state or {}).get("library", {}).get("categories") or {}
     connections = list((state or {}).get("library", {}).get("connections") or [])
-    folders = (state or {}).get("bookmarks", {}).get("folders") or {}
+    folders = bookmark_state.get("folders") or {}
+    pins = bookmark_state.get("pins") or []
 
     workspace_counts = {}
     category_counts = {}
@@ -238,33 +259,7 @@ def build_gemini_summary(state, sample_limit=25):
     bookmark_samples = []
     for link in bookmarks[:sample_limit]:
         linked_entry = link_to_entry.get(_summary_text((link or {}).get("id"))) or {}
-        bookmark_samples.append({
-            "id": (link or {}).get("id"),
-            "title": (link or {}).get("title"),
-            "url": (link or {}).get("url"),
-            "workspace": (link or {}).get("workspace") or "main",
-            "category": (link or {}).get("category") or "Unsorted",
-            "folderId": (link or {}).get("folderId") or "",
-            "done": bool((link or {}).get("done")),
-            "pinned": bool((link or {}).get("pinned")),
-            "status": _summary_first(linked_entry, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
-            "notes": _summary_text((link or {}).get("notes"))[:700],
-            "progress": {**_summary_progress(linked_entry), **{key: value for key, value in _summary_progress(link).items() if value not in (None, "")}},
-            "timestamps": {
-                "updated": _summary_timestamp(link) or _summary_timestamp(linked_entry),
-                "dateAdded": (link or {}).get("dateAdded") or (linked_entry or {}).get("dateAdded") or "",
-                "lastEdited": (link or {}).get("lastEdited") or (linked_entry or {}).get("lastEdited") or "",
-                "lastVisited": (link or {}).get("lastVisited") or (link or {}).get("visitedAt") or "",
-            },
-            "tags": _summary_list((link or {}).get("tags"))[:20],
-            "relatedUrls": _summary_related_urls(link),
-            "library": {
-                "linked": bool(linked_entry),
-                "title": linked_entry.get("title") if linked_entry else "",
-                "aliases": _summary_aliases(linked_entry),
-                "entryId": linked_entry.get("id") if linked_entry else "",
-            },
-        })
+        bookmark_samples.append(_bookmark_context(link, linked_entry))
 
     recent_updated = sorted(bookmarks, key=lambda item: str(_summary_timestamp(item) or ""), reverse=True)[:min(sample_limit, 25)]
     return {
@@ -285,6 +280,17 @@ def build_gemini_summary(state, sample_limit=25):
             "libraryByDataType": type_counts,
             "folders": _build_folder_overview(folders),
             "nexusSignals": _build_nexus_signals(bookmarks, categories, connections),
+        },
+        "structuredScope": {
+            **build_structured_scope(
+                bookmarks,
+                folders,
+                config,
+                link_to_entry,
+                pins,
+                categories=categories,
+                sample_limit=sample_limit,
+            ),
         },
         "samples": {
             "bookmarks": bookmark_samples,
