@@ -225,6 +225,54 @@ window.EveDataStore = window.EveDataStore || {};
         };
     }
 
+    function summarizeNexusTrace(trace) {
+        if (!trace || typeof trace !== 'object') return null;
+        const vectors = {};
+        Object.entries(trace.vectors || {}).forEach(([key, vector]) => {
+            vectors[key] = {
+                status: text(vector?.status, ''),
+                durationMs: Number(vector?.durationMs || 0),
+                resultCount: Number(vector?.resultCount || 0),
+                error: text(vector?.error, '')
+            };
+        });
+        return {
+            id: text(trace.id, ''),
+            query: text(trace.query || trace.command || trace.input, ''),
+            summary: text(trace.summary, ''),
+            scope: trace.scope || null,
+            mode: text(trace.mode, ''),
+            totalMs: Number(trace.totalMs || 0),
+            startedAt: Number(trace.startedAt || 0),
+            endedAt: Number(trace.endedAt || 0),
+            resultCount: Number(trace.resultCount || trace.resultsFound || trace.totalResults || 0),
+            stats: trace.stats || null,
+            vectors
+        };
+    }
+
+    function getRecentNexusTraces(limit = 5) {
+        const sessions = Array.isArray(window.SearchMonitorBoot?._nexusSessions)
+            ? window.SearchMonitorBoot._nexusSessions
+            : [];
+        return sessions
+            .slice(0, Math.max(1, Math.min(10, Number(limit) || 5)))
+            .map(summarizeNexusTrace)
+            .filter(Boolean);
+    }
+
+    function buildNexusTraceContextBlock(traces) {
+        const items = Array.isArray(traces) ? traces : [];
+        if (!items.length) return '';
+        return '\n\n[LIVE NEXUS TRACE LOG: Recent Search Monitor/Nexus activity for extra context.]\n'
+            + JSON.stringify({
+                schema: 'eveos.nexus-trace-log.v1',
+                generatedAt: new Date().toISOString(),
+                traceCount: items.length,
+                traces: items
+            }, null, 2);
+    }
+
     function buildContextManifest(context, message, limit) {
         const payload = context?.payload || {};
         const cfg = getConfigForContextManifest(payload);
@@ -252,6 +300,7 @@ window.EveDataStore = window.EveDataStore || {};
             messageChars: String(message || '').length,
             messageLines: String(message || '').split(/\r?\n/).length,
             counts: getContextPayloadCounts(payload),
+            nexusTraceCount: getRecentNexusTraces(5).length,
             generatedAt: new Date().toISOString()
         };
     }
@@ -294,10 +343,16 @@ window.EveDataStore = window.EveDataStore || {};
         const context = await fetchGeminiContext(mode, limit, options);
         if (!context.ok) return context;
 
-        const message = context.contextText || '';
+        const recentNexusTraces = getRecentNexusTraces(5);
+        const message = (context.contextText || '') + buildNexusTraceContextBlock(recentNexusTraces);
         if (!message) return { ok: false, error: 'Empty Gemini context payload.' };
 
-        const manifest = context.manifest || buildContextManifest(context, message, limit);
+        const manifest = {
+            ...(context.manifest || buildContextManifest(context, message, limit)),
+            messageChars: message.length,
+            messageLines: message.split(/\r?\n/).length,
+            nexusTraceCount: recentNexusTraces.length
+        };
         const payload = {
             source: 'modular_gemini_context',
             realtime_input: {

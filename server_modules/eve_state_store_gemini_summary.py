@@ -203,6 +203,90 @@ def _build_nexus_signals(bookmarks, categories, connections):
     }
 
 
+def _folder_names_for_log(tree, limit=10):
+    if isinstance(tree, dict):
+        nodes = tree.get("nodes") or tree.get("folders") or []
+    elif isinstance(tree, list):
+        nodes = tree
+    else:
+        nodes = []
+    names = []
+    stack = list(nodes)
+    while stack and len(names) < limit:
+        node = stack.pop(0)
+        if not isinstance(node, dict):
+            continue
+        names.append(_summary_text(node.get("name") or node.get("title"), "Folder"))
+        stack.extend(node.get("children") or node.get("subFolders") or [])
+    return names
+
+
+def _build_nexus_log(bookmarks, folders, categories, connections, link_to_entry, sample_limit=25):
+    links_by_id = {
+        _summary_text((link or {}).get("id")): link
+        for link in bookmarks
+        if _summary_text((link or {}).get("id"))
+    }
+    recent_updates = sorted(
+        [link for link in bookmarks if _summary_timestamp(link)],
+        key=lambda item: str(_summary_timestamp(item) or ""),
+        reverse=True
+    )[:min(sample_limit, 20)]
+    folder_cards = []
+    for scoped_key, tree in (folders or {}).items():
+        if len(folder_cards) >= min(sample_limit, 20):
+            break
+        folder_count = _count_folder_nodes(tree)
+        if not folder_count:
+            continue
+        folder_cards.append({
+            "scopedKey": scoped_key,
+            "folderCount": folder_count,
+            "folderNames": _folder_names_for_log(tree, limit=8),
+        })
+    linked_connections = []
+    for conn in connections or []:
+        if len(linked_connections) >= min(sample_limit, 20):
+            break
+        link_id = _summary_text((conn or {}).get("linkId") or (conn or {}).get("bookmarkId"))
+        link = links_by_id.get(link_id) or {}
+        entry = link_to_entry.get(link_id) or {}
+        linked_connections.append({
+            "linkId": link_id,
+            "bookmarkTitle": _summary_text((link or {}).get("title"), "Untitled"),
+            "workspace": _summary_text((link or {}).get("workspace"), _summary_text((conn or {}).get("workspaceId"), "main")),
+            "category": _summary_text((link or {}).get("category"), "Unsorted"),
+            "libraryEntryId": _summary_text(_connection_entry_id(conn or {})),
+            "libraryTitle": _summary_text((entry or {}).get("title")),
+            "libraryStatus": _summary_text((entry or {}).get("status")),
+        })
+    system_hints = {
+        "withCovers": sum(1 for link in bookmarks if _summary_covers(link)["hasCover"]),
+        "withAdditionalCovers": sum(1 for link in bookmarks if _summary_covers(link)["hasAdditionalCovers"]),
+        "withRelatedUrls": sum(1 for link in bookmarks if _summary_related_urls(link)),
+        "libraryLinked": len(linked_connections),
+        "done": sum(1 for link in bookmarks if (link or {}).get("done")),
+        "pending": sum(1 for link in bookmarks if not (link or {}).get("done")),
+    }
+    return {
+        "schema": "eveos.nexus-log.compact.v1",
+        "source": "server-scoped-modular-state",
+        "note": "Derived scoped Nexus log context. Live browser search traces are appended by the client when available.",
+        "recentUpdates": [{
+            "id": (link or {}).get("id"),
+            "title": (link or {}).get("title"),
+            "workspace": (link or {}).get("workspace") or "main",
+            "category": (link or {}).get("category") or "Unsorted",
+            "folderId": (link or {}).get("folderId") or "",
+            "updated": _summary_timestamp(link),
+            "status": _summary_first(link_to_entry.get(_summary_text((link or {}).get("id"))) or {}, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
+        } for link in recent_updates],
+        "folderCards": folder_cards,
+        "libraryConnections": linked_connections,
+        "systemViewHints": system_hints,
+    }
+
+
 def build_gemini_summary(state, sample_limit=25):
     metadata = (state or {}).get("metadata") or {}
     bookmark_state = (state or {}).get("bookmarks", {}) or {}
@@ -292,6 +376,7 @@ def build_gemini_summary(state, sample_limit=25):
                 sample_limit=sample_limit,
             ),
         },
+        "nexusLog": _build_nexus_log(bookmarks, folders, categories, connections, link_to_entry, sample_limit=sample_limit),
         "samples": {
             "bookmarks": bookmark_samples,
             "libraryEntries": library_samples,

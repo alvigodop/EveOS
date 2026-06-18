@@ -207,6 +207,13 @@ def main():
     assert_true(structured["systemViews"]["withAdditionalCovers"]["count"] >= 1, "additional-cover system view missing")
     assert_true(structured["systemViews"]["libraryLinked"]["count"] >= 3, "library-linked system view missing")
 
+    nexus_log = branch["nexusLog"]
+    assert_true(nexus_log["schema"] == "eveos.nexus-log.compact.v1", "Nexus log schema missing")
+    assert_true(any(item["title"] == "YouTube" and item["category"] == "Alpha" for item in nexus_log["recentUpdates"]), "Nexus recent update log missing bookmark category")
+    assert_true(any(item["scopedKey"] == "main::Alpha" and "Video Sources" in item["folderNames"] for item in nexus_log["folderCards"]), "Nexus folder-card log missing folder names")
+    assert_true(any(item["bookmarkTitle"] == "YouTube" and item["libraryTitle"] == "Library Main" for item in nexus_log["libraryConnections"]), "Nexus library connection log missing")
+    assert_true(nexus_log["systemViewHints"]["withCovers"] >= 1, "Nexus system-view hints missing covers")
+
     card = build_gemini_context_from_state(
         state,
         mode="full",
