@@ -254,6 +254,118 @@ window.EveDataStore = window.EveDataStore || {};
         const primary = text(first(link, ['coverImage', 'cover', 'imageUrl', 'thumbnail', 'thumbnailUrl']), '');
         return { primary, additional: uniqueList(additional, 8), hasCover: !!(primary || additional.length), hasAdditionalCovers: additional.length > 0 };
     }
+    const RATING_PROVIDER_LABELS = {
+        anilist: 'AniList',
+        myanimelist: 'MyAnimeList',
+        mangadex: 'MangaDex',
+        kitsu: 'Kitsu',
+        tvmaze: 'TVmaze',
+        mangaupdates: 'MangaUpdates',
+        comick: 'ComicK',
+        openlibrary: 'OpenLibrary',
+        wlnupdates: 'WlnUpdates',
+        itunes: 'iTunes'
+    };
+
+    function scalar(value) {
+        return value == null || value === '' ? null : value;
+    }
+
+    function compactApiRatings(apiRatings) {
+        const values = {};
+        if (apiRatings && typeof apiRatings === 'object') {
+            Object.entries(RATING_PROVIDER_LABELS).forEach(([key, label]) => {
+                const value = scalar(apiRatings[key] ?? apiRatings[label] ?? apiRatings[label.toLowerCase()]);
+                if (value !== null) values[key] = { label, score: value };
+            });
+        }
+        const presentProviders = Object.keys(values);
+        return { values, presentProviders, count: presentProviders.length };
+    }
+
+    function compactDerivedRatings(derivedRatings) {
+        const source = derivedRatings && typeof derivedRatings === 'object' ? derivedRatings : {};
+        const map = {
+            activeValue: 'unified',
+            hybrid10: 'hybrid',
+            personal10: 'personal10',
+            apiAverage10: 'apiAverage',
+            apiWeighted10: 'apiWeighted',
+            confidence: 'confidence'
+        };
+        const out = {};
+        Object.entries(map).forEach(([key, label]) => {
+            const value = scalar(source[key]);
+            if (value !== null) out[label] = value;
+        });
+        return out;
+    }
+
+    function sourceContext(source) {
+        if (!source || typeof source !== 'object') return null;
+        const provider = text(source.source || source.provider || source.site || source.name, '');
+        const title = text(source.title || source.name || source.label, '');
+        const url = text(source.providerUrl || source.url || source.sourceUrl || source.link, '');
+        const score = scalar(source.score ?? source.rating ?? source.averageScore);
+        return {
+            provider,
+            title,
+            status: text(source.status || source.state, ''),
+            score,
+            url,
+            type: text(source.type || source.mediaType || source.format, ''),
+            author: text(source.author, ''),
+            tags: uniqueList(asArray(source.tags), 16),
+            genres: uniqueList(asArray(source.genres), 16),
+            synonyms: uniqueList(asArray(source.synonyms).concat(asArray(source.altTitles || source.alternativeTitles)), 12),
+            progress: progress(source),
+            coverUrl: text(source.coverUrl || source.image || source.imageUrl || '', '')
+        };
+    }
+
+    function attachedSources(link, entry) {
+        const raw = []
+            .concat(Array.isArray(link?.sources) ? link.sources : [])
+            .concat(Array.isArray(entry?.sources) ? entry.sources : []);
+        const seen = new Set();
+        return raw.map(sourceContext).filter((source) => {
+            if (!source) return false;
+            const key = `${source.provider}|${source.title}|${source.url}`.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return source.provider || source.title || source.url || source.score !== null;
+        }).slice(0, 8);
+    }
+
+    function ratingContext(link, entry) {
+        const api = compactApiRatings(entry?.apiRatings || link?.apiRatings);
+        const derived = compactDerivedRatings(entry?.derivedRatings || link?.derivedRatings);
+        const personal = scalar(first(entry, ['rating', 'personalRating']) || first(link, ['rating', 'personalRating']));
+        return {
+            personal,
+            api,
+            derived,
+            summary: {
+                unified: derived.unified ?? derived.hybrid ?? null,
+                apiAverage: derived.apiAverage ?? null,
+                apiWeighted: derived.apiWeighted ?? null,
+                confidence: derived.confidence ?? null
+            }
+        };
+    }
+
+    function mediaContext(link, entry, categoryData) {
+        const mediaTypes = uniqueList(asArray(entry?.mediaTypes).concat(asArray(link?.mediaTypes)), 8);
+        return {
+            dataType: text(categoryData?.dataType || entry?.dataType || link?.dataType, ''),
+            mediaTypes,
+            flags: {
+                graphicNovels: mediaTypes.includes('graphicNovels'),
+                films: mediaTypes.includes('films'),
+                novels: mediaTypes.includes('novels')
+            }
+        };
+    }
 
     function identifierDefinitions(state) {
         const runtime = window.EveBookmarkIdentifiers?.getDefinitions?.();
@@ -312,6 +424,9 @@ window.EveDataStore = window.EveDataStore || {};
         const cardName = text(link?.category, 'Unsorted');
         const markerState = bookmarkIdentifiers(link, context.identifierDefs || new Map());
         const pin = context.pin || null;
+        const sources = attachedSources(link, entry);
+        const media = mediaContext(link, entry, context.categoryData || {});
+        const ratings = ratingContext(link, entry);
         return {
             id: link?.id,
             title: text(link?.title, 'Untitled'),
@@ -329,13 +444,17 @@ window.EveDataStore = window.EveDataStore || {};
             category: { type: 'card-container', name: cardName, note: 'Not the bookmark identifier marker.' },
             cardCategory: cardName,
             bookmarkIdentifiers: markerState,
+            bookmarkLabels: markerState.labels,
             taskStatus: link?.done ? 'Done' : 'Pending',
             done: !!link?.done,
             pinned: !!(pin || link?.pinned),
             pin,
+            priority: text(link?.priority, ''),
+            icon: text(link?.icon || link?.favicon || link?.imageIcon, ''),
             status: text(entry.status || link?.status || link?.readingStatus || link?.mediaStatus, ''),
             notes: text(link?.personalNotes || link?.notes || entry.notes || entry.summary, '').slice(0, 900),
             progress: progress(Object.assign({}, entry, link)),
+            ratings,
             timestamps: {
                 updated: timestamp(link) || timestamp(entry),
                 dateAdded: text(link?.dateAdded || entry.dateAdded, ''),
@@ -345,13 +464,23 @@ window.EveDataStore = window.EveDataStore || {};
             tags: uniqueList(asArray(link?.tags).concat(asArray(entry.tags)), 30),
             genres: uniqueList(asArray(link?.genres).concat(asArray(entry.genres)), 30),
             covers: coverState(link),
+            attachedSources: sources,
+            sourceProviders: uniqueList(sources.map((source) => source.provider).filter(Boolean), 12),
             sort: { customOrderNumber: context.orderNumber || null, sourceIndex: context.sourceIndex || null },
             library: {
                 linked: !!linkedEntry,
                 title: text(entry.title, ''),
-                aliases: asArray(entry.aliases || entry.alternativeTitles || entry.otherNames).slice(0, 12),
+                aliases: asArray(entry.aliases || entry.alternativeTitles || entry.titleAltNames || entry.altTitles || entry.otherNames).slice(0, 12),
                 entryId: text(entry.id, ''),
-                status: text(entry.status, '')
+                status: text(entry.status, ''),
+                media,
+                author: text(entry.author, ''),
+                authorAltNames: asArray(entry.authorAltNames).slice(0, 12),
+                artist: text(entry.artist, ''),
+                language: text(entry.language, ''),
+                sourceUrl: text(entry.sourceUrl, ''),
+                summary: text(entry.summary || entry.description, '').slice(0, 700),
+                ratings
             }
         };
     }
@@ -470,6 +599,7 @@ window.EveDataStore = window.EveDataStore || {};
         byCard.forEach((cardLinks, key) => {
             if (cards.length >= 80 || remaining <= 0) return;
             const parsed = splitScopedKey(key);
+            const categoryData = categories[key] || {};
             const settings = cardOrderSettings(config, parsed.workspace, parsed.category);
             const ordered = sortLinksForCard(cardLinks, settings);
             const maps = folderMaps(folders[key] || {});
@@ -478,7 +608,7 @@ window.EveDataStore = window.EveDataStore || {};
                 if (remaining <= 0) return;
                 const id = text(link?.id, '');
                 const folderId = text(link?.folderId, '');
-                const view = bookmarkContext(link, linkToEntry[id], { identifierDefs, pin: pins.bookmarkPins.get(id), orderNumber: orderNumber(settings.customOrderMap, id, index + 1), sourceIndex: index + 1, folderPath: maps.paths.get(folderId) || '' });
+                const view = bookmarkContext(link, linkToEntry[id], { identifierDefs, pin: pins.bookmarkPins.get(id), orderNumber: orderNumber(settings.customOrderMap, id, index + 1), sourceIndex: index + 1, folderPath: maps.paths.get(folderId) || '', categoryData });
                 if (!linksByFolder.has(folderId)) linksByFolder.set(folderId, []);
                 linksByFolder.get(folderId).push(view);
                 remaining -= 1;

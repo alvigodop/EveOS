@@ -41,7 +41,12 @@ const context = {
                   tags: ['Context'],
                   chapter: '12',
                   identifiers: ['listening'],
-                  relatedUrls: [{ url: 'https://mirror.alpha.test' }]
+                  relatedUrls: [{ url: 'https://mirror.alpha.test' }],
+                  priority: 'High',
+                  icon: 'https://alpha.test/icon.png',
+                  sources: [
+                    { source: 'MangaDex', title: 'Alpha Source', score: 9.07, status: 'Ongoing', providerUrl: 'https://mangadex.test/alpha', tags: ['SourceTag'], synonyms: ['Alpha Syn'] }
+                  ]
                 },
                 {
                   id: 'b1',
@@ -59,7 +64,21 @@ const context = {
             library: {
               categories: {
                 'main::Test': {
-                  entries: [{ id: 'l1', title: 'Alpha Library', status: 'Reading', aliases: ['A'] }]
+                  dataType: 'graphicNovels',
+                  entries: [{
+                    id: 'l1',
+                    title: 'Alpha Library',
+                    status: 'Reading',
+                    aliases: ['A'],
+                    titleAltNames: ['Alpha Alt'],
+                    mediaTypes: ['graphicNovels'],
+                    author: 'A. Writer',
+                    authorAltNames: ['Writer A'],
+                    language: 'Japanese',
+                    sourceUrl: 'https://source.alpha.test',
+                    apiRatings: { anilist: 7.7, myanimelist: 7.81, mangadex: 9.07 },
+                    derivedRatings: { apiAverage10: 8.19, apiWeighted10: 8.19, activeValue: 8.09, confidence: 0.88 }
+                  }]
                 }
               },
               connections: [{ workspaceId: 'main', linkId: 'a1', libraryEntryId: 'l1' }]
@@ -124,6 +143,13 @@ function assert(condition, message) {
   assert(message.includes('bookmarkIdentifiers'), 'bookmark identifiers block missing');
   assert(message.includes('cardName') && message.includes('Test'), 'card container context missing');
   assert(message.includes('mirror.alpha.test'), 'related URL context missing');
+  assert(message.includes('apiRatings') || message.includes('"ratings"'), 'ratings block missing');
+  assert(message.includes('8.09'), 'unified rating missing');
+  assert(message.includes('MangaDex'), 'attached source provider missing');
+  assert(message.includes('Alpha Source'), 'attached source title missing');
+  assert(message.includes('graphicNovels'), 'media type context missing');
+  assert(message.includes('High'), 'priority context missing');
+  assert(message.includes('alpha.test/icon.png'), 'icon context missing');
 
   const full = api.buildLocalGeminiContext('full', 20, {
     scope: {
@@ -137,6 +163,8 @@ function assert(condition, message) {
   assert(full.ok && full.payload.kind === 'eveos_scoped_context_snapshot', 'full fallback should use structured snapshot');
   assert(!full.contextText.includes('"bookmarks": {\n    "links"'), 'full fallback should not send raw bookmarks state');
   assert(full.contextText.includes('Listening'), 'full fallback should include bookmark identifier label');
+  assert(full.contextText.includes('8.09'), 'full fallback should include unified rating');
+  assert(full.contextText.includes('MangaDex'), 'full fallback should include attached source provider');
   assert(!full.contextText.includes('Beta'), 'full fallback leaked unselected card');
 
   console.log('GEMINI_CONTEXT_LOCAL_FALLBACK_SMOKE_OK');

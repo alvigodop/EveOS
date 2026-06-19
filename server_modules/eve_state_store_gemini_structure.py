@@ -75,6 +75,134 @@ def _summary_covers(link):
     }
 
 
+_RATING_PROVIDER_LABELS = {
+    "anilist": "AniList",
+    "myanimelist": "MyAnimeList",
+    "mangadex": "MangaDex",
+    "kitsu": "Kitsu",
+    "tvmaze": "TVmaze",
+    "mangaupdates": "MangaUpdates",
+    "comick": "ComicK",
+    "openlibrary": "OpenLibrary",
+    "wlnupdates": "WlnUpdates",
+    "itunes": "iTunes",
+}
+
+
+def _scalar(value):
+    return None if value in (None, "") else value
+
+
+def _compact_api_ratings(api_ratings):
+    values = {}
+    if isinstance(api_ratings, dict):
+        for key, label in _RATING_PROVIDER_LABELS.items():
+            value = _scalar(api_ratings.get(key, api_ratings.get(label, api_ratings.get(label.lower()))))
+            if value is not None:
+                values[key] = {"label": label, "score": value}
+    providers = list(values.keys())
+    return {"values": values, "presentProviders": providers, "count": len(providers)}
+
+
+def _compact_derived_ratings(derived_ratings):
+    source = derived_ratings if isinstance(derived_ratings, dict) else {}
+    mapping = {
+        "activeValue": "unified",
+        "hybrid10": "hybrid",
+        "personal10": "personal10",
+        "apiAverage10": "apiAverage",
+        "apiWeighted10": "apiWeighted",
+        "confidence": "confidence",
+    }
+    out = {}
+    for key, label in mapping.items():
+        value = _scalar(source.get(key))
+        if value is not None:
+            out[label] = value
+    return out
+
+
+def _source_context(source):
+    if not isinstance(source, dict):
+        return None
+    provider = _summary_text(source.get("source") or source.get("provider") or source.get("site") or source.get("name"))
+    title = _summary_text(source.get("title") or source.get("name") or source.get("label"))
+    url = _summary_text(source.get("providerUrl") or source.get("url") or source.get("sourceUrl") or source.get("link"))
+    score = _scalar(source.get("score", source.get("rating", source.get("averageScore"))))
+    return {
+        "provider": provider,
+        "title": title,
+        "status": _summary_text(source.get("status") or source.get("state")),
+        "score": score,
+        "url": url,
+        "type": _summary_text(source.get("type") or source.get("mediaType") or source.get("format")),
+        "author": _summary_text(source.get("author")),
+        "tags": [_summary_text(item) for item in _summary_list(source.get("tags")) if _summary_text(item)][:16],
+        "genres": [_summary_text(item) for item in _summary_list(source.get("genres")) if _summary_text(item)][:16],
+        "synonyms": list(dict.fromkeys([
+            _summary_text(item)
+            for item in (_summary_list(source.get("synonyms")) + _summary_list(source.get("altTitles") or source.get("alternativeTitles")))
+            if _summary_text(item)
+        ]))[:12],
+        "progress": _summary_progress(source),
+        "coverUrl": _summary_text(source.get("coverUrl") or source.get("image") or source.get("imageUrl")),
+    }
+
+
+def _attached_sources(link, linked_entry):
+    raw = []
+    if isinstance((link or {}).get("sources"), list):
+        raw.extend((link or {}).get("sources") or [])
+    if isinstance((linked_entry or {}).get("sources"), list):
+        raw.extend((linked_entry or {}).get("sources") or [])
+    seen = set()
+    out = []
+    for source in raw:
+        compact = _source_context(source)
+        if not compact:
+            continue
+        key = f"{compact.get('provider')}|{compact.get('title')}|{compact.get('url')}".lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if compact.get("provider") or compact.get("title") or compact.get("url") or compact.get("score") is not None:
+            out.append(compact)
+    return out[:8]
+
+
+def _rating_context(link, linked_entry):
+    api = _compact_api_ratings((linked_entry or {}).get("apiRatings") or (link or {}).get("apiRatings"))
+    derived = _compact_derived_ratings((linked_entry or {}).get("derivedRatings") or (link or {}).get("derivedRatings"))
+    personal = _scalar(_summary_first(linked_entry, ["rating", "personalRating"], _summary_first(link, ["rating", "personalRating"])))
+    return {
+        "personal": personal,
+        "api": api,
+        "derived": derived,
+        "summary": {
+            "unified": derived.get("unified", derived.get("hybrid")),
+            "apiAverage": derived.get("apiAverage"),
+            "apiWeighted": derived.get("apiWeighted"),
+            "confidence": derived.get("confidence"),
+        },
+    }
+
+
+def _media_context(link, linked_entry, category_data):
+    media_types = list(dict.fromkeys(
+        _summary_text(item)
+        for item in (_summary_list((linked_entry or {}).get("mediaTypes")) + _summary_list((link or {}).get("mediaTypes")))
+        if _summary_text(item)
+    ))[:8]
+    return {
+        "dataType": _summary_text((category_data or {}).get("dataType") or (linked_entry or {}).get("dataType") or (link or {}).get("dataType")),
+        "mediaTypes": media_types,
+        "flags": {
+            "graphicNovels": "graphicNovels" in media_types,
+            "films": "films" in media_types,
+            "novels": "novels" in media_types,
+        },
+    }
+
 def _summary_aliases(entry):
     aliases = []
     for key in ["aliases", "alternativeTitles", "altTitles", "titleAltNames", "otherNames"]:
@@ -227,7 +355,7 @@ def _sort_links_for_card(links, settings):
     ), reverse=reverse)
 
 
-def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folder_path=""):
+def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folder_path="", category_data=None):
     progress = _summary_progress(linked_entry)
     progress.update({key: value for key, value in _summary_progress(link).items() if value not in (None, "")})
     category = (link or {}).get("category") or "Unsorted"
@@ -248,6 +376,7 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
         "folderPath": folder_path,
         "location": {"workspace": (link or {}).get("workspace") or "main", "cardName": category, "cardCategoryName": category, "folderId": (link or {}).get("folderId") or "", "folderPath": folder_path},
         "bookmarkIdentifiers": _bookmark_identifiers(link),
+        "bookmarkLabels": _bookmark_identifiers(link).get("labels", []),
         "done": bool((link or {}).get("done")),
         "taskStatus": "Done" if (link or {}).get("done") else "Pending",
         "pinned": bool(pin_ref or (link or {}).get("pinned")),
@@ -385,6 +514,7 @@ def _compact_bookmark_for_view(link, linked_entry=None):
         "category": {"type": "card-container", "name": (link or {}).get("category") or "Unsorted"},
         "cardCategory": (link or {}).get("category") or "Unsorted",
         "bookmarkIdentifiers": _bookmark_identifiers(link),
+        "bookmarkLabels": _bookmark_identifiers(link).get("labels", []),
         "folderId": (link or {}).get("folderId") or "",
         "status": _summary_first(linked_entry or {}, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
         "done": bool((link or {}).get("done")),
