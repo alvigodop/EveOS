@@ -409,7 +409,13 @@ window.EveDataStore = window.EveDataStore || {};
             transportTruncated: prepared.truncated
         };
 
+        const rememberReplay = () => {
+            window.GeminiLiveLinkAgentic = window.GeminiLiveLinkAgentic || {};
+            window.GeminiLiveLinkAgentic._lastContextReplay = { mode: context.mode, limit, options, at: Date.now() };
+        };
+
         const sendPayload = (route = 'websocket') => {
+            rememberReplay();
             prepared.parts.forEach((part, index) => {
                 const payload = {
                     source: 'modular_gemini_context',
@@ -459,6 +465,14 @@ window.EveDataStore = window.EveDataStore || {};
 
         return { ok: false, error: 'Gemini socket unavailable and clipboard access denied.' };
     }
+
+    window.GeminiLiveLinkAgentic = window.GeminiLiveLinkAgentic || {};
+    window.GeminiLiveLinkAgentic.replayLastContext = async function () {
+        const last = window.GeminiLiveLinkAgentic._lastContextReplay;
+        if (!last || Date.now() - last.at > 3600000) return false;
+        const result = await sendContextToGemini(last.mode, last.limit, last.options || {});
+        return !!(result && result.sent);
+    };
 
     Object.assign(ns, {
         syncNow,

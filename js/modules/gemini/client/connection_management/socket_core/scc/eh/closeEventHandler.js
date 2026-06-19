@@ -10,6 +10,8 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
     const State = window.SocketGlobalState;
     console.log("WebSocket closed:", event);
     State.isConnecting = false;
+    State.geminiApiReady = false;
+    State.shouldReplayContextAfterReconnect = true;
 
     // Clean up native WebSocket monitoring FIRST
     if (window.webSocket && window.webSocket._connectionHealthInterval) {

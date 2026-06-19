@@ -12,11 +12,11 @@ const socketCoreScripts = [
     `${SOCKET_CORE_BASE_PATH}/socketGlobalState.js?v=0.2.1`, // Load Global State FIRST
     `${SOCKET_CORE_BASE_PATH}/scc/eh/errorEventHandler.js?v=0.2.1`,
     `${SOCKET_CORE_BASE_PATH}/scc/eh/openEventHandler.js?v=0.2.0`,
-    `${SOCKET_CORE_BASE_PATH}/scc/eh/closeEventHandler.js?v=0.2.3`,
+    `${SOCKET_CORE_BASE_PATH}/scc/eh/closeEventHandler.js?v=0.2.4`,
     `${SOCKET_CORE_BASE_PATH}/scc/socketConnectionState.js`,
     `${SOCKET_CORE_BASE_PATH}/scc/socketLifecycle.js`,
     `${SOCKET_CORE_BASE_PATH}/scc/socketConnectionCoordinator.js`,
-    `${SOCKET_CORE_BASE_PATH}/socketMessageRouter.js?v=0.2.4`,
+    `${SOCKET_CORE_BASE_PATH}/socketMessageRouter.js?v=0.2.5`,
     `${SOCKET_CORE_BASE_PATH}/audioPlayerUI.js`,
     `${SOCKET_CORE_BASE_PATH}/socketAudioLogic.js`,
     `${SOCKET_CORE_BASE_PATH}/serverStatusChecker.js?v=0.2.6`

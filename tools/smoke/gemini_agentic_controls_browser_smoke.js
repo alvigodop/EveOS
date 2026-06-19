@@ -136,6 +136,7 @@ async function main() {
                 thumb: box('label[for="geminiLiveLinkToggle"] .mdl-switch__thumb'),
                 manifest: box('#geminiLiveLinkManifest'),
                 status: box('#geminiLiveLinkStatus'),
+                subtitle: box('.gemini-live-link-subtitle'),
                 paused: document.getElementById('gemini-live-link-card')?.classList.contains('is-relay-paused')
             };
         });
@@ -144,7 +145,7 @@ async function main() {
             throw new Error(`Gemini Live Link toggle is not wired: ${liveLinkHidden}`);
         }
         if (!relayPaused.paused
-            || relayPaused.card.height > 150
+            || relayPaused.card.height > 175
             || relayPaused.toggle.width !== 52
             || relayPaused.track.width !== 36
             || relayPaused.track.height !== 14

@@ -290,3 +290,21 @@
     flex-direction: column;
     /* Added to stack messages vertically */
 }
+/* Keep Gemini telemetry logs independently scrollable inside Search Monitor. */
+#system-log-display-placeholder {
+    min-height: 0;
+}
+
+#systemLog {
+    min-height: 0;
+}
+
+#systemLog .system-messages-container,
+#systemLog .gemini-system-messages {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}

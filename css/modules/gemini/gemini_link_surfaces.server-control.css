@@ -351,16 +351,23 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
+    display: flex !important;
+    flex-direction: column !important;
     height: clamp(185px, 18dvh, 360px) !important;
     min-height: clamp(185px, 18dvh, 360px) !important;
     max-height: clamp(185px, 18dvh, 360px) !important;
     flex: 0 0 auto !important;
-    overflow-y: auto !important;
+    overflow: hidden !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .system-messages-container {
+    flex: 1 1 auto !important;
     min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
     padding: 10px 12px !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
 }
 
 @media (max-width: 520px) {

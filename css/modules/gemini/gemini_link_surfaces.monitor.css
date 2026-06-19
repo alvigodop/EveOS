@@ -356,7 +356,10 @@
 }
 
 .gemini-live-link-card.is-relay-paused .gemini-live-link-subtitle {
-    display: none;
+    display: block;
+    margin-top: 5px;
+    max-width: none;
+    color: rgba(232, 247, 255, 0.56);
 }
 
 .gemini-live-link-card.is-relay-paused .gemini-live-link-manifest {
@@ -442,4 +445,21 @@
     line-height: 1.45;
     color: rgba(232, 247, 255, 0.6);
     padding: 0 2px;
+}
+
+.gemini-live-link-card.is-relay-paused.agentic-function-card,
+#gemini-ui-root .gemini-live-link-card.is-relay-paused.agentic-function-card,
+#loadingIndicator #gemini-ui-root .gemini-live-link-card.is-relay-paused.agentic-function-card {
+    min-height: 0 !important;
+    height: auto !important;
+    padding: 12px 14px !important;
+}
+
+.gemini-live-link-card.is-relay-paused .gemini-live-link-head {
+    align-items: center;
+}
+
+.gemini-live-link-card.is-relay-paused .gemini-live-link-subtitle {
+    font-size: 0.72rem;
+    line-height: 1.34;
 }

@@ -87,6 +87,9 @@ console.log("socketMessageRouter.js loading...");
                     if (typeof displayMessage === 'function') {
                         displayMessage("System Message: Gemini API initialized successfully", true);
                     }
+                    if (typeof window.scheduleGeminiPostReconnectContextReplay === 'function') {
+                        window.scheduleGeminiPostReconnectContextReplay('gemini-api-ready');
+                    }
                 } else if (!State.geminiApiReady
                     && data.is_system_message
                     && /^Connecting to Gemini API/i.test(messageText)
