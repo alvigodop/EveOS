@@ -64,8 +64,8 @@
 
 .audioflix-header h2 {
     margin: 4px 0;
-    font-size: clamp(2rem, 4vw, 4.4rem);
-    line-height: 0.9;
+    font-size: clamp(1.5rem, 2.6vw, 2.4rem);
+    line-height: 0.95;
 }
 
 .audioflix-header p,
@@ -124,8 +124,8 @@
 }
 
 .audioflix-status-card {
-    min-height: 170px;
-    padding: 16px;
+    min-height: 120px;
+    padding: 13px 14px;
 }
 
 .audioflix-status-card.is-on {
@@ -235,6 +235,49 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 12px;
+}
+
+.audioflix-group {
+    margin-bottom: 16px;
+}
+
+.audioflix-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 10px;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    color: #ffca5f;
+    text-transform: uppercase;
+}
+
+.audioflix-group-title::before {
+    content: "📁";
+    font-size: 0.95rem;
+}
+
+.audioflix-group-title .audioflix-group-count {
+    color: rgba(234, 242, 246, 0.55);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    text-transform: none;
+}
+
+.audioflix-output-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 6px 0 8px;
+}
+
+.audioflix-output-picker select {
+    width: 100%;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.32);
+    color: var(--text-main, #fff);
 }
 
 .audioflix-item-card {
