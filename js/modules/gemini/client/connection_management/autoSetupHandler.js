@@ -37,6 +37,29 @@ async function getGeminiApiKeyForSetup() {
     }
 }
 
+function isGeminiConversationMemoryEnabled() {
+    try {
+        if (typeof window.ConversationMemoryAgentic?.isContextMemoryEnabled === 'function') {
+            return !!window.ConversationMemoryAgentic.isContextMemoryEnabled();
+        }
+        if (typeof window.ConversationMemoryAgentic?.contextMemoryEnabled === 'boolean') {
+            return !!window.ConversationMemoryAgentic.contextMemoryEnabled;
+        }
+    } catch (error) {}
+
+    try {
+        const toggle = document.getElementById('contextMemoryToggle');
+        if (toggle) return !!toggle.checked;
+    } catch (error) {}
+
+    try {
+        const stored = localStorage.getItem('contextMemoryEnabled');
+        if (stored !== null) return stored === 'true';
+    } catch (error) {}
+
+    return true;
+}
+
 function collectRecentChatHistoryForReplay(limit = 36, maxChars = 12000) {
     const chatLog = document.getElementById('chatLog');
     const messages = chatLog ? Array.from(chatLog.querySelectorAll('.chat-message')) : [];
@@ -90,10 +113,24 @@ function scheduleGeminiPostReconnectContextReplay(reason = 'gemini-api-ready') {
     const State = window.SocketGlobalState || {};
     if (!State.shouldReplayContextAfterReconnect || State.credentialRequired) return;
     if (State._contextReplayTimer) clearTimeout(State._contextReplayTimer);
+    if (!isGeminiConversationMemoryEnabled()) {
+        State.shouldReplayContextAfterReconnect = false;
+        if (typeof displayMessage === 'function') {
+            displayMessage('System Message: Memory Relay is off; Gemini reconnected with a clean context.', true);
+        }
+        return;
+    }
 
     State._contextReplayTimer = setTimeout(async () => {
         State._contextReplayTimer = null;
         if (State.credentialRequired || !State.geminiApiReady || !window.webSocket || window.webSocket.readyState !== WebSocket.OPEN) return;
+        if (!isGeminiConversationMemoryEnabled()) {
+            State.shouldReplayContextAfterReconnect = false;
+            if (typeof displayMessage === 'function') {
+                displayMessage('System Message: Memory Relay is off; skipped reconnect context recovery.', true);
+            }
+            return;
+        }
         const now = Date.now();
         if (State._lastContextReplayAt && (now - State._lastContextReplayAt) < 12000) return;
         State._lastContextReplayAt = now;
