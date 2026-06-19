@@ -262,3 +262,45 @@
         position: relative;
     }
 }
+
+@media (min-width: 920px) {
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 0 !important;
+        height: auto !important;
+    }
+
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
+        flex: 0 0 auto !important;
+        height: clamp(340px, 34dvh, 640px) !important;
+        min-height: clamp(340px, 34dvh, 640px) !important;
+        max-height: clamp(340px, 34dvh, 640px) !important;
+    }
+
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog {
+        height: 100% !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow-y: auto !important;
+    }
+
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
+        flex: 0 0 auto !important;
+        height: clamp(185px, 18dvh, 360px) !important;
+        min-height: clamp(185px, 18dvh, 360px) !important;
+        max-height: clamp(185px, 18dvh, 360px) !important;
+    }
+
+    #loadingIndicator.wide-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog,
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
+        height: 100% !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: hidden !important;
+    }
+}

@@ -2,6 +2,7 @@
     'use strict';
     const STATUS_PATH = '/api/gemini-server/status', POLL_MS = 5000;
     const DESIRED_STATE_KEY = 'geminiServerDesiredState';
+    const MANUAL_STOP_KEY = 'geminiServerManualStopAt';
     const RECOVERY_MIN_INTERVAL_MS = 12000;
     const STATUS_GRACE_MS = 20000;
     const state = {
@@ -17,7 +18,8 @@
         statusFailureCount: 0,
         lastKnownRunningAt: 0,
         lastRecoveryAttemptAt: 0,
-        recoveryAttempts: 0
+        recoveryAttempts: 0,
+        manualStop: false
     };
     let reconcilePromise = null;
     let recoveryPromise = null;
@@ -119,6 +121,25 @@
         }
     }
 
+    function setManualStop(enabled) {
+        state.manualStop = !!enabled;
+        try {
+            if (enabled) localStorage.setItem(MANUAL_STOP_KEY, String(Date.now()));
+            else localStorage.removeItem(MANUAL_STOP_KEY);
+        } catch (error) {
+            // Manual stop still applies in memory when storage is restricted.
+        }
+    }
+
+    function isManualStopActive() {
+        try {
+            state.manualStop = localStorage.getItem(MANUAL_STOP_KEY) != null && readDesiredServerState() === false;
+        } catch (error) {
+            state.manualStop = state.manualStop && state.desiredRunning === false;
+        }
+        return !!state.manualStop;
+    }
+
     function setConnectionPreference(enabled) {
         try {
             localStorage.setItem('geminiConnectionEnabled', enabled ? 'true' : 'false');
@@ -161,6 +182,7 @@
     }
 
     function shouldAutoRecoverDisabledConnection() {
+        if (isManualStopActive()) return false;
         const root = document.getElementById('gemini-ui-root');
         return !!state.running && (
             !!window.__GEMINI_BOOT_REQUESTED
@@ -253,6 +275,12 @@
     }
 
     async function reconcileClientConnection() {
+        if (isManualStopActive()) {
+            state.desiredRunning = false;
+            state.connectionPhase = 'manual-stop';
+            publish();
+            return false;
+        }
         if (!state.running) {
             if (!window.webSocket || window.webSocket.readyState >= WebSocket.CLOSING) {
                 state.connectionPhase = state.desiredRunning ? 'recovering' : 'offline';
@@ -423,6 +451,7 @@
     }
 
     async function recoverServerIfNeeded(reason) {
+        if (isManualStopActive()) return false;
         if (!state.desiredRunning || state.running || state.busy || recoveryPromise) return false;
         if (!state.controllerAvailable || !state.baseUrl) return false;
         const now = Date.now();
@@ -488,6 +517,7 @@
 
     async function refreshStatus() {
         state.desiredRunning = readDesiredServerState();
+        if (isManualStopActive()) state.desiredRunning = false;
         const found = await findController();
         if (found) {
             state.controllerAvailable = true;
@@ -498,7 +528,7 @@
             if (state.running) {
                 state.lastKnownRunningAt = Date.now();
                 state.recoveryAttempts = 0;
-                if (isConnectionPreferenceEnabled()) setDesiredServerState(true);
+                if (isConnectionPreferenceEnabled() && !isManualStopActive()) setDesiredServerState(true);
             } else if (state.desiredRunning && state.serverState !== 'starting' && state.serverState !== 'recovering') {
                 state.serverState = 'recovering';
                 state.message = 'Gemini should be running; EveOS is restarting it.';
@@ -511,7 +541,7 @@
                 state.serverState = 'running';
                 state.lastKnownRunningAt = Date.now();
                 state.statusFailureCount = 0;
-                if (isConnectionPreferenceEnabled()) setDesiredServerState(true);
+                if (isConnectionPreferenceEnabled() && !isManualStopActive()) setDesiredServerState(true);
                 state.message = 'Gemini is online; lifecycle controller is unavailable.';
             } else if (state.desiredRunning && Date.now() - (state.lastKnownRunningAt || 0) < STATUS_GRACE_MS) {
                 state.serverState = 'reconnecting';
@@ -523,7 +553,7 @@
                     : 'Gemini is offline. Start server\\start-gemini-control.bat or an EveOS local preview port to enable in-page startup from file://.';
             }
         }
-        if (state.running && shouldAutoRecoverDisabledConnection() && !isConnectionPreferenceEnabled()) {
+        if (state.running && !isManualStopActive() && shouldAutoRecoverDisabledConnection() && !isConnectionPreferenceEnabled()) {
             setConnectionPreference(true);
         }
         publish();
@@ -537,7 +567,9 @@
     async function toggleServer() {
         const shouldStart = !(state.running || state.desiredRunning || state.serverState === 'recovering');
         if (state.busy) return;
+        if (shouldStart) setManualStop(false);
         if (!shouldStart && !state.controllerAvailable) {
+            setManualStop(true);
             setDesiredServerState(false);
             setConnectionPreference(false);
             disconnectClient();
@@ -551,6 +583,7 @@
         state.busy = true;
         state.serverState = shouldStart ? 'starting' : 'stopping';
         state.message = shouldStart ? 'Starting Gemini server...' : 'Stopping Gemini server...';
+        if (!shouldStart) setManualStop(true);
         setDesiredServerState(shouldStart);
         publish();
         let workspacePromise = null;
@@ -588,6 +621,7 @@
             if (shouldStart && state.running) {
                 connectWhenWorkspaceReady(workspacePromise);
             } else if (!shouldStart) {
+                setManualStop(true);
                 setDesiredServerState(false);
                 setConnectionPreference(false);
                 disconnectClient();

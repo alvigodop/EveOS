@@ -11,10 +11,10 @@ const SEND_CHAT_HISTORY_BASE_PATH = 'js/modules/gemini/comm/hist_toggle';
 const sendChatHistoryScriptsToLoad = [
     // Conversation History UI
     `${SEND_CHAT_HISTORY_BASE_PATH}/conversation_history_ui/conversationHistoryToggler.js`,
-    `${SEND_CHAT_HISTORY_BASE_PATH}/conversation_history_ui/previousConversationClearHandler.js`,
+    `${SEND_CHAT_HISTORY_BASE_PATH}/conversation_history_ui/previousConversationClearHandler.js?v=0.1.1`,
 
     // Conversation History Operations
-    `${SEND_CHAT_HISTORY_BASE_PATH}/conversation_history_operations/fullConversationHistoryClearer.js`,
+    `${SEND_CHAT_HISTORY_BASE_PATH}/conversation_history_operations/fullConversationHistoryClearer.js?v=0.1.1`,
 
     // History Message Sorting
     `${SEND_CHAT_HISTORY_BASE_PATH}/history_message_sorting/historyMessageSorter.js`,

@@ -68,7 +68,7 @@ const masterScriptList = [
 
     // 4. Communication Panel
     `${BASE_PATHS.COMM_PANEL}/mm_panel/Multimodal_Commuication_Panel.js?v=0.2.0`,
-    `${BASE_PATHS.COMM_PANEL}/new_chat/Start_New_Chat_Commuication_Panel.js`,
+    `${BASE_PATHS.COMM_PANEL}/new_chat/Start_New_Chat_Commuication_Panel.js?v=0.1.1`,
     `${BASE_PATHS.COMM_PANEL}/clear_chat/Clear_Chat_Communication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/clear_sys_log/Clear_System_Log_Commuication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/past_chats/Toggle_Past_Chats_Commuication_Panel.js`,

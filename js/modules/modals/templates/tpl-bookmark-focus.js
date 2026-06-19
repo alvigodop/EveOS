@@ -111,6 +111,10 @@ window.modalTemplate += `
                             <option value="5">5</option>
                         </select>
                     </div>
+                    <div style="display:flex; flex-direction:column; gap:3px; flex:0 1 112px; min-width:104px;">
+                        <label for="bookmarkFocusUnifiedRating" style="font-size:0.75rem; opacity:0.8;">Unified</label>
+                        <div id="bookmarkFocusUnifiedRating" class="bookmark-focus-unified-rating" title="Unified derived rating">-</div>
+                    </div>
                 </div>
 
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">

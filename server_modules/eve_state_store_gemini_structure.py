@@ -47,16 +47,40 @@ def _summary_progress(source):
 
 def _summary_related_urls(link):
     urls = []
-    for entry in _summary_list((link or {}).get("relatedUrls")):
-        candidate = _summary_text(entry.get("url") or entry.get("href")) if isinstance(entry, dict) else _summary_text(entry)
-        if candidate:
-            urls.append(candidate)
-    for key in ["mirrorUrl", "sourceUrl", "wikiUrl", "alternateUrl"]:
+    array_keys = [
+        "relatedUrls",
+        "additionalUrls",
+        "extraUrls",
+        "alternateUrls",
+        "urlAlternates",
+        "mirrors",
+        "sources",
+        "sourceUrls",
+    ]
+    scalar_keys = [
+        "mirrorUrl",
+        "sourceUrl",
+        "wikiUrl",
+        "alternateUrl",
+        "additionalUrl",
+        "mangaDexUrl",
+        "anilistUrl",
+        "malUrl",
+        "fandomUrl",
+    ]
+    for key in array_keys:
+        for entry in _summary_list((link or {}).get(key)):
+            if isinstance(entry, dict):
+                candidate = _summary_text(entry.get("url") or entry.get("href") or entry.get("link") or entry.get("source") or entry.get("value"))
+            else:
+                candidate = _summary_text(entry)
+            if candidate:
+                urls.append(candidate)
+    for key in scalar_keys:
         candidate = _summary_text((link or {}).get(key))
         if candidate:
             urls.append(candidate)
-    return list(dict.fromkeys(urls))[:8]
-
+    return list(dict.fromkeys(urls))[:12]
 
 def _summary_covers(link):
     additional = []
@@ -73,6 +97,16 @@ def _summary_covers(link):
         "hasCover": bool(primary or additional),
         "hasAdditionalCovers": bool(additional),
     }
+
+
+_DEFAULT_IDENTIFIER_LABELS = {
+    "reading": "Reading",
+    "watching": "Watching",
+    "listening": "Listening",
+    "playing": "Playing",
+    "research": "Research",
+    "reference": "Reference",
+}
 
 
 _RATING_PROVIDER_LABELS = {
@@ -205,16 +239,27 @@ def _media_context(link, linked_entry, category_data):
 
 def _summary_aliases(entry):
     aliases = []
-    for key in ["aliases", "alternativeTitles", "altTitles", "titleAltNames", "otherNames"]:
+    for key in ["aliases", "alternativeTitles", "altTitles", "titleAltNames", "otherNames", "synonyms"]:
         aliases.extend(_summary_text(value) for value in _summary_list((entry or {}).get(key)))
     return [value for value in dict.fromkeys(aliases) if value][:12]
 
-
 def _bookmark_identifiers(link):
-    ids = list(dict.fromkeys(_summary_text(item) for item in _summary_list((link or {}).get("identifiers")) if _summary_text(item)))[:20]
-    labels = [_DEFAULT_IDENTIFIER_LABELS.get(item, item) for item in ids]
-    return {"ids": ids, "labels": labels, "note": "Bookmark identifiers are the user-facing category/marker pills; cardCategory is only the card container."}
-
+    ids = list(dict.fromkeys(
+        _summary_text(item)
+        for item in (
+            _summary_list((link or {}).get("identifiers"))
+            + _summary_list((link or {}).get("identifierIds"))
+            + _summary_list((link or {}).get("bookmarkIdentifiers"))
+        )
+        if _summary_text(item)
+    ))[:20]
+    details = [{"id": item, "label": _DEFAULT_IDENTIFIER_LABELS.get(item, item), "description": ""} for item in ids]
+    return {
+        "ids": ids,
+        "labels": [item["label"] for item in details],
+        "details": details,
+        "note": "Bookmark identifiers are the user-facing category/marker pills; cardCategory is only the card container.",
+    }
 
 def _folder_nodes(tree):
     if isinstance(tree, dict):
@@ -356,44 +401,66 @@ def _sort_links_for_card(links, settings):
 
 
 def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folder_path="", category_data=None):
+    link = link or {}
+    linked_entry = linked_entry or {}
+    category_data = category_data or {}
     progress = _summary_progress(linked_entry)
     progress.update({key: value for key, value in _summary_progress(link).items() if value not in (None, "")})
-    category = (link or {}).get("category") or "Unsorted"
+    category = _summary_text(link.get("category"), "Unsorted")
+    workspace = _summary_text(link.get("workspace"), "main")
     related_urls = _summary_related_urls(link)
+    identifiers = _bookmark_identifiers(link)
+    sources = _attached_sources(link, linked_entry)
+    ratings = _rating_context(link, linked_entry)
+    media = _media_context(link, linked_entry, category_data)
+    notes_text = _summary_text(link.get("personalNotes") or link.get("notes") or linked_entry.get("notes") or linked_entry.get("summary") or linked_entry.get("description"))[:900]
     return {
-        "id": (link or {}).get("id"),
-        "title": (link or {}).get("title"),
-        "url": (link or {}).get("url"),
+        "id": link.get("id"),
+        "title": _summary_text(link.get("title"), "Untitled"),
+        "url": _summary_text(link.get("url") or link.get("href")),
         "urls": {
-            "primary": (link or {}).get("url"),
+            "primary": _summary_text(link.get("url") or link.get("href")),
             "related": related_urls,
         },
         "relatedUrls": related_urls,
-        "workspace": (link or {}).get("workspace") or "main",
+        "workspace": workspace,
         "category": {"type": "card-container", "name": category, "note": "Not the bookmark identifier marker."},
         "cardCategory": category,
-        "folderId": (link or {}).get("folderId") or "",
+        "card": {"workspace": workspace, "name": category, "scopedKey": _scoped_key(workspace, category)},
+        "folderId": _summary_text(link.get("folderId")),
         "folderPath": folder_path,
-        "location": {"workspace": (link or {}).get("workspace") or "main", "cardName": category, "cardCategoryName": category, "folderId": (link or {}).get("folderId") or "", "folderPath": folder_path},
-        "bookmarkIdentifiers": _bookmark_identifiers(link),
-        "bookmarkLabels": _bookmark_identifiers(link).get("labels", []),
-        "done": bool((link or {}).get("done")),
-        "taskStatus": "Done" if (link or {}).get("done") else "Pending",
-        "pinned": bool(pin_ref or (link or {}).get("pinned")),
+        "location": {
+            "workspace": workspace,
+            "cardName": category,
+            "cardCategoryName": category,
+            "folderId": _summary_text(link.get("folderId")),
+            "folderPath": folder_path,
+            "note": "cardName/cardCategoryName is the EveOS card container. bookmarkIdentifiers are the user-facing category/marker pills.",
+        },
+        "bookmarkIdentifiers": identifiers,
+        "bookmarkLabels": identifiers.get("labels", []),
+        "done": bool(link.get("done")),
+        "taskStatus": "Done" if link.get("done") else "Pending",
+        "pinned": bool(pin_ref or link.get("pinned")),
         "pin": pin_ref or None,
+        "priority": _summary_text(link.get("priority")),
+        "icon": _summary_text(link.get("icon") or link.get("favicon") or link.get("imageIcon")),
         "status": _summary_first(linked_entry, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
-        "notes": _summary_text((link or {}).get("notes"))[:700],
+        "notes": notes_text,
         "progress": progress,
+        "ratings": ratings,
         "timestamps": {
             "updated": _summary_timestamp(link) or _summary_timestamp(linked_entry),
-            "dateAdded": (link or {}).get("dateAdded") or (linked_entry or {}).get("dateAdded") or "",
-            "lastEdited": (link or {}).get("lastEdited") or (linked_entry or {}).get("lastEdited") or "",
-            "lastVisited": (link or {}).get("lastVisited") or (link or {}).get("visitedAt") or "",
+            "dateAdded": link.get("dateAdded") or linked_entry.get("dateAdded") or "",
+            "lastEdited": link.get("lastEdited") or linked_entry.get("lastEdited") or "",
+            "lastVisited": link.get("lastVisited") or link.get("visitedAt") or "",
         },
-        "tags": _summary_list((link or {}).get("tags"))[:30],
-        "genres": _summary_list((link or {}).get("genres"))[:30],
-        "identifiers": _summary_list((link or {}).get("identifiers"))[:20],
+        "tags": list(dict.fromkeys(_summary_text(item) for item in (_summary_list(link.get("tags")) + _summary_list(linked_entry.get("tags"))) if _summary_text(item)))[:30],
+        "genres": list(dict.fromkeys(_summary_text(item) for item in (_summary_list(link.get("genres")) + _summary_list(linked_entry.get("genres"))) if _summary_text(item)))[:30],
+        "identifiers": identifiers.get("ids", []),
         "covers": _summary_covers(link),
+        "attachedSources": sources,
+        "sourceProviders": list(dict.fromkeys(_summary_text(source.get("provider")) for source in sources if _summary_text(source.get("provider"))))[:12],
         "sort": {
             "customOrderNumber": order_number,
         },
@@ -403,9 +470,16 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
             "status": linked_entry.get("status") if linked_entry else "",
             "aliases": _summary_aliases(linked_entry),
             "entryId": linked_entry.get("id") if linked_entry else "",
+            "media": media,
+            "author": _summary_text(linked_entry.get("author")),
+            "authorAltNames": _summary_list(linked_entry.get("authorAltNames"))[:12],
+            "artist": _summary_text(linked_entry.get("artist")),
+            "language": _summary_text(linked_entry.get("language")),
+            "sourceUrl": _summary_text(linked_entry.get("sourceUrl")),
+            "summary": _summary_text(linked_entry.get("summary") or linked_entry.get("description"))[:700],
+            "ratings": ratings,
         },
     }
-
 
 def _build_workspace_context(workspaces, bookmarks, limit=80):
     counts = {}
@@ -460,6 +534,7 @@ def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categorie
                 by_bookmark_pin.get(link_id),
                 order_number=_order_number(settings["customOrderMap"], link_id, index + 1),
                 folder_path=folder_path_by_id.get(_summary_text((link or {}).get("folderId")), ""),
+                category_data=category_data,
             )
             links_by_folder.setdefault(_summary_text((link or {}).get("folderId")), []).append(view)
 
@@ -506,6 +581,7 @@ def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categorie
 
 
 def _compact_bookmark_for_view(link, linked_entry=None):
+    ratings = _rating_context(link or {}, linked_entry or {})
     return {
         "id": (link or {}).get("id"),
         "title": (link or {}).get("title"),
@@ -520,8 +596,9 @@ def _compact_bookmark_for_view(link, linked_entry=None):
         "done": bool((link or {}).get("done")),
         "tags": _summary_list((link or {}).get("tags"))[:12],
         "covers": _summary_covers(link),
+        "ratings": ratings,
+        "sourceProviders": list(dict.fromkeys(_summary_text(source.get("provider")) for source in _attached_sources(link or {}, linked_entry or {}) if _summary_text(source.get("provider"))))[:8],
     }
-
 
 def _build_system_view_samples(bookmarks, link_to_entry, sample_limit=25):
     views = {

@@ -18,6 +18,25 @@ window.EveDataStore = window.EveDataStore || {};
         return [];
     }
 
+    const LOCAL_CONTEXT_MODE_PROFILES = {
+        brief: { budget: 24, sampleMultiplier: 1, header: 'EveOS lean scoped state brief' },
+        summary: { budget: 60, sampleMultiplier: 2, header: 'EveOS scoped state summary' },
+        deep: { budget: 120, sampleMultiplier: 3, header: 'EveOS deep scoped state snapshot' },
+        full: { budget: 180, sampleMultiplier: 4, header: 'EveOS complete scoped state snapshot' }
+    };
+
+    function normalizeContextMode(mode) {
+        const value = text(mode, 'summary').toLowerCase();
+        if (value === 'json' || value === 'complete') return 'full';
+        return LOCAL_CONTEXT_MODE_PROFILES[value] ? value : 'summary';
+    }
+
+    function detailBudget(detail, limit) {
+        const mode = normalizeContextMode(detail);
+        const profile = LOCAL_CONTEXT_MODE_PROFILES[mode] || LOCAL_CONTEXT_MODE_PROFILES.summary;
+        return Math.min(profile.budget, Math.max(limit, Math.ceil(limit * profile.sampleMultiplier)));
+    }
+
     function clone(value, fallback) {
         try {
             return JSON.parse(JSON.stringify(value));
@@ -594,7 +613,8 @@ window.EveDataStore = window.EveDataStore || {};
             if (!byCard.has(key)) byCard.set(key, []);
             byCard.get(key).push(link);
         });
-        let remaining = detail === 'complete' ? Math.min(180, Math.max(limit, limit * 4)) : Math.min(60, limit);
+        const budget = detailBudget(detail, limit);
+        let remaining = budget;
         const cards = [];
         byCard.forEach((cardLinks, key) => {
             if (cards.length >= 80 || remaining <= 0) return;
@@ -632,10 +652,10 @@ window.EveDataStore = window.EveDataStore || {};
                 folders: (maps.children.get('') || []).map(buildFolder)
             });
         });
-        return { cards, systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(20, limit)), truncated: remaining <= 0, bookmarkBudget: detail === 'complete' ? Math.min(180, Math.max(limit, limit * 4)) : Math.min(60, limit) };
+        return { cards, systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(20, limit)), truncated: remaining <= 0, bookmarkBudget: budget };
     }
 
-    function summarizeState(state, limit, scope) {
+    function summarizeState(state, limit, scope, detail = 'summary') {
         const links = getLinks(state);
         const categories = state?.library?.categories || {};
         const connections = state?.library?.connections || [];
@@ -682,11 +702,11 @@ window.EveDataStore = window.EveDataStore || {};
                     }
                 }
             },
-            structuredScope: buildStructuredScope(state, limit, scope, 'summary'),
+            structuredScope: buildStructuredScope(state, limit, scope, detail),
 
             samples: {
 
-                bookmarks: links.slice(0, limit).map((link) => bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs })),
+                bookmarks: links.slice(0, detail === 'brief' ? Math.min(8, limit) : limit).map((link) => bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs })),
                 folders: Object.entries(folders).slice(0, limit).map(([key, tree]) => ({
                     scopedKey: key,
                     folderCount: countFolders(tree)
@@ -699,23 +719,23 @@ window.EveDataStore = window.EveDataStore || {};
     function buildLocalGeminiContext(mode = 'summary', limit = 25, options = {}) {
         const state = getStoreState();
         if (!state || !state.bookmarks) return { ok: false, error: 'No in-browser EveOS state is available.' };
-        const safeMode = text(mode, 'summary').toLowerCase() === 'full' ? 'full' : 'summary';
-        const safeLimit = Math.max(5, Math.min(200, Number(limit) || 25));
+        const safeMode = normalizeContextMode(mode);
+        const safeLimit = Math.max(5, Math.min(200, Number(limit) || LOCAL_CONTEXT_MODE_PROFILES[safeMode].budget));
         const scope = normalizeScopeOptions(state, options?.scope || options);
         const scopedState = filterStateForScope(state, scope);
+        const summary = summarizeState(scopedState, safeLimit, scope, safeMode);
         const payload = safeMode === 'full' ? {
             kind: 'eveos_scoped_context_snapshot',
             generatedAt: new Date().toISOString(),
             scope,
             note: 'Complete scoped snapshot is compact and structured. It intentionally excludes raw config/knowledge dumps to avoid Gemini Live context overflow.',
-            counts: summarizeState(scopedState, safeLimit, scope).counts,
-            breakdown: summarizeState(scopedState, safeLimit, scope).breakdown,
-            structuredScope: buildStructuredScope(scopedState, safeLimit, scope, 'complete'),
+            counts: summary.counts,
+            breakdown: summary.breakdown,
+            structuredScope: buildStructuredScope(scopedState, safeLimit, scope, 'full'),
+            nexusLog: summary.nexusLog || null,
             localFallback: true
-        } : summarizeState(scopedState, safeLimit, scope);
-        const header = safeMode === 'full'
-            ? '[SYSTEM CONTEXT: EveOS in-browser scoped state snapshot follows as JSON. Use it as reference context.]'
-            : '[SYSTEM CONTEXT: EveOS in-browser scoped state summary follows as JSON. Use it as reference context.]';
+        } : summary;
+        const header = `[SYSTEM CONTEXT: ${LOCAL_CONTEXT_MODE_PROFILES[safeMode].header} follows as JSON. Use it as reference context. cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]`;
         return {
             ok: true,
             mode: safeMode,

@@ -205,7 +205,14 @@ def _filter_state_for_gemini_scope(state, scope="workspace", workspace_id="", ca
     else:
         next_config["workspaces"] = [_clone_workspace_node(target_workspace)] if target_workspace else _workspace_config_entries(current_config, target_workspace_id)
 
-    scope_label = "Selected tab group" if explicit_workspace_ids and scope_value == "all" else ("Current card" if scope_value == "card" else "Current tab branch")
+    if scope_value == "card":
+        scope_label = "Specific card"
+    elif explicit_workspace_ids and len(allowed_workspace_ids) <= 1:
+        scope_label = "Current tab only"
+    elif explicit_workspace_ids and scope_value == "all":
+        scope_label = "Selected tab group"
+    else:
+        scope_label = "Current tab branch"
     metadata = _clone_json_compatible(base.get("metadata") or {}, {})
     metadata["geminiScope"] = {
         "scope": scope_value,
@@ -232,9 +239,38 @@ def _filter_state_for_gemini_scope(state, scope="workspace", workspace_id="", ca
     }
 
 
+CONTEXT_MODE_PROFILES = {
+    "brief": {
+        "limit": 10,
+        "header": "EveOS lean scoped state brief follows as JSON. Use it as a fast map, not a full dump.",
+    },
+    "summary": {
+        "limit": 30,
+        "header": "EveOS rich scoped state summary follows as JSON. Use it as reference context and prioritize explicit values.",
+    },
+    "deep": {
+        "limit": 60,
+        "header": "EveOS deep scoped state snapshot follows as JSON. Use it for fuller card/folder/tree reasoning without raw internal dumps.",
+    },
+    "full": {
+        "limit": 90,
+        "header": "EveOS complete scoped context snapshot follows as JSON. It is chunked for Gemini Live and still excludes raw internal dumps.",
+    },
+}
+
+
+def _normalize_context_mode(mode):
+    value = str(mode or "summary").strip().lower()
+    if value in {"json", "complete"}:
+        return "full"
+    return value if value in CONTEXT_MODE_PROFILES else "summary"
+
+
 def build_gemini_context_from_state(state, mode="summary", sample_limit=25, scope="workspace", workspace_id="", category_name="", workspace_ids=None):
-    mode_value = str(mode or "summary").strip().lower()
-    limit_value = max(5, min(200, _to_number(sample_limit, 25)))
+    mode_value = _normalize_context_mode(mode)
+    profile = CONTEXT_MODE_PROFILES.get(mode_value, CONTEXT_MODE_PROFILES["summary"])
+    requested_limit = _to_number(sample_limit, profile["limit"])
+    limit_value = max(5, min(200, requested_limit or profile["limit"]))
     scoped_state = _filter_state_for_gemini_scope(
         state,
         scope=scope,
@@ -256,13 +292,13 @@ def build_gemini_context_from_state(state, mode="summary", sample_limit=25, scop
             "nexusLog": payload.get("nexusLog"),
         }
         header = (
-            "[SYSTEM CONTEXT: EveOS modular scoped context snapshot follows as JSON. "
-            "Use it as reference context. cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
+            f"[SYSTEM CONTEXT: {profile['header']} "
+            "cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
         )
     else:
         header = (
-            "[SYSTEM CONTEXT: EveOS modular state summary follows as JSON. "
-            "Use it as reference context and prioritize explicit values. cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
+            f"[SYSTEM CONTEXT: {profile['header']} "
+            "cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
         )
 
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2)

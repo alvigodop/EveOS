@@ -13,7 +13,7 @@ const chatLogDisplayScripts = [
     `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/toggle_hist/toggleConversationHistoryButtonUILoader.js`,
     `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/sys_log/systemLogDisplayUILoader.js`,
     (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/logs/sys_log/server_reboot_button/serverRebootButtonHandler.js',
-    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/hist_toggle/conversation_history_ui/previousConversationClearHandler.js',
+    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/hist_toggle/conversation_history_ui/previousConversationClearHandler.js?v=0.1.1',
     (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/hist_toggle/conversation_history_ui/conversationHistoryToggler.js' // Add the handler script
     // Add other scripts for Chat Log Display components here in the future
 ];

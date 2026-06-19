@@ -4,8 +4,30 @@
 
 window.GeminiLiveLinkAgentic = window.GeminiLiveLinkAgentic || {};
 
+const GEMINI_LIVE_LINK_MODE_PROFILES = {
+    brief: { label: 'Quick Scoped Brief', limit: 10, note: 'Lean card and bookmark names, counts, and a small useful sample.' },
+    summary: { label: 'Rich Scoped Summary', limit: 30, note: 'Readable scoped sample with folders, bookmark identifiers, status, progress, ratings, URLs, and Nexus hints.' },
+    deep: { label: 'Deep Scoped Snapshot', limit: 60, note: 'More complete tree sample for the selected scope without raw internal state dumps.' },
+    full: { label: 'Complete Scoped Snapshot', limit: 90, note: 'Largest safe structured payload for the selected scope, chunked for Gemini Live.' }
+};
+
+const GEMINI_LIVE_LINK_SCOPE_DESCRIPTIONS = {
+    auto: 'Auto follows the current EveOS surface. In normal tabs it uses the active tab branch; in card drill-ins it can scope to that card; in Unidex it can expose the global datapack.',
+    'tab-current': 'Current Tab Only sends this tab name, path, visible cards, folders, bookmarks, notes, pins, and library links. Sub-tab paths may be named, but sub-tab contents are not included.',
+    'tab-branch': 'Current Tab + Sub Tabs sends this tab and its visible sub-tab branch, preserving tab paths while keeping each card and folder tree separated.',
+    card: 'Specific Card sends one selected card, its folders, root bookmarks, bookmark identifier/category pills, linked-library state, pins, URLs, notes, progress, and compact system-view hints.',
+    all: 'Whole Datapack is only available from Unidex/global surfaces. Use it sparingly; it is chunked but still the largest scope.'
+};
+
 function _normalizeGeminiLiveLinkMode(mode) {
-    return String(mode || '').toLowerCase() === 'full' ? 'full' : 'summary';
+    const value = String(mode || '').toLowerCase();
+    if (value === 'json' || value === 'complete') return 'full';
+    return GEMINI_LIVE_LINK_MODE_PROFILES[value] ? value : 'summary';
+}
+
+function _getGeminiLiveLinkModeProfile(mode) {
+    const normalized = _normalizeGeminiLiveLinkMode(mode);
+    return { id: normalized, ...GEMINI_LIVE_LINK_MODE_PROFILES[normalized] };
 }
 
 function _getGeminiLiveLinkConfig() {
@@ -37,6 +59,21 @@ function _getGeminiLiveLinkScopeMode() {
 
 function _isGeminiLiveLinkDataStreamEnabled() {
     return !!window.GeminiLiveLinkScopeRuntime?.isDataStreamEnabled?.();
+}
+
+function _isGeminiLiveLinkSettingsOpen() {
+    const cfg = _getGeminiLiveLinkConfig();
+    return !!cfg?.geminiLiveLinkSettingsOpen;
+}
+
+function _setGeminiLiveLinkSettingsOpen(open) {
+    const cfg = _getGeminiLiveLinkConfig();
+    const value = !!open;
+    if (cfg) {
+        cfg.geminiLiveLinkSettingsOpen = value;
+        if (typeof saveConfig === 'function') saveConfig();
+    }
+    return value;
 }
 
 function _setGeminiLiveLinkMode(mode) {
@@ -118,16 +155,17 @@ function _buildPendingGeminiLiveLinkManifest(mode, selectedScope) {
     const scopeMode = String(scope.scope || 'workspace').toLowerCase();
     const scopeLabel = scope.label || (scopeMode === 'all'
         ? 'Whole datapack'
-        : (scopeMode === 'card' ? 'Specific card' : 'Current tab branch'));
+        : (scopeMode === 'card' ? 'Specific card' : 'Selected tab scope'));
+    const profile = _getGeminiLiveLinkModeProfile(mode || _getGeminiLiveLinkMode());
     return {
-        mode: _normalizeGeminiLiveLinkMode(mode || _getGeminiLiveLinkMode()),
+        mode: profile.id,
         scope: scopeLabel,
         scopeMode,
         source: scope.source || 'search-monitor',
         activeWorkspaceId: scope.workspaceId || String(_getGeminiLiveLinkConfig()?.activeWorkspace || 'main'),
         activeWorkspaceName: scope.workspaceId ? _getGeminiLiveLinkActiveWorkspaceLabel(scope.workspaceId) : 'All tabs',
         categoryName: scope.categoryName || '',
-        sampleLimit: 30,
+        sampleLimit: profile.limit,
         messageChars: 0,
         counts: null,
         route: ''
@@ -135,9 +173,7 @@ function _buildPendingGeminiLiveLinkManifest(mode, selectedScope) {
 }
 
 function _formatGeminiLiveLinkModeLabel(mode) {
-    return _normalizeGeminiLiveLinkMode(mode) === 'full'
-        ? 'Complete Scoped Snapshot'
-        : 'Rich Scoped Summary';
+    return _getGeminiLiveLinkModeProfile(mode).label;
 }
 
 function _withGeminiLiveLinkTimeout(promise, timeoutMs, label) {
@@ -152,6 +188,32 @@ function _withGeminiLiveLinkTimeout(promise, timeoutMs, label) {
     });
 }
 
+function _refreshGeminiLiveLinkScopeOptions() {
+    const select = document.getElementById('geminiLiveLinkScopeMode');
+    if (!select) return;
+    const current = _getGeminiLiveLinkScopeMode();
+    const allowWhole = !!window.GeminiLiveLinkScopeRuntime?.isWholeDatapackAllowed?.();
+    const options = [
+        ['auto', 'Auto: Current Surface'],
+        ['tab-current', 'Current Tab Only'],
+        ['tab-branch', 'Current Tab + Sub Tabs'],
+        ['card', 'Specific Card']
+    ];
+    if (allowWhole) options.push(['all', 'Whole Datapack']);
+    select.innerHTML = options.map(([value, label]) => `<option value="${value}">${_escapeGeminiLiveLinkHtml(label)}</option>`).join('');
+    const nextValue = options.some(([value]) => value === current) ? current : 'auto';
+    select.value = nextValue;
+    if (nextValue !== current) _setGeminiLiveLinkScopeMode(nextValue);
+    _refreshGeminiLiveLinkScopeExplain(nextValue);
+}
+
+function _refreshGeminiLiveLinkScopeExplain(mode) {
+    const explain = document.getElementById('geminiLiveLinkScopeExplain');
+    if (!explain) return;
+    const selectedMode = mode || document.getElementById('geminiLiveLinkScopeMode')?.value || _getGeminiLiveLinkScopeMode();
+    explain.textContent = GEMINI_LIVE_LINK_SCOPE_DESCRIPTIONS[selectedMode] || GEMINI_LIVE_LINK_SCOPE_DESCRIPTIONS.auto;
+}
+
 function _refreshGeminiLiveLinkCardOptions() {
     const select = document.getElementById('geminiLiveLinkCardScope');
     const scopeMode = document.getElementById('geminiLiveLinkScopeMode')?.value || _getGeminiLiveLinkScopeMode();
@@ -160,7 +222,8 @@ function _refreshGeminiLiveLinkCardOptions() {
     if (cardWrap) cardWrap.hidden = scopeMode !== 'card';
     if (!select) return;
     const api = _getGeminiLiveLinkApi();
-    const options = api?.getGeminiContextCardOptions?.({ scope: _getGeminiLiveLinkSelectedScope() }) || [];
+    const optionScope = window.GeminiLiveLinkScopeRuntime?.getCardOptionScope?.() || _getGeminiLiveLinkSelectedScope();
+    const options = api?.getGeminiContextCardOptions?.({ scope: optionScope }) || [];
     const currentValue = `${cfg.geminiContextSelectedCardWorkspaceId || ''}::${cfg.geminiContextSelectedCardCategory || ''}`;
     select.innerHTML = options.length
         ? options.map((item) => {
@@ -246,16 +309,42 @@ function _bindGeminiLiveLinkDataStream() {
     });
 }
 
+function _applyGeminiLiveLinkSettingsState() {
+    const root = document.getElementById('gemini-live-link-card');
+    const button = document.getElementById('geminiLiveLinkSettingsButton');
+    const controls = document.getElementById('geminiLiveLinkControls');
+    const isEnabled = _isGeminiLiveLinkEnabled();
+    const isOpen = isEnabled && _isGeminiLiveLinkSettingsOpen();
+    if (root) root.classList.toggle('is-settings-collapsed', !isOpen);
+    if (button) {
+        button.classList.toggle('is-active', isOpen);
+        button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        button.title = isOpen ? 'Hide EveOS relay settings' : 'Show EveOS relay settings';
+    }
+    if (controls) {
+        controls.style.display = isOpen ? 'block' : 'none';
+        controls.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    }
+}
+
 function _applyGeminiLiveLinkEnabledState(enabled) {
     const isEnabled = !!enabled;
     const root = document.getElementById('gemini-live-link-card');
     const toggle = document.getElementById('geminiLiveLinkToggle');
+    const settingsButton = document.getElementById('geminiLiveLinkSettingsButton');
+    if (settingsButton && settingsButton.dataset.bound !== '1') {
+        settingsButton.dataset.bound = '1';
+        settingsButton.addEventListener('click', () => {
+            _setGeminiLiveLinkSettingsOpen(!_isGeminiLiveLinkSettingsOpen());
+            _applyGeminiLiveLinkSettingsState();
+        });
+    }
+
     const modeSelect = document.getElementById('geminiLiveLinkMode');
     const scopeSelect = document.getElementById('geminiLiveLinkScopeMode');
     const cardSelect = document.getElementById('geminiLiveLinkCardScope');
     const streamToggle = document.getElementById('geminiLiveLinkDataStreamToggle');
     const sendButton = document.getElementById('geminiLiveLinkSendButton');
-    const controls = document.getElementById('geminiLiveLinkControls');
     const statusEl = document.getElementById('geminiLiveLinkStatus');
 
     if (root) root.classList.toggle('is-relay-paused', !isEnabled);
@@ -265,13 +354,7 @@ function _applyGeminiLiveLinkEnabledState(enabled) {
     if (cardSelect) cardSelect.disabled = !isEnabled;
     if (streamToggle) streamToggle.disabled = !isEnabled;
     if (sendButton) sendButton.disabled = !isEnabled;
-    if (controls) {
-        controls.style.display = isEnabled ? 'block' : 'none';
-        controls.setAttribute('aria-hidden', isEnabled ? 'false' : 'true');
-    }
-    if (statusEl) {
-        statusEl.classList.toggle('is-collapsed', !isEnabled);
-    }
+    if (statusEl) statusEl.classList.toggle('is-collapsed', !isEnabled);
 
     if (!isEnabled) {
         _setGeminiLiveLinkStatus('EveOS Context Relay paused.', false);
@@ -279,6 +362,7 @@ function _applyGeminiLiveLinkEnabledState(enabled) {
         _setGeminiLiveLinkStatus('Ready. Review the manifest, then send EveOS context to Gemini.', false);
     }
     _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(), isEnabled ? 'Ready to prepare' : 'Relay paused');
+    _applyGeminiLiveLinkSettingsState();
 }
 
 async function sendGeminiLiveLinkContext() {
@@ -289,6 +373,7 @@ async function sendGeminiLiveLinkContext() {
 
     const modeSelect = document.getElementById('geminiLiveLinkMode');
     const mode = _setGeminiLiveLinkMode(modeSelect?.value || _getGeminiLiveLinkMode());
+    const profile = _getGeminiLiveLinkModeProfile(mode);
     const api = _getGeminiLiveLinkApi();
 
     if (!api?.sendContextToGemini) {
@@ -304,7 +389,7 @@ async function sendGeminiLiveLinkContext() {
     let result = null;
     try {
         result = await _withGeminiLiveLinkTimeout(
-            api.sendContextToGemini(mode, 30, { scope: selectedScope }),
+            api.sendContextToGemini(mode, profile.limit, { scope: selectedScope }),
             15000,
             'EveOS context preparation'
         );
@@ -352,12 +437,14 @@ async function initializeGeminiLiveLinkCard() {
         });
     }
 
+    _refreshGeminiLiveLinkScopeOptions();
     const scopeSelect = document.getElementById('geminiLiveLinkScopeMode');
     if (scopeSelect) {
         scopeSelect.value = _getGeminiLiveLinkScopeMode();
         scopeSelect.addEventListener('change', () => {
             _setGeminiLiveLinkScopeMode(scopeSelect.value);
             _refreshGeminiLiveLinkCardOptions();
+            _refreshGeminiLiveLinkScopeExplain(scopeSelect.value);
             _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(modeSelect?.value), 'Scope changed');
             _setGeminiLiveLinkStatus(`Context scope set to ${scopeSelect.options[scopeSelect.selectedIndex]?.text || scopeSelect.value}.`, false);
         });
@@ -425,10 +512,15 @@ async function loadGeminiLiveLinkCard() {
             <span class="gemini-live-link-title">EveOS Context Relay</span>
             <div class="gemini-live-link-subtitle">Choose a tab/card scope, inspect what will be sent, then relay it into Gemini.</div>
         </div>
-        <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch gemini-live-link-toggle" for="geminiLiveLinkToggle" style="width:52px;height:32px;min-height:32px;flex:0 0 52px;">
-            <input type="checkbox" id="geminiLiveLinkToggle" class="mdl-switch__input" checked>
-            <span class="mdl-switch__label"></span>
-        </label>
+        <div class="gemini-live-link-head-actions">
+            <button type="button" id="geminiLiveLinkSettingsButton" class="gemini-live-link-settings-btn" aria-expanded="false" title="Show EveOS relay settings">
+                <span class="material-icons">settings</span>
+            </button>
+            <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch gemini-live-link-toggle" for="geminiLiveLinkToggle" style="width:52px;height:32px;min-height:32px;flex:0 0 52px;">
+                <input type="checkbox" id="geminiLiveLinkToggle" class="mdl-switch__input" checked>
+                <span class="mdl-switch__label"></span>
+            </label>
+        </div>
     </div>
     <div id="geminiLiveLinkStatus" class="gemini-live-link-status"></div>
     <div id="geminiLiveLinkManifest" class="gemini-live-link-manifest"></div>
@@ -437,7 +529,9 @@ async function loadGeminiLiveLinkCard() {
             <div class="gemini-live-link-select-wrap">
                 <label for="geminiLiveLinkMode" class="gemini-live-link-label">Context Detail</label>
                 <select id="geminiLiveLinkMode" class="gemini-live-link-select">
+                    <option value="brief">Quick Scoped Brief</option>
                     <option value="summary">Rich Scoped Summary</option>
+                    <option value="deep">Deep Scoped Snapshot</option>
                     <option value="full">Complete Scoped Snapshot</option>
                 </select>
             </div>
@@ -448,9 +542,9 @@ async function loadGeminiLiveLinkCard() {
                 <label for="geminiLiveLinkScopeMode" class="gemini-live-link-label">Context Scope</label>
                 <select id="geminiLiveLinkScopeMode" class="gemini-live-link-select">
                     <option value="auto">Auto: Current Surface</option>
-                    <option value="tab">Current Tab Branch</option>
+                    <option value="tab-current">Current Tab Only</option>
+                    <option value="tab-branch">Current Tab + Sub Tabs</option>
                     <option value="card">Specific Card</option>
-                    <option value="all">Whole Datapack</option>
                 </select>
             </div>
             <div id="geminiLiveLinkCardScopeWrap" class="gemini-live-link-select-wrap" hidden>
@@ -458,6 +552,7 @@ async function loadGeminiLiveLinkCard() {
                 <select id="geminiLiveLinkCardScope" class="gemini-live-link-select"></select>
             </div>
         </div>
+        <div id="geminiLiveLinkScopeExplain" class="gemini-live-link-scope-explain"></div>
         <label class="gemini-live-link-stream-row" for="geminiLiveLinkDataStreamToggle">
             <span>
                 <b>Data Stream</b>
@@ -466,7 +561,7 @@ async function loadGeminiLiveLinkCard() {
             <input id="geminiLiveLinkDataStreamToggle" type="checkbox">
         </label>
         <div class="gemini-live-link-help">
-            Scope decides what Gemini sees. Rich Summary sends readable samples; Complete Snapshot sends the selected scope payload. Data Stream sends only silent live deltas for this scope.
+            Scope decides what Gemini sees. Quick is lean, Rich is readable, Deep expands the selected tree, and Complete is the largest safe scoped snapshot. Data Stream sends only silent live deltas for this scope.
         </div>
     </div>
 </div>

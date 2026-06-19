@@ -76,6 +76,22 @@
         return (Array.isArray(links) ? links : []).find((link) => String(link?.id) === String(linkId));
     }
 
+    function formatUnifiedRating(entry) {
+        const derived = entry?.derivedRatings && typeof entry.derivedRatings === 'object'
+            ? entry.derivedRatings
+            : {};
+        const value = derived.activeValue
+            ?? derived.hybrid10
+            ?? derived.apiWeighted10
+            ?? derived.apiAverage10
+            ?? entry?.unifiedRating
+            ?? entry?.ratingUnified;
+        const number = Number(value);
+        if (!Number.isFinite(number)) return '';
+        const text = number >= 10 ? number.toFixed(0) : number.toFixed(2).replace(/\.00$/, '');
+        return text + ' / 10';
+    }
+
     function mergeBookmarkNotesIntoFocusSummary(linkId) {
         const summary = document.getElementById('bookmarkFocusSummary');
         const linkNotes = String(findLiveLink(linkId)?.notes || '').trim();
@@ -123,8 +139,15 @@
         const aliasHint = document.getElementById('bookmarkFocusAliasHint');
         const aliasSection = document.getElementById('bookmarkFocusAliasSection');
         const aliasSummary = document.getElementById('bookmarkFocusAliasSummary');
+        const unifiedRating = document.getElementById('bookmarkFocusUnifiedRating');
 
         if (rating) rating.value = entry.rating || '';
+        if (unifiedRating) {
+            const unifiedText = formatUnifiedRating(entry);
+            unifiedRating.textContent = unifiedText || '-';
+            unifiedRating.title = unifiedText ? 'Unified derived rating' : 'No unified rating available yet';
+            unifiedRating.classList.toggle('is-empty', !unifiedText);
+        }
         if (graphic) graphic.value = entry.graphicChapter ?? entry.chapter ?? 0;
         if (novel) novel.value = entry.novelChapter ?? 0;
         if (season) season.value = entry.season ?? 0;

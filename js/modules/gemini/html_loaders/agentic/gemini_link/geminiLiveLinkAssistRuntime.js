@@ -4,13 +4,17 @@ window.GeminiLiveLinkAssistRuntime = window.GeminiLiveLinkAssistRuntime || {};
     if (window.GeminiLiveLinkAssistRuntime.ready) return;
 
     const DESCRIPTIONS = {
-        auto: 'Auto follows your current EveOS surface: card when you are drilled into one, current tab branch in normal tab view, group branch in overview, and whole datapack only from global/Unidex context.',
-        tab: 'Current Tab Branch sends the active tab plus visible child tabs, their cards, folder trees, shortcuts, bookmarks, notes, status/progress, timestamps, pins, and small system-view summaries.',
-        card: 'Specific Card sends one chosen card only, including its folder tree, root bookmarks, shortcut links, notes, URLs, linked-library status, task state, category/order data, and scoped Nexus traces.',
-        all: 'Whole Datapack sends the broadest site snapshot. Large payloads are now chunked and capped before Gemini Live transport so this mode does not crash the session.'
+        auto: 'Auto follows your current EveOS surface: card when drilled into one, tab branch in normal tab view, group branch in overview, and whole datapack only from Unidex/global context.',
+        'tab-current': 'Current Tab Only sends the active tab, its cards, folders, bookmarks, notes, URLs, status/progress, pins, and compact system-view hints. Sub-tabs are listed as path context only when available; their contents are not included.',
+        'tab-branch': 'Current Tab + Sub Tabs sends the active tab branch: parent tab plus visible child tabs, their cards, folder trees, shortcuts, bookmarks, notes, timestamps, pins, and compact system-view hints.',
+        tab: 'Current Tab + Sub Tabs sends the active tab branch: parent tab plus visible child tabs, their cards, folder trees, shortcuts, bookmarks, notes, timestamps, pins, and compact system-view hints.',
+        card: 'Specific Card sends one chosen card only, including its folder tree, root bookmarks, shortcut links, notes, URLs, linked-library status, task state, bookmark identifier markers, category/order data, and scoped Nexus traces.',
+        all: 'Whole Datapack is only available from Unidex/global context. Large payloads are chunked and capped before Gemini Live transport.'
     };
 
     function getModeLabel(value) {
+        if (value === 'brief') return 'Quick Brief';
+        if (value === 'deep') return 'Deep Snapshot';
         if (value === 'full') return 'Complete Snapshot';
         return 'Rich Summary';
     }

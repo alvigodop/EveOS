@@ -211,11 +211,11 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)) !important;
+    gap: 8px !important;
     align-content: start !important;
     align-items: start !important;
-    column-gap: 8px !important;
-    column-width: 260px !important;
-    display: block !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div,
@@ -240,10 +240,8 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div {
-    break-inside: avoid;
     display: block !important;
-    margin: 0 0 8px !important;
-    page-break-inside: avoid;
+    margin: 0 !important;
     width: 100% !important;
 }
 
@@ -323,15 +321,15 @@
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
     height: auto !important;
-    min-height: max(340px, 34dvh) !important;
-    max-height: max(340px, 34dvh) !important;
+    min-height: clamp(300px, 30dvh, 520px) !important;
+    max-height: clamp(300px, 30dvh, 520px) !important;
     flex: 0 0 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog {
-    height: max(340px, 34dvh) !important;
-    min-height: max(340px, 34dvh) !important;
-    max-height: max(340px, 34dvh) !important;
+    height: clamp(300px, 30dvh, 520px) !important;
+    min-height: clamp(300px, 30dvh, 520px) !important;
+    max-height: clamp(300px, 30dvh, 520px) !important;
     flex: 0 0 auto !important;
     overflow-y: auto !important;
 }
@@ -345,17 +343,17 @@
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
     height: auto !important;
-    min-height: clamp(185px, 18dvh, 360px) !important;
-    max-height: clamp(185px, 18dvh, 360px) !important;
+    min-height: clamp(145px, 18dvh, 300px) !important;
+    max-height: clamp(145px, 18dvh, 300px) !important;
     flex: 0 0 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
     display: flex !important;
     flex-direction: column !important;
-    height: clamp(185px, 18dvh, 360px) !important;
-    min-height: clamp(185px, 18dvh, 360px) !important;
-    max-height: clamp(185px, 18dvh, 360px) !important;
+    height: clamp(145px, 18dvh, 300px) !important;
+    min-height: clamp(145px, 18dvh, 300px) !important;
+    max-height: clamp(145px, 18dvh, 300px) !important;
     flex: 0 0 auto !important;
     overflow: hidden !important;
 }

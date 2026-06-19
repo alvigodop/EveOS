@@ -13,8 +13,22 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
         if (typeof saveConfig === 'function') saveConfig();
     }
 
+    function normalizeScopeMode(mode) {
+        const value = String(mode || '').toLowerCase();
+        if (value === 'tab') return 'tab-branch';
+        return ['auto', 'tab-current', 'tab-branch', 'card', 'all'].includes(value) ? value : 'auto';
+    }
+
+    function isWholeDatapackAllowed() {
+        const cfg = getConfig() || {};
+        const viewMode = String(cfg.viewMode || '').toLowerCase();
+        const stage = String(cfg.unidexStage || '').toLowerCase();
+        return viewMode === 'unidex' && (!stage || ['tabs', 'global', 'overview'].includes(stage));
+    }
+
     function getScopeMode() {
-        return String(getConfig()?.geminiContextScopeMode || 'auto').toLowerCase();
+        const stored = normalizeScopeMode(getConfig()?.geminiContextScopeMode || 'auto');
+        return stored === 'all' && !isWholeDatapackAllowed() ? 'auto' : stored;
     }
 
     function isDataStreamEnabled() {
@@ -22,9 +36,8 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
     }
 
     function setScopeMode(mode) {
-        const normalized = ['auto', 'tab', 'card', 'all'].includes(String(mode || '').toLowerCase())
-            ? String(mode).toLowerCase()
-            : 'auto';
+        let normalized = normalizeScopeMode(mode);
+        if (normalized === 'all' && !isWholeDatapackAllowed()) normalized = 'auto';
         const cfg = getConfig();
         if (cfg) {
             cfg.geminiContextScopeMode = normalized;
@@ -79,11 +92,27 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
         return Array.from(ids).filter(Boolean);
     }
 
+    function workspaceLabel(workspaceId) {
+        const cfg = getConfig() || {};
+        const workspace = findWorkspace(workspaceId, cfg.workspaces);
+        return String(workspace?.name || workspaceId || 'Main');
+    }
+
+    function getCardOptionScope() {
+        const cfg = getConfig() || {};
+        const activeWorkspace = String(cfg.activeWorkspace || 'main');
+        return isWholeDatapackAllowed()
+            ? { scope: 'all', workspaceId: '', workspaceIds: [], label: 'Unidex visible datapack', source: 'card-options-unidex' }
+            : { scope: 'workspace', workspaceId: activeWorkspace, workspaceIds: collectBranchIds(activeWorkspace), label: 'Current tab branch cards', source: 'card-options-branch' };
+    }
+
     function getSelectedScope() {
         const cfg = getConfig() || {};
         const mode = getScopeMode();
         const activeWorkspace = String(cfg.activeWorkspace || 'main');
-        if (mode === 'all') return { scope: 'all', workspaceId: '', workspaceIds: [], label: 'Whole datapack', source: 'manual-all' };
+        if (mode === 'all' && isWholeDatapackAllowed()) {
+            return { scope: 'all', workspaceId: '', workspaceIds: [], label: 'Whole datapack', source: 'manual-all-unidex' };
+        }
         if (mode === 'card') {
             const workspaceId = String(cfg.geminiContextSelectedCardWorkspaceId || activeWorkspace);
             return {
@@ -95,18 +124,27 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
                 source: 'manual-card'
             };
         }
-        if (mode === 'tab') {
+        if (mode === 'tab-current') {
+            return {
+                scope: 'workspace',
+                workspaceId: activeWorkspace,
+                workspaceIds: [activeWorkspace],
+                label: 'Current tab only',
+                source: 'manual-tab-current'
+            };
+        }
+        if (mode === 'tab-branch') {
             return {
                 scope: 'workspace',
                 workspaceId: activeWorkspace,
                 workspaceIds: collectBranchIds(activeWorkspace),
-                label: 'Current tab branch',
-                source: 'manual-tab'
+                label: 'Current tab + sub tabs',
+                source: 'manual-tab-branch'
             };
         }
         return window.EveDataStore?.ModularSync?.getCurrentGeminiContextScope?.()
             || window.EveDataStore?._modularSync?.getCurrentGeminiContextScope?.()
-            || { scope: 'workspace', workspaceId: activeWorkspace, workspaceIds: collectBranchIds(activeWorkspace), source: 'auto' };
+            || { scope: 'workspace', workspaceId: activeWorkspace, workspaceIds: collectBranchIds(activeWorkspace), label: workspaceLabel(activeWorkspace), source: 'auto' };
     }
 
     Object.assign(window.GeminiLiveLinkScopeRuntime, {
@@ -116,6 +154,9 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
         setScopeMode,
         setSelectedCard,
         setDataStreamEnabled,
+        isWholeDatapackAllowed,
+        collectBranchIds,
+        getCardOptionScope,
         getSelectedScope
     });
 })();

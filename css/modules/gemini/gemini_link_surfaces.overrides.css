@@ -292,7 +292,7 @@
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
     padding: 10px !important;
     margin: 0 !important;
-    min-height: 540px !important;
+    min-height: clamp(420px, 48dvh, 620px) !important;
     flex-shrink: 0 !important;
 }
 
@@ -315,7 +315,7 @@
     padding: 14px !important;
     background: linear-gradient(145deg, rgba(18, 24, 34, 0.9), rgba(10, 14, 20, 0.88)) !important;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    overflow: visible !important;
+    overflow: hidden !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #pastChatsLog {
@@ -358,4 +358,40 @@
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-live-link-card {
     min-height: 0;
     flex: 1 1 100%;
+}
+
+/* Search Monitor embedded Gemini: keep agentic cards natural-height in every monitor size. */
+#loadingIndicator #gemini-ui-root .gemini-agentic-grid {
+    align-items: flex-start !important;
+    align-content: flex-start !important;
+}
+
+#loadingIndicator #gemini-ui-root .gemini-agentic-grid > div,
+#loadingIndicator #gemini-ui-root .gemini-agentic-card {
+    align-self: flex-start !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+#loadingIndicator #gemini-ui-root .gemini-agentic-grid > div > * {
+    height: auto !important;
+    min-height: 0 !important;
+}
+
+#loadingIndicator #gemini-ui-root .right-column,
+#loadingIndicator #gemini-ui-root .chat-container {
+    position: relative !important;
+    z-index: 1;
+    clear: both;
+}
+
+.gemini-live-link-scope-explain {
+    margin-top: 8px;
+    padding: 9px 10px;
+    border: 1px solid rgba(110, 231, 255, 0.13);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    color: rgba(232, 247, 255, 0.68);
+    font-size: 0.72rem;
+    line-height: 1.38;
 }

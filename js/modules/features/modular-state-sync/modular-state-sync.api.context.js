@@ -10,7 +10,7 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     const LIVE_CONTEXT_CHUNK_CHARS = 45000;
-    const LIVE_CONTEXT_MAX_CHARS = 360000;
+    const LIVE_CONTEXT_MAX_CHARS = 240000;
 
     async function syncNow(force = true) {
         if (!ns.isHttpContext()) return false;
@@ -74,6 +74,24 @@ window.EveDataStore = window.EveDataStore || {};
             allowDestructiveRemoteApply: true
         });
         return { ok: true, status: payload?.status || null };
+    }
+
+    const CONTEXT_MODE_PROFILES = {
+        brief: { limit: 10 },
+        summary: { limit: 30 },
+        deep: { limit: 60 },
+        full: { limit: 90 }
+    };
+
+    function normalizeContextMode(mode) {
+        const value = String(mode || '').trim().toLowerCase();
+        if (value === 'json' || value === 'complete') return 'full';
+        return CONTEXT_MODE_PROFILES[value] ? value : 'summary';
+    }
+
+    function modeLimit(mode, fallback) {
+        const profile = CONTEXT_MODE_PROFILES[normalizeContextMode(mode)] || CONTEXT_MODE_PROFILES.summary;
+        return Math.max(5, Math.min(200, Number(fallback) || profile.limit));
     }
 
     function getRuntimeConfigForContext() {
@@ -196,9 +214,11 @@ window.EveDataStore = window.EveDataStore || {};
 
     function countLibraryEntries(categories) {
         if (!categories || typeof categories !== 'object') return 0;
-        return Object.values(categories).reduce((total, list) => (
-            total + (Array.isArray(list) ? list.length : 0)
-        ), 0);
+        return Object.values(categories).reduce((total, value) => {
+            if (Array.isArray(value)) return total + value.length;
+            if (Array.isArray(value?.entries)) return total + value.entries.length;
+            return total;
+        }, 0);
     }
 
     function getContextPayloadCounts(payload) {
@@ -322,8 +342,8 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     async function fetchGeminiContext(mode = 'summary', limit = 25, options = {}) {
-        const safeMode = String(mode || 'summary').toLowerCase() === 'full' ? 'full' : 'summary';
-        const safeLimit = Math.max(5, Math.min(200, Number(limit) || 25));
+        const safeMode = normalizeContextMode(mode);
+        const safeLimit = modeLimit(safeMode, limit);
         const scopeOptions = Object.assign({}, getCurrentGeminiContextScope(), options?.scope || {});
         const safeScope = normalizeContextScope(scopeOptions.scope);
         const params = new URLSearchParams();
