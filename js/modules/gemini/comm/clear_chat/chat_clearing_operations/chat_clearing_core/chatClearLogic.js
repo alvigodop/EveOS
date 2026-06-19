@@ -5,6 +5,28 @@
 
 window.ChatClearing = window.ChatClearing || {};
 
+function geminiChatClearConfirm(title, message, options = {}) {
+    if (typeof window.showConfirmWithTitle === 'function') {
+        return window.showConfirmWithTitle(title, message, Object.assign({
+            confirmLabel: options.confirmLabel || 'Confirm',
+            cancelLabel: options.cancelLabel || 'Cancel',
+            kind: options.kind || 'gemini-chat-clear-confirm'
+        }, options));
+    }
+    if (typeof window.showConfirm === 'function') {
+        return window.showConfirm(message, Object.assign({
+            title,
+            confirmLabel: options.confirmLabel || 'Confirm',
+            cancelLabel: options.cancelLabel || 'Cancel',
+            kind: options.kind || 'gemini-chat-clear-confirm'
+        }, options));
+    }
+    if (window.MessagingLog && window.MessagingLog.displayMessage) {
+        window.MessagingLog.displayMessage('System Message: Confirmation UI is still loading. Try again in a moment.');
+    }
+    return Promise.resolve(false);
+}
+
 window.ChatClearing.Logic = {
     clearCurrentChat: function () {
         const chatLog = document.getElementById('chatLog');
@@ -62,8 +84,13 @@ window.ChatClearing.Logic = {
         }
     },
 
-    clearPastChats: function () {
-        if (confirm("Are you sure you want to clear all past chats?")) {
+    clearPastChats: async function () {
+        const confirmed = await geminiChatClearConfirm(
+            'Clear Past Chats',
+            'Clear all saved past chats? This cannot be undone.',
+            { confirmLabel: 'Clear Past Chats', kind: 'gemini-clear-past-chats' }
+        );
+        if (confirmed) {
             if (typeof pastChats !== 'undefined') {
                 pastChats.length = 0; // Clear array
             }
@@ -87,8 +114,13 @@ window.ChatClearing.Logic = {
         }
     },
 
-    clearAllChats: function () {
-        if (confirm("Are you sure you want to clear all chats? This cannot be undone.")) {
+    clearAllChats: async function () {
+        const confirmed = await geminiChatClearConfirm(
+            'Clear All Chats',
+            'Clear the current chat and all saved past chats? This cannot be undone.',
+            { confirmLabel: 'Clear All', kind: 'gemini-clear-all-chats' }
+        );
+        if (confirmed) {
             const chatLog = document.getElementById('chatLog');
             if (chatLog) {
                 const container = chatLog.querySelector('.chat-messages-container');

@@ -14,6 +14,14 @@ window.EveDataStore = window.EveDataStore || {};
         return normalized || String(fallback || '').trim();
     }
 
+    function compactText(value, max = 180) {
+        const normalized = text(value, '').replace(/\s+/g, ' ');
+        const limit = Math.max(0, Number(max) || 0);
+        if (!limit) return '';
+        if (normalized.length <= limit) return normalized;
+        return `${normalized.slice(0, Math.max(0, limit - 3)).trim()}...`;
+    }
+
     function normalizeScope(scope) {
         const value = text(scope, 'workspace').toLowerCase();
         if (['all', 'store', 'datapack'].includes(value)) return 'all';
@@ -31,12 +39,12 @@ window.EveDataStore = window.EveDataStore || {};
         return [];
     }
 
-    function toList(value, limit = 80) {
+    function toList(value, limit = 24) {
         return Array.isArray(value) ? value.filter(Boolean).slice(0, limit) : [];
     }
 
     function asSet(values) {
-        return new Set(toList(values, 500).map((value) => text(value, '').toLowerCase()).filter(Boolean));
+        return new Set(toList(values, 250).map((value) => text(value, '').toLowerCase()).filter(Boolean));
     }
 
     function intersects(values, set) {
@@ -107,9 +115,9 @@ window.EveDataStore = window.EveDataStore || {};
         if (!trace) return null;
         return {
             id: trace.id || '',
-            query: trace.query || trace.input || '',
-            scope: trace.scope || trace.scopeMode || '',
-            summary: trace.summary || '',
+            query: compactText(trace.query || trace.input || '', 160),
+            scope: compactText(trace.scope?.label || trace.scope?.scope || trace.scopeMode || '', 90),
+            summary: compactText(trace.summary || '', 220),
             totalMs: Number(trace.totalMs) || 0,
             resultCount: Number(trace.resultCount || trace.resultsFound || trace.totalResults) || 0
         };
@@ -134,20 +142,20 @@ window.EveDataStore = window.EveDataStore || {};
             },
             delta: {
                 complete: delta.complete !== false,
-                workspaceIds: toList(delta.workspaceIds),
-                categoryNames: toList(delta.categoryNames),
-                folderIds: toList(delta.folderIds),
-                linkIds: toList(delta.linkIds),
-                addedLinkIds: toList(delta.addedLinkIds),
-                updatedLinkIds: toList(delta.updatedLinkIds),
-                removedLinkIds: toList(delta.removedLinkIds),
-                affectedScopes: toList(delta.affectedScopes, 40),
+                workspaceIds: toList(delta.workspaceIds, 12),
+                categoryNames: toList(delta.categoryNames, 12),
+                folderIds: toList(delta.folderIds, 16),
+                linkIds: toList(delta.linkIds, 30),
+                addedLinkIds: toList(delta.addedLinkIds, 30),
+                updatedLinkIds: toList(delta.updatedLinkIds, 30),
+                removedLinkIds: toList(delta.removedLinkIds, 30),
+                affectedScopes: toList(delta.affectedScopes, 12),
                 hasFolderStoreChanges: !!delta.hasFolderStoreChanges,
                 hasQuickPinChanges: !!delta.hasQuickPinChanges,
                 hasConstellationChanges: !!delta.hasConstellationChanges
             },
             configDelta: {
-                changedKeys: toList(configDelta.changedKeys || configDelta.keys || Object.keys(configDelta || {}), 40)
+                changedKeys: toList(configDelta.changedKeys || configDelta.keys || Object.keys(configDelta || {}), 16)
             },
             nexus: getLatestNexusTraceSummary()
         };

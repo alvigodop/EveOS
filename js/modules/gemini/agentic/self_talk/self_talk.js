@@ -16,7 +16,7 @@ const aiSelfTalkScripts = [
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkDefinitions.js`,
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkExecution.js`,
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkToggleHandler.js`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkSettingsHandler.js`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkSettingsHandler.js?v=0.1.1`,
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkUIInitialization.js`,
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/aiSelfTalkCoordinator.js`
 ];

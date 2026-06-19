@@ -15,7 +15,7 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/base64_player_core/base64PlayerLoader.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/wavEncoder.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/html5AudioFallback.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/webAudioFallback.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/webAudioFallback.js?v=0.1.1`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/fallbackAudioCoordinator.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/playback_ctrl/audioPlaybackStopper.js`,
 

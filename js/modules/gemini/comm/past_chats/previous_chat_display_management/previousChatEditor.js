@@ -1,5 +1,18 @@
-function clearPreviousChat() {
-    if (confirm("Clear this previous chat section?")) {
+function confirmPreviousChatAction(message) {
+    if (typeof window.showConfirmWithTitle === 'function') {
+        return window.showConfirmWithTitle('Gemini Previous Chat', message, { confirmText: 'Clear', cancelText: 'Cancel' });
+    }
+    if (typeof window.showConfirm === 'function') {
+        return window.showConfirm(message, { confirmText: 'Clear', cancelText: 'Cancel' });
+    }
+    if (typeof displayMessage === 'function') {
+        displayMessage('System Message: Confirmation dialog is not available yet. Try again after the workspace finishes loading.', true);
+    }
+    return Promise.resolve(false);
+}
+
+async function clearPreviousChat() {
+    if (await confirmPreviousChatAction("Clear this previous chat section?")) {
         document.getElementById('previousConversationContent').innerHTML = '';
         displayMessage("System Message: Previous chat section cleared");
     }

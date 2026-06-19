@@ -5,9 +5,36 @@
 
 window.PastChatsUI = window.PastChatsUI || {};
 
+function geminiPastChatConfirm(title, message, options = {}) {
+    if (typeof window.showConfirmWithTitle === 'function') {
+        return window.showConfirmWithTitle(title, message, Object.assign({
+            confirmLabel: options.confirmLabel || 'Confirm',
+            cancelLabel: options.cancelLabel || 'Cancel',
+            kind: options.kind || 'gemini-past-chat-confirm'
+        }, options));
+    }
+    if (typeof window.showConfirm === 'function') {
+        return window.showConfirm(message, Object.assign({
+            title,
+            confirmLabel: options.confirmLabel || 'Confirm',
+            cancelLabel: options.cancelLabel || 'Cancel',
+            kind: options.kind || 'gemini-past-chat-confirm'
+        }, options));
+    }
+    if (window.MessagingLog && window.MessagingLog.displayMessage) {
+        window.MessagingLog.displayMessage('System Message: Confirmation UI is still loading. Try again in a moment.');
+    }
+    return Promise.resolve(false);
+}
+
 window.PastChatsUI.Actions = {
-    confirmClearAll: function () {
-        if (confirm("Are you sure you want to clear all past chats? This cannot be undone.")) {
+    confirmClearAll: async function () {
+        const confirmed = await geminiPastChatConfirm(
+            'Clear Past Chats',
+            'Clear all saved past chats? This cannot be undone.',
+            { confirmLabel: 'Clear Past Chats', kind: 'gemini-past-clear-all' }
+        );
+        if (confirmed) {
             // Update global state if it exists, otherwise assume 'pastChats' is global
             if (typeof pastChats !== 'undefined') {
                 // Modifying global array directly as per legacy pattern
@@ -32,8 +59,13 @@ window.PastChatsUI.Actions = {
         }
     },
 
-    deleteChat: function (index) {
-        if (confirm("Are you sure you want to delete this chat history?")) {
+    deleteChat: async function (index) {
+        const confirmed = await geminiPastChatConfirm(
+            'Delete Past Chat',
+            'Delete this saved chat history entry?',
+            { confirmLabel: 'Delete', kind: 'gemini-past-delete' }
+        );
+        if (confirmed) {
             if (typeof pastChats !== 'undefined') {
                 pastChats.splice(index, 1);
             }
@@ -54,7 +86,12 @@ window.PastChatsUI.Actions = {
             return;
         }
 
-        if (confirm("Do you want to load this past conversation for reference? It will appear in a separate section.")) {
+        geminiPastChatConfirm(
+            'Load Past Chat',
+            'Load this past conversation for reference? It will appear in a separate section.',
+            { confirmLabel: 'Load', kind: 'gemini-past-load' }
+        ).then((confirmed) => {
+            if (!confirmed) return;
             const chatContent = pastChats[index].content;
             const messages = Array.from(new DOMParser().parseFromString(chatContent, 'text/html').body.children);
 
@@ -65,7 +102,7 @@ window.PastChatsUI.Actions = {
             } else {
                 console.error("previousConversationContent element not found");
             }
-        }
+        });
     },
 
     renderLoadedChat: function (container, messages) {

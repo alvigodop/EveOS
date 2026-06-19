@@ -17,7 +17,7 @@ const togglePastChatsScriptsToLoad = [
     `${TOGGLE_PAST_CHATS_BASE_PATH}/past_chats_ui/pastChatsVisibilityToggler.js`,
 
     // Previous Chat Display Management
-    `${TOGGLE_PAST_CHATS_BASE_PATH}/previous_chat_display_management/previousChatEditor.js`
+    `${TOGGLE_PAST_CHATS_BASE_PATH}/previous_chat_display_management/previousChatEditor.js?v=0.1.1`
 ];
 
 function loadTogglePastChatsScripts() {

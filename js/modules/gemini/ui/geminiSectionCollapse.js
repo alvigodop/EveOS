@@ -57,11 +57,16 @@
                 if (collapsed) {
                     placeholder.style.minHeight = '0';
                     placeholder.style.flex = '0 0 auto';
+                    placeholder.style.maxHeight = 'max-content';
+                    placeholder.style.overflow = 'visible';
                 } else {
                     placeholder.style.minHeight = '';
                     placeholder.style.flex = '';
+                    placeholder.style.maxHeight = '';
+                    placeholder.style.overflow = '';
                 }
             }
+            header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
         }
 
         // Restore persisted state

@@ -6,7 +6,7 @@
 
 // Load the core scripts
 const loaderScript = document.createElement('script');
-loaderScript.src = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/clear_chat/chat_clearing_operations/chat_clearing_core/chatClearLoader.js';
+loaderScript.src = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/clear_chat/chat_clearing_operations/chat_clearing_core/chatClearLoader.js?v=0.1.1';
 document.head.appendChild(loaderScript);
 
 // Bridge functions for backward compatibility with inline HTML onclicks 

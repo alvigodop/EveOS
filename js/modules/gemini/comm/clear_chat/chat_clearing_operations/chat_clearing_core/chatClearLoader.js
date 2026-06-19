@@ -7,7 +7,7 @@ const CHAT_CLEARING_CORE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gem
 
 const chatClearingScripts = [
     `${CHAT_CLEARING_CORE_PATH}/chatClearUI.js`,
-    `${CHAT_CLEARING_CORE_PATH}/chatClearLogic.js`
+    `${CHAT_CLEARING_CORE_PATH}/chatClearLogic.js?v=0.1.1`
 ];
 
 function loadChatClearingScripts() {

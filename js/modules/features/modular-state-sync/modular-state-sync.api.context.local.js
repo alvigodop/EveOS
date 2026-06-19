@@ -18,11 +18,16 @@ window.EveDataStore = window.EveDataStore || {};
         return [];
     }
 
+    const URL_TRACKING_PARAMS = new Set([
+        'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+        'utm_id', 'utm_name', 'fbclid', 'gclid', 'mc_cid', 'mc_eid', 'igshid'
+    ]);
+
     const LOCAL_CONTEXT_MODE_PROFILES = {
-        brief: { budget: 24, sampleMultiplier: 1, header: 'EveOS lean scoped state brief' },
-        summary: { budget: 60, sampleMultiplier: 2, header: 'EveOS scoped state summary' },
-        deep: { budget: 120, sampleMultiplier: 3, header: 'EveOS deep scoped state snapshot' },
-        full: { budget: 180, sampleMultiplier: 4, header: 'EveOS complete scoped state snapshot' }
+        brief: { budget: 10, sampleMultiplier: 1, header: 'EveOS lean scoped state brief' },
+        summary: { budget: 30, sampleMultiplier: 2, header: 'EveOS scoped state summary' },
+        deep: { budget: 60, sampleMultiplier: 3, header: 'EveOS deep scoped state snapshot' },
+        full: { budget: 90, sampleMultiplier: 4, header: 'EveOS complete scoped state snapshot' }
     };
 
     function normalizeContextMode(mode) {
@@ -35,6 +40,102 @@ window.EveDataStore = window.EveDataStore || {};
         const mode = normalizeContextMode(detail);
         const profile = LOCAL_CONTEXT_MODE_PROFILES[mode] || LOCAL_CONTEXT_MODE_PROFILES.summary;
         return Math.min(profile.budget, Math.max(limit, Math.ceil(limit * profile.sampleMultiplier)));
+    }
+
+    function modeSettings(detail) {
+        const mode = normalizeContextMode(detail);
+        const settings = {
+            brief: {
+                mode,
+                noteLimit: 120,
+                summaryLimit: 120,
+                urlLimit: 132,
+                tagLimit: 8,
+                genreLimit: 8,
+                aliasLimit: 4,
+                sourceLimit: 2,
+                relatedUrlLimit: 3,
+                folderLimit: 18,
+                cardLimit: 16,
+                systemViewSampleLimit: 3,
+                nexusLogLimit: 1
+            },
+            summary: {
+                mode,
+                noteLimit: 240,
+                summaryLimit: 220,
+                urlLimit: 160,
+                tagLimit: 14,
+                genreLimit: 14,
+                aliasLimit: 8,
+                sourceLimit: 3,
+                relatedUrlLimit: 5,
+                folderLimit: 36,
+                cardLimit: 40,
+                systemViewSampleLimit: 6,
+                nexusLogLimit: 3
+            },
+            deep: {
+                mode,
+                noteLimit: 420,
+                summaryLimit: 360,
+                urlLimit: 180,
+                tagLimit: 18,
+                genreLimit: 18,
+                aliasLimit: 12,
+                sourceLimit: 5,
+                relatedUrlLimit: 8,
+                folderLimit: 72,
+                cardLimit: 80,
+                systemViewSampleLimit: 10,
+                nexusLogLimit: 5
+            },
+            full: {
+                mode,
+                noteLimit: 520,
+                summaryLimit: 460,
+                urlLimit: 190,
+                tagLimit: 22,
+                genreLimit: 22,
+                aliasLimit: 12,
+                sourceLimit: 5,
+                relatedUrlLimit: 8,
+                folderLimit: 120,
+                cardLimit: 120,
+                systemViewSampleLimit: 12,
+                nexusLogLimit: 5
+            }
+        };
+        return settings[mode] || settings.summary;
+    }
+
+    function compactText(value, max = 240) {
+        const normalized = text(value, '').replace(/\s+/g, ' ');
+        const limit = Math.max(0, Number(max) || 0);
+        if (!limit) return '';
+        if (normalized.length <= limit) return normalized;
+        return `${normalized.slice(0, Math.max(0, limit - 3)).trim()}...`;
+    }
+
+    function middleTruncate(value, max = 180) {
+        const raw = text(value, '').replace(/\s+/g, '');
+        const limit = Math.max(24, Number(max) || 180);
+        if (raw.length <= limit) return raw;
+        const head = Math.ceil((limit - 3) * 0.58);
+        const tail = Math.max(8, limit - 3 - head);
+        return `${raw.slice(0, head)}...${raw.slice(-tail)}`;
+    }
+
+    function compactUrl(value, max = 180) {
+        const raw = text(value, '');
+        if (!raw) return '';
+        try {
+            const parsed = new URL(raw);
+            URL_TRACKING_PARAMS.forEach((key) => parsed.searchParams.delete(key));
+            return middleTruncate(parsed.toString(), max);
+        } catch {
+            return middleTruncate(raw, max);
+        }
     }
 
     function clone(value, fallback) {
@@ -120,6 +221,17 @@ window.EveDataStore = window.EveDataStore || {};
         return ids;
     }
 
+    function collectAllWorkspaceIds(nodes) {
+        const ids = new Set();
+        function visit(node) {
+            const id = text(node?.id, '');
+            if (id) ids.add(id);
+            (Array.isArray(node?.subTabs) ? node.subTabs : []).forEach(visit);
+        }
+        (Array.isArray(nodes) ? nodes : []).forEach(visit);
+        return ids;
+    }
+
     function workspacePath(workspaceId, nodes, trail = []) {
         const target = text(workspaceId, '').toLowerCase();
         for (const node of Array.isArray(nodes) ? nodes : []) {
@@ -139,7 +251,7 @@ window.EveDataStore = window.EveDataStore || {};
         const root = findWorkspace(scope.workspaceId, nodes);
         const branchIds = root ? collectBranchIds(root) : new Set([scope.workspaceId]);
         const ids = scope.scope === 'all'
-            ? Array.from(branchIds)
+            ? (scope.workspaceIds?.length ? scope.workspaceIds : Array.from(collectAllWorkspaceIds(nodes)))
             : Array.from(new Set([scope.workspaceId].concat(Array.from(selectedIds))));
         const listedOnlyIds = scope.source === 'manual-tab-current'
             ? Array.from(branchIds).filter((id) => id && id !== scope.workspaceId)
@@ -307,27 +419,29 @@ window.EveDataStore = window.EveDataStore || {};
         return out.slice(0, limit);
     }
 
-    function urlValue(item) {
-        if (item && typeof item === 'object') return text(item.url || item.href || item.link || item.source || item.value, '');
-        return text(item, '');
+    function urlValue(item, max = 180) {
+        const value = item && typeof item === 'object'
+            ? text(item.url || item.href || item.link || item.source || item.value, '')
+            : text(item, '');
+        return compactUrl(value, max);
     }
 
-    function relatedUrls(link) {
+    function relatedUrls(link, limit = 12, urlLimit = 180) {
         const out = [];
         ['relatedUrls', 'additionalUrls', 'extraUrls', 'alternateUrls', 'urlAlternates', 'mirrors', 'sources', 'sourceUrls'].forEach((key) => {
-            asArray(link?.[key]).forEach((item) => out.push(urlValue(item)));
+            asArray(link?.[key]).forEach((item) => out.push(urlValue(item, urlLimit)));
         });
-        ['mirrorUrl', 'sourceUrl', 'wikiUrl', 'alternateUrl', 'additionalUrl', 'mangaDexUrl', 'anilistUrl', 'malUrl', 'fandomUrl'].forEach((key) => out.push(text(link?.[key], '')));
-        return uniqueList(out.filter(Boolean), 12);
+        ['mirrorUrl', 'sourceUrl', 'wikiUrl', 'alternateUrl', 'additionalUrl', 'mangaDexUrl', 'anilistUrl', 'malUrl', 'fandomUrl'].forEach((key) => out.push(compactUrl(link?.[key], urlLimit)));
+        return uniqueList(out.filter(Boolean), limit);
     }
 
-    function coverState(link) {
+    function coverState(link, settings = modeSettings('summary')) {
         const additional = [];
         ['additionalCovers', 'coverImages', 'extraCovers', 'alternateCovers'].forEach((key) => {
-            asArray(link?.[key]).forEach((item) => additional.push(urlValue(item) || text(item?.src, '')));
+            asArray(link?.[key]).forEach((item) => additional.push(urlValue(item, settings.urlLimit) || compactUrl(item?.src, settings.urlLimit)));
         });
-        const primary = text(first(link, ['coverImage', 'cover', 'imageUrl', 'thumbnail', 'thumbnailUrl']), '');
-        return { primary, additional: uniqueList(additional, 8), hasCover: !!(primary || additional.length), hasAdditionalCovers: additional.length > 0 };
+        const primary = compactUrl(first(link, ['coverImage', 'cover', 'imageUrl', 'thumbnail', 'thumbnailUrl']), settings.urlLimit);
+        return { primary, additional: uniqueList(additional, Math.min(8, settings.relatedUrlLimit)), hasCover: !!(primary || additional.length), hasAdditionalCovers: additional.length > 0 };
     }
     const RATING_PROVIDER_LABELS = {
         anilist: 'AniList',
@@ -376,40 +490,40 @@ window.EveDataStore = window.EveDataStore || {};
         return out;
     }
 
-    function sourceContext(source) {
+    function sourceContext(source, settings = modeSettings('summary')) {
         if (!source || typeof source !== 'object') return null;
         const provider = text(source.source || source.provider || source.site || source.name, '');
-        const title = text(source.title || source.name || source.label, '');
-        const url = text(source.providerUrl || source.url || source.sourceUrl || source.link, '');
+        const title = compactText(source.title || source.name || source.label, 120);
+        const url = compactUrl(source.providerUrl || source.url || source.sourceUrl || source.link, settings.urlLimit);
         const score = scalar(source.score ?? source.rating ?? source.averageScore);
         return {
             provider,
             title,
-            status: text(source.status || source.state, ''),
+            status: compactText(source.status || source.state, 80),
             score,
             url,
-            type: text(source.type || source.mediaType || source.format, ''),
-            author: text(source.author, ''),
-            tags: uniqueList(asArray(source.tags), 16),
-            genres: uniqueList(asArray(source.genres), 16),
-            synonyms: uniqueList(asArray(source.synonyms).concat(asArray(source.altTitles || source.alternativeTitles)), 12),
+            type: compactText(source.type || source.mediaType || source.format, 80),
+            author: compactText(source.author, 120),
+            tags: uniqueList(asArray(source.tags), Math.min(16, settings.tagLimit)),
+            genres: uniqueList(asArray(source.genres), Math.min(16, settings.genreLimit)),
+            synonyms: uniqueList(asArray(source.synonyms).concat(asArray(source.altTitles || source.alternativeTitles)), settings.aliasLimit),
             progress: progress(source),
-            coverUrl: text(source.coverUrl || source.image || source.imageUrl || '', '')
+            coverUrl: compactUrl(source.coverUrl || source.image || source.imageUrl || '', settings.urlLimit)
         };
     }
 
-    function attachedSources(link, entry) {
+    function attachedSources(link, entry, settings = modeSettings('summary')) {
         const raw = []
             .concat(Array.isArray(link?.sources) ? link.sources : [])
             .concat(Array.isArray(entry?.sources) ? entry.sources : []);
         const seen = new Set();
-        return raw.map(sourceContext).filter((source) => {
+        return raw.map((source) => sourceContext(source, settings)).filter((source) => {
             if (!source) return false;
             const key = `${source.provider}|${source.title}|${source.url}`.toLowerCase();
             if (seen.has(key)) return false;
             seen.add(key);
             return source.provider || source.title || source.url || source.score !== null;
-        }).slice(0, 8);
+        }).slice(0, settings.sourceLimit);
     }
 
     function ratingContext(link, entry) {
@@ -494,69 +608,73 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function bookmarkContext(link, linkedEntry, context = {}) {
+        const settings = modeSettings(context.detail || 'summary');
         const entry = linkedEntry || {};
         const workspace = text(link?.workspace, 'main');
         const cardName = text(link?.category, 'Unsorted');
         const markerState = bookmarkIdentifiers(link, context.identifierDefs || new Map());
         const pin = context.pin || null;
-        const sources = attachedSources(link, entry);
+        const sources = attachedSources(link, entry, settings);
         const media = mediaContext(link, entry, context.categoryData || {});
         const ratings = ratingContext(link, entry);
+        const related = relatedUrls(link, settings.relatedUrlLimit, settings.urlLimit);
+        const isBrief = settings.mode === 'brief';
+        const isLinked = !!linkedEntry;
+        const libraryDetails = isLinked ? {
+            linked: true,
+            title: compactText(entry.title, 160),
+            aliases: isBrief ? undefined : asArray(entry.aliases || entry.alternativeTitles || entry.titleAltNames || entry.altTitles || entry.otherNames).map((item) => compactText(item, 120)).slice(0, settings.aliasLimit),
+            entryId: text(entry.id, ''),
+            status: compactText(entry.status, 80),
+            media: isBrief ? undefined : media,
+            author: isBrief ? undefined : compactText(entry.author, 120),
+            authorAltNames: isBrief ? undefined : asArray(entry.authorAltNames).map((item) => compactText(item, 120)).slice(0, settings.aliasLimit),
+            artist: isBrief ? undefined : compactText(entry.artist, 120),
+            language: isBrief ? undefined : compactText(entry.language, 80),
+            sourceUrl: isBrief ? undefined : compactUrl(entry.sourceUrl, settings.urlLimit),
+            summary: isBrief ? undefined : compactText(entry.summary || entry.description, settings.summaryLimit),
+            ratings: isBrief ? ratings.summary : ratings
+        } : { linked: false };
         return {
             id: link?.id,
-            title: text(link?.title, 'Untitled'),
-            urls: { primary: text(link?.url || link?.href, ''), related: relatedUrls(link) },
-            relatedUrls: relatedUrls(link),
+            title: compactText(link?.title || 'Untitled', 160),
+            urls: { primary: compactUrl(link?.url || link?.href, settings.urlLimit), related },
             location: {
                 workspace,
                 cardName,
                 cardCategoryName: cardName,
                 folderId: text(link?.folderId, ''),
                 folderPath: text(context.folderPath, ''),
-                note: 'cardName/cardCategoryName is the EveOS card container. bookmarkIdentifiers are the user-facing category/marker pills.'
+                note: isBrief ? undefined : 'cardName/cardCategoryName is the EveOS card container. bookmarkIdentifiers are the user-facing category/marker pills.'
             },
             card: { workspace, name: cardName, scopedKey: scopedKey(workspace, cardName) },
-            category: { type: 'card-container', name: cardName, note: 'Not the bookmark identifier marker.' },
+            category: isBrief ? undefined : { type: 'card-container', name: cardName, note: 'Not the bookmark identifier marker.' },
             cardCategory: cardName,
-            bookmarkIdentifiers: markerState,
+            bookmarkIdentifiers: isBrief ? { ids: markerState.ids, labels: markerState.labels } : markerState,
             bookmarkLabels: markerState.labels,
             taskStatus: link?.done ? 'Done' : 'Pending',
             done: !!link?.done,
             pinned: !!(pin || link?.pinned),
-            pin,
-            priority: text(link?.priority, ''),
-            icon: text(link?.icon || link?.favicon || link?.imageIcon, ''),
-            status: text(entry.status || link?.status || link?.readingStatus || link?.mediaStatus, ''),
-            notes: text(link?.personalNotes || link?.notes || entry.notes || entry.summary, '').slice(0, 900),
+            pin: isBrief ? undefined : pin,
+            priority: compactText(link?.priority, 60),
+            icon: isBrief ? undefined : compactUrl(link?.icon || link?.favicon || link?.imageIcon, settings.urlLimit),
+            status: compactText(entry.status || link?.status || link?.readingStatus || link?.mediaStatus, 80),
+            notes: compactText(link?.personalNotes || link?.notes || entry.notes || entry.summary, settings.noteLimit),
             progress: progress(Object.assign({}, entry, link)),
-            ratings,
+            ratings: isBrief ? ratings.summary : ratings,
             timestamps: {
                 updated: timestamp(link) || timestamp(entry),
-                dateAdded: text(link?.dateAdded || entry.dateAdded, ''),
-                lastEdited: text(link?.lastEdited || entry.lastEdited, ''),
-                lastVisited: text(link?.lastVisited || link?.visitedAt, '')
+                dateAdded: isBrief ? undefined : text(link?.dateAdded || entry.dateAdded, ''),
+                lastEdited: isBrief ? undefined : text(link?.lastEdited || entry.lastEdited, ''),
+                lastVisited: isBrief ? undefined : text(link?.lastVisited || link?.visitedAt, '')
             },
-            tags: uniqueList(asArray(link?.tags).concat(asArray(entry.tags)), 30),
-            genres: uniqueList(asArray(link?.genres).concat(asArray(entry.genres)), 30),
-            covers: coverState(link),
-            attachedSources: sources,
-            sourceProviders: uniqueList(sources.map((source) => source.provider).filter(Boolean), 12),
+            tags: uniqueList(asArray(link?.tags).concat(asArray(entry.tags)), settings.tagLimit),
+            genres: uniqueList(asArray(link?.genres).concat(asArray(entry.genres)), settings.genreLimit),
+            covers: coverState(link, settings),
+            attachedSources: sources.length ? sources : undefined,
+            sourceProviders: sources.length ? uniqueList(sources.map((source) => source.provider).filter(Boolean), 12) : undefined,
             sort: { customOrderNumber: context.orderNumber || null, sourceIndex: context.sourceIndex || null },
-            library: {
-                linked: !!linkedEntry,
-                title: text(entry.title, ''),
-                aliases: asArray(entry.aliases || entry.alternativeTitles || entry.titleAltNames || entry.altTitles || entry.otherNames).slice(0, 12),
-                entryId: text(entry.id, ''),
-                status: text(entry.status, ''),
-                media,
-                author: text(entry.author, ''),
-                authorAltNames: asArray(entry.authorAltNames).slice(0, 12),
-                artist: text(entry.artist, ''),
-                language: text(entry.language, ''),
-                sourceUrl: text(entry.sourceUrl, ''),
-                summary: text(entry.summary || entry.description, '').slice(0, 700),
-                ratings
-            }
+            library: libraryDetails
         };
     }
     function countFolders(tree) {
@@ -640,27 +758,38 @@ window.EveDataStore = window.EveDataStore || {};
         return sorted.sort((a, b) => reverse * (orderNumber(settings.customOrderMap, a?.id, 999999) - orderNumber(settings.customOrderMap, b?.id, 999999)) || text(a?.title, '').localeCompare(text(b?.title, '')));
     }
 
-    function systemViewHints(links, linkToEntry, identifierDefs, limit) {
+    function systemViewHints(links, linkToEntry, identifierDefs, limit, detail = 'summary') {
+        const settings = modeSettings(detail);
+        const sampleLimit = Math.max(1, Math.min(settings.systemViewSampleLimit, Number(limit) || settings.systemViewSampleLimit));
         const views = { withCovers: [], withAdditionalCovers: [], missingCovers: [], libraryLinked: [], done: [], pending: [], withRelatedUrls: [] };
         links.forEach((link) => {
-            const compact = bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs });
+            const compact = bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs, detail });
             const small = { id: compact.id, title: compact.title, url: compact.urls.primary, bookmarkIdentifiers: compact.bookmarkIdentifiers, card: compact.card, covers: compact.covers, status: compact.status, done: compact.done };
             (small.covers.hasCover ? views.withCovers : views.missingCovers).push(small);
             if (small.covers.hasAdditionalCovers) views.withAdditionalCovers.push(small);
             if (compact.library.linked) views.libraryLinked.push(small);
             (compact.done ? views.done : views.pending).push(small);
-            if (compact.relatedUrls.length) views.withRelatedUrls.push(small);
+            if (compact.urls.related.length) views.withRelatedUrls.push(small);
         });
-        return Object.fromEntries(Object.entries(views).map(([name, items]) => [name, { count: items.length, samples: items.slice(0, limit) }]));
+        return Object.fromEntries(Object.entries(views).map(([name, items]) => [name, { count: items.length, samples: items.slice(0, sampleLimit) }]));
     }
 
     function compactNexusTrace(trace) {
         if (!trace || typeof trace !== 'object') return null;
+        const rawScope = trace.scope || {};
+        const scope = rawScope && typeof rawScope === 'object'
+            ? {
+                scope: text(rawScope.scope || rawScope.mode || rawScope.type, ''),
+                label: compactText(rawScope.label || rawScope.name, 90),
+                workspaceId: text(rawScope.workspaceId || rawScope.workspace, ''),
+                categoryName: compactText(rawScope.categoryName || rawScope.category, 90)
+            }
+            : compactText(rawScope, 90);
         return {
             id: text(trace.id, ''),
-            query: text(trace.query || trace.command || trace.input, ''),
-            summary: text(trace.summary, ''),
-            scope: trace.scope || null,
+            query: compactText(trace.query || trace.command || trace.input, 160),
+            summary: compactText(trace.summary, 240),
+            scope,
             totalMs: Number(trace.totalMs || 0),
             resultCount: Number(trace.resultCount || trace.resultsFound || trace.totalResults || 0),
             endedAt: Number(trace.endedAt || trace.finishedAt || trace.startedAt || 0)
@@ -677,6 +806,7 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function buildStructuredScope(state, limit, scope, detail = 'summary') {
+        const settingsForDetail = modeSettings(detail);
         const links = getLinks(state);
         const config = getConfig(state);
         const folders = state?.bookmarks?.folders || {};
@@ -695,7 +825,7 @@ window.EveDataStore = window.EveDataStore || {};
         let remaining = budget;
         const cards = [];
         byCard.forEach((cardLinks, key) => {
-            if (cards.length >= 80 || remaining <= 0) return;
+            if (cards.length >= settingsForDetail.cardLimit || remaining <= 0) return;
             const parsed = splitScopedKey(key);
             const categoryData = categories[key] || {};
             const settings = cardOrderSettings(config, parsed.workspace, parsed.category);
@@ -706,14 +836,17 @@ window.EveDataStore = window.EveDataStore || {};
                 if (remaining <= 0) return;
                 const id = text(link?.id, '');
                 const folderId = text(link?.folderId, '');
-                const view = bookmarkContext(link, linkToEntry[id], { identifierDefs, pin: pins.bookmarkPins.get(id), orderNumber: orderNumber(settings.customOrderMap, id, index + 1), sourceIndex: index + 1, folderPath: maps.paths.get(folderId) || '', categoryData });
+                const view = bookmarkContext(link, linkToEntry[id], { identifierDefs, pin: pins.bookmarkPins.get(id), orderNumber: orderNumber(settings.customOrderMap, id, index + 1), sourceIndex: index + 1, folderPath: maps.paths.get(folderId) || '', categoryData, detail });
                 if (!linksByFolder.has(folderId)) linksByFolder.set(folderId, []);
                 linksByFolder.get(folderId).push(view);
                 remaining -= 1;
             });
-            function buildFolder(node) {
+            function buildFolder(node, depth = 0) {
                 const direct = linksByFolder.get(node.id) || [];
-                return { id: node.id, name: node.name, path: maps.paths.get(node.id) || node.name, taskMode: node.taskMode, clickBehaviorMode: node.clickBehaviorMode, pinned: pins.folderPins.has(`${parsed.workspace}::${parsed.category}::${node.id}`), bookmarks: direct, folders: (maps.children.get(node.id) || []).map(buildFolder) };
+                const childFolders = depth >= settingsForDetail.folderLimit
+                    ? []
+                    : (maps.children.get(node.id) || []).map((child) => buildFolder(child, depth + 1));
+                return { id: node.id, name: node.name, path: maps.paths.get(node.id) || node.name, taskMode: node.taskMode, clickBehaviorMode: node.clickBehaviorMode, pinned: pins.folderPins.has(`${parsed.workspace}::${parsed.category}::${node.id}`), bookmarks: direct, folders: childFolders };
             }
             cards.push({
                 workspace: parsed.workspace,
@@ -727,19 +860,21 @@ window.EveDataStore = window.EveDataStore || {};
                 bookmarkCount: cardLinks.length,
                 rootBookmarks: linksByFolder.get('') || [],
                 detachedBookmarks: Array.from(linksByFolder.entries()).filter(([folderId]) => folderId && !maps.byId.has(folderId)).flatMap(([, items]) => items),
-                folders: (maps.children.get('') || []).map(buildFolder)
+                folders: (maps.children.get('') || []).slice(0, settingsForDetail.folderLimit).map((node) => buildFolder(node, 0))
             });
         });
         return {
             workspaceScope: collectWorkspaceMeta(config, scope),
             cards,
-            systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(20, limit)),
+            systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(settingsForDetail.systemViewSampleLimit, limit), detail),
             truncated: remaining <= 0,
             bookmarkBudget: budget
         };
     }
 
     function summarizeState(state, limit, scope, detail = 'summary') {
+        const safeDetail = normalizeContextMode(detail);
+        const settings = modeSettings(safeDetail);
         const links = getLinks(state);
         const categories = state?.library?.categories || {};
         const connections = state?.library?.connections || [];
@@ -779,24 +914,21 @@ window.EveDataStore = window.EveDataStore || {};
                 nexusSignals: {
                     health: {
                         withNotes: links.filter((link) => text(link?.notes || link?.personalNotes, '')).length,
-                        withRelatedUrls: links.filter((link) => relatedUrls(link).length).length,
+                        withRelatedUrls: links.filter((link) => relatedUrls(link, 1, settings.urlLimit).length).length,
                         libraryLinked: connections.length,
                         done: links.filter((link) => !!link?.done).length,
                         pending: links.filter((link) => !link?.done).length
                     }
                 }
             },
-            structuredScope: buildStructuredScope(state, limit, scope, detail),
-            nexusLog: recentNexusLog(5),
-
-            samples: {
-
-                bookmarks: links.slice(0, detail === 'brief' ? Math.min(8, limit) : limit).map((link) => bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs })),
-                folders: Object.entries(folders).slice(0, limit).map(([key, tree]) => ({
+            structuredScope: buildStructuredScope(state, safeDetail === 'brief' ? Math.min(8, limit) : limit, scope, safeDetail),
+            nexusLog: recentNexusLog(settings.nexusLogLimit),
+            samples: safeDetail === 'brief' ? {
+                folders: Object.entries(folders).slice(0, Math.min(6, limit)).map(([key, tree]) => ({
                     scopedKey: key,
                     folderCount: countFolders(tree)
                 }))
-            },
+            } : undefined,
             localFallback: true
         };
     }
@@ -816,7 +948,7 @@ window.EveDataStore = window.EveDataStore || {};
             note: 'Complete scoped snapshot is compact and structured. It intentionally excludes raw config/knowledge dumps to avoid Gemini Live context overflow.',
             counts: summary.counts,
             breakdown: summary.breakdown,
-            structuredScope: buildStructuredScope(scopedState, safeLimit, scope, 'full'),
+            structuredScope: summary.structuredScope,
             nexusLog: summary.nexusLog || null,
             localFallback: true
         } : summary;

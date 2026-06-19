@@ -265,6 +265,23 @@
     display: none !important;
 }
 
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog.collapsed > .gemini-chat-messages,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog.collapsed > .gemini-system-messages {
+    display: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed {
+    flex-basis: auto !important;
+    max-height: max-content !important;
+    overflow: visible !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed #systemLog,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed #chatLog {
+    padding-bottom: 0 !important;
+}
+
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-card {
     min-height: 0 !important;
 }
@@ -297,6 +314,35 @@
 
 #gemini-ui-root .gemini-live-link-head-actions .gemini-live-link-toggle.is-checked .mdl-switch__thumb {
     left: 25px !important;
+}
+
+/* Non-full Search Monitor view uses the same agentic cards but tighter panel
+   width. Keep them naturally sized and wrapping instead of creating clipped
+   bottom rows or tall blank columns at 100% zoom. */
+#loadingIndicator #gemini-ui-root:not([data-gemini-monitor-view="full"]) .gemini-agentic-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)) !important;
+    align-items: start !important;
+    align-content: start !important;
+    gap: 10px !important;
+}
+
+#loadingIndicator #gemini-ui-root:not([data-gemini-monitor-view="full"]) .gemini-agentic-grid > div,
+#loadingIndicator #gemini-ui-root:not([data-gemini-monitor-view="full"]) .gemini-agentic-card {
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+#loadingIndicator #gemini-ui-root #chatLog > .gemini-chat-header,
+#loadingIndicator #gemini-ui-root #systemLog > .gemini-system-header {
+    flex-shrink: 0 !important;
+    background: linear-gradient(180deg, rgba(14, 24, 34, 0.98), rgba(9, 16, 23, 0.96)) !important;
+}
+
+#loadingIndicator #gemini-ui-root #systemLog > .system-messages-container,
+#loadingIndicator #gemini-ui-root #chatLog > .chat-messages-container {
+    scrollbar-gutter: stable;
 }
 
 @media (min-width: 920px) {

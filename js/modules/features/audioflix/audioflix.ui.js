@@ -163,7 +163,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                 ${tabButton('music', 'Music Library')}
                 ${tabButton('router', 'Routing Notes')}
             </nav>
-            <main class="audioflix-content">${tabBody}</main>
+            <div class="audioflix-content">${tabBody}</div>
         </div>`;
     }
 

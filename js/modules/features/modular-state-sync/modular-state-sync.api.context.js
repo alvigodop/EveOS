@@ -10,7 +10,8 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     const LIVE_CONTEXT_CHUNK_CHARS = 45000;
-    const LIVE_CONTEXT_MAX_CHARS = 240000;
+    const LIVE_CONTEXT_MAX_CHARS = 120000;
+    const LIVE_CONTEXT_CHUNK_DELAY_MS = 180;
 
     async function syncNow(force = true) {
         if (!ns.isHttpContext()) return false;
@@ -250,20 +251,34 @@ window.EveDataStore = window.EveDataStore || {};
 
     function summarizeNexusTrace(trace) {
         if (!trace || typeof trace !== 'object') return null;
+        const shortText = (value, max = 220) => {
+            const normalized = text(value, '').replace(/\s+/g, ' ');
+            if (normalized.length <= max) return normalized;
+            return `${normalized.slice(0, Math.max(0, max - 3)).trim()}...`;
+        };
         const vectors = {};
         Object.entries(trace.vectors || {}).forEach(([key, vector]) => {
             vectors[key] = {
                 status: text(vector?.status, ''),
                 durationMs: Number(vector?.durationMs || 0),
                 resultCount: Number(vector?.resultCount || 0),
-                error: text(vector?.error, '')
+                error: shortText(vector?.error, 140)
             };
         });
+        const rawScope = trace.scope || {};
+        const scope = rawScope && typeof rawScope === 'object'
+            ? {
+                scope: text(rawScope.scope || rawScope.mode || rawScope.type, ''),
+                label: shortText(rawScope.label || rawScope.name, 90),
+                workspaceId: text(rawScope.workspaceId || rawScope.workspace, ''),
+                categoryName: shortText(rawScope.categoryName || rawScope.category, 90)
+            }
+            : shortText(rawScope, 90);
         return {
             id: text(trace.id, ''),
-            query: text(trace.query || trace.command || trace.input, ''),
-            summary: text(trace.summary, ''),
-            scope: trace.scope || null,
+            query: shortText(trace.query || trace.command || trace.input, 160),
+            summary: shortText(trace.summary, 240),
+            scope,
             mode: text(trace.mode, ''),
             totalMs: Number(trace.totalMs || 0),
             startedAt: Number(trace.startedAt || 0),
@@ -411,7 +426,9 @@ window.EveDataStore = window.EveDataStore || {};
         const context = await fetchGeminiContext(mode, limit, options);
         if (!context.ok) return context;
 
-        const recentNexusTraces = getRecentNexusTraces(5);
+        const payloadHasNexusLog = Array.isArray(context?.payload?.nexusLog) && context.payload.nexusLog.length;
+        const traceLimit = context.mode === 'brief' ? 1 : 3;
+        const recentNexusTraces = payloadHasNexusLog ? [] : getRecentNexusTraces(traceLimit);
         const rawMessage = (context.contextText || '') + buildNexusTraceContextBlock(recentNexusTraces);
         const prepared = prepareLiveContextMessage(rawMessage);
         const message = prepared.message;
@@ -458,7 +475,19 @@ window.EveDataStore = window.EveDataStore || {};
                         sentAt: new Date().toISOString()
                     }
                 };
-                window.webSocket.send(JSON.stringify(payload));
+                const sendPart = () => {
+                    if (!window.webSocket || window.webSocket.readyState !== WebSocket.OPEN) {
+                        console.warn('[GeminiContext] Skipped context chunk because WebSocket is no longer open.', index + 1, prepared.parts.length);
+                        return;
+                    }
+                    window.webSocket.send(JSON.stringify(payload));
+                };
+                if (index === 0) sendPart();
+                else {
+                    const timer = window.setTimeout || globalThis.setTimeout;
+                    if (typeof timer === 'function') timer(sendPart, index * LIVE_CONTEXT_CHUNK_DELAY_MS);
+                    else sendPart();
+                }
             });
             if (typeof window.displayMessage === 'function') {
                 window.displayMessage(

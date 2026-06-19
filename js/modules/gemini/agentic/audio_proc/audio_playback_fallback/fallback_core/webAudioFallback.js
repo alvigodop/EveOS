@@ -22,21 +22,26 @@ window.FallbackAudioCore.playAudioWithWebAudio = function (arrayBuffer, containe
         }
     }
 
-    // Check if context is suspended (likely due to lack of user gesture)
+    // Check if context is suspended (likely due to lack of user gesture).
+    // Prefer resuming the already-unlocked Web Audio path before falling back;
+    // immediately switching to HTML5 Audio can drop queued Gemini replies.
     if (audioContext.state === 'suspended') {
-        console.log("AudioContext is suspended, trying HTML5 Audio fallback first");
-        return window.FallbackAudioCore.playAudioWithHTML5Fallback(arrayBuffer, container);
-    }
-
-    // Resume context if suspended
-    if (audioContext.state === 'suspended') {
-        audioContext.resume().then(() => {
-            console.log("Fallback audio context resumed");
-        }).catch(e => {
+        try {
+            const resumePromise = audioContext.resume();
+            if (resumePromise && typeof resumePromise.catch === 'function') {
+                resumePromise.catch((e) => {
+                    console.warn("Failed to resume fallback audio context:", e);
+                });
+            }
+            console.log("Fallback audio context resume requested");
+        } catch (e) {
             console.warn("Failed to resume fallback audio context:", e);
-            // If resume fails, try HTML5 Audio
             return window.FallbackAudioCore.playAudioWithHTML5Fallback(arrayBuffer, container);
-        });
+        }
+        if (audioContext.state === 'suspended') {
+            console.log("AudioContext remains suspended, trying HTML5 Audio fallback");
+            return window.FallbackAudioCore.playAudioWithHTML5Fallback(arrayBuffer, container);
+        }
     }
 
     // Create AudioBuffer from PCM data

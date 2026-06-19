@@ -46,12 +46,12 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=0.1.0`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.4`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.6`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.7`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
 
     // 2. Agentic Functions
-    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=0.1.2`,
-    `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js`,
+    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=0.1.3`,
+    `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=0.1.1`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js`,
     `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=0.2.1`,
     `${BASE_PATHS.AGENTIC}/conv_mem/conv_mem.js`,
@@ -71,7 +71,7 @@ const masterScriptList = [
     `${BASE_PATHS.COMM_PANEL}/new_chat/Start_New_Chat_Commuication_Panel.js?v=0.1.1`,
     `${BASE_PATHS.COMM_PANEL}/clear_chat/Clear_Chat_Communication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/clear_sys_log/Clear_System_Log_Commuication_Panel.js`,
-    `${BASE_PATHS.COMM_PANEL}/past_chats/Toggle_Past_Chats_Commuication_Panel.js`,
+    `${BASE_PATHS.COMM_PANEL}/past_chats/Toggle_Past_Chats_Commuication_Panel.js?v=0.1.1`,
     `${BASE_PATHS.COMM_PANEL}/sys_msg_toggle/System_Message_Toggle_Commuication_Panel.js`,
     `${BASE_PATHS.COMM_PANEL}/reinit_model/Reinitiate_Model_Commuication_Panel.js?v=0.2.0`,
 

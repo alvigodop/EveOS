@@ -11,6 +11,19 @@ window.AiSelfTalkAgentic.UI.initializeSettingsHandler = function () {
     const State = window.AiSelfTalkAgentic.State;
     const Definitions = window.AiSelfTalkAgentic.Definitions;
 
+    function confirmSelfTalkAction(message) {
+        if (typeof window.showConfirmWithTitle === 'function') {
+            return window.showConfirmWithTitle('AI Self-talk Settings', message, { confirmText: 'Clear', cancelText: 'Cancel' });
+        }
+        if (typeof window.showConfirm === 'function') {
+            return window.showConfirm(message, { confirmText: 'Clear', cancelText: 'Cancel' });
+        }
+        if (typeof displayMessage === 'function') {
+            displayMessage('System Message: Confirmation dialog is not available yet. Try again after the workspace finishes loading.', true);
+        }
+        return Promise.resolve(false);
+    }
+
     // --- Self-talk Settings Dialog Initialization ---
     const selfTalkSettingsDialog = document.getElementById('selfTalkSettingsDialog');
     const selfTalkSettingsButton = document.getElementById('selfTalkSettingsButton');
@@ -247,8 +260,8 @@ window.AiSelfTalkAgentic.UI.initializeSettingsHandler = function () {
 
     // --- Clear Settings Logic ---
     if (clearSettingsBtn) {
-        clearSettingsBtn.addEventListener('click', function () {
-            if (confirm("Are you sure you want to clear all AI Self-talk settings? This cannot be undone.")) {
+        clearSettingsBtn.addEventListener('click', async function () {
+            if (await confirmSelfTalkAction("Are you sure you want to clear all AI Self-talk settings? This cannot be undone.")) {
                 // Clear UI lists
                 document.getElementById('selfTalkPromptList').innerHTML = '';
                 document.getElementById('systemInstructionList').innerHTML = '';

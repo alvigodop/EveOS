@@ -9,7 +9,7 @@ console.log("Started loading: pastChatManager.js");
 // Load the core scripts
 try {
     const loaderScript = document.createElement('script');
-    loaderScript.src = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/past_chats/past_chats_ui/past_chats_core/pastChatLoader.js';
+    loaderScript.src = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/past_chats/past_chats_ui/past_chats_core/pastChatLoader.js?v=0.1.1';
     loaderScript.onerror = function () { console.error("Failed to load pastChatLoader.js"); };
     loaderScript.onload = function () { console.log("pastChatLoader.js loaded via pastChatManager.js"); };
     document.head.appendChild(loaderScript);

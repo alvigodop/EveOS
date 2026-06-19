@@ -54,6 +54,9 @@ window.SocketConnectionCore.attemptConnection = function () {
 
     try {
         window.webSocket = new WebSocket(State.WS_URL);
+        // Keep binary frame handling deterministic if the backend ever sends
+        // non-JSON audio/diagnostic frames. Browser default is Blob.
+        window.webSocket.binaryType = 'arraybuffer';
 
         // Assign handlers from SocketConnectionCore.EventHandlers
         if (window.SocketConnectionCore.EventHandlers) {
