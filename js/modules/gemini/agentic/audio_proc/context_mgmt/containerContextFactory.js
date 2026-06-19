@@ -20,6 +20,11 @@ async function createContainerAudioContext(container) {
             if (window.iOSAudioUnlock) await window.iOSAudioUnlock.unlockIOSAudio();
         }
 
+        // Closed container contexts cannot be resumed; create a fresh one for stable long sessions.
+        if (container.audioContext && container.audioContext.state === 'closed') {
+            container.audioContext = null;
+            container.gainNode = null;
+        }
         if (!container.audioContext) {
             container.audioContext = new (window.AudioContext || window.webkitAudioContext)({
                 sampleRate: 24000

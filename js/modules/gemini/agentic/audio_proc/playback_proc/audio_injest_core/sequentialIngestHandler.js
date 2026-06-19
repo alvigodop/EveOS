@@ -5,6 +5,19 @@
 
 window.AudioIngestCore = window.AudioIngestCore || {};
 
+window.GEMINI_AUDIO_QUEUE_MAX = window.GEMINI_AUDIO_QUEUE_MAX || 10;
+
+function pruneGeminiAudioQueue(queue) {
+    if (!Array.isArray(queue)) return;
+    const max = Math.max(3, Number(window.GEMINI_AUDIO_QUEUE_MAX) || 10);
+    while (queue.length > max) {
+        const interimIndex = queue.findIndex((item) => item && item.isInterim);
+        const index = interimIndex >= 0 ? interimIndex : 0;
+        const dropped = queue.splice(index, 1)[0];
+        console.warn('[SequentialIngestHandler] Dropped stale audio queue item to keep playback current:', dropped?.isInterim ? 'interim' : 'complete');
+    }
+}
+
 window.AudioIngestCore.SequentialIngestHandler = {
     handleSequentialIngest: async function (audioData, isInterim = false) {
         console.log(`[SequentialIngestHandler] Queuing audio chunk. isInterim: ${isInterim}`);
@@ -66,9 +79,11 @@ window.AudioIngestCore.SequentialIngestHandler = {
                 container: container,
                 playButton: playButton,
                 progressBar: progressBar,
-                timeDisplay: timeDisplay
+                timeDisplay: timeDisplay,
+                queuedAt: Date.now()
             });
 
+            pruneGeminiAudioQueue(window.audioQueue);
             console.log(`[SequentialIngestHandler] Pushed to queue. Queue length: ${window.audioQueue.length}`);
 
             // Start playing if not already

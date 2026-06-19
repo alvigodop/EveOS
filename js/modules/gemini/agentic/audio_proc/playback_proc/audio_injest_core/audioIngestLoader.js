@@ -8,7 +8,7 @@ console.log("audioIngestLoader.js loading...");
 const AUDIO_INGEST_CORE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/agentic/audio_proc/playback_proc/audio_injest_core';
 
 const audioIngestScripts = [
-    `${AUDIO_INGEST_CORE_PATH}/sequentialIngestHandler.js`,
+    `${AUDIO_INGEST_CORE_PATH}/sequentialIngestHandler.js?v=0.1.1`,
     `${AUDIO_INGEST_CORE_PATH}/interimIngestHandler.js`,
     `${AUDIO_INGEST_CORE_PATH}/workletIngestHandler.js`,
     `${AUDIO_INGEST_CORE_PATH}/errorRecoveryHandler.js`,

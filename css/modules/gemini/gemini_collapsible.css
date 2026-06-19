@@ -92,3 +92,98 @@
 [data-collapsible-header]:hover {
     background-color: rgba(0, 212, 255, 0.04);
 }
+
+/* ============================================================
+   Search Monitor floor guards
+   Loaded after the Gemini surface stack so these rules win over
+   older clamp/flex contracts that can leave dead space.
+   ============================================================ */
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed #chatLog,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed #systemLog {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog > .gemini-chat-header,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog > .gemini-system-header {
+    flex: 0 0 auto !important;
+    min-height: max-content;
+    position: sticky;
+    top: 0;
+    z-index: 8;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog > .gemini-chat-messages,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog > .chat-messages-container,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog > .gemini-system-messages,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog > .system-messages-container {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog.collapsed > .gemini-system-messages,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog.collapsed > .system-messages-container,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog.collapsed > .gemini-chat-messages,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog.collapsed > .chat-messages-container {
+    flex: 0 0 auto !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow: hidden !important;
+}
+
+/* Masonry-like agentic cards: tall relay/settings cards should not create
+   a full-row blank gap under shorter cards at normal zoom. */
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid {
+    display: block !important;
+    column-width: clamp(220px, 28vw, 310px);
+    column-gap: 10px;
+    align-items: start !important;
+    align-content: start !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div {
+    display: inline-block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 0 10px !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    vertical-align: top;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div > *,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-card {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+}
+/* The Search Monitor scroll container owns clipping. Agentic content must be
+   allowed to finish its natural height or the bottom cards get shaved off. */
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .agentic-functions:not(.collapsed),
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-shell:not(.collapsed) {
+    overflow: visible !important;
+}

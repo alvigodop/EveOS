@@ -10,7 +10,7 @@ const AUDIO_PROCESSING_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/
 const audioProcessingScripts = [
     // Core Audio Playback
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContainerHelper.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContextInitializer.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContextInitializer.js?v=0.1.1`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioSourceConfigurator.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/base64_player_core/base64PlayerLoader.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/wavEncoder.js`,
@@ -28,8 +28,8 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/initialization_modules/audioWorkletInitializer.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/initialization_modules/legacyAudioInitializer.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextCoreInit.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextReadiness.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/containerContextFactory.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextReadiness.js?v=0.1.1`,
+    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/containerContextFactory.js?v=0.1.1`,
     `${AUDIO_PROCESSING_BASE_PATH}/buffer_mgmt/audioBufferCreator.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/playback_settings/sequentialAudioPlayState.js`,
 
@@ -44,7 +44,7 @@ const audioProcessingScripts = [
 
     // Audio Progress UI
     `${AUDIO_PROCESSING_BASE_PATH}/audio_progress_ui/audioProgressTracker.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/audio_progress_ui/audioProgressUpdater.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/audio_progress_ui/audioProgressUpdater.js?v=0.1.1`,
     `${AUDIO_PROCESSING_BASE_PATH}/progress_updater/directProgressBarUpdater.js`,
 
     // Audio Seeking and Settings

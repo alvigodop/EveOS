@@ -12,6 +12,12 @@ async function ensureAudioContextReady() {
     const state = window.AudioContextState;
     const helpers = window.AudioProcessingControlsAgentic;
 
+    // Global audio context was closed after reconnect/stop; force a clean rebuild.
+    if (state.audioInputContext && state.audioInputContext.state === 'closed') {
+        state.audioInputContext = null;
+        state.audioContextInitialized = false;
+        window.audioInputContext = null;
+    }
     // Check if we've already unlocked audio
     const wasUnlocked = localStorage.getItem('audioContextUnlocked') === 'true' || window.audioContextUnlocked;
 

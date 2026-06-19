@@ -60,6 +60,8 @@ function startProgressUpdates(container) {
 
             // If we've reached the end
             if (clampedPosition >= 1) {
+                if (container._playbackCompleteHandled) return;
+                container._playbackCompleteHandled = true;
                 console.log("Playback complete");
                 if (playButton && playButton.querySelector('i')) {
                     playButton.querySelector('i').textContent = 'play_arrow';

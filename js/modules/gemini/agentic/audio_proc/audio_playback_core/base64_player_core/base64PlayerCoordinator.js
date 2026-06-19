@@ -100,6 +100,7 @@ window.Base64PlayerCore.Coordinator = {
             container.progressBar = progressBar;
             container.timeDisplay = timeDisplay;
             container.playButton = playButton;
+            container._playbackCompleteHandled = false;
 
             // 5. Playback & Lifecycle
             try {
@@ -124,13 +125,18 @@ window.Base64PlayerCore.Coordinator = {
                 source.start();
                 console.log("Audio playback started successfully");
 
-                // Attach a diagnostic onended in addition to lifecycle handler for extra visibility
-                source.onended = function () {
+                // Attach diagnostics without replacing the lifecycle cleanup handler.
+                const lifecycleOnEnded = source.onended;
+                source.onended = function (event) {
                     try {
                         console.log('[base64PlayerCoordinator] source.onended fired for container', container);
                         if (!container._diagnostics) container._diagnostics = {};
                         container._diagnostics.endedAt = Date.now();
                     } catch (e) { console.log('[base64PlayerCoordinator] onended log failed'); }
+
+                    if (typeof lifecycleOnEnded === 'function') {
+                        lifecycleOnEnded.call(source, event);
+                    }
                 };
 
                 if (typeof startProgressUpdates === 'function') {

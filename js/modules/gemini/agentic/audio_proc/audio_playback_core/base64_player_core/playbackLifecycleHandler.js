@@ -10,6 +10,8 @@ window.Base64PlayerCore.LifecycleHandler = {
         const StateManagement = window.Base64PlayerCore.StateManagement;
 
         source.onended = function () {
+            if (container._playbackCompleteHandled) return;
+            container._playbackCompleteHandled = true;
             console.log("Audio playback ended naturally");
             StateManagement.cleanupState(container, playButton);
 

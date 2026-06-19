@@ -14,6 +14,11 @@ window.AudioContextInitializer.getOrInitializeContext = async function (containe
         }
     }
 
+    // Discard closed container context. Reusing a closed AudioContext silently breaks later playback.
+    if (container.audioContext && container.audioContext.state === 'closed') {
+        container.audioContext = null;
+        container.gainNode = null;
+    }
     // Create context if needed
     if (!container.audioContext) {
         if (typeof window.AudioProcessingControlsAgentic !== 'undefined' &&
@@ -94,8 +99,12 @@ window.AudioContextInitializer.setupResumeOnInteraction = function (audioContext
             console.warn("Failed to resume audio context after user interaction:", e);
         }
         document.removeEventListener('click', resumeAndRetry);
+        document.removeEventListener('pointerdown', resumeAndRetry);
+        document.removeEventListener('keydown', resumeAndRetry);
         document.removeEventListener('touchstart', resumeAndRetry);
     };
     document.addEventListener('click', resumeAndRetry, { once: true, passive: true });
+    document.addEventListener('pointerdown', resumeAndRetry, { once: true, passive: true });
+    document.addEventListener('keydown', resumeAndRetry, { once: true });
     document.addEventListener('touchstart', resumeAndRetry, { once: true, passive: true });
 };
