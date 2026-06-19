@@ -6,6 +6,17 @@
 window.SocketConnectionCore = window.SocketConnectionCore || {};
 window.SocketConnectionCore.EventHandlers = window.SocketConnectionCore.EventHandlers || {};
 
+function geminiConnectionDisabledByUser() {
+    try {
+        const connectionDisabled = localStorage.getItem('geminiConnectionEnabled') === 'false';
+        const manuallyStopped = localStorage.getItem('geminiServerManualStopAt') != null
+            && localStorage.getItem('geminiServerDesiredState') === 'stopped';
+        return connectionDisabled || manuallyStopped;
+    } catch (_) {
+        return window.SocketGlobalState?.autoReconnectEnabled === false;
+    }
+}
+
 window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
     const State = window.SocketGlobalState;
     console.log("WebSocket closed:", event);
@@ -27,6 +38,23 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
     if (typeof stopApplicationLevelPingPong === 'function') stopApplicationLevelPingPong();
 
     window.webSocket = null;
+
+    if (geminiConnectionDisabledByUser()) {
+        State.autoReconnectEnabled = false;
+        State.serverOfflinePauseActive = true;
+        if (State.reconnectTimeout) {
+            clearTimeout(State.reconnectTimeout);
+            State.reconnectTimeout = null;
+        }
+        if (State.continuousReconnectInterval) {
+            clearInterval(State.continuousReconnectInterval);
+            State.continuousReconnectInterval = null;
+        }
+        if (typeof updateConnectionStatus === 'function') {
+            updateConnectionStatus('disconnected', 'Gemini Connection Disabled');
+        }
+        return;
+    }
 
     if (State.credentialRequired) {
         if (typeof updateConnectionStatus === 'function') {

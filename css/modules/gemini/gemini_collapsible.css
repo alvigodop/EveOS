@@ -187,3 +187,133 @@
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-shell:not(.collapsed) {
     overflow: visible !important;
 }
+
+/* Final Search Monitor viewport contract.
+   These rules intentionally sit at the end of the last-loaded Gemini CSS file:
+   earlier server/control viewport files use fixed clamps that can keep the
+   system log tall after collapse or make the chat header scroll out. */
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
+    flex: 1 1 clamp(280px, 34dvh, 560px) !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder {
+    flex: 0 0 clamp(132px, 16dvh, 245px) !important;
+    height: auto !important;
+    max-height: clamp(132px, 16dvh, 245px) !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog {
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: hidden !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog > .gemini-chat-header,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog > .gemini-system-header {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 16 !important;
+    flex: 0 0 auto !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog > .chat-messages-container,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog > .system-messages-container {
+    flex: 1 1 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    scrollbar-gutter: stable;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog.collapsed,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog.collapsed,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder.is-gemini-section-collapsed #chatLog,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #system-log-display-placeholder.is-gemini-section-collapsed #systemLog {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog.collapsed > .chat-messages-container,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #systemLog.collapsed > .system-messages-container {
+    display: none !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-card {
+    min-height: 0 !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .gemini-agentic-grid > div:empty {
+    display: none !important;
+}
+
+#gemini-ui-root .gemini-live-link-head-actions .gemini-live-link-toggle {
+    flex: 0 0 52px !important;
+    width: 52px !important;
+    min-width: 52px !important;
+    max-width: 52px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 3px 0 !important;
+    overflow: hidden !important;
+    position: relative !important;
+}
+
+#gemini-ui-root .gemini-live-link-head-actions .gemini-live-link-toggle .mdl-switch__track {
+    left: 8px !important;
+    top: 8px !important;
+}
+
+#gemini-ui-root .gemini-live-link-head-actions .gemini-live-link-toggle .mdl-switch__thumb {
+    left: 7px !important;
+    top: 5px !important;
+}
+
+#gemini-ui-root .gemini-live-link-head-actions .gemini-live-link-toggle.is-checked .mdl-switch__thumb {
+    left: 25px !important;
+}
+
+@media (min-width: 920px) {
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .demo-content {
+        height: calc(100dvh - 174px) !important;
+        min-height: 0 !important;
+        align-items: stretch !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .right-column {
+        display: flex !important;
+        flex-direction: column !important;
+        min-height: 0 !important;
+    }
+
+    #loadingIndicator.fullscreen-mode:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
+        flex: 1 1 auto !important;
+        height: 100% !important;
+    }
+}

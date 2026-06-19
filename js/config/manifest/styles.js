@@ -105,5 +105,5 @@ window.EveModuleManifestParts.styles = [
         'css/modules/gemini/video_player_ui/video_player.css',
         'css/modules/gemini/video_player_ui/video_section.css',
         'css/modules/gemini/voice_input_ui/voice_select.css',
-        'css/modules/gemini/gemini_collapsible.css?v=0.1.2',
+        'css/modules/gemini/gemini_collapsible.css?v=0.1.3',
 ];

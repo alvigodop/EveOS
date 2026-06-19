@@ -60,10 +60,49 @@ console.log("socketAudioLogic.js loading...");
             (isInterimAudio && (typeof playInterimAudio !== 'undefined' && playInterimAudio)) ||
             (typeof autoAudioPlay !== 'undefined' && autoAudioPlay);
 
+        async function ensurePlaybackReady() {
+            if (window.AudioProcessingControlsAgentic?.ensureAudioContextReady) {
+                return await window.AudioProcessingControlsAgentic.ensureAudioContextReady();
+            }
+            if (window.audioInputContext?.state === 'suspended') {
+                await window.audioInputContext.resume();
+            }
+            return true;
+        }
+
+        async function playWithRecovery(chunk, finalAudio) {
+            const ready = await ensurePlaybackReady();
+            if (!ready) {
+                if (typeof displayMessage === 'function') {
+                    displayMessage('System Message: Gemini audio is queued until the page receives an audio-unlock click/key press.', true);
+                }
+                return;
+            }
+            try {
+                await injestAudioChuckToPlay(chunk, finalAudio);
+            } catch (error) {
+                console.warn('[socketAudioLogic] Audio ingest failed; rebuilding audio context once:', error);
+                try {
+                    if (window.AudioContextState) {
+                        window.AudioContextState.audioContextInitialized = false;
+                        window.AudioContextState.audioInputContext = null;
+                    }
+                    window.audioInputContext = null;
+                    await ensurePlaybackReady();
+                    await injestAudioChuckToPlay(chunk, finalAudio);
+                } catch (retryError) {
+                    console.error('[socketAudioLogic] Audio retry failed:', retryError);
+                    if (typeof displayMessage === 'function') {
+                        displayMessage('System Message: Gemini audio playback failed after retry; use the visible player controls for this response.', true);
+                    }
+                }
+            }
+        }
+
         if (shouldAutoPlay && typeof injestAudioChuckToPlay === 'function') {
             if (audioData) {
                 console.log(`Auto-playing ${isInterimAudio ? 'interim' : 'complete'} audio chunk`);
-                await injestAudioChuckToPlay(audioData, isCompleteAudio);
+                await playWithRecovery(audioData, isCompleteAudio);
             } else {
                 console.warn("[socketAudioLogic] shouldAutoPlay is true but audioData is missing/empty.");
             }

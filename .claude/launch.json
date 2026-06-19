@@ -1,0 +1,48 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "eveos-port-8765",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/python-server.py", "8765"],
+      "port": 8765,
+      "autoPort": false
+    },
+    {
+      "name": "gemini-backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-u", "server/gemini-backend/interactions/main.py", "--port", "9083"],
+      "port": 9083
+    },
+    {
+      "name": "gemini-control-helper",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/gemini-control-helper.py", "9082"],
+      "port": 9082
+    },
+    {
+      "name": "lightpanda-bridge",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/bridges/lightpanda-bridge.py", "3037"],
+      "port": 3037
+    },
+    {
+      "name": "camofox-bridge",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/bridges/camofox-bridge.py", "3038"],
+      "port": 3038
+    },
+    {
+      "name": "wikimedia-bridge",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/bridges/wikimedia-bridge.py", "3039"],
+      "port": 3039
+    },
+    {
+      "name": "popup-bridge",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["server/bridges/popup-bridge.py", "3040"],
+      "port": 3040
+    }
+  ]
+}

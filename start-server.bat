@@ -14,16 +14,19 @@ set "LIGHTPANDA_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-lightpanda-bridg
 set "CAMOFOX_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-camofox-bridge.bat"
 set "WIKIMEDIA_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-wikimedia-bridge.bat"
 set "POPUP_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-popup-bridge.bat"
-set "LIGHTPANDA_BRIDGE_PORT=3037"
+rem --- Canonical port definitions (single source of truth) ---
+call "%PROJECT_ROOT%\tools\windows\eveos-ports.bat"
+if not defined LIGHTPANDA_BRIDGE_PORT set "LIGHTPANDA_BRIDGE_PORT=3037"
+if not defined CAMOFOX_BRIDGE_PORT set "CAMOFOX_BRIDGE_PORT=3038"
+if not defined WIKIMEDIA_BRIDGE_PORT set "WIKIMEDIA_BRIDGE_PORT=3039"
+if not defined POPUP_BRIDGE_PORT set "POPUP_BRIDGE_PORT=3040"
+if not defined EVEOS_WEB_PORT set "EVEOS_WEB_PORT=8765"
 set "LIGHTPANDA_MONITOR_TITLE=EveOS Lightpanda Monitor"
 set "LIGHTPANDA_ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"
-set "CAMOFOX_BRIDGE_PORT=3038"
 set "CAMOFOX_MONITOR_TITLE=EveOS Camofox Monitor"
 set "CAMOFOX_ACTIVITY_LOG=%PROJECT_ROOT%\bin\camofox_activity.log"
-set "WIKIMEDIA_BRIDGE_PORT=3039"
 set "WIKIMEDIA_MONITOR_TITLE=EveOS Wikimedia Monitor"
 set "WIKIMEDIA_ACTIVITY_LOG=%PROJECT_ROOT%\bin\wikimedia_activity.log"
-set "POPUP_BRIDGE_PORT=3040"
 set "POPUP_MONITOR_TITLE=EveOS Popup Bridge Monitor"
 set "POPUP_ACTIVITY_LOG=%PROJECT_ROOT%\bin\popup_activity.log"
 set "CAMOFOX_RUNTIME_SERVER=%PROJECT_ROOT%\tools\camofox-runtime\node_modules\@askjo\camofox-browser\server.js"
@@ -83,10 +86,14 @@ if defined POPUP_STANDALONE_PID (
     echo   [STATUS] Popup bridge: STOPPED
 )
 echo.
+echo [S] Start STANDARD EveOS stack  ^(recommended canonical boot^)
+echo     - One web surface on port %EVEOS_WEB_PORT% + Gemini backend + bridges. Guarded, no redundant port-states.
+echo.
+echo --- Advanced / explicit (use when you specifically want a different port or sequence) ---
 echo [1] Start EveOS instance ^(choose port + data-pack^)
-echo     - Port 3000 uses active modular path; other ports default to per-instance packs.
+echo     - Advanced: port 3000 uses active modular path; other ports default to per-instance packs.
 echo [2] Start EveOS port only ^(no data-pack prompt^)
-echo     - Serves EveOS at a chosen port using the current active data-pack.
+echo     - Advanced: serves EveOS at a chosen port using the current active data-pack.
 echo [3] Open Gemini Backend Console ^(server\server-menu.bat^)
 echo     - Start/stop the canonical Gemini Live backend ^(9083 WebSocket + 9084 status^).
 echo [4] Run Gemini auto-start helper ^(server\start-gemini.bat^)
@@ -99,6 +106,10 @@ echo [7] Exit
 echo.
 set /p "choice=Enter your choice: "
 
+if /I "%choice%"=="S" (
+    call "%PROJECT_ROOT%\boot-eveos.bat"
+    goto :MainMenu
+)
 if "%choice%"=="1" (
     call :StartEveServer
     goto :MainMenu

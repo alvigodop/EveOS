@@ -163,7 +163,10 @@ def main():
 
     sample = next(item for item in branch["samples"]["bookmarks"] if item["id"] == "m1")
     assert_true(sample["title"] == "YouTube", "YouTube sample missing")
-    assert_true(sample["category"] == "Alpha", "bookmark card category missing from sample")
+    assert_true(sample["category"]["type"] == "card-container", "bookmark category should be typed as card container")
+    assert_true(sample["category"]["name"] == "Alpha", "bookmark card category missing from sample")
+    assert_true(sample["cardCategory"] == "Alpha", "bookmark cardCategory alias missing from sample")
+    assert_true(sample["bookmarkIdentifiers"]["ids"] == [], "empty bookmark identifiers should be explicit")
     assert_true(sample["urls"]["primary"] == "https://youtube.com/watch?v=abc", "primary URL missing")
     assert_true(sample["relatedUrls"] == ["https://example.test/mirror"], "related URLs missing")
     assert_true(sample["library"]["linked"] is True, "library link status missing")
@@ -209,7 +212,7 @@ def main():
 
     nexus_log = branch["nexusLog"]
     assert_true(nexus_log["schema"] == "eveos.nexus-log.compact.v1", "Nexus log schema missing")
-    assert_true(any(item["title"] == "YouTube" and item["category"] == "Alpha" for item in nexus_log["recentUpdates"]), "Nexus recent update log missing bookmark category")
+    assert_true(any(item["title"] == "YouTube" and item["category"]["name"] == "Alpha" and item["cardCategory"] == "Alpha" for item in nexus_log["recentUpdates"]), "Nexus recent update log missing bookmark card category")
     assert_true(any(item["scopedKey"] == "main::Alpha" and "Video Sources" in item["folderNames"] for item in nexus_log["folderCards"]), "Nexus folder-card log missing folder names")
     assert_true(any(item["bookmarkTitle"] == "YouTube" and item["libraryTitle"] == "Library Main" for item in nexus_log["libraryConnections"]), "Nexus library connection log missing")
     assert_true(nexus_log["systemViewHints"]["withCovers"] >= 1, "Nexus system-view hints missing covers")
@@ -222,11 +225,13 @@ def main():
         workspace_id="main",
         category_name="Alpha",
     )["payload"]
-    assert_true(card["metadata"]["geminiScope"]["scope"] == "card", "card scope metadata missing")
-    assert_true(len(card["bookmarks"]["links"]) == 2, "card scope should include requested card links")
-    assert_true({link["id"] for link in card["bookmarks"]["links"]} == {"m1", "m2"}, "card scope link set wrong")
-    assert_true("main::Alpha" in card["bookmarks"]["folders"], "card folder state missing")
-    assert_true("child::Beta" not in card["bookmarks"]["folders"], "child folder leaked into card scope")
+    assert_true(card["scope"]["scope"] == "card", "card scope metadata missing")
+    assert_true(card["counts"]["bookmarks"] == 2, "card scope should include requested card links")
+    assert_true(card["counts"]["cards"] == 1, "card scope should include one selected card")
+    card_tree = next(item for item in card["structuredScope"]["cardTrees"] if item["scopedKey"] == "main::Alpha")
+    assert_true(set(collect_tree_bookmark_ids(card_tree)) == {"m1", "m2"}, "card scope link set wrong")
+    assert_true(any(folder["id"] == "fa" for folder in card_tree["folders"]), "card folder state missing")
+    assert_true(not any(item["scopedKey"] == "child::Beta" for item in card["structuredScope"]["cardTrees"]), "child card leaked into card scope")
 
     all_scope = build_gemini_context_from_state(
         state,

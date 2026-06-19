@@ -2,7 +2,8 @@
 setlocal EnableExtensions
 
 cd /d "%~dp0"
-set "GEMINI_CONTROL_PORT=9082"
+call "%~dp0..\tools\windows\eveos-ports.bat"
+if not defined GEMINI_CONTROL_PORT set "GEMINI_CONTROL_PORT=9082"
 
 if not exist "%~dp0server-menu.bat" (
     echo ERROR: server-menu.bat not found in %~dp0

@@ -120,6 +120,55 @@ window.EveDataStore = window.EveDataStore || {};
         return ids;
     }
 
+    function workspacePath(workspaceId, nodes, trail = []) {
+        const target = text(workspaceId, '').toLowerCase();
+        for (const node of Array.isArray(nodes) ? nodes : []) {
+            const id = text(node?.id, '');
+            const name = text(node?.name || node?.title, id || 'Tab');
+            const nextTrail = trail.concat([{ id, name }]);
+            if (id.toLowerCase() === target) return nextTrail;
+            const nested = workspacePath(workspaceId, node?.subTabs, nextTrail);
+            if (nested) return nested;
+        }
+        return [];
+    }
+
+    function collectWorkspaceMeta(config, scope) {
+        const nodes = Array.isArray(config?.workspaces) ? config.workspaces : [];
+        const selectedIds = new Set((scope.workspaceIds?.length ? scope.workspaceIds : [scope.workspaceId]).map((id) => text(id, '')).filter(Boolean));
+        const root = findWorkspace(scope.workspaceId, nodes);
+        const branchIds = root ? collectBranchIds(root) : new Set([scope.workspaceId]);
+        const ids = scope.scope === 'all'
+            ? Array.from(branchIds)
+            : Array.from(new Set([scope.workspaceId].concat(Array.from(selectedIds))));
+        const listedOnlyIds = scope.source === 'manual-tab-current'
+            ? Array.from(branchIds).filter((id) => id && id !== scope.workspaceId)
+            : [];
+        return {
+            activeWorkspaceId: scope.workspaceId,
+            selectedWorkspaceIds: Array.from(selectedIds),
+            tabs: ids.map((id) => {
+                const node = findWorkspace(id, nodes) || {};
+                const path = workspacePath(id, nodes);
+                return {
+                    id,
+                    name: text(node.name || node.title, id || 'Main'),
+                    path: path.map((part) => part.name).join(' / '),
+                    parentPath: path.slice(0, -1).map((part) => part.name).join(' / '),
+                    contentsIncluded: scope.scope === 'all' || selectedIds.has(id)
+                };
+            }),
+            subTabsListedOnly: listedOnlyIds.map((id) => {
+                const node = findWorkspace(id, nodes) || {};
+                return {
+                    id,
+                    name: text(node.name || node.title, id),
+                    path: workspacePath(id, nodes).map((part) => part.name).join(' / ')
+                };
+            })
+        };
+    }
+
     function normalizeScope(scope) {
         const value = text(scope, 'workspace').toLowerCase();
         if (['all', 'store', 'datapack'].includes(value)) return 'all';
@@ -132,8 +181,15 @@ window.EveDataStore = window.EveDataStore || {};
         const raw = options?.scope && typeof options.scope === 'object' ? options.scope : (options || {});
         const scope = normalizeScope(raw.scope);
         const workspaceId = text(raw.workspaceId, cfg.activeWorkspace || 'main');
+        const source = text(raw.source, 'browser-local-fallback');
+        const label = text(raw.label, scope === 'all' ? 'Whole datapack' : (scope === 'card' ? 'Specific card' : 'Current tab branch'));
+        const currentTabOnly = source === 'manual-tab-current'
+            || label.toLowerCase().includes('current tab only')
+            || raw.includeBranch === false;
         let workspaceIds = asArray(raw.workspaceIds).map((id) => text(id, '')).filter(Boolean);
-        if (!workspaceIds.length && scope !== 'all') {
+        if (scope !== 'all' && (scope === 'card' || currentTabOnly)) {
+            workspaceIds = [workspaceId];
+        } else if (!workspaceIds.length && scope !== 'all') {
             const root = findWorkspace(workspaceId, cfg.workspaces);
             workspaceIds = Array.from(root ? collectBranchIds(root) : new Set([workspaceId]));
         }
@@ -142,8 +198,8 @@ window.EveDataStore = window.EveDataStore || {};
             workspaceId,
             workspaceIds,
             categoryName: text(raw.categoryName, ''),
-            label: text(raw.label, scope === 'all' ? 'Whole datapack' : (scope === 'card' ? 'Specific card' : 'Current tab branch')),
-            source: text(raw.source, 'browser-local-fallback')
+            label,
+            source
         };
     }
 
@@ -598,6 +654,28 @@ window.EveDataStore = window.EveDataStore || {};
         return Object.fromEntries(Object.entries(views).map(([name, items]) => [name, { count: items.length, samples: items.slice(0, limit) }]));
     }
 
+    function compactNexusTrace(trace) {
+        if (!trace || typeof trace !== 'object') return null;
+        return {
+            id: text(trace.id, ''),
+            query: text(trace.query || trace.command || trace.input, ''),
+            summary: text(trace.summary, ''),
+            scope: trace.scope || null,
+            totalMs: Number(trace.totalMs || 0),
+            resultCount: Number(trace.resultCount || trace.resultsFound || trace.totalResults || 0),
+            endedAt: Number(trace.endedAt || trace.finishedAt || trace.startedAt || 0)
+        };
+    }
+
+    function recentNexusLog(limit = 5) {
+        const sessions = Array.isArray(window.SearchMonitorBoot?._nexusSessions)
+            ? window.SearchMonitorBoot._nexusSessions
+            : [];
+        return sessions.slice(0, Math.max(1, Math.min(5, Number(limit) || 5)))
+            .map(compactNexusTrace)
+            .filter(Boolean);
+    }
+
     function buildStructuredScope(state, limit, scope, detail = 'summary') {
         const links = getLinks(state);
         const config = getConfig(state);
@@ -652,7 +730,13 @@ window.EveDataStore = window.EveDataStore || {};
                 folders: (maps.children.get('') || []).map(buildFolder)
             });
         });
-        return { cards, systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(20, limit)), truncated: remaining <= 0, bookmarkBudget: budget };
+        return {
+            workspaceScope: collectWorkspaceMeta(config, scope),
+            cards,
+            systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(20, limit)),
+            truncated: remaining <= 0,
+            bookmarkBudget: budget
+        };
     }
 
     function summarizeState(state, limit, scope, detail = 'summary') {
@@ -703,6 +787,7 @@ window.EveDataStore = window.EveDataStore || {};
                 }
             },
             structuredScope: buildStructuredScope(state, limit, scope, detail),
+            nexusLog: recentNexusLog(5),
 
             samples: {
 

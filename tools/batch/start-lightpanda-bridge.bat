@@ -3,7 +3,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
-set "BRIDGE_PORT=3037"
+call "%PROJECT_ROOT%\tools\windows\eveos-ports.bat"
+set "BRIDGE_PORT=%LIGHTPANDA_BRIDGE_PORT%"
+if not defined BRIDGE_PORT set "BRIDGE_PORT=3037"
 set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\lightpanda-bridge.py"
 set "LIGHTPANDA_BIN=%PROJECT_ROOT%\bin\lightpanda"
 set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\lightpanda_activity.log"

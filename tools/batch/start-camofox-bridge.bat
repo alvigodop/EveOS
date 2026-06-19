@@ -3,7 +3,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
-set "BRIDGE_PORT=3038"
+call "%PROJECT_ROOT%\tools\windows\eveos-ports.bat"
+set "BRIDGE_PORT=%CAMOFOX_BRIDGE_PORT%"
+if not defined BRIDGE_PORT set "BRIDGE_PORT=3038"
 set "SERVER_PORT_START=9377"
 set "SERVER_PORT_END=9382"
 set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\camofox-bridge.py"

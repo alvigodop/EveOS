@@ -6,9 +6,10 @@ set "SERVER_ROOT=%CD%"
 set "PROJECT_ROOT=%SERVER_ROOT%\.."
 set "GEMINI_MAIN_DIR=%SERVER_ROOT%\gemini-backend\interactions"
 set "GEMINI_MAIN_SCRIPT=%GEMINI_MAIN_DIR%\main.py"
-set "GEMINI_WS_PORT=9083"
-set "GEMINI_STATUS_PORT=9084"
-set "GEMINI_WINDOW_TITLE=EveOS Gemini Main 9083-9084"
+call "%SERVER_ROOT%\..\tools\windows\eveos-ports.bat"
+if not defined GEMINI_WS_PORT set "GEMINI_WS_PORT=9083"
+if not defined GEMINI_STATUS_PORT set "GEMINI_STATUS_PORT=9084"
+set "GEMINI_WINDOW_TITLE=EveOS Gemini Main %GEMINI_WS_PORT%-%GEMINI_STATUS_PORT%"
 
 if /I "%~1"=="stop" (
     call :StopGemini

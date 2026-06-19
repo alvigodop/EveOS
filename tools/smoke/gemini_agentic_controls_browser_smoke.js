@@ -58,7 +58,7 @@ async function main() {
             body: JSON.stringify({ status: 'running' })
         });
     });
-    await page.route(/http:\/\/127\.0\.0\.1:(?:3000|8765)\/api\/gemini-credentials(?:\/status)?/, async (route) => {
+    await page.route(/http:\/\/127\.0\.0\.1:(?:9082|3000|8765)\/api\/gemini-credentials(?:\/status)?/, async (route) => {
         if (route.request().method() === 'POST') {
             credentialPosts += 1;
             credentialConfigured = true;

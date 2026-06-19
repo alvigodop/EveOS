@@ -3,7 +3,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
-set "BRIDGE_PORT=3039"
+call "%PROJECT_ROOT%\tools\windows\eveos-ports.bat"
+set "BRIDGE_PORT=%WIKIMEDIA_BRIDGE_PORT%"
+if not defined BRIDGE_PORT set "BRIDGE_PORT=3039"
 set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\wikimedia-bridge.py"
 set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\wikimedia_activity.log"
 set "MONITOR_TITLE=EveOS Wikimedia Monitor"
