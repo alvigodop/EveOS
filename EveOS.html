@@ -7,6 +7,7 @@
     <title>Eve-OS</title>
     <link rel="stylesheet" href="css/main.css?v=0.2.19">
     <link rel="stylesheet" href="js/modules/features/matrix-workshop/matrix-workshop.css?v=0.3.0">
+    <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.css?v=0.1.0">
     <script src="js/modules/core/theme-boot.js?v=0.2.2"></script>
     <script type="importmap">
     {
@@ -43,6 +44,10 @@
                     onclick="window.EveMatrixWorkshop?.openCurrentView ? window.EveMatrixWorkshop.openCurrentView() : (window.__eveMatrixOpenPending = true)" aria-haspopup="dialog"
                     aria-controls="matrix-workshop-overlay" aria-expanded="false"
                     title="Matrix Workshop">&#9001; Matrix</button>
+                <button class="topbar-map-btn topbar-audioflix-btn" type="button"
+                    onclick="window.EveAudioflix?.open ? window.EveAudioflix.open() : (window.__eveAudioflixOpenPending = true)" aria-haspopup="dialog"
+                    aria-controls="audioflix-overlay" aria-expanded="false"
+                    title="Audioflix">&#127925; Audioflix</button>
                 <button class="topbar-primary-btn" onclick="toggleScratchpad()" title="Notes">&#128221; Notes</button>
                 <button class="topbar-primary-btn" onclick="openSettings()" title="Settings">&#9881; Settings</button>
                 <button class="topbar-primary-btn" onclick="openSocialManagerModal()" title="Social Manager">&#128241; Social</button>
@@ -157,6 +162,10 @@
     <script src="js/modules/features/matrix-workshop/matrix-workshop.datapack.mutations.js?v=0.1.0"></script>
     <script src="js/modules/features/matrix-workshop/matrix-workshop.datapack.js?v=0.4.0"></script>
     <script src="js/modules/features/matrix-workshop/matrix-workshop.js?v=0.4.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.state.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.audio.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.gemini.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.js?v=0.1.0"></script>
     <script src="js/config/manifest/scripts.parts/00-core.js"></script>
     <script src="js/config/manifest/scripts.parts/01-ui.js?v=0.4.0"></script>
     <script src="js/config/manifest/scripts.parts/02-dashboard-categories.js?v=0.1.2"></script>

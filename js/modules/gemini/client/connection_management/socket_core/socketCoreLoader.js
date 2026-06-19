@@ -18,7 +18,7 @@ const socketCoreScripts = [
     `${SOCKET_CORE_BASE_PATH}/scc/socketConnectionCoordinator.js`,
     `${SOCKET_CORE_BASE_PATH}/socketMessageRouter.js?v=0.2.5`,
     `${SOCKET_CORE_BASE_PATH}/audioPlayerUI.js`,
-    `${SOCKET_CORE_BASE_PATH}/socketAudioLogic.js?v=0.2.1`,
+    `${SOCKET_CORE_BASE_PATH}/socketAudioLogic.js?v=0.2.2`,
     `${SOCKET_CORE_BASE_PATH}/serverStatusChecker.js?v=0.2.6`
 ];
 

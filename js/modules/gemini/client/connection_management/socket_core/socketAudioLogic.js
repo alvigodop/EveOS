@@ -48,6 +48,16 @@ console.log("socketAudioLogic.js loading...");
         // *** IMPROVED SEQUENTIAL AUDIO HANDLING ***
         // Sequential audio can now coexist with interim audio
         const audioData = data.audio || data.audio_data; // Support both interim and complete keys
+        if (audioData) {
+            window.dispatchEvent(new CustomEvent('eve:gemini-audio-output', {
+                detail: {
+                    kind: isCompleteAudio ? 'complete' : 'interim',
+                    sequential: isSequential,
+                    chars: String(audioData || '').length,
+                    at: Date.now()
+                }
+            }));
+        }
 
         // **KEY FIX**: Ensure UI is created UNCONDITIONALLY
         if (typeof ensureAudioPlayerUI === 'function') {

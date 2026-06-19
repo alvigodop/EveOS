@@ -107,6 +107,14 @@ if /I "%rel%"=="start-server.bat" (
     set "BATCH_NOTE=Master EveOS launcher menu (this script)."
     exit /b 0
 )
+if /I "%rel%"=="boot-eveos.bat" (
+    set "BATCH_NOTE=Canonical one-shot boot: one web surface + Gemini + bridges, guarded. Recommended."
+    exit /b 0
+)
+if /I "%rel%"=="tools\windows\eveos-ports.bat" (
+    set "BATCH_NOTE=Single source of truth for all EveOS ports. Edit here to change any port."
+    exit /b 0
+)
 if /I "%rel%"=="tools\batch\start-lightpanda-bridge.bat" (
     set "BATCH_NOTE=Standalone Lightpanda controller for manual start/stop."
     exit /b 0

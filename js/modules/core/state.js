@@ -83,6 +83,22 @@ let config = {
         activeCardKey: "",
         activeCardStartedAt: 0
     },
+    audioflix: {
+        schemaVersion: 1,
+        enabled: true,
+        routeMode: "browser",
+        preferredSinkId: "",
+        preferredSinkLabel: "",
+        geminiVoicePortEnabled: false,
+        geminiConversationMode: "direct-live",
+        soundboard: [],
+        music: [],
+        recentPlays: [],
+        counters: {
+            plays: 0,
+            routedGeminiEvents: 0
+        }
+    },
     bridges: {
         serverPort: 3000,
         lightpandaPort: 3037,

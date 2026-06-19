@@ -21,6 +21,7 @@ logger = logging.getLogger("FandomDiscoveryServer")
 from server_modules.camofox_metadata import _build_metadata_from_snapshot
 from server_modules.camofox_runtime import _cookie_diagnostics_for_target, _cookies_for_target, _project_root
 from server_modules.camofox_server import (
+    DEFAULT_CAMOFOX_FETCH_TIMEOUT_SECONDS,
     _cleanup_session,
     _is_client_disconnect,
     _json_request,
