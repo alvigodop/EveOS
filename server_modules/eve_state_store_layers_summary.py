@@ -243,17 +243,26 @@ def build_gemini_context_from_state(state, mode="summary", sample_limit=25, scop
         workspace_ids=workspace_ids,
     )
 
+    payload = build_gemini_summary(scoped_state, sample_limit=limit_value)
     if mode_value == "full":
-        payload = scoped_state
+        payload = {
+            "kind": "eveos_scoped_context_snapshot",
+            "generatedAt": payload.get("generatedAt"),
+            "scope": payload.get("scope"),
+            "note": "Complete scoped snapshot is compact and structured. It excludes raw internal config/knowledge dumps to avoid Gemini Live context overflow.",
+            "counts": payload.get("counts"),
+            "breakdown": payload.get("breakdown"),
+            "structuredScope": payload.get("structuredScope"),
+            "nexusLog": payload.get("nexusLog"),
+        }
         header = (
-            "[SYSTEM CONTEXT: EveOS modular state snapshot follows as JSON. "
-            "Use it as reference context. Do not fabricate fields that are absent.]"
+            "[SYSTEM CONTEXT: EveOS modular scoped context snapshot follows as JSON. "
+            "Use it as reference context. cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
         )
     else:
-        payload = build_gemini_summary(scoped_state, sample_limit=limit_value)
         header = (
             "[SYSTEM CONTEXT: EveOS modular state summary follows as JSON. "
-            "Use it as reference context and prioritize explicit values.]"
+            "Use it as reference context and prioritize explicit values. cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
         )
 
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2)

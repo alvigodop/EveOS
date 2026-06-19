@@ -26,6 +26,15 @@ window.EveDataStore = window.EveDataStore || {};
         }
     }
 
+    const DEFAULT_IDENTIFIERS = [
+        { id: 'reading', label: 'Reading', description: 'Long-form text, books, manga, articles, or written research.' },
+        { id: 'watching', label: 'Watching', description: 'Video-first content such as films, shows, clips, or streams.' },
+        { id: 'listening', label: 'Listening', description: 'Audio-first content such as podcasts, music, or spoken material.' },
+        { id: 'playing', label: 'Playing', description: 'Games, interactive media, or playable experiences.' },
+        { id: 'research', label: 'Research', description: 'Material kept for investigation, study, or later synthesis.' },
+        { id: 'reference', label: 'Reference', description: 'Stable reference material worth keeping distinct from active consumption.' }
+    ];
+
     function scopedKey(workspace, category) {
         return `${text(workspace, 'main')}::${text(category, 'Unsorted')}`;
     }
@@ -214,26 +223,116 @@ window.EveDataStore = window.EveDataStore || {};
         return first(source, ['lastEdited', 'lastUpdated', 'updatedAt', 'dateAdded', 'createdAt', 'lastVisited']);
     }
 
-    function relatedUrls(link) {
+    function uniqueList(items, limit = 12) {
         const out = [];
-        asArray(link?.relatedUrls).forEach((item) => out.push(text(item?.url || item?.href || item, '')));
-        ['mirrorUrl', 'sourceUrl', 'wikiUrl', 'alternateUrl'].forEach((key) => out.push(text(link?.[key], '')));
-        return Array.from(new Set(out.filter(Boolean))).slice(0, 8);
+        (Array.isArray(items) ? items : []).forEach((item) => {
+            const value = text(item, '');
+            if (value && !out.includes(value)) out.push(value);
+        });
+        return out.slice(0, limit);
     }
 
-    function bookmarkContext(link, linkedEntry) {
+    function urlValue(item) {
+        if (item && typeof item === 'object') return text(item.url || item.href || item.link || item.source || item.value, '');
+        return text(item, '');
+    }
+
+    function relatedUrls(link) {
+        const out = [];
+        ['relatedUrls', 'additionalUrls', 'extraUrls', 'alternateUrls', 'urlAlternates', 'mirrors', 'sources', 'sourceUrls'].forEach((key) => {
+            asArray(link?.[key]).forEach((item) => out.push(urlValue(item)));
+        });
+        ['mirrorUrl', 'sourceUrl', 'wikiUrl', 'alternateUrl', 'additionalUrl', 'mangaDexUrl', 'anilistUrl', 'malUrl', 'fandomUrl'].forEach((key) => out.push(text(link?.[key], '')));
+        return uniqueList(out.filter(Boolean), 12);
+    }
+
+    function coverState(link) {
+        const additional = [];
+        ['additionalCovers', 'coverImages', 'extraCovers', 'alternateCovers'].forEach((key) => {
+            asArray(link?.[key]).forEach((item) => additional.push(urlValue(item) || text(item?.src, '')));
+        });
+        const primary = text(first(link, ['coverImage', 'cover', 'imageUrl', 'thumbnail', 'thumbnailUrl']), '');
+        return { primary, additional: uniqueList(additional, 8), hasCover: !!(primary || additional.length), hasAdditionalCovers: additional.length > 0 };
+    }
+
+    function identifierDefinitions(state) {
+        const runtime = window.EveBookmarkIdentifiers?.getDefinitions?.();
+        const cfg = getConfig(state);
+        const source = Array.isArray(runtime) && runtime.length ? runtime : (Array.isArray(cfg.bookmarkIdentifiers) && cfg.bookmarkIdentifiers.length ? cfg.bookmarkIdentifiers : DEFAULT_IDENTIFIERS);
+        const map = new Map();
+        source.forEach((definition) => {
+            const id = text(definition?.id, '');
+            if (!id) return;
+            map.set(id, {
+                id,
+                label: text(definition?.label, id),
+                description: text(definition?.description, ''),
+                icon: text(definition?.icon, ''),
+                color: text(definition?.color, '')
+            });
+        });
+        return map;
+    }
+
+    function bookmarkIdentifiers(link, definitions) {
+        const ids = uniqueList([].concat(asArray(link?.identifiers), asArray(link?.identifierIds), asArray(link?.bookmarkIdentifiers)), 20);
+        const details = ids.map((id) => definitions.get(id) || { id, label: id, description: '' });
+        return {
+            ids,
+            labels: details.map((definition) => definition.label),
+            details: details.map((definition) => ({
+                id: definition.id,
+                label: definition.label,
+                description: definition.description || '',
+                icon: definition.icon || ''
+            }))
+        };
+    }
+
+    function pinLookup(state) {
+        const bookmarkPins = new Map();
+        const cardPins = new Map();
+        const folderPins = new Map();
+        asArray(state?.bookmarks?.pins).forEach((pin) => {
+            if (!pin || typeof pin !== 'object') return;
+            const targetType = text(pin.targetType, '').toLowerCase();
+            const targetId = text(pin.targetId, '');
+            if (!targetType || !targetId) return;
+            const ref = { id: text(pin.id, ''), targetType, targetId, scopeType: text(pin.scopeType, 'tab'), order: pin.order };
+            if (targetType === 'bookmark') bookmarkPins.set(targetId, ref);
+            if (targetType === 'card') cardPins.set(targetId, ref);
+            if (targetType === 'folder') folderPins.set(targetId, ref);
+        });
+        return { bookmarkPins, cardPins, folderPins };
+    }
+
+    function bookmarkContext(link, linkedEntry, context = {}) {
         const entry = linkedEntry || {};
+        const workspace = text(link?.workspace, 'main');
+        const cardName = text(link?.category, 'Unsorted');
+        const markerState = bookmarkIdentifiers(link, context.identifierDefs || new Map());
+        const pin = context.pin || null;
         return {
             id: link?.id,
             title: text(link?.title, 'Untitled'),
-            urls: { primary: text(link?.url || link?.href, '') },
+            urls: { primary: text(link?.url || link?.href, ''), related: relatedUrls(link) },
             relatedUrls: relatedUrls(link),
-            workspace: text(link?.workspace, 'main'),
-            category: text(link?.category, 'Unsorted'),
-            folderId: text(link?.folderId, ''),
+            location: {
+                workspace,
+                cardName,
+                cardCategoryName: cardName,
+                folderId: text(link?.folderId, ''),
+                folderPath: text(context.folderPath, ''),
+                note: 'cardName/cardCategoryName is the EveOS card container. bookmarkIdentifiers are the user-facing category/marker pills.'
+            },
+            card: { workspace, name: cardName, scopedKey: scopedKey(workspace, cardName) },
+            category: { type: 'card-container', name: cardName, note: 'Not the bookmark identifier marker.' },
+            cardCategory: cardName,
+            bookmarkIdentifiers: markerState,
             taskStatus: link?.done ? 'Done' : 'Pending',
             done: !!link?.done,
-            pinned: !!link?.pinned,
+            pinned: !!(pin || link?.pinned),
+            pin,
             status: text(entry.status || link?.status || link?.readingStatus || link?.mediaStatus, ''),
             notes: text(link?.personalNotes || link?.notes || entry.notes || entry.summary, '').slice(0, 900),
             progress: progress(Object.assign({}, entry, link)),
@@ -241,18 +340,21 @@ window.EveDataStore = window.EveDataStore || {};
                 updated: timestamp(link) || timestamp(entry),
                 dateAdded: text(link?.dateAdded || entry.dateAdded, ''),
                 lastEdited: text(link?.lastEdited || entry.lastEdited, ''),
-                lastVisited: text(link?.lastVisited, '')
+                lastVisited: text(link?.lastVisited || link?.visitedAt, '')
             },
-            tags: asArray(link?.tags).concat(asArray(entry.tags)).slice(0, 24),
+            tags: uniqueList(asArray(link?.tags).concat(asArray(entry.tags)), 30),
+            genres: uniqueList(asArray(link?.genres).concat(asArray(entry.genres)), 30),
+            covers: coverState(link),
+            sort: { customOrderNumber: context.orderNumber || null, sourceIndex: context.sourceIndex || null },
             library: {
                 linked: !!linkedEntry,
                 title: text(entry.title, ''),
                 aliases: asArray(entry.aliases || entry.alternativeTitles || entry.otherNames).slice(0, 12),
-                entryId: text(entry.id, '')
+                entryId: text(entry.id, ''),
+                status: text(entry.status, '')
             }
         };
     }
-
     function countFolders(tree) {
         const nodes = Array.isArray(tree) ? tree : (tree?.nodes || tree?.folders || []);
         let count = 0;
@@ -266,12 +368,150 @@ window.EveDataStore = window.EveDataStore || {};
         return count;
     }
 
+    function folderNodes(tree) {
+        const roots = Array.isArray(tree) ? tree : (tree?.nodes || tree?.folders || []);
+        const nodes = [];
+        function visit(node, parentId = '') {
+            if (!node || typeof node !== 'object') return;
+            const id = text(node.id, '');
+            if (!id) return;
+            const parent = text(node.parentId, parentId);
+            nodes.push({ id, name: text(node.name || node.title, 'Folder'), parentId: parent, order: node.order, taskMode: text(node.taskMode, 'inherit'), clickBehaviorMode: text(node.clickBehaviorMode, 'inherit') });
+            (node.children || node.subFolders || []).forEach((child) => visit(child, id));
+        }
+        roots.forEach((node) => visit(node, ''));
+        return nodes;
+    }
+
+    function folderMaps(tree) {
+        const byId = new Map();
+        const children = new Map();
+        folderNodes(tree).forEach((node) => { if (!byId.has(node.id)) byId.set(node.id, node); });
+        byId.forEach((node) => {
+            const parent = byId.has(node.parentId) && node.parentId !== node.id ? node.parentId : '';
+            node.parentId = parent;
+            if (!children.has(parent)) children.set(parent, []);
+            children.get(parent).push(node);
+        });
+        children.forEach((list) => list.sort((a, b) => (Number(a.order || 0) - Number(b.order || 0)) || a.name.localeCompare(b.name)));
+        const paths = new Map();
+        byId.forEach((node, id) => {
+            const parts = [];
+            let cursor = node;
+            let guard = 0;
+            while (cursor && guard < 64) {
+                parts.unshift(cursor.name);
+                cursor = byId.get(cursor.parentId);
+                guard += 1;
+            }
+            paths.set(id, parts.join(' / '));
+        });
+        return { byId, children, paths };
+    }
+
+    function cardOrderSettings(config, workspace, category) {
+        const key = scopedKey(workspace, category);
+        const orderMap = config?.customOrder?.[key] && typeof config.customOrder[key] === 'object' ? config.customOrder[key] : {};
+        const orderList = Array.isArray(config?.categoryOrderByWorkspace?.[workspace]) ? config.categoryOrderByWorkspace[workspace] : (Array.isArray(config?.categoryOrder) ? config.categoryOrder : []);
+        return {
+            scopedKey: key,
+            customOrderMap: orderMap,
+            customOrderEnabled: asArray(config?.customOrderEnabled).includes(key),
+            customOrderSort: text(config?.customOrderSort?.[key], 'none'),
+            cardOrderIndex: orderList.map((item) => text(item, 'Unsorted')).indexOf(category) + 1 || null,
+            taskModeEnabled: !(asArray(config?.hideStatsScoped).includes(key) || asArray(config?.hideStats).includes(category))
+        };
+    }
+
+    function orderNumber(orderMap, linkId, fallback) {
+        const raw = orderMap?.[text(linkId, '')];
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function sortLinksForCard(links, settings) {
+        const sorted = (Array.isArray(links) ? links : []).slice();
+        if (!['asc', 'desc'].includes(settings.customOrderSort)) return sorted;
+        const reverse = settings.customOrderSort === 'desc' ? -1 : 1;
+        return sorted.sort((a, b) => reverse * (orderNumber(settings.customOrderMap, a?.id, 999999) - orderNumber(settings.customOrderMap, b?.id, 999999)) || text(a?.title, '').localeCompare(text(b?.title, '')));
+    }
+
+    function systemViewHints(links, linkToEntry, identifierDefs, limit) {
+        const views = { withCovers: [], withAdditionalCovers: [], missingCovers: [], libraryLinked: [], done: [], pending: [], withRelatedUrls: [] };
+        links.forEach((link) => {
+            const compact = bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs });
+            const small = { id: compact.id, title: compact.title, url: compact.urls.primary, bookmarkIdentifiers: compact.bookmarkIdentifiers, card: compact.card, covers: compact.covers, status: compact.status, done: compact.done };
+            (small.covers.hasCover ? views.withCovers : views.missingCovers).push(small);
+            if (small.covers.hasAdditionalCovers) views.withAdditionalCovers.push(small);
+            if (compact.library.linked) views.libraryLinked.push(small);
+            (compact.done ? views.done : views.pending).push(small);
+            if (compact.relatedUrls.length) views.withRelatedUrls.push(small);
+        });
+        return Object.fromEntries(Object.entries(views).map(([name, items]) => [name, { count: items.length, samples: items.slice(0, limit) }]));
+    }
+
+    function buildStructuredScope(state, limit, scope, detail = 'summary') {
+        const links = getLinks(state);
+        const config = getConfig(state);
+        const folders = state?.bookmarks?.folders || {};
+        const categories = state?.library?.categories || {};
+        const connections = state?.library?.connections || [];
+        const { linkToEntry } = buildLibraryIndexes(categories, connections);
+        const identifierDefs = identifierDefinitions(state);
+        const pins = pinLookup(state);
+        const byCard = new Map();
+        links.forEach((link) => {
+            const key = scopedKey(link?.workspace, link?.category);
+            if (!byCard.has(key)) byCard.set(key, []);
+            byCard.get(key).push(link);
+        });
+        let remaining = detail === 'complete' ? Math.min(180, Math.max(limit, limit * 4)) : Math.min(60, limit);
+        const cards = [];
+        byCard.forEach((cardLinks, key) => {
+            if (cards.length >= 80 || remaining <= 0) return;
+            const parsed = splitScopedKey(key);
+            const settings = cardOrderSettings(config, parsed.workspace, parsed.category);
+            const ordered = sortLinksForCard(cardLinks, settings);
+            const maps = folderMaps(folders[key] || {});
+            const linksByFolder = new Map();
+            ordered.forEach((link, index) => {
+                if (remaining <= 0) return;
+                const id = text(link?.id, '');
+                const folderId = text(link?.folderId, '');
+                const view = bookmarkContext(link, linkToEntry[id], { identifierDefs, pin: pins.bookmarkPins.get(id), orderNumber: orderNumber(settings.customOrderMap, id, index + 1), sourceIndex: index + 1, folderPath: maps.paths.get(folderId) || '' });
+                if (!linksByFolder.has(folderId)) linksByFolder.set(folderId, []);
+                linksByFolder.get(folderId).push(view);
+                remaining -= 1;
+            });
+            function buildFolder(node) {
+                const direct = linksByFolder.get(node.id) || [];
+                return { id: node.id, name: node.name, path: maps.paths.get(node.id) || node.name, taskMode: node.taskMode, clickBehaviorMode: node.clickBehaviorMode, pinned: pins.folderPins.has(`${parsed.workspace}::${parsed.category}::${node.id}`), bookmarks: direct, folders: (maps.children.get(node.id) || []).map(buildFolder) };
+            }
+            cards.push({
+                workspace: parsed.workspace,
+                cardName: parsed.category,
+                cardCategoryName: parsed.category,
+                scopedKey: key,
+                note: 'cardName/cardCategoryName is the EveOS card container; bookmarkIdentifiers on each bookmark are the user-facing category/marker pills.',
+                settings,
+                pinned: pins.cardPins.has(key),
+                pin: pins.cardPins.get(key) || null,
+                bookmarkCount: cardLinks.length,
+                rootBookmarks: linksByFolder.get('') || [],
+                detachedBookmarks: Array.from(linksByFolder.entries()).filter(([folderId]) => folderId && !maps.byId.has(folderId)).flatMap(([, items]) => items),
+                folders: (maps.children.get('') || []).map(buildFolder)
+            });
+        });
+        return { cards, systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(20, limit)), truncated: remaining <= 0, bookmarkBudget: detail === 'complete' ? Math.min(180, Math.max(limit, limit * 4)) : Math.min(60, limit) };
+    }
+
     function summarizeState(state, limit, scope) {
         const links = getLinks(state);
         const categories = state?.library?.categories || {};
         const connections = state?.library?.connections || [];
         const folders = state?.bookmarks?.folders || {};
         const { linkToEntry } = buildLibraryIndexes(categories, connections);
+        const identifierDefs = identifierDefinitions(state);
         const byWorkspace = {};
         const byCard = {};
         links.forEach((link) => {
@@ -312,8 +552,11 @@ window.EveDataStore = window.EveDataStore || {};
                     }
                 }
             },
+            structuredScope: buildStructuredScope(state, limit, scope, 'summary'),
+
             samples: {
-                bookmarks: links.slice(0, limit).map((link) => bookmarkContext(link, linkToEntry[text(link?.id, '')])),
+
+                bookmarks: links.slice(0, limit).map((link) => bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs })),
                 folders: Object.entries(folders).slice(0, limit).map(([key, tree]) => ({
                     scopedKey: key,
                     folderCount: countFolders(tree)
@@ -330,7 +573,16 @@ window.EveDataStore = window.EveDataStore || {};
         const safeLimit = Math.max(5, Math.min(200, Number(limit) || 25));
         const scope = normalizeScopeOptions(state, options?.scope || options);
         const scopedState = filterStateForScope(state, scope);
-        const payload = safeMode === 'full' ? scopedState : summarizeState(scopedState, safeLimit, scope);
+        const payload = safeMode === 'full' ? {
+            kind: 'eveos_scoped_context_snapshot',
+            generatedAt: new Date().toISOString(),
+            scope,
+            note: 'Complete scoped snapshot is compact and structured. It intentionally excludes raw config/knowledge dumps to avoid Gemini Live context overflow.',
+            counts: summarizeState(scopedState, safeLimit, scope).counts,
+            breakdown: summarizeState(scopedState, safeLimit, scope).breakdown,
+            structuredScope: buildStructuredScope(scopedState, safeLimit, scope, 'complete'),
+            localFallback: true
+        } : summarizeState(scopedState, safeLimit, scope);
         const header = safeMode === 'full'
             ? '[SYSTEM CONTEXT: EveOS in-browser scoped state snapshot follows as JSON. Use it as reference context.]'
             : '[SYSTEM CONTEXT: EveOS in-browser scoped state summary follows as JSON. Use it as reference context.]';

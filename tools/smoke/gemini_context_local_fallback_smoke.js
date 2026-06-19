@@ -24,7 +24,11 @@ const context = {
             bookmarks: {
               config: {
                 activeWorkspace: 'main',
-                workspaces: [{ id: 'main', name: 'Main', subTabs: [] }]
+                workspaces: [{ id: 'main', name: 'Main', subTabs: [] }],
+                bookmarkIdentifiers: [
+                  { id: 'listening', label: 'Listening', description: 'Audio marker' },
+                  { id: 'reading', label: 'Reading', description: 'Reading marker' }
+                ]
               },
               links: [
                 {
@@ -35,7 +39,9 @@ const context = {
                   category: 'Test',
                   notes: 'Alpha note',
                   tags: ['Context'],
-                  chapter: '12'
+                  chapter: '12',
+                  identifiers: ['listening'],
+                  relatedUrls: [{ url: 'https://mirror.alpha.test' }]
                 },
                 {
                   id: 'b1',
@@ -114,6 +120,24 @@ function assert(condition, message) {
   assert(!message.includes('Beta'), 'unselected card leaked into fallback context');
   assert(message.includes('Alpha note'), 'bookmark notes missing');
   assert(message.includes('Alpha Library'), 'library link context missing');
+  assert(message.includes('Listening'), 'bookmark identifier label missing');
+  assert(message.includes('bookmarkIdentifiers'), 'bookmark identifiers block missing');
+  assert(message.includes('cardName') && message.includes('Test'), 'card container context missing');
+  assert(message.includes('mirror.alpha.test'), 'related URL context missing');
+
+  const full = api.buildLocalGeminiContext('full', 20, {
+    scope: {
+      scope: 'card',
+      workspaceId: 'main',
+      workspaceIds: ['main'],
+      categoryName: 'Test',
+      label: 'Specific card'
+    }
+  });
+  assert(full.ok && full.payload.kind === 'eveos_scoped_context_snapshot', 'full fallback should use structured snapshot');
+  assert(!full.contextText.includes('"bookmarks": {\n    "links"'), 'full fallback should not send raw bookmarks state');
+  assert(full.contextText.includes('Listening'), 'full fallback should include bookmark identifier label');
+  assert(!full.contextText.includes('Beta'), 'full fallback leaked unselected card');
 
   console.log('GEMINI_CONTEXT_LOCAL_FALLBACK_SMOKE_OK');
 })().catch((error) => {

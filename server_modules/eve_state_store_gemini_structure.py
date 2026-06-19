@@ -82,6 +82,12 @@ def _summary_aliases(entry):
     return [value for value in dict.fromkeys(aliases) if value][:12]
 
 
+def _bookmark_identifiers(link):
+    ids = list(dict.fromkeys(_summary_text(item) for item in _summary_list((link or {}).get("identifiers")) if _summary_text(item)))[:20]
+    labels = [_DEFAULT_IDENTIFIER_LABELS.get(item, item) for item in ids]
+    return {"ids": ids, "labels": labels, "note": "Bookmark identifiers are the user-facing category/marker pills; cardCategory is only the card container."}
+
+
 def _folder_nodes(tree):
     if isinstance(tree, dict):
         return list(tree.get("nodes") or tree.get("folders") or [])
@@ -236,10 +242,12 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
         },
         "relatedUrls": related_urls,
         "workspace": (link or {}).get("workspace") or "main",
-        "category": category,
+        "category": {"type": "card-container", "name": category, "note": "Not the bookmark identifier marker."},
         "cardCategory": category,
         "folderId": (link or {}).get("folderId") or "",
         "folderPath": folder_path,
+        "location": {"workspace": (link or {}).get("workspace") or "main", "cardName": category, "cardCategoryName": category, "folderId": (link or {}).get("folderId") or "", "folderPath": folder_path},
+        "bookmarkIdentifiers": _bookmark_identifiers(link),
         "done": bool((link or {}).get("done")),
         "taskStatus": "Done" if (link or {}).get("done") else "Pending",
         "pinned": bool(pin_ref or (link or {}).get("pinned")),
@@ -374,7 +382,9 @@ def _compact_bookmark_for_view(link, linked_entry=None):
         "title": (link or {}).get("title"),
         "url": (link or {}).get("url"),
         "workspace": (link or {}).get("workspace") or "main",
-        "category": (link or {}).get("category") or "Unsorted",
+        "category": {"type": "card-container", "name": (link or {}).get("category") or "Unsorted"},
+        "cardCategory": (link or {}).get("category") or "Unsorted",
+        "bookmarkIdentifiers": _bookmark_identifiers(link),
         "folderId": (link or {}).get("folderId") or "",
         "status": _summary_first(linked_entry or {}, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
         "done": bool((link or {}).get("done")),
