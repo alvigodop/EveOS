@@ -1,6 +1,28 @@
 (function () {
     'use strict';
 
+    function markCredentialRefreshInProgress() {
+        try {
+            localStorage.setItem('geminiServerDesiredState', 'running');
+            localStorage.setItem('geminiConnectionEnabled', 'true');
+            localStorage.removeItem('geminiServerManualStopAt');
+        } catch (error) {
+            // Runtime state below still keeps the current browser honest.
+        }
+
+        const state = window.SocketGlobalState;
+        if (!state) return;
+        state.credentialRequired = false;
+        state.apiPolicyBlocked = false;
+        state.apiKeyInvalid = false;
+        state.geminiApiReady = false;
+        state.autoReconnectEnabled = true;
+        state.serverOfflinePauseActive = false;
+        state.reconnectAttempts = 0;
+        state.lastReconnectPauseNoticeAt = 0;
+        state.lastCredentialSavedAt = Date.now();
+    }
+
     async function saveCredentials(apiKey) {
         const normalizedKey = String(apiKey || '').trim();
         if (!normalizedKey) {
@@ -25,13 +47,10 @@
             // The secure vault is now the durable source; restricted storage should not block reconnect.
         }
 
+        markCredentialRefreshInProgress();
         if (window.SocketGlobalState) {
-            window.SocketGlobalState.credentialRequired = false;
-            window.SocketGlobalState.apiPolicyBlocked = false;
-            window.SocketGlobalState.apiKeyInvalid = false;
-            window.SocketGlobalState.geminiApiReady = false;
-            window.SocketGlobalState.reconnectAttempts = 0;
             window.SocketGlobalState.resetState?.();
+            markCredentialRefreshInProgress();
         }
         if (window.webSocket && window.webSocket.readyState < WebSocket.CLOSING) {
             try {
@@ -42,6 +61,7 @@
         }
         window.setTimeout(function () {
             control.reconcileClientConnection?.();
+            window.SocketConnectionCore?.startAutoReconnect?.();
         }, 250);
         window.dispatchEvent(new CustomEvent('eve:gemini-credentials-saved', {
             detail: { configured: true }

@@ -37,6 +37,12 @@ async function main() {
                 this.values.delete(key);
             }
         },
+        CustomEvent: class CustomEvent {
+            constructor(type, options = {}) {
+                this.type = type;
+                this.detail = options.detail;
+            }
+        },
         updateConnectionStatus(status, message) {
             statuses.push({ status, message });
         },
@@ -45,6 +51,9 @@ async function main() {
         },
     };
     context.window = context;
+    context.window.dispatchEvent = function (event) {
+        messages.push(`event:${event.type}`);
+    };
     context.window.SocketGlobalState = {
         APPLICATION_PONG_MESSAGE: 'pong',
         credentialRequired: false,
@@ -55,12 +64,22 @@ async function main() {
         serverOfflinePauseActive: false,
         reconnectTimeout: setTimeout(() => {}, 5000),
         continuousReconnectInterval: setTimeout(() => {}, 5000),
+        resetState() {
+            this.credentialRequired = false;
+            this.apiPolicyBlocked = false;
+            this.apiKeyInvalid = false;
+            this.geminiApiReady = false;
+        },
     };
     context.window.SocketConnectionCore = { EventHandlers: {} };
+    context.window.SocketConnectionCore.startAutoReconnect = function () {
+        context.window.SocketGlobalState.autoReconnectStarted = true;
+    };
     vm.createContext(context);
 
     loadScript(context, 'js/modules/gemini/client/connection_management/socket_core/socketMessageRouter.js');
     loadScript(context, 'js/modules/gemini/client/connection_management/socket_core/scc/eh/closeEventHandler.js');
+    loadScript(context, 'js/modules/gemini/server_control/geminiCredentialWorkflow.js');
 
     await context.window.handleSocketMessage({
         data: JSON.stringify({
@@ -91,6 +110,49 @@ async function main() {
     const lastStatus = statuses[statuses.length - 1] || {};
     if (lastStatus.message !== 'API Key Invalid') {
         throw new Error(`Close handler did not preserve invalid-key status: ${JSON.stringify(statuses)}`);
+    }
+
+    let syncedKey = '';
+    context.window.GeminiServerControl = {
+        async syncCredentials(options) {
+            syncedKey = String(options?.apiKey || '');
+            return { ok: true, configured: !!syncedKey };
+        },
+        reconcileClientConnection() {
+            context.window.SocketGlobalState.reconciled = true;
+        }
+    };
+    await context.window.GeminiCredentialWorkflow.saveCredentials('FAKE_TEST_KEY_DO_NOT_USE');
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    if (syncedKey !== 'FAKE_TEST_KEY_DO_NOT_USE') {
+        throw new Error('Credential workflow did not forward the new key to the credential bridge.');
+    }
+    if (context.localStorage.getItem('geminiConnectionEnabled') !== 'true'
+        || context.localStorage.getItem('geminiServerDesiredState') !== 'running') {
+        throw new Error('Credential save did not restore desired running/reconnect preferences.');
+    }
+    const cleared = context.window.SocketGlobalState;
+    if (cleared.credentialRequired || cleared.apiPolicyBlocked || cleared.apiKeyInvalid || !cleared.autoReconnectEnabled || cleared.serverOfflinePauseActive) {
+        throw new Error(`Credential save did not clear the invalid-key gate: ${JSON.stringify(cleared)}`);
+    }
+    if (!cleared.reconciled || !cleared.autoReconnectStarted) {
+        throw new Error(`Credential save did not request a fresh reconnect: ${JSON.stringify(cleared)}`);
+    }
+
+    const currentSocket = {};
+    const staleSocket = {};
+    context.window.webSocket = currentSocket;
+    await context.window.handleSocketMessage({
+        target: staleSocket,
+        data: JSON.stringify({
+            text: 'Error connecting to Gemini API: api key not valid. please pass a valid api key.',
+            is_system_message: true,
+            is_error: true,
+        })
+    });
+    if (context.window.SocketGlobalState.apiKeyInvalid || context.window.SocketGlobalState.credentialRequired) {
+        throw new Error('Stale socket invalid-key message re-poisoned the fresh credential state.');
     }
 
     console.log('GEMINI_INVALID_API_KEY_GATE_SMOKE_OK');

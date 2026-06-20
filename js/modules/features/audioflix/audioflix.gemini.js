@@ -6,6 +6,10 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
     if (ns.ready) return;
 
     let lastEvent = null;
+    let monitorContext = null;
+    let monitorNextStart = 0;
+    let monitorSinkApplied = '';
+    let monitorLastAt = 0;
 
     function getState() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -17,6 +21,58 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
 
     function announce(type, detail) {
         window.dispatchEvent(new CustomEvent(type, { detail }));
+    }
+
+    async function ensureMonitorContext() {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) return null;
+        const state = getState();
+        if (!monitorContext || monitorContext.state === 'closed') {
+            monitorContext = new AudioContextCtor({ sampleRate: 24000 });
+            monitorNextStart = 0;
+            monitorSinkApplied = '';
+        }
+        if (state.geminiVoiceMonitorSinkId
+            && typeof monitorContext.setSinkId === 'function'
+            && monitorSinkApplied !== state.geminiVoiceMonitorSinkId) {
+            await monitorContext.setSinkId(state.geminiVoiceMonitorSinkId);
+            monitorSinkApplied = state.geminiVoiceMonitorSinkId;
+        }
+        if (monitorContext.state === 'suspended') await monitorContext.resume();
+        return monitorContext;
+    }
+
+    function decodePcm(base64Audio) {
+        if (typeof window.base64ToArrayBuffer === 'function') return window.base64ToArrayBuffer(base64Audio);
+        const binary = atob(base64Audio);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+    }
+
+    async function mirrorAudioChunk(base64Audio, detail = {}) {
+        const state = getState();
+        if (state.geminiVoicePortEnabled !== true || state.geminiVoiceMonitorEnabled === false || !base64Audio) return false;
+        if (state.preferredSinkId && state.geminiVoiceMonitorSinkId === state.preferredSinkId) return false;
+        const context = await ensureMonitorContext();
+        if (!context || typeof window.createAudioBufferFromPCM !== 'function') return false;
+        const buffer = window.createAudioBufferFromPCM(decodePcm(base64Audio), context);
+        if (!buffer) return false;
+
+        const source = context.createBufferSource();
+        const gain = context.createGain();
+        gain.gain.value = Math.max(0, Math.min(1, Number(state.geminiVoiceMonitorVolume ?? 0.75) || 0.75));
+        source.buffer = buffer;
+        source.connect(gain);
+        gain.connect(context.destination);
+
+        const idle = Date.now() - monitorLastAt > 2500;
+        const headroom = idle || detail.kind === 'complete' ? 0.08 : 0.02;
+        const startAt = Math.max(monitorNextStart || 0, context.currentTime + headroom);
+        source.start(startAt);
+        monitorNextStart = startAt + buffer.duration;
+        monitorLastAt = Date.now();
+        return true;
     }
 
     // Route the Gemini voice AudioContext to the selected output sink (e.g. VB-CABLE)
@@ -65,6 +121,19 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
         return state.geminiVoicePortEnabled;
     }
 
+    function setMonitorEnabled(enabled) {
+        return update({ geminiVoiceMonitorEnabled: enabled !== false }, 'audioflix-gemini-monitor').geminiVoiceMonitorEnabled;
+    }
+
+    function setMonitorSink(deviceId, label) {
+        const state = update({
+            geminiVoiceMonitorSinkId: String(deviceId || ''),
+            geminiVoiceMonitorSinkLabel: String(label || '').trim()
+        }, 'audioflix-gemini-monitor-sink');
+        monitorSinkApplied = '';
+        return state.geminiVoiceMonitorSinkLabel || 'Default monitor output';
+    }
+
     function setConversationMode(mode) {
         const normalized = mode === 'text-brain-live-voice' ? 'text-brain-live-voice' : 'direct-live';
         const state = update({ geminiConversationMode: normalized }, 'audioflix-gemini-mode');
@@ -91,12 +160,17 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
     Object.assign(ns, {
         ready: true,
         setVoicePortEnabled,
+        setMonitorEnabled,
+        setMonitorSink,
         setConversationMode,
         applyVoiceSink,
+        mirrorAudioChunk,
         getStatus: function () {
             const state = getState();
             return {
                 voicePortEnabled: state.geminiVoicePortEnabled === true,
+                voiceMonitorEnabled: state.geminiVoiceMonitorEnabled !== false,
+                voiceMonitorSink: state.geminiVoiceMonitorSinkLabel || 'Default monitor output',
                 conversationMode: state.geminiConversationMode || 'direct-live',
                 lastEvent,
                 browserRoute: state.preferredSinkLabel || state.routeMode || 'browser'

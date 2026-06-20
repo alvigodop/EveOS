@@ -112,6 +112,14 @@ console.log("socketAudioLogic.js loading...");
         if (shouldAutoPlay && typeof injestAudioChuckToPlay === 'function') {
             if (audioData) {
                 console.log(`Auto-playing ${isInterimAudio ? 'interim' : 'complete'} audio chunk`);
+                try {
+                    await window.EveAudioflixGemini?.mirrorAudioChunk?.(audioData, {
+                        kind: isCompleteAudio ? 'complete' : 'interim',
+                        sequential: isSequential
+                    });
+                } catch (monitorError) {
+                    console.warn('[socketAudioLogic] Gemini monitor mirror skipped:', monitorError);
+                }
                 await playWithRecovery(audioData, isCompleteAudio);
             } else {
                 console.warn("[socketAudioLogic] shouldAutoPlay is true but audioData is missing/empty.");

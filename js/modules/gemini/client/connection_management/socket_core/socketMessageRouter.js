@@ -27,6 +27,11 @@ console.log("socketMessageRouter.js loading...");
         }
     }
 
+    function isMessageFromStaleSocket(event) {
+        const source = event?.currentTarget || event?.target || null;
+        return !!source && !!window.webSocket && source !== window.webSocket;
+    }
+
     async function handleSocketMessage(event) {
         try {
             const data = JSON.parse(event.data);
@@ -69,6 +74,10 @@ console.log("socketMessageRouter.js loading...");
                 const messageText = String(data.text || '').trim();
                 if (data.is_system_message
                     && /(api key not valid|invalid api key|please pass a valid api key)/i.test(messageText)) {
+                    if (isMessageFromStaleSocket(event)) {
+                        console.warn('[Gemini] Ignoring invalid-key message from a stale socket after credential refresh.');
+                        return;
+                    }
                     State.apiPolicyBlocked = false;
                     State.apiKeyInvalid = true;
                     pauseReconnectForCredentialError('API Key Invalid');

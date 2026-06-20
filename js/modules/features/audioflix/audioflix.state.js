@@ -19,6 +19,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         preferredSinkId: '',
         preferredSinkLabel: '',
         geminiVoicePortEnabled: false,
+        geminiVoiceMonitorEnabled: true,
+        geminiVoiceMonitorSinkId: '',
+        geminiVoiceMonitorSinkLabel: '',
+        geminiVoiceMonitorVolume: 0.75,
         geminiConversationMode: 'direct-live',
         soundboard: [],
         music: [],
@@ -98,6 +102,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             preferredSinkId: text(source.preferredSinkId, ''),
             preferredSinkLabel: text(source.preferredSinkLabel, ''),
             geminiVoicePortEnabled: bool(source.geminiVoicePortEnabled),
+            geminiVoiceMonitorEnabled: source.geminiVoiceMonitorEnabled !== false,
+            geminiVoiceMonitorSinkId: text(source.geminiVoiceMonitorSinkId, ''),
+            geminiVoiceMonitorSinkLabel: text(source.geminiVoiceMonitorSinkLabel, ''),
+            geminiVoiceMonitorVolume: Math.max(0, Math.min(1, Number(source.geminiVoiceMonitorVolume ?? 0.75) || 0.75)),
             geminiConversationMode: source.geminiConversationMode === 'text-brain-live-voice'
                 ? 'text-brain-live-voice'
                 : 'direct-live',

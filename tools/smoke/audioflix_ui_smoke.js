@@ -47,6 +47,8 @@ async function main() {
     const result = await page.evaluate(() => {
         const snapshot = window.EveAudioflixState.getSnapshot();
         window.EveAudioflixGemini.setVoicePortEnabled(true);
+        window.EveAudioflixGemini.setMonitorEnabled(true);
+        window.EveAudioflixGemini.setMonitorSink('monitor-smoke-device', 'Smoke Monitor Speakers');
         window.EveAudioflixGemini.setConversationMode('text-brain-live-voice');
         window.dispatchEvent(new CustomEvent('eve:gemini-audio-output', {
             detail: { kind: 'complete', chars: 24, at: Date.now() }
@@ -57,9 +59,12 @@ async function main() {
             soundCount: snapshot.soundboard.length,
             musicCount: snapshot.music.length,
             voicePortEnabled: updated.geminiVoicePortEnabled,
+            voiceMonitorEnabled: updated.geminiVoiceMonitorEnabled,
+            voiceMonitorLabel: updated.geminiVoiceMonitorSinkLabel,
             mode: updated.geminiConversationMode,
             routedEvents: updated.counters.routedGeminiEvents,
             hasRouterNotes: /CABLE/i.test(document.querySelector('.audioflix-content')?.textContent || ''),
+            hasMonitorCard: /Local Monitor/i.test(document.querySelector('.audioflix-status-grid')?.textContent || ''),
             hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
             presetFallback: /CABLE Input not visible|Gemini voice port armed/.test(document.querySelector('.audioflix-player span')?.textContent || ''),
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
@@ -71,9 +76,12 @@ async function main() {
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);
     if (result.musicCount !== 1) failures.push(`expected 1 track, got ${result.musicCount}`);
     if (!result.voicePortEnabled) failures.push('Gemini voice port did not persist');
+    if (!result.voiceMonitorEnabled) failures.push('Gemini voice monitor did not persist');
+    if (result.voiceMonitorLabel !== 'Smoke Monitor Speakers') failures.push(`wrong monitor label: ${result.voiceMonitorLabel}`);
     if (result.mode !== 'text-brain-live-voice') failures.push(`wrong mode: ${result.mode}`);
     if (result.routedEvents < 1) failures.push('Gemini audio event not recorded');
     if (!result.hasRouterNotes) failures.push('router notes missing');
+    if (!result.hasMonitorCard) failures.push('Local Monitor card missing');
     if (!result.hasBananaPreset) failures.push('Banana preset button missing');
     if (!result.presetFallback) failures.push('Banana preset action did not update status');
     if (result.buttonExpanded !== 'true') failures.push('topbar aria-expanded not updated');

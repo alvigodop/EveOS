@@ -45,9 +45,16 @@ window.EveAudioflix = window.EveAudioflix || {};
             if (form) handleForm(form);
         });
         overlay.addEventListener('change', async function (event) {
-            const select = event.target.closest('[data-af-control="output-select"]');
+            const select = event.target.closest('[data-af-control]');
             if (!select) return;
-            try { await window.EveAudioflixAudio?.setOutputById?.(select.value, select.selectedOptions[0]?.textContent || ''); }
+            const label = select.selectedOptions[0]?.textContent || '';
+            try {
+                if (select.dataset.afControl === 'monitor-output-select') {
+                    window.EveAudioflixGemini?.setMonitorSink?.(select.value, label);
+                } else if (select.dataset.afControl === 'output-select') {
+                    await window.EveAudioflixAudio?.setOutputById?.(select.value, label);
+                }
+            }
             catch (error) { playbackStatus = error.message || 'Output selection failed'; }
             rerender();
         });
@@ -128,6 +135,8 @@ window.EveAudioflix = window.EveAudioflix || {};
             ? 'Browser output picker available.'
             : 'Output picker unavailable here; use system mixer or launch through Chromium/Edge.';
         const voicePortClass = snapshot.geminiVoicePortEnabled ? 'is-on' : '';
+        const monitorOn = snapshot.geminiVoiceMonitorEnabled !== false;
+        const monitorLabel = snapshot.geminiVoiceMonitorSinkLabel || 'Default monitor output';
         return `<section class="audioflix-status-grid">
             <article class="audioflix-status-card">
                 <span>Output Router</span>
@@ -144,6 +153,17 @@ window.EveAudioflix = window.EveAudioflix || {};
                 <strong>${snapshot.geminiVoicePortEnabled ? 'VB-CABLE path armed' : 'Local playback only'}</strong>
                 <p>Route browser output into VB-CABLE/Voicemeeter, then pick that virtual cable as your game mic.</p>
                 <button data-af-action="toggle-gemini-port">${snapshot.geminiVoicePortEnabled ? 'Disable Port' : 'Arm Voice Port'}</button>
+            </article>
+            <article class="audioflix-status-card ${monitorOn ? 'is-on' : ''}">
+                <span>Local Monitor</span>
+                <strong>${monitorOn ? esc(monitorLabel) : 'Monitor muted'}</strong>
+                <p>Mirrors Gemini voice to your real speakers while CABLE Input feeds the mic route.</p>
+                <div class="audioflix-output-picker">
+                    <select data-af-control="monitor-output-select" aria-label="Gemini monitor output device">
+                        <option value="">Loading devicesâ€¦</option>
+                    </select>
+                </div>
+                <button data-af-action="toggle-gemini-monitor">${monitorOn ? 'Mute Monitor' : 'Hear Monitor'}</button>
             </article>
             <article class="audioflix-status-card">
                 <span>Conversation Mode</span>
@@ -232,6 +252,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                 <ol>
                     <li>You already have <strong>Stereo Input 2 = CABLE Output</strong> — that's where Gemini's voice arrives. ✓</li>
                     <li>On that strip, light up the bus your game reads: <strong>B1</strong> to mix with your real mic (Stereo Input 1 is already on B1), or keep <strong>B2</strong> to send Gemini alone.</li>
+                    <li>To hear Gemini too, light <strong>A1</strong> or <strong>A2</strong> on Stereo Input 2, or set Audioflix <strong>Local Monitor</strong> to your real speakers.</li>
                 </ol>
             </article>
             <article>
@@ -250,7 +271,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         overlay.innerHTML = renderPanel();
         const canvas = overlay.querySelector('#audioflix-waveform');
         window.EveAudioflixAudio?.attachWaveform?.(canvas);
-        populateOutputs();
+        populateOutputSelectors();
     }
 
     // Fill the Output Router <select> with the available audio output devices.
@@ -269,6 +290,28 @@ window.EveAudioflix = window.EveAudioflix || {};
         );
         select.innerHTML = options.join('');
         select.value = current;
+    }
+
+    async function populateOutputSelectors() {
+        if (typeof window.EveAudioflixAudio?.listOutputs !== 'function') return;
+        const devices = await window.EveAudioflixAudio.listOutputs();
+        const snapshot = state();
+        const entries = [
+            { selector: '[data-af-control="output-select"]', current: snapshot.preferredSinkId || '' },
+            { selector: '[data-af-control="monitor-output-select"]', current: snapshot.geminiVoiceMonitorSinkId || '' }
+        ];
+        entries.forEach(function (entry) {
+            const select = overlay?.querySelector(entry.selector);
+            if (!select) return;
+            if (!devices.length) {
+                select.innerHTML = `<option value="">No device list (grant mic permission once, or use Pick via Browser)</option>`;
+                return;
+            }
+            select.innerHTML = [`<option value="">Default output</option>`].concat(
+                devices.map((d) => `<option value="${esc(d.deviceId)}">${esc(d.label)}</option>`)
+            ).join('');
+            select.value = entry.current;
+        });
     }
 
     function findItem(type, itemId) {
@@ -326,6 +369,11 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
         if (action === 'toggle-gemini-port') {
             window.EveAudioflixGemini?.setVoicePortEnabled?.(!state().geminiVoicePortEnabled);
+            rerender();
+            return;
+        }
+        if (action === 'toggle-gemini-monitor') {
+            window.EveAudioflixGemini?.setMonitorEnabled?.(state().geminiVoiceMonitorEnabled === false);
             rerender();
             return;
         }

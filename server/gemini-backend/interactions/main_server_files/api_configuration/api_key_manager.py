@@ -7,19 +7,12 @@ import os
 import sys
 from pathlib import Path
 
-# Default API key - Note: This can be set via GOOGLE_API_KEY environment variable. 
-# If empty, the server will rely on the client providing a key or an environment variable being set.
+# Default API key - Note: This can be set via GOOGLE_API_KEY environment variable.
+# If empty, the server will rely on the saved credential vault or an environment variable being set.
 DEFAULT_API_KEY = ""
 
-def get_api_key():
-    """
-    Get the API key for Gemini services.
-    Prioritizes environment variable GOOGLE_API_KEY.
-    """
-    environment_key = os.environ.get("GOOGLE_API_KEY", DEFAULT_API_KEY)
-    if environment_key:
-        return environment_key
-
+def load_vault_api_key():
+    """Load the locally saved EveOS Gemini key without exposing it to the browser."""
     try:
         project_root = Path(__file__).resolve().parents[5]
         if str(project_root) not in sys.path:
@@ -27,7 +20,23 @@ def get_api_key():
         from server_modules.gemini_credentials import load_api_key
         return load_api_key()
     except (ImportError, OSError, ValueError):
-        return DEFAULT_API_KEY
+        return ""
+
+
+def get_api_key():
+    """
+    Get the API key for Gemini services.
+    Prioritizes the local credential vault saved by EveOS Session Controls.
+    """
+    vault_key = load_vault_api_key()
+    if vault_key:
+        return vault_key
+
+    environment_key = os.environ.get("GOOGLE_API_KEY", DEFAULT_API_KEY)
+    if environment_key:
+        return environment_key
+
+    return DEFAULT_API_KEY
 
 
 def persist_api_key(api_key):
