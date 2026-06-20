@@ -25,6 +25,10 @@ async function main() {
                 selectAudioOutput: async () => ({ deviceId: 'speakers-output', label: 'Smoke Speakers' })
             }
         });
+        Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText: async (text) => { window.__audioflixCopiedText = text; } }
+        });
         Object.defineProperty(HTMLMediaElement.prototype, 'setSinkId', {
             configurable: true,
             value: async function (deviceId) {
@@ -40,6 +44,10 @@ async function main() {
 
     await page.click('.topbar-audioflix-btn');
     await page.waitForSelector('#audioflix-overlay:not([hidden]) .audioflix-panel', { timeout: 10000 });
+    const drawerInitiallyCollapsed = await page.evaluate(() => {
+        const drawer = document.querySelector('.audioflix-routing-drawer');
+        return !!drawer && !drawer.classList.contains('is-open') && !document.querySelector('.audioflix-route-board');
+    });
 
     await page.fill('form[data-af-form="sound"] input[name="title"]', 'Smoke Chime');
     await page.fill('form[data-af-form="sound"] input[name="url"]', 'https://example.com/smoke-chime.mp3');
@@ -55,6 +63,8 @@ async function main() {
     await page.click('form[data-af-form="music"] button[type="submit"]');
 
     await page.click('[data-af-action="tab"][data-af-tab="router"]');
+    await page.click('[data-af-action="toggle-routing-drawer"]');
+    await page.waitForSelector('.audioflix-routing-drawer.is-open .audioflix-route-board', { timeout: 10000 });
     await page.click('[data-af-action="arm-cable"]');
     await page.waitForFunction(() => {
         const status = document.querySelector('.audioflix-player span')?.textContent || '';
@@ -64,6 +74,10 @@ async function main() {
         const options = [...(document.querySelector('[data-af-control="monitor-output-select"]')?.options || [])];
         return options.some((option) => option.value === 'cable-output' && option.disabled);
     }, undefined, { timeout: 10000 });
+    await page.click('[data-af-action="copy-route-status"]');
+    await page.waitForFunction(() => /Audioflix Routing Status/.test(window.__audioflixCopiedText || ''), undefined, {
+        timeout: 10000
+    });
     await page.evaluate(() => {
         window.EveAudioflixGemini.setMonitorEnabled(true);
         window.EveAudioflixGemini.setMonitorSink('monitor-smoke-device', 'Smoke Monitor Speakers');
@@ -97,10 +111,16 @@ async function main() {
             routedEvents: updated.counters.routedGeminiEvents,
             hasRouterNotes: /CABLE/i.test(document.querySelector('.audioflix-content')?.textContent || ''),
             hasRouteBoard: /Gemini Voice/.test(document.querySelector('.audioflix-route-board')?.textContent || ''),
+            drawerExpanded: document.querySelector('.audioflix-routing-drawer')?.classList.contains('is-open'),
+            hasRouteHealth: /Output routing/.test(document.querySelector('.audioflix-route-health')?.textContent || ''),
+            routeActions: [...document.querySelectorAll('.audioflix-route-actions [data-af-action]')]
+                .map((button) => button.dataset.afAction).join(','),
+            hasTestSignal: typeof window.EveAudioflixAudio.playTestSignal === 'function',
             hasMonitorCard: /Local Monitor/i.test(document.querySelector('.audioflix-status-grid')?.textContent || ''),
             monitorBlocksCable,
             hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
-            presetFallback: /CABLE Input not visible|Gemini voice port armed/.test(document.querySelector('.audioflix-player span')?.textContent || ''),
+            presetApplied: /CABLE Input/.test(updated.preferredSinkLabel || ''),
+            copiedRouteStatus: /Output Router/.test(window.__audioflixCopiedText || ''),
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
         };
     });
@@ -114,6 +134,7 @@ async function main() {
     }));
 
     const failures = [];
+    if (!drawerInitiallyCollapsed) failures.push('routing drawer was not collapsed by default');
     if (!result.hasOverlay) failures.push('overlay not visible');
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);
     if (result.musicCount !== 1) failures.push(`expected 1 track, got ${result.musicCount}`);
@@ -123,12 +144,17 @@ async function main() {
     if (result.mode !== 'text-brain-live-voice') failures.push(`wrong mode: ${result.mode}`);
     if (result.routedEvents < 1) failures.push('Gemini audio event not recorded');
     if (!result.hasRouterNotes) failures.push('router notes missing');
+    if (!result.drawerExpanded) failures.push('routing drawer did not expand');
     if (!result.hasRouteBoard) failures.push('route board missing');
+    if (!result.hasRouteHealth) failures.push('route health row missing');
+    if (!/local-only/.test(result.routeActions) || !/test-signal/.test(result.routeActions) || !/copy-route-status/.test(result.routeActions)) failures.push(`route actions incomplete: ${result.routeActions}`);
+    if (!result.hasTestSignal) failures.push('test signal helper missing');
+    if (!result.copiedRouteStatus) failures.push('copy route status did not write useful text');
     if (!result.hasMonitorCard) failures.push('Local Monitor card missing');
     if (!result.monitorBlocksCable) failures.push('Local Monitor did not block the Voice Port CABLE sink');
     if (clearResult.routedEvents !== 0 || !/0 Gemini events/.test(clearResult.headerText)) failures.push('Gemini event counter did not clear through UI');
     if (!result.hasBananaPreset) failures.push('Banana preset button missing');
-    if (!result.presetFallback) failures.push('Banana preset action did not update status');
+    if (!result.presetApplied) failures.push('Banana preset did not select CABLE Input');
     if (result.buttonExpanded !== 'true') failures.push('topbar aria-expanded not updated');
     if (pageErrors.length) failures.push(`page errors: ${pageErrors.join('\n')}`);
 

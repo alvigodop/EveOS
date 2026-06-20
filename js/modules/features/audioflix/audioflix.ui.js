@@ -8,6 +8,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     let overlay = null;
     let activeTab = 'soundboard';
     let playbackStatus = 'Idle';
+    let routingOpen = false;
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -139,70 +140,6 @@ window.EveAudioflix = window.EveAudioflix || {};
         </form>`;
     }
 
-    function renderStatusCards(snapshot) {
-        const audioStatus = window.EveAudioflixAudio?.getStatus?.() || {};
-        const geminiStatus = window.EveAudioflixGemini?.getStatus?.() || {};
-        const mode2Tokens = window.EveGeminiMode2?.getTokenTotals?.() || null;
-        const routeLabel = snapshot.preferredSinkLabel || (audioStatus.hasSetSinkId ? 'Default browser output' : 'Default output');
-        const routeHint = audioStatus.hasOutputPicker
-            ? 'Browser output picker available.'
-            : 'Output picker unavailable here; use system mixer or launch through Chromium/Edge.';
-        const voicePortClass = snapshot.geminiVoicePortEnabled ? 'is-on' : '';
-        const monitorOn = snapshot.geminiVoiceMonitorEnabled !== false;
-        const monitorLabel = snapshot.geminiVoiceMonitorSinkLabel || 'Default monitor output';
-        return `<section class="audioflix-route-board" aria-label="Gemini voice route">
-            <div class="audioflix-route-node"><span>Gemini Voice</span><strong>${snapshot.geminiVoicePortEnabled ? 'Port armed' : 'Local only'}</strong></div>
-            <div class="audioflix-route-arrow">-&gt;</div>
-            <div class="audioflix-route-node ${snapshot.geminiVoicePortEnabled ? 'is-hot' : ''}"><span>Output Sink</span><strong>${esc(routeLabel)}</strong></div>
-            <div class="audioflix-route-arrow">-&gt;</div>
-            <div class="audioflix-route-node"><span>Voicemeeter</span><strong>B1/B2 virtual mic</strong></div>
-            <div class="audioflix-route-monitor"><span>Listen locally</span><strong>${monitorOn ? esc(monitorLabel) : 'Muted'}</strong></div>
-        </section>
-        <section class="audioflix-status-grid">
-            <article class="audioflix-status-card">
-                <span>Output Router</span>
-                <strong>${esc(routeLabel)}</strong>
-                <p>Primary sink for Gemini voice. Pick CABLE Input to feed the virtual mic route.</p>
-                <div class="audioflix-output-picker">
-                    <select data-af-control="output-select" aria-label="Audio output device">
-                        <option value="">Loading devices…</option>
-                    </select>
-                </div>
-                <button data-af-action="select-output">Pick via Browser…</button>
-            </article>
-            <article class="audioflix-status-card ${voicePortClass}">
-                <span>Gemini Voice Port</span>
-                <strong>${snapshot.geminiVoicePortEnabled ? 'VB-CABLE path armed' : 'Local playback only'}</strong>
-                <p>Route browser output into VB-CABLE/Voicemeeter, then pick that virtual cable as your game mic.</p>
-                <button data-af-action="toggle-gemini-port">${snapshot.geminiVoicePortEnabled ? 'Disable Port' : 'Arm Voice Port'}</button>
-            </article>
-            <article class="audioflix-status-card ${monitorOn ? 'is-on' : ''}">
-                <span>Local Monitor</span>
-                <strong>${monitorOn ? esc(monitorLabel) : 'Monitor muted'}</strong>
-                <p>Mirrors Gemini voice to real speakers/headphones while CABLE Input feeds the mic route.</p>
-                <div class="audioflix-output-picker">
-                    <select data-af-control="monitor-output-select" aria-label="Gemini monitor output device">
-                        <option value="">Loading devicesâ€¦</option>
-                    </select>
-                </div>
-                <button data-af-action="toggle-gemini-monitor">${monitorOn ? 'Mute Monitor' : 'Hear Monitor'}</button>
-            </article>
-            <article class="audioflix-status-card">
-                <span>Conversation Mode</span>
-                <strong>${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Text Brain → Live Voice' : 'Direct Live'}</strong>
-                <p>${mode2Tokens?.calls
-                    ? `Text brain: ${mode2Tokens.textBrain.total} tokens across ${mode2Tokens.calls} call${mode2Tokens.calls === 1 ? '' : 's'}.`
-                    : 'Mode 2 uses the longer-context text model to drive the live voice model.'}</p>
-                <button data-af-action="toggle-gemini-mode">${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Use Direct Live' : 'Use Mode 2'}</button>
-            </article>
-            <article class="audioflix-status-card">
-                <span>Signal</span>
-                <strong>${esc(playbackStatus)}</strong>
-                <p>${esc(geminiStatus.lastEvent ? `Gemini audio seen: ${new Date(geminiStatus.lastEvent.at).toLocaleTimeString()}` : 'Waiting for local or Gemini playback.')}</p>
-            </article>
-        </section>`;
-    }
-
     function renderPanel() {
         const snapshot = state();
         const musicCount = snapshot.music?.length || 0;
@@ -211,7 +148,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const tabBody = activeTab === 'music'
             ? `${renderForm('music')}${renderItems(snapshot.music || [], 'music')}`
             : activeTab === 'router'
-                ? renderRouter(snapshot)
+                ? (window.EveAudioflixRouting?.renderRouter?.(snapshot) || '')
                 : `${renderForm('sound')}${renderItems(snapshot.soundboard || [], 'sound')}`;
         return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title">
             <header class="audioflix-header">
@@ -226,67 +163,42 @@ window.EveAudioflix = window.EveAudioflix || {};
                     <button data-af-action="close" aria-label="Close Audioflix">×</button>
                 </div>
             </header>
-            ${renderStatusCards(snapshot)}
-            <section class="audioflix-player">
-                <div>
-                    <strong>Waveform</strong>
-                    <span>${esc(playbackStatus)}</span>
-                </div>
-                <canvas id="audioflix-waveform" height="90"></canvas>
-                <button data-af-action="pause">Pause</button>
-            </section>
             <nav class="audioflix-tabs" aria-label="Audioflix sections">
                 ${tabButton('soundboard', 'Soundboard')}
                 ${tabButton('music', 'Music Library')}
                 ${tabButton('router', 'Routing Notes')}
             </nav>
+            ${renderRoutingDrawer(snapshot)}
             <div class="audioflix-content">${tabBody}</div>
         </div>`;
     }
 
-    function tabButton(tab, label) {
-        return `<button class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
+    function renderRoutingDrawer(snapshot) {
+        const routeLabel = snapshot.preferredSinkLabel || 'Default browser output';
+        const stateLabel = snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback';
+        return `<section class="audioflix-routing-drawer ${routingOpen ? 'is-open' : ''}">
+            <button class="audioflix-routing-summary" data-af-action="toggle-routing-drawer" aria-expanded="${routingOpen ? 'true' : 'false'}">
+                <span>Gemini / Voice Port</span>
+                <strong>${esc(stateLabel)}</strong>
+                <em>${esc(routeLabel)}</em>
+                <b>${routingOpen ? 'Collapse' : 'Open routing'}</b>
+            </button>
+            ${routingOpen ? `<div class="audioflix-routing-body">
+                ${window.EveAudioflixRouting?.renderStatusCards?.(snapshot, playbackStatus) || ''}
+                <section class="audioflix-player">
+                    <div>
+                        <strong>Waveform</strong>
+                        <span>${esc(playbackStatus)}</span>
+                    </div>
+                    <canvas id="audioflix-waveform" height="90"></canvas>
+                    <button data-af-action="pause">Pause</button>
+                </section>
+            </div>` : ''}
+        </section>`;
     }
 
-    function renderRouter(snapshot) {
-        const armed = snapshot.geminiVoicePortEnabled;
-        const onCable = /cable input/i.test(snapshot.preferredSinkLabel || '');
-        const presetDone = armed && onCable;
-        return `<div class="audioflix-vbcable-preset ${presetDone ? 'is-done' : ''}">
-            <div class="audioflix-vbcable-copy">
-                <h3>🍌 Voicemeeter Banana — One-Click EveOS Setup</h3>
-                <p>${presetDone
-                    ? 'EveOS side is set: Gemini\'s voice is routed to <strong>CABLE Input</strong> and the port is <strong>armed ✓</strong>. Finish the Voicemeeter side below.'
-                    : 'One click routes Gemini\'s voice to <strong>CABLE Input</strong> and arms the voice port. Then do the Voicemeeter side below.'}</p>
-            </div>
-            <button data-af-action="arm-cable">${presetDone ? 'Re-apply CABLE Input + Arm' : 'Apply: CABLE Input + Arm'}</button>
-        </div>
-        <div class="audioflix-router-notes">
-            <article>
-                <h3>1 · In Audioflix</h3>
-                <ol>
-                    <li>Pick <strong>CABLE Input (VB-Audio Virtual Cable)</strong> in <strong>Output Router</strong> (or use the one-click button above).</li>
-                    <li>Click <strong>Arm Voice Port</strong> (status: <strong>${armed ? 'armed ✓' : 'not armed'}</strong>).</li>
-                </ol>
-                <p>Saved output: <strong>${esc(snapshot.preferredSinkLabel || 'default')}</strong>. Open EveOS on <code>localhost</code> in Chrome/Edge (not <code>file://</code>); grant the mic once so device names show.</p>
-            </article>
-            <article>
-                <h3>2 · In Voicemeeter Banana</h3>
-                <ol>
-                    <li>You already have <strong>Stereo Input 2 = CABLE Output</strong> — that's where Gemini's voice arrives. ✓</li>
-                    <li>On that strip, light up the bus your game reads: <strong>B1</strong> to mix with your real mic (Stereo Input 1 is already on B1), or keep <strong>B2</strong> to send Gemini alone.</li>
-                    <li>To hear Gemini too, light <strong>A1</strong> or <strong>A2</strong> on Stereo Input 2, or set Audioflix <strong>Local Monitor</strong> to your real speakers.</li>
-                </ol>
-            </article>
-            <article>
-                <h3>3 · In the game / app</h3>
-                <ol>
-                    <li>Set the microphone to <strong>Voicemeeter Out ${'B1'}</strong> (VAIO) if you used B1, or <strong>Voicemeeter Out B2</strong> (AUX) if you kept B2.</li>
-                    <li>Keep Gemini's own mic input on your real <strong>Microphone Array</strong> — never a Voicemeeter Out (that would feed back).</li>
-                </ol>
-                <p>Need more buses? Upgrade Banana → <strong>Voicemeeter Potato</strong> (B1/B2/B3 + 5 virtual inputs).</p>
-            </article>
-        </div>`;
+    function tabButton(tab, label) {
+        return `<button class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
     }
 
     function rerender() {
@@ -294,49 +206,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         overlay.innerHTML = renderPanel();
         const canvas = overlay.querySelector('#audioflix-waveform');
         window.EveAudioflixAudio?.attachWaveform?.(canvas);
-        populateOutputSelectors();
-    }
-
-    // Fill the Output Router <select> with the available audio output devices.
-    // Async (enumerateDevices); leaves the static fallback option if unavailable.
-    async function populateOutputs() {
-        const select = overlay?.querySelector('[data-af-control="output-select"]');
-        if (!select || typeof window.EveAudioflixAudio?.listOutputs !== 'function') return;
-        const devices = await window.EveAudioflixAudio.listOutputs();
-        const current = state().preferredSinkId || '';
-        if (!devices.length) {
-            select.innerHTML = `<option value="">No device list (grant mic permission once, or use “Pick via Browser…”)</option>`;
-            return;
-        }
-        const options = [`<option value="">Default output</option>`].concat(
-            devices.map((d) => `<option value="${esc(d.deviceId)}"${d.deviceId === current ? ' selected' : ''}>${esc(d.label)}</option>`)
-        );
-        select.innerHTML = options.join('');
-        select.value = current;
-    }
-
-    async function populateOutputSelectors() {
-        if (typeof window.EveAudioflixAudio?.listOutputs !== 'function') return;
-        const devices = await window.EveAudioflixAudio.listOutputs();
-        const snapshot = state();
-        const entries = [
-            { selector: '[data-af-control="output-select"]', current: snapshot.preferredSinkId || '' },
-            { selector: '[data-af-control="monitor-output-select"]', current: snapshot.geminiVoiceMonitorSinkId || '', blocked: snapshot.preferredSinkId || '' }
-        ];
-        entries.forEach(function (entry) {
-            const select = overlay?.querySelector(entry.selector);
-            if (!select) return;
-            if (!devices.length) {
-                select.innerHTML = `<option value="">No device list (grant mic permission once, or use Pick via Browser)</option>`;
-                return;
-            }
-            select.innerHTML = [`<option value="">Default output</option>`].concat(devices.map((d) => {
-                const blocked = entry.blocked && d.deviceId === entry.blocked;
-                const label = blocked ? `${d.label || 'Output device'} (Voice Port route)` : d.label;
-                return `<option value="${esc(d.deviceId)}"${blocked ? ' disabled' : ''}>${esc(label)}</option>`;
-            })).join('');
-            select.value = entry.current && entry.current !== entry.blocked ? entry.current : '';
-        });
+        window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
     }
 
     function findItem(type, itemId) {
@@ -349,6 +219,11 @@ window.EveAudioflix = window.EveAudioflix || {};
         const action = actionTarget.dataset.afAction;
         if (action === 'tab') {
             activeTab = actionTarget.dataset.afTab || 'soundboard';
+            rerender();
+            return;
+        }
+        if (action === 'toggle-routing-drawer') {
+            routingOpen = !routingOpen;
             rerender();
             return;
         }
@@ -374,10 +249,18 @@ window.EveAudioflix = window.EveAudioflix || {};
             rerender();
             return;
         }
+        if (action === 'local-only') {
+            window.EveAudioflixGemini?.setVoicePortEnabled?.(false);
+            window.EveAudioflixGemini?.setMonitorEnabled?.(true);
+            playbackStatus = 'Local only mode active';
+            rerender();
+            return;
+        }
         if (action === 'arm-cable') {
             try {
                 const devices = await window.EveAudioflixAudio?.listOutputs?.() || [];
-                const cable = devices.find((device) => /(?:cable input|vb-audio virtual cable|vb-cable)/i.test(device.label || ''));
+                const cable = await window.EveAudioflixRouting?.findCableDevice?.()
+                    || devices.find((device) => /(?:cable input|vb-audio virtual cable|vb-cable)/i.test(device.label || ''));
                 if (!cable) {
                     playbackStatus = 'CABLE Input not visible yet. Grant mic permission once, then reopen Audioflix.';
                     rerender();
@@ -388,6 +271,26 @@ window.EveAudioflix = window.EveAudioflix || {};
                 playbackStatus = `Gemini voice port armed through ${cable.label || 'CABLE Input'}`;
             } catch (error) {
                 playbackStatus = error.message || 'CABLE Input preset failed';
+            }
+            rerender();
+            return;
+        }
+        if (action === 'test-signal') {
+            try {
+                await window.EveAudioflixAudio?.playTestSignal?.();
+                playbackStatus = 'Playing Audioflix test signal';
+            } catch (error) {
+                playbackStatus = error.message || 'Test signal failed';
+            }
+            rerender();
+            return;
+        }
+        if (action === 'copy-route-status') {
+            try {
+                await window.EveAudioflixRouting?.copyRouteStatus?.(playbackStatus);
+                playbackStatus = 'Routing status copied';
+            } catch (error) {
+                playbackStatus = error.message || 'Copy status failed';
             }
             rerender();
             return;

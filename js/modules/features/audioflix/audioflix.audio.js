@@ -187,6 +187,52 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         return true;
     }
 
+    function makeToneUrl() {
+        const sampleRate = 24000;
+        const seconds = 0.55;
+        const samples = Math.floor(sampleRate * seconds);
+        const bytes = new ArrayBuffer(44 + samples * 2);
+        const view = new DataView(bytes);
+        function write(offset, text) {
+            for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
+        }
+        write(0, 'RIFF');
+        view.setUint32(4, 36 + samples * 2, true);
+        write(8, 'WAVEfmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        write(36, 'data');
+        view.setUint32(40, samples * 2, true);
+        for (let i = 0; i < samples; i += 1) {
+            const t = i / sampleRate;
+            const fade = Math.min(1, i / 900, (samples - i) / 900);
+            const value = Math.sin(2 * Math.PI * 880 * t) * 0.28 * fade;
+            view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, value)) * 32767, true);
+        }
+        return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+    }
+
+    async function playTestSignal() {
+        const url = makeToneUrl();
+        try {
+            await playItem({
+                id: 'audioflix-test-signal',
+                type: 'sound',
+                title: 'Audioflix test signal',
+                url,
+                volume: 0.62
+            });
+            return true;
+        } finally {
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+    }
+
     function pause() {
         ensureAudio().pause();
     }
@@ -204,6 +250,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         selectOutput,
         listOutputs,
         setOutputById,
+        playTestSignal,
         applySink,
         attachWaveform,
         getAudioElement: ensureAudio,

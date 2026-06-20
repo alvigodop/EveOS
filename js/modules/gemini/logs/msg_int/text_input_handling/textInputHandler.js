@@ -58,9 +58,12 @@ function initializeTextInputHandlers() {
                 console.error("displayMessage function not found in textInputHandler");
             }
 
-            // Send message to server
-            // sendTextMessage is expected to be globally available
-            if (typeof window.sendTextMessage === 'function') {
+            // Mode 2 is text-only: route plain typed turns through the long-context
+            // text brain, then let Live speak the brain's reply. Image attachments
+            // still go direct so the live multimodal path can see them.
+            if (!hasAttachments && window.EveGeminiMode2?.isMode2?.()) {
+                window.EveGeminiMode2.relayUserUtterance(text);
+            } else if (typeof window.sendTextMessage === 'function') {
                 window.sendTextMessage(text || 'Please analyze the attached image.', false, { attachments });
             } else {
                 console.error("sendTextMessage function not found in textInputHandler");
