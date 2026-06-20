@@ -36,6 +36,35 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         ];
     }
 
+    function nextStep(snapshot, audioStatus) {
+        if (!audioStatus.hasSetSinkId) {
+            return {
+                state: 'manual',
+                title: 'Use Windows mixer routing',
+                body: 'This browser cannot directly pick an output sink here. Use Windows volume mixer to route the EveOS browser to CABLE Input.'
+            };
+        }
+        if (!isCableLabel(snapshot.preferredSinkLabel)) {
+            return {
+                state: 'warn',
+                title: 'Pick CABLE Input',
+                body: 'Set Output Router to CABLE Input, then Voicemeeter can expose that audio as B1/B2 for your target app mic.'
+            };
+        }
+        if (snapshot.geminiVoicePortEnabled !== true) {
+            return {
+                state: 'manual',
+                title: 'Arm Voice Port',
+                body: 'CABLE Input is selected. Arm the port so Gemini playback is treated as a mic-route signal instead of normal local playback.'
+            };
+        }
+        return {
+            state: 'ready',
+            title: 'Route is ready',
+            body: 'Use Test Route to verify signal, then select Voicemeeter Out B1/B2 as the microphone in the target app.'
+        };
+    }
+
     function renderHealth(snapshot, audioStatus) {
         return `<div class="audioflix-route-health">
             ${healthItems(snapshot, audioStatus).map((item) => `<span class="audioflix-health-${item.state}">
@@ -51,6 +80,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         const label = routeLabel(snapshot, audioStatus);
         const monitorOn = snapshot.geminiVoiceMonitorEnabled !== false;
         const monitorLabel = snapshot.geminiVoiceMonitorSinkLabel || 'Default monitor output';
+        const guidance = nextStep(snapshot, audioStatus);
         return `<section class="audioflix-route-board" aria-label="Gemini voice route">
             <div class="audioflix-route-node"><span>Gemini Voice</span><strong>${snapshot.geminiVoicePortEnabled ? 'Port armed' : 'Local only'}</strong></div>
             <div class="audioflix-route-arrow">-&gt;</div>
@@ -58,12 +88,17 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             <div class="audioflix-route-arrow">-&gt;</div>
             <div class="audioflix-route-node"><span>Voicemeeter</span><strong>B1/B2 virtual mic</strong></div>
             <div class="audioflix-route-monitor"><span>Listen locally</span><strong>${monitorOn ? esc(monitorLabel) : 'Muted'}</strong></div>
+            <div class="audioflix-route-guide audioflix-health-${guidance.state}">
+                <span>Next useful action</span>
+                <strong>${esc(guidance.title)}</strong>
+                <p>${esc(guidance.body)}</p>
+            </div>
             ${renderHealth(snapshot, audioStatus)}
             <div class="audioflix-route-actions">
-                <button data-af-action="local-only">Local Only</button>
-                <button data-af-action="arm-cable">Voice Port</button>
-                <button data-af-action="test-signal">Test Signal</button>
-                <button data-af-action="copy-route-status">Copy Status</button>
+                <button data-af-action="local-only">Local Playback</button>
+                <button data-af-action="arm-cable">Auto CABLE + Arm</button>
+                <button data-af-action="test-signal">Test Route</button>
+                <button data-af-action="copy-route-status">Copy Route</button>
             </div>
         </section>
         <section class="audioflix-status-grid">
@@ -198,6 +233,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             `[Conversation Mode] ${snapshot.geminiConversationMode || 'direct-live'}`,
             `[Signal] ${playbackStatus || 'Idle'}`,
             `[Last Gemini Audio] ${geminiStatus.lastEvent ? new Date(geminiStatus.lastEvent.at).toLocaleString() : 'none'}`,
+            `[Next Step] ${nextStep(snapshot, audioStatus).title}`,
             '',
             'Target app mic path: CABLE Output -> Voicemeeter strip -> B1/B2 -> target app microphone.'
         ].join('\n');

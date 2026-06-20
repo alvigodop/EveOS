@@ -133,11 +133,46 @@
 }
 
 .audioflix-route-health,
-.audioflix-route-actions {
+.audioflix-route-actions,
+.audioflix-route-guide {
     grid-column: 1 / -1;
+}
+
+.audioflix-route-health,
+.audioflix-route-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+}
+
+.audioflix-route-guide {
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    background:
+        linear-gradient(135deg, rgba(0, 212, 255, 0.08), rgba(255, 202, 95, 0.05)),
+        rgba(0, 0, 0, 0.18);
+}
+
+.audioflix-route-guide span {
+    display: block;
+    margin-bottom: 5px;
+    color: rgba(255, 202, 95, 0.86);
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.audioflix-route-guide strong {
+    display: block;
+    color: #f7fbff;
+    font-size: 0.98rem;
+}
+
+.audioflix-route-guide p {
+    margin: 5px 0 0;
+    color: rgba(234, 242, 246, 0.72);
+    line-height: 1.45;
 }
 
 .audioflix-route-health {
