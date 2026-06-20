@@ -39,6 +39,11 @@ async function main() {
     await page.click('form[data-af-form="music"] button[type="submit"]');
 
     await page.click('[data-af-action="tab"][data-af-tab="router"]');
+    await page.click('[data-af-action="arm-cable"]');
+    await page.waitForFunction(() => {
+        const status = document.querySelector('.audioflix-player span')?.textContent || '';
+        return /CABLE Input not visible|Gemini voice port armed/.test(status);
+    }, undefined, { timeout: 10000 });
     const result = await page.evaluate(() => {
         const snapshot = window.EveAudioflixState.getSnapshot();
         window.EveAudioflixGemini.setVoicePortEnabled(true);
@@ -55,6 +60,8 @@ async function main() {
             mode: updated.geminiConversationMode,
             routedEvents: updated.counters.routedGeminiEvents,
             hasRouterNotes: /CABLE/i.test(document.querySelector('.audioflix-content')?.textContent || ''),
+            hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
+            presetFallback: /CABLE Input not visible|Gemini voice port armed/.test(document.querySelector('.audioflix-player span')?.textContent || ''),
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
         };
     });
@@ -67,6 +74,8 @@ async function main() {
     if (result.mode !== 'text-brain-live-voice') failures.push(`wrong mode: ${result.mode}`);
     if (result.routedEvents < 1) failures.push('Gemini audio event not recorded');
     if (!result.hasRouterNotes) failures.push('router notes missing');
+    if (!result.hasBananaPreset) failures.push('Banana preset button missing');
+    if (!result.presetFallback) failures.push('Banana preset action did not update status');
     if (result.buttonExpanded !== 'true') failures.push('topbar aria-expanded not updated');
     if (pageErrors.length) failures.push(`page errors: ${pageErrors.join('\n')}`);
 

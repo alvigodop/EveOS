@@ -122,6 +122,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     function renderStatusCards(snapshot) {
         const audioStatus = window.EveAudioflixAudio?.getStatus?.() || {};
         const geminiStatus = window.EveAudioflixGemini?.getStatus?.() || {};
+        const mode2Tokens = window.EveGeminiMode2?.getTokenTotals?.() || null;
         const routeLabel = snapshot.preferredSinkLabel || (audioStatus.hasSetSinkId ? 'Default browser output' : 'Default output');
         const routeHint = audioStatus.hasOutputPicker
             ? 'Browser output picker available.'
@@ -147,7 +148,9 @@ window.EveAudioflix = window.EveAudioflix || {};
             <article class="audioflix-status-card">
                 <span>Conversation Mode</span>
                 <strong>${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Text Brain → Live Voice' : 'Direct Live'}</strong>
-                <p>Mode 2 is staged for the longer-context text model driving the live voice model.</p>
+                <p>${mode2Tokens?.calls
+                    ? `Text brain: ${mode2Tokens.textBrain.total} tokens across ${mode2Tokens.calls} call${mode2Tokens.calls === 1 ? '' : 's'}.`
+                    : 'Mode 2 uses the longer-context text model to drive the live voice model.'}</p>
                 <button data-af-action="toggle-gemini-mode">${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Use Direct Live' : 'Use Mode 2'}</button>
             </article>
             <article class="audioflix-status-card">
@@ -204,28 +207,38 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     function renderRouter(snapshot) {
         const armed = snapshot.geminiVoicePortEnabled;
-        return `<div class="audioflix-router-notes">
+        const onCable = /cable input/i.test(snapshot.preferredSinkLabel || '');
+        const presetDone = armed && onCable;
+        return `<div class="audioflix-vbcable-preset ${presetDone ? 'is-done' : ''}">
+            <div class="audioflix-vbcable-copy">
+                <h3>🍌 Voicemeeter Banana — One-Click EveOS Setup</h3>
+                <p>${presetDone
+                    ? 'EveOS side is set: Gemini\'s voice is routed to <strong>CABLE Input</strong> and the port is <strong>armed ✓</strong>. Finish the Voicemeeter side below.'
+                    : 'One click routes Gemini\'s voice to <strong>CABLE Input</strong> and arms the voice port. Then do the Voicemeeter side below.'}</p>
+            </div>
+            <button data-af-action="arm-cable">${presetDone ? 'Re-apply CABLE Input + Arm' : 'Apply: CABLE Input + Arm'}</button>
+        </div>
+        <div class="audioflix-router-notes">
             <article>
                 <h3>1 · In Audioflix</h3>
                 <ol>
-                    <li>Open <strong>Output Router</strong> and select <strong>CABLE Input (VB-Audio Virtual Cable)</strong> from the dropdown.</li>
-                    <li>Click <strong>Arm Voice Port</strong> so Gemini's voice is routed to that cable (status: <strong>${armed ? 'armed ✓' : 'not armed'}</strong>).</li>
+                    <li>Pick <strong>CABLE Input (VB-Audio Virtual Cable)</strong> in <strong>Output Router</strong> (or use the one-click button above).</li>
+                    <li>Click <strong>Arm Voice Port</strong> (status: <strong>${armed ? 'armed ✓' : 'not armed'}</strong>).</li>
                 </ol>
-                <p>Saved output: <strong>${esc(snapshot.preferredSinkLabel || 'default')}</strong>. Runs on <code>localhost</code>/Chromium (not <code>file://</code>).</p>
+                <p>Saved output: <strong>${esc(snapshot.preferredSinkLabel || 'default')}</strong>. Open EveOS on <code>localhost</code> in Chrome/Edge (not <code>file://</code>); grant the mic once so device names show.</p>
             </article>
             <article>
                 <h3>2 · In Voicemeeter Banana</h3>
                 <ol>
-                    <li>Under <strong>Hardware Input</strong>, pick <strong>CABLE Output (VB-Audio Virtual Cable)</strong>.</li>
-                    <li>On that strip, enable bus <strong>B1</strong> (the virtual mic). Add your real mic to <strong>B1</strong> too if you want both.</li>
-                    <li>Use <strong>B2</strong> for soundboard-to-yourself (monitor only, not sent to the game mic).</li>
+                    <li>You already have <strong>Stereo Input 2 = CABLE Output</strong> — that's where Gemini's voice arrives. ✓</li>
+                    <li>On that strip, light up the bus your game reads: <strong>B1</strong> to mix with your real mic (Stereo Input 1 is already on B1), or keep <strong>B2</strong> to send Gemini alone.</li>
                 </ol>
             </article>
             <article>
                 <h3>3 · In the game / app</h3>
                 <ol>
-                    <li>Set the microphone to <strong>Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)</strong>.</li>
-                    <li>Gemini's voice (and any B1 soundboard clip) now arrives as your mic — even in-game.</li>
+                    <li>Set the microphone to <strong>Voicemeeter Out ${'B1'}</strong> (VAIO) if you used B1, or <strong>Voicemeeter Out B2</strong> (AUX) if you kept B2.</li>
+                    <li>Keep Gemini's own mic input on your real <strong>Microphone Array</strong> — never a Voicemeeter Out (that would feed back).</li>
                 </ol>
                 <p>Need more buses? Upgrade Banana → <strong>Voicemeeter Potato</strong> (B1/B2/B3 + 5 virtual inputs).</p>
             </article>
@@ -293,6 +306,24 @@ window.EveAudioflix = window.EveAudioflix || {};
             rerender();
             return;
         }
+        if (action === 'arm-cable') {
+            try {
+                const devices = await window.EveAudioflixAudio?.listOutputs?.() || [];
+                const cable = devices.find((device) => /(?:cable input|vb-audio virtual cable|vb-cable)/i.test(device.label || ''));
+                if (!cable) {
+                    playbackStatus = 'CABLE Input not visible yet. Grant mic permission once, then reopen Audioflix.';
+                    rerender();
+                    return;
+                }
+                await window.EveAudioflixAudio?.setOutputById?.(cable.deviceId, cable.label || 'CABLE Input');
+                window.EveAudioflixGemini?.setVoicePortEnabled?.(true);
+                playbackStatus = `Gemini voice port armed through ${cable.label || 'CABLE Input'}`;
+            } catch (error) {
+                playbackStatus = error.message || 'CABLE Input preset failed';
+            }
+            rerender();
+            return;
+        }
         if (action === 'toggle-gemini-port') {
             window.EveAudioflixGemini?.setVoicePortEnabled?.(!state().geminiVoicePortEnabled);
             rerender();
@@ -343,6 +374,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     });
     window.addEventListener('eve:audioflix-state-changed', rerender);
     window.addEventListener('eve:audioflix-gemini-audio-seen', rerender);
+    window.addEventListener('eve:mode2-tokens', rerender);
 
     document.addEventListener('DOMContentLoaded', function () {
         if (window.__eveAudioflixOpenPending) {

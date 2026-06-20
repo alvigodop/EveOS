@@ -158,6 +158,13 @@ if (!window.AudioProcessingControlsAgentic.SpeechRecognitionHandler) {
                 window.displayMessage("YOU: " + text);
             }
 
+            // Mode 2 (Text Brain -> Live Voice): route the utterance through the text
+            // brain first; it speaks the brain's reply. Falls back to direct-live inside.
+            if (window.EveGeminiMode2?.isMode2?.()) {
+                window.EveGeminiMode2.relayUserUtterance(text);
+                return;
+            }
+
             if (typeof window.sendTextMessage === 'function') {
                 window.sendTextMessage(text);
                 return;

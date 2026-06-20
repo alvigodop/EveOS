@@ -41,7 +41,14 @@ async def route_message(data, session, connection_monitor, audio_processor, conn
             }
             await connection_monitor.safe_send(json.dumps(pong_response))
             return True
-            
+
+        # *** MODE 2: TEXT-BRAIN RELAY (additive; does not touch the live audio loop) ***
+        elif message_type == "text_brain_request":
+            print("Received Mode 2 text_brain_request")
+            from ...text_brain.text_brain_handler import handle_text_brain_request
+            await handle_text_brain_request(data, connection_monitor)
+            return True
+
         # *** COMMAND MESSAGE HANDLING ***
         elif message_type in ["command", "action", "request"]:
             print(f"Processing typed command: {data.get('command', data.get('action', 'unknown'))}")

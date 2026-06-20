@@ -239,4 +239,40 @@ TRANSCRIPTION_CONFIG = {
 }
 
 # Alias MODEL to MAIN_MODEL for backward compatibility
-MODEL = MAIN_MODEL 
+MODEL = MAIN_MODEL
+
+# ---------------------------------------------------------------------------
+# Mode 2 (Text Brain -> Live Voice) configuration
+# ---------------------------------------------------------------------------
+# The "text brain" is a large-context text model that holds the grand EveOS
+# conversation history/context and produces the line the live voice model speaks.
+# gemini-2.0-flash carries a 1M-token context window - far more retention than the
+# live audio session - which is exactly why Mode 2 offloads memory to it.
+TEXT_BRAIN_MODEL = "gemini-2.0-flash"
+
+TEXT_BRAIN_CONFIG = {
+    "temperature": 0.8,
+    "top_k": 40,
+    "top_p": 0.95,
+    "max_output_tokens": 2048,
+}
+
+# System instruction for the text brain. It reasons over the full history/context
+# and returns ONLY the spoken reply (the live model will voice it verbatim).
+TEXT_BRAIN_SYSTEM_PREFIX = (
+    "You are the reasoning 'brain' behind a live voice assistant inside EveOS. "
+    "You receive the full conversation history and EveOS context. Think it through, "
+    "then output ONLY the final spoken reply - natural, conversational, first-person, "
+    "with no stage directions, no markdown, and no meta commentary. A separate live "
+    "voice model will speak your reply to the user verbatim, so write exactly what "
+    "should be said aloud."
+)
+
+# Recommended system instruction for the LIVE model when Mode 2 is active. The client
+# normally sets this in the Session Control system-instruction field; provided here for
+# reference and reuse.
+MODE2_LIVE_SYSTEM_INSTRUCTION = (
+    "You are a faithful text-to-speech voice. Speak the exact text you are given, "
+    "naturally and verbatim. Do not add words, do not answer, do not reason - only "
+    "voice the provided text."
+)
