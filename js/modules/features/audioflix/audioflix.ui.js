@@ -48,11 +48,24 @@ window.EveAudioflix = window.EveAudioflix || {};
             const select = event.target.closest('[data-af-control]');
             if (!select) return;
             const label = select.selectedOptions[0]?.textContent || '';
+            const value = select.value || '';
+            select.blur();
             try {
                 if (select.dataset.afControl === 'monitor-output-select') {
-                    window.EveAudioflixGemini?.setMonitorSink?.(select.value, label);
+                    const snapshot = state();
+                    if (value && snapshot.preferredSinkId && value === snapshot.preferredSinkId) {
+                        window.EveAudioflixGemini?.setMonitorSink?.('', 'Default monitor output');
+                        playbackStatus = 'Monitor reset to default output; use speakers/headphones, not the CABLE route.';
+                    } else {
+                        window.EveAudioflixGemini?.setMonitorSink?.(value, label);
+                    }
                 } else if (select.dataset.afControl === 'output-select') {
-                    await window.EveAudioflixAudio?.setOutputById?.(select.value, label);
+                    await window.EveAudioflixAudio?.setOutputById?.(value, label);
+                    const snapshot = state();
+                    if (value && snapshot.geminiVoiceMonitorSinkId === value) {
+                        window.EveAudioflixGemini?.setMonitorSink?.('', 'Default monitor output');
+                        playbackStatus = 'Voice Port changed; Local Monitor reset so it does not share the CABLE route.';
+                    }
                 }
             }
             catch (error) { playbackStatus = error.message || 'Output selection failed'; }
@@ -137,10 +150,19 @@ window.EveAudioflix = window.EveAudioflix || {};
         const voicePortClass = snapshot.geminiVoicePortEnabled ? 'is-on' : '';
         const monitorOn = snapshot.geminiVoiceMonitorEnabled !== false;
         const monitorLabel = snapshot.geminiVoiceMonitorSinkLabel || 'Default monitor output';
-        return `<section class="audioflix-status-grid">
+        return `<section class="audioflix-route-board" aria-label="Gemini voice route">
+            <div class="audioflix-route-node"><span>Gemini Voice</span><strong>${snapshot.geminiVoicePortEnabled ? 'Port armed' : 'Local only'}</strong></div>
+            <div class="audioflix-route-arrow">-&gt;</div>
+            <div class="audioflix-route-node ${snapshot.geminiVoicePortEnabled ? 'is-hot' : ''}"><span>Output Sink</span><strong>${esc(routeLabel)}</strong></div>
+            <div class="audioflix-route-arrow">-&gt;</div>
+            <div class="audioflix-route-node"><span>Voicemeeter</span><strong>B1/B2 virtual mic</strong></div>
+            <div class="audioflix-route-monitor"><span>Listen locally</span><strong>${monitorOn ? esc(monitorLabel) : 'Muted'}</strong></div>
+        </section>
+        <section class="audioflix-status-grid">
             <article class="audioflix-status-card">
                 <span>Output Router</span>
                 <strong>${esc(routeLabel)}</strong>
+                <p>Primary sink for Gemini voice. Pick CABLE Input to feed the virtual mic route.</p>
                 <div class="audioflix-output-picker">
                     <select data-af-control="output-select" aria-label="Audio output device">
                         <option value="">Loading devices…</option>
@@ -157,7 +179,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             <article class="audioflix-status-card ${monitorOn ? 'is-on' : ''}">
                 <span>Local Monitor</span>
                 <strong>${monitorOn ? esc(monitorLabel) : 'Monitor muted'}</strong>
-                <p>Mirrors Gemini voice to your real speakers while CABLE Input feeds the mic route.</p>
+                <p>Mirrors Gemini voice to real speakers/headphones while CABLE Input feeds the mic route.</p>
                 <div class="audioflix-output-picker">
                     <select data-af-control="monitor-output-select" aria-label="Gemini monitor output device">
                         <option value="">Loading devicesâ€¦</option>
@@ -298,7 +320,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const snapshot = state();
         const entries = [
             { selector: '[data-af-control="output-select"]', current: snapshot.preferredSinkId || '' },
-            { selector: '[data-af-control="monitor-output-select"]', current: snapshot.geminiVoiceMonitorSinkId || '' }
+            { selector: '[data-af-control="monitor-output-select"]', current: snapshot.geminiVoiceMonitorSinkId || '', blocked: snapshot.preferredSinkId || '' }
         ];
         entries.forEach(function (entry) {
             const select = overlay?.querySelector(entry.selector);
@@ -307,10 +329,12 @@ window.EveAudioflix = window.EveAudioflix || {};
                 select.innerHTML = `<option value="">No device list (grant mic permission once, or use Pick via Browser)</option>`;
                 return;
             }
-            select.innerHTML = [`<option value="">Default output</option>`].concat(
-                devices.map((d) => `<option value="${esc(d.deviceId)}">${esc(d.label)}</option>`)
-            ).join('');
-            select.value = entry.current;
+            select.innerHTML = [`<option value="">Default output</option>`].concat(devices.map((d) => {
+                const blocked = entry.blocked && d.deviceId === entry.blocked;
+                const label = blocked ? `${d.label || 'Output device'} (Voice Port route)` : d.label;
+                return `<option value="${esc(d.deviceId)}"${blocked ? ' disabled' : ''}>${esc(label)}</option>`;
+            })).join('');
+            select.value = entry.current && entry.current !== entry.blocked ? entry.current : '';
         });
     }
 

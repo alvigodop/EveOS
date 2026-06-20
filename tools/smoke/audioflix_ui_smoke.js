@@ -15,6 +15,22 @@ async function main() {
             localStorage.clear();
         } catch {}
         window.__eveSmokeNoAutoGemini = true;
+        Object.defineProperty(navigator, 'mediaDevices', {
+            configurable: true,
+            value: {
+                enumerateDevices: async () => [
+                    { kind: 'audiooutput', deviceId: 'cable-output', label: 'CABLE Input (VB-Audio Virtual Cable)' },
+                    { kind: 'audiooutput', deviceId: 'speakers-output', label: 'Smoke Speakers' }
+                ],
+                selectAudioOutput: async () => ({ deviceId: 'speakers-output', label: 'Smoke Speakers' })
+            }
+        });
+        Object.defineProperty(HTMLMediaElement.prototype, 'setSinkId', {
+            configurable: true,
+            value: async function (deviceId) {
+                Object.defineProperty(this, 'sinkId', { configurable: true, value: deviceId });
+            }
+        });
     });
 
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
@@ -44,11 +60,27 @@ async function main() {
         const status = document.querySelector('.audioflix-player span')?.textContent || '';
         return /CABLE Input not visible|Gemini voice port armed/.test(status);
     }, undefined, { timeout: 10000 });
-    const result = await page.evaluate(() => {
-        const snapshot = window.EveAudioflixState.getSnapshot();
-        window.EveAudioflixGemini.setVoicePortEnabled(true);
+    await page.waitForFunction(() => {
+        const options = [...(document.querySelector('[data-af-control="monitor-output-select"]')?.options || [])];
+        return options.some((option) => option.value === 'cable-output' && option.disabled);
+    }, undefined, { timeout: 10000 });
+    await page.evaluate(() => {
         window.EveAudioflixGemini.setMonitorEnabled(true);
         window.EveAudioflixGemini.setMonitorSink('monitor-smoke-device', 'Smoke Monitor Speakers');
+    });
+    await page.click('[data-af-action="toggle-gemini-monitor"]');
+    await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().geminiVoiceMonitorEnabled === false, undefined, {
+        timeout: 10000
+    });
+    await page.click('[data-af-action="toggle-gemini-monitor"]');
+    await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().geminiVoiceMonitorEnabled === true, undefined, {
+        timeout: 10000
+    });
+    const result = await page.evaluate(() => {
+        const snapshot = window.EveAudioflixState.getSnapshot();
+        const monitorBlocksCable = [...(document.querySelector('[data-af-control="monitor-output-select"]')?.options || [])]
+            .some((option) => option.value === 'cable-output' && option.disabled);
+        window.EveAudioflixGemini.setVoicePortEnabled(true);
         window.EveAudioflixGemini.setConversationMode('text-brain-live-voice');
         window.dispatchEvent(new CustomEvent('eve:gemini-audio-output', {
             detail: { kind: 'complete', chars: 24, at: Date.now() }
@@ -64,7 +96,9 @@ async function main() {
             mode: updated.geminiConversationMode,
             routedEvents: updated.counters.routedGeminiEvents,
             hasRouterNotes: /CABLE/i.test(document.querySelector('.audioflix-content')?.textContent || ''),
+            hasRouteBoard: /Gemini Voice/.test(document.querySelector('.audioflix-route-board')?.textContent || ''),
             hasMonitorCard: /Local Monitor/i.test(document.querySelector('.audioflix-status-grid')?.textContent || ''),
+            monitorBlocksCable,
             hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
             presetFallback: /CABLE Input not visible|Gemini voice port armed/.test(document.querySelector('.audioflix-player span')?.textContent || ''),
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
@@ -81,7 +115,9 @@ async function main() {
     if (result.mode !== 'text-brain-live-voice') failures.push(`wrong mode: ${result.mode}`);
     if (result.routedEvents < 1) failures.push('Gemini audio event not recorded');
     if (!result.hasRouterNotes) failures.push('router notes missing');
+    if (!result.hasRouteBoard) failures.push('route board missing');
     if (!result.hasMonitorCard) failures.push('Local Monitor card missing');
+    if (!result.monitorBlocksCable) failures.push('Local Monitor did not block the Voice Port CABLE sink');
     if (!result.hasBananaPreset) failures.push('Banana preset button missing');
     if (!result.presetFallback) failures.push('Banana preset action did not update status');
     if (result.buttonExpanded !== 'true') failures.push('topbar aria-expanded not updated');
