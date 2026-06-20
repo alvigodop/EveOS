@@ -104,6 +104,14 @@ async function main() {
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
         };
     });
+    await page.click('[data-af-action="clear-gemini-events"]');
+    await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().counters.routedGeminiEvents === 0, undefined, {
+        timeout: 10000
+    });
+    const clearResult = await page.evaluate(() => ({
+        routedEvents: window.EveAudioflixState.getSnapshot().counters.routedGeminiEvents,
+        headerText: document.querySelector('.audioflix-header-actions')?.textContent || ''
+    }));
 
     const failures = [];
     if (!result.hasOverlay) failures.push('overlay not visible');
@@ -118,6 +126,7 @@ async function main() {
     if (!result.hasRouteBoard) failures.push('route board missing');
     if (!result.hasMonitorCard) failures.push('Local Monitor card missing');
     if (!result.monitorBlocksCable) failures.push('Local Monitor did not block the Voice Port CABLE sink');
+    if (clearResult.routedEvents !== 0 || !/0 Gemini events/.test(clearResult.headerText)) failures.push('Gemini event counter did not clear through UI');
     if (!result.hasBananaPreset) failures.push('Banana preset button missing');
     if (!result.presetFallback) failures.push('Banana preset action did not update status');
     if (result.buttonExpanded !== 'true') failures.push('topbar aria-expanded not updated');

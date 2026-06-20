@@ -221,6 +221,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                     <p>Soundboard, music cards, browser output routing, and Gemini voice-port staging.</p>
                 </div>
                 <div class="audioflix-header-actions">
+                    <button class="audioflix-clear-events" data-af-action="clear-gemini-events" title="Clear Gemini event counter">Clear events</button>
                     <span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span>
                     <button data-af-action="close" aria-label="Close Audioflix">×</button>
                 </div>
@@ -406,6 +407,12 @@ window.EveAudioflix = window.EveAudioflix || {};
                 ? 'direct-live'
                 : 'text-brain-live-voice';
             window.EveAudioflixGemini?.setConversationMode?.(next);
+            rerender();
+            return;
+        }
+        if (action === 'clear-gemini-events') {
+            window.EveAudioflixState?.clearGeminiAudioEvents?.();
+            playbackStatus = 'Gemini event counter cleared';
             rerender();
         }
     }

@@ -196,6 +196,13 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         scheduleSave('audioflix-gemini-audio');
     }
 
+    function clearGeminiAudioEvents() {
+        const state = ensure();
+        state.counters.routedGeminiEvents = 0;
+        scheduleSave('audioflix-clear-gemini-events');
+        return ensure();
+    }
+
     Object.assign(ns, {
         ready: true,
         ensure,
@@ -204,6 +211,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         removeItem,
         recordPlay,
         recordGeminiAudioEvent,
+        clearGeminiAudioEvents,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });
