@@ -19,8 +19,42 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
         window.dispatchEvent(new CustomEvent(type, { detail }));
     }
 
+    // Route the Gemini voice AudioContext to the selected output sink (e.g. VB-CABLE)
+    // when the voice port is armed, or back to the default device when disarmed.
+    // Called by the gemini audio-context initializer (per new context) and on arm/
+    // output-device changes. Safe no-op where AudioContext.setSinkId is unavailable.
+    async function applyVoiceSink(ctx) {
+        const target = ctx || window.audioInputContext;
+        if (!target || typeof target.setSinkId !== 'function') return false;
+        const state = getState();
+        try {
+            if (state.geminiVoicePortEnabled === true && state.preferredSinkId) {
+                if (target.sinkId !== state.preferredSinkId) await target.setSinkId(state.preferredSinkId);
+                announce('eve:audioflix-gemini-routing-changed', {
+                    enabled: true,
+                    applied: true,
+                    sink: state.preferredSinkLabel || state.preferredSinkId
+                });
+                return true;
+            }
+            // Disarmed (or no device chosen): fall back to the default output device.
+            if (target.sinkId) await target.setSinkId('');
+            return false;
+        } catch (error) {
+            console.warn('[Audioflix] Gemini voice setSinkId failed:', error);
+            announce('eve:audioflix-gemini-routing-changed', {
+                enabled: state.geminiVoicePortEnabled === true,
+                applied: false,
+                error: error?.message || String(error)
+            });
+            return false;
+        }
+    }
+
     function setVoicePortEnabled(enabled) {
         const state = update({ geminiVoicePortEnabled: enabled === true }, 'audioflix-gemini-voice-port');
+        // Apply (or clear) the sink on the live Gemini audio context immediately.
+        applyVoiceSink(window.audioInputContext);
         announce('eve:audioflix-gemini-routing-changed', {
             enabled: state.geminiVoicePortEnabled,
             mode: state.geminiConversationMode,
@@ -58,6 +92,7 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
         ready: true,
         setVoicePortEnabled,
         setConversationMode,
+        applyVoiceSink,
         getStatus: function () {
             const state = getState();
             return {

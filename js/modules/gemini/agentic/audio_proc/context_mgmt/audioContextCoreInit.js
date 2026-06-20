@@ -62,6 +62,12 @@ async function initializeAudioContext(userInitiated = false) {
 
         console.log("Created new audio context with sample rate:", state.audioInputContext.sampleRate);
 
+        // Audioflix mic-port: when the voice port is armed, route Gemini's voice
+        // output to the selected sink (e.g. VB-CABLE) so it can become a virtual mic.
+        // No-op if Audioflix is not loaded or the port is disabled.
+        try { window.EveAudioflixGemini?.applyVoiceSink?.(state.audioInputContext); }
+        catch (sinkErr) { console.warn("[Audioflix] Gemini voice-sink hook skipped:", sinkErr); }
+
         // Try Modern AudioWorklet Initialization
         let initialized = false;
 

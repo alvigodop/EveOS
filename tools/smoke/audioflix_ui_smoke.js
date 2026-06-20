@@ -35,7 +35,7 @@ async function main() {
     await page.fill('form[data-af-form="music"] input[name="title"]', 'Smoke Track');
     await page.fill('form[data-af-form="music"] input[name="url"]', 'https://example.com/smoke-track.mp3');
     await page.fill('form[data-af-form="music"] input[name="artist"]', 'EveOS');
-    await page.fill('form[data-af-form="music"] input[name="card"]', 'Audioflix');
+    await page.fill('form[data-af-form="music"] input[name="folder"]', 'Audioflix');
     await page.click('form[data-af-form="music"] button[type="submit"]');
 
     await page.click('[data-af-action="tab"][data-af-tab="router"]');
@@ -54,7 +54,7 @@ async function main() {
             voicePortEnabled: updated.geminiVoicePortEnabled,
             mode: updated.geminiConversationMode,
             routedEvents: updated.counters.routedGeminiEvents,
-            hasRouterNotes: /VB-CABLE/i.test(document.querySelector('.audioflix-content')?.textContent || ''),
+            hasRouterNotes: /CABLE/i.test(document.querySelector('.audioflix-content')?.textContent || ''),
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
         };
     });

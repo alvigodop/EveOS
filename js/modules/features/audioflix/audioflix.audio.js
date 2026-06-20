@@ -131,15 +131,44 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         }
         const device = await devices.selectAudioOutput();
         if (!device?.deviceId) return false;
-        const applied = await applySink(device.deviceId);
+        return await commitOutput(device.deviceId, device.label || 'Selected output device');
+    }
+
+    // Persist a chosen output device and route both Audioflix's own player and the
+    // live Gemini voice context to it (so picking "CABLE Input" arms the mic-spoof).
+    async function commitOutput(deviceId, label) {
+        const applied = await applySink(deviceId);
         window.EveAudioflixState?.update?.({
-            preferredSinkId: device.deviceId,
-            preferredSinkLabel: device.label || 'Selected output device',
+            preferredSinkId: deviceId,
+            preferredSinkLabel: label || 'Selected output device',
             routeMode: 'browser'
         }, 'audioflix-output-device');
-        lastStatus = applied ? `Output routed to ${device.label || 'selected device'}` : 'Output saved for supported browsers';
-        dispatch('eve:audioflix-playback', { status: lastStatus, device });
+        try { await window.EveAudioflixGemini?.applyVoiceSink?.(window.audioInputContext); } catch { }
+        lastStatus = applied ? `Output routed to ${label || 'selected device'}` : 'Output saved for supported browsers';
+        dispatch('eve:audioflix-playback', { status: lastStatus, deviceId, label });
         return true;
+    }
+
+    // Enumerate available audio output devices for the in-app dropdown picker.
+    // Labels are only populated in a secure context after a media permission has
+    // been granted at least once; we still return ids so selection works.
+    async function listOutputs() {
+        const devices = navigator.mediaDevices || {};
+        if (typeof devices.enumerateDevices !== 'function') return [];
+        try {
+            const all = await devices.enumerateDevices();
+            return all
+                .filter((d) => d.kind === 'audiooutput')
+                .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Output device ${i + 1}` }));
+        } catch (error) {
+            console.warn('[Audioflix] enumerateDevices failed:', error);
+            return [];
+        }
+    }
+
+    async function setOutputById(deviceId, label) {
+        if (!deviceId) return false;
+        return await commitOutput(deviceId, label || 'Selected output device');
     }
 
     async function playItem(item) {
@@ -173,6 +202,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         playItem,
         pause,
         selectOutput,
+        listOutputs,
+        setOutputById,
         applySink,
         attachWaveform,
         getAudioElement: ensureAudio,
@@ -182,7 +213,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 item: currentItem,
                 sinkId: ensureAudio().sinkId || '',
                 hasSetSinkId: typeof ensureAudio().setSinkId === 'function',
-                hasOutputPicker: typeof navigator.mediaDevices?.selectAudioOutput === 'function'
+                hasOutputPicker: typeof navigator.mediaDevices?.selectAudioOutput === 'function',
+                hasEnumerate: typeof navigator.mediaDevices?.enumerateDevices === 'function'
             };
         }
     });

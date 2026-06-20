@@ -44,6 +44,13 @@ window.EveAudioflix = window.EveAudioflix || {};
             const form = event.target.closest('form[data-af-form]');
             if (form) handleForm(form);
         });
+        overlay.addEventListener('change', async function (event) {
+            const select = event.target.closest('[data-af-control="output-select"]');
+            if (!select) return;
+            try { await window.EveAudioflixAudio?.setOutputById?.(select.value, select.selectedOptions[0]?.textContent || ''); }
+            catch (error) { playbackStatus = error.message || 'Output selection failed'; }
+            rerender();
+        });
         return overlay;
     }
 
@@ -52,12 +59,13 @@ window.EveAudioflix = window.EveAudioflix || {};
         return parts.length ? parts.join(' / ') : 'No extra metadata yet';
     }
 
-    function renderItems(items, type) {
-        if (!items.length) {
-            return `<div class="audioflix-empty">No ${type === 'music' ? 'tracks' : 'sounds'} yet. Add one above when you have a URL or local media path.</div>`;
-        }
-        return `<div class="audioflix-item-grid">${items.map(function (item) {
-            return `<article class="audioflix-item-card">
+    function groupKey(item, type) {
+        const raw = type === 'music' ? (item.folder || item.card) : item.category;
+        return String(raw || '').trim() || 'Ungrouped';
+    }
+
+    function renderItemCard(item, type) {
+        return `<article class="audioflix-item-card">
                 <button class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">▶</button>
                 <div class="audioflix-item-body">
                     <strong>${esc(item.title)}</strong>
@@ -66,7 +74,26 @@ window.EveAudioflix = window.EveAudioflix || {};
                 </div>
                 <button class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Remove">×</button>
             </article>`;
-        }).join('')}</div>`;
+    }
+
+    function renderItems(items, type) {
+        if (!items.length) {
+            return `<div class="audioflix-empty">No ${type === 'music' ? 'tracks' : 'sounds'} yet. Add one above when you have a URL or local media path.</div>`;
+        }
+        // Group items into folders (music) / categories (sound), like bookmark cards.
+        const groups = new Map();
+        items.forEach(function (item) {
+            const key = groupKey(item, type);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(item);
+        });
+        return [...groups.entries()].map(function ([name, groupItems]) {
+            const count = groupItems.length;
+            return `<section class="audioflix-group" data-af-group="${esc(name)}">
+                <div class="audioflix-group-title">${esc(name)}<span class="audioflix-group-count">${count} item${count === 1 ? '' : 's'}</span></div>
+                <div class="audioflix-item-grid">${groupItems.map((item) => renderItemCard(item, type)).join('')}</div>
+            </section>`;
+        }).join('');
     }
 
     function renderForm(type) {
@@ -85,8 +112,8 @@ window.EveAudioflix = window.EveAudioflix || {};
                 <input name="${isMusic ? 'artist' : 'category'}" placeholder="${isMusic ? 'Optional artist' : 'Optional group'}">
             </label>
             <label>
-                <span>${isMusic ? 'Card / Folder' : 'Volume'}</span>
-                <input name="${isMusic ? 'card' : 'volume'}" placeholder="${isMusic ? 'Optional scope' : '0.0 - 1.0'}">
+                <span>${isMusic ? 'Folder' : 'Volume'}</span>
+                <input name="${isMusic ? 'folder' : 'volume'}" placeholder="${isMusic ? 'Group into a folder' : '0.0 - 1.0'}">
             </label>
             <button type="submit">${isMusic ? 'Add Track' : 'Add Sound'}</button>
         </form>`;
@@ -104,8 +131,12 @@ window.EveAudioflix = window.EveAudioflix || {};
             <article class="audioflix-status-card">
                 <span>Output Router</span>
                 <strong>${esc(routeLabel)}</strong>
-                <p>${esc(routeHint)}</p>
-                <button data-af-action="select-output">Choose Output Device</button>
+                <div class="audioflix-output-picker">
+                    <select data-af-control="output-select" aria-label="Audio output device">
+                        <option value="">Loading devices…</option>
+                    </select>
+                </div>
+                <button data-af-action="select-output">Pick via Browser…</button>
             </article>
             <article class="audioflix-status-card ${voicePortClass}">
                 <span>Gemini Voice Port</span>
@@ -172,23 +203,31 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     function renderRouter(snapshot) {
+        const armed = snapshot.geminiVoicePortEnabled;
         return `<div class="audioflix-router-notes">
             <article>
-                <h3>Browser Route</h3>
-                <p>Use “Choose Output Device” to target VB-CABLE Input or a Voicemeeter virtual input when the browser exposes output-device selection.</p>
-                <p>Saved output: <strong>${esc(snapshot.preferredSinkLabel || 'default')}</strong></p>
+                <h3>1 · In Audioflix</h3>
+                <ol>
+                    <li>Open <strong>Output Router</strong> and select <strong>CABLE Input (VB-Audio Virtual Cable)</strong> from the dropdown.</li>
+                    <li>Click <strong>Arm Voice Port</strong> so Gemini's voice is routed to that cable (status: <strong>${armed ? 'armed ✓' : 'not armed'}</strong>).</li>
+                </ol>
+                <p>Saved output: <strong>${esc(snapshot.preferredSinkLabel || 'default')}</strong>. Runs on <code>localhost</code>/Chromium (not <code>file://</code>).</p>
             </article>
             <article>
-                <h3>Windows Cable Route</h3>
+                <h3>2 · In Voicemeeter Banana</h3>
                 <ol>
-                    <li>Set Audioflix/Gemini browser output to <strong>CABLE Input</strong> or a Voicemeeter virtual input.</li>
-                    <li>In Voicemeeter, route that input to the virtual output you want to use as a microphone.</li>
-                    <li>In the game/app, select that Voicemeeter/VB-CABLE output as the microphone.</li>
+                    <li>Under <strong>Hardware Input</strong>, pick <strong>CABLE Output (VB-Audio Virtual Cable)</strong>.</li>
+                    <li>On that strip, enable bus <strong>B1</strong> (the virtual mic). Add your real mic to <strong>B1</strong> too if you want both.</li>
+                    <li>Use <strong>B2</strong> for soundboard-to-yourself (monitor only, not sent to the game mic).</li>
                 </ol>
             </article>
             <article>
-                <h3>Mode 2 Foundation</h3>
-                <p>Direct Live keeps today’s Gemini flow. Text Brain → Live Voice is the staged mode for sending large EveOS context to a text model, then handing only final speech lines to the live voice model.</p>
+                <h3>3 · In the game / app</h3>
+                <ol>
+                    <li>Set the microphone to <strong>Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)</strong>.</li>
+                    <li>Gemini's voice (and any B1 soundboard clip) now arrives as your mic — even in-game.</li>
+                </ol>
+                <p>Need more buses? Upgrade Banana → <strong>Voicemeeter Potato</strong> (B1/B2/B3 + 5 virtual inputs).</p>
             </article>
         </div>`;
     }
@@ -198,6 +237,25 @@ window.EveAudioflix = window.EveAudioflix || {};
         overlay.innerHTML = renderPanel();
         const canvas = overlay.querySelector('#audioflix-waveform');
         window.EveAudioflixAudio?.attachWaveform?.(canvas);
+        populateOutputs();
+    }
+
+    // Fill the Output Router <select> with the available audio output devices.
+    // Async (enumerateDevices); leaves the static fallback option if unavailable.
+    async function populateOutputs() {
+        const select = overlay?.querySelector('[data-af-control="output-select"]');
+        if (!select || typeof window.EveAudioflixAudio?.listOutputs !== 'function') return;
+        const devices = await window.EveAudioflixAudio.listOutputs();
+        const current = state().preferredSinkId || '';
+        if (!devices.length) {
+            select.innerHTML = `<option value="">No device list (grant mic permission once, or use “Pick via Browser…”)</option>`;
+            return;
+        }
+        const options = [`<option value="">Default output</option>`].concat(
+            devices.map((d) => `<option value="${esc(d.deviceId)}"${d.deviceId === current ? ' selected' : ''}>${esc(d.label)}</option>`)
+        );
+        select.innerHTML = options.join('');
+        select.value = current;
     }
 
     function findItem(type, itemId) {
@@ -257,7 +315,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             title: data.get('title'),
             url: data.get('url'),
             artist: data.get('artist'),
-            card: data.get('card'),
+            folder: data.get('folder'),
             category: data.get('category'),
             volume: data.get('volume')
         };
