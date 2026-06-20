@@ -14,6 +14,38 @@ function isGeminiConnectionEnabledByPreference() {
     }
 }
 
+function isGeminiServerDesiredRunning() {
+    try {
+        return localStorage.getItem('geminiServerDesiredState') === 'running';
+    } catch (error) {
+        return false;
+    }
+}
+
+function isGeminiManualStopActive() {
+    try {
+        return localStorage.getItem('geminiServerManualStopAt') != null
+            && localStorage.getItem('geminiServerDesiredState') === 'stopped';
+    } catch (error) {
+        return false;
+    }
+}
+
+function setGeminiConnectionPreference(enabled) {
+    try {
+        localStorage.setItem('geminiConnectionEnabled', enabled ? 'true' : 'false');
+    } catch (error) {
+        // Restricted storage should not block the in-memory connection path.
+    }
+    if (!window.SocketGlobalState) return;
+    window.SocketGlobalState.autoReconnectEnabled = !!enabled;
+    window.SocketGlobalState.serverOfflinePauseActive = !enabled;
+    if (enabled) {
+        window.SocketGlobalState.reconnectAttempts = 0;
+        window.SocketGlobalState.lastReconnectPauseNoticeAt = 0;
+    }
+}
+
 function getGeminiStatusUrl() {
     const wsUrl = (window.SocketGlobalState && window.SocketGlobalState.WS_URL) || 'ws://localhost:9083';
     const wsPort = parseInt(wsUrl.split(':')[2], 10) || 9083;
@@ -124,15 +156,25 @@ window.PageInitializationCore.ConnectivityStartup = {
         console.log('HTML components loaded. Starting WebSocket connection...');
 
         if (!isGeminiConnectionEnabledByPreference()) {
-            if (window.SocketGlobalState) {
-                window.SocketGlobalState.autoReconnectEnabled = false;
-                window.SocketGlobalState.serverOfflinePauseActive = true;
+            const shouldReviveClient = !isGeminiManualStopActive()
+                && (isGeminiServerDesiredRunning() || await isGeminiServerReachable());
+
+            if (shouldReviveClient) {
+                setGeminiConnectionPreference(true);
+                if (typeof updateConnectionStatus === 'function') {
+                    updateConnectionStatus('connecting', 'Gemini server online - reconnecting...');
+                }
+            } else {
+                if (window.SocketGlobalState) {
+                    window.SocketGlobalState.autoReconnectEnabled = false;
+                    window.SocketGlobalState.serverOfflinePauseActive = true;
+                }
+                if (typeof updateConnectionStatus === 'function') {
+                    updateConnectionStatus('disconnected', 'Gemini Connection Disabled');
+                }
+                restoreClientState();
+                return;
             }
-            if (typeof updateConnectionStatus === 'function') {
-                updateConnectionStatus('disconnected', 'Gemini Connection Disabled');
-            }
-            restoreClientState();
-            return;
         }
 
         const serverReachable = await isGeminiServerReachable();

@@ -9,9 +9,10 @@ window.SocketConnectionCore.EventHandlers = window.SocketConnectionCore.EventHan
 function geminiConnectionDisabledByUser() {
     try {
         const connectionDisabled = localStorage.getItem('geminiConnectionEnabled') === 'false';
+        const desiredRunning = localStorage.getItem('geminiServerDesiredState') === 'running';
         const manuallyStopped = localStorage.getItem('geminiServerManualStopAt') != null
             && localStorage.getItem('geminiServerDesiredState') === 'stopped';
-        return connectionDisabled || manuallyStopped;
+        return manuallyStopped || (connectionDisabled && !desiredRunning);
     } catch (_) {
         return window.SocketGlobalState?.autoReconnectEnabled === false;
     }
@@ -58,7 +59,9 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
 
     if (State.credentialRequired) {
         if (typeof updateConnectionStatus === 'function') {
-            updateConnectionStatus('error', State.apiPolicyBlocked ? 'API Key Restricted' : 'API Key Required');
+            updateConnectionStatus('error', State.apiPolicyBlocked
+                ? 'API Key Restricted'
+                : (State.apiKeyInvalid ? 'API Key Invalid' : 'API Key Required'));
         }
         return;
     }

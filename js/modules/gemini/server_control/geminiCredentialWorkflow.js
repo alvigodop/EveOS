@@ -28,6 +28,7 @@
         if (window.SocketGlobalState) {
             window.SocketGlobalState.credentialRequired = false;
             window.SocketGlobalState.apiPolicyBlocked = false;
+            window.SocketGlobalState.apiKeyInvalid = false;
             window.SocketGlobalState.geminiApiReady = false;
             window.SocketGlobalState.reconnectAttempts = 0;
             window.SocketGlobalState.resetState?.();

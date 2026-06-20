@@ -9,6 +9,24 @@ console.log("socketMessageRouter.js loading...");
 (function () {
     const State = window.SocketGlobalState;
 
+    function pauseReconnectForCredentialError(statusMessage) {
+        State.credentialRequired = true;
+        State.geminiApiReady = false;
+        State.autoReconnectEnabled = false;
+        State.serverOfflinePauseActive = true;
+        if (State.reconnectTimeout) {
+            clearTimeout(State.reconnectTimeout);
+            State.reconnectTimeout = null;
+        }
+        if (State.continuousReconnectInterval) {
+            clearTimeout(State.continuousReconnectInterval);
+            State.continuousReconnectInterval = null;
+        }
+        if (typeof updateConnectionStatus === 'function') {
+            updateConnectionStatus('error', statusMessage || 'API Key Required');
+        }
+    }
+
     async function handleSocketMessage(event) {
         try {
             const data = JSON.parse(event.data);
@@ -50,15 +68,21 @@ console.log("socketMessageRouter.js loading...");
             } else if (data.text) {
                 const messageText = String(data.text || '').trim();
                 if (data.is_system_message
-                    && /(1008|policy violation|unrestricted keys|temporary service disruptions)/i.test(messageText)) {
-                    State.credentialRequired = true;
-                    State.apiPolicyBlocked = true;
-                    State.geminiApiReady = false;
-                    State.autoReconnectEnabled = false;
-                    State.serverOfflinePauseActive = true;
-                    if (typeof updateConnectionStatus === 'function') {
-                        updateConnectionStatus('error', 'API Key Restricted');
+                    && /(api key not valid|invalid api key|please pass a valid api key)/i.test(messageText)) {
+                    State.apiPolicyBlocked = false;
+                    State.apiKeyInvalid = true;
+                    pauseReconnectForCredentialError('API Key Invalid');
+                    if (typeof displayMessage === 'function') {
+                        displayMessage('System Message: Gemini rejected the saved API key as invalid. Save a valid Gemini API key in Session Controls, then start/reconnect Gemini.', true);
+                        displayMessage(data.text, true);
                     }
+                    return;
+                }
+                if (data.is_system_message
+                    && /(1008|policy violation|unrestricted keys|temporary service disruptions)/i.test(messageText)) {
+                    State.apiPolicyBlocked = true;
+                    State.apiKeyInvalid = false;
+                    pauseReconnectForCredentialError('API Key Restricted');
                     if (typeof displayMessage === 'function') {
                         displayMessage('System Message: Gemini Live rejected the current API key restrictions. Update the key allowlist for this network/IP, or save a compatible Gemini key and reconnect.', true);
                         displayMessage(data.text, true);
@@ -66,12 +90,9 @@ console.log("socketMessageRouter.js loading...");
                     return;
                 }
                 if (data.is_system_message && /^Error: No API key configured/i.test(messageText)) {
-                    State.credentialRequired = true;
                     State.apiPolicyBlocked = false;
-                    State.geminiApiReady = false;
-                    if (typeof updateConnectionStatus === 'function') {
-                        updateConnectionStatus('error', 'API Key Required');
-                    }
+                    State.apiKeyInvalid = false;
+                    pauseReconnectForCredentialError('API Key Required');
                     if (typeof displayMessage === 'function') {
                         displayMessage(data.text, true);
                     }
@@ -82,6 +103,7 @@ console.log("socketMessageRouter.js loading...");
                 if (!State.geminiApiReady && apiReadyMessage) {
                     State.credentialRequired = false;
                     State.apiPolicyBlocked = false;
+                    State.apiKeyInvalid = false;
                     State.geminiApiReady = true;
                     if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connected', 'Connected');
                     if (typeof displayMessage === 'function') {

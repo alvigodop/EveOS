@@ -55,7 +55,7 @@ console.log("serverStatusChecker.js loading...");
     }
 
     function clearMissingCredentialGateIfVaultReady() {
-        if (!State.credentialRequired || State.apiPolicyBlocked) return !State.credentialRequired;
+        if (!State.credentialRequired || State.apiPolicyBlocked || State.apiKeyInvalid) return !State.credentialRequired;
         const controlState = window.GeminiServerControl?.getState?.();
         if (!controlState?.credentialsConfigured) return false;
         State.credentialRequired = false;
@@ -161,7 +161,15 @@ console.log("serverStatusChecker.js loading...");
 
             if (State.credentialRequired && !clearMissingCredentialGateIfVaultReady()) {
                 if (typeof updateConnectionStatus === 'function') {
-                    updateConnectionStatus('error', 'API Key Required');
+                    updateConnectionStatus('error', State.apiPolicyBlocked
+                        ? 'API Key Restricted'
+                        : (State.apiKeyInvalid ? 'API Key Invalid' : 'API Key Required'));
+                }
+                if (State.apiPolicyBlocked || State.apiKeyInvalid) {
+                    State.autoReconnectEnabled = false;
+                    State.serverOfflinePauseActive = true;
+                    State.continuousReconnectInterval = null;
+                    return;
                 }
                 State.continuousReconnectInterval = setTimeout(
                     runCheck,
