@@ -67,6 +67,11 @@ window.EveAudioflix = window.EveAudioflix || {};
                         window.EveAudioflixGemini?.setMonitorSink?.('', 'Default monitor output');
                         playbackStatus = 'Voice Port changed; Local Monitor reset so it does not share the CABLE route.';
                     }
+                } else if (select.dataset.afControl === 'native-output-select') {
+                    window.EveAudioflixNative?.selectNativeOutput?.(value, label.replace(/\s+\(discovery only\)$/i, ''));
+                    playbackStatus = value
+                        ? `Native Audioflix route selected: ${label}`
+                        : 'Native Audioflix route cleared';
                 }
             }
             catch (error) { playbackStatus = error.message || 'Output selection failed'; }
@@ -249,6 +254,18 @@ window.EveAudioflix = window.EveAudioflix || {};
             rerender();
             return;
         }
+        if (action === 'unlock-output-names') {
+            try {
+                const ok = await window.EveAudioflixAudio?.unlockDeviceLabels?.();
+                playbackStatus = ok
+                    ? 'Audio output names unlocked. Pick CABLE Input or use Auto CABLE + Arm.'
+                    : 'Could not unlock device names here; use browser permission or Windows Mixer.';
+            } catch (error) {
+                playbackStatus = error.message || 'Device name unlock failed';
+            }
+            rerender();
+            return;
+        }
         if (action === 'local-only') {
             window.EveAudioflixGemini?.setVoicePortEnabled?.(false);
             window.EveAudioflixGemini?.setMonitorEnabled?.(true);
@@ -272,13 +289,40 @@ window.EveAudioflix = window.EveAudioflix || {};
             rerender();
             return;
         }
+        if (action === 'refresh-native-devices') {
+            try {
+                const payload = await window.EveAudioflixNative?.listSystemOutputs?.(true);
+                playbackStatus = payload?.message || 'Native output devices refreshed';
+            } catch (error) {
+                playbackStatus = error.message || 'Native output refresh failed';
+            }
+            rerender();
+            return;
+        }
+        if (action === 'toggle-native-bridge') {
+            const next = state().nativeBridgeEnabled !== true;
+            window.EveAudioflixNative?.setNativeBridgeEnabled?.(next);
+            playbackStatus = next
+                ? 'Native route enabled for EveOS/Gemini audio chunks'
+                : 'Native route disabled; browser/default playback restored';
+            rerender();
+            return;
+        }
         if (action === 'arm-cable') {
             try {
-                const devices = await window.EveAudioflixAudio?.listOutputs?.() || [];
-                const cable = await window.EveAudioflixRouting?.findCableDevice?.()
+                let devices = await window.EveAudioflixAudio?.listOutputs?.() || [];
+                let cable = await window.EveAudioflixRouting?.findCableDevice?.()
                     || devices.find((device) => /(?:cable input|vb-audio virtual cable|vb-cable)/i.test(device.label || ''));
+                if (!cable && window.EveAudioflixRouting?.hasAnonymousOutputs?.(devices)) {
+                    const unlocked = await window.EveAudioflixAudio?.unlockDeviceLabels?.();
+                    if (unlocked) {
+                        devices = await window.EveAudioflixAudio?.listOutputs?.() || [];
+                        cable = await window.EveAudioflixRouting?.findCableDevice?.()
+                            || devices.find((device) => /(?:cable input|vb-audio virtual cable|vb-cable)/i.test(device.label || ''));
+                    }
+                }
                 if (!cable) {
-                    playbackStatus = 'CABLE Input not visible yet. Grant mic permission once, then reopen Audioflix.';
+                    playbackStatus = 'CABLE Input not visible yet. Unlock names once, then retry Auto CABLE + Arm, or use Windows Mixer.';
                     rerender();
                     return;
                 }

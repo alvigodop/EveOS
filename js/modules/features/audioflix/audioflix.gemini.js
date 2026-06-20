@@ -182,10 +182,12 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
     }
 
     function handleGeminiAudio(detail) {
+        const safeDetail = Object.assign({}, detail || {});
+        delete safeDetail.audio;
         lastEvent = Object.assign({
             at: Date.now(),
             routed: getState().geminiVoicePortEnabled === true
-        }, detail || {});
+        }, safeDetail);
         window.EveAudioflixState?.recordGeminiAudioEvent?.();
         announce('eve:audioflix-gemini-audio-seen', lastEvent);
     }

@@ -19,7 +19,17 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         return /(?:cable input|vb-audio virtual cable|vb-cable|voicemeeter input)/i.test(String(label || ''));
     }
 
+    function isAnonymousOutput(label) {
+        const text = String(label || '').trim();
+        return !text || /^Output device\s+\d+$/i.test(text);
+    }
+
+    function hasAnonymousOutputs(devices) {
+        return (devices || []).some((device) => isAnonymousOutput(device.label));
+    }
+
     function routeLabel(snapshot, audioStatus) {
+        if (snapshot.routeMode === 'native-bridge') return snapshot.nativeOutputLabel || 'Native Audioflix bridge';
         if (snapshot.routeMode === 'manual') return 'Windows Mixer -> CABLE Input';
         return snapshot.preferredSinkLabel || (audioStatus.hasSetSinkId ? 'Default browser output' : 'Default output');
     }
@@ -55,8 +65,9 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         const hasOutput = !!snapshot.preferredSinkLabel;
         const manualMixer = snapshot.routeMode === 'manual';
         const browserCore = browserCoreState(snapshot, audioStatus);
-        const onCable = manualMixer || isCableLabel(snapshot.preferredSinkLabel);
-        const armed = snapshot.geminiVoicePortEnabled === true || manualMixer;
+        const nativeRoute = snapshot.routeMode === 'native-bridge' && snapshot.nativeBridgeEnabled === true;
+        const onCable = manualMixer || isCableLabel(snapshot.preferredSinkLabel) || (nativeRoute && isCableLabel(snapshot.nativeOutputLabel));
+        const armed = snapshot.geminiVoicePortEnabled === true || manualMixer || nativeRoute;
         return [
             { label: 'Output routing', state: manualMixer || hasRouteApi ? 'ready' : 'manual', text: manualMixer ? 'Windows mixer' : (browserCore.selected ? 'Browser permitted' : (hasRouteApi ? 'Browser ready' : 'Use Windows mixer')) },
             { label: 'Voice sink', state: onCable ? 'ready' : (hasOutput ? 'warn' : 'manual'), text: onCable ? 'CABLE route' : 'Needs CABLE Input' },
@@ -71,6 +82,13 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                 state: 'ready',
                 title: 'Windows mixer route is marked',
                 body: 'EveOS will treat Edge/browser audio as already routed to CABLE Input. Use Test Route and Copy Route to verify or share the setup.'
+            };
+        }
+        if (snapshot.routeMode === 'native-bridge' && snapshot.nativeBridgeEnabled === true) {
+            return {
+                state: 'ready',
+                title: 'Native EveOS-only route active',
+                body: `Gemini PCM chunks are sent to ${snapshot.nativeOutputLabel || 'the selected native output'} through the local EveOS server, so Edge default can stay unchanged.`
             };
         }
         if (audioStatus.hasOutputPicker && audioStatus.hasSetSinkId && !snapshot.preferredSinkId) {
@@ -123,6 +141,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         const label = routeLabel(snapshot, audioStatus);
         const monitorOn = snapshot.geminiVoiceMonitorEnabled !== false;
         const monitorLabel = snapshot.geminiVoiceMonitorSinkLabel || 'Default monitor output';
+        const nativeLabel = snapshot.nativeOutputLabel || 'No native output selected';
         const guidance = nextStep(snapshot, audioStatus);
         const browserCore = browserCoreState(snapshot, audioStatus);
         return `<section class="audioflix-route-board" aria-label="Gemini voice route">
@@ -157,8 +176,23 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                     <select data-af-control="output-select" aria-label="Audio output device">
                         <option value="">Loading devices...</option>
                     </select>
+                    <p class="audioflix-output-note" data-af-output-note>Checking browser output permissions...</p>
                 </div>
+                <button data-af-action="unlock-output-names">Unlock Device Names</button>
                 <button data-af-action="select-output">Pick Browser Output</button>
+            </article>
+            <article class="audioflix-status-card ${snapshot.nativeBridgeEnabled ? 'is-on' : ''}">
+                <span>Native Bridge Output</span>
+                <strong>${esc(snapshot.nativeBridgeEnabled ? nativeLabel : 'Optional EveOS-only route')}</strong>
+                <p>Draws real Windows endpoints from the EveOS server. Use this when you want EveOS/Gemini audio routed without moving all Edge audio.</p>
+                <div class="audioflix-output-picker">
+                    <select data-af-control="native-output-select" aria-label="Native Audioflix output device">
+                        <option value="">Checking native bridge...</option>
+                    </select>
+                    <p class="audioflix-output-note" data-af-native-output-note>Server device bridge not checked yet.</p>
+                </div>
+                <button data-af-action="refresh-native-devices">Refresh System Outputs</button>
+                <button data-af-action="toggle-native-bridge">${snapshot.nativeBridgeEnabled ? 'Disable Native Route' : 'Use Native Route'}</button>
             </article>
             <article class="audioflix-status-card ${snapshot.geminiVoicePortEnabled ? 'is-on' : ''}">
                 <span>Gemini Voice Port</span>
@@ -238,6 +272,11 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         return await window.EveAudioflixAudio?.listOutputs?.() || [];
     }
 
+    async function listNativeOutputs(force) {
+        const payload = await window.EveAudioflixNative?.listSystemOutputs?.(force);
+        return payload || { devices: [], message: 'Native bridge unavailable.' };
+    }
+
     async function findCableDevice() {
         const devices = await listOutputs();
         return devices.find((device) => isCableLabel(device.label));
@@ -247,6 +286,16 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         if (!overlay) return;
         const devices = await listOutputs();
         const snapshot = state();
+        const note = overlay.querySelector('[data-af-output-note]');
+        if (note) {
+            if (!devices.length) {
+                note.textContent = 'No browser output list yet. Unlock names or use Windows Mixer.';
+            } else if (hasAnonymousOutputs(devices)) {
+                note.textContent = 'Names are hidden by browser permission. Unlock once so CABLE Input appears.';
+            } else {
+                note.textContent = `${devices.length} output device${devices.length === 1 ? '' : 's'} visible.`;
+            }
+        }
         [
             { selector: '[data-af-control="output-select"]', current: snapshot.preferredSinkId || '' },
             { selector: '[data-af-control="monitor-output-select"]', current: snapshot.geminiVoiceMonitorSinkId || '', blocked: snapshot.preferredSinkId || '' }
@@ -264,6 +313,23 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             })).join('');
             select.value = entry.current && entry.current !== entry.blocked ? entry.current : '';
         });
+        listNativeOutputs(false).then((payload) => {
+            const select = overlay.querySelector('[data-af-control="native-output-select"]');
+            const nativeNote = overlay.querySelector('[data-af-native-output-note]');
+            const nativeDevices = payload.devices || [];
+            if (nativeNote) nativeNote.textContent = payload.message || `${nativeDevices.length} system output device${nativeDevices.length === 1 ? '' : 's'} visible.`;
+            if (!select) return;
+            if (!nativeDevices.length) {
+                select.innerHTML = '<option value="">No native output bridge devices found</option>';
+                return;
+            }
+            select.innerHTML = ['<option value="">Choose native output...</option>'].concat(nativeDevices.map((device) => {
+                const playable = device.playable === true;
+                const suffix = playable ? '' : ' (discovery only)';
+                return `<option value="${esc(device.id)}"${playable ? '' : ' disabled'}>${esc((device.label || device.id) + suffix)}</option>`;
+            })).join('');
+            select.value = snapshot.nativeOutputId || '';
+        }).catch(() => { });
     }
 
     function routeStatusText(playbackStatus) {
@@ -279,12 +345,14 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             `[Output Router] ${routeLabel(snapshot, audioStatus)}`,
             `[Voice Port] ${snapshot.geminiVoicePortEnabled ? 'selective Gemini WebAudio route armed' : 'default playback'}`,
             `[Route Mode] ${snapshot.routeMode || 'browser'}`,
+            `[Native Bridge] ${snapshot.nativeBridgeEnabled ? (snapshot.nativeOutputLabel || snapshot.nativeOutputId || 'enabled') : 'off'}`,
             `[Local Monitor] ${snapshot.geminiVoiceMonitorEnabled === false ? 'muted' : (snapshot.geminiVoiceMonitorSinkLabel || 'default output')}`,
             `[Conversation Mode] ${snapshot.geminiConversationMode || 'direct-live'}`,
             `[Signal] ${playbackStatus || 'Idle'}`,
             `[Last Gemini Audio] ${geminiStatus.lastEvent ? new Date(geminiStatus.lastEvent.at).toLocaleString() : 'none'}`,
             `[Next Step] ${nextStep(snapshot, audioStatus).title}`,
             '',
+            'Native bridge route: EveOS server enumerates Windows output endpoints and can receive Gemini PCM chunks for EveOS-only output routing when sounddevice is installed.',
             'Selective browser route: Pick Browser Output/Auto CABLE + Arm uses browser permission and AudioContext.setSinkId when supported, so Gemini WebAudio can go to VB-CABLE without moving all Edge audio.',
             'Windows mixer route: Settings -> System -> Sound -> Volume mixer -> Edge/EveOS output = CABLE Input.',
             'Target app mic path: CABLE Output -> Voicemeeter strip -> B1/B2 -> target app microphone.'
@@ -300,6 +368,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
     Object.assign(ns, {
         ready: true,
         isCableLabel,
+        hasAnonymousOutputs,
         renderStatusCards,
         renderRouter,
         populateOutputSelectors,

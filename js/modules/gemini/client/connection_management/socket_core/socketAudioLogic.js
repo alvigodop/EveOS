@@ -54,6 +54,7 @@ console.log("socketAudioLogic.js loading...");
                     kind: isCompleteAudio ? 'complete' : 'interim',
                     sequential: isSequential,
                     chars: String(audioData || '').length,
+                    audio: audioData,
                     at: Date.now()
                 }
             }));
@@ -112,6 +113,17 @@ console.log("socketAudioLogic.js loading...");
         if (shouldAutoPlay && typeof injestAudioChuckToPlay === 'function') {
             if (audioData) {
                 console.log(`Auto-playing ${isInterimAudio ? 'interim' : 'complete'} audio chunk`);
+                let nativeHandled = false;
+                try {
+                    nativeHandled = await window.EveAudioflixNative?.sendGeminiChunk?.(audioData, {
+                        kind: isCompleteAudio ? 'complete' : 'interim',
+                        sequential: isSequential,
+                        sampleRate: 24000,
+                        channels: 1
+                    }) === true;
+                } catch (nativeError) {
+                    console.warn('[socketAudioLogic] Native Audioflix route skipped:', nativeError);
+                }
                 try {
                     await window.EveAudioflixGemini?.mirrorAudioChunk?.(audioData, {
                         kind: isCompleteAudio ? 'complete' : 'interim',
@@ -120,6 +132,7 @@ console.log("socketAudioLogic.js loading...");
                 } catch (monitorError) {
                     console.warn('[socketAudioLogic] Gemini monitor mirror skipped:', monitorError);
                 }
+                if (nativeHandled && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) return;
                 await playWithRecovery(audioData, isCompleteAudio);
             } else {
                 console.warn("[socketAudioLogic] shouldAutoPlay is true but audioData is missing/empty.");

@@ -15,16 +15,55 @@ async function main() {
             localStorage.clear();
         } catch {}
         window.__eveSmokeNoAutoGemini = true;
+        window.__audioflixLabelsUnlocked = false;
+        window.__audioflixTrackStopped = false;
         Object.defineProperty(navigator, 'mediaDevices', {
             configurable: true,
             value: {
-                enumerateDevices: async () => [
-                    { kind: 'audiooutput', deviceId: 'cable-output', label: 'CABLE Input (VB-Audio Virtual Cable)' },
-                    { kind: 'audiooutput', deviceId: 'speakers-output', label: 'Smoke Speakers' }
-                ],
-                selectAudioOutput: async () => ({ deviceId: 'speakers-output', label: 'Smoke Speakers' })
+                enumerateDevices: async () => window.__audioflixLabelsUnlocked
+                    ? [
+                        { kind: 'audiooutput', deviceId: 'cable-output', label: 'CABLE Input (VB-Audio Virtual Cable)' },
+                        { kind: 'audiooutput', deviceId: 'speakers-output', label: 'Smoke Speakers' }
+                    ]
+                    : [
+                        { kind: 'audiooutput', deviceId: 'cable-output', label: '' },
+                        { kind: 'audiooutput', deviceId: 'speakers-output', label: '' }
+                    ],
+                selectAudioOutput: async () => ({ deviceId: 'speakers-output', label: 'Smoke Speakers' }),
+                getUserMedia: async () => {
+                    window.__audioflixLabelsUnlocked = true;
+                    return {
+                        getTracks: () => [{
+                            stop: () => { window.__audioflixTrackStopped = true; }
+                        }]
+                    };
+                }
             }
         });
+        const realFetch = window.fetch.bind(window);
+        window.__audioflixNativePlayCount = 0;
+        window.fetch = async (url, options = {}) => {
+            const text = String(url || '');
+            if (text.includes('/api/audioflix/devices')) {
+                return new Response(JSON.stringify({
+                    ok: true,
+                    playbackAvailable: true,
+                    message: 'Native playback ready.',
+                    devices: [
+                        { id: 'sd:1', label: 'CABLE Input (VB-Audio Virtual Cable)', kind: 'output', playable: true },
+                        { id: 'win:1', label: 'Speakers (Discovery)', kind: 'output', playable: false }
+                    ]
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            }
+            if (text.includes('/api/audioflix/play-pcm')) {
+                window.__audioflixNativePlayCount += 1;
+                return new Response(JSON.stringify({ ok: true, queued: 32 }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+            return realFetch(url, options);
+        };
         Object.defineProperty(navigator, 'clipboard', {
             configurable: true,
             value: { writeText: async (text) => { window.__audioflixCopiedText = text; } }
@@ -80,6 +119,22 @@ async function main() {
         const options = [...(document.querySelector('[data-af-control="monitor-output-select"]')?.options || [])];
         return options.some((option) => option.value === 'cable-output' && option.disabled);
     }, undefined, { timeout: 10000 });
+    await page.waitForFunction(() => {
+        const options = [...(document.querySelector('[data-af-control="native-output-select"]')?.options || [])];
+        return options.some((option) => option.value === 'sd:1' && !option.disabled)
+            && options.some((option) => option.value === 'win:1' && option.disabled);
+    }, undefined, { timeout: 10000 });
+    await page.selectOption('[data-af-control="native-output-select"]', 'sd:1');
+    const nativeRouteApplied = await page.evaluate(async () => {
+        const snapshot = window.EveAudioflixState.getSnapshot();
+        const sent = await window.EveAudioflixNative.sendGeminiChunk('AAAA', { sampleRate: 24000, channels: 1 });
+        return snapshot.routeMode === 'native-bridge'
+            && snapshot.nativeBridgeEnabled === true
+            && /CABLE Input/.test(snapshot.nativeOutputLabel || '')
+            && window.EveAudioflixNative.shouldSuppressBrowserPlayback() === true
+            && sent === true
+            && window.__audioflixNativePlayCount > 0;
+    });
     await page.click('[data-af-action="copy-route-status"]');
     await page.waitForFunction(() => /Audioflix Routing Status/.test(window.__audioflixCopiedText || ''), undefined, {
         timeout: 10000
@@ -137,6 +192,9 @@ async function main() {
             hasTestSignal: typeof window.EveAudioflixAudio.playTestSignal === 'function',
             hasMonitorCard: /Local Monitor/i.test(document.querySelector('.audioflix-status-grid')?.textContent || ''),
             monitorBlocksCable,
+            labelsUnlocked: window.__audioflixLabelsUnlocked === true,
+            unlockTrackStopped: window.__audioflixTrackStopped === true,
+            hasUnlockButton: !!document.querySelector('[data-af-action="unlock-output-names"]'),
             hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
             presetApplied: /CABLE Input/.test(updated.preferredSinkLabel || ''),
             copiedRouteStatus: /Browser Core/.test(window.__audioflixCopiedText || '') && /Windows mixer route/.test(window.__audioflixCopiedText || ''),
@@ -177,6 +235,10 @@ async function main() {
     if (!result.copiedRouteStatus) failures.push('copy route status did not write useful text');
     if (!result.hasMonitorCard) failures.push('Local Monitor card missing');
     if (!result.monitorBlocksCable) failures.push('Local Monitor did not block the Voice Port CABLE sink');
+    if (!nativeRouteApplied) failures.push('native Audioflix bridge route did not apply/send');
+    if (!result.hasUnlockButton) failures.push('unlock device names button missing');
+    if (!result.labelsUnlocked) failures.push('Auto CABLE did not unlock hidden browser output labels');
+    if (!result.unlockTrackStopped) failures.push('unlock device label media track was not stopped');
     if (clearResult.routedEvents !== 0 || !/0 Gemini events/.test(clearResult.headerText)) failures.push('Gemini event counter did not clear through UI');
     if (!result.hasBananaPreset) failures.push('Banana preset button missing');
     if (!result.presetApplied) failures.push('Banana preset did not select CABLE Input');

@@ -166,6 +166,28 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         }
     }
 
+    async function unlockDeviceLabels() {
+        const devices = navigator.mediaDevices || {};
+        if (typeof devices.getUserMedia !== 'function') {
+            lastStatus = 'Cannot unlock device names here; use browser permissions or Windows Mixer.';
+            dispatch('eve:audioflix-playback', { status: lastStatus, unsupported: true });
+            return false;
+        }
+        try {
+            const stream = await devices.getUserMedia({ audio: true, video: false });
+            stream.getTracks().forEach((track) => {
+                try { track.stop(); } catch { }
+            });
+            lastStatus = 'Audio device names unlocked. Re-reading output devices...';
+            dispatch('eve:audioflix-playback', { status: lastStatus, labelsUnlocked: true });
+            return true;
+        } catch (error) {
+            lastStatus = error?.message || 'Device-name unlock was blocked';
+            dispatch('eve:audioflix-playback', { status: lastStatus, error: true });
+            return false;
+        }
+    }
+
     async function setOutputById(deviceId, label) {
         if (!deviceId) return false;
         return await commitOutput(deviceId, label || 'Selected output device');
@@ -264,6 +286,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         selectOutput,
         listOutputs,
         setOutputById,
+        unlockDeviceLabels,
         playTestSignal,
         applySink,
         attachWaveform,

@@ -17,4 +17,10 @@
 
 # If you want to add more advanced features:
 # requests>=2.25.1
-# beautifulsoup4>=4.9.3 
+# beautifulsoup4>=4.9.3
+
+# Optional Audioflix native output bridge:
+# enables EveOS-owned PCM playback to a selected Windows output endpoint
+# without changing the whole Edge app route in Windows Mixer.
+sounddevice>=0.4.7
+numpy>=1.24

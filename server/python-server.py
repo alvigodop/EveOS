@@ -32,6 +32,7 @@ try:
     from server_modules import eve_state_store
     from server_modules import gemini_control
     from server_modules import gemini_credentials
+    from server_modules import audioflix_bridge
 except ImportError as e:
     print(f"Error importing modules: {e}")
     # Fallback or exit? For now, let's assume it works.
@@ -182,6 +183,14 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 )
                 return
             gemini_control.send_json(self, gemini_credentials.get_status())
+
+        elif path.startswith('/api/audioflix/'):
+            if audioflix_bridge.handle_get_request(self, path, query):
+                return
+            self.send_response(HTTPStatus.NOT_FOUND)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"error": "Unknown Audioflix endpoint"}')
             
         else:
             # Unknown API endpoint
@@ -247,6 +256,15 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 payload,
                 HTTPStatus.OK if payload.get("ok") else HTTPStatus.BAD_REQUEST
             )
+            return
+
+        if path.startswith('/api/audioflix/'):
+            if audioflix_bridge.handle_post_request(self, path):
+                return
+            self.send_response(HTTPStatus.NOT_FOUND)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"error": "Unknown Audioflix endpoint"}')
             return
 
         self.send_response(HTTPStatus.NOT_FOUND)
