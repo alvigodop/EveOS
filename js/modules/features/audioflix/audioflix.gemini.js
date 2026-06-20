@@ -144,6 +144,43 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
         return state.geminiConversationMode;
     }
 
+    async function playVoiceRouteTest() {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) throw new Error('WebAudio route test unavailable in this browser.');
+        const state = getState();
+        const context = new AudioContextCtor({ sampleRate: 24000 });
+        try {
+            if (state.geminiVoicePortEnabled === true
+                && state.preferredSinkId
+                && typeof context.setSinkId === 'function') {
+                await context.setSinkId(state.preferredSinkId);
+            }
+            if (context.state === 'suspended') await context.resume();
+            const oscillator = context.createOscillator();
+            const gain = context.createGain();
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 660;
+            gain.gain.setValueAtTime(0.0001, context.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.22, context.currentTime + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.48);
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+            oscillator.start();
+            oscillator.stop(context.currentTime + 0.5);
+            setTimeout(() => { try { context.close(); } catch { } }, 900);
+            announce('eve:audioflix-gemini-routing-changed', {
+                enabled: state.geminiVoicePortEnabled === true,
+                applied: !!state.preferredSinkId,
+                sink: state.preferredSinkLabel || state.preferredSinkId || 'default output',
+                test: true
+            });
+            return true;
+        } catch (error) {
+            try { context.close(); } catch { }
+            throw error;
+        }
+    }
+
     function handleGeminiAudio(detail) {
         lastEvent = Object.assign({
             at: Date.now(),
@@ -164,6 +201,7 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
         setMonitorSink,
         setConversationMode,
         applyVoiceSink,
+        playVoiceRouteTest,
         mirrorAudioChunk,
         getStatus: function () {
             const state = getState();

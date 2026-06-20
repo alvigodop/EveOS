@@ -70,6 +70,12 @@ async function main() {
         const status = document.querySelector('.audioflix-player span')?.textContent || '';
         return /CABLE Input not visible|Gemini voice port armed/.test(status);
     }, undefined, { timeout: 10000 });
+    const selectiveRouteApplied = await page.evaluate(() => {
+        const snapshot = window.EveAudioflixState.getSnapshot();
+        return snapshot.routeMode === 'browser-selective'
+            && snapshot.geminiVoicePortEnabled === true
+            && /CABLE Input/.test(snapshot.preferredSinkLabel || '');
+    });
     await page.waitForFunction(() => {
         const options = [...(document.querySelector('[data-af-control="monitor-output-select"]')?.options || [])];
         return options.some((option) => option.value === 'cable-output' && option.disabled);
@@ -125,12 +131,15 @@ async function main() {
             hasRouteGuide: /Windows mixer route is marked|Next useful action/.test(document.querySelector('.audioflix-route-guide')?.textContent || ''),
             routeActions: [...document.querySelectorAll('.audioflix-route-actions [data-af-action]')]
                 .map((button) => button.dataset.afAction).join(','),
+            hasBrowserCore: /Browser Output Core/.test(document.querySelector('.audioflix-status-grid')?.textContent || ''),
+            hasSelectiveCopy: /Selective browser route/.test(window.__audioflixCopiedText || ''),
+            hasVoiceRouteTest: typeof window.EveAudioflixGemini.playVoiceRouteTest === 'function',
             hasTestSignal: typeof window.EveAudioflixAudio.playTestSignal === 'function',
             hasMonitorCard: /Local Monitor/i.test(document.querySelector('.audioflix-status-grid')?.textContent || ''),
             monitorBlocksCable,
             hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
             presetApplied: /CABLE Input/.test(updated.preferredSinkLabel || ''),
-            copiedRouteStatus: /Output Router/.test(window.__audioflixCopiedText || '') && /Windows mixer route/.test(window.__audioflixCopiedText || ''),
+            copiedRouteStatus: /Browser Core/.test(window.__audioflixCopiedText || '') && /Windows mixer route/.test(window.__audioflixCopiedText || ''),
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
         };
     });
@@ -146,6 +155,7 @@ async function main() {
     const failures = [];
     if (!drawerInitiallyCollapsed) failures.push('routing drawer was not collapsed by default');
     if (!result.hasOverlay) failures.push('overlay not visible');
+    if (!selectiveRouteApplied) failures.push('Auto CABLE did not create selective browser route');
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);
     if (result.musicCount !== 1) failures.push(`expected 1 track, got ${result.musicCount}`);
     if (!result.voicePortEnabled) failures.push('Gemini voice port did not persist');
@@ -160,6 +170,9 @@ async function main() {
     if (!result.hasRouteGuide) failures.push('route guide missing');
     if (!result.hasRouteHealth) failures.push('route health row missing');
     if (!/local-only/.test(result.routeActions) || !/mark-windows-route/.test(result.routeActions) || !/test-signal/.test(result.routeActions) || !/copy-route-status/.test(result.routeActions)) failures.push(`route actions incomplete: ${result.routeActions}`);
+    if (!result.hasBrowserCore) failures.push('Browser Output Core card missing');
+    if (!result.hasSelectiveCopy) failures.push('selective browser route note missing from copied status');
+    if (!result.hasVoiceRouteTest) failures.push('Gemini WebAudio route test helper missing');
     if (!result.hasTestSignal) failures.push('test signal helper missing');
     if (!result.copiedRouteStatus) failures.push('copy route status did not write useful text');
     if (!result.hasMonitorCard) failures.push('Local Monitor card missing');

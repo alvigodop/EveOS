@@ -293,8 +293,13 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
         if (action === 'test-signal') {
             try {
-                await window.EveAudioflixAudio?.playTestSignal?.();
-                playbackStatus = 'Playing Audioflix test signal';
+                if (window.EveAudioflixGemini?.playVoiceRouteTest) {
+                    await window.EveAudioflixGemini.playVoiceRouteTest();
+                    playbackStatus = 'Playing Gemini WebAudio route test';
+                } else {
+                    await window.EveAudioflixAudio?.playTestSignal?.();
+                    playbackStatus = 'Playing Audioflix test signal';
+                }
             } catch (error) {
                 playbackStatus = error.message || 'Test signal failed';
             }

@@ -98,7 +98,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return {
             schemaVersion: 1,
             enabled: source.enabled !== false,
-            routeMode: ['browser', 'vb-cable', 'manual'].includes(source.routeMode) ? source.routeMode : 'browser',
+            routeMode: ['browser', 'browser-selective', 'vb-cable', 'manual'].includes(source.routeMode) ? source.routeMode : 'browser',
             preferredSinkId: text(source.preferredSinkId, ''),
             preferredSinkLabel: text(source.preferredSinkLabel, ''),
             geminiVoicePortEnabled: bool(source.geminiVoicePortEnabled),

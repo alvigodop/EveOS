@@ -141,7 +141,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         window.EveAudioflixState?.update?.({
             preferredSinkId: deviceId,
             preferredSinkLabel: label || 'Selected output device',
-            routeMode: 'browser'
+            routeMode: 'browser-selective'
         }, 'audioflix-output-device');
         try { await window.EveAudioflixGemini?.applyVoiceSink?.(window.audioInputContext); } catch { }
         lastStatus = applied ? `Output routed to ${label || 'selected device'}` : 'Output saved for supported browsers';
@@ -243,6 +243,20 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         if (canvas && !animationFrame && audio && !audio.paused) startWaveform();
     }
 
+    function browserOutputStatus() {
+        const devices = navigator.mediaDevices || {};
+        const player = ensureAudio();
+        return {
+            secureContext: window.isSecureContext === true,
+            hasSetSinkId: typeof player.setSinkId === 'function',
+            hasAudioContextSink: typeof AudioContext !== 'undefined'
+                && typeof AudioContext.prototype?.setSinkId === 'function',
+            hasOutputPicker: typeof devices.selectAudioOutput === 'function',
+            hasEnumerate: typeof devices.enumerateDevices === 'function',
+            activeSinkId: player.sinkId || ''
+        };
+    }
+
     Object.assign(ns, {
         ready: true,
         playItem,
@@ -253,15 +267,19 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         playTestSignal,
         applySink,
         attachWaveform,
+        browserOutputStatus,
         getAudioElement: ensureAudio,
         getStatus: function () {
+            const output = browserOutputStatus();
             return {
                 status: lastStatus,
                 item: currentItem,
-                sinkId: ensureAudio().sinkId || '',
-                hasSetSinkId: typeof ensureAudio().setSinkId === 'function',
-                hasOutputPicker: typeof navigator.mediaDevices?.selectAudioOutput === 'function',
-                hasEnumerate: typeof navigator.mediaDevices?.enumerateDevices === 'function'
+                sinkId: output.activeSinkId,
+                hasSetSinkId: output.hasSetSinkId,
+                hasAudioContextSink: output.hasAudioContextSink,
+                hasOutputPicker: output.hasOutputPicker,
+                hasEnumerate: output.hasEnumerate,
+                secureContext: output.secureContext
             };
         }
     });

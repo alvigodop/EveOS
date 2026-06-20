@@ -24,16 +24,43 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         return snapshot.preferredSinkLabel || (audioStatus.hasSetSinkId ? 'Default browser output' : 'Default output');
     }
 
+    function browserCoreState(snapshot, audioStatus) {
+        if (snapshot.routeMode === 'manual') {
+            return {
+                selected: false,
+                canPick: audioStatus.hasSetSinkId && audioStatus.hasOutputPicker,
+                labelsVisible: audioStatus.hasEnumerate && !!snapshot.preferredSinkLabel,
+                title: 'Windows mixer route active',
+                detail: 'Browser APIs stay available, but Windows is currently the source of truth for routing Edge/EveOS to CABLE Input.'
+            };
+        }
+        const selected = ['browser', 'browser-selective', 'vb-cable'].includes(snapshot.routeMode) && !!snapshot.preferredSinkId;
+        const canPick = audioStatus.hasSetSinkId && audioStatus.hasOutputPicker;
+        const labelsVisible = audioStatus.hasEnumerate && !!snapshot.preferredSinkLabel;
+        return {
+            selected,
+            canPick,
+            labelsVisible,
+            title: selected ? 'Selective site output ready' : (canPick ? 'Ready to pick output' : 'Manual mixer fallback'),
+            detail: selected
+                ? `EveOS can route Audioflix and Gemini WebAudio to ${snapshot.preferredSinkLabel || 'the selected output'} without moving all Edge audio.`
+                : (canPick
+                    ? 'Edge/Chromium can grant EveOS permission to route Audioflix and supported Gemini audio to a chosen output.'
+                    : 'Use Windows Volume mixer when this browser cannot expose a permitted output sink.')
+        };
+    }
+
     function healthItems(snapshot, audioStatus) {
         const hasRouteApi = !!audioStatus.hasSetSinkId;
         const hasOutput = !!snapshot.preferredSinkLabel;
         const manualMixer = snapshot.routeMode === 'manual';
+        const browserCore = browserCoreState(snapshot, audioStatus);
         const onCable = manualMixer || isCableLabel(snapshot.preferredSinkLabel);
         const armed = snapshot.geminiVoicePortEnabled === true || manualMixer;
         return [
-            { label: 'Output routing', state: manualMixer || hasRouteApi ? 'ready' : 'manual', text: manualMixer ? 'Windows mixer' : (hasRouteApi ? 'Browser ready' : 'Use Windows mixer') },
+            { label: 'Output routing', state: manualMixer || hasRouteApi ? 'ready' : 'manual', text: manualMixer ? 'Windows mixer' : (browserCore.selected ? 'Browser permitted' : (hasRouteApi ? 'Browser ready' : 'Use Windows mixer')) },
             { label: 'Voice sink', state: onCable ? 'ready' : (hasOutput ? 'warn' : 'manual'), text: onCable ? 'CABLE route' : 'Needs CABLE Input' },
-            { label: 'Voice port', state: armed ? 'ready' : 'manual', text: armed ? 'Marked armed' : 'Local only' },
+            { label: 'Voice port', state: armed ? 'ready' : 'manual', text: armed ? 'Gemini only' : 'Not armed' },
             { label: 'Voicemeeter mic', state: 'manual', text: 'Route B1/B2 in Banana' }
         ];
     }
@@ -44,6 +71,13 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                 state: 'ready',
                 title: 'Windows mixer route is marked',
                 body: 'EveOS will treat Edge/browser audio as already routed to CABLE Input. Use Test Route and Copy Route to verify or share the setup.'
+            };
+        }
+        if (audioStatus.hasOutputPicker && audioStatus.hasSetSinkId && !snapshot.preferredSinkId) {
+            return {
+                state: 'warn',
+                title: 'Pick a permitted browser output',
+                body: 'Use Pick Browser Output to grant EveOS permission to route Audioflix and supported Gemini playback to CABLE Input or another output.'
             };
         }
         if (!audioStatus.hasSetSinkId) {
@@ -57,20 +91,20 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             return {
                 state: 'warn',
                 title: 'Choose your routing source',
-                body: 'Use Auto CABLE + Arm when browser routing works, or mark Windows Mixer Routed if you already set Edge/EveOS to CABLE Input in Windows.'
+                body: 'Use Auto CABLE + Arm for selective Gemini-only routing, or mark Windows Mixer Routed if you already route all Edge/EveOS audio in Windows.'
             };
         }
         if (snapshot.geminiVoicePortEnabled !== true) {
             return {
                 state: 'manual',
-                title: 'Arm Voice Port',
-                body: 'CABLE Input is selected. Arm the port so Gemini playback is treated as a mic-route signal instead of normal local playback.'
+                title: 'Arm selective Gemini route',
+                body: 'CABLE Input is selected. Arm the port so Gemini WebAudio goes to VB-CABLE while normal Edge audio can stay on your default speakers.'
             };
         }
         return {
             state: 'ready',
-            title: 'Route is ready',
-            body: 'Use Test Route to verify signal, then select Voicemeeter Out B1/B2 as the microphone in the target app.'
+            title: 'Selective Gemini route is ready',
+            body: 'Use Test Route to verify the WebAudio path, then select Voicemeeter Out B1/B2 as the microphone in the target app.'
         };
     }
 
@@ -90,8 +124,9 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         const monitorOn = snapshot.geminiVoiceMonitorEnabled !== false;
         const monitorLabel = snapshot.geminiVoiceMonitorSinkLabel || 'Default monitor output';
         const guidance = nextStep(snapshot, audioStatus);
+        const browserCore = browserCoreState(snapshot, audioStatus);
         return `<section class="audioflix-route-board" aria-label="Gemini voice route">
-            <div class="audioflix-route-node"><span>Gemini Voice</span><strong>${snapshot.geminiVoicePortEnabled ? 'Port armed' : 'Local only'}</strong></div>
+            <div class="audioflix-route-node"><span>Gemini Voice</span><strong>${snapshot.geminiVoicePortEnabled ? 'Selective route armed' : 'Default playback'}</strong></div>
             <div class="audioflix-route-arrow">-&gt;</div>
             <div class="audioflix-route-node ${snapshot.geminiVoicePortEnabled ? 'is-hot' : ''}"><span>Output Sink</span><strong>${esc(label)}</strong></div>
             <div class="audioflix-route-arrow">-&gt;</div>
@@ -113,24 +148,25 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             </div>
         </section>
         <section class="audioflix-status-grid">
-            <article class="audioflix-status-card">
-                <span>Output Router</span>
-                <strong>${esc(label)}</strong>
-                <p>Optional browser-side sink. If Windows already routes Edge/EveOS to CABLE Input, leave this alone and use Windows Mixer Routed.</p>
+            <article class="audioflix-status-card is-core">
+                <span>Browser Output Core</span>
+                <strong>${esc(browserCore.title)}</strong>
+                <p>${esc(browserCore.detail)}</p>
+                <p class="audioflix-mini-status">Secure: ${audioStatus.secureContext ? 'yes' : 'limited'} · Output API: ${audioStatus.hasSetSinkId ? 'yes' : 'no'} · Picker: ${audioStatus.hasOutputPicker ? 'yes' : 'no'}</p>
                 <div class="audioflix-output-picker">
                     <select data-af-control="output-select" aria-label="Audio output device">
                         <option value="">Loading devices...</option>
                     </select>
                 </div>
-                <button data-af-action="select-output">Pick via Browser...</button>
+                <button data-af-action="select-output">Pick Browser Output</button>
             </article>
             <article class="audioflix-status-card ${snapshot.geminiVoicePortEnabled ? 'is-on' : ''}">
                 <span>Gemini Voice Port</span>
-                <strong>${snapshot.geminiVoicePortEnabled ? 'VB-CABLE path armed' : 'Local playback only'}</strong>
+                <strong>${snapshot.geminiVoicePortEnabled ? 'Selective route armed' : 'Default playback'}</strong>
                 <p>${snapshot.geminiVoicePortEnabled && !isCableLabel(snapshot.preferredSinkLabel)
-                    ? 'Port is armed, but Output Router is not CABLE Input yet.'
-                    : 'Routes Gemini voice into VB-CABLE/Voicemeeter for target-app mic input.'}</p>
-                <button data-af-action="toggle-gemini-port">${snapshot.geminiVoicePortEnabled ? 'Disable Port' : 'Arm Voice Port'}</button>
+                    ? 'Port is armed, but Output Router is not CABLE Input yet unless Windows Mixer is handling it.'
+                    : 'Routes Gemini WebAudio into VB-CABLE/Voicemeeter without requiring all Edge audio to move.'}</p>
+                <button data-af-action="toggle-gemini-port">${snapshot.geminiVoicePortEnabled ? 'Disable Selective Route' : 'Arm Selective Route'}</button>
             </article>
             <article class="audioflix-status-card ${monitorOn ? 'is-on' : ''}">
                 <span>Local Monitor</span>
@@ -234,12 +270,14 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         const snapshot = state();
         const audioStatus = window.EveAudioflixAudio?.getStatus?.() || {};
         const geminiStatus = window.EveAudioflixGemini?.getStatus?.() || {};
+        const browserCore = browserCoreState(snapshot, audioStatus);
         return [
             'EveOS Audioflix Routing Status',
             `Generated: ${new Date().toISOString()}`,
             '',
+            `[Browser Core] ${browserCore.title}`,
             `[Output Router] ${routeLabel(snapshot, audioStatus)}`,
-            `[Voice Port] ${snapshot.geminiVoicePortEnabled ? 'armed' : 'local only'}`,
+            `[Voice Port] ${snapshot.geminiVoicePortEnabled ? 'selective Gemini WebAudio route armed' : 'default playback'}`,
             `[Route Mode] ${snapshot.routeMode || 'browser'}`,
             `[Local Monitor] ${snapshot.geminiVoiceMonitorEnabled === false ? 'muted' : (snapshot.geminiVoiceMonitorSinkLabel || 'default output')}`,
             `[Conversation Mode] ${snapshot.geminiConversationMode || 'direct-live'}`,
@@ -247,6 +285,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             `[Last Gemini Audio] ${geminiStatus.lastEvent ? new Date(geminiStatus.lastEvent.at).toLocaleString() : 'none'}`,
             `[Next Step] ${nextStep(snapshot, audioStatus).title}`,
             '',
+            'Selective browser route: Pick Browser Output/Auto CABLE + Arm uses browser permission and AudioContext.setSinkId when supported, so Gemini WebAudio can go to VB-CABLE without moving all Edge audio.',
             'Windows mixer route: Settings -> System -> Sound -> Volume mixer -> Edge/EveOS output = CABLE Input.',
             'Target app mic path: CABLE Output -> Voicemeeter strip -> B1/B2 -> target app microphone.'
         ].join('\n');

@@ -280,6 +280,19 @@
     box-shadow: inset 0 0 28px rgba(156, 255, 173, 0.06);
 }
 
+.audioflix-status-card.is-core {
+    border-color: rgba(0, 212, 255, 0.34);
+    background:
+        radial-gradient(circle at 20% 0%, rgba(0, 212, 255, 0.14), transparent 50%),
+        linear-gradient(180deg, rgba(0, 212, 255, 0.08), rgba(0, 0, 0, 0.14)),
+        rgba(13, 19, 24, 0.8);
+}
+
+.audioflix-mini-status {
+    color: rgba(234, 242, 246, 0.58);
+    font-size: 0.76rem;
+}
+
 .audioflix-status-card span,
 .audioflix-router-notes h3 {
     color: #00d4ff;
