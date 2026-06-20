@@ -20,23 +20,32 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
     }
 
     function routeLabel(snapshot, audioStatus) {
+        if (snapshot.routeMode === 'manual') return 'Windows Mixer -> CABLE Input';
         return snapshot.preferredSinkLabel || (audioStatus.hasSetSinkId ? 'Default browser output' : 'Default output');
     }
 
     function healthItems(snapshot, audioStatus) {
         const hasRouteApi = !!audioStatus.hasSetSinkId;
         const hasOutput = !!snapshot.preferredSinkLabel;
-        const onCable = isCableLabel(snapshot.preferredSinkLabel);
-        const armed = snapshot.geminiVoicePortEnabled === true;
+        const manualMixer = snapshot.routeMode === 'manual';
+        const onCable = manualMixer || isCableLabel(snapshot.preferredSinkLabel);
+        const armed = snapshot.geminiVoicePortEnabled === true || manualMixer;
         return [
-            { label: 'Output routing', state: hasRouteApi ? 'ready' : 'manual', text: hasRouteApi ? 'Ready' : 'Use Windows mixer' },
-            { label: 'Voice sink', state: onCable ? 'ready' : (hasOutput ? 'warn' : 'manual'), text: onCable ? 'CABLE selected' : 'Pick CABLE Input' },
-            { label: 'Voice port', state: armed ? 'ready' : 'manual', text: armed ? 'Armed' : 'Local only' },
+            { label: 'Output routing', state: manualMixer || hasRouteApi ? 'ready' : 'manual', text: manualMixer ? 'Windows mixer' : (hasRouteApi ? 'Browser ready' : 'Use Windows mixer') },
+            { label: 'Voice sink', state: onCable ? 'ready' : (hasOutput ? 'warn' : 'manual'), text: onCable ? 'CABLE route' : 'Needs CABLE Input' },
+            { label: 'Voice port', state: armed ? 'ready' : 'manual', text: armed ? 'Marked armed' : 'Local only' },
             { label: 'Voicemeeter mic', state: 'manual', text: 'Route B1/B2 in Banana' }
         ];
     }
 
     function nextStep(snapshot, audioStatus) {
+        if (snapshot.routeMode === 'manual' && snapshot.geminiVoicePortEnabled === true) {
+            return {
+                state: 'ready',
+                title: 'Windows mixer route is marked',
+                body: 'EveOS will treat Edge/browser audio as already routed to CABLE Input. Use Test Route and Copy Route to verify or share the setup.'
+            };
+        }
         if (!audioStatus.hasSetSinkId) {
             return {
                 state: 'manual',
@@ -47,8 +56,8 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         if (!isCableLabel(snapshot.preferredSinkLabel)) {
             return {
                 state: 'warn',
-                title: 'Pick CABLE Input',
-                body: 'Set Output Router to CABLE Input, then Voicemeeter can expose that audio as B1/B2 for your target app mic.'
+                title: 'Choose your routing source',
+                body: 'Use Auto CABLE + Arm when browser routing works, or mark Windows Mixer Routed if you already set Edge/EveOS to CABLE Input in Windows.'
             };
         }
         if (snapshot.geminiVoicePortEnabled !== true) {
@@ -96,6 +105,8 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             ${renderHealth(snapshot, audioStatus)}
             <div class="audioflix-route-actions">
                 <button data-af-action="local-only">Local Playback</button>
+                <button data-af-action="open-windows-mixer">Open Mixer</button>
+                <button data-af-action="mark-windows-route">Windows Mixer Routed</button>
                 <button data-af-action="arm-cable">Auto CABLE + Arm</button>
                 <button data-af-action="test-signal">Test Route</button>
                 <button data-af-action="copy-route-status">Copy Route</button>
@@ -105,7 +116,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             <article class="audioflix-status-card">
                 <span>Output Router</span>
                 <strong>${esc(label)}</strong>
-                <p>Primary sink for Gemini voice. Pick CABLE Input to feed the virtual mic route.</p>
+                <p>Optional browser-side sink. If Windows already routes Edge/EveOS to CABLE Input, leave this alone and use Windows Mixer Routed.</p>
                 <div class="audioflix-output-picker">
                     <select data-af-control="output-select" aria-label="Audio output device">
                         <option value="">Loading devices...</option>
@@ -229,12 +240,14 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             '',
             `[Output Router] ${routeLabel(snapshot, audioStatus)}`,
             `[Voice Port] ${snapshot.geminiVoicePortEnabled ? 'armed' : 'local only'}`,
+            `[Route Mode] ${snapshot.routeMode || 'browser'}`,
             `[Local Monitor] ${snapshot.geminiVoiceMonitorEnabled === false ? 'muted' : (snapshot.geminiVoiceMonitorSinkLabel || 'default output')}`,
             `[Conversation Mode] ${snapshot.geminiConversationMode || 'direct-live'}`,
             `[Signal] ${playbackStatus || 'Idle'}`,
             `[Last Gemini Audio] ${geminiStatus.lastEvent ? new Date(geminiStatus.lastEvent.at).toLocaleString() : 'none'}`,
             `[Next Step] ${nextStep(snapshot, audioStatus).title}`,
             '',
+            'Windows mixer route: Settings -> System -> Sound -> Volume mixer -> Edge/EveOS output = CABLE Input.',
             'Target app mic path: CABLE Output -> Voicemeeter strip -> B1/B2 -> target app microphone.'
         ].join('\n');
     }

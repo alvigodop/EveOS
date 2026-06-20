@@ -78,6 +78,14 @@ async function main() {
     await page.waitForFunction(() => /Audioflix Routing Status/.test(window.__audioflixCopiedText || ''), undefined, {
         timeout: 10000
     });
+    await page.click('[data-af-action="mark-windows-route"]');
+    await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().routeMode === 'manual', undefined, {
+        timeout: 10000
+    });
+    await page.click('[data-af-action="copy-route-status"]');
+    await page.waitForFunction(() => /Windows mixer route/.test(window.__audioflixCopiedText || ''), undefined, {
+        timeout: 10000
+    });
     await page.evaluate(() => {
         window.EveAudioflixGemini.setMonitorEnabled(true);
         window.EveAudioflixGemini.setMonitorSink('monitor-smoke-device', 'Smoke Monitor Speakers');
@@ -107,12 +115,14 @@ async function main() {
             voicePortEnabled: updated.geminiVoicePortEnabled,
             voiceMonitorEnabled: updated.geminiVoiceMonitorEnabled,
             voiceMonitorLabel: updated.geminiVoiceMonitorSinkLabel,
+            routeMode: updated.routeMode,
             mode: updated.geminiConversationMode,
             routedEvents: updated.counters.routedGeminiEvents,
             hasRouterNotes: /CABLE/i.test(document.querySelector('.audioflix-content')?.textContent || ''),
             hasRouteBoard: /Gemini Voice/.test(document.querySelector('.audioflix-route-board')?.textContent || ''),
             drawerExpanded: document.querySelector('.audioflix-routing-drawer')?.classList.contains('is-open'),
             hasRouteHealth: /Output routing/.test(document.querySelector('.audioflix-route-health')?.textContent || ''),
+            hasRouteGuide: /Windows mixer route is marked|Next useful action/.test(document.querySelector('.audioflix-route-guide')?.textContent || ''),
             routeActions: [...document.querySelectorAll('.audioflix-route-actions [data-af-action]')]
                 .map((button) => button.dataset.afAction).join(','),
             hasTestSignal: typeof window.EveAudioflixAudio.playTestSignal === 'function',
@@ -120,7 +130,7 @@ async function main() {
             monitorBlocksCable,
             hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
             presetApplied: /CABLE Input/.test(updated.preferredSinkLabel || ''),
-            copiedRouteStatus: /Output Router/.test(window.__audioflixCopiedText || ''),
+            copiedRouteStatus: /Output Router/.test(window.__audioflixCopiedText || '') && /Windows mixer route/.test(window.__audioflixCopiedText || ''),
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
         };
     });
@@ -141,13 +151,15 @@ async function main() {
     if (!result.voicePortEnabled) failures.push('Gemini voice port did not persist');
     if (!result.voiceMonitorEnabled) failures.push('Gemini voice monitor did not persist');
     if (result.voiceMonitorLabel !== 'Smoke Monitor Speakers') failures.push(`wrong monitor label: ${result.voiceMonitorLabel}`);
+    if (result.routeMode !== 'manual') failures.push(`manual Windows mixer route did not persist: ${result.routeMode}`);
     if (result.mode !== 'text-brain-live-voice') failures.push(`wrong mode: ${result.mode}`);
     if (result.routedEvents < 1) failures.push('Gemini audio event not recorded');
     if (!result.hasRouterNotes) failures.push('router notes missing');
     if (!result.drawerExpanded) failures.push('routing drawer did not expand');
     if (!result.hasRouteBoard) failures.push('route board missing');
+    if (!result.hasRouteGuide) failures.push('route guide missing');
     if (!result.hasRouteHealth) failures.push('route health row missing');
-    if (!/local-only/.test(result.routeActions) || !/test-signal/.test(result.routeActions) || !/copy-route-status/.test(result.routeActions)) failures.push(`route actions incomplete: ${result.routeActions}`);
+    if (!/local-only/.test(result.routeActions) || !/mark-windows-route/.test(result.routeActions) || !/test-signal/.test(result.routeActions) || !/copy-route-status/.test(result.routeActions)) failures.push(`route actions incomplete: ${result.routeActions}`);
     if (!result.hasTestSignal) failures.push('test signal helper missing');
     if (!result.copiedRouteStatus) failures.push('copy route status did not write useful text');
     if (!result.hasMonitorCard) failures.push('Local Monitor card missing');

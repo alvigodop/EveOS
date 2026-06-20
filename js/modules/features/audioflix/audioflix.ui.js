@@ -252,7 +252,23 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'local-only') {
             window.EveAudioflixGemini?.setVoicePortEnabled?.(false);
             window.EveAudioflixGemini?.setMonitorEnabled?.(true);
+            window.EveAudioflixState?.update?.({ routeMode: 'browser' }, 'audioflix-local-playback');
             playbackStatus = 'Local only mode active';
+            rerender();
+            return;
+        }
+        if (action === 'open-windows-mixer') {
+            try { window.open('ms-settings:apps-volume', '_blank', 'noopener'); } catch { }
+            playbackStatus = 'Open Windows Volume mixer, then set Edge/EveOS output to CABLE Input.';
+            rerender();
+            return;
+        }
+        if (action === 'mark-windows-route') {
+            window.EveAudioflixState?.update?.({
+                routeMode: 'manual',
+                geminiVoicePortEnabled: true
+            }, 'audioflix-windows-mixer-route');
+            playbackStatus = 'Windows mixer route marked: Edge/EveOS -> CABLE Input -> Voicemeeter B1/B2.';
             rerender();
             return;
         }
