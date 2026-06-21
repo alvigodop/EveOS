@@ -17,6 +17,23 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     let activeStreamTimer = null;
     let isStreamPlaying = false;
     const activeLayers = new Map();
+    // Cache decoded AudioBuffers by URL so retriggering the SAME sound is instant
+    // (skip the fetch + decodeAudioData that otherwise runs on every press).
+    const decodedBufferCache = new Map();
+    const MAX_DECODED_CACHE = 80;
+
+    async function getDecodedBuffer(url) {
+        if (decodedBufferCache.has(url)) return decodedBufferCache.get(url);
+        const res = await fetch(url);
+        const arrayBuffer = await res.arrayBuffer();
+        const audioCtx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        if (decodedBufferCache.size >= MAX_DECODED_CACHE) {
+            decodedBufferCache.delete(decodedBufferCache.keys().next().value); // evict oldest
+        }
+        decodedBufferCache.set(url, audioBuffer);
+        return audioBuffer;
+    }
 
     function stopActiveStream() {
         if (activeStreamTimer) {
@@ -339,10 +356,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             try {
                 lastStatus = `Decoding ${safeItem.title || 'audio'}...`;
                 dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem });
-                const res = await fetch(safeItem.url);
-                const arrayBuffer = await res.arrayBuffer();
-                const audioCtx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
-                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                const audioBuffer = await getDecodedBuffer(safeItem.url);
                 currentItem = safeItem;
                 lastStatus = `Native route playing ${safeItem.title || 'audio'} -> ${state().nativeOutputLabel || 'selected output'}`;
                 dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, native: true });
@@ -396,10 +410,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
         if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
             try {
-                const res = await fetch(safeItem.url);
-                const arrayBuffer = await res.arrayBuffer();
-                const audioCtx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
-                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                const audioBuffer = await getDecodedBuffer(safeItem.url);
                 const streamControl = await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1, true);
                 
                 const id = safeItem.id || safeItem.url;
