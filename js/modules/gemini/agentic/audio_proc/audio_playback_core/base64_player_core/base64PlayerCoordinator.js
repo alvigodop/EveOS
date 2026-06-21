@@ -122,6 +122,19 @@ window.Base64PlayerCore.Coordinator = {
                     console.log("[base64PlayerCoordinator] Starting audio playback", { container, duration: audioBuffer.duration });
                 } catch (e) { console.log('[base64PlayerCoordinator] start log failed'); }
 
+                if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() === true) {
+                    try {
+                        const nativeHandled = await window.EveAudioflixNative.sendGeminiChunk(base64Data, {
+                            kind: 'replay',
+                            sampleRate: 24000,
+                            channels: 1
+                        });
+                        console.log("[base64PlayerCoordinator] Replay sent to Native Bridge, status:", nativeHandled);
+                    } catch (nativeError) {
+                        console.warn("[base64PlayerCoordinator] Native Bridge replay chunk failed:", nativeError);
+                    }
+                }
+
                 source.start();
                 console.log("Audio playback started successfully");
 

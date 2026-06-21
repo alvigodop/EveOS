@@ -1,7 +1,33 @@
 // js/modules/gemini/audio_seeking_operations/audioSeeker.js
 
 // Function to seek to a specific position in the audio
-function seekAudio(container, position, playButton, progressBar, timeDisplay) {
+async function seekAudio(container, position, playButton, progressBar, timeDisplay) {
+    function arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+
+    function base64ToArrayBufferLocal(base64) {
+        if (typeof window.base64ToArrayBuffer === 'function') {
+            return window.base64ToArrayBuffer(base64);
+        }
+        if (window.Base64PlayerCore?.BufferHandler?.base64ToArrayBuffer) {
+            return window.Base64PlayerCore.BufferHandler.base64ToArrayBuffer(base64);
+        }
+        const binaryString = window.atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
     console.log(`Seeking to position: ${position * 100}%`);
     
     // Immediately update the progress bar for visual feedback
@@ -63,12 +89,14 @@ function seekAudio(container, position, playButton, progressBar, timeDisplay) {
             console.log(`Setting playback rate to ${container.playbackRate}x`);
         }
         
+        const suppress = window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() === true;
+
         // Set up gain node for volume control if needed
-        if (container.volume !== undefined || container.querySelector('.volume-slider')) {
+        if (suppress || container.volume !== undefined || container.querySelector('.volume-slider')) {
             // Get volume value from slider or use stored value
             const volumeSlider = container.querySelector('.volume-slider');
-            const volumeValue = container.volume !== undefined ? container.volume : 
-                               (volumeSlider ? parseFloat(volumeSlider.value) : 1);
+            const volumeValue = suppress ? 0 : (container.volume !== undefined ? container.volume : 
+                               (volumeSlider ? parseFloat(volumeSlider.value) : 1));
             
             // Create gain node if it doesn't exist
             if (!container.gainNode) {
@@ -77,7 +105,7 @@ function seekAudio(container, position, playButton, progressBar, timeDisplay) {
             
             // Set gain value
             container.gainNode.gain.value = volumeValue;
-            console.log(`Setting volume to ${volumeValue}`);
+            console.log(`Setting volume to ${volumeValue} (seek, suppress: ${suppress})`);
             
             // Connect source to gain node, then to destination
             newSource.connect(container.gainNode);
@@ -118,6 +146,30 @@ function seekAudio(container, position, playButton, progressBar, timeDisplay) {
         console.log(`Starting playback at position: ${position}, time: ${seekTime}s, duration: ${duration}s`);
         
         try {
+            if (suppress && container.audioData) {
+                try {
+                    const rawBuffer = base64ToArrayBufferLocal(container.audioData);
+                    const totalBytes = rawBuffer.byteLength;
+                    let seekByteIndex = Math.floor(position * totalBytes);
+                    // Align to 2-byte boundary (16-bit PCM samples)
+                    seekByteIndex = seekByteIndex - (seekByteIndex % 2);
+                    
+                    if (seekByteIndex < totalBytes) {
+                        const slicedBuffer = rawBuffer.slice(seekByteIndex);
+                        const slicedBase64 = arrayBufferToBase64(slicedBuffer);
+                        
+                        const nativeHandled = await window.EveAudioflixNative.sendGeminiChunk(slicedBase64, {
+                            kind: 'replay',
+                            sampleRate: 24000,
+                            channels: 1
+                        });
+                        console.log("[audioSeeker] Native seek replay sent, handled:", nativeHandled);
+                    }
+                } catch (nativeError) {
+                    console.warn("[audioSeeker] Native seek playback failed:", nativeError);
+                }
+            }
+
             // Start playback from the new position
             newSource.start(0, seekTime);
             

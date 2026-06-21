@@ -11,7 +11,7 @@ const audioProcessingScripts = [
     // Core Audio Playback
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContainerHelper.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContextInitializer.js?v=0.1.2`,
-    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioSourceConfigurator.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioSourceConfigurator.js?v=0.1.1`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/base64_player_core/base64PlayerLoader.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/wavEncoder.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/html5AudioFallback.js`,
@@ -48,7 +48,7 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/progress_updater/directProgressBarUpdater.js`,
 
     // Audio Seeking and Settings
-    `${AUDIO_PROCESSING_BASE_PATH}/seek_ops/audioSeeker.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/seek_ops/audioSeeker.js?v=0.1.1`,
     `${AUDIO_PROCESSING_BASE_PATH}/settings_dialog/audioSettingsDialogHandler.js`,
 
     // Audio Processing Preferences and Toggles

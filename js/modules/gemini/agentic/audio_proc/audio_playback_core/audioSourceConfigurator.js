@@ -15,12 +15,14 @@ window.AudioSourceConfigurator.setupSourceAndGain = function (container, audioBu
         source.playbackRate.value = 1.0;
     }
 
+    const suppress = window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() === true;
+
     // Set up gain node for volume control if needed
-    if (container.volume !== undefined || container.querySelector('.volume-slider')) {
+    if (suppress || container.volume !== undefined || container.querySelector('.volume-slider')) {
         // Get volume value from slider or use stored value
         const volumeSlider = container.querySelector('.volume-slider');
-        const volumeValue = container.volume !== undefined ? container.volume :
-            (volumeSlider ? parseFloat(volumeSlider.value) : 1);
+        const volumeValue = suppress ? 0 : (container.volume !== undefined ? container.volume :
+            (volumeSlider ? parseFloat(volumeSlider.value) : 1));
 
         // Create gain node if it doesn't exist
         if (!container.gainNode) {
@@ -29,7 +31,7 @@ window.AudioSourceConfigurator.setupSourceAndGain = function (container, audioBu
 
         // Set gain value
         container.gainNode.gain.value = volumeValue;
-        console.log(`Setting volume to ${volumeValue}`);
+        console.log(`Setting volume to ${volumeValue} (suppress: ${suppress})`);
 
         // Connect source to gain node, then to destination
         source.connect(container.gainNode);
