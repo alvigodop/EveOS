@@ -24,9 +24,10 @@ window.EveAudioflix = window.EveAudioflix || {};
     function renderInfoModal(item, type) {
         const dur = formatDuration(item.duration), src = item.isPorted ? `${item.category} (Ported)` : (type === 'music' ? 'Music Library' : 'Local Soundboard');
         const row = (lbl, val) => `<div class="audioflix-info-row"><span>${lbl}</span><strong>${val}</strong></div>`;
+        const exposeRow = type === 'sound' ? row('Expose to Frontend', `<input type="checkbox" class="audioflix-expose-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" ${isItemExposed(item) ? 'checked' : ''}>`) : '';
         return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card">
             <div class="audioflix-info-header"><div><span class="audioflix-kicker">Sound Details</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div>
-            <div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}
+            <div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}
                 <div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row">
                     <input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()">
                     <button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div></div>
@@ -37,6 +38,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const snapshot = state();
         const ports = snapshot.ports || [], fetched = [];
         const portVols = snapshot.portVolumes || {};
+        const portExposed = snapshot.exposedPortedSounds || {};
         const base = (window.location.origin && !window.location.origin.startsWith('file:')) ? '' : 'http://127.0.0.1:8765';
         for (const p of ports) {
             try {
@@ -48,7 +50,8 @@ window.EveAudioflix = window.EveAudioflix || {};
                         fetched.push({
                             id, type: 'sound', title: f.name.replace(/\.[^/.]+$/, ""),
                             url: `${base}/api/audioflix/port/file?path=${encodeURIComponent(f.path)}`, category: p.nickname, isPorted: true,
-                            volume: portVols[id] ?? 1
+                            volume: portVols[id] ?? 1,
+                            exposed: portExposed[id] !== false
                         });
                     });
                 }
@@ -90,7 +93,15 @@ window.EveAudioflix = window.EveAudioflix || {};
 
         overlay.addEventListener('change', async e => {
             const t = e.target;
-            const sel = e.target.closest('[data-af-control]'); if (!sel) return;
+            if (t.classList.contains('audioflix-expose-cb')) {
+                const type = t.dataset.afType, id = t.dataset.afId, checked = t.checked;
+                window.EveAudioflixState?.setItemExposed?.(type, id, checked);
+                if (activeInfoItem && activeInfoItem.id === id) activeInfoItem.exposed = checked;
+                const ps = portedSounds.find(s => s.id === id);
+                if (ps) ps.exposed = checked;
+                return;
+            }
+            const sel = t.closest('[data-af-control]'); if (!sel) return;
             const lbl = sel.selectedOptions[0]?.textContent || '', val = sel.value || '', ctrl = sel.dataset.afControl;
             sel.blur();
             try {
@@ -118,12 +129,31 @@ window.EveAudioflix = window.EveAudioflix || {};
         return overlay;
     }
 
+    const isItemExposed = (item) => item.isPorted ? (state().exposedPortedSounds?.[item.id] !== false) : (item.exposed !== false);
+
     function renderItemCard(item, type) {
+        const viewMode = state().soundboardViewMode || 'backend';
+        const isFrontend = viewMode === 'frontend';
+        
+        if (type === 'sound' && isFrontend) {
+            const volSlider = `<div class="audioflix-item-volume-wrapper" title="Volume">
+                <input type="range" class="audioflix-volume-slider" min="0" max="1" step="0.01" value="${item.volume ?? 1}" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" style="--vol: ${(item.volume ?? 1) * 100}%">
+                <span class="audioflix-volume-label">${Math.round((item.volume ?? 1) * 100)}%</span>
+            </div>`;
+            return `<article class="audioflix-item-card"><div class="audioflix-playback-controls">
+                <button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button>
+                <button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div>
+                <button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play (stack another instance)">${layerPlaySvg}</button>
+                <div class="audioflix-item-body"><strong>${esc(item.title)}</strong><span>${esc(itemMeta(item))}</span></div>
+                ${volSlider}</article>`;
+        }
+
         const delBtn = item.isPorted ? '' : `<button type="button" class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Remove">${closeSvg}</button>`;
         const volSlider = type === 'sound' ? `<div class="audioflix-item-volume-wrapper" title="Volume">
             <input type="range" class="audioflix-volume-slider" min="0" max="1" step="0.01" value="${item.volume ?? 1}" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" style="--vol: ${(item.volume ?? 1) * 100}%">
             <span class="audioflix-volume-label">${Math.round((item.volume ?? 1) * 100)}%</span>
         </div>` : '';
+        
         return `<article class="audioflix-item-card"><div class="audioflix-playback-controls">
             <button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button>
             <button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div>
@@ -134,8 +164,21 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     function renderItems(items, type) {
         if (!items.length) return `<div class="audioflix-empty">No ${type === 'music' ? 'tracks' : 'sounds'} yet. Add one above when you have a URL or local media path.</div>`;
+        
+        const viewMode = state().soundboardViewMode || 'backend';
+        const isFrontend = viewMode === 'frontend';
+        
+        let filteredItems = items;
+        if (type === 'sound' && isFrontend) {
+            filteredItems = items.filter(isItemExposed);
+        }
+        
+        if (!filteredItems.length) {
+            return `<div class="audioflix-empty">No exposed sounds yet. Switch to Backend view to select and expose sounds.</div>`;
+        }
+
         const groups = new Map();
-        items.forEach(item => { const k = groupKey(item, type); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); });
+        filteredItems.forEach(item => { const k = groupKey(item, type); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); });
         return [...groups.entries()].map(([name, groupItems]) => {
             const count = groupItems.length, isCollapsed = collapsedGroups[name] === true;
             return `<section class="audioflix-group ${isCollapsed ? 'is-collapsed' : ''}" data-af-group="${esc(name)}">
@@ -167,12 +210,22 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     function renderAddSection(type) {
-        const key = type === 'music' ? 'music' : 'sound', open = addFormOpen[key] === true, label = type === 'music' ? 'Add Track' : 'Add Sound';
-        const portsBtn = type === 'sound' ? `<button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" aria-expanded="${portsOpen ? 'true' : 'false'}" style="margin-left: 8px;">Ports</button>` : '';
+        if (type === 'music') {
+            const open = addFormOpen.music === true;
+            return `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}">
+                <button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music" aria-expanded="${open ? 'true' : 'false'}">
+                    <span class="audioflix-add-toggle-icon">${open ? '−' : '+'}</span> ${open ? 'Hide add track form' : 'Add Track'}</button></div></div>
+            ${open ? renderForm('music') : ''}`;
+        }
+        const isFrontend = (state().soundboardViewMode || 'backend') === 'frontend';
+        const viewToggleBtn = `<button type="button" class="audioflix-view-toggle${isFrontend ? ' is-active' : ''}" data-af-action="toggle-view-mode" style="margin-left: auto;">${isFrontend ? 'Backend' : 'Frontend'}</button>`;
+        if (isFrontend) return `<div class="audioflix-add-section-row">${viewToggleBtn}</div>`;
+        const open = addFormOpen.sound === true;
+        const portsBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" aria-expanded="${portsOpen ? 'true' : 'false'}" style="margin-left: 8px;">Ports</button>`;
         return `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}">
-            <button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="${key}" aria-expanded="${open ? 'true' : 'false'}">
-                <span class="audioflix-add-toggle-icon">${open ? '−' : '+'}</span> ${open ? `Hide ${label.toLowerCase()} form` : label}</button></div>${portsBtn}</div>
-        ${open ? renderForm(type) : ''}${type === 'sound' && portsOpen ? renderPortsManager() : ''}`;
+            <button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound" aria-expanded="${open ? 'true' : 'false'}">
+                <span class="audioflix-add-toggle-icon">${open ? '−' : '+'}</span> ${open ? 'Hide add sound form' : 'Add Sound'}</button></div>${portsBtn}${viewToggleBtn}</div>
+        ${open ? renderForm('sound') : ''}${portsOpen ? renderPortsManager() : ''}`;
     }
 
     function renderPanel() {
@@ -201,9 +254,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                     <button type="button" data-af-action="pause">Pause</button></section></div>` : ''}</section>`;
     }
 
-    function tabButton(tab, label) {
-        return `<button type="button" class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
-    }
+    const tabButton = (tab, label) => `<button type="button" class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
 
     function rerender() {
         if (!overlay || overlay.hidden) return;
@@ -215,10 +266,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
     }
 
-    function findItem(type, itemId) {
-        const snapshot = state();
-        return ((type === 'music' ? snapshot.music : snapshot.soundboard) || []).find(item => item.id === itemId);
-    }
+    const findItem = (type, itemId) => ((type === 'music' ? state().music : state().soundboard) || []).find(item => item.id === itemId);
 
     async function handleAction(actionTarget, e) {
         const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId;
@@ -260,6 +308,11 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'toggle-fullscreen') { fullscreenOn = !fullscreenOn; overlay?.classList.toggle('is-fullscreen', fullscreenOn); rerender(); return; }
         if (action === 'toggle-add') { const key = actionTarget.dataset.afType === 'music' ? 'music' : 'sound'; addFormOpen[key] = !addFormOpen[key]; rerender(); return; }
         if (action === 'toggle-ports') { portsOpen = !portsOpen; rerender(); return; }
+        if (action === 'toggle-view-mode') {
+            const next = (state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
+            window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode');
+            return;
+        }
         if (action === 'remove-port') { window.EveAudioflixState?.removePort?.(id); loadPortedSounds(); return; }
         if (action === 'pause') { window.EveAudioflixAudio?.pause?.(); return; }
         if (action === 'play') {
@@ -348,18 +401,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         form.reset(); rerender();
     }
 
-    function open() {
-        ensureOverlay();
-        overlay.hidden = false;
-        overlay.classList.toggle('is-fullscreen', fullscreenOn);
-        setButtonExpanded(true);
-        loadPortedSounds();
-    }
-
-    function close() {
-        if (overlay) overlay.hidden = true;
-        setButtonExpanded(false);
-    }
+    const open = () => { ensureOverlay(); overlay.hidden = false; overlay.classList.toggle('is-fullscreen', fullscreenOn); setButtonExpanded(true); loadPortedSounds(); };
+    const close = () => { if (overlay) overlay.hidden = true; setButtonExpanded(false); };
 
     function updateStatusDOM() {
         if (!overlay || overlay.hidden) return;
@@ -389,7 +432,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); });
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reason = e.detail?.reason;
-        if (reason === 'audioflix-volume' || reason === 'audioflix-play') return;
+        if (reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed') return;
         if (reason === 'audioflix-gemini-audio') { updateStatusDOM(); return; }
         rerender();
     });

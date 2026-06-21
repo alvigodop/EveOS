@@ -35,6 +35,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         music: [],
         recentPlays: [],
         ports: [],
+        portVolumes: {},
+        exposedPortedSounds: {},
+        soundboardViewMode: 'backend',
         counters: {
             plays: 0,
             routedGeminiEvents: 0
@@ -89,6 +92,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             folder: text(source.folder, ''),
             category: text(source.category, ''),
             volume: Math.max(0, Math.min(1, Number(source.volume ?? 1) || 1)),
+            exposed: source.exposed !== false,
             createdAt: Number(source.createdAt || 0) || Date.now(),
             lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
         };
@@ -138,6 +142,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             recentPlays: (Array.isArray(source.recentPlays) ? source.recentPlays : []).slice(-MAX_RECENT),
             ports: (Array.isArray(source.ports) ? source.ports : []).map(cleanPort),
             portVolumes: source.portVolumes && typeof source.portVolumes === 'object' ? source.portVolumes : {},
+            exposedPortedSounds: source.exposedPortedSounds && typeof source.exposedPortedSounds === 'object' ? source.exposedPortedSounds : {},
+            soundboardViewMode: ['backend', 'frontend'].includes(source.soundboardViewMode) ? source.soundboardViewMode : 'backend',
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
                 routedGeminiEvents: Number(source.counters?.routedGeminiEvents || 0) || 0
@@ -255,6 +261,18 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    function setItemExposed(type, itemId, exposed) {
+        const state = ensure();
+        const key = type === 'music' ? 'music' : 'soundboard';
+        if (state[key]) {
+            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { exposed }) : entry);
+        }
+        state.exposedPortedSounds = state.exposedPortedSounds || {};
+        state.exposedPortedSounds[itemId] = exposed;
+        scheduleSave('audioflix-exposed');
+        return ensure();
+    }
+
     Object.assign(ns, {
         ready: true,
         ensure,
@@ -267,6 +285,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         recordGeminiAudioEvent,
         clearGeminiAudioEvents,
         setItemVolume,
+        setItemExposed,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });

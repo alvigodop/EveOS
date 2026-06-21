@@ -763,3 +763,73 @@
     background: rgba(255,202,95,0.25);
     border-color: #ffca5f;
 }
+
+.audioflix-view-toggle {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border: 1px solid rgba(0, 212, 255, 0.4);
+    border-radius: 999px;
+    background: rgba(0, 212, 255, 0.1);
+    color: #bbf2ff;
+    font-size: 0.82rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.audioflix-view-toggle:hover {
+    background: rgba(0, 212, 255, 0.2);
+    border-color: rgba(0, 212, 255, 0.6);
+    color: #fff;
+}
+
+.audioflix-view-toggle.is-active {
+    background: rgba(255, 202, 95, 0.15);
+    border-color: rgba(255, 202, 95, 0.5);
+    color: #fff3c6;
+}
+
+.audioflix-view-toggle.is-active:hover {
+    background: rgba(255, 202, 95, 0.25);
+    border-color: rgba(255, 202, 95, 0.7);
+}
+
+.audioflix-expose-cb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid rgba(255, 202, 95, 0.4);
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background 0.18s, border-color 0.18s;
+}
+
+.audioflix-expose-cb:hover {
+    border-color: rgba(255, 202, 95, 0.8);
+    background: rgba(255, 202, 95, 0.08);
+}
+
+.audioflix-expose-cb:checked {
+    background: #ffca5f;
+    border-color: #ffca5f;
+}
+
+.audioflix-expose-cb:checked::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid #111;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
