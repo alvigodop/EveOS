@@ -353,14 +353,31 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     async function layerPlay(item) {
         if (!item?.url) return;
-        const a = new Audio(item.url);
+        const safeItem = typeof item === 'object' ? item : { url: item };
+
+        if (await tryNativePlayback(safeItem)) return;
+
+        if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
+            try {
+                const res = await fetch(safeItem.url);
+                const arrayBuffer = await res.arrayBuffer();
+                const audioCtx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1).catch(()=>{});
+                return;
+            } catch (err) {
+                console.warn('[Audioflix] native stream failed for layer, falling back:', err);
+            }
+        }
+
+        const a = new Audio(safeItem.url);
         a.loop = false;
-        a.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1) || 1));
+        a.volume = Math.max(0, Math.min(1, Number(safeItem.volume ?? 1) || 1));
         const preferredSinkId = state().preferredSinkId;
         if (preferredSinkId && typeof a.setSinkId === 'function') {
             try { await a.setSinkId(preferredSinkId); } catch {}
         }
-        const id = item.id;
+        const id = safeItem.id || safeItem.url;
         if (!activeLayers.has(id)) activeLayers.set(id, []);
         activeLayers.get(id).push(a);
         a.addEventListener('ended', () => {
