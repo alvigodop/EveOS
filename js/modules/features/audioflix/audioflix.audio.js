@@ -351,40 +351,13 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
     }
 
-    async function layerPlay(item) {
+    function layerPlay(item) {
         if (!item?.url) return;
-        const id = item.id;
-        if (!activeLayers.has(id)) activeLayers.set(id, []);
-        // Try native bridge route first (same path as playItem)
-        if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
-            try {
-                const isWav = String(item.url).toLowerCase().split('?')[0].split('#')[0].endsWith('.wav');
-                if (isWav) { const p = await window.EveAudioflixNative?.playMediaItem?.(item); if (p?.ok) return; }
-                const res = await fetch(item.url), buf = await res.arrayBuffer();
-                const ctx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
-                const decoded = await ctx.decodeAudioData(buf);
-                // Stream layer as independent PCM to bridge (non-blocking — doesn't stop other streams)
-                const floats = decoded.getChannelData(0), sr = decoded.sampleRate, vol = item.volume ?? 1;
-                const chunk = Math.floor(sr * 0.25); let off = 0, alive = true;
-                const handle = { stop() { alive = false; } };
-                activeLayers.get(id)?.push(handle);
-                const tick = async () => {
-                    if (!alive || off >= floats.length) { const arr = activeLayers.get(id); if (arr) { const i = arr.indexOf(handle); if (i > -1) arr.splice(i, 1); if (!arr.length) activeLayers.delete(id); } return; }
-                    const n = Math.min(chunk, floats.length - off), s = new Int16Array(n);
-                    for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, floats[off + i] * vol)); s[i] = v < 0 ? v * 0x8000 : v * 0x7FFF; }
-                    const u = new Uint8Array(s.buffer); let b = ''; for (let i = 0; i < u.length; i++) b += String.fromCharCode(u[i]);
-                    await window.EveAudioflixNative?.sendGeminiChunk?.(btoa(b), { sampleRate: sr, channels: 1 });
-                    off += n; setTimeout(tick, 250);
-                };
-                tick(); return;
-            } catch {}
-        }
-        // Browser fallback
         const a = new Audio(item.url);
         a.loop = false;
         a.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1) || 1));
-        const preferredSinkId = state().preferredSinkId;
-        if (preferredSinkId && typeof a.setSinkId === 'function') { try { await a.setSinkId(preferredSinkId); } catch {} }
+        const id = item.id;
+        if (!activeLayers.has(id)) activeLayers.set(id, []);
         activeLayers.get(id).push(a);
         a.addEventListener('ended', () => {
             const arr = activeLayers.get(id);
@@ -395,7 +368,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     function stopItemLayers(itemId) {
         const arr = activeLayers.get(itemId);
-        if (arr) { arr.forEach(a => { try { if (typeof a.stop === 'function') a.stop(); else { a.pause(); a.currentTime = 0; } } catch {} }); activeLayers.delete(itemId); }
+        if (arr) { arr.forEach(a => { try { a.pause(); a.currentTime = 0; } catch {} }); activeLayers.delete(itemId); }
         if (currentItem?.id === itemId) { stopActiveStream(); ensureAudio().pause(); }
     }
 
