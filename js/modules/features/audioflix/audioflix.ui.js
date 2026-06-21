@@ -7,9 +7,12 @@ window.EveAudioflix = window.EveAudioflix || {};
     let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false;
     let addFormOpen = { sound: false, music: false }, portsOpen = false, portedSounds = [], collapsedGroups = {};
     let activeInfoItem = null, activeInfoType = null;
+    let layerHoldTimer = null, layerHoldItem = null;
     const playSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
     const cogSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`;
     const closeSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+    const stopSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>`;
+    const layerPlaySvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 4v16l10-8z"/><path d="M12 4v16l10-8z"/></svg>`;
 
     const state = () => window.EveAudioflixState?.ensure?.() || {};
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -89,12 +92,32 @@ window.EveAudioflix = window.EveAudioflix || {};
             } catch (err) { playbackStatus = err.message || 'Output selection failed'; }
             rerender();
         });
+        // Hold-to-loop for layer-play button
+        const startLayerHold = (e) => {
+            const btn = e.target.closest('[data-af-action="layer-play"]'); if (!btn) return;
+            e.preventDefault();
+            const item = findItem(btn.dataset.afType, btn.dataset.afId) || portedSounds.find(s => s.id === btn.dataset.afId);
+            if (!item) return;
+            layerHoldItem = item;
+            window.EveAudioflixAudio?.layerPlay?.(item);
+            layerHoldTimer = setInterval(() => { if (layerHoldItem) window.EveAudioflixAudio?.layerPlay?.(layerHoldItem); }, 200);
+        };
+        const stopLayerHold = () => { if (layerHoldTimer) { clearInterval(layerHoldTimer); layerHoldTimer = null; } layerHoldItem = null; };
+        overlay.addEventListener('mousedown', startLayerHold);
+        overlay.addEventListener('mouseup', stopLayerHold);
+        overlay.addEventListener('mouseleave', stopLayerHold);
+        overlay.addEventListener('touchstart', startLayerHold, { passive: false });
+        overlay.addEventListener('touchend', stopLayerHold);
+        overlay.addEventListener('touchcancel', stopLayerHold);
         return overlay;
     }
 
     function renderItemCard(item, type) {
         const delBtn = item.isPorted ? '' : `<button type="button" class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Remove">${closeSvg}</button>`;
-        return `<article class="audioflix-item-card"><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button>
+        return `<article class="audioflix-item-card"><div class="audioflix-playback-controls">
+            <button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button>
+            <button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div>
+            <button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play (stack another instance)">${layerPlaySvg}</button>
             <div class="audioflix-item-body"><strong>${esc(item.title)}</strong><span>${esc(itemMeta(item))}</span></div>
             <div class="audioflix-item-actions"><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Info / Settings">${cogSvg}</button>${delBtn}</div></article>`;
     }
@@ -189,6 +212,11 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     async function handleAction(actionTarget, e) {
         const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId;
+        if (action === 'stop-item') {
+            window.EveAudioflixAudio?.stopItemLayers?.(id);
+            return;
+        }
+        if (action === 'layer-play') return; // handled by hold-to-loop pointer events
         if (action === 'item-info') {
             const item = findItem(actionTarget.dataset.afType, id) || portedSounds.find(s => s.id === id);
             if (!item) return;

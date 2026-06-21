@@ -16,6 +16,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     let lastStatus = 'Idle';
     let activeStreamTimer = null;
     let isStreamPlaying = false;
+    const activeLayers = new Map();
 
     function stopActiveStream() {
         if (activeStreamTimer) {
@@ -330,61 +331,72 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     function makeToneUrl() {
-        const sampleRate = 24000;
-        const seconds = 0.55;
-        const samples = Math.floor(sampleRate * seconds);
-        const bytes = new ArrayBuffer(44 + samples * 2);
-        const view = new DataView(bytes);
-        function write(offset, text) {
-            for (let i = 0; i < text.length; i += 1) view.setUint8(offset + i, text.charCodeAt(i));
-        }
-        write(0, 'RIFF');
-        view.setUint32(4, 36 + samples * 2, true);
-        write(8, 'WAVEfmt ');
-        view.setUint32(16, 16, true);
-        view.setUint16(20, 1, true);
-        view.setUint16(22, 1, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * 2, true);
-        view.setUint16(32, 2, true);
-        view.setUint16(34, 16, true);
-        write(36, 'data');
-        view.setUint32(40, samples * 2, true);
-        for (let i = 0; i < samples; i += 1) {
-            const t = i / sampleRate;
-            const fade = Math.min(1, i / 900, (samples - i) / 900);
-            const value = Math.sin(2 * Math.PI * 880 * t) * 0.28 * fade;
-            view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, value)) * 32767, true);
-        }
-        return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+        const sr = 24000, sec = 0.55, n = Math.floor(sr * sec), buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+        const w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+        w(0,'RIFF'); v.setUint32(4,36+n*2,true); w(8,'WAVEfmt '); v.setUint32(16,16,true);
+        v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+        v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,'data'); v.setUint32(40,n*2,true);
+        for (let i = 0; i < n; i++) { const t = i/sr, fade = Math.min(1,i/900,(n-i)/900); v.setInt16(44+i*2, Math.sin(2*Math.PI*880*t)*0.28*fade*32767, true); }
+        return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
     }
 
     async function playTestSignal() {
         if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
             const payload = await window.EveAudioflixNative?.sendTone?.({ frequency: 880, seconds: 0.55 });
-            if (payload?.ok === true) {
-                lastStatus = `Native route test tone -> ${state().nativeOutputLabel || 'selected output'}`;
-                dispatch('eve:audioflix-playback', { status: lastStatus, native: true, payload });
-                return true;
-            }
-            if (payload?.message) {
-                lastStatus = `${payload.message} Falling back to browser test tone.`;
-                dispatch('eve:audioflix-playback', { status: lastStatus, fallback: true });
-            }
+            if (payload?.ok === true) { lastStatus = `Native route test tone -> ${state().nativeOutputLabel || 'selected output'}`; dispatch('eve:audioflix-playback', { status: lastStatus, native: true, payload }); return true; }
+            if (payload?.message) { lastStatus = `${payload.message} Falling back to browser test tone.`; dispatch('eve:audioflix-playback', { status: lastStatus, fallback: true }); }
         }
         const url = makeToneUrl();
-        try {
-            await playItem({
-                id: 'audioflix-test-signal',
-                type: 'sound',
-                title: 'Audioflix test signal',
-                url,
-                volume: 0.62
-            });
-            return true;
-        } finally {
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        try { await playItem({ id: 'audioflix-test-signal', type: 'sound', title: 'Audioflix test signal', url, volume: 0.62 }); return true; }
+        finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
+    }
+
+    async function layerPlay(item) {
+        if (!item?.url) return;
+        const id = item.id;
+        if (!activeLayers.has(id)) activeLayers.set(id, []);
+        // Try native bridge route first (same path as playItem)
+        if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
+            try {
+                const isWav = String(item.url).toLowerCase().split('?')[0].split('#')[0].endsWith('.wav');
+                if (isWav) { const p = await window.EveAudioflixNative?.playMediaItem?.(item); if (p?.ok) return; }
+                const res = await fetch(item.url), buf = await res.arrayBuffer();
+                const ctx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
+                const decoded = await ctx.decodeAudioData(buf);
+                // Stream layer as independent PCM to bridge (non-blocking — doesn't stop other streams)
+                const floats = decoded.getChannelData(0), sr = decoded.sampleRate, vol = item.volume ?? 1;
+                const chunk = Math.floor(sr * 0.25); let off = 0, alive = true;
+                const handle = { stop() { alive = false; } };
+                activeLayers.get(id)?.push(handle);
+                const tick = async () => {
+                    if (!alive || off >= floats.length) { const arr = activeLayers.get(id); if (arr) { const i = arr.indexOf(handle); if (i > -1) arr.splice(i, 1); if (!arr.length) activeLayers.delete(id); } return; }
+                    const n = Math.min(chunk, floats.length - off), s = new Int16Array(n);
+                    for (let i = 0; i < n; i++) { const v = Math.max(-1, Math.min(1, floats[off + i] * vol)); s[i] = v < 0 ? v * 0x8000 : v * 0x7FFF; }
+                    const u = new Uint8Array(s.buffer); let b = ''; for (let i = 0; i < u.length; i++) b += String.fromCharCode(u[i]);
+                    await window.EveAudioflixNative?.sendGeminiChunk?.(btoa(b), { sampleRate: sr, channels: 1 });
+                    off += n; setTimeout(tick, 250);
+                };
+                tick(); return;
+            } catch {}
         }
+        // Browser fallback
+        const a = new Audio(item.url);
+        a.loop = false;
+        a.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1) || 1));
+        const preferredSinkId = state().preferredSinkId;
+        if (preferredSinkId && typeof a.setSinkId === 'function') { try { await a.setSinkId(preferredSinkId); } catch {} }
+        activeLayers.get(id).push(a);
+        a.addEventListener('ended', () => {
+            const arr = activeLayers.get(id);
+            if (arr) { const idx = arr.indexOf(a); if (idx > -1) arr.splice(idx, 1); if (!arr.length) activeLayers.delete(id); }
+        });
+        a.play().catch(() => {});
+    }
+
+    function stopItemLayers(itemId) {
+        const arr = activeLayers.get(itemId);
+        if (arr) { arr.forEach(a => { try { if (typeof a.stop === 'function') a.stop(); else { a.pause(); a.currentTime = 0; } } catch {} }); activeLayers.delete(itemId); }
+        if (currentItem?.id === itemId) { stopActiveStream(); ensureAudio().pause(); }
     }
 
     function pause() {
@@ -413,30 +425,13 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     Object.assign(ns, {
-        ready: true,
-        playItem,
-        pause,
-        selectOutput,
-        listOutputs,
-        setOutputById,
-        unlockDeviceLabels,
-        playTestSignal,
-        applySink,
-        attachWaveform,
-        browserOutputStatus,
+        ready: true, playItem, pause, selectOutput, listOutputs, setOutputById,
+        unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus,
+        layerPlay, stopItemLayers,
         getAudioElement: ensureAudio,
-        getStatus: function () {
-            const output = browserOutputStatus();
-            return {
-                status: lastStatus,
-                item: currentItem,
-                sinkId: output.activeSinkId,
-                hasSetSinkId: output.hasSetSinkId,
-                hasAudioContextSink: output.hasAudioContextSink,
-                hasOutputPicker: output.hasOutputPicker,
-                hasEnumerate: output.hasEnumerate,
-                secureContext: output.secureContext
-            };
+        getStatus() {
+            const o = browserOutputStatus();
+            return { status: lastStatus, item: currentItem, sinkId: o.activeSinkId, hasSetSinkId: o.hasSetSinkId, hasAudioContextSink: o.hasAudioContextSink, hasOutputPicker: o.hasOutputPicker, hasEnumerate: o.hasEnumerate, secureContext: o.secureContext };
         }
     });
 })();
