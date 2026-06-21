@@ -26,19 +26,27 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         isStreamPlaying = false;
     }
 
-    async function streamPCMToBridge(audioBuffer, sampleRate, volume) {
-        stopActiveStream();
-        isStreamPlaying = true;
+    async function streamPCMToBridge(audioBuffer, sampleRate, volume, isLayer = false) {
+        let playingFlag = true;
+        let localTimer = null;
+        if (!isLayer) {
+            stopActiveStream();
+            isStreamPlaying = true;
+        }
         const floatSamples = audioBuffer.getChannelData(0);
         const totalSamples = floatSamples.length;
         const chunkSize = Math.floor(sampleRate * 0.25);
         let offset = 0;
         const sendNextChunk = async () => {
-            if (!isStreamPlaying) return;
+            if (isLayer ? !playingFlag : !isStreamPlaying) return;
             if (offset >= totalSamples) {
-                stopActiveStream();
-                lastStatus = 'Ended';
-                dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
+                if (!isLayer) {
+                    stopActiveStream();
+                    lastStatus = 'Ended';
+                    dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
+                } else if (localTimer) {
+                    clearInterval(localTimer);
+                }
                 return;
             }
             const count = Math.min(chunkSize, totalSamples - offset);
@@ -55,7 +63,10 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             offset += count;
         };
         await sendNextChunk();
-        activeStreamTimer = setInterval(sendNextChunk, 250);
+        const timerId = setInterval(sendNextChunk, 250);
+        if (isLayer) localTimer = timerId;
+        else activeStreamTimer = timerId;
+        return { stop: () => { playingFlag = false; clearInterval(timerId); } };
     }
 
     function state() {
@@ -363,7 +374,11 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 const arrayBuffer = await res.arrayBuffer();
                 const audioCtx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
                 const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-                streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1).catch(()=>{});
+                const streamControl = await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1, true);
+                
+                const id = safeItem.id || safeItem.url;
+                if (!activeLayers.has(id)) activeLayers.set(id, []);
+                activeLayers.get(id).push(streamControl);
                 return;
             } catch (err) {
                 console.warn('[Audioflix] native stream failed for layer, falling back:', err);
@@ -389,7 +404,15 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     function stopItemLayers(itemId) {
         const arr = activeLayers.get(itemId);
-        if (arr) { arr.forEach(a => { try { a.pause(); a.currentTime = 0; } catch {} }); activeLayers.delete(itemId); }
+        if (arr) { 
+            arr.forEach(a => { 
+                try { 
+                    if (typeof a.stop === 'function') a.stop();
+                    else { a.pause(); a.currentTime = 0; }
+                } catch {} 
+            }); 
+            activeLayers.delete(itemId); 
+        }
         if (currentItem?.id === itemId) { stopActiveStream(); ensureAudio().pause(); }
     }
 
