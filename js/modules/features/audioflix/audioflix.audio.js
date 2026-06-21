@@ -379,7 +379,21 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 currentItem = safeItem;
                 lastStatus = `Native route playing ${safeItem.title || 'audio'} -> ${state().nativeOutputLabel || 'selected output'}`;
                 dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, native: true });
-                await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1);
+                
+                if (safeItem.type === 'sound') {
+                    // Fast non-choppy voice upload for soundboard clips, matching layerPlay
+                    window.EveAudioflixNative?.clearVoices?.('singleton-main');
+                    window.EveAudioflixNative?.playVoice(encodeBufferToBase64(audioBuffer), {
+                        sampleRate: audioBuffer.sampleRate,
+                        channels: 1,
+                        volume: safeItem.volume ?? 1,
+                        voiceId: 'singleton-main'
+                    }).catch(()=>{});
+                } else {
+                    // Stream long audio
+                    await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1);
+                }
+                
                 window.EveAudioflixState?.recordPlay?.(safeItem);
                 return true;
             } catch (err) {
