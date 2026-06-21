@@ -22,7 +22,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     function renderInfoModal(item, type) {
         const dur = formatDuration(item.duration), src = item.isPorted ? `${item.category} (Ported)` : (type === 'music' ? 'Music Library' : 'Local Soundboard');
         const row = (lbl, val) => `<div class="audioflix-info-row"><span>${lbl}</span><strong>${val}</strong></div>`;
-        return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card" onclick="event.stopPropagation()">
+        return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card">
             <div class="audioflix-info-header"><div><span class="audioflix-kicker">Sound Details</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div>
             <div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}
                 <div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row">
@@ -55,8 +55,12 @@ window.EveAudioflix = window.EveAudioflix || {};
         document.body.appendChild(overlay);
         overlay.addEventListener('click', e => {
             const t = e.target, act = t.closest('[data-af-action]');
-            if (act) { e.preventDefault(); if (act.dataset.afAction === 'close') close(); else handleAction(act, e); }
-            else if (t === overlay) close();
+            if (act) {
+                if (act.dataset.afAction === 'close-info' && t.closest('.audioflix-info-card') && !t.closest('[data-af-action="close-info"]')) return;
+                e.preventDefault();
+                if (act.dataset.afAction === 'close') close();
+                else handleAction(act, e);
+            } else if (t === overlay) close();
         });
         overlay.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-af-form]'); if (f) handleForm(f); });
         overlay.addEventListener('change', async e => {
