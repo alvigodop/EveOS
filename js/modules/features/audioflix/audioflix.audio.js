@@ -496,6 +496,18 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         ensureAudio().pause();
     }
 
+    function updateItemVolume(itemId, vol) {
+        if (currentItem?.id === itemId) {
+            ensureAudio().volume = Math.max(0, Math.min(1, vol));
+        }
+        const arr = activeLayers.get(itemId);
+        if (arr) {
+            arr.forEach(a => {
+                if (a && typeof a.volume !== 'undefined') a.volume = Math.max(0, Math.min(1, vol));
+            });
+        }
+    }
+
     function attachWaveform(targetCanvas) {
         canvas = targetCanvas || null;
         fitCanvas();
@@ -519,7 +531,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     Object.assign(ns, {
         ready: true, playItem, pause, selectOutput, listOutputs, setOutputById,
         unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus,
-        layerPlay, stopItemLayers,
+        layerPlay, stopItemLayers, updateItemVolume,
         getAudioElement: ensureAudio,
         getStatus() {
             const o = browserOutputStatus();
