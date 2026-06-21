@@ -88,6 +88,9 @@ async function main() {
         return !!drawer && !drawer.classList.contains('is-open') && !document.querySelector('.audioflix-route-board');
     });
 
+    // The add form is collapsed by default; open it via its toggle first.
+    await page.click('[data-af-action="toggle-add"][data-af-type="sound"]');
+    await page.waitForSelector('form[data-af-form="sound"]', { timeout: 5000 });
     await page.fill('form[data-af-form="sound"] input[name="title"]', 'Smoke Chime');
     await page.fill('form[data-af-form="sound"] input[name="url"]', 'https://example.com/smoke-chime.mp3');
     await page.fill('form[data-af-form="sound"] input[name="category"]', 'Smoke');
@@ -95,6 +98,8 @@ async function main() {
     await page.click('form[data-af-form="sound"] button[type="submit"]');
 
     await page.click('[data-af-action="tab"][data-af-tab="music"]');
+    await page.click('[data-af-action="toggle-add"][data-af-type="music"]');
+    await page.waitForSelector('form[data-af-form="music"]', { timeout: 5000 });
     await page.fill('form[data-af-form="music"] input[name="title"]', 'Smoke Track');
     await page.fill('form[data-af-form="music"] input[name="url"]', 'https://example.com/smoke-track.mp3');
     await page.fill('form[data-af-form="music"] input[name="artist"]', 'EveOS');

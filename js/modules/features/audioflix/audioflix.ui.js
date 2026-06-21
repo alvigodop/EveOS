@@ -9,6 +9,8 @@ window.EveAudioflix = window.EveAudioflix || {};
     let activeTab = 'soundboard';
     let playbackStatus = 'Idle';
     let routingOpen = false;
+    let fullscreenOn = false;
+    let addFormOpen = { sound: false, music: false };
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -150,16 +152,30 @@ window.EveAudioflix = window.EveAudioflix || {};
         </form>`;
     }
 
+    // Collapsible "add" section: a toggle button that opens/closes the add form,
+    // for both the Soundboard and Music Library tabs.
+    function renderAddSection(type) {
+        const key = type === 'music' ? 'music' : 'sound';
+        const open = addFormOpen[key] === true;
+        const label = type === 'music' ? 'Add Track' : 'Add Sound';
+        return `<div class="audioflix-add-section ${open ? 'is-open' : ''}">
+            <button class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="${key}" aria-expanded="${open ? 'true' : 'false'}">
+                <span class="audioflix-add-toggle-icon">${open ? '−' : '+'}</span> ${open ? `Hide ${label.toLowerCase()} form` : label}
+            </button>
+            ${open ? renderForm(type) : ''}
+        </div>`;
+    }
+
     function renderPanel() {
         const snapshot = state();
         const musicCount = snapshot.music?.length || 0;
         const soundCount = snapshot.soundboard?.length || 0;
         const routedCount = snapshot.counters?.routedGeminiEvents || 0;
         const tabBody = activeTab === 'music'
-            ? `${renderForm('music')}${renderItems(snapshot.music || [], 'music')}`
+            ? `${renderAddSection('music')}${renderItems(snapshot.music || [], 'music')}`
             : activeTab === 'router'
                 ? (window.EveAudioflixRouting?.renderRouter?.(snapshot) || '')
-                : `${renderForm('sound')}${renderItems(snapshot.soundboard || [], 'sound')}`;
+                : `${renderAddSection('sound')}${renderItems(snapshot.soundboard || [], 'sound')}`;
         return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title">
             <header class="audioflix-header">
                 <div>
@@ -170,6 +186,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                 <div class="audioflix-header-actions">
                     <button class="audioflix-clear-events" data-af-action="clear-gemini-events" title="Clear Gemini event counter">Clear events</button>
                     <span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span>
+                    <button class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen" aria-pressed="${fullscreenOn ? 'true' : 'false'}" aria-label="Toggle full screen" title="Toggle full screen">⛶</button>
                     <button data-af-action="close" aria-label="Close Audioflix">×</button>
                 </div>
             </header>
@@ -236,6 +253,18 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
         if (action === 'toggle-routing-drawer') {
             routingOpen = !routingOpen;
+            rerender();
+            return;
+        }
+        if (action === 'toggle-fullscreen') {
+            fullscreenOn = !fullscreenOn;
+            if (overlay) overlay.classList.toggle('is-fullscreen', fullscreenOn);
+            rerender();
+            return;
+        }
+        if (action === 'toggle-add') {
+            const key = actionTarget.dataset.afType === 'music' ? 'music' : 'sound';
+            addFormOpen[key] = !addFormOpen[key];
             rerender();
             return;
         }
@@ -419,6 +448,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     function open() {
         ensureOverlay();
         overlay.hidden = false;
+        overlay.classList.toggle('is-fullscreen', fullscreenOn);
         setButtonExpanded(true);
         rerender();
     }
