@@ -263,7 +263,6 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         listSystemDevices,
         listSystemOutputs,
         listSystemInputs,
-        playTestTone,
         selectNativeOutput,
         selectNativeInput,
         setNativeBridgeEnabled,
