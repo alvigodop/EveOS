@@ -1,10 +1,4 @@
-"""Local Audioflix audio bridge.
-
-This module is intentionally loopback-only. Browser APIs can route EveOS-owned
-audio to permitted sinks, but native endpoint enumeration/playback needs a local
-helper. `sounddevice` is optional: without it the API still reports Windows
-endpoint names from the OS, but native PCM playback is unavailable.
-"""
+"""Local Audioflix audio bridge with loopback helper."""
 
 from __future__ import annotations
 
@@ -429,6 +423,9 @@ def handle_get_request(handler, path: str, query) -> bool:
         _send_json(handler, {**list_devices(), "devices": []})
     elif path == "/api/audioflix/devices":
         _send_json(handler, list_devices(force=bool(query.get("refresh") or query.get("force"))))
+    elif path.startswith("/api/audioflix/port/"):
+        from server_modules import audioflix_bridge_ports
+        return audioflix_bridge_ports.handle_port_get_request(handler, path, query, _send_json)
     else:
         return False
     return True

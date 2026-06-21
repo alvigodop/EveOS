@@ -34,6 +34,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         soundboard: [],
         music: [],
         recentPlays: [],
+        ports: [],
         counters: {
             plays: 0,
             routedGeminiEvents: 0
@@ -93,6 +94,15 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         };
     }
 
+    function cleanPort(port) {
+        const src = port && typeof port === 'object' ? port : {};
+        return {
+            id: text(src.id, id('port')),
+            nickname: text(src.nickname, 'Unnamed Port'),
+            path: text(src.path, '')
+        };
+    }
+
     function boundedItems(list, type, max) {
         return (Array.isArray(list) ? list : [])
             .map((item) => cleanItem(item, type))
@@ -126,6 +136,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             soundboard: boundedItems(source.soundboard, 'sound', MAX_SOUNDBOARD),
             music: boundedItems(source.music, 'music', MAX_MUSIC),
             recentPlays: (Array.isArray(source.recentPlays) ? source.recentPlays : []).slice(-MAX_RECENT),
+            ports: (Array.isArray(source.ports) ? source.ports : []).map(cleanPort),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
                 routedGeminiEvents: Number(source.counters?.routedGeminiEvents || 0) || 0
@@ -186,6 +197,20 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    function addPort(port) {
+        const state = ensure();
+        state.ports = [...(state.ports || []), cleanPort(port)].filter((p) => !!p.path);
+        scheduleSave('audioflix-add-port');
+        return state.ports[state.ports.length - 1];
+    }
+
+    function removePort(portId) {
+        const state = ensure();
+        state.ports = (state.ports || []).filter((p) => p.id !== portId);
+        scheduleSave('audioflix-remove-port');
+        return ensure();
+    }
+
     function recordPlay(item) {
         const state = ensure();
         const played = cleanItem(item, item?.type === 'music' ? 'music' : 'sound');
@@ -223,6 +248,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         update,
         addItem,
         removeItem,
+        addPort,
+        removePort,
         recordPlay,
         recordGeminiAudioEvent,
         clearGeminiAudioEvents,
