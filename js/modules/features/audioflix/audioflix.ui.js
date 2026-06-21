@@ -194,7 +194,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             </button>
             ${routingOpen ? `<div class="audioflix-routing-body">
                 ${window.EveAudioflixRouting?.renderStatusCards?.(snapshot, playbackStatus) || ''}
-                <section class="audioflix-player">
+                <section class="audioflix-player" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}>
                     <div>
                         <strong>Waveform</strong>
                         <span>${esc(playbackStatus)}</span>
@@ -225,6 +225,12 @@ window.EveAudioflix = window.EveAudioflix || {};
         const action = actionTarget.dataset.afAction;
         if (action === 'tab') {
             activeTab = actionTarget.dataset.afTab || 'soundboard';
+            rerender();
+            return;
+        }
+        if (action === 'open-localhost') {
+            window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener');
+            playbackStatus = 'Opening Localhost EveOS in a new tab...';
             rerender();
             return;
         }
