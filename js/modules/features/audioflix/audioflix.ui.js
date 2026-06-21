@@ -45,9 +45,14 @@ window.EveAudioflix = window.EveAudioflix || {};
         document.body.appendChild(overlay);
         overlay.addEventListener('click', (e) => {
             const target = e.target;
-            if (target === overlay || target.closest('[data-af-action="close"]')) close();
             const actionTarget = target.closest('[data-af-action]');
-            if (actionTarget) handleAction(actionTarget, e);
+            if (actionTarget) {
+                e.preventDefault();
+                if (actionTarget.dataset.afAction === 'close') close();
+                else handleAction(actionTarget, e);
+            } else if (target === overlay) {
+                close();
+            }
         });
         overlay.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -87,9 +92,9 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     function renderItemCard(item, type) {
-        const delBtn = item.isPorted ? '' : `<button class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Remove">×</button>`;
+        const delBtn = item.isPorted ? '' : `<button type="button" class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Remove">×</button>`;
         return `<article class="audioflix-item-card">
-            <button class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">▶</button>
+            <button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">▶</button>
             <div class="audioflix-item-body">
                 <strong>${esc(item.title)}</strong>
                 <span>${esc(itemMeta(item))}</span>
@@ -123,7 +128,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             <label class="audioflix-wide-field"><span>Audio URL / local-served path</span><input name="url" placeholder="https://... or media/file.mp3" required></label>
             <label><span>${isMusic ? 'Artist' : 'Category'}</span><input name="${isMusic ? 'artist' : 'category'}" placeholder="${isMusic ? 'Optional artist' : 'Optional group'}"></label>
             <label><span>${isMusic ? 'Folder' : 'Volume'}</span><input name="${isMusic ? 'folder' : 'volume'}" placeholder="${isMusic ? 'Group into a folder' : '0.0 - 1.0'}"></label>
-            <button type="submit">${isMusic ? 'Add Track' : 'Add Sound'}</button>
+            <button type="submit" data-af-action="submit-form">${isMusic ? 'Add Track' : 'Add Sound'}</button>
         </form>`;
     }
 
@@ -132,7 +137,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const list = ports.length ? ports.map(p => `
             <div class="audioflix-port-item" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: rgba(255,202,95,0.05); border: 1px solid rgba(255,202,95,0.15); border-radius: 8px; margin-bottom: 6px; font-size: 0.9rem;">
                 <div><strong>${esc(p.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${esc(p.path)}</code></div>
-                <button class="audioflix-icon-btn danger" data-af-action="remove-port" data-af-id="${esc(p.id)}" style="padding: 2px 6px; font-size: 0.8rem; height: auto; width: auto; min-width: 24px;">×</button>
+                <button type="button" class="audioflix-icon-btn danger" data-af-action="remove-port" data-af-id="${esc(p.id)}" style="padding: 2px 6px; font-size: 0.8rem; height: auto; width: auto; min-width: 24px;">×</button>
             </div>`).join('') : '<div class="audioflix-empty" style="padding: 12px; font-size: 0.9rem;">No ports configured.</div>';
         return `<div class="audioflix-ports-mgr" style="margin-top: 12px; padding: 12px; border: 1px solid rgba(255,202,95,0.25); border-radius: 12px; background: rgba(0,0,0,0.25); width: 100%;">
             <h4 style="margin: 0 0 8px 0; color: #ffca5f; font-size: 0.95rem;">Soundboard Ports</h4>
@@ -140,7 +145,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             <form class="audioflix-form" data-af-form="add-port" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; margin-top: 12px; align-items: end;">
                 <label style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 0.75rem; color: #ffca5f;">Nickname</span><input name="nickname" placeholder="e.g. Echo Live" required style="padding: 6px; font-size: 0.85rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,202,95,0.3); color: #fff; border-radius: 4px;"></label>
                 <label style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 0.75rem; color: #ffca5f;">Directory Path</span><input name="path" placeholder="C:\\path\\to\\sounds" required style="padding: 6px; font-size: 0.85rem; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,202,95,0.3); color: #fff; border-radius: 4px;"></label>
-                <button type="submit" style="padding: 6px 12px; font-size: 0.85rem; background: #ffca5f; color: #111; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Add Port</button>
+                <button type="submit" data-af-action="submit-form" style="padding: 6px 12px; font-size: 0.85rem; background: #ffca5f; color: #111; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Add Port</button>
             </form>
         </div>`;
     }
@@ -149,10 +154,10 @@ window.EveAudioflix = window.EveAudioflix || {};
         const key = type === 'music' ? 'music' : 'sound';
         const open = addFormOpen[key] === true;
         const label = type === 'music' ? 'Add Track' : 'Add Sound';
-        const portsBtn = type === 'sound' ? `<button class="audioflix-add-toggle" data-af-action="toggle-ports" aria-expanded="${portsOpen ? 'true' : 'false'}" style="margin-left: 8px; ${portsOpen ? 'background: rgba(255,202,95,0.25); border-color: #ffca5f;' : ''}">Ports</button>` : '';
+        const portsBtn = type === 'sound' ? `<button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" aria-expanded="${portsOpen ? 'true' : 'false'}" style="margin-left: 8px; ${portsOpen ? 'background: rgba(255,202,95,0.25); border-color: #ffca5f;' : ''}">Ports</button>` : '';
         return `<div class="audioflix-add-section-row" style="display: flex; gap: 8px; margin-bottom: 14px; align-items: center;">
             <div class="audioflix-add-section ${open ? 'is-open' : ''}" style="margin-bottom: 0;">
-                <button class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="${key}" aria-expanded="${open ? 'true' : 'false'}">
+                <button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="${key}" aria-expanded="${open ? 'true' : 'false'}">
                     <span class="audioflix-add-toggle-icon">${open ? '−' : '+'}</span> ${open ? `Hide ${label.toLowerCase()} form` : label}
                 </button>
             </div>
@@ -181,10 +186,10 @@ window.EveAudioflix = window.EveAudioflix || {};
                     <p>Soundboard, music cards, browser output routing, and Gemini voice-port staging.</p>
                 </div>
                 <div class="audioflix-header-actions">
-                    <button class="audioflix-clear-events" data-af-action="clear-gemini-events" title="Clear Gemini event counter">Clear events</button>
+                    <button type="button" class="audioflix-clear-events" data-af-action="clear-gemini-events" title="Clear Gemini event counter">Clear events</button>
                     <span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span>
-                    <button class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen" aria-pressed="${fullscreenOn ? 'true' : 'false'}" aria-label="Toggle full screen" title="Toggle full screen">⛶</button>
-                    <button data-af-action="close" aria-label="Close Audioflix">×</button>
+                    <button type="button" class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen" aria-pressed="${fullscreenOn ? 'true' : 'false'}" aria-label="Toggle full screen" title="Toggle full screen">⛶</button>
+                    <button type="button" data-af-action="close" aria-label="Close Audioflix">×</button>
                 </div>
             </header>
             <nav class="audioflix-tabs">${tabButton('soundboard', 'Soundboard')}${tabButton('music', 'Music Library')}${tabButton('router', 'Routing Notes')}</nav>
@@ -197,7 +202,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const routeLabel = snapshot.nativeBridgeEnabled && snapshot.nativeOutputLabel ? snapshot.nativeOutputLabel : (snapshot.preferredSinkLabel || 'Default browser output');
         const stateLabel = snapshot.nativeBridgeEnabled ? 'Native route active' : (snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback');
         return `<section class="audioflix-routing-drawer ${routingOpen ? 'is-open' : ''}">
-            <button class="audioflix-routing-summary" data-af-action="toggle-routing-drawer" aria-expanded="${routingOpen ? 'true' : 'false'}">
+            <button type="button" class="audioflix-routing-summary" data-af-action="toggle-routing-drawer" aria-expanded="${routingOpen ? 'true' : 'false'}">
                 <span>Gemini / Voice Port</span><strong>${esc(stateLabel)}</strong><em>${esc(routeLabel)}</em><b>${routingOpen ? 'Collapse' : 'Open routing'}</b>
             </button>
             ${routingOpen ? `<div class="audioflix-routing-body">
@@ -205,14 +210,14 @@ window.EveAudioflix = window.EveAudioflix || {};
                 <section class="audioflix-player" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}>
                     <div><strong>Waveform</strong><span>${esc(playbackStatus)}</span></div>
                     <canvas id="audioflix-waveform" height="90"></canvas>
-                    <button data-af-action="pause">Pause</button>
+                    <button type="button" data-af-action="pause">Pause</button>
                 </section>
             </div>` : ''}
         </section>`;
     }
 
     function tabButton(tab, label) {
-        return `<button class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
+        return `<button type="button" class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
     }
 
     function rerender() {
@@ -229,8 +234,13 @@ window.EveAudioflix = window.EveAudioflix || {};
         return (list || []).find(item => item.id === itemId);
     }
 
-    async function handleAction(actionTarget) {
+    async function handleAction(actionTarget, e) {
         const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId;
+        if (action === 'submit-form') {
+            const form = actionTarget.closest('form');
+            if (form && form.reportValidity()) handleForm(form);
+            return;
+        }
         if (action === 'tab') { activeTab = actionTarget.dataset.afTab || 'soundboard'; rerender(); return; }
         if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); playbackStatus = 'Opening Localhost EveOS in a new tab...'; rerender(); return; }
         if (action === 'toggle-routing-drawer') { routingOpen = !routingOpen; rerender(); return; }

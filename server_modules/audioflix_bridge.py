@@ -57,7 +57,7 @@ def _can_control(handler) -> bool:
     if host not in {"127.0.0.1", "::1"}:
         return False
     origin = str(handler.headers.get("Origin", "")).strip().lower()
-    return not origin or origin == "null" or origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")
+    return not origin or origin == "null" or origin.startswith("file://") or origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")
 
 
 def _sd_outputs() -> list[dict]:
@@ -327,7 +327,7 @@ class _PcmPlayer:
         outdata.fill(0)
         written = 0
         while written < frames:
-            if not self.pending or len(self.pending) == 0:
+            if self.pending is None or len(self.pending) == 0:
                 try:
                     self.pending = self.q.get_nowait()
                 except queue.Empty:

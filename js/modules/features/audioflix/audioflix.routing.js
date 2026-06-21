@@ -176,13 +176,13 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             </div>
             ${renderHealth(snapshot, audioStatus)}
             <div class="audioflix-route-actions">
-                ${window.location.protocol === 'file:' ? `<button data-af-action="open-localhost" style="border-color: rgba(0, 212, 255, 0.4); color: #00d4ff; background: rgba(0, 212, 255, 0.1);">Localhost Site</button>` : ''}
-                <button data-af-action="local-only">Local Playback</button>
-                <button data-af-action="open-windows-mixer">Open Mixer</button>
-                <button data-af-action="mark-windows-route">Windows Mixer Routed</button>
-                <button data-af-action="arm-cable">Auto CABLE + Arm</button>
-                <button data-af-action="test-signal">Test Route</button>
-                <button data-af-action="copy-route-status">Copy Route</button>
+                ${window.location.protocol === 'file:' ? `<button type="button" data-af-action="open-localhost" style="border-color: rgba(0, 212, 255, 0.4); color: #00d4ff; background: rgba(0, 212, 255, 0.1);">Localhost Site</button>` : ''}
+                <button type="button" data-af-action="local-only">Local Playback</button>
+                <button type="button" data-af-action="open-windows-mixer">Open Mixer</button>
+                <button type="button" data-af-action="mark-windows-route">Windows Mixer Routed</button>
+                <button type="button" data-af-action="arm-cable">Auto CABLE + Arm</button>
+                <button type="button" data-af-action="test-signal">Test Route</button>
+                <button type="button" data-af-action="copy-route-status">Copy Route</button>
             </div>
         </section>
         <section class="audioflix-status-grid">
@@ -197,8 +197,8 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                     </select>
                     <p class="audioflix-output-note" data-af-output-note>Checking browser output permissions...</p>
                 </div>
-                <button data-af-action="unlock-output-names">Grant Output Access</button>
-                <button data-af-action="select-output">Pick Browser Output</button>
+                <button type="button" data-af-action="unlock-output-names">Grant Output Access</button>
+                <button type="button" data-af-action="select-output">Pick Browser Output</button>
             </article>
             <article class="audioflix-status-card ${snapshot.nativeBridgeEnabled ? 'is-on' : ''}">
                 <span>Native Bridge Output</span>
@@ -216,8 +216,8 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                     </select>
                     <p class="audioflix-output-note" data-af-native-input-note>${esc(nativeInputLabel)}</p>
                 </div>
-                <button data-af-action="refresh-native-devices">Refresh System Outputs</button>
-                <button data-af-action="toggle-native-bridge">${snapshot.nativeBridgeEnabled ? 'Disable Native Route' : 'Use Native Route'}</button>
+                <button type="button" data-af-action="refresh-native-devices">Refresh System Outputs</button>
+                <button type="button" data-af-action="toggle-native-bridge">${snapshot.nativeBridgeEnabled ? 'Disable Native Route' : 'Use Native Route'}</button>
             </article>
             <article class="audioflix-status-card ${snapshot.geminiVoicePortEnabled ? 'is-on' : ''}">
                 <span>Gemini Voice Port</span>
@@ -227,7 +227,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                     : (snapshot.geminiVoicePortEnabled
                         ? 'Armed means Gemini Live WebAudio will try to use the selected browser sink. Pick CABLE Input or mark Windows Mixer Routed.'
                         : 'Disarmed means Gemini Live uses normal browser/default playback.')}</p>
-                <button data-af-action="toggle-gemini-port">${snapshot.geminiVoicePortEnabled ? 'Disable Selective Route' : 'Arm Selective Route'}</button>
+                <button type="button" data-af-action="toggle-gemini-port">${snapshot.geminiVoicePortEnabled ? 'Disable Selective Route' : 'Arm Selective Route'}</button>
             </article>
             <article class="audioflix-status-card ${monitorOn ? 'is-on' : ''}">
                 <span>Local Monitor</span>
@@ -238,7 +238,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                         <option value="">Loading devices...</option>
                     </select>
                 </div>
-                <button data-af-action="toggle-gemini-monitor">${monitorOn ? 'Mute Monitor' : 'Hear Monitor'}</button>
+                <button type="button" data-af-action="toggle-gemini-monitor">${monitorOn ? 'Mute Monitor' : 'Hear Monitor'}</button>
             </article>
             <article class="audioflix-status-card">
                 <span>Conversation Mode</span>
@@ -248,7 +248,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                     : (window.EveGeminiMode2?.ready
                         ? 'Mode 2 relay is loaded: typed or spoken turns go to the text brain, then Live speaks the reply.'
                         : 'Mode 2 is staged, but the Gemini text-brain relay is not loaded yet.')}</p>
-                <button data-af-action="toggle-gemini-mode">${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Use Direct Live' : 'Use Mode 2'}</button>
+                <button type="button" data-af-action="toggle-gemini-mode">${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Use Direct Live' : 'Use Mode 2'}</button>
             </article>
             <article class="audioflix-status-card" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}>
                 <span>Signal</span>
@@ -268,7 +268,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                     ? 'EveOS side is ready: Gemini voice is routed to CABLE Input and the port is armed.'
                     : 'Route Gemini voice to CABLE Input, then use Voicemeeter B1/B2 as the target-app microphone.'}</p>
             </div>
-            <button data-af-action="arm-cable">${armed && onCable ? 'Re-apply Voice Port' : 'Apply Voice Port'}</button>
+            <button type="button" data-af-action="arm-cable">${armed && onCable ? 'Re-apply Voice Port' : 'Apply Voice Port'}</button>
         </div>
         <div class="audioflix-router-notes">
             <article>

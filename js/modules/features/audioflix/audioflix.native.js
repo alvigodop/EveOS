@@ -22,11 +22,17 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     function candidateBases() {
-        const saved = state().nativeBridgeBase;
+        let saved = state().nativeBridgeBase;
+        if (location.protocol === 'file:' && saved && saved.includes('localhost')) {
+            saved = saved.replace('localhost', '127.0.0.1');
+        }
         const bases = [];
         if (saved) bases.push(saved);
         if (/^https?:$/.test(location.protocol)) bases.push(location.origin);
-        ['8765', '3000'].forEach((port) => bases.push(`http://127.0.0.1:${port}`));
+        ['8765', '3000'].forEach((port) => {
+            bases.push(`http://127.0.0.1:${port}`);
+            bases.push(`http://localhost:${port}`);
+        });
         return [...new Set(bases.filter(Boolean))];
     }
 

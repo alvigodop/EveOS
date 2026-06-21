@@ -231,7 +231,7 @@ def request_can_control(handler) -> bool:
     if client_host not in {"127.0.0.1", "::1"}:
         return False
     origin = str(handler.headers.get("Origin", "")).strip().lower()
-    if not origin or origin == "null":
+    if not origin or origin == "null" or origin.startswith("file://"):
         return True
     return origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")
 

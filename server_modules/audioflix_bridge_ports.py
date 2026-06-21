@@ -56,7 +56,6 @@ def handle_port_get_request(handler, path: str, query, send_json_fn) -> bool:
             handler.send_response(HTTPStatus.OK)
             handler.send_header("Content-Type", content_type)
             handler.send_header("Content-Length", str(len(content)))
-            handler.send_header("Access-Control-Allow-Origin", "*")
             handler.end_headers()
             handler.wfile.write(content)
         except Exception as e:
