@@ -287,41 +287,64 @@ def list_devices(force: bool = False) -> dict:
     return _copy_device_payload(payload, False)
 
 
+def _resample_mono(samples, src_rate: int, dst_rate: int):
+    if np is None or not src_rate or not dst_rate or int(src_rate) == int(dst_rate):
+        return samples
+    mono = np.asarray(samples, dtype="float32").reshape(-1)
+    if mono.size == 0:
+        return mono
+    dst_count = int(round(mono.size * (int(dst_rate) / float(src_rate))))
+    if dst_count <= 0:
+        return mono[:0]
+    return np.interp(np.linspace(0.0, mono.size - 1, dst_count), np.arange(mono.size), mono).astype("float32")
+
+
+def _open_output_stream(device_index: int, channels: int, callback, preferred_rate: int):
+    rates = [preferred_rate] if preferred_rate else []
+    try:
+        r = int(sd.query_devices(device_index).get("default_samplerate") or 0)
+        if r:
+            rates.append(r)
+    except Exception:
+        pass
+    rates.extend([48000, 44100, 96000, 32000, 24000, 16000])
+    seen, last_err = set(), None
+    for rate in rates:
+        r = int(rate or 0)
+        if r <= 0 or r in seen:
+            continue
+        seen.add(r)
+        try:
+            stream = sd.OutputStream(samplerate=r, channels=channels, dtype="float32", device=device_index, blocksize=1024, callback=callback)
+            stream.start()
+            return stream, r
+        except Exception as err:
+            last_err = err
+    raise RuntimeError(f"Could not open stream for {device_index}: {last_err}")
+
+
 class _PcmPlayer:
-    def __init__(self, device_index: int, sample_rate: int, channels: int) -> None:
-        self.device_index = device_index
-        self.sample_rate = sample_rate
-        self.channels = channels
-        self.q: queue.Queue = queue.Queue(maxsize=64)
-        self.pending = None
-        self.closed = False
-        self.last_used = time.monotonic()
-        self.stream = sd.OutputStream(
-            samplerate=sample_rate,
-            channels=channels,
-            dtype="float32",
-            device=device_index,
-            blocksize=1024,
-            callback=self._callback,
-        )
-        self.stream.start()
+    def __init__(self, device_index: int, source_rate: int, channels: int) -> None:
+        self.device_index, self.source_rate, self.channels = device_index, int(source_rate), channels
+        self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=64), None, False, time.monotonic()
+        self.stream, self.sample_rate = _open_output_stream(device_index, channels, self._callback, source_rate)
 
     def _callback(self, outdata, frames, _time_info, _status) -> None:
         outdata.fill(0)
         written = 0
         while written < frames:
-            if self.pending is None or len(self.pending) == 0:
+            if not self.pending or len(self.pending) == 0:
                 try:
                     self.pending = self.q.get_nowait()
                 except queue.Empty:
                     break
             take = min(frames - written, len(self.pending))
             outdata[written:written + take, 0] = self.pending[:take]
-            self.pending = self.pending[take:]
-            written += take
+            self.pending, written = self.pending[take:], written + take
 
     def enqueue(self, samples) -> None:
         self.last_used = time.monotonic()
+        samples = _resample_mono(samples, self.source_rate, self.sample_rate)
         try:
             self.q.put_nowait(samples)
         except queue.Full:
@@ -330,7 +353,10 @@ class _PcmPlayer:
                     self.q.get_nowait()
                 except queue.Empty:
                     break
-            self.q.put_nowait(samples)
+            try:
+                self.q.put_nowait(samples)
+            except queue.Full:
+                pass
 
     def close(self) -> None:
         self.closed = True
@@ -376,17 +402,14 @@ def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str) -> dict:
 def play_pcm(payload: dict) -> dict:
     if sd is None or np is None:
         return {"ok": False, "message": "Native playback requires sounddevice and numpy."}
-    audio = str(payload.get("audio") or "")
-    device_id = str(payload.get("deviceId") or "")
-    sample_rate = int(payload.get("sampleRate") or 24000)
-    channels = max(1, int(payload.get("channels") or 1))
+    audio, device_id = str(payload.get("audio") or ""), str(payload.get("deviceId") or "")
     if not audio:
         return {"ok": False, "message": "Missing PCM audio payload."}
-    raw = base64.b64decode(audio)
-    samples = np.frombuffer(raw, dtype="<i2").astype("float32") / 32768.0
+    samples = np.frombuffer(base64.b64decode(audio), dtype="<i2").astype("float32") / 32768.0
+    channels = max(1, int(payload.get("channels") or 1))
     if channels > 1:
         samples = samples.reshape((-1, channels))[:, 0]
-    return _enqueue_mono(device_id, sample_rate, samples, "pcm")
+    return _enqueue_mono(device_id, int(payload.get("sampleRate") or 24000), samples, "pcm")
 
 
 def play_tone(payload: dict) -> dict:
@@ -403,25 +426,17 @@ def play_media(payload: dict) -> dict:
 
 def handle_get_request(handler, path: str, query) -> bool:
     if path == "/api/audioflix/status":
-        payload = list_devices()
-        payload["devices"] = []
-        _send_json(handler, payload)
-        return True
-    if path == "/api/audioflix/devices":
-        force = bool(query.get("refresh") or query.get("force"))
-        _send_json(handler, list_devices(force=force))
-        return True
-    return False
+        _send_json(handler, {**list_devices(), "devices": []})
+    elif path == "/api/audioflix/devices":
+        _send_json(handler, list_devices(force=bool(query.get("refresh") or query.get("force"))))
+    else:
+        return False
+    return True
 
 
 def handle_post_request(handler, path: str) -> bool:
-    handlers = {
-        "/api/audioflix/play-pcm": play_pcm,
-        "/api/audioflix/play-tone": play_tone,
-        "/api/audioflix/play-media": play_media,
-    }
-    action = handlers.get(path)
-    if action is None:
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media}.get(path)
+    if not action:
         return False
     if not _can_control(handler):
         _send_json(handler, {"ok": False, "message": "Local access required."}, HTTPStatus.FORBIDDEN)

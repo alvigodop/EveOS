@@ -246,9 +246,11 @@ MODEL = MAIN_MODEL
 # ---------------------------------------------------------------------------
 # The "text brain" is a large-context text model that holds the grand EveOS
 # conversation history/context and produces the line the live voice model speaks.
-# gemini-2.0-flash carries a 1M-token context window - far more retention than the
-# live audio session - which is exactly why Mode 2 offloads memory to it.
-TEXT_BRAIN_MODEL = "gemini-2.0-flash"
+# gemini-2.5-flash carries a 1M-token context window - far more retention than the
+# live audio session - which is exactly why Mode 2 offloads memory to it. (Note:
+# gemini-2.0-flash is NOT free-tier eligible for generate_content - limit 0 - so the
+# text brain uses 2.5-flash, which has free quota and the same large context.)
+TEXT_BRAIN_MODEL = "gemini-2.5-flash"
 
 TEXT_BRAIN_CONFIG = {
     "temperature": 0.8,

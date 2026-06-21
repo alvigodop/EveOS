@@ -258,12 +258,10 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'unlock-output-names') {
             try {
                 const ok = await window.EveAudioflixAudio?.unlockDeviceLabels?.();
-                playbackStatus = ok
-                    ? 'Output access granted. Pick CABLE Input, Native Bridge, or use Auto CABLE + Arm.'
-                    : 'Output access still blocked here; use Pick Browser Output, Native Bridge, or Windows Mixer.';
-            } catch (error) {
-                playbackStatus = error.message || 'Device name unlock failed';
-            }
+                playbackStatus = ok ? 'Output access granted. Pick CABLE Input, Native Bridge, or use Auto CABLE + Arm.' :
+                    (window.isSecureContext !== true ? 'This page is file:// (not secure), so the browser hides output names — "Grant Output Access" can\'t work here. Use the Native Bridge card below (it already routes Gemini to CABLE Input), or open EveOS at http://localhost:8765 for browser access.' :
+                    'Output access still blocked here; use Pick Browser Output, the Native Bridge, or Windows Mixer.');
+            } catch (error) { playbackStatus = error.message || 'Device name unlock failed'; }
             rerender();
             return;
         }
