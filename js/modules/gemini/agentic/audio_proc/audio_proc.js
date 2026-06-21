@@ -10,7 +10,7 @@ const AUDIO_PROCESSING_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/
 const audioProcessingScripts = [
     // Core Audio Playback
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContainerHelper.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContextInitializer.js?v=0.1.1`,
+    `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioContextInitializer.js?v=0.1.2`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/audioSourceConfigurator.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_core/base64_player_core/base64PlayerLoader.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/audio_playback_fallback/fallback_core/wavEncoder.js`,

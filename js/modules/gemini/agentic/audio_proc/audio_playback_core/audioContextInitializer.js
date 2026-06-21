@@ -48,6 +48,13 @@ window.AudioContextInitializer.getOrInitializeContext = async function (containe
         await this.resumeAudioContext(container.audioContext);
     }
 
+    // Audioflix browser Voice Port: route message-log replays to the selected output sink
+    // (e.g. CABLE Input) when the voice port is armed. No-op when disarmed or when the
+    // Native Bridge owns the route (that path is handled separately on play), so it never
+    // doubles. Safe where AudioContext.setSinkId is unavailable (e.g. file://).
+    try { await window.EveAudioflixGemini?.applyVoiceSink?.(container.audioContext); }
+    catch (sinkError) { console.warn('[Audioflix] message-log voice-sink skipped:', sinkError); }
+
     return container.audioContext;
 };
 
