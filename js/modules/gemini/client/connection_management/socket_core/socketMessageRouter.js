@@ -87,6 +87,28 @@ console.log("socketMessageRouter.js loading...");
                     }
                     return;
                 }
+                // Self-heal a dead / unsupported MODEL (distinct from a key restriction).
+                // Google retires preview Live models over time; a stale localStorage
+                // selection then fails forever with 1008 "not found / not supported for
+                // bidiGenerateContent". Reset to the known-good default and let reconnect
+                // proceed. Future-proof: matches the failure, not a hardcoded model list.
+                if (data.is_system_message
+                    && /(not found for api version|not supported for bidigeneratecontent|is not found for|preview model issue)/i.test(messageText)) {
+                    const DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-latest';
+                    let stale = '';
+                    try { stale = localStorage.getItem('selectedModel') || ''; } catch (e) { stale = ''; }
+                    if (stale && stale !== DEFAULT_LIVE_MODEL) {
+                        try { localStorage.setItem('selectedModel', DEFAULT_LIVE_MODEL); } catch (e) { /* ignore */ }
+                        try { const sel = document.getElementById('modelSelectSess'); if (sel) sel.value = DEFAULT_LIVE_MODEL; } catch (e) { /* ignore */ }
+                        State.apiPolicyBlocked = false;
+                        State.apiKeyInvalid = false;
+                        if (typeof displayMessage === 'function') {
+                            displayMessage(`System Message: The selected Gemini model "${stale}" is no longer available for Live. Reset to ${DEFAULT_LIVE_MODEL} — reconnecting with the working model.`, true);
+                        }
+                        return; // do NOT pause reconnect; next attempt uses the good model
+                    }
+                    // Already on the default and still failing -> fall through to generic handling.
+                }
                 if (data.is_system_message
                     && /(1008|policy violation|unrestricted keys|temporary service disruptions)/i.test(messageText)) {
                     State.apiPolicyBlocked = true;

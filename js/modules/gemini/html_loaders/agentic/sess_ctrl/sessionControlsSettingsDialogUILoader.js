@@ -92,9 +92,9 @@ async function loadSessionControlsSettingsDialog() {
                 <label class="gemini-session-field gemini-session-field--wide">
                     <span>Gemini model</span>
                     <select id="modelSelectSess">
-                        <option value="gemini-2.5-flash-native-audio-latest">Gemini 2.5 Flash Native Audio</option>
-                        <option value="gemini-2.0-flash-exp">Gemini 2.0 Flash Experimental</option>
-                        <option value="gemini-2.0-flash-thinking-exp-1219">Gemini 2.0 Flash Thinking</option>
+                        <option value="gemini-2.5-flash-native-audio-latest">Gemini 2.5 Flash Native Audio (recommended)</option>
+                        <option value="gemini-2.5-flash-preview-native-audio-dialog">Gemini 2.5 Flash Native Audio (preview)</option>
+                        <option value="gemini-2.0-flash-live-001">Gemini 2.0 Flash Live</option>
                     </select>
                 </label>
                 <label class="gemini-session-field">

@@ -32,6 +32,14 @@ window.MessagingLog.AudioPlayerEventHandler = {
                 container.isPlaying = true;
                 if (typeof window.playAudioFromBase64 === 'function') {
                     window.playAudioFromBase64(container, container.audioData, 'audio/pcm', playButton, progressBar, timeDisplay);
+                    // Audioflix: replaying a Gemini audio message also routes it to the
+                    // selected sound port (e.g. CABLE Input) when the Native Bridge is armed.
+                    // Additive + gated: no-op when the bridge is off, so local playback is unaffected.
+                    try {
+                        window.EveAudioflixNative?.sendGeminiChunk?.(container.audioData, {
+                            kind: 'replay', sampleRate: 24000, channels: 1
+                        });
+                    } catch (e) { /* native route is optional */ }
                 } else {
                     console.error("playAudioFromBase64 function not found");
                 }
