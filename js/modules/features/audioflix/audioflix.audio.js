@@ -216,9 +216,27 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         return await commitOutput(deviceId, label || 'Selected output device');
     }
 
+    async function tryNativePlayback(safeItem) {
+        if (!window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) return false;
+        const payload = await window.EveAudioflixNative?.playMediaItem?.(safeItem);
+        if (payload?.ok !== true) {
+            if (payload?.message) {
+                lastStatus = `${payload.message} Falling back to browser playback.`;
+                dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, fallback: true });
+            }
+            return false;
+        }
+        currentItem = safeItem;
+        lastStatus = `Native route playing ${safeItem.title || 'audio'} -> ${state().nativeOutputLabel || 'selected output'}`;
+        dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, native: true, payload });
+        window.EveAudioflixState?.recordPlay?.(safeItem);
+        return true;
+    }
+
     async function playItem(item) {
         const safeItem = item && typeof item === 'object' ? item : {};
         if (!safeItem.url) throw new Error('Audioflix item is missing a URL.');
+        if (await tryNativePlayback(safeItem)) return true;
         const player = ensureAudio();
         currentItem = safeItem;
         player.volume = Math.max(0, Math.min(1, Number(safeItem.volume ?? 1) || 1));
@@ -263,6 +281,18 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function playTestSignal() {
+        if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
+            const payload = await window.EveAudioflixNative?.sendTone?.({ frequency: 880, seconds: 0.55 });
+            if (payload?.ok === true) {
+                lastStatus = `Native route test tone -> ${state().nativeOutputLabel || 'selected output'}`;
+                dispatch('eve:audioflix-playback', { status: lastStatus, native: true, payload });
+                return true;
+            }
+            if (payload?.message) {
+                lastStatus = `${payload.message} Falling back to browser test tone.`;
+                dispatch('eve:audioflix-playback', { status: lastStatus, fallback: true });
+            }
+        }
         const url = makeToneUrl();
         try {
             await playItem({

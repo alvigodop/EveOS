@@ -72,6 +72,11 @@ window.EveAudioflix = window.EveAudioflix || {};
                     playbackStatus = value
                         ? `Native Audioflix route selected: ${label}`
                         : 'Native Audioflix route cleared';
+                } else if (select.dataset.afControl === 'native-input-select') {
+                    window.EveAudioflixNative?.selectNativeInput?.(value, label.replace(/\s+\(reference only\)$/i, ''));
+                    playbackStatus = value
+                        ? `Native mic target noted: ${label}`
+                        : 'Native mic target cleared';
                 }
             }
             catch (error) { playbackStatus = error.message || 'Output selection failed'; }
@@ -177,10 +182,9 @@ window.EveAudioflix = window.EveAudioflix || {};
             <div class="audioflix-content">${tabBody}</div>
         </div>`;
     }
-
     function renderRoutingDrawer(snapshot) {
-        const routeLabel = snapshot.preferredSinkLabel || 'Default browser output';
-        const stateLabel = snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback';
+        const routeLabel = snapshot.nativeBridgeEnabled && snapshot.nativeOutputLabel ? snapshot.nativeOutputLabel : (snapshot.preferredSinkLabel || 'Default browser output');
+        const stateLabel = snapshot.nativeBridgeEnabled ? 'Native route active' : (snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback');
         return `<section class="audioflix-routing-drawer ${routingOpen ? 'is-open' : ''}">
             <button class="audioflix-routing-summary" data-af-action="toggle-routing-drawer" aria-expanded="${routingOpen ? 'true' : 'false'}">
                 <span>Gemini / Voice Port</span>
@@ -201,11 +205,9 @@ window.EveAudioflix = window.EveAudioflix || {};
             </div>` : ''}
         </section>`;
     }
-
     function tabButton(tab, label) {
         return `<button class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
     }
-
     function rerender() {
         if (!overlay || overlay.hidden) return;
         overlay.innerHTML = renderPanel();
@@ -213,7 +215,6 @@ window.EveAudioflix = window.EveAudioflix || {};
         window.EveAudioflixAudio?.attachWaveform?.(canvas);
         window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
     }
-
     function findItem(type, itemId) {
         const snapshot = state();
         const list = type === 'music' ? snapshot.music : snapshot.soundboard;
@@ -341,8 +342,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'test-signal') {
             try {
                 if (window.EveAudioflixGemini?.playVoiceRouteTest) {
-                    await window.EveAudioflixGemini.playVoiceRouteTest();
-                    playbackStatus = 'Playing Gemini WebAudio route test';
+                    const result = await window.EveAudioflixGemini.playVoiceRouteTest();
+                    playbackStatus = result?.native ? 'Playing native bridge route test' : 'Playing Gemini WebAudio route test';
                 } else {
                     await window.EveAudioflixAudio?.playTestSignal?.();
                     playbackStatus = 'Playing Audioflix test signal';

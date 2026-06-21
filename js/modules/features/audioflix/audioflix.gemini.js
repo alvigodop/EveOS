@@ -145,6 +145,11 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
     }
 
     async function playVoiceRouteTest() {
+        const nativeTone = await window.EveAudioflixNative?.sendTone?.({ frequency: 660, seconds: 0.55 });
+        if (nativeTone?.ok === true) {
+            announce('Native bridge Gemini route test sent to selected output.', { native: true, payload: nativeTone });
+            return { native: true, payload: nativeTone };
+        }
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('WebAudio route test unavailable in this browser.');
         const state = getState();

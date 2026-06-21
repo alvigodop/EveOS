@@ -16,6 +16,9 @@ import subprocess
 import threading
 import time
 from http import HTTPStatus
+from pathlib import Path
+
+from server_modules import audioflix_bridge_media
 
 try:
     import numpy as np
@@ -32,6 +35,7 @@ _PLAYERS: dict[str, "_PcmPlayer"] = {}
 _LOCK = threading.Lock()
 _DEVICE_CACHE: dict = {"at": 0.0, "payload": None}
 _DEVICE_CACHE_TTL = 10.0
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _send_json(handler, payload: dict, status: int = HTTPStatus.OK) -> None:
@@ -91,6 +95,32 @@ def _sd_outputs() -> list[dict]:
         })
     return devices
 
+
+def _sd_inputs() -> list[dict]:
+    if sd is None:
+        return []
+    hostapis = sd.query_hostapis()
+    devices = []
+    for index, info in enumerate(sd.query_devices()):
+        if int(info.get("max_input_channels") or 0) <= 0:
+            continue
+        hostapi_index = int(info.get("hostapi") or 0)
+        hostapi = str(hostapis[hostapi_index].get("name") or "") if hostapi_index < len(hostapis) else ""
+        label = str(info.get("name") or f"Input device {index}")
+        if _looks_broken_label(label):
+            continue
+        devices.append({
+            "id": f"sd-in:{index}",
+            "index": index,
+            "label": label,
+            "kind": "input",
+            "channels": int(info.get("max_input_channels") or 0),
+            "sampleRate": float(info.get("default_samplerate") or 0),
+            "hostApi": hostapi,
+            "source": "sounddevice",
+            "playable": False,
+        })
+    return devices
 
 def _windows_endpoint_names() -> list[dict]:
     if not hasattr(subprocess, "run"):
@@ -222,6 +252,21 @@ def _merge_outputs(sd_outputs: list[dict], win_devices: list[dict]) -> list[dict
         merged.append(item)
     return merged
 
+def _merge_inputs(sd_inputs: list[dict], win_devices: list[dict]) -> list[dict]:
+    merged: list[dict] = []
+    for item in sorted(sd_inputs, key=_rank_output):
+        if any(_same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
+            continue
+        merged.append(item)
+    for item in win_devices:
+        if item.get("kind") != "input":
+            continue
+        if str(item.get("status") or "").upper() not in {"", "OK"}:
+            continue
+        if any(_same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
+            continue
+        merged.append(item)
+    return merged
 
 def _copy_device_payload(payload: dict, cached: bool) -> dict:
     clone = dict(payload)
@@ -237,8 +282,11 @@ def list_devices(force: bool = False) -> dict:
         return _copy_device_payload(cached_payload, True)
 
     sd_outputs = _sd_outputs()
+    sd_inputs = _sd_inputs()
     win_devices = _windows_endpoint_names()
-    merged = _merge_outputs(sd_outputs, win_devices)
+    merged_outputs = _merge_outputs(sd_outputs, win_devices)
+    merged_inputs = _merge_inputs(sd_inputs, win_devices)
+    merged = merged_outputs + merged_inputs
     payload = {
         "ok": True,
         "bridge": True,
@@ -324,6 +372,23 @@ def _player_for(device_id: str, sample_rate: int, channels: int) -> _PcmPlayer:
         return player
 
 
+def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str) -> dict:
+    if sd is None or np is None:
+        raise RuntimeError("Native playback requires the optional sounddevice and numpy packages.")
+    if not device_id:
+        raise RuntimeError("No native output device selected.")
+    mono = np.asarray(samples, dtype="float32").reshape(-1)
+    player = _player_for(device_id, sample_rate, 1)
+    player.enqueue(mono)
+    return {
+        "ok": True,
+        "kind": kind,
+        "queued": int(mono.shape[0]),
+        "sampleRate": sample_rate,
+        "deviceId": device_id,
+    }
+
+
 def play_pcm(payload: dict) -> dict:
     if sd is None or np is None:
         return {"ok": False, "message": "Native playback requires sounddevice and numpy."}
@@ -337,14 +402,19 @@ def play_pcm(payload: dict) -> dict:
     samples = np.frombuffer(raw, dtype="<i2").astype("float32") / 32768.0
     if channels > 1:
         samples = samples.reshape((-1, channels))[:, 0]
-    player = _player_for(device_id, sample_rate, 1)
-    player.enqueue(samples)
-    return {
-        "ok": True,
-        "queued": int(samples.shape[0]),
-        "sampleRate": sample_rate,
-        "deviceId": device_id,
-    }
+    return _enqueue_mono(device_id, sample_rate, samples, "pcm")
+
+
+def play_tone(payload: dict) -> dict:
+    if sd is None or np is None:
+        return {"ok": False, "message": "Native playback requires sounddevice and numpy."}
+    return audioflix_bridge_media.play_tone(payload, np, _enqueue_mono)
+
+
+def play_media(payload: dict) -> dict:
+    if sd is None or np is None:
+        return {"ok": False, "message": "Native playback requires sounddevice and numpy."}
+    return audioflix_bridge_media.play_media(payload, np, _enqueue_mono, _PROJECT_ROOT)
 
 
 def handle_get_request(handler, path: str, query) -> bool:
@@ -361,13 +431,19 @@ def handle_get_request(handler, path: str, query) -> bool:
 
 
 def handle_post_request(handler, path: str) -> bool:
-    if path != "/api/audioflix/play-pcm":
+    handlers = {
+        "/api/audioflix/play-pcm": play_pcm,
+        "/api/audioflix/play-tone": play_tone,
+        "/api/audioflix/play-media": play_media,
+    }
+    action = handlers.get(path)
+    if action is None:
         return False
     if not _can_control(handler):
         _send_json(handler, {"ok": False, "message": "Local access required."}, HTTPStatus.FORBIDDEN)
         return True
     try:
-        _send_json(handler, play_pcm(_read_json(handler)))
+        _send_json(handler, action(_read_json(handler)))
     except Exception as exc:
         _send_json(handler, {"ok": False, "message": str(exc)}, HTTPStatus.BAD_REQUEST)
     return True

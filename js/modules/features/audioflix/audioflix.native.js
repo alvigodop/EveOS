@@ -8,6 +8,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     const DEFAULT_TIMEOUT_MS = 1600;
     const DEVICE_SCAN_TIMEOUT_MS = 7500;
     const PCM_SEND_TIMEOUT_MS = 2500;
+    const MEDIA_PLAY_TIMEOUT_MS = 5000;
 
     let deviceCache = null;
     let lastStatus = { ok: false, message: 'Native bridge not checked yet.', devices: [], attempts: [] };
@@ -91,11 +92,20 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     async function listSystemOutputs(force = false) {
+        const payload = await listSystemDevices(force);
+        return Object.assign({}, payload, { devices: (payload.devices || []).filter((device) => device.kind === 'output') });
+    }
+
+    async function listSystemInputs(force = false) {
+        const payload = await listSystemDevices(force);
+        return Object.assign({}, payload, { devices: (payload.devices || []).filter((device) => device.kind === 'input') });
+    }
+
+    async function listSystemDevices(force = false) {
         if (deviceCache && !force && Date.now() - deviceCache.at < 5000) return deviceCache.payload;
         const path = force ? '/api/audioflix/devices?refresh=1' : '/api/audioflix/devices';
         const payload = await fetchJson(path, { timeout: DEVICE_SCAN_TIMEOUT_MS });
-        const devices = (payload.devices || []).filter((device) => device.kind === 'output');
-        lastStatus = Object.assign({}, payload, { devices });
+        lastStatus = Object.assign({}, payload, { devices: payload.devices || [] });
         deviceCache = { at: Date.now(), payload: lastStatus };
         return lastStatus;
     }
@@ -108,6 +118,13 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
             nativeOutputLabel: String(label || '').trim(),
             routeMode: enabled ? 'native-bridge' : 'browser'
         }, 'audioflix-native-output');
+    }
+
+    function selectNativeInput(deviceId, label) {
+        return update({
+            nativeInputId: String(deviceId || ''),
+            nativeInputLabel: String(label || '').trim()
+        }, 'audioflix-native-input');
     }
 
     function setNativeBridgeEnabled(enabled) {
@@ -142,12 +159,53 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload?.ok === true;
     }
 
+    async function sendTone(detail = {}) {
+        const current = state();
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
+        const payload = await fetchJson('/api/audioflix/play-tone', {
+            method: 'POST',
+            body: JSON.stringify({
+                deviceId: current.nativeOutputId,
+                sampleRate: detail.sampleRate || 24000,
+                frequency: detail.frequency || 660,
+                seconds: detail.seconds || 0.55
+            }),
+            timeout: PCM_SEND_TIMEOUT_MS
+        });
+        lastStatus = payload;
+        return payload;
+    }
+
+    async function playMediaItem(item, detail = {}) {
+        const current = state();
+        const safeItem = item && typeof item === 'object' ? item : {};
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId || !safeItem.url) return false;
+        const payload = await fetchJson('/api/audioflix/play-media', {
+            method: 'POST',
+            body: JSON.stringify({
+                deviceId: current.nativeOutputId,
+                url: safeItem.url,
+                title: safeItem.title || '',
+                volume: safeItem.volume ?? 1,
+                sampleRate: detail.sampleRate || 48000
+            }),
+            timeout: MEDIA_PLAY_TIMEOUT_MS
+        });
+        lastStatus = payload;
+        return payload;
+    }
+
     Object.assign(ns, {
         ready: true,
+        listSystemDevices,
         listSystemOutputs,
+        listSystemInputs,
         selectNativeOutput,
+        selectNativeInput,
         setNativeBridgeEnabled,
         sendGeminiChunk,
+        sendTone,
+        playMediaItem,
         shouldSuppressBrowserPlayback,
         getStatus: function () { return lastStatus; }
     });
