@@ -50,16 +50,12 @@ def _send_json(handler, payload: dict, status: int = HTTPStatus.OK) -> None:
 def _read_json(handler) -> dict:
     try:
         length = int(handler.headers.get("Content-Length", "0") or 0)
-    except ValueError:
-        length = 0
-    if length <= 0:
-        return {}
-    raw = handler.rfile.read(length).decode("utf-8", errors="replace")
-    try:
-        parsed = json.loads(raw)
-        return parsed if isinstance(parsed, dict) else {}
-    except json.JSONDecodeError:
-        return {}
+        if length > 0:
+            parsed = json.loads(handler.rfile.read(length).decode("utf-8", errors="replace"))
+            return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        pass
+    return {}
 
 
 def _can_control(handler) -> bool:
@@ -67,9 +63,7 @@ def _can_control(handler) -> bool:
     if host not in {"127.0.0.1", "::1"}:
         return False
     origin = str(handler.headers.get("Origin", "")).strip().lower()
-    if not origin or origin == "null":
-        return True
-    return origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")
+    return not origin or origin == "null" or origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")
 
 
 def _sd_outputs() -> list[dict]:
@@ -82,10 +76,13 @@ def _sd_outputs() -> list[dict]:
             continue
         hostapi_index = int(info.get("hostapi") or 0)
         hostapi = str(hostapis[hostapi_index].get("name") or "") if hostapi_index < len(hostapis) else ""
+        label = str(info.get("name") or f"Output device {index}")
+        if hostapi:
+            label = f"{label} ({hostapi})"
         devices.append({
             "id": f"sd:{index}",
             "index": index,
-            "label": str(info.get("name") or f"Output device {index}"),
+            "label": label,
             "kind": "output",
             "channels": int(info.get("max_output_channels") or 0),
             "sampleRate": float(info.get("default_samplerate") or 0),
@@ -107,8 +104,10 @@ def _sd_inputs() -> list[dict]:
         hostapi_index = int(info.get("hostapi") or 0)
         hostapi = str(hostapis[hostapi_index].get("name") or "") if hostapi_index < len(hostapis) else ""
         label = str(info.get("name") or f"Input device {index}")
-        if _looks_broken_label(label):
+        if _looks_broken_label(label) or _is_low_level_output({"hostApi": hostapi}):
             continue
+        if hostapi:
+            label = f"{label} ({hostapi})"
         devices.append({
             "id": f"sd-in:{index}",
             "index": index,
@@ -121,6 +120,7 @@ def _sd_inputs() -> list[dict]:
             "playable": False,
         })
     return devices
+
 
 def _windows_endpoint_names() -> list[dict]:
     if not hasattr(subprocess, "run"):
@@ -166,24 +166,20 @@ def _windows_endpoint_names() -> list[dict]:
 
 def _guess_endpoint_kind(label: str) -> str:
     lowered = str(label or "").lower()
-    # VB-CABLE names are intentionally reversed from user intent:
-    # CABLE Input is the playback/render endpoint, CABLE Output is capture.
-    if "cable input" in lowered or "voicemeeter input" in lowered or "speakers" in lowered:
+    if any(t in lowered for t in ("cable input", "voicemeeter input", "speakers")):
         return "output"
-    if "cable output" in lowered or "voicemeeter output" in lowered:
-        return "input"
-    if any(token in lowered for token in ("microphone", "line in", "recording", "capture")):
+    if any(t in lowered for t in ("cable output", "voicemeeter output", "microphone", "line in", "recording", "capture")):
         return "input"
     return "output"
 
 
 def _normalized_label(label: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", str(label or "").lower())
+    text = re.sub(r"\s*\((?:MME|Windows DirectSound|Windows WASAPI|Windows WDM-KS|ASIO)\)\s*$", "", str(label or "").strip(), flags=re.IGNORECASE)
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
 
 
 def _is_generic_output(label: str) -> bool:
-    lowered = str(label or "").strip().lower()
-    return lowered in {"microsoft sound mapper - output", "primary sound driver"}
+    return str(label or "").strip().lower() in {"microsoft sound mapper - output", "primary sound driver"}
 
 
 def _is_low_level_output(item: dict) -> bool:
@@ -191,30 +187,21 @@ def _is_low_level_output(item: dict) -> bool:
 
 
 def _looks_broken_label(label: str) -> bool:
-    text = str(label or "").strip()
-    return not text or text.endswith("()") or text.endswith("(")
+    t = str(label or "").strip()
+    return not t or t.endswith("()") or t.endswith("(")
 
 
 def _rank_output(item: dict) -> int:
     label = str(item.get("label") or "")
     hostapi = str(item.get("hostApi") or "").lower()
-    rank = 50
-    if "wasapi" in hostapi:
-        rank = 0
-    elif "directsound" in hostapi:
-        rank = 10
-    elif hostapi == "mme":
-        rank = 20
-    elif "wdm-ks" in hostapi:
-        rank = 90
+    rank = 0 if "wasapi" in hostapi else (10 if "directsound" in hostapi else (20 if hostapi == "mme" else (90 if "wdm-ks" in hostapi else 50)))
     if _is_generic_output(label):
         rank += 100
     if _looks_broken_label(label):
         rank += 40
-    lowered = label.lower()
-    if "cable input" in lowered:
+    if "cable input" in label.lower():
         rank -= 10
-    elif "voicemeeter" in lowered:
+    elif "voicemeeter" in label.lower():
         rank -= 6
     return rank
 
@@ -234,12 +221,10 @@ def _merge_outputs(sd_outputs: list[dict], win_devices: list[dict]) -> list[dict
                 if not _is_generic_output(item.get("label", ""))
                 and not _looks_broken_label(item.get("label", ""))
                 and not _is_low_level_output(item)]
-    # If a machine exposes only low-level endpoints, fall back instead of hiding
-    # everything. On normal Windows audio stacks, WASAPI/DirectSound are cleaner.
     candidates = playable or [item for item in sd_outputs if not _is_generic_output(item.get("label", ""))]
     merged: list[dict] = []
     for item in sorted(candidates, key=_rank_output):
-        if any(_same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
+        if any(item.get("hostApi") == kept.get("hostApi") and _same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
             continue
         merged.append(item)
     for item in win_devices:
@@ -252,10 +237,11 @@ def _merge_outputs(sd_outputs: list[dict], win_devices: list[dict]) -> list[dict
         merged.append(item)
     return merged
 
+
 def _merge_inputs(sd_inputs: list[dict], win_devices: list[dict]) -> list[dict]:
     merged: list[dict] = []
     for item in sorted(sd_inputs, key=_rank_output):
-        if any(_same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
+        if any(item.get("hostApi") == kept.get("hostApi") and _same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
             continue
         merged.append(item)
     for item in win_devices:
@@ -268,11 +254,9 @@ def _merge_inputs(sd_inputs: list[dict], win_devices: list[dict]) -> list[dict]:
         merged.append(item)
     return merged
 
+
 def _copy_device_payload(payload: dict, cached: bool) -> dict:
-    clone = dict(payload)
-    clone["cached"] = cached
-    clone["devices"] = [dict(item) for item in payload.get("devices", [])]
-    return clone
+    return {**payload, "cached": cached, "devices": [dict(d) for d in payload.get("devices", [])]}
 
 
 def list_devices(force: bool = False) -> dict:
