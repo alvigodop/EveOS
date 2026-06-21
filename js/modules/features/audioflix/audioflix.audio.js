@@ -159,28 +159,51 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             const all = await devices.enumerateDevices();
             return all
                 .filter((d) => d.kind === 'audiooutput')
-                .map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Output device ${i + 1}` }));
+                .map((d, i) => ({
+                    deviceId: d.deviceId,
+                    label: d.label || `Output device ${i + 1}`,
+                    anonymous: !d.label
+                }));
         } catch (error) {
             console.warn('[Audioflix] enumerateDevices failed:', error);
             return [];
         }
     }
 
+    function hasNamedOutputs(list) {
+        return (list || []).some((device) => device && device.label && !device.anonymous);
+    }
+
     async function unlockDeviceLabels() {
         const devices = navigator.mediaDevices || {};
-        if (typeof devices.getUserMedia !== 'function') {
-            lastStatus = 'Cannot unlock device names here; use browser permissions or Windows Mixer.';
+        let micPermissionTried = false;
+        try {
+            if (typeof devices.getUserMedia === 'function') {
+                micPermissionTried = true;
+                const stream = await devices.getUserMedia({ audio: true, video: false });
+                stream.getTracks().forEach((track) => {
+                    try { track.stop(); } catch { }
+                });
+                if (hasNamedOutputs(await listOutputs())) {
+                    lastStatus = 'Audio output names unlocked. Re-reading output devices...';
+                    dispatch('eve:audioflix-playback', { status: lastStatus, labelsUnlocked: true });
+                    return true;
+                }
+            }
+            if (typeof devices.selectAudioOutput === 'function') {
+                const device = await devices.selectAudioOutput();
+                if (device?.deviceId) {
+                    await commitOutput(device.deviceId, device.label || 'Selected output device');
+                    lastStatus = `Output access granted for ${device.label || 'selected output'}.`;
+                    dispatch('eve:audioflix-playback', { status: lastStatus, labelsUnlocked: true });
+                    return true;
+                }
+            }
+            lastStatus = micPermissionTried
+                ? 'Browser accepted audio permission, but output names are still hidden here. Use Pick Browser Output or Native Bridge.'
+                : 'Cannot unlock device names here; use Pick Browser Output, Native Bridge, or Windows Mixer.';
             dispatch('eve:audioflix-playback', { status: lastStatus, unsupported: true });
             return false;
-        }
-        try {
-            const stream = await devices.getUserMedia({ audio: true, video: false });
-            stream.getTracks().forEach((track) => {
-                try { track.stop(); } catch { }
-            });
-            lastStatus = 'Audio device names unlocked. Re-reading output devices...';
-            dispatch('eve:audioflix-playback', { status: lastStatus, labelsUnlocked: true });
-            return true;
         } catch (error) {
             lastStatus = error?.message || 'Device-name unlock was blocked';
             dispatch('eve:audioflix-playback', { status: lastStatus, error: true });

@@ -5,8 +5,12 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     const ns = window.EveAudioflixNative;
     if (ns.ready) return;
 
+    const DEFAULT_TIMEOUT_MS = 1600;
+    const DEVICE_SCAN_TIMEOUT_MS = 7500;
+    const PCM_SEND_TIMEOUT_MS = 2500;
+
     let deviceCache = null;
-    let lastStatus = { ok: false, message: 'Native bridge not checked yet.', devices: [] };
+    let lastStatus = { ok: false, message: 'Native bridge not checked yet.', devices: [], attempts: [] };
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -27,39 +31,69 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     async function fetchFromBase(base, path, options = {}) {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), options.timeout || 900);
+        const timeout = Number(options.timeout) || DEFAULT_TIMEOUT_MS;
+        const timer = setTimeout(() => controller.abort(), timeout);
         try {
             const response = await fetch(`${base}${path}`, Object.assign({}, options, {
                 signal: controller.signal,
                 headers: Object.assign({ 'Content-Type': 'application/json' }, options.headers || {})
             }));
-            if (!response.ok) return null;
-            return await response.json();
+            if (!response.ok) {
+                return {
+                    ok: false,
+                    base,
+                    status: response.status,
+                    message: response.status === 404
+                        ? `Audioflix API is missing on ${base}. Restart that EveOS port so the native bridge endpoint loads.`
+                        : `Native bridge request failed on ${base} (${response.status}).`
+                };
+            }
+            const payload = await response.json();
+            return Object.assign({ base }, payload || {});
         } finally {
             clearTimeout(timer);
         }
     }
 
     async function fetchJson(path, options = {}) {
+        const attempts = [];
         for (const base of candidateBases()) {
             try {
                 const payload = await fetchFromBase(base, path, options);
-                if (!payload) continue;
+                if (!payload) {
+                    attempts.push({ base, message: 'No native bridge response.' });
+                    continue;
+                }
                 if (payload?.ok !== false) {
                     update({ nativeBridgeBase: base }, 'audioflix-native-bridge-base');
                     return payload;
                 }
-                lastStatus = payload;
-            } catch {
-                // Try the next known local EveOS server port.
+                attempts.push({ base, status: payload.status, message: payload.message });
+                lastStatus = Object.assign({}, payload, { attempts });
+            } catch (error) {
+                attempts.push({
+                    base,
+                    message: error?.name === 'AbortError'
+                        ? `Timed out after ${Number(options.timeout) || DEFAULT_TIMEOUT_MS}ms.`
+                        : (error?.message || 'Request failed.')
+                });
             }
         }
+        lastStatus = Object.assign({}, lastStatus, {
+            ok: false,
+            devices: [],
+            attempts,
+            message: attempts.find((item) => item.status === 404)?.message
+                || attempts[0]?.message
+                || 'Native bridge unavailable. Start or restart an EveOS HTTP server.'
+        });
         return lastStatus;
     }
 
     async function listSystemOutputs(force = false) {
         if (deviceCache && !force && Date.now() - deviceCache.at < 5000) return deviceCache.payload;
-        const payload = await fetchJson('/api/audioflix/devices');
+        const path = force ? '/api/audioflix/devices?refresh=1' : '/api/audioflix/devices';
+        const payload = await fetchJson(path, { timeout: DEVICE_SCAN_TIMEOUT_MS });
         const devices = (payload.devices || []).filter((device) => device.kind === 'output');
         lastStatus = Object.assign({}, payload, { devices });
         deviceCache = { at: Date.now(), payload: lastStatus };
@@ -102,7 +136,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 sampleRate: detail.sampleRate || 24000,
                 channels: detail.channels || 1
             }),
-            timeout: 1200
+            timeout: PCM_SEND_TIMEOUT_MS
         });
         lastStatus = payload;
         return payload?.ok === true;

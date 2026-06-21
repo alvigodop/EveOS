@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import json
 import queue
+import re
 import subprocess
 import threading
 import time
@@ -29,6 +30,8 @@ except Exception:  # pragma: no cover - optional runtime dependency
 
 _PLAYERS: dict[str, "_PcmPlayer"] = {}
 _LOCK = threading.Lock()
+_DEVICE_CACHE: dict = {"at": 0.0, "payload": None}
+_DEVICE_CACHE_TTL = 10.0
 
 
 def _send_json(handler, payload: dict, status: int = HTTPStatus.OK) -> None:
@@ -68,10 +71,13 @@ def _can_control(handler) -> bool:
 def _sd_outputs() -> list[dict]:
     if sd is None:
         return []
+    hostapis = sd.query_hostapis()
     devices = []
     for index, info in enumerate(sd.query_devices()):
         if int(info.get("max_output_channels") or 0) <= 0:
             continue
+        hostapi_index = int(info.get("hostapi") or 0)
+        hostapi = str(hostapis[hostapi_index].get("name") or "") if hostapi_index < len(hostapis) else ""
         devices.append({
             "id": f"sd:{index}",
             "index": index,
@@ -79,6 +85,7 @@ def _sd_outputs() -> list[dict]:
             "kind": "output",
             "channels": int(info.get("max_output_channels") or 0),
             "sampleRate": float(info.get("default_samplerate") or 0),
+            "hostApi": hostapi,
             "source": "sounddevice",
             "playable": True,
         })
@@ -140,19 +147,112 @@ def _guess_endpoint_kind(label: str) -> str:
     return "output"
 
 
-def list_devices() -> dict:
+def _normalized_label(label: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(label or "").lower())
+
+
+def _is_generic_output(label: str) -> bool:
+    lowered = str(label or "").strip().lower()
+    return lowered in {"microsoft sound mapper - output", "primary sound driver"}
+
+
+def _is_low_level_output(item: dict) -> bool:
+    return "wdm-ks" in str(item.get("hostApi") or "").lower()
+
+
+def _looks_broken_label(label: str) -> bool:
+    text = str(label or "").strip()
+    return not text or text.endswith("()") or text.endswith("(")
+
+
+def _rank_output(item: dict) -> int:
+    label = str(item.get("label") or "")
+    hostapi = str(item.get("hostApi") or "").lower()
+    rank = 50
+    if "wasapi" in hostapi:
+        rank = 0
+    elif "directsound" in hostapi:
+        rank = 10
+    elif hostapi == "mme":
+        rank = 20
+    elif "wdm-ks" in hostapi:
+        rank = 90
+    if _is_generic_output(label):
+        rank += 100
+    if _looks_broken_label(label):
+        rank += 40
+    lowered = label.lower()
+    if "cable input" in lowered:
+        rank -= 10
+    elif "voicemeeter" in lowered:
+        rank -= 6
+    return rank
+
+
+def _same_output_label(left: str, right: str) -> bool:
+    a = _normalized_label(left)
+    b = _normalized_label(right)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    return min(len(a), len(b)) >= 18 and (a.startswith(b) or b.startswith(a))
+
+
+def _merge_outputs(sd_outputs: list[dict], win_devices: list[dict]) -> list[dict]:
+    playable = [item for item in sd_outputs
+                if not _is_generic_output(item.get("label", ""))
+                and not _looks_broken_label(item.get("label", ""))
+                and not _is_low_level_output(item)]
+    # If a machine exposes only low-level endpoints, fall back instead of hiding
+    # everything. On normal Windows audio stacks, WASAPI/DirectSound are cleaner.
+    candidates = playable or [item for item in sd_outputs if not _is_generic_output(item.get("label", ""))]
+    merged: list[dict] = []
+    for item in sorted(candidates, key=_rank_output):
+        if any(_same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
+            continue
+        merged.append(item)
+    for item in win_devices:
+        if item.get("kind") != "output":
+            continue
+        if str(item.get("status") or "").upper() not in {"", "OK"}:
+            continue
+        if any(_same_output_label(item.get("label", ""), kept.get("label", "")) for kept in merged):
+            continue
+        merged.append(item)
+    return merged
+
+
+def _copy_device_payload(payload: dict, cached: bool) -> dict:
+    clone = dict(payload)
+    clone["cached"] = cached
+    clone["devices"] = [dict(item) for item in payload.get("devices", [])]
+    return clone
+
+
+def list_devices(force: bool = False) -> dict:
+    now = time.monotonic()
+    cached_payload = _DEVICE_CACHE.get("payload")
+    if not force and cached_payload and now - float(_DEVICE_CACHE.get("at") or 0.0) < _DEVICE_CACHE_TTL:
+        return _copy_device_payload(cached_payload, True)
+
     sd_outputs = _sd_outputs()
     win_devices = _windows_endpoint_names()
-    seen = {item["label"].lower() for item in sd_outputs}
-    merged = sd_outputs + [item for item in win_devices if item["label"].lower() not in seen]
-    return {
+    merged = _merge_outputs(sd_outputs, win_devices)
+    payload = {
         "ok": True,
         "bridge": True,
         "playbackAvailable": sd is not None and np is not None,
         "devices": merged,
+        "deviceCount": len(merged),
+        "scannedAt": time.time(),
+        "cacheTtl": _DEVICE_CACHE_TTL,
         "message": "Native playback ready." if sd is not None and np is not None
         else "Install sounddevice to enable native playback; endpoint names are discovery-only.",
     }
+    _DEVICE_CACHE["at"] = now
+    _DEVICE_CACHE["payload"] = payload
+    return _copy_device_payload(payload, False)
 
 
 class _PcmPlayer:
@@ -247,14 +347,15 @@ def play_pcm(payload: dict) -> dict:
     }
 
 
-def handle_get_request(handler, path: str, _query) -> bool:
+def handle_get_request(handler, path: str, query) -> bool:
     if path == "/api/audioflix/status":
         payload = list_devices()
         payload["devices"] = []
         _send_json(handler, payload)
         return True
     if path == "/api/audioflix/devices":
-        _send_json(handler, list_devices())
+        force = bool(query.get("refresh") or query.get("force"))
+        _send_json(handler, list_devices(force=force))
         return True
     return False
 

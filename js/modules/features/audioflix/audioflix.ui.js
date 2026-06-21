@@ -258,8 +258,8 @@ window.EveAudioflix = window.EveAudioflix || {};
             try {
                 const ok = await window.EveAudioflixAudio?.unlockDeviceLabels?.();
                 playbackStatus = ok
-                    ? 'Audio output names unlocked. Pick CABLE Input or use Auto CABLE + Arm.'
-                    : 'Could not unlock device names here; use browser permission or Windows Mixer.';
+                    ? 'Output access granted. Pick CABLE Input, Native Bridge, or use Auto CABLE + Arm.'
+                    : 'Output access still blocked here; use Pick Browser Output, Native Bridge, or Windows Mixer.';
             } catch (error) {
                 playbackStatus = error.message || 'Device name unlock failed';
             }
@@ -302,9 +302,12 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'toggle-native-bridge') {
             const next = state().nativeBridgeEnabled !== true;
             window.EveAudioflixNative?.setNativeBridgeEnabled?.(next);
-            playbackStatus = next
-                ? 'Native route enabled for EveOS/Gemini audio chunks'
-                : 'Native route disabled; browser/default playback restored';
+            const updated = state();
+            playbackStatus = next && updated.nativeBridgeEnabled
+                ? `Native route enabled: ${updated.nativeOutputLabel || updated.nativeOutputId}`
+                : (next
+                    ? 'Pick a native output first, then enable Native Route.'
+                    : 'Native route disabled; browser/default playback restored');
             rerender();
             return;
         }
@@ -361,7 +364,10 @@ window.EveAudioflix = window.EveAudioflix || {};
             return;
         }
         if (action === 'toggle-gemini-port') {
-            window.EveAudioflixGemini?.setVoicePortEnabled?.(!state().geminiVoicePortEnabled);
+            const enabled = window.EveAudioflixGemini?.setVoicePortEnabled?.(!state().geminiVoicePortEnabled);
+            playbackStatus = enabled
+                ? 'Selective route armed: Gemini Live will use the selected browser sink when supported.'
+                : 'Selective route disabled: Gemini Live returns to normal browser playback.';
             rerender();
             return;
         }
@@ -375,6 +381,9 @@ window.EveAudioflix = window.EveAudioflix || {};
                 ? 'direct-live'
                 : 'text-brain-live-voice';
             window.EveAudioflixGemini?.setConversationMode?.(next);
+            playbackStatus = next === 'text-brain-live-voice'
+                ? (window.EveGeminiMode2?.ready ? 'Mode 2 enabled: Text Brain relay is loaded.' : 'Mode 2 selected, but relay module is not loaded yet.')
+                : 'Direct Live mode enabled.';
             rerender();
             return;
         }

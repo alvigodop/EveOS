@@ -28,6 +28,23 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         return (devices || []).some((device) => isAnonymousOutput(device.label));
     }
 
+    function renderBrowserOptions(devices, entry) {
+        if (!devices.length) {
+            return '<option value="">No browser output list; use picker, Native Bridge, or Mixer</option>';
+        }
+        if (hasAnonymousOutputs(devices)) {
+            return [
+                '<option value="">Default output</option>',
+                '<option value="" disabled>Output names hidden - grant output access first</option>'
+            ].join('');
+        }
+        return ['<option value="">Default output</option>'].concat(devices.map((device) => {
+            const blocked = entry.blocked && device.deviceId === entry.blocked;
+            const label = blocked ? `${device.label || 'Selected output'} (Voice Port route)` : device.label;
+            return `<option value="${esc(device.deviceId)}"${blocked ? ' disabled' : ''}>${esc(label)}</option>`;
+        })).join('');
+    }
+
     function routeLabel(snapshot, audioStatus) {
         if (snapshot.routeMode === 'native-bridge') return snapshot.nativeOutputLabel || 'Native Audioflix bridge';
         if (snapshot.routeMode === 'manual') return 'Windows Mixer -> CABLE Input';
@@ -41,7 +58,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                 canPick: audioStatus.hasSetSinkId && audioStatus.hasOutputPicker,
                 labelsVisible: audioStatus.hasEnumerate && !!snapshot.preferredSinkLabel,
                 title: 'Windows mixer route active',
-                detail: 'Browser APIs stay available, but Windows is currently the source of truth for routing Edge/EveOS to CABLE Input.'
+                detail: 'EveOS will not guess a browser sink here. Windows Volume mixer is the source of truth for routing this Edge/EveOS window to CABLE Input.'
             };
         }
         const selected = ['browser', 'browser-selective', 'vb-cable'].includes(snapshot.routeMode) && !!snapshot.preferredSinkId;
@@ -178,7 +195,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                     </select>
                     <p class="audioflix-output-note" data-af-output-note>Checking browser output permissions...</p>
                 </div>
-                <button data-af-action="unlock-output-names">Unlock Device Names</button>
+                <button data-af-action="unlock-output-names">Grant Output Access</button>
                 <button data-af-action="select-output">Pick Browser Output</button>
             </article>
             <article class="audioflix-status-card ${snapshot.nativeBridgeEnabled ? 'is-on' : ''}">
@@ -197,9 +214,11 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             <article class="audioflix-status-card ${snapshot.geminiVoicePortEnabled ? 'is-on' : ''}">
                 <span>Gemini Voice Port</span>
                 <strong>${snapshot.geminiVoicePortEnabled ? 'Selective route armed' : 'Default playback'}</strong>
-                <p>${snapshot.geminiVoicePortEnabled && !isCableLabel(snapshot.preferredSinkLabel)
-                    ? 'Port is armed, but Output Router is not CABLE Input yet unless Windows Mixer is handling it.'
-                    : 'Routes Gemini WebAudio into VB-CABLE/Voicemeeter without requiring all Edge audio to move.'}</p>
+                <p>${snapshot.nativeBridgeEnabled
+                    ? 'Native Bridge sends Gemini PCM chunks through the selected local output and can suppress duplicate browser playback.'
+                    : (snapshot.geminiVoicePortEnabled
+                        ? 'Armed means Gemini Live WebAudio will try to use the selected browser sink. Pick CABLE Input or mark Windows Mixer Routed.'
+                        : 'Disarmed means Gemini Live uses normal browser/default playback.')}</p>
                 <button data-af-action="toggle-gemini-port">${snapshot.geminiVoicePortEnabled ? 'Disable Selective Route' : 'Arm Selective Route'}</button>
             </article>
             <article class="audioflix-status-card ${monitorOn ? 'is-on' : ''}">
@@ -218,7 +237,9 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                 <strong>${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Text Brain -> Live Voice' : 'Direct Live'}</strong>
                 <p>${mode2Tokens?.calls
                     ? `Text brain: ${mode2Tokens.textBrain.total} tokens across ${mode2Tokens.calls} call${mode2Tokens.calls === 1 ? '' : 's'}.`
-                    : 'Mode 2 routes plain typed or spoken turns through the text brain, then Live speaks the reply.'}</p>
+                    : (window.EveGeminiMode2?.ready
+                        ? 'Mode 2 relay is loaded: typed or spoken turns go to the text brain, then Live speaks the reply.'
+                        : 'Mode 2 is staged, but the Gemini text-brain relay is not loaded yet.')}</p>
                 <button data-af-action="toggle-gemini-mode">${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Use Direct Live' : 'Use Mode 2'}</button>
             </article>
             <article class="audioflix-status-card">
@@ -302,16 +323,8 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         ].forEach(function (entry) {
             const select = overlay.querySelector(entry.selector);
             if (!select) return;
-            if (!devices.length) {
-                select.innerHTML = '<option value="">No device list; grant mic permission once or use browser picker</option>';
-                return;
-            }
-            select.innerHTML = ['<option value="">Default output</option>'].concat(devices.map((device) => {
-                const blocked = entry.blocked && device.deviceId === entry.blocked;
-                const label = blocked ? `${device.label || 'Output device'} (Voice Port route)` : device.label;
-                return `<option value="${esc(device.deviceId)}"${blocked ? ' disabled' : ''}>${esc(label)}</option>`;
-            })).join('');
-            select.value = entry.current && entry.current !== entry.blocked ? entry.current : '';
+            select.innerHTML = renderBrowserOptions(devices, entry);
+            select.value = !hasAnonymousOutputs(devices) && entry.current && entry.current !== entry.blocked ? entry.current : '';
         });
         listNativeOutputs(false).then((payload) => {
             const select = overlay.querySelector('[data-af-control="native-output-select"]');
@@ -320,7 +333,10 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             if (nativeNote) nativeNote.textContent = payload.message || `${nativeDevices.length} system output device${nativeDevices.length === 1 ? '' : 's'} visible.`;
             if (!select) return;
             if (!nativeDevices.length) {
-                select.innerHTML = '<option value="">No native output bridge devices found</option>';
+                const label = payload.status === 404
+                    ? 'Audioflix API missing - restart EveOS port'
+                    : 'No native output bridge devices found';
+                select.innerHTML = `<option value="">${esc(label)}</option>`;
                 return;
             }
             select.innerHTML = ['<option value="">Choose native output...</option>'].concat(nativeDevices.map((device) => {
@@ -336,7 +352,11 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         const snapshot = state();
         const audioStatus = window.EveAudioflixAudio?.getStatus?.() || {};
         const geminiStatus = window.EveAudioflixGemini?.getStatus?.() || {};
+        const nativeStatus = window.EveAudioflixNative?.getStatus?.() || {};
         const browserCore = browserCoreState(snapshot, audioStatus);
+        const attempts = (nativeStatus.attempts || [])
+            .slice(-4)
+            .map((item) => `- ${item.base || 'unknown'}: ${item.message || item.status || 'checked'}`);
         return [
             'EveOS Audioflix Routing Status',
             `Generated: ${new Date().toISOString()}`,
@@ -346,11 +366,14 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             `[Voice Port] ${snapshot.geminiVoicePortEnabled ? 'selective Gemini WebAudio route armed' : 'default playback'}`,
             `[Route Mode] ${snapshot.routeMode || 'browser'}`,
             `[Native Bridge] ${snapshot.nativeBridgeEnabled ? (snapshot.nativeOutputLabel || snapshot.nativeOutputId || 'enabled') : 'off'}`,
+            `[Native Bridge Status] ${nativeStatus.message || 'not checked'}`,
             `[Local Monitor] ${snapshot.geminiVoiceMonitorEnabled === false ? 'muted' : (snapshot.geminiVoiceMonitorSinkLabel || 'default output')}`,
             `[Conversation Mode] ${snapshot.geminiConversationMode || 'direct-live'}`,
             `[Signal] ${playbackStatus || 'Idle'}`,
             `[Last Gemini Audio] ${geminiStatus.lastEvent ? new Date(geminiStatus.lastEvent.at).toLocaleString() : 'none'}`,
             `[Next Step] ${nextStep(snapshot, audioStatus).title}`,
+            '',
+            attempts.length ? `[Native Bridge Attempts]\n${attempts.join('\n')}` : '[Native Bridge Attempts] none recorded',
             '',
             'Native bridge route: EveOS server enumerates Windows output endpoints and can receive Gemini PCM chunks for EveOS-only output routing when sounddevice is installed.',
             'Selective browser route: Pick Browser Output/Auto CABLE + Arm uses browser permission and AudioContext.setSinkId when supported, so Gemini WebAudio can go to VB-CABLE without moving all Edge audio.',
