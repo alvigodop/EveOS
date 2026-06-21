@@ -14,6 +14,48 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     let animationFrame = 0;
     let currentItem = null;
     let lastStatus = 'Idle';
+    let activeStreamTimer = null;
+    let isStreamPlaying = false;
+
+    function stopActiveStream() {
+        if (activeStreamTimer) {
+            clearInterval(activeStreamTimer);
+            activeStreamTimer = null;
+        }
+        isStreamPlaying = false;
+    }
+
+    async function streamPCMToBridge(audioBuffer, sampleRate, volume) {
+        stopActiveStream();
+        isStreamPlaying = true;
+        const floatSamples = audioBuffer.getChannelData(0);
+        const totalSamples = floatSamples.length;
+        const chunkSize = Math.floor(sampleRate * 0.25);
+        let offset = 0;
+        const sendNextChunk = async () => {
+            if (!isStreamPlaying) return;
+            if (offset >= totalSamples) {
+                stopActiveStream();
+                lastStatus = 'Ended';
+                dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
+                return;
+            }
+            const count = Math.min(chunkSize, totalSamples - offset);
+            const intSamples = new Int16Array(count);
+            for (let i = 0; i < count; i++) {
+                const s = Math.max(-1, Math.min(1, floatSamples[offset + i] * volume));
+                intSamples[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            const uint8 = new Uint8Array(intSamples.buffer);
+            let binary = '';
+            for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
+            const base64 = btoa(binary);
+            await window.EveAudioflixNative?.sendGeminiChunk?.(base64, { sampleRate, channels: 1 });
+            offset += count;
+        };
+        await sendNextChunk();
+        activeStreamTimer = setInterval(sendNextChunk, 250);
+    }
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -238,10 +280,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         if (!window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) return false;
         const payload = await window.EveAudioflixNative?.playMediaItem?.(safeItem);
         if (payload?.ok !== true) {
-            if (payload?.message) {
-                lastStatus = `${payload.message} Falling back to browser playback.`;
-                dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, fallback: true });
-            }
             return false;
         }
         currentItem = safeItem;
@@ -252,9 +290,30 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function playItem(item) {
+        stopActiveStream();
         const safeItem = item && typeof item === 'object' ? item : {};
         if (!safeItem.url) throw new Error('Audioflix item is missing a URL.');
         if (await tryNativePlayback(safeItem)) return true;
+
+        if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
+            try {
+                lastStatus = `Decoding ${safeItem.title || 'audio'}...`;
+                dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem });
+                const res = await fetch(safeItem.url);
+                const arrayBuffer = await res.arrayBuffer();
+                const audioCtx = context || ensureGraph() || new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                currentItem = safeItem;
+                lastStatus = `Native route playing ${safeItem.title || 'audio'} -> ${state().nativeOutputLabel || 'selected output'}`;
+                dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, native: true });
+                await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1);
+                window.EveAudioflixState?.recordPlay?.(safeItem);
+                return true;
+            } catch (err) {
+                console.warn('[Audioflix] native stream failed, falling back:', err);
+            }
+        }
+
         const player = ensureAudio();
         currentItem = safeItem;
         player.volume = Math.max(0, Math.min(1, Number(safeItem.volume ?? 1) || 1));
@@ -327,6 +386,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     function pause() {
+        stopActiveStream();
         ensureAudio().pause();
     }
 
