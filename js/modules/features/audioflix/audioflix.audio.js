@@ -176,18 +176,32 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     async function unlockDeviceLabels() {
         const devices = navigator.mediaDevices || {};
+
+        // Browsers only expose audio-output device NAMES in a secure context (https or
+        // http://localhost). On file:// or a LAN IP, getUserMedia can't reveal them, so
+        // "Grant Output Access" can never work there. Say so plainly + point to the fix.
+        if (window.isSecureContext !== true || typeof devices.enumerateDevices !== 'function') {
+            lastStatus = 'Output names need a secure page. Open EveOS at http://localhost:8765 (not file://) to unlock names, or use the Native Bridge / Windows Mixer below.';
+            dispatch('eve:audioflix-playback', { status: lastStatus, insecure: true });
+            return false;
+        }
+
         let micPermissionTried = false;
+        let stream = null;
         try {
             if (typeof devices.getUserMedia === 'function') {
                 micPermissionTried = true;
-                const stream = await devices.getUserMedia({ audio: true, video: false });
-                stream.getTracks().forEach((track) => {
-                    try { track.stop(); } catch { }
-                });
-                if (hasNamedOutputs(await listOutputs())) {
-                    lastStatus = 'Audio output names unlocked. Re-reading output devices...';
-                    dispatch('eve:audioflix-playback', { status: lastStatus, labelsUnlocked: true });
-                    return true;
+                // Hold an active mic capture and enumerate WHILE it is live; Chromium/Edge
+                // expose labels lazily, so retry briefly before giving up. Track is stopped
+                // in finally so we never leave the mic open.
+                stream = await devices.getUserMedia({ audio: true, video: false });
+                for (let attempt = 0; attempt < 4; attempt += 1) {
+                    if (hasNamedOutputs(await listOutputs())) {
+                        lastStatus = 'Audio output names unlocked. Pick CABLE Input from the list.';
+                        dispatch('eve:audioflix-playback', { status: lastStatus, labelsUnlocked: true });
+                        return true;
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 150));
                 }
             }
             if (typeof devices.selectAudioOutput === 'function') {
@@ -200,14 +214,18 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 }
             }
             lastStatus = micPermissionTried
-                ? 'Browser accepted audio permission, but output names are still hidden here. Use Pick Browser Output or Native Bridge.'
+                ? 'Mic permission is granted, but Edge is still hiding output names. Try "Pick Browser Output", the Native Bridge, or Windows Mixer.'
                 : 'Cannot unlock device names here; use Pick Browser Output, Native Bridge, or Windows Mixer.';
             dispatch('eve:audioflix-playback', { status: lastStatus, unsupported: true });
             return false;
         } catch (error) {
-            lastStatus = error?.message || 'Device-name unlock was blocked';
+            lastStatus = error?.name === 'NotAllowedError'
+                ? 'Microphone access was blocked, so output names stay hidden. Allow the mic for this site, then try Grant Output Access again.'
+                : (error?.message || 'Device-name unlock was blocked');
             dispatch('eve:audioflix-playback', { status: lastStatus, error: true });
             return false;
+        } finally {
+            if (stream) stream.getTracks().forEach((track) => { try { track.stop(); } catch { } });
         }
     }
 
