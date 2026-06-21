@@ -243,7 +243,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             <article class="audioflix-status-card">
                 <span>Conversation Mode</span>
                 <strong>${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Text Brain -> Live Voice' : 'Direct Live'}</strong>
-                <p>${mode2Tokens?.calls
+                <p class="audioflix-status-token-desc">${mode2Tokens?.calls
                     ? `Text brain: ${mode2Tokens.textBrain.total} tokens across ${mode2Tokens.calls} call${mode2Tokens.calls === 1 ? '' : 's'}.`
                     : (window.EveGeminiMode2?.ready
                         ? 'Mode 2 relay is loaded: typed or spoken turns go to the text brain, then Live speaks the reply.'
@@ -252,7 +252,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             </article>
             <article class="audioflix-status-card" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}>
                 <span>Signal</span>
-                <strong>${esc(playbackStatus)}</strong>
+                <strong class="audioflix-status-signal-value">${esc(playbackStatus)}</strong>
                 <p>${esc(geminiStatus.lastEvent ? `Gemini audio seen: ${new Date(geminiStatus.lastEvent.at).toLocaleTimeString()}` : 'Waiting for local or Gemini playback.')}</p>
             </article>
         </section>`;

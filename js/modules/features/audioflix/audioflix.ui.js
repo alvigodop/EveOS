@@ -75,29 +75,21 @@ window.EveAudioflix = window.EveAudioflix || {};
         overlay.addEventListener('input', e => {
             const t = e.target;
             if (t.classList.contains('audioflix-volume-slider')) {
-                const vol = parseFloat(t.value);
+                const vol = parseFloat(t.value), type = t.dataset.afType, id = t.dataset.afId;
                 t.style.setProperty('--vol', `${vol * 100}%`);
                 const label = t.nextElementSibling;
                 if (label && label.classList.contains('audioflix-volume-label')) label.textContent = `${Math.round(vol * 100)}%`;
                 
-                const id = t.dataset.afId;
                 window.EveAudioflixAudio?.updateItemVolume?.(id, vol);
+                window.EveAudioflixState?.setItemVolume?.(type, id, vol);
+                
+                const portSound = portedSounds.find(s => s.id === id);
+                if (portSound) portSound.volume = vol;
             }
         });
 
         overlay.addEventListener('change', async e => {
             const t = e.target;
-            if (t.classList.contains('audioflix-volume-slider')) {
-                const vol = parseFloat(t.value), type = t.dataset.afType, id = t.dataset.afId;
-                window.EveAudioflixState?.setItemVolume?.(type, id, vol);
-                
-                // Update local portedSounds array instantly so rerenders don't reset it before reload
-                const portSound = portedSounds.find(s => s.id === id);
-                if (portSound) portSound.volume = vol;
-                
-                return;
-            }
-
             const sel = e.target.closest('[data-af-control]'); if (!sel) return;
             const lbl = sel.selectedOptions[0]?.textContent || '', val = sel.value || '', ctrl = sel.dataset.afControl;
             sel.blur();
@@ -369,10 +361,40 @@ window.EveAudioflix = window.EveAudioflix || {};
         setButtonExpanded(false);
     }
 
-    window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; rerender(); });
-    window.addEventListener('eve:audioflix-state-changed', rerender);
-    window.addEventListener('eve:audioflix-gemini-audio-seen', rerender);
-    window.addEventListener('eve:mode2-tokens', rerender);
+    function updateStatusDOM() {
+        if (!overlay || overlay.hidden) return;
+        const waveLabel = overlay.querySelector('.audioflix-player span');
+        if (waveLabel) waveLabel.textContent = playbackStatus;
+        const statusCardStrong = overlay.querySelector('.audioflix-status-signal-value');
+        if (statusCardStrong) statusCardStrong.textContent = playbackStatus;
+        const counterSpan = overlay.querySelector('.audioflix-header-actions > span');
+        if (counterSpan) {
+            const snapshot = state();
+            const musicCount = snapshot.music?.length || 0;
+            const soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length;
+            const routedCount = snapshot.counters?.routedGeminiEvents || 0;
+            counterSpan.textContent = `${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events`;
+        }
+        const tokenDesc = overlay.querySelector('.audioflix-status-token-desc');
+        if (tokenDesc) {
+            const mode2Tokens = window.EveGeminiMode2?.getTokens?.() || { calls: 0, textBrain: { total: 0 } };
+            tokenDesc.textContent = mode2Tokens.calls
+                ? `Text brain: ${mode2Tokens.textBrain.total} tokens across ${mode2Tokens.calls} call${mode2Tokens.calls === 1 ? '' : 's'}.`
+                : (window.EveGeminiMode2?.ready
+                    ? 'Mode 2 relay is loaded: typed or spoken turns go to the text brain, then Live speaks the reply.'
+                    : 'Mode 2 is staged, but the Gemini text-brain relay is not loaded yet.');
+        }
+    }
+
+    window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); });
+    window.addEventListener('eve:audioflix-state-changed', e => {
+        const reason = e.detail?.reason;
+        if (reason === 'audioflix-volume' || reason === 'audioflix-play') return;
+        if (reason === 'audioflix-gemini-audio') { updateStatusDOM(); return; }
+        rerender();
+    });
+    window.addEventListener('eve:audioflix-gemini-audio-seen', updateStatusDOM);
+    window.addEventListener('eve:mode2-tokens', updateStatusDOM);
     document.addEventListener('DOMContentLoaded', () => { if (window.__eveAudioflixOpenPending) { window.__eveAudioflixOpenPending = false; open(); } });
 
     Object.assign(ns, { ready: true, open, close, render: rerender });
