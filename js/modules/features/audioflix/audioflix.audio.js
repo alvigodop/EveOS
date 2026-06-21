@@ -351,11 +351,15 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
     }
 
-    function layerPlay(item) {
+    async function layerPlay(item) {
         if (!item?.url) return;
         const a = new Audio(item.url);
         a.loop = false;
         a.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1) || 1));
+        const preferredSinkId = state().preferredSinkId;
+        if (preferredSinkId && typeof a.setSinkId === 'function') {
+            try { await a.setSinkId(preferredSinkId); } catch {}
+        }
         const id = item.id;
         if (!activeLayers.has(id)) activeLayers.set(id, []);
         activeLayers.get(id).push(a);
