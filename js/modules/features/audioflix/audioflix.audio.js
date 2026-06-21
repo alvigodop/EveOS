@@ -27,28 +27,43 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function streamPCMToBridge(audioBuffer, sampleRate, volume, isLayer = false) {
+        // Smaller chunks + a send-AHEAD scheduler keep the bridge's output queue filled
+        // ahead of the device clock. The previous code sent exactly 0.25s every 250ms
+        // (just-in-time, zero headroom), so any HTTP/timer jitter underran the queue and
+        // the bridge filled silence -> choppy. We pre-buffer LEAD_SECONDS and keep that
+        // much audio queued in front of real-time, which absorbs the jitter.
+        const CHUNK_SECONDS = 0.1;     // finer granularity than 0.25 -> smoother top-ups
+        const LEAD_SECONDS = 0.8;      // keep ~0.8s queued ahead of playback as a cushion
+        const TOP_UP_MS = 40;          // re-check the lead often
         let playingFlag = true;
-        let localTimer = null;
+        let timerId = null;
+        let done = false;
         if (!isLayer) {
             stopActiveStream();
             isStreamPlaying = true;
         }
         const floatSamples = audioBuffer.getChannelData(0);
         const totalSamples = floatSamples.length;
-        const chunkSize = Math.floor(sampleRate * 0.25);
+        const chunkSize = Math.max(1, Math.floor(sampleRate * CHUNK_SECONDS));
         let offset = 0;
-        const sendNextChunk = async () => {
-            if (isLayer ? !playingFlag : !isStreamPlaying) return;
-            if (offset >= totalSamples) {
-                if (!isLayer) {
-                    stopActiveStream();
-                    lastStatus = 'Ended';
-                    dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
-                } else if (localTimer) {
-                    clearInterval(localTimer);
-                }
-                return;
+        let sentSeconds = 0;
+        const clock = (typeof performance !== 'undefined' ? performance : Date);
+        const startTime = clock.now();
+        const elapsedSeconds = () => (clock.now() - startTime) / 1000;
+
+        const finish = () => {
+            if (done) return;
+            done = true;
+            if (timerId) { clearInterval(timerId); timerId = null; }
+            playingFlag = false;
+            if (!isLayer) {
+                stopActiveStream();
+                lastStatus = 'Ended';
+                dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
             }
+        };
+
+        const sendOneChunk = async () => {
             const count = Math.min(chunkSize, totalSamples - offset);
             const intSamples = new Int16Array(count);
             for (let i = 0; i < count; i++) {
@@ -58,15 +73,26 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             const uint8 = new Uint8Array(intSamples.buffer);
             let binary = '';
             for (let i = 0; i < uint8.length; i++) binary += String.fromCharCode(uint8[i]);
-            const base64 = btoa(binary);
-            await window.EveAudioflixNative?.sendGeminiChunk?.(base64, { sampleRate, channels: 1 });
+            await window.EveAudioflixNative?.sendGeminiChunk?.(btoa(binary), { sampleRate, channels: 1 });
             offset += count;
+            sentSeconds += count / sampleRate;
         };
-        await sendNextChunk();
-        const timerId = setInterval(sendNextChunk, 250);
-        if (isLayer) localTimer = timerId;
-        else activeStreamTimer = timerId;
-        return { stop: () => { playingFlag = false; clearInterval(timerId); } };
+
+        // Send whatever is needed to keep ~LEAD_SECONDS of audio queued ahead of "now".
+        const pump = async () => {
+            if (isLayer ? !playingFlag : !isStreamPlaying) { finish(); return; }
+            while (offset < totalSamples && sentSeconds < elapsedSeconds() + LEAD_SECONDS) {
+                await sendOneChunk();
+            }
+            if (offset >= totalSamples) finish();
+        };
+
+        await pump(); // pre-buffer the lead up front before any pacing
+        if (!done) {
+            timerId = setInterval(pump, TOP_UP_MS);
+            if (!isLayer) activeStreamTimer = timerId;
+        }
+        return { stop: () => { finish(); } };
     }
 
     function state() {
