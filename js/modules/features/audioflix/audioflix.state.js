@@ -92,7 +92,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             folder: text(source.folder, ''),
             category: text(source.category, ''),
             volume: Math.max(0, Math.min(1, Number(source.volume ?? 1) || 1)),
-            exposed: source.exposed !== false,
+            exposed: source.exposed === true,
             createdAt: Number(source.createdAt || 0) || Date.now(),
             lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
         };

@@ -51,7 +51,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                             id, type: 'sound', title: f.name.replace(/\.[^/.]+$/, ""),
                             url: `${base}/api/audioflix/port/file?path=${encodeURIComponent(f.path)}`, category: p.nickname, isPorted: true,
                             volume: portVols[id] ?? 1,
-                            exposed: portExposed[id] !== false
+                            exposed: portExposed[id] === true
                         });
                     });
                 }
@@ -129,7 +129,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         return overlay;
     }
 
-    const isItemExposed = (item) => item.isPorted ? (state().exposedPortedSounds?.[item.id] !== false) : (item.exposed !== false);
+    const isItemExposed = (item) => item.isPorted ? (state().exposedPortedSounds?.[item.id] === true) : (item.exposed === true);
 
     function renderItemCard(item, type) {
         const viewMode = state().soundboardViewMode || 'backend';
