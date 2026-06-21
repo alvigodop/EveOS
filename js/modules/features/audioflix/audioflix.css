@@ -332,6 +332,13 @@
     font-size: 0.85rem;
 }
 
+.audioflix-group.is-collapsed {
+    display: inline-block;
+    width: fit-content;
+    margin-right: 12px;
+    vertical-align: top;
+}
+
 .audioflix-group.is-collapsed .audioflix-group-title::before {
     content: "▶ 📁";
 }
