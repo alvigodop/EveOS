@@ -35,6 +35,25 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         return audioBuffer;
     }
 
+    // Encode a whole AudioBuffer (channel 0) to base64 16-bit PCM, in chunks to avoid
+    // the O(n^2) string concat the per-chunk streamer used. For one-shot voice sends.
+    function encodeBufferToBase64(audioBuffer) {
+        const float = audioBuffer.getChannelData(0);
+        const n = float.length;
+        const int16 = new Int16Array(n);
+        for (let i = 0; i < n; i++) {
+            const s = Math.max(-1, Math.min(1, float[i]));
+            int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        const bytes = new Uint8Array(int16.buffer);
+        let binary = '';
+        const STEP = 0x8000;
+        for (let i = 0; i < bytes.length; i += STEP) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + STEP));
+        }
+        return btoa(binary);
+    }
+
     function stopActiveStream() {
         if (activeStreamTimer) {
             clearInterval(activeStreamTimer);
@@ -411,14 +430,19 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
             try {
                 const audioBuffer = await getDecodedBuffer(safeItem.url);
-                const streamControl = await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1, true);
-                
                 const id = safeItem.id || safeItem.url;
-                if (!activeLayers.has(id)) activeLayers.set(id, []);
-                activeLayers.get(id).push(streamControl);
-                return;
+                // One POST of the whole clip -> the bridge mixes it as a voice. Overlapping
+                // presses sum cleanly (no chunk interleave) and start with low latency.
+                const ok = await window.EveAudioflixNative.playVoice(encodeBufferToBase64(audioBuffer), {
+                    sampleRate: audioBuffer.sampleRate, channels: 1, volume: safeItem.volume ?? 1, voiceId: id
+                });
+                if (ok) {
+                    // One stop-control per item; clearVoices(id) flushes all its layers.
+                    activeLayers.set(id, [{ stop: () => window.EveAudioflixNative?.clearVoices?.(id) }]);
+                    return;
+                }
             } catch (err) {
-                console.warn('[Audioflix] native stream failed for layer, falling back:', err);
+                console.warn('[Audioflix] native voice failed for layer, falling back:', err);
             }
         }
 

@@ -23,12 +23,21 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     function candidateBases() {
         let saved = state().nativeBridgeBase;
-        if (location.protocol === 'file:' && saved && saved.includes('localhost')) {
+        // "localhost" resolves to ::1 (IPv6) first on Windows; when the server only listens
+        // on IPv4, every request eats a ~1-2s IPv6 connect timeout before falling back to
+        // 127.0.0.1. That delay was making soundboard audio start late and stream choppily.
+        // Always prefer 127.0.0.1 (the bridge allows CORS * so cross-origin is fine).
+        if (saved && saved.includes('localhost')) {
             saved = saved.replace('localhost', '127.0.0.1');
         }
         const bases = [];
         if (saved) bases.push(saved);
-        if (/^https?:$/.test(location.protocol)) bases.push(location.origin);
+        if (/^https?:$/.test(location.protocol)) {
+            if (location.origin.includes('localhost')) {
+                bases.push(location.origin.replace('localhost', '127.0.0.1'));
+            }
+            bases.push(location.origin);
+        }
         ['8765', '3000'].forEach((port) => {
             bases.push(`http://127.0.0.1:${port}`);
             bases.push(`http://localhost:${port}`);
@@ -165,6 +174,39 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload?.ok === true;
     }
 
+    // Send a COMPLETE clip as one mixable voice (soundboard layering). One POST per
+    // press -> the bridge mixes overlapping voices cleanly (no chunk interleave) and
+    // starts it on the next callback (low latency, smooth).
+    async function playVoice(audio, detail = {}) {
+        const current = state();
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId || !audio) return false;
+        const payload = await fetchJson('/api/audioflix/play-voice', {
+            method: 'POST',
+            body: JSON.stringify({
+                audio,
+                deviceId: current.nativeOutputId,
+                sampleRate: detail.sampleRate || 24000,
+                channels: detail.channels || 1,
+                volume: detail.volume ?? 1,
+                voiceId: detail.voiceId || null
+            }),
+            timeout: PCM_SEND_TIMEOUT_MS
+        });
+        lastStatus = payload;
+        return payload?.ok === true;
+    }
+
+    async function clearVoices(voiceId) {
+        const current = state();
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
+        const payload = await fetchJson('/api/audioflix/clear-voices', {
+            method: 'POST',
+            body: JSON.stringify({ deviceId: current.nativeOutputId, sampleRate: 24000, voiceId: voiceId || null }),
+            timeout: DEFAULT_TIMEOUT_MS
+        }).catch(() => null);
+        return payload?.ok === true;
+    }
+
     async function sendTone(detail = {}) {
         const current = state();
         if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
@@ -210,6 +252,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         selectNativeInput,
         setNativeBridgeEnabled,
         sendGeminiChunk,
+        playVoice,
+        clearVoices,
         sendTone,
         playMediaItem,
         shouldSuppressBrowserPlayback,

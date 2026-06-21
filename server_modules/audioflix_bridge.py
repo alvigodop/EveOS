@@ -321,10 +321,16 @@ class _PcmPlayer:
     def __init__(self, device_index: int, source_rate: int, channels: int) -> None:
         self.device_index, self.source_rate, self.channels = device_index, int(source_rate), channels
         self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=64), None, False, time.monotonic()
+        # One-shot "voices" (soundboard layers) are mixed together in the callback so
+        # multiple/overlapping presses sum cleanly instead of fighting over one FIFO
+        # queue (which interleaved chunks and sounded choppy).
+        self.voices = []
+        self.voices_lock = threading.Lock()
         self.stream, self.sample_rate = _open_output_stream(device_index, channels, self._callback, source_rate)
 
     def _callback(self, outdata, frames, _time_info, _status) -> None:
         outdata.fill(0)
+        # Streaming channel (Gemini live): FIFO chunks, mixed in additively.
         written = 0
         while written < frames:
             if self.pending is None or len(self.pending) == 0:
@@ -333,8 +339,36 @@ class _PcmPlayer:
                 except queue.Empty:
                     break
             take = min(frames - written, len(self.pending))
-            outdata[written:written + take, 0] = self.pending[:take]
+            outdata[written:written + take, 0] += self.pending[:take]
             self.pending, written = self.pending[take:], written + take
+        # One-shot voices: sum each into the output, advance, drop finished ones.
+        with self.voices_lock:
+            if self.voices:
+                survivors = []
+                for v in self.voices:
+                    samples, pos = v["samples"], v["pos"]
+                    n = min(len(samples) - pos, frames)
+                    if n > 0:
+                        outdata[:n, 0] += samples[pos:pos + n]
+                        v["pos"] = pos + n
+                    if v["pos"] < len(samples):
+                        survivors.append(v)
+                self.voices = survivors
+        np.clip(outdata[:, 0], -1.0, 1.0, out=outdata[:, 0])
+
+    def add_voice(self, samples, vid=None) -> None:
+        self.last_used = time.monotonic()
+        samples = _resample_mono(samples, self.source_rate, self.sample_rate)
+        with self.voices_lock:
+            if len(self.voices) >= 32:           # cap concurrent voices
+                self.voices = self.voices[-31:]
+            self.voices.append({"samples": samples, "pos": 0, "vid": vid})
+
+    def clear_voices(self, vid=None) -> int:
+        with self.voices_lock:
+            before = len(self.voices)
+            self.voices = [] if vid is None else [v for v in self.voices if v.get("vid") != vid]
+            return before - len(self.voices)
 
     def enqueue(self, samples) -> None:
         self.last_used = time.monotonic()
@@ -418,6 +452,38 @@ def play_media(payload: dict) -> dict:
     return audioflix_bridge_media.play_media(payload, np, _enqueue_mono, _PROJECT_ROOT)
 
 
+def play_voice(payload: dict) -> dict:
+    """Add a complete clip as a mixable one-shot voice (soundboard layering)."""
+    if sd is None or np is None:
+        return {"ok": False, "message": "Native playback requires sounddevice and numpy."}
+    audio, device_id = str(payload.get("audio") or ""), str(payload.get("deviceId") or "")
+    if not audio:
+        return {"ok": False, "message": "Missing PCM audio payload."}
+    if not device_id:
+        return {"ok": False, "message": "No native output device selected."}
+    samples = np.frombuffer(base64.b64decode(audio), dtype="<i2").astype("float32") / 32768.0
+    channels = max(1, int(payload.get("channels") or 1))
+    if channels > 1:
+        samples = samples.reshape((-1, channels))[:, 0]
+    volume = max(0.0, min(4.0, float(payload.get("volume", 1.0) or 1.0)))
+    if volume != 1.0:
+        samples = samples * np.float32(volume)
+    player = _player_for(device_id, int(payload.get("sampleRate") or 24000), 1)
+    player.add_voice(samples, payload.get("voiceId"))
+    return {"ok": True, "kind": "voice", "queued": int(samples.shape[0]), "deviceId": device_id, "voices": len(player.voices)}
+
+
+def clear_voices(payload: dict) -> dict:
+    if sd is None or np is None:
+        return {"ok": False, "message": "Native playback unavailable."}
+    device_id = str(payload.get("deviceId") or "")
+    vid = payload.get("voiceId")
+    with _LOCK:
+        players = [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
+    cleared = sum(p.clear_voices(vid) for p in players)
+    return {"ok": True, "cleared": cleared}
+
+
 def handle_get_request(handler, path: str, query) -> bool:
     if path == "/api/audioflix/status":
         _send_json(handler, {**list_devices(), "devices": []})
@@ -432,7 +498,7 @@ def handle_get_request(handler, path: str, query) -> bool:
 
 
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/clear-voices": clear_voices}.get(path)
     if not action:
         return False
     if not _can_control(handler):
