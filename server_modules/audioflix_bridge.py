@@ -491,8 +491,9 @@ def set_voice_volume(payload: dict) -> dict:
     vol = max(0.0, min(4.0, float(payload.get("volume", 1.0) or 1.0)))
     if not device_id or not vid:
         return {"ok": False, "message": "Missing deviceId or voiceId."}
-    player = _player_for(device_id, 24000, 1)
-    updated = player.set_voice_volume(vid, vol)
+    with _LOCK:
+        players = [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
+    updated = sum(p.set_voice_volume(vid, vol) for p in players)
     return {"ok": True, "updated": updated, "deviceId": device_id}
 
 def clear_voices(payload: dict) -> dict:

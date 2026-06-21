@@ -21,6 +21,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     // (skip the fetch + decodeAudioData that otherwise runs on every press).
     const decodedBufferCache = new Map();
     const MAX_DECODED_CACHE = 80;
+    let activeStreamVolume = 1.0;
 
     async function getDecodedBuffer(url) {
         if (decodedBufferCache.has(url)) return decodedBufferCache.get(url);
@@ -77,6 +78,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         if (!isLayer) {
             stopActiveStream();
             isStreamPlaying = true;
+            activeStreamVolume = volume;
         }
         const floatSamples = audioBuffer.getChannelData(0);
         const totalSamples = floatSamples.length;
@@ -103,7 +105,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             const count = Math.min(chunkSize, totalSamples - offset);
             const intSamples = new Int16Array(count);
             for (let i = 0; i < count; i++) {
-                const s = Math.max(-1, Math.min(1, floatSamples[offset + i] * volume));
+                const s = Math.max(-1, Math.min(1, floatSamples[offset + i] * activeStreamVolume));
                 intSamples[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
             }
             const uint8 = new Uint8Array(intSamples.buffer);
@@ -351,6 +353,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function tryNativePlayback(safeItem) {
+        if (safeItem.type === 'sound') return false; // Force soundboard sounds to use voice playback path for layering/volume support!
         if (!window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) return false;
         const isWav = String(safeItem.url || '').toLowerCase().split('?')[0].split('#')[0].endsWith('.wav');
         if (!isWav) return false;
@@ -500,6 +503,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         if (currentItem?.id === itemId) {
             ensureAudio().volume = Math.max(0, Math.min(1, vol));
             window.EveAudioflixNative?.setVoiceVolume?.('singleton-main', vol);
+            activeStreamVolume = vol;
+            currentItem.volume = vol;
         }
         const arr = activeLayers.get(itemId);
         if (arr) {
