@@ -4,7 +4,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     const ns = window.EveAudioflix;
     if (ns.ready) return;
 
-    let overlay = null, activeTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false;
+    let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false;
     let addFormOpen = { sound: false, music: false }, portsOpen = false, portedSounds = [];
 
     const state = () => window.EveAudioflixState?.ensure?.() || {};
@@ -222,7 +222,19 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     function rerender() {
         if (!overlay || overlay.hidden) return;
+        const panel = overlay.querySelector('.audioflix-panel');
+        const scrollTop = (panel && lastTab === activeTab) ? panel.scrollTop : 0;
+        const scrollLeft = (panel && lastTab === activeTab) ? panel.scrollLeft : 0;
+        lastTab = activeTab;
+
         overlay.innerHTML = renderPanel();
+
+        const newPanel = overlay.querySelector('.audioflix-panel');
+        if (newPanel) {
+            newPanel.scrollTop = scrollTop;
+            newPanel.scrollLeft = scrollLeft;
+        }
+
         const canvas = overlay.querySelector('#audioflix-waveform');
         window.EveAudioflixAudio?.attachWaveform?.(canvas);
         window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
