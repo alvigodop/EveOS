@@ -346,23 +346,36 @@ class _PcmPlayer:
             if self.voices:
                 survivors = []
                 for v in self.voices:
-                    samples, pos = v["samples"], v["pos"]
+                    samples, pos, vol = v["samples"], v["pos"], v.get("vol", 1.0)
                     n = min(len(samples) - pos, frames)
                     if n > 0:
-                        outdata[:n, 0] += samples[pos:pos + n]
+                        if vol == 1.0:
+                            outdata[:n, 0] += samples[pos:pos + n]
+                        else:
+                            outdata[:n, 0] += samples[pos:pos + n] * np.float32(vol)
                         v["pos"] = pos + n
                     if v["pos"] < len(samples):
                         survivors.append(v)
                 self.voices = survivors
         np.clip(outdata[:, 0], -1.0, 1.0, out=outdata[:, 0])
 
-    def add_voice(self, samples, vid=None) -> None:
+    def add_voice(self, samples, vid=None, vol=1.0) -> None:
         self.last_used = time.monotonic()
         samples = _resample_mono(samples, self.source_rate, self.sample_rate)
         with self.voices_lock:
             if len(self.voices) >= 32:           # cap concurrent voices
                 self.voices = self.voices[-31:]
-            self.voices.append({"samples": samples, "pos": 0, "vid": vid})
+            self.voices.append({"samples": samples, "pos": 0, "vid": vid, "vol": vol})
+
+    def set_voice_volume(self, vid, vol: float) -> int:
+        count = 0
+        if vid is not None:
+            with self.voices_lock:
+                for v in self.voices:
+                    if v.get("vid") == vid:
+                        v["vol"] = vol
+                        count += 1
+        return count
 
     def clear_voices(self, vid=None) -> int:
         with self.voices_lock:
@@ -466,12 +479,21 @@ def play_voice(payload: dict) -> dict:
     if channels > 1:
         samples = samples.reshape((-1, channels))[:, 0]
     volume = max(0.0, min(4.0, float(payload.get("volume", 1.0) or 1.0)))
-    if volume != 1.0:
-        samples = samples * np.float32(volume)
     player = _player_for(device_id, int(payload.get("sampleRate") or 24000), 1)
-    player.add_voice(samples, payload.get("voiceId"))
+    player.add_voice(samples, payload.get("voiceId"), volume)
     return {"ok": True, "kind": "voice", "queued": int(samples.shape[0]), "deviceId": device_id, "voices": len(player.voices)}
 
+def set_voice_volume(payload: dict) -> dict:
+    if sd is None or np is None:
+        return {"ok": False, "message": "Native playback unavailable."}
+    device_id = str(payload.get("deviceId") or "")
+    vid = payload.get("voiceId")
+    vol = max(0.0, min(4.0, float(payload.get("volume", 1.0) or 1.0)))
+    if not device_id or not vid:
+        return {"ok": False, "message": "Missing deviceId or voiceId."}
+    player = _player_for(device_id, 24000, 1)
+    updated = player.set_voice_volume(vid, vol)
+    return {"ok": True, "updated": updated, "deviceId": device_id}
 
 def clear_voices(payload: dict) -> dict:
     if sd is None or np is None:
@@ -498,7 +520,7 @@ def handle_get_request(handler, path: str, query) -> bool:
 
 
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/clear-voices": clear_voices}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices}.get(path)
     if not action:
         return False
     if not _can_control(handler):

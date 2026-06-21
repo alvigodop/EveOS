@@ -243,16 +243,33 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload;
     }
 
+    async function setVoiceVolume(voiceId, volume) {
+        const current = state();
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
+        const payload = await fetchJson('/api/audioflix/set-voice-volume', {
+            method: 'POST',
+            body: JSON.stringify({
+                deviceId: current.nativeOutputId,
+                voiceId: voiceId,
+                volume: volume
+            }),
+            timeout: PCM_SEND_TIMEOUT_MS
+        });
+        return payload?.ok === true;
+    }
+
     Object.assign(ns, {
         ready: true,
         listSystemDevices,
         listSystemOutputs,
         listSystemInputs,
+        playTestTone,
         selectNativeOutput,
         selectNativeInput,
         setNativeBridgeEnabled,
         sendGeminiChunk,
         playVoice,
+        setVoiceVolume,
         clearVoices,
         sendTone,
         playMediaItem,

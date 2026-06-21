@@ -499,12 +499,14 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     function updateItemVolume(itemId, vol) {
         if (currentItem?.id === itemId) {
             ensureAudio().volume = Math.max(0, Math.min(1, vol));
+            window.EveAudioflixNative?.setVoiceVolume?.('singleton-main', vol);
         }
         const arr = activeLayers.get(itemId);
         if (arr) {
             arr.forEach(a => {
                 if (a && typeof a.volume !== 'undefined') a.volume = Math.max(0, Math.min(1, vol));
             });
+            window.EveAudioflixNative?.setVoiceVolume?.(itemId, vol);
         }
     }
 
