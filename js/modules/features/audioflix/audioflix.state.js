@@ -137,6 +137,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             music: boundedItems(source.music, 'music', MAX_MUSIC),
             recentPlays: (Array.isArray(source.recentPlays) ? source.recentPlays : []).slice(-MAX_RECENT),
             ports: (Array.isArray(source.ports) ? source.ports : []).map(cleanPort),
+            portVolumes: source.portVolumes && typeof source.portVolumes === 'object' ? source.portVolumes : {},
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
                 routedGeminiEvents: Number(source.counters?.routedGeminiEvents || 0) || 0
@@ -242,6 +243,18 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    function setItemVolume(type, itemId, volume) {
+        const state = ensure();
+        const key = type === 'music' ? 'music' : 'soundboard';
+        if (state[key]) {
+            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { volume }) : entry);
+        }
+        state.portVolumes = state.portVolumes || {};
+        state.portVolumes[itemId] = volume;
+        scheduleSave('audioflix-volume');
+        return ensure();
+    }
+
     Object.assign(ns, {
         ready: true,
         ensure,
@@ -253,6 +266,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         recordPlay,
         recordGeminiAudioEvent,
         clearGeminiAudioEvents,
+        setItemVolume,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });

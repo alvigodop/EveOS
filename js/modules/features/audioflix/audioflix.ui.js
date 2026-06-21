@@ -34,17 +34,23 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     async function loadPortedSounds() {
-        const ports = state().ports || [], fetched = [];
+        const snapshot = state();
+        const ports = snapshot.ports || [], fetched = [];
+        const portVols = snapshot.portVolumes || {};
         const base = (window.location.origin && !window.location.origin.startsWith('file:')) ? '' : 'http://127.0.0.1:8765';
         for (const p of ports) {
             try {
                 const res = await fetch(`${base}/api/audioflix/port/list?path=${encodeURIComponent(p.path)}`);
                 const data = await res.json();
                 if (data.ok && Array.isArray(data.files)) {
-                    data.files.forEach(f => fetched.push({
-                        id: `ported_${p.id}_${f.name}`, type: 'sound', title: f.name.replace(/\.[^/.]+$/, ""),
-                        url: `${base}/api/audioflix/port/file?path=${encodeURIComponent(f.path)}`, category: p.nickname, isPorted: true
-                    }));
+                    data.files.forEach(f => {
+                        const id = `ported_${p.id}_${f.name}`;
+                        fetched.push({
+                            id, type: 'sound', title: f.name.replace(/\.[^/.]+$/, ""),
+                            url: `${base}/api/audioflix/port/file?path=${encodeURIComponent(f.path)}`, category: p.nickname, isPorted: true,
+                            volume: portVols[id] ?? 1
+                        });
+                    });
                 }
             } catch (err) { console.error(`Failed to load port: ${p.nickname}`, err); }
         }
@@ -65,7 +71,33 @@ window.EveAudioflix = window.EveAudioflix || {};
             } else if (t === overlay) close();
         });
         overlay.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-af-form]'); if (f) handleForm(f); });
+        
+        overlay.addEventListener('input', e => {
+            const t = e.target;
+            if (t.classList.contains('audioflix-volume-slider')) {
+                const vol = parseFloat(t.value);
+                t.style.setProperty('--vol', `${vol * 100}%`);
+                const label = t.nextElementSibling;
+                if (label && label.classList.contains('audioflix-volume-label')) label.textContent = `${Math.round(vol * 100)}%`;
+                
+                const id = t.dataset.afId;
+                window.EveAudioflixAudio?.updateItemVolume?.(id, vol);
+            }
+        });
+
         overlay.addEventListener('change', async e => {
+            const t = e.target;
+            if (t.classList.contains('audioflix-volume-slider')) {
+                const vol = parseFloat(t.value), type = t.dataset.afType, id = t.dataset.afId;
+                window.EveAudioflixState?.setItemVolume?.(type, id, vol);
+                
+                // Update local portedSounds array instantly so rerenders don't reset it before reload
+                const portSound = portedSounds.find(s => s.id === id);
+                if (portSound) portSound.volume = vol;
+                
+                return;
+            }
+
             const sel = e.target.closest('[data-af-control]'); if (!sel) return;
             const lbl = sel.selectedOptions[0]?.textContent || '', val = sel.value || '', ctrl = sel.dataset.afControl;
             sel.blur();
@@ -96,12 +128,16 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     function renderItemCard(item, type) {
         const delBtn = item.isPorted ? '' : `<button type="button" class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Remove">${closeSvg}</button>`;
+        const volSlider = type === 'sound' ? `<div class="audioflix-item-volume-wrapper" title="Volume">
+            <input type="range" class="audioflix-volume-slider" min="0" max="1" step="0.01" value="${item.volume ?? 1}" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" style="--vol: ${(item.volume ?? 1) * 100}%">
+            <span class="audioflix-volume-label">${Math.round((item.volume ?? 1) * 100)}%</span>
+        </div>` : '';
         return `<article class="audioflix-item-card"><div class="audioflix-playback-controls">
             <button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button>
             <button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div>
             <button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play (stack another instance)">${layerPlaySvg}</button>
             <div class="audioflix-item-body"><strong>${esc(item.title)}</strong><span>${esc(itemMeta(item))}</span></div>
-            <div class="audioflix-item-actions"><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Info / Settings">${cogSvg}</button>${delBtn}</div></article>`;
+            <div class="audioflix-item-actions"><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Info / Settings">${cogSvg}</button>${delBtn}</div>${volSlider}</article>`;
     }
 
     function renderItems(items, type) {

@@ -417,6 +417,89 @@
     background: rgba(255, 78, 78, 0.1);
 }
 
+.audioflix-item-volume-wrapper {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 10px;
+    width: 60%;
+    margin: 6px auto -4px auto;
+    transition: height 0.2s, opacity 0.2s;
+    opacity: 0.5;
+}
+
+.audioflix-item-volume-wrapper:hover {
+    height: 18px;
+    opacity: 1;
+}
+
+.audioflix-volume-slider {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 1.5px;
+    min-height: 1.5px;
+    max-height: 1.5px;
+    background: linear-gradient(to right, rgba(255, 202, 95, 0.9) var(--vol), rgba(255, 255, 255, 0.15) var(--vol));
+    border-radius: 2px;
+    outline: none;
+    border: none;
+    transition: height 0.2s, min-height 0.2s, max-height 0.2s, background 0.2s;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.audioflix-item-volume-wrapper:hover .audioflix-volume-slider {
+    height: 4px;
+    min-height: 4px;
+    max-height: 4px;
+    background: linear-gradient(to right, rgba(255, 202, 95, 1) var(--vol), rgba(255, 255, 255, 0.25) var(--vol));
+}
+
+.audioflix-volume-slider::-webkit-slider-runnable-track {
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    height: 100%;
+}
+
+.audioflix-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0px;
+    height: 0px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    margin-top: 0;
+    transition: width 0.2s, height 0.2s, margin-top 0.2s, background 0.2s;
+}
+
+.audioflix-item-volume-wrapper:hover .audioflix-volume-slider::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    background: #ffca5f;
+    box-shadow: 0 0 8px rgba(255, 202, 95, 0.5);
+}
+
+.audioflix-volume-label {
+    font-size: 0.72rem;
+    color: rgba(255, 202, 95, 0.9);
+    min-width: 2.5em;
+    text-align: right;
+    font-weight: 500;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+}
+
+.audioflix-item-volume-wrapper:hover .audioflix-volume-label {
+    opacity: 1;
+    visibility: visible;
+}
+
 .audioflix-item-body {
     min-width: 0;
     display: flex;
