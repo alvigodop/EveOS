@@ -5,7 +5,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     if (ns.ready) return;
 
     let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false;
-    let addFormOpen = { sound: false, music: false }, portsOpen = false, portedSounds = [];
+    let addFormOpen = { sound: false, music: false }, portsOpen = false, portedSounds = [], collapsedGroups = {};
 
     const state = () => window.EveAudioflixState?.ensure?.() || {};
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -114,8 +114,11 @@ window.EveAudioflix = window.EveAudioflix || {};
         });
         return [...groups.entries()].map(([name, groupItems]) => {
             const count = groupItems.length;
-            return `<section class="audioflix-group" data-af-group="${esc(name)}">
-                <div class="audioflix-group-title">${esc(name)}<span class="audioflix-group-count">${count} item${count === 1 ? '' : 's'}</span></div>
+            const isCollapsed = collapsedGroups[name] === true;
+            return `<section class="audioflix-group ${isCollapsed ? 'is-collapsed' : ''}" data-af-group="${esc(name)}">
+                <button type="button" class="audioflix-group-title" data-af-action="toggle-group" data-af-group="${esc(name)}" aria-expanded="${isCollapsed ? 'false' : 'true'}">
+                    ${esc(name)}<span class="audioflix-group-count">${count} item${count === 1 ? '' : 's'}</span>
+                </button>
                 <div class="audioflix-item-grid">${groupItems.map(item => renderItemCard(item, type)).join('')}</div>
             </section>`;
         }).join('');
@@ -256,6 +259,12 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'tab') { activeTab = actionTarget.dataset.afTab || 'soundboard'; rerender(); return; }
         if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); playbackStatus = 'Opening Localhost EveOS in a new tab...'; rerender(); return; }
         if (action === 'toggle-routing-drawer') { routingOpen = !routingOpen; rerender(); return; }
+        if (action === 'toggle-group') {
+            const groupName = actionTarget.dataset.afGroup;
+            collapsedGroups[groupName] = !collapsedGroups[groupName];
+            rerender();
+            return;
+        }
         if (action === 'toggle-fullscreen') { fullscreenOn = !fullscreenOn; overlay?.classList.toggle('is-fullscreen', fullscreenOn); rerender(); return; }
         if (action === 'toggle-add') { const key = actionTarget.dataset.afType === 'music' ? 'music' : 'sound'; addFormOpen[key] = !addFormOpen[key]; rerender(); return; }
         if (action === 'toggle-ports') { portsOpen = !portsOpen; rerender(); return; }
