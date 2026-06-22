@@ -289,6 +289,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
     try:
         # Create server with threading support
         handler = CORSHTTPRequestHandler
+        socketserver.ThreadingTCPServer.allow_reuse_address = True
         with socketserver.ThreadingTCPServer(("", port), handler) as httpd:
             local_ip = get_local_ip()
             url = f"http://localhost:{port}/EveOS.html"
