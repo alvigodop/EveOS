@@ -61,6 +61,7 @@ _started = False
 _ready = threading.Event()      # set once the message-loop thread is up
 _loop_tid = [0]                 # native id of the loop thread (for PostThreadMessage wakeups)
 _triggers = [0]                 # diagnostic: how many times any hotkey has fired
+_last_fired = {}                # {vid, combo, at} of the most recent hotkey -> on-site flash feedback
 
 
 def available():
@@ -98,10 +99,13 @@ def _trigger(hk_id):
     _triggers[0] += 1
     try:
         from server_modules import audioflix_bridge as br
-        vid = 'hotkey-%d' % hk_id
+        # Deterministic voice id (the client sends 'hk:<soundId>') so the soundboard Stop
+        # button can clear a hotkey-triggered instance; falls back to the hotkey numeric id.
+        vid = b.get('vid') or ('hotkey-%d' % hk_id)
         player = br._player_for(b['device'], b['rate'], 1)
         player.clear_voices(vid)            # replace a still-playing instance of this key
         player.add_voice(b['samples'], vid, b['vol'])
+        _last_fired.update({'vid': vid, 'combo': b.get('combo'), 'at': time.time()})
     except Exception as e:
         print(f"[Hotkey Engine] playback error for id={hk_id}: {e}", flush=True)
 
@@ -214,7 +218,8 @@ def set_bindings(payload):
             hk_id = _next_id[0]
             _next_id[0] += 1
             _bindings[hk_id] = {'samples': samples, 'rate': rate, 'device': device,
-                                'vol': float(it.get('volume') or 1.0), 'combo': combo, 'ok': None}
+                                'vol': float(it.get('volume') or 1.0), 'combo': combo, 'ok': None,
+                                'vid': str(it.get('voiceId') or '') or None}
         _cmd_q.put(('register', hk_id, mods, vk))
         queued.append(hk_id)
     _wake()
@@ -237,4 +242,4 @@ def status():
     with _lock:
         binds = [{'combo': b['combo'], 'registered': b['ok']} for b in _bindings.values()]
     return {'ok': True, 'bindings': binds, 'active': _started, 'triggers': _triggers[0],
-            'elevated': _is_elevated()}
+            'elevated': _is_elevated(), 'lastFired': dict(_last_fired) if _last_fired else None}

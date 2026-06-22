@@ -275,6 +275,10 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         });
     }
 
+    async function hotkeyStatus() {
+        return fetchJson('/api/audioflix/hotkeys/status', { method: 'GET', timeout: DEFAULT_TIMEOUT_MS });
+    }
+
     Object.assign(ns, {
         ready: true,
         listSystemDevices,
@@ -292,6 +296,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         shouldSuppressBrowserPlayback,
         setHotkeys,
         clearHotkeys,
+        hotkeyStatus,
         getStatus: function () { return lastStatus; }
     });
 })();

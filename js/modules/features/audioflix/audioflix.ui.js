@@ -66,7 +66,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                 const buffer = await window.EveAudioflixAudio?.getDecodedBuffer?.(item.url);
                 if (buffer) {
                     if (!bindings.length) sampleRate = buffer.sampleRate;
-                    bindings.push({ combo: item.hotkey, audio: window.EveAudioflixAudio.encodeBufferToBase64(buffer), volume: item.volume ?? 1 });
+                    bindings.push({ combo: item.hotkey, audio: window.EveAudioflixAudio.encodeBufferToBase64(buffer), volume: item.volume ?? 1, voiceId: 'hk:' + item.id });
                 }
             } catch (e) { console.error(`Failed to decode hotkey sound ${item.title}:`, e); }
         }
@@ -260,7 +260,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     async function handleAction(actionTarget, e) {
         const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
         const item = id ? (findItem(type, id) || portedSounds.find(s => s.id === id)) : null;
-        if (action === 'stop-item') return stopRepeater(id), window.EveAudioflixAudio?.stopItemLayers?.(id);
+        if (action === 'stop-item') return stopRepeater(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id), window.EveAudioflixAudio?.stopItemLayers?.(id);
         if (action === 'toggle-repeater') {
             if (activeRepeaters[id]) stopRepeater(id);
             else startRepeater(item, Math.max(100, parseFloat(document.getElementById('audioflix-rep-interval')?.value || 1.0) * 1000), parseInt(document.getElementById('audioflix-rep-count')?.value || 0, 10));
@@ -355,6 +355,25 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (card) { card.classList.add('is-hotkey-hit'); setTimeout(() => card.classList.remove('is-hotkey-hit'), 220); }
     }
 
+    let hotkeyPollTimer = null, lastFiredAt = 0;
+    function startHotkeyFeedbackPoll() {
+        if (hotkeyPollTimer) clearInterval(hotkeyPollTimer);
+        window.EveAudioflixNative?.hotkeyStatus?.().then(r => lastFiredAt = r?.lastFired?.at || 0).catch(() => {});
+        hotkeyPollTimer = setInterval(() => {
+            if (!overlay || overlay.hidden || activeTab !== 'soundboard' || (state().soundboardViewMode || 'backend') !== 'frontend') return;
+            window.EveAudioflixNative?.hotkeyStatus?.().then(r => {
+                const lf = r?.lastFired;
+                if (lf?.at && lf.at !== lastFiredAt) {
+                    lastFiredAt = lf.at;
+                    const card = String(lf.vid || '').startsWith('hk:') && overlay.querySelector(`.audioflix-item-grid[data-af-active-group] [data-af-id="${lf.vid.slice(3)}"]`)?.closest('.audioflix-item-card');
+                    if (card) { card.classList.add('is-hotkey-hit'); setTimeout(() => card.classList.remove('is-hotkey-hit'), 220); }
+                }
+            }).catch(() => {});
+        }, 250);
+    }
+    function stopHotkeyFeedbackPoll() { if (hotkeyPollTimer) { clearInterval(hotkeyPollTimer); hotkeyPollTimer = null; } }
+
+
     function matchEventToHotkey(e, hotkeyStr) {
         if (!hotkeyStr) return false;
         const parts = hotkeyStr.split('+').map(p => p.trim().toLowerCase());
@@ -391,8 +410,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         form.reset();
     }
 
-    const open = () => { ensureOverlay(); overlay.hidden = false; overlay.classList.toggle('is-fullscreen', fullscreenOn); setButtonExpanded(true); loadPortedSounds(); };
-    const close = () => { if (overlay) overlay.hidden = true; setButtonExpanded(false); pushHotkeysToBridge(); };
+    const open = () => { ensureOverlay(); overlay.hidden = false; overlay.classList.toggle('is-fullscreen', fullscreenOn); setButtonExpanded(true); loadPortedSounds(); startHotkeyFeedbackPoll(); };
+    const close = () => { if (overlay) overlay.hidden = true; setButtonExpanded(false); stopHotkeyFeedbackPoll(); pushHotkeysToBridge(); };
 
     function updateStatusDOM() {
         if (!overlay || overlay.hidden) return;
