@@ -795,6 +795,99 @@
     border-color: rgba(255, 202, 95, 0.7);
 }
 
+/* --- Custom soundboard groups (frontend organization) --- */
+.audioflix-add-toggle.is-active {
+    background: rgba(255, 202, 95, 0.25);
+    border-color: #ffca5f;
+}
+
+.audioflix-ports-form[data-af-form="add-group"] {
+    grid-template-columns: 1fr auto;
+}
+
+.audioflix-group-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.audioflix-group-tag {
+    font-size: 0.66rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(255, 202, 95, 0.14);
+    border: 1px solid rgba(255, 202, 95, 0.4);
+    color: #ffe6ad;
+    white-space: nowrap;
+}
+
+.audioflix-info-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.audioflix-info-groups-label {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.audioflix-group-checklist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.audioflix-group-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 202, 95, 0.3);
+    background: rgba(0, 0, 0, 0.25);
+    color: #fff;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.audioflix-group-check input {
+    accent-color: #ffca5f;
+    cursor: pointer;
+}
+
+.audioflix-group-empty {
+    color: rgba(234, 242, 246, 0.55);
+    font-size: 0.82rem;
+}
+
+.audioflix-group-quick {
+    display: flex;
+    gap: 8px;
+}
+
+.audioflix-group-quick input {
+    flex: 1;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 202, 95, 0.3);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.audioflix-group-quick button {
+    padding: 6px 14px;
+    background: #ffca5f;
+    color: #111;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
 .audioflix-expose-cb {
     appearance: none;
     -webkit-appearance: none;

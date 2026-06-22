@@ -38,6 +38,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         portVolumes: {},
         exposedPortedSounds: {},
         soundboardViewMode: 'backend',
+        soundboardGroups: [],
+        soundGroupMap: {},
         counters: {
             plays: 0,
             routedGeminiEvents: 0
@@ -144,6 +146,14 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             portVolumes: source.portVolumes && typeof source.portVolumes === 'object' ? source.portVolumes : {},
             exposedPortedSounds: source.exposedPortedSounds && typeof source.exposedPortedSounds === 'object' ? source.exposedPortedSounds : {},
             soundboardViewMode: ['backend', 'frontend'].includes(source.soundboardViewMode) ? source.soundboardViewMode : 'backend',
+            soundboardGroups: Array.isArray(source.soundboardGroups)
+                ? [...new Set(source.soundboardGroups.map((g) => text(g, '')).filter(Boolean))]
+                : [],
+            soundGroupMap: source.soundGroupMap && typeof source.soundGroupMap === 'object'
+                ? Object.fromEntries(Object.entries(source.soundGroupMap)
+                    .map(([k, v]) => [k, Array.isArray(v) ? [...new Set(v.map((g) => text(g, '')).filter(Boolean))] : []])
+                    .filter(([, v]) => v.length))
+                : {},
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
                 routedGeminiEvents: Number(source.counters?.routedGeminiEvents || 0) || 0
@@ -273,6 +283,47 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    // --- Custom soundboard groups (many-to-many: a sound can sit in several groups) ---
+    function addSoundboardGroup(name) {
+        const state = ensure();
+        const clean = text(name, '').trim();
+        if (!clean) return ensure();
+        state.soundboardGroups = state.soundboardGroups || [];
+        if (!state.soundboardGroups.includes(clean)) state.soundboardGroups.push(clean);
+        scheduleSave('audioflix-groups');
+        return ensure();
+    }
+
+    function removeSoundboardGroup(name) {
+        const state = ensure();
+        const clean = text(name, '').trim();
+        state.soundboardGroups = (state.soundboardGroups || []).filter((g) => g !== clean);
+        // Strip the group from every sound's membership so we don't leave orphan tags.
+        state.soundGroupMap = state.soundGroupMap || {};
+        for (const id of Object.keys(state.soundGroupMap)) {
+            const next = (state.soundGroupMap[id] || []).filter((g) => g !== clean);
+            if (next.length) state.soundGroupMap[id] = next; else delete state.soundGroupMap[id];
+        }
+        scheduleSave('audioflix-groups');
+        return ensure();
+    }
+
+    function toggleSoundGroup(soundId, name, on) {
+        const state = ensure();
+        const clean = text(name, '').trim();
+        if (!soundId || !clean) return ensure();
+        state.soundboardGroups = state.soundboardGroups || [];
+        if (!state.soundboardGroups.includes(clean)) state.soundboardGroups.push(clean);
+        state.soundGroupMap = state.soundGroupMap || {};
+        const current = new Set(state.soundGroupMap[soundId] || []);
+        const shouldHave = (on === undefined) ? !current.has(clean) : !!on;
+        if (shouldHave) current.add(clean); else current.delete(clean);
+        const next = [...current];
+        if (next.length) state.soundGroupMap[soundId] = next; else delete state.soundGroupMap[soundId];
+        scheduleSave('audioflix-groups');
+        return ensure();
+    }
+
     Object.assign(ns, {
         ready: true,
         ensure,
@@ -286,6 +337,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         clearGeminiAudioEvents,
         setItemVolume,
         setItemExposed,
+        addSoundboardGroup,
+        removeSoundboardGroup,
+        toggleSoundGroup,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });

@@ -112,6 +112,30 @@ async function main() {
     await page.click('[data-af-action="toggle-view-mode"]'); // restore backend view for the rest of the run
     await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().soundboardViewMode === 'backend', undefined, { timeout: 5000 });
 
+    // --- Custom frontend groups (many-to-many) ---
+    // Create a group through the Groups manager UI.
+    await page.click('[data-af-action="toggle-groups"]');
+    await page.waitForSelector('form[data-af-form="add-group"]', { timeout: 5000 });
+    await page.fill('form[data-af-form="add-group"] input[name="name"]', 'Memes');
+    await page.click('form[data-af-form="add-group"] button[type="submit"]');
+    await page.waitForFunction(() => (window.EveAudioflixState.getSnapshot().soundboardGroups || []).includes('Memes'), undefined, { timeout: 5000 });
+    // Assign the sound to the group via the settings-modal checkbox.
+    await page.click(`[data-af-action="item-info"][data-af-id="${soundId}"]`);
+    await page.waitForSelector('.audioflix-group-cb[data-af-group="Memes"]', { timeout: 5000 });
+    await page.click('.audioflix-group-cb[data-af-group="Memes"]');
+    await page.waitForFunction((id) => (window.EveAudioflixState.getSnapshot().soundGroupMap[id] || []).includes('Memes'), soundId, { timeout: 5000 });
+    await page.click('.audioflix-info-close-action');
+    // Frontend view should organize the exposed sound under its custom group section.
+    await page.click('[data-af-action="toggle-view-mode"]');
+    await page.waitForFunction(() => {
+        const sec = document.querySelector('.audioflix-group[data-af-group="Memes"]');
+        return !!sec && /Smoke Chime/.test(sec.textContent || '');
+    }, undefined, { timeout: 5000 });
+    const groupRendersInFrontend = true;
+    await page.click('[data-af-action="toggle-view-mode"]'); // back to backend
+    await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().soundboardViewMode === 'backend', undefined, { timeout: 5000 });
+    await page.click('[data-af-action="toggle-groups"]'); // close the manager for the rest of the run
+
     await page.click('[data-af-action="tab"][data-af-tab="music"]');
     await page.click('[data-af-action="toggle-add"][data-af-type="music"]');
     await page.waitForSelector('form[data-af-form="music"]', { timeout: 5000 });
@@ -234,6 +258,7 @@ async function main() {
     if (!drawerInitiallyCollapsed) failures.push('routing drawer was not collapsed by default');
     if (!frontendHidesUnexposed) failures.push('Frontend view did not hide unexposed sound (default exposed=false)');
     if (!frontendShowsExposed) failures.push('Frontend view did not surface a sound after exposing it');
+    if (!groupRendersInFrontend) failures.push('custom group section did not render the exposed sound in Frontend view');
     if (!result.hasOverlay) failures.push('overlay not visible');
     if (!selectiveRouteApplied) failures.push('Auto CABLE did not create selective browser route');
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);
