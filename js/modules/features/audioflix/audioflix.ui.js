@@ -154,6 +154,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             } catch (err) { playbackStatus = err.message || 'Output selection failed'; }
             rerender();
         });
+        document.addEventListener('keydown', handleHotkey);
         return overlay;
     }
 
@@ -164,21 +165,48 @@ window.EveAudioflix = window.EveAudioflix || {};
         const gs = groupsOf(item.id);
         return gs.length ? `<div class="audioflix-group-tags">${gs.map((g) => `<span class="audioflix-group-tag">${esc(g)}</span>`).join('')}</div>` : '';
     };
+    const hotkeyLabel = (i) => (i >= 0 && i < 9) ? String(i + 1) : (i === 9 ? '0' : '');
 
-    function renderItemCard(item, type) {
+    // Exposed soundboard items grouped for the Frontend: each custom group with members,
+    // then "Ungrouped". Returns [ [name, items], ... ].
+    function frontendGroupEntries() {
+        const items = [...(state().soundboard || []), ...portedSounds].filter(isItemExposed);
+        const entries = [];
+        allGroups().forEach((g) => {
+            const members = items.filter((it) => groupsOf(it.id).includes(g));
+            if (members.length) entries.push([g, members]);
+        });
+        const ungrouped = items.filter((it) => groupsOf(it.id).length === 0);
+        if (ungrouped.length) entries.push(['Ungrouped', ungrouped]);
+        return entries;
+    }
+
+    // The single group currently in view in the Frontend (and its ordered items, which
+    // is also the hotkey order). Falls back to the first group if the saved one is gone.
+    function frontendActiveGroup() {
+        const entries = frontendGroupEntries();
+        if (!entries.length) return { name: '', items: [], entries };
+        const saved = state().activeFrontendGroup;
+        const chosen = entries.find(([n]) => n === saved) || entries[0];
+        return { name: chosen[0], items: chosen[1], entries };
+    }
+
+    function renderItemCard(item, type, hotkeyIndex = -1) {
         const viewMode = state().soundboardViewMode || 'backend';
         const isFrontend = viewMode === 'frontend';
-        
+
         if (type === 'sound' && isFrontend) {
             const volSlider = `<div class="audioflix-item-volume-wrapper" title="Volume">
                 <input type="range" class="audioflix-volume-slider" min="0" max="1" step="0.01" value="${item.volume ?? 1}" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" style="--vol: ${(item.volume ?? 1) * 100}%">
                 <span class="audioflix-volume-label">${Math.round((item.volume ?? 1) * 100)}%</span>
             </div>`;
+            const key = hotkeyLabel(hotkeyIndex);
+            const keyBadge = key ? `<span class="audioflix-hotkey-badge" title="Hotkey: press ${key}">${key}</span>` : '';
             return `<article class="audioflix-item-card"><div class="audioflix-playback-controls">
                 <button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button>
                 <button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div>
                 <button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play (stack another instance)">${layerPlaySvg}</button>
-                <div class="audioflix-item-body"><strong>${esc(item.title)}</strong><span>${esc(itemMeta(item))}</span>${groupTags(item)}</div>
+                <div class="audioflix-item-body"><div class="audioflix-item-title-row">${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(itemMeta(item))}</span>${groupTags(item)}</div>
                 <div class="audioflix-item-actions"><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Groups / Settings">${cogSvg}</button></div>
                 ${volSlider}</article>`;
         }
@@ -212,28 +240,27 @@ window.EveAudioflix = window.EveAudioflix || {};
             return `<div class="audioflix-empty">No exposed sounds yet. Switch to Backend view to select and expose sounds.</div>`;
         }
 
-        let groupEntries;
-        if (type === 'sound' && isFrontend) {
-            // Frontend organizes by the user's custom groups; a sound in several groups
-            // shows under each. Sounds in no (existing) group fall under "Ungrouped".
-            groupEntries = [];
-            allGroups().forEach((g) => {
-                const members = filteredItems.filter((it) => groupsOf(it.id).includes(g));
-                if (members.length) groupEntries.push([g, members]);
-            });
-            const ungrouped = filteredItems.filter((it) => groupsOf(it.id).length === 0);
-            if (ungrouped.length) groupEntries.push(['Ungrouped', ungrouped]);
-        } else {
-            const groups = new Map();
-            filteredItems.forEach(item => { const k = groupKey(item, type); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); });
-            groupEntries = [...groups.entries()];
-        }
-        return groupEntries.map(([name, groupItems]) => {
+        // Frontend shows ONE group at a time (the active one) so it reads like a live
+        // soundboard and its sounds map cleanly to number hotkeys.
+        if (type === 'sound' && isFrontend) return renderFrontendActive();
+
+        const groups = new Map();
+        filteredItems.forEach(item => { const k = groupKey(item, type); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(item); });
+        return [...groups.entries()].map(([name, groupItems]) => {
             const count = groupItems.length, isCollapsed = collapsedGroups[name] === true;
             return `<section class="audioflix-group ${isCollapsed ? 'is-collapsed' : ''}" data-af-group="${esc(name)}">
                 <button type="button" class="audioflix-group-title" data-af-action="toggle-group" data-af-group="${esc(name)}" aria-expanded="${isCollapsed ? 'false' : 'true'}">${esc(name)}<span class="audioflix-group-count">${count} item${count === 1 ? '' : 's'}</span></button>
                 <div class="audioflix-item-grid">${groupItems.map(item => renderItemCard(item, type)).join('')}</div></section>`;
         }).join('');
+    }
+
+    function renderFrontendActive() {
+        const { name, items, entries } = frontendActiveGroup();
+        const selector = `<div class="audioflix-group-selector">${entries.map(([g, members]) =>
+            `<button type="button" class="audioflix-group-pill${g === name ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-group="${esc(g)}">${esc(g)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('')}</div>`;
+        const grid = `<div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map((item, i) => renderItemCard(item, 'sound', i)).join('')}</div>`;
+        const hint = items.length ? `<div class="audioflix-hotkey-hint">Press <strong>1</strong>–<strong>9</strong> / <strong>0</strong> to play the first 10 sounds in <strong>${esc(name)}</strong>.</div>` : '';
+        return `${selector}${grid}${hint}`;
     }
 
     function renderForm(type) {
@@ -373,6 +400,10 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'toggle-ports') { portsOpen = !portsOpen; rerender(); return; }
         if (action === 'toggle-groups') { groupsOpen = !groupsOpen; rerender(); return; }
         if (action === 'remove-group') { window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); rerender(); return; }
+        if (action === 'select-frontend-group') {
+            window.EveAudioflixState?.update?.({ activeFrontendGroup: actionTarget.dataset.afGroup }, 'audioflix-active-group');
+            rerender(); return;
+        }
         if (action === 'toggle-view-mode') {
             const next = (state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
             window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode');
@@ -453,6 +484,32 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'clear-gemini-events') { window.EveAudioflixState?.clearGeminiAudioEvents?.(); playbackStatus = 'Gemini event counter cleared'; rerender(); }
     }
 
+    function flashHotkey(idx) {
+        const card = overlay?.querySelector('.audioflix-item-grid[data-af-active-group]')?.children?.[idx];
+        if (!card) return;
+        card.classList.add('is-hotkey-hit');
+        setTimeout(() => card.classList.remove('is-hotkey-hit'), 220);
+    }
+
+    // Number-key hotkeys: 1-9 / 0 play the first 10 sounds of the active Frontend group.
+    // Only active while the soundboard is open in Frontend view and you're not typing.
+    function handleHotkey(e) {
+        if (!overlay || overlay.hidden || activeTab !== 'soundboard' || activeInfoItem) return;
+        if ((state().soundboardViewMode || 'backend') !== 'frontend') return;
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        const tag = (e.target?.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
+        let idx = -1;
+        if (e.key >= '1' && e.key <= '9') idx = Number(e.key) - 1;
+        else if (e.key === '0') idx = 9;
+        if (idx < 0) return;
+        const item = frontendActiveGroup().items[idx];
+        if (!item) return;
+        e.preventDefault();
+        flashHotkey(idx);
+        Promise.resolve(window.EveAudioflixAudio?.playItem?.(item)).catch(() => {});
+    }
+
     function handleForm(form) {
         const data = new FormData(form);
         if (form.dataset.afForm === 'add-port') {
@@ -507,7 +564,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); });
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reason = e.detail?.reason;
-        if (reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed' || reason === 'audioflix-groups') return;
+        if (reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed' || reason === 'audioflix-groups' || reason === 'audioflix-active-group') return;
         if (reason === 'audioflix-gemini-audio') { updateStatusDOM(); return; }
         rerender();
     });

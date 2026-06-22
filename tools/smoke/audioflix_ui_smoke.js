@@ -125,13 +125,25 @@ async function main() {
     await page.click('.audioflix-group-cb[data-af-group="Memes"]');
     await page.waitForFunction((id) => (window.EveAudioflixState.getSnapshot().soundGroupMap[id] || []).includes('Memes'), soundId, { timeout: 5000 });
     await page.click('.audioflix-info-close-action');
-    // Frontend view should organize the exposed sound under its custom group section.
+    // Frontend shows one active group at a time, with a selector pill and number hotkeys.
     await page.click('[data-af-action="toggle-view-mode"]');
     await page.waitForFunction(() => {
-        const sec = document.querySelector('.audioflix-group[data-af-group="Memes"]');
-        return !!sec && /Smoke Chime/.test(sec.textContent || '');
+        const pill = document.querySelector('.audioflix-group-pill[data-af-group="Memes"]');
+        const grid = document.querySelector('.audioflix-item-grid[data-af-active-group="Memes"]');
+        const badge = grid && grid.querySelector('.audioflix-hotkey-badge');
+        return !!pill && !!grid && /Smoke Chime/.test(grid.textContent || '') && !!badge && badge.textContent === '1';
     }, undefined, { timeout: 5000 });
     const groupRendersInFrontend = true;
+    // Hotkey: pressing "1" plays the first sound of the active group.
+    const hotkeyPlayed = await page.evaluate(async (id) => {
+        const played = [];
+        const orig = window.EveAudioflixAudio.playItem;
+        window.EveAudioflixAudio.playItem = (item) => { played.push(item && item.id); return Promise.resolve(true); };
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '1', bubbles: true }));
+        await new Promise((r) => setTimeout(r, 50));
+        window.EveAudioflixAudio.playItem = orig;
+        return played.includes(id);
+    }, soundId);
     await page.click('[data-af-action="toggle-view-mode"]'); // back to backend
     await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().soundboardViewMode === 'backend', undefined, { timeout: 5000 });
     await page.click('[data-af-action="toggle-groups"]'); // close the manager for the rest of the run
@@ -258,7 +270,8 @@ async function main() {
     if (!drawerInitiallyCollapsed) failures.push('routing drawer was not collapsed by default');
     if (!frontendHidesUnexposed) failures.push('Frontend view did not hide unexposed sound (default exposed=false)');
     if (!frontendShowsExposed) failures.push('Frontend view did not surface a sound after exposing it');
-    if (!groupRendersInFrontend) failures.push('custom group section did not render the exposed sound in Frontend view');
+    if (!groupRendersInFrontend) failures.push('active group selector/grid/hotkey badge did not render in Frontend view');
+    if (!hotkeyPlayed) failures.push('number hotkey did not play the active group sound');
     if (!result.hasOverlay) failures.push('overlay not visible');
     if (!selectiveRouteApplied) failures.push('Auto CABLE did not create selective browser route');
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);

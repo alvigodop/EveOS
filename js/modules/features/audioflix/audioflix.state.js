@@ -40,6 +40,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         soundboardViewMode: 'backend',
         soundboardGroups: [],
         soundGroupMap: {},
+        activeFrontendGroup: '',
         counters: {
             plays: 0,
             routedGeminiEvents: 0
@@ -154,6 +155,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                     .map(([k, v]) => [k, Array.isArray(v) ? [...new Set(v.map((g) => text(g, '')).filter(Boolean))] : []])
                     .filter(([, v]) => v.length))
                 : {},
+            activeFrontendGroup: text(source.activeFrontendGroup, ''),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
                 routedGeminiEvents: Number(source.counters?.routedGeminiEvents || 0) || 0

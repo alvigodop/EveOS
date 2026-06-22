@@ -532,6 +532,12 @@ def handle_get_request(handler, path: str, query) -> bool:
                                     "vid": v.get("vid"), "vol": v.get("vol", 1.0)} for v in p.voices]}
                     for k, p in _PLAYERS.items()}
         _send_json(handler, {"ok": True, "players": info})
+    elif path == "/api/audioflix/hotkeys/status":
+        if not _can_control(handler):
+            _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return True
+        from server_modules import audioflix_hotkeys
+        _send_json(handler, audioflix_hotkeys.status())
     elif path.startswith("/api/audioflix/port/"):
         if not _can_control(handler):
             _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
@@ -543,8 +549,18 @@ def handle_get_request(handler, path: str, query) -> bool:
     return True
 
 
+def hotkeys_set(payload: dict) -> dict:
+    from server_modules import audioflix_hotkeys
+    return audioflix_hotkeys.set_bindings(payload)
+
+
+def hotkeys_clear(payload: dict) -> dict:
+    from server_modules import audioflix_hotkeys
+    return audioflix_hotkeys.clear_all()
+
+
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear}.get(path)
     if not action:
         return False
     if not _can_control(handler):
