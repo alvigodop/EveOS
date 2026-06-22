@@ -58,7 +58,8 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     async function pushHotkeysToBridge() {
         const u = state(), { items } = frontendActiveGroup(), hotkeyItems = items.filter(it => it.hotkey);
-        if (!u.nativeBridgeEnabled || !u.nativeOutputId || !hotkeyItems.length) return window.EveAudioflixNative?.clearHotkeys?.().catch(() => {});
+        const isActive = overlay && !overlay.hidden && activeTab === 'soundboard' && (u.soundboardViewMode || 'backend') === 'frontend';
+        if (!isActive || !u.nativeBridgeEnabled || !u.nativeOutputId || !hotkeyItems.length) return window.EveAudioflixNative?.clearHotkeys?.().catch(() => {});
         let sampleRate = 48000; const bindings = [];
         for (const item of hotkeyItems) {
             try {
@@ -285,7 +286,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             return;
         }
         if (action === 'submit-form') { const f = actionTarget.closest('form'); if (f?.reportValidity()) handleForm(f); return; }
-        if (action === 'tab') { activeTab = actionTarget.dataset.afTab || 'soundboard'; rerender(); return; }
+        if (action === 'tab') { activeTab = actionTarget.dataset.afTab || 'soundboard'; pushHotkeysToBridge(); rerender(); return; }
         if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); playbackStatus = 'Opening Localhost EveOS in a new tab...'; rerender(); return; }
         if (action === 'toggle-routing-drawer') { routingOpen = !routingOpen; rerender(); return; }
         if (action === 'toggle-group') { collapsedGroups[actionTarget.dataset.afGroup] = !collapsedGroups[actionTarget.dataset.afGroup]; rerender(); return; }
@@ -391,7 +392,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     const open = () => { ensureOverlay(); overlay.hidden = false; overlay.classList.toggle('is-fullscreen', fullscreenOn); setButtonExpanded(true); loadPortedSounds(); };
-    const close = () => { if (overlay) overlay.hidden = true; setButtonExpanded(false); };
+    const close = () => { if (overlay) overlay.hidden = true; setButtonExpanded(false); pushHotkeysToBridge(); };
 
     function updateStatusDOM() {
         if (!overlay || overlay.hidden) return;
@@ -419,6 +420,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     window.addEventListener('eve:audioflix-gemini-audio-seen', updateStatusDOM);
     window.addEventListener('eve:mode2-tokens', updateStatusDOM);
     document.addEventListener('DOMContentLoaded', () => { if (window.__eveAudioflixOpenPending) { window.__eveAudioflixOpenPending = false; open(); } });
+    window.addEventListener('beforeunload', () => { window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); });
 
     Object.assign(ns, { ready: true, open, close, render: rerender });
 })();
