@@ -2,35 +2,39 @@
 
 The browser only receives key events while focused, so for hotkeys that work
 *during a game* the detection has to live here, in the long-running bridge process.
-We use the official Win32 RegisterHotKey API (via ctypes) — no third-party package,
-and it only intercepts the specific combos that are bound (it does NOT hook every
-keystroke). When a combo fires, we play its pre-decoded PCM through the same mixing
-player the soundboard already uses, out to the selected bypass device (CABLE).
-
-The client registers ONLY the active Frontend group's bound sounds; switching groups
-re-sends the set, so the live global hotkeys always match what's on screen.
+We use a low-level keyboard hook (WH_KEYBOARD_LL) via ctypes to intercept keys globally
+without requiring admin permissions (unless target games run elevated).
 """
 
 import base64
 import ctypes
+from ctypes import wintypes
 import queue
 import threading
 import time
 
 try:
     import numpy as np
-except Exception:  # pragma: no cover - numpy is part of the bridge's optional deps
+except Exception:  # pragma: no cover
     np = None
 
 WM_HOTKEY = 0x0312
 PM_REMOVE = 0x0001
-MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN, MOD_NOREPEAT = 0x0001, 0x0002, 0x0004, 0x0008, 0x4000
+MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN = 0x0001, 0x0002, 0x0004, 0x0008
 
+class KBDLLHOOKSTRUCT(ctypes.Structure):
+    _fields_ = [
+        ("vkCode", ctypes.c_ulong),
+        ("scanCode", ctypes.c_ulong),
+        ("flags", ctypes.c_ulong),
+        ("time", ctypes.c_ulong),
+        ("dwExtraInfo", ctypes.c_ulonglong)
+    ]
 
 def _build_vk():
     vk = {}
     for c in range(ord('a'), ord('z') + 1):
-        vk[chr(c)] = c - 32  # 'a' -> 0x41 (VK is the uppercase ascii code)
+        vk[chr(c)] = c - 32  # 'a' -> 0x41
     for d in range(10):
         vk[str(d)] = 0x30 + d
     for f in range(1, 25):
@@ -44,24 +48,22 @@ def _build_vk():
     })
     return vk
 
-
 _VK = _build_vk()
 _MODS = {'ctrl': MOD_CONTROL, 'control': MOD_CONTROL, 'shift': MOD_SHIFT,
          'alt': MOD_ALT, 'win': MOD_WIN, 'meta': MOD_WIN, 'super': MOD_WIN, 'cmd': MOD_WIN}
 
 _lock = threading.Lock()
-_bindings = {}        # hk_id -> {samples, rate, device, vol, combo, ok}
+_bindings = {}        # hk_id -> {samples, rate, device, vol, combo, ok, mods, vk}
 _next_id = [1]
 _cmd_q = queue.Queue()
 _started = False
-
+_hook_id = None
+_hook_proc_ptr = None
 
 def available():
     return np is not None and hasattr(ctypes, 'windll')
 
-
 def _parse_combo(combo):
-    """'ctrl+y' / 'shift+t' / 'f5' -> (modifier_flags, vk) or None if unusable."""
     parts = [p.strip().lower() for p in str(combo or '').split('+') if p.strip()]
     mods, vk = 0, None
     for p in parts:
@@ -73,24 +75,17 @@ def _parse_combo(combo):
         return None
     return mods, vk
 
-
-def _apply(user32, cmd):
+def _apply(cmd):
     kind = cmd[0]
     if kind == 'register':
         _, hk_id, mods, vk = cmd
-        ok = bool(user32.RegisterHotKey(None, hk_id, mods | MOD_NOREPEAT, vk))
-        print(f"[Hotkey Engine] Registering hotkey ID={hk_id} (mods={mods}, vk={vk}) -> {ok}", flush=True)
+        print(f"[Hotkey Engine] Registering hook binding ID={hk_id} (mods={mods}, vk={vk}) -> True", flush=True)
         with _lock:
             if hk_id in _bindings:
-                _bindings[hk_id]['ok'] = ok
+                _bindings[hk_id]['ok'] = True
     elif kind == 'unregister':
         _, hk_id = cmd
-        try:
-            user32.UnregisterHotKey(None, hk_id)
-            print(f"[Hotkey Engine] Unregistered hotkey ID={hk_id}", flush=True)
-        except Exception as e:
-            print(f"[Hotkey Engine] Error unregistering hotkey ID={hk_id}: {e}", flush=True)
-
+        print(f"[Hotkey Engine] Unregistered hook binding ID={hk_id}", flush=True)
 
 def _trigger(hk_id):
     with _lock:
@@ -102,37 +97,81 @@ def _trigger(hk_id):
         from server_modules import audioflix_bridge as br
         vid = 'hotkey-%d' % hk_id
         player = br._player_for(b['device'], b['rate'], 1)
-        player.clear_voices(vid)            # replace a still-playing instance of this key
+        player.clear_voices(vid)
         player.add_voice(b['samples'], vid, b['vol'])
         print(f"[Hotkey Engine] Successfully queued playback for hotkey ID={hk_id}", flush=True)
     except Exception as e:
         print(f"[Hotkey Engine] Exception in hotkey playback execution: {e}", flush=True)
 
+def low_level_keyboard_proc(nCode, wParam, lParam):
+    if nCode >= 0:
+        if wParam in (0x0100, 0x0104): # WM_KEYDOWN, WM_SYSKEYDOWN
+            kb = ctypes.cast(lParam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
+            vk = kb.vkCode
+            if vk not in (0x10, 0x11, 0x12, 0x5B, 0x5C, 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5):
+                current_mods = 0
+                user32 = ctypes.windll.user32
+                if user32.GetAsyncKeyState(0x11) & 0x8000: # VK_CONTROL
+                    current_mods |= 0x0002
+                if user32.GetAsyncKeyState(0x12) & 0x8000: # VK_MENU (Alt)
+                    current_mods |= 0x0001
+                if user32.GetAsyncKeyState(0x10) & 0x8000: # VK_SHIFT
+                    current_mods |= 0x0004
+                if (user32.GetAsyncKeyState(0x5B) & 0x8000) or (user32.GetAsyncKeyState(0x5C) & 0x8000): # VK_LWIN / VK_RWIN
+                    current_mods |= 0x0008
+                
+                matched_id = None
+                with _lock:
+                    for hk_id, b in _bindings.items():
+                        if b.get('vk') == vk and b.get('mods') == current_mods:
+                            matched_id = hk_id
+                            break
+                if matched_id is not None:
+                    threading.Thread(target=_trigger, args=(matched_id,), daemon=True).start()
+    return ctypes.windll.user32.CallNextHookEx(None, nCode, wParam, lParam)
 
 def _loop():
-    # RegisterHotKey/UnregisterHotKey are thread-affine and WM_HOTKEY is posted to the
-    # registering thread's queue, so registration AND the message pump must run here.
     user32 = ctypes.windll.user32
     from ctypes import wintypes
     msg = wintypes.MSG()
 
-    # CRITICAL: Force the creation of the thread's message queue before processing any commands.
-    # Otherwise, RegisterHotKey calls in _apply will fail because the thread message queue doesn't exist yet.
     user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, 0)
     print("[Hotkey Engine] Global hotkey loop thread started, message queue initialized.", flush=True)
 
-    while True:
-        try:
-            while True:
-                _apply(user32, _cmd_q.get_nowait())
-        except queue.Empty:
-            pass
-        if user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, PM_REMOVE):
-            if msg.message == WM_HOTKEY:
-                _trigger(int(msg.wParam))
-        else:
-            time.sleep(0.008)
+    # Set argument and return types to prevent truncation on 64-bit Windows
+    user32.SetWindowsHookExW.restype = ctypes.c_void_p
+    user32.SetWindowsHookExW.argtypes = [ctypes.c_int, ctypes.c_void_p, wintypes.HINSTANCE, wintypes.DWORD]
+    user32.UnhookWindowsHookEx.restype = wintypes.BOOL
+    user32.UnhookWindowsHookEx.argtypes = [ctypes.c_void_p]
 
+    global _hook_id, _hook_proc_ptr
+    CMPFUNC = ctypes.WINFUNCTYPE(wintypes.LPARAM, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)
+    _hook_proc_ptr = CMPFUNC(low_level_keyboard_proc)
+    
+    _hook_id = user32.SetWindowsHookExW(
+        13, # WH_KEYBOARD_LL
+        _hook_proc_ptr,
+        ctypes.windll.kernel32.GetModuleHandleW(None),
+        0
+    )
+    print(f"[Hotkey Engine] WH_KEYBOARD_LL hook installed: ID={_hook_id}", flush=True)
+
+    try:
+        while True:
+            try:
+                while True:
+                    _apply(_cmd_q.get_nowait())
+            except queue.Empty:
+                pass
+            if user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, PM_REMOVE):
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+            else:
+                time.sleep(0.008)
+    finally:
+        if _hook_id:
+            user32.UnhookWindowsHookEx(_hook_id)
+            print("[Hotkey Engine] WH_KEYBOARD_LL hook uninstalled", flush=True)
 
 def _ensure_thread():
     global _started
@@ -140,7 +179,6 @@ def _ensure_thread():
         return
     _started = True
     threading.Thread(target=_loop, daemon=True, name='audioflix-hotkeys').start()
-
 
 def clear_all():
     with _lock:
@@ -150,12 +188,7 @@ def clear_all():
         _cmd_q.put(('unregister', hk_id))
     return {'ok': True, 'cleared': len(ids)}
 
-
 def set_bindings(payload):
-    """Replace the live global hotkeys with the supplied set.
-
-    payload = {deviceId, sampleRate, bindings: [{combo, audio(base64 int16 PCM), volume}]}
-    """
     if not available():
         return {'ok': False, 'message': 'Global hotkeys require numpy and Windows.'}
     device = str(payload.get('deviceId') or '')
@@ -182,13 +215,25 @@ def set_bindings(payload):
         with _lock:
             hk_id = _next_id[0]
             _next_id[0] += 1
-            _bindings[hk_id] = {'samples': samples, 'rate': rate, 'device': device,
-                                'vol': float(it.get('volume') or 1.0), 'combo': combo, 'ok': None}
+            _bindings[hk_id] = {
+                'samples': samples, 'rate': rate, 'device': device,
+                'vol': float(it.get('volume') or 1.0), 'combo': combo, 'ok': None,
+                'mods': mods, 'vk': vk
+            }
         _cmd_q.put(('register', hk_id, mods, vk))
         registered.append(combo)
-    return {'ok': True, 'registered': registered, 'skipped': skipped}
-
+    is_elevated = False
+    try:
+        is_elevated = ctypes.windll.shell32.IsUserAnAdmin() != 0
+    except Exception:
+        pass
+    return {'ok': True, 'registered': registered, 'skipped': skipped, 'elevated': is_elevated}
 
 def status():
     with _lock:
-        return {'ok': True, 'bindings': [{'combo': b['combo'], 'registered': b['ok']} for b in _bindings.values()]}
+        is_elevated = False
+        try:
+            is_elevated = ctypes.windll.shell32.IsUserAnAdmin() != 0
+        except Exception:
+            pass
+        return {'ok': True, 'bindings': [{'combo': b['combo'], 'registered': b['ok']} for b in _bindings.values()], 'elevated': is_elevated}
