@@ -415,8 +415,15 @@ class _PcmPlayer:
 def _player_for(device_id: str, sample_rate: int, channels: int) -> _PcmPlayer:
     if sd is None or np is None:
         raise RuntimeError("Native playback requires the optional sounddevice and numpy packages.")
-    if not str(device_id).startswith("sd:"):
-        raise RuntimeError("Selected native output is not a playable sounddevice endpoint.")
+    if not isinstance(device_id, str) or not device_id.startswith("sd:"):
+        try:
+            default_idx = sd.default.device[1]
+            if default_idx is not None and default_idx >= 0:
+                device_id = f"sd:{default_idx}"
+            else:
+                raise ValueError()
+        except Exception:
+            raise RuntimeError("Selected native output is not a playable sounddevice endpoint.")
     key = f"{device_id}:{sample_rate}:{channels}"
     index = int(str(device_id).split(":", 1)[1])
     with _LOCK:
@@ -431,7 +438,7 @@ def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str) -> dict:
     if sd is None or np is None:
         raise RuntimeError("Native playback requires the optional sounddevice and numpy packages.")
     if not device_id:
-        raise RuntimeError("No native output device selected.")
+        device_id = "default"
     mono = np.asarray(samples, dtype="float32").reshape(-1)
     player = _player_for(device_id, sample_rate, 1)
     player.enqueue(mono)

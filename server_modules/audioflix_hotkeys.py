@@ -190,7 +190,7 @@ def set_bindings(payload):
         return {'ok': False, 'message': 'Global hotkeys require numpy and Windows.'}
     device = str(payload.get('deviceId') or '')
     if not device:
-        return {'ok': False, 'message': 'No native output device selected.'}
+        device = 'default'
     rate = int(payload.get('sampleRate') or 48000)
     items = payload.get('bindings') or []
     _ensure_thread()

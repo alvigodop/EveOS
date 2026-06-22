@@ -59,7 +59,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     async function pushHotkeysToBridge() {
         const u = state(), { items } = frontendActiveGroup(), hotkeyItems = items.filter(it => it.hotkey);
         const isActive = overlay && !overlay.hidden && activeTab === 'soundboard' && (u.soundboardViewMode || 'backend') === 'frontend';
-        if (!isActive || !u.nativeBridgeEnabled || !u.nativeOutputId || !hotkeyItems.length) return window.EveAudioflixNative?.clearHotkeys?.().catch(() => {});
+        if (!isActive || !hotkeyItems.length) return window.EveAudioflixNative?.clearHotkeys?.().catch(() => {});
         let sampleRate = 48000; const bindings = [];
         for (const item of hotkeyItems) {
             try {
@@ -70,7 +70,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                 }
             } catch (e) { console.error(`Failed to decode hotkey sound ${item.title}:`, e); }
         }
-        if (bindings.length) window.EveAudioflixNative?.setHotkeys?.({ deviceId: u.nativeOutputId, sampleRate, bindings }).catch(e => console.error('Failed to set hotkeys:', e));
+        if (bindings.length) window.EveAudioflixNative?.setHotkeys?.({ deviceId: u.nativeOutputId || 'default', sampleRate, bindings }).catch(e => console.error('Failed to set hotkeys:', e));
         else window.EveAudioflixNative?.clearHotkeys?.().catch(() => {});
     }
 
