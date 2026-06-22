@@ -259,6 +259,22 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload?.ok === true;
     }
 
+    async function setHotkeys(payload) {
+        return fetchJson('/api/audioflix/hotkeys/set', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            timeout: DEVICE_SCAN_TIMEOUT_MS
+        });
+    }
+
+    async function clearHotkeys() {
+        return fetchJson('/api/audioflix/hotkeys/clear', {
+            method: 'POST',
+            body: JSON.stringify({}),
+            timeout: DEFAULT_TIMEOUT_MS
+        });
+    }
+
     Object.assign(ns, {
         ready: true,
         listSystemDevices,
@@ -274,6 +290,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         sendTone,
         playMediaItem,
         shouldSuppressBrowserPlayback,
+        setHotkeys,
+        clearHotkeys,
         getStatus: function () { return lastStatus; }
     });
 })();

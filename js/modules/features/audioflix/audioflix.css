@@ -1013,3 +1013,22 @@
     transform: rotate(45deg);
 }
 
+.audioflix-hotkey-input {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 202, 95, 0.3);
+    border-radius: 6px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 3px 8px;
+    width: 140px;
+    outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.audioflix-hotkey-input:focus {
+    border-color: #ffca5f;
+    box-shadow: 0 0 8px rgba(255, 202, 95, 0.25);
+}
+
+

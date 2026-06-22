@@ -37,6 +37,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         ports: [],
         portVolumes: {},
         exposedPortedSounds: {},
+        portHotkeys: {},
         soundboardViewMode: 'backend',
         soundboardGroups: [],
         soundGroupMap: {},
@@ -96,6 +97,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             category: text(source.category, ''),
             volume: Math.max(0, Math.min(1, Number(source.volume ?? 1) || 1)),
             exposed: source.exposed === true,
+            hotkey: text(source.hotkey, ''),
             createdAt: Number(source.createdAt || 0) || Date.now(),
             lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
         };
@@ -146,6 +148,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             ports: (Array.isArray(source.ports) ? source.ports : []).map(cleanPort),
             portVolumes: source.portVolumes && typeof source.portVolumes === 'object' ? source.portVolumes : {},
             exposedPortedSounds: source.exposedPortedSounds && typeof source.exposedPortedSounds === 'object' ? source.exposedPortedSounds : {},
+            portHotkeys: source.portHotkeys && typeof source.portHotkeys === 'object' ? source.portHotkeys : {},
             soundboardViewMode: ['backend', 'frontend'].includes(source.soundboardViewMode) ? source.soundboardViewMode : 'backend',
             soundboardGroups: Array.isArray(source.soundboardGroups)
                 ? [...new Set(source.soundboardGroups.map((g) => text(g, '')).filter(Boolean))]
@@ -285,6 +288,18 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    function setItemHotkey(type, itemId, hotkey) {
+        const state = ensure();
+        const key = type === 'music' ? 'music' : 'soundboard';
+        if (state[key]) {
+            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { hotkey }) : entry);
+        }
+        state.portHotkeys = state.portHotkeys || {};
+        state.portHotkeys[itemId] = hotkey;
+        scheduleSave('audioflix-hotkey');
+        return ensure();
+    }
+
     // --- Custom soundboard groups (many-to-many: a sound can sit in several groups) ---
     function addSoundboardGroup(name) {
         const state = ensure();
@@ -339,6 +354,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         clearGeminiAudioEvents,
         setItemVolume,
         setItemExposed,
+        setItemHotkey,
         addSoundboardGroup,
         removeSoundboardGroup,
         toggleSoundGroup,

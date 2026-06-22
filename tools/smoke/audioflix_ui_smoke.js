@@ -119,10 +119,12 @@ async function main() {
     await page.fill('form[data-af-form="add-group"] input[name="name"]', 'Memes');
     await page.click('form[data-af-form="add-group"] button[type="submit"]');
     await page.waitForFunction(() => (window.EveAudioflixState.getSnapshot().soundboardGroups || []).includes('Memes'), undefined, { timeout: 5000 });
-    // Assign the sound to the group via the settings-modal checkbox.
+    // Assign the sound to the group via the settings-modal checkbox and set custom hotkey to '1'.
     await page.click(`[data-af-action="item-info"][data-af-id="${soundId}"]`);
     await page.waitForSelector('.audioflix-group-cb[data-af-group="Memes"]', { timeout: 5000 });
     await page.click('.audioflix-group-cb[data-af-group="Memes"]');
+    await page.fill('.audioflix-hotkey-input', '1');
+    await page.dispatchEvent('.audioflix-hotkey-input', 'change');
     await page.waitForFunction((id) => (window.EveAudioflixState.getSnapshot().soundGroupMap[id] || []).includes('Memes'), soundId, { timeout: 5000 });
     await page.click('.audioflix-info-close-action');
     // Frontend shows one active group at a time, with a selector pill and number hotkeys.

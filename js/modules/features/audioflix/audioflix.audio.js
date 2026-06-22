@@ -546,7 +546,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     Object.assign(ns, {
         ready: true, playItem, pause, selectOutput, listOutputs, setOutputById,
         unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus,
-        layerPlay, stopItemLayers, updateItemVolume,
+        layerPlay, stopItemLayers, updateItemVolume, getDecodedBuffer, encodeBufferToBase64,
         getAudioElement: ensureAudio,
         getStatus() {
             const o = browserOutputStatus();
