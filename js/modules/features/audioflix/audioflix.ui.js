@@ -41,7 +41,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     async function loadPortedSounds() {
-        const snapshot = state(), ports = snapshot.ports || [], fetched = [], portVols = snapshot.portVolumes || {}, portExposed = snapshot.exposedPortedSounds || {}, portHotkeys = snapshot.portHotkeys || {}, base = (window.location.origin && !window.location.origin.startsWith('file:')) ? window.location.origin.replace('localhost', '127.0.0.1') : 'http://127.0.0.1:8765';
+        const snapshot = state(), ports = snapshot.ports || [], fetched = [], portVols = snapshot.portVolumes || {}, portExposed = snapshot.exposedPortedSounds || {}, portHotkeys = snapshot.portHotkeys || {}, base = snapshot.nativeBridgeBase || ((window.location.origin && !window.location.origin.startsWith('file:')) ? window.location.origin.replace('localhost', '127.0.0.1') : 'http://127.0.0.1:8765');
         for (const p of ports) {
             try {
                 const res = await fetch(`${base}/api/audioflix/port/list?path=${encodeURIComponent(p.path)}`), data = await res.json();
@@ -366,10 +366,9 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     function handleHotkey(e) {
         if (!overlay || overlay.hidden || activeTab !== 'soundboard' || activeInfoItem || (state().soundboardViewMode || 'backend') !== 'frontend') return;
-        // When the native bridge is active, the system-wide global hook already plays these
-        // combos (even while focused). Running the in-app matcher too would double-fire, so this
-        // browser path is only a fallback for when the bridge is off.
-        if (state().nativeBridgeEnabled && state().nativeOutputId) return;
+        // Note: when the native bridge RegisterHotKey is active system-wide, the OS intercepts
+        // and swallows the keypress globally so the browser receives no keydown event at all.
+        // Therefore, this browser path functions cleanly as a fallback without double-firing.
         const tag = (e.target?.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
         const { items } = frontendActiveGroup(), matched = items.find(item => matchEventToHotkey(e, item.hotkey));
