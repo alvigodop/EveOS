@@ -97,6 +97,21 @@ async function main() {
     await page.fill('form[data-af-form="sound"] input[name="volume"]', '0.5');
     await page.click('form[data-af-form="sound"] button[type="submit"]');
 
+    // --- Frontend/Backend view + exposure (sounds now default exposed=false) ---
+    const soundId = await page.evaluate(() => window.EveAudioflixState.getSnapshot().soundboard[0].id);
+    await page.click('[data-af-action="toggle-view-mode"]'); // -> frontend
+    // Unexposed sound must be filtered out of the Frontend (performance) view.
+    await page.waitForFunction(() => /No exposed sounds/.test(document.querySelector('.audioflix-content')?.textContent || ''), undefined, { timeout: 5000 });
+    const frontendHidesUnexposed = true;
+    // Expose via the same API the settings-modal checkbox calls, then confirm it surfaces in Frontend.
+    await page.evaluate((id) => window.EveAudioflixState.setItemExposed('sound', id, true), soundId);
+    await page.click('[data-af-action="toggle-view-mode"]'); // -> backend (forces rerender)
+    await page.click('[data-af-action="toggle-view-mode"]'); // -> frontend again, now re-filtered
+    await page.waitForFunction(() => /Smoke Chime/.test(document.querySelector('.audioflix-content')?.textContent || ''), undefined, { timeout: 5000 });
+    const frontendShowsExposed = true;
+    await page.click('[data-af-action="toggle-view-mode"]'); // restore backend view for the rest of the run
+    await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().soundboardViewMode === 'backend', undefined, { timeout: 5000 });
+
     await page.click('[data-af-action="tab"][data-af-tab="music"]');
     await page.click('[data-af-action="toggle-add"][data-af-type="music"]');
     await page.waitForSelector('form[data-af-form="music"]', { timeout: 5000 });
@@ -217,6 +232,8 @@ async function main() {
 
     const failures = [];
     if (!drawerInitiallyCollapsed) failures.push('routing drawer was not collapsed by default');
+    if (!frontendHidesUnexposed) failures.push('Frontend view did not hide unexposed sound (default exposed=false)');
+    if (!frontendShowsExposed) failures.push('Frontend view did not surface a sound after exposing it');
     if (!result.hasOverlay) failures.push('overlay not visible');
     if (!selectiveRouteApplied) failures.push('Auto CABLE did not create selective browser route');
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);

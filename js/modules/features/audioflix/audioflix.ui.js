@@ -39,7 +39,11 @@ window.EveAudioflix = window.EveAudioflix || {};
         const ports = snapshot.ports || [], fetched = [];
         const portVols = snapshot.portVolumes || {};
         const portExposed = snapshot.exposedPortedSounds || {};
-        const base = (window.location.origin && !window.location.origin.startsWith('file:')) ? '' : 'http://127.0.0.1:8765';
+        // Prefer 127.0.0.1: "localhost" eats a ~1-2s IPv6 connect timeout per request on
+        // Windows (same fix as the native bridge base), which would stall ported file loads.
+        const base = (window.location.origin && !window.location.origin.startsWith('file:'))
+            ? window.location.origin.replace('localhost', '127.0.0.1')
+            : 'http://127.0.0.1:8765';
         for (const p of ports) {
             try {
                 const res = await fetch(`${base}/api/audioflix/port/list?path=${encodeURIComponent(p.path)}`);
@@ -311,6 +315,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'toggle-view-mode') {
             const next = (state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
             window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode');
+            rerender(); // update() only emits its change event through the 500ms save debounce; rerender now so the view flips instantly
             return;
         }
         if (action === 'remove-port') { window.EveAudioflixState?.removePort?.(id); loadPortedSounds(); return; }

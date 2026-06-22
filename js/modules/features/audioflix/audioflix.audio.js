@@ -384,13 +384,15 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, native: true });
                 
                 if (safeItem.type === 'sound') {
-                    // Fast non-choppy voice upload for soundboard clips, matching layerPlay
-                    window.EveAudioflixNative?.clearVoices?.('singleton-main');
+                    // Fast non-choppy voice upload for soundboard clips, matching layerPlay.
+                    // replace:true makes the bridge swap the prior 'singleton-main' voice
+                    // atomically (one POST) so a separate clear can't race and drop this one.
                     window.EveAudioflixNative?.playVoice(encodeBufferToBase64(audioBuffer), {
                         sampleRate: audioBuffer.sampleRate,
                         channels: 1,
                         volume: safeItem.volume ?? 1,
-                        voiceId: 'singleton-main'
+                        voiceId: 'singleton-main',
+                        replace: true
                     }).catch(()=>{});
                 } else {
                     // Stream long audio
@@ -491,7 +493,13 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             }); 
             activeLayers.delete(itemId); 
         }
-        if (currentItem?.id === itemId) { stopActiveStream(); ensureAudio().pause(); }
+        if (currentItem?.id === itemId) {
+            stopActiveStream();
+            ensureAudio().pause();
+            // Normal play routes through the 'singleton-main' bridge voice; clear it so
+            // Stop actually halts a sound playing out to the bypass port.
+            window.EveAudioflixNative?.clearVoices?.('singleton-main');
+        }
     }
 
     function pause() {

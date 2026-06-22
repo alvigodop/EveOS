@@ -188,7 +188,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 sampleRate: detail.sampleRate || 24000,
                 channels: detail.channels || 1,
                 volume: detail.volume ?? 1,
-                voiceId: detail.voiceId || null
+                voiceId: detail.voiceId || null,
+                replace: detail.replace === true
             }),
             timeout: PCM_SEND_TIMEOUT_MS
         });

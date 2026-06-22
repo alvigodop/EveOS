@@ -326,9 +326,13 @@ class _PcmPlayer:
         # queue (which interleaved chunks and sounded choppy).
         self.voices = []
         self.voices_lock = threading.Lock()
+        self.last_frames = 0   # diagnostics (exposed via /api/audioflix/voice-debug)
+        self.cb_count = 0
         self.stream, self.sample_rate = _open_output_stream(device_index, channels, self._callback, source_rate)
 
     def _callback(self, outdata, frames, _time_info, _status) -> None:
+        self.last_frames = frames
+        self.cb_count += 1
         outdata.fill(0)
         # Streaming channel (Gemini live): FIFO chunks, mixed in additively.
         written = 0
@@ -480,6 +484,10 @@ def play_voice(payload: dict) -> dict:
         samples = samples.reshape((-1, channels))[:, 0]
     volume = max(0.0, min(4.0, float(payload.get("volume", 1.0) or 1.0)))
     player = _player_for(device_id, int(payload.get("sampleRate") or 24000), 1)
+    # replace=True atomically swaps the prior voice with this id (single-lane "normal"
+    # play) so a separate clear+add can't race and drop the new sound.
+    if payload.get("replace"):
+        player.clear_voices(payload.get("voiceId"))
     player.add_voice(samples, payload.get("voiceId"), volume)
     return {"ok": True, "kind": "voice", "queued": int(samples.shape[0]), "deviceId": device_id, "voices": len(player.voices)}
 
@@ -512,7 +520,22 @@ def handle_get_request(handler, path: str, query) -> bool:
         _send_json(handler, {**list_devices(), "devices": []})
     elif path == "/api/audioflix/devices":
         _send_json(handler, list_devices(force=bool(query.get("refresh") or query.get("force"))))
+    elif path == "/api/audioflix/voice-debug":
+        if not _can_control(handler):
+            _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return True
+        with _LOCK:
+            info = {k: {"source_rate": p.source_rate, "sample_rate": p.sample_rate,
+                        "last_frames": p.last_frames, "cb_count": p.cb_count,
+                        "stream_active": bool(p.stream and p.stream.active),
+                        "voices": [{"len": int(len(v["samples"])), "pos": int(v["pos"]),
+                                    "vid": v.get("vid"), "vol": v.get("vol", 1.0)} for v in p.voices]}
+                    for k, p in _PLAYERS.items()}
+        _send_json(handler, {"ok": True, "players": info})
     elif path.startswith("/api/audioflix/port/"):
+        if not _can_control(handler):
+            _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return True
         from server_modules import audioflix_bridge_ports
         return audioflix_bridge_ports.handle_port_get_request(handler, path, query, _send_json)
     else:
