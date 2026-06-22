@@ -168,9 +168,12 @@ window.EveAudioflix = window.EveAudioflix || {};
         return overlay;
     }
 
-    const isItemExposed = (item) => item.isPorted ? (state().exposedPortedSounds?.[item.id] === true) : (item.exposed === true);
     const allGroups = () => state().soundboardGroups || [];
     const groupsOf = (id) => (state().soundGroupMap?.[id] || []).filter((g) => allGroups().includes(g));
+    const isItemExposed = (item) => {
+        if (groupsOf(item.id).length > 0) return true;
+        return item.isPorted ? (state().exposedPortedSounds?.[item.id] === true) : (item.exposed === true);
+    };
     const groupTags = (item) => {
         const gs = groupsOf(item.id);
         return gs.length ? `<div class="audioflix-group-tags">${gs.map((g) => `<span class="audioflix-group-tag">${esc(g)}</span>`).join('')}</div>` : '';

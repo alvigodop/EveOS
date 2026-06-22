@@ -171,7 +171,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         if (!root) {
             return normalize(fallbackRead());
         }
-        root.audioflix = normalize(root.audioflix || fallbackRead());
+        root.audioflix = normalize(Object.assign({}, fallbackRead(), root.audioflix));
         return root.audioflix;
     }
 
