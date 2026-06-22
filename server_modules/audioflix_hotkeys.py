@@ -79,6 +79,7 @@ def _apply(user32, cmd):
     if kind == 'register':
         _, hk_id, mods, vk = cmd
         ok = bool(user32.RegisterHotKey(None, hk_id, mods | MOD_NOREPEAT, vk))
+        print(f"[Hotkey Engine] Registering hotkey ID={hk_id} (mods={mods}, vk={vk}) -> {ok}")
         with _lock:
             if hk_id in _bindings:
                 _bindings[hk_id]['ok'] = ok
@@ -86,8 +87,9 @@ def _apply(user32, cmd):
         _, hk_id = cmd
         try:
             user32.UnregisterHotKey(None, hk_id)
-        except Exception:
-            pass
+            print(f"[Hotkey Engine] Unregistered hotkey ID={hk_id}")
+        except Exception as e:
+            print(f"[Hotkey Engine] Error unregistering hotkey ID={hk_id}: {e}")
 
 
 def _trigger(hk_id):
@@ -95,14 +97,16 @@ def _trigger(hk_id):
         b = _bindings.get(hk_id)
     if not b:
         return
+    print(f"[Hotkey Engine] Captured global hotkey trigger ID={hk_id} (combo: {b['combo']})")
     try:
         from server_modules import audioflix_bridge as br
         vid = 'hotkey-%d' % hk_id
         player = br._player_for(b['device'], b['rate'], 1)
         player.clear_voices(vid)            # replace a still-playing instance of this key
         player.add_voice(b['samples'], vid, b['vol'])
-    except Exception:
-        pass
+        print(f"[Hotkey Engine] Successfully queued playback for hotkey ID={hk_id}")
+    except Exception as e:
+        print(f"[Hotkey Engine] Exception in hotkey playback execution: {e}")
 
 
 def _loop():
@@ -111,6 +115,12 @@ def _loop():
     user32 = ctypes.windll.user32
     from ctypes import wintypes
     msg = wintypes.MSG()
+
+    # CRITICAL: Force the creation of the thread's message queue before processing any commands.
+    # Otherwise, RegisterHotKey calls in _apply will fail because the thread message queue doesn't exist yet.
+    user32.PeekMessageW(ctypes.byref(msg), 0, 0, 0, 0)
+    print("[Hotkey Engine] Global hotkey loop thread started, message queue initialized.")
+
     while True:
         try:
             while True:
