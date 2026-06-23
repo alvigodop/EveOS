@@ -73,6 +73,23 @@ window.EveDataStore = window.EveDataStore || {};
 
         applyKnowledgeState(state.knowledge);
 
+        // Restore Audioflix (soundboard ports/groups/hotkeys/exposure/volumes). setConfig above
+        // doesn't reassign window.eveState.config (the object Audioflix reads), so write it to the
+        // canonical location explicitly, then let the module re-normalize, persist, and re-render.
+        // Accept the new top-level key OR the legacy nested location from older backups.
+        const restoredAudioflix = (state.audioflix && typeof state.audioflix === 'object')
+            ? state.audioflix
+            : (state.bookmarks && state.bookmarks.config && state.bookmarks.config.audioflix);
+        if (restoredAudioflix && typeof restoredAudioflix === 'object') {
+            try {
+                if (window.eveState && window.eveState.config) window.eveState.config.audioflix = restoredAudioflix;
+                if (window.config && typeof window.config === 'object') window.config.audioflix = restoredAudioflix;
+                window.EveAudioflixState?.update?.({}, 'audioflix-restore');
+            } catch (error) {
+                console.warn('[DataState] Audioflix restore failed:', error);
+            }
+        }
+
         return true;
     }
 

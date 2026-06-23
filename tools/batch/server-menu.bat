@@ -1,12 +1,12 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-cd /d "%~dp0"
-set "SERVER_ROOT=%CD%"
-set "PROJECT_ROOT=%SERVER_ROOT%\.."
+cd /d "%~dp0..\.."
+set "PROJECT_ROOT=%CD%"
+set "SERVER_ROOT=%PROJECT_ROOT%\server"
 set "GEMINI_MAIN_DIR=%SERVER_ROOT%\gemini-backend\interactions"
 set "GEMINI_MAIN_SCRIPT=%GEMINI_MAIN_DIR%\main.py"
-call "%SERVER_ROOT%\..\tools\windows\eveos-ports.bat"
+call "%PROJECT_ROOT%\tools\batch\eveos-ports.bat"
 if not defined GEMINI_WS_PORT set "GEMINI_WS_PORT=9083"
 if not defined GEMINI_STATUS_PORT set "GEMINI_STATUS_PORT=9084"
 set "GEMINI_WINDOW_TITLE=EveOS Gemini Main %GEMINI_WS_PORT%-%GEMINI_STATUS_PORT%"

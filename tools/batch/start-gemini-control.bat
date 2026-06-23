@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableExtensions
 
-cd /d "%~dp0.."
+cd /d "%~dp0..\.."
 set "PROJECT_ROOT=%CD%"
-call "%PROJECT_ROOT%\tools\windows\eveos-ports.bat"
+call "%PROJECT_ROOT%\tools\batch\eveos-ports.bat"
 set "CONTROL_PORT=%~1"
 if "%CONTROL_PORT%"=="" set "CONTROL_PORT=%GEMINI_CONTROL_PORT%"
 if "%CONTROL_PORT%"=="" set "CONTROL_PORT=9082"

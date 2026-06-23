@@ -355,6 +355,11 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (card) { card.classList.add('is-hotkey-hit'); setTimeout(() => card.classList.remove('is-hotkey-hit'), 220); }
     }
 
+    // Surface Audioflix activity in the nexus trace log (no-op if the search monitor isn't up).
+    function recordAudioflixNexus(summary) {
+        try { window.SearchMonitorBoot?.recordNexusTrace?.({ id: 'af-' + Date.now().toString(36), kind: 'audioflix', summary: String(summary || 'Audioflix activity'), totalMs: 0, endedAt: Date.now() }); } catch (e) {}
+    }
+
     let hotkeyPollTimer = null, lastFiredAt = 0;
     function startHotkeyFeedbackPoll() {
         if (hotkeyPollTimer) clearInterval(hotkeyPollTimer);
@@ -367,6 +372,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                     lastFiredAt = lf.at;
                     const card = String(lf.vid || '').startsWith('hk:') && overlay.querySelector(`.audioflix-item-grid[data-af-active-group] [data-af-id="${lf.vid.slice(3)}"]`)?.closest('.audioflix-item-card');
                     if (card) { card.classList.add('is-hotkey-hit'); setTimeout(() => card.classList.remove('is-hotkey-hit'), 220); }
+                    recordAudioflixNexus(`Hotkey ${lf.combo || ''} fired a soundboard clip`);
                 }
             }).catch(() => {});
         }, 250);
@@ -416,8 +422,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     function updateStatusDOM() {
         if (!overlay || overlay.hidden) return;
         const waveLabel = overlay.querySelector('.audioflix-player span'), statusCardStrong = overlay.querySelector('.audioflix-status-signal-value');
-        if (waveLabel) waveLabel.textContent = playbackStatus;
-        if (statusCardStrong) statusCardStrong.textContent = playbackStatus;
+        if (waveLabel) waveLabel.textContent = playbackStatus; if (statusCardStrong) statusCardStrong.textContent = playbackStatus;
         const counterSpan = overlay.querySelector('.audioflix-header-actions > span');
         if (counterSpan) {
             const u = state(); counterSpan.textContent = `${(u.soundboard?.length || 0) + portedSounds.length} sounds · ${u.music?.length || 0} tracks · ${u.counters?.routedGeminiEvents || 0} Gemini events`;

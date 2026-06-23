@@ -196,8 +196,9 @@ Notes:
 - `--modular-root` is process-local by default (does not overwrite shared store-path settings).
 - Use `--persist-modular-root` only if you want to make a chosen path the default for future server starts.
 - `start-server.bat` includes both `Start EveOS instance` for port + data-pack and `Start EveOS port only` for a plain local preview such as `http://127.0.0.1:8765/EveOS.html`.
-- `server/start-eveos-port.bat` is the direct helper for starting a plain EveOS HTTP port without a data-pack prompt.
-- `server/start-gemini-control.bat` starts the file-mode Gemini lifecycle helper on `9082`; `server/start-gemini.bat` starts that helper before launching the Gemini backend.
+- `tools/batch/start-eveos-port.bat` is the direct helper for starting a plain EveOS HTTP port without a data-pack prompt.
+- `tools/batch/start-gemini-control.bat` starts the file-mode Gemini lifecycle helper on `9082`; `tools/batch/start-gemini.bat` starts that helper before launching the Gemini backend.
+- All sub-bats now live in `tools/batch/`; `start-server.bat` is the only launcher in the project root (run it, pick `[S]`, or `start-server.bat boot` for the full stack).
 
 ## Data and Sync Behavior
 

@@ -4,18 +4,20 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 set "PROJECT_ROOT=%CD%"
 set "SELF_PATH=%~f0"
-set "START_SERVER_BROWSE_BAT=%PROJECT_ROOT%\tools\windows\start-server.browse.bat"
-set "START_SERVER_PATHS_BAT=%PROJECT_ROOT%\tools\windows\start-server.paths.bat"
-set "START_SERVER_BROWSER_BAT=%PROJECT_ROOT%\tools\windows\start-server.browser.bat"
+rem --- All sub-bats now live in tools\batch\ (only this launcher stays in the project root) ---
+set "BAT_DIR=%PROJECT_ROOT%\tools\batch"
+set "START_SERVER_BROWSE_BAT=%BAT_DIR%\start-server.browse.bat"
+set "START_SERVER_PATHS_BAT=%BAT_DIR%\start-server.paths.bat"
+set "START_SERVER_BROWSER_BAT=%BAT_DIR%\start-server.browser.bat"
 
-set "GEMINI_MENU_BAT=%PROJECT_ROOT%\server\server-menu.bat"
-set "GEMINI_AUTOSTART_BAT=%PROJECT_ROOT%\server\start-gemini.bat"
-set "LIGHTPANDA_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-lightpanda-bridge.bat"
-set "CAMOFOX_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-camofox-bridge.bat"
-set "WIKIMEDIA_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-wikimedia-bridge.bat"
-set "POPUP_CONTROLLER_BAT=%PROJECT_ROOT%\tools\batch\start-popup-bridge.bat"
+set "GEMINI_MENU_BAT=%BAT_DIR%\server-menu.bat"
+set "GEMINI_AUTOSTART_BAT=%BAT_DIR%\start-gemini.bat"
+set "LIGHTPANDA_CONTROLLER_BAT=%BAT_DIR%\start-lightpanda-bridge.bat"
+set "CAMOFOX_CONTROLLER_BAT=%BAT_DIR%\start-camofox-bridge.bat"
+set "WIKIMEDIA_CONTROLLER_BAT=%BAT_DIR%\start-wikimedia-bridge.bat"
+set "POPUP_CONTROLLER_BAT=%BAT_DIR%\start-popup-bridge.bat"
 rem --- Canonical port definitions (single source of truth) ---
-call "%PROJECT_ROOT%\tools\windows\eveos-ports.bat"
+call "%BAT_DIR%\eveos-ports.bat"
 if not defined LIGHTPANDA_BRIDGE_PORT set "LIGHTPANDA_BRIDGE_PORT=3037"
 if not defined CAMOFOX_BRIDGE_PORT set "CAMOFOX_BRIDGE_PORT=3038"
 if not defined WIKIMEDIA_BRIDGE_PORT set "WIKIMEDIA_BRIDGE_PORT=3039"
@@ -40,6 +42,12 @@ if exist "%PROJECT_ROOT%\bin\lightpanda" (
     set "LP_READY=1"
 )
 set "LP_ENABLED_STATE=1"
+
+rem --- Non-interactive boot: "start-server.bat boot" (also the target of the tools\batch\boot-eveos.bat shim) ---
+if /I "%~1"=="boot" (
+    call :BootStandardStack
+    exit /b %ERRORLEVEL%
+)
 
 :MainMenu
 cls
@@ -94,9 +102,9 @@ echo [1] Start EveOS instance ^(choose port + data-pack^)
 echo     - Advanced: port 3000 uses active modular path; other ports default to per-instance packs.
 echo [2] Start EveOS port only ^(no data-pack prompt^)
 echo     - Advanced: serves EveOS at a chosen port using the current active data-pack.
-echo [3] Open Gemini Backend Console ^(server\server-menu.bat^)
+echo [3] Open Gemini Backend Console ^(tools\batch\server-menu.bat^)
 echo     - Start/stop the canonical Gemini Live backend ^(9083 WebSocket + 9084 status^).
-echo [4] Run Gemini auto-start helper ^(server\start-gemini.bat^)
+echo [4] Run Gemini auto-start helper ^(tools\batch\start-gemini.bat^)
 echo     - Starts the file:// control helper, then starts the Gemini backend.
 echo [5] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
@@ -107,7 +115,8 @@ echo.
 set /p "choice=Enter your choice: "
 
 if /I "%choice%"=="S" (
-    call "%PROJECT_ROOT%\boot-eveos.bat"
+    call :BootStandardStack
+    pause
     goto :MainMenu
 )
 if "%choice%"=="1" (
@@ -475,3 +484,95 @@ exit /b %ERRORLEVEL%
 :EnsurePopupMonitor
 call "%START_SERVER_BROWSER_BAT%" :EnsurePopupMonitor
 exit /b %ERRORLEVEL%
+
+rem ============================================================
+rem  Canonical full EveOS stack (formerly boot-eveos.bat): the
+rem  standard "go-to" boot. ONE web surface (which hosts the
+rem  soundboard, VB-Cable bypass audio AND the global hotkeys) +
+rem  the Gemini backend + the bridges, each guarded so nothing
+rem  double-launches. Reached via menu [S] or "start-server.bat boot".
+rem ============================================================
+:BootStandardStack
+where python >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] Python is not installed or not in PATH.
+    echo         Install from https://www.python.org/downloads/ ^(enable "Add to PATH"^).
+    pause
+    exit /b 1
+)
+echo.
+echo ========================================
+echo   EveOS Canonical Boot
+echo ========================================
+echo   Web + hotkeys + audio bypass: http://127.0.0.1:%EVEOS_WEB_PORT%/EveOS.html
+echo.
+rem --- 1. EveOS web (guarded). Hosts the soundboard, VB-Cable bypass and global hotkeys. ---
+call :PortInUse "%EVEOS_WEB_PORT%" _WEB_PID
+if defined _WEB_PID (
+    echo [OK]    EveOS web already running on port %EVEOS_WEB_PORT% ^(PID !_WEB_PID!^).
+) else (
+    echo [START] EveOS web ^(hotkeys + audio bypass^) on port %EVEOS_WEB_PORT%...
+    start "EveOS %EVEOS_WEB_PORT%" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u server/python-server.py %EVEOS_WEB_PORT%"
+)
+rem --- 2. Gemini backend + file-mode control helper (start-gemini guards internally) ---
+echo [BOOT]  Ensuring Gemini backend ^(WS %GEMINI_WS_PORT% / status %GEMINI_STATUS_PORT%^)...
+call "%GEMINI_AUTOSTART_BAT%" >nul 2>nul
+call :ReportPort "Gemini WebSocket" "%GEMINI_WS_PORT%"
+call :ReportPort "Gemini control  " "%GEMINI_CONTROL_PORT%"
+rem --- 3. Popup bridge (file:// popups + Wikimedia transport) ---
+call :EnsureBridge "Popup bridge   " "%POPUP_BRIDGE_PORT%" "server\bridges\popup-bridge.py"
+rem --- 4. Lightpanda bridge (only if the binary is present) ---
+if exist "%PROJECT_ROOT%\bin\lightpanda" (
+    call :EnsureBridge "Lightpanda     " "%LIGHTPANDA_BRIDGE_PORT%" "server\bridges\lightpanda-bridge.py"
+) else (
+    echo [SKIP]  Lightpanda bridge - binary not found ^(bin\lightpanda^).
+)
+rem --- 5. Camofox bridge (only if the runtime is installed) ---
+if exist "%CAMOFOX_RUNTIME_SERVER%" (
+    call :EnsureBridge "Camofox        " "%CAMOFOX_BRIDGE_PORT%" "server\bridges\camofox-bridge.py"
+) else (
+    echo [SKIP]  Camofox bridge - runtime not installed.
+)
+echo.
+echo ========================================
+echo   Boot complete. Open: http://127.0.0.1:%EVEOS_WEB_PORT%/EveOS.html
+echo ========================================
+exit /b 0
+
+:EnsureBridge
+rem %1=label  %2=port  %3=relative script path
+set "_LABEL=%~1"
+set "_PORT=%~2"
+set "_SCRIPT=%PROJECT_ROOT%\%~3"
+if not exist "%_SCRIPT%" (
+    echo [SKIP]  %_LABEL% - script not found: %_SCRIPT%
+    exit /b 0
+)
+call :PortInUse "%_PORT%" _BPID
+if defined _BPID (
+    echo [OK]    %_LABEL% already running on port %_PORT% ^(PID !_BPID!^).
+    exit /b 0
+)
+echo [START] %_LABEL% on port %_PORT%...
+start "EveOS %_LABEL%" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%_SCRIPT%"" %_PORT%"
+exit /b 0
+
+:ReportPort
+set "_LABEL=%~1"
+call :PortInUse "%~2" _RPID
+if defined _RPID (
+    echo [OK]    %_LABEL% running on port %~2 ^(PID !_RPID!^).
+) else (
+    echo [WARN]  %_LABEL% not detected on port %~2 yet ^(may still be starting^).
+)
+exit /b 0
+
+:PortInUse
+rem %1=port  %2=name of output var (set to listening PID, else empty).
+set "%~2="
+for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%~1 .*LISTENING"') do (
+    set "%~2=%%P"
+    goto :PortInUseDone
+)
+:PortInUseDone
+exit /b 0

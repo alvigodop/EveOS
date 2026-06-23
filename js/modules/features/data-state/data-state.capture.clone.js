@@ -53,6 +53,18 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             return { ...current };
         }
 
+        // Audioflix (soundboard ports, groups, hotkeys, exposure, volumes) lives at
+        // config.audioflix. Capture it as a first-class top-level key so it survives backups,
+        // exports, and the various extraction paths instead of riding incidentally on config.
+        function cloneAudioflix() {
+            try {
+                const cfg = getConfig();
+                return cfg && cfg.audioflix ? JSON.parse(JSON.stringify(cfg.audioflix)) : null;
+            } catch (error) {
+                return null;
+            }
+        }
+
         function cloneBookmarkFolders() {
             try {
                 return JSON.parse(JSON.stringify(getBookmarkFolders() || {}));
@@ -191,7 +203,8 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                     categories: cloneLibraries(),
                     connections: cloneConnections()
                 },
-                knowledge: cloneKnowledgeState()
+                knowledge: cloneKnowledgeState(),
+                audioflix: cloneAudioflix()
             };
         }
 
@@ -211,6 +224,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             parseKnowledgeStorageKey,
             cloneKnowledgeState,
             filterKnowledgeState,
+            cloneAudioflix,
             captureState
         };
     };

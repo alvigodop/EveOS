@@ -312,6 +312,15 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
             print("  Popup:   Enabled at /api/popup-view?url=...")
             print("  Bridge:  Lightpanda/WSL enabled at /api/lightpanda")
             print("  Gemini:  Lifecycle control enabled at /api/gemini-server/status")
+            print("  Audio:   Soundboard + VB-Cable bypass + global hotkeys at /api/audioflix/*")
+            # Pre-warm the audio device scan so the first soundboard press / hotkey right after
+            # boot isn't delayed by a cold WASAPI device enumeration. Non-fatal, off-thread.
+            if "audioflix_bridge" in globals():
+                try:
+                    import threading as _af_t
+                    _af_t.Thread(target=lambda: audioflix_bridge.list_devices(force=True), daemon=True).start()
+                except Exception:
+                    pass
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the server")
             

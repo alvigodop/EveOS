@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
-call "%PROJECT_ROOT%\tools\windows\eveos-ports.bat"
+call "%PROJECT_ROOT%\tools\batch\eveos-ports.bat"
 set "BRIDGE_PORT=%WIKIMEDIA_BRIDGE_PORT%"
 if not defined BRIDGE_PORT set "BRIDGE_PORT=3039"
 set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\wikimedia-bridge.py"
@@ -91,7 +91,7 @@ if not exist "%ACTIVITY_LOG%" type nul > "%ACTIVITY_LOG%"
 
 echo.
 echo [OK] Starting Wikimedia bridge on port %BRIDGE_PORT%...
-start "EveOS Wikimedia Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && python ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
+start "EveOS Wikimedia Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
 timeout /t 2 /nobreak >nul
 exit /b 0
 

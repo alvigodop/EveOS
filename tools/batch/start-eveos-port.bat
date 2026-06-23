@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
-cd /d "%~dp0.."
+cd /d "%~dp0..\.."
 set "PROJECT_ROOT=%CD%"
 
 where python >nul 2>nul

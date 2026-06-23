@@ -87,19 +87,19 @@ exit /b 0
 set "BATCH_NOTE=General batch launcher script."
 set "rel=%~1"
 
-if /I "%rel%"=="server\server-menu.bat" (
+if /I "%rel%"=="tools\batch\server-menu.bat" (
     set "BATCH_NOTE=Gemini backend console (start/stop WebSocket plus status server)."
     exit /b 0
 )
-if /I "%rel%"=="server\start-gemini.bat" (
+if /I "%rel%"=="tools\batch\start-gemini.bat" (
     set "BATCH_NOTE=Quick launcher: starts the canonical Gemini backend."
     exit /b 0
 )
-if /I "%rel%"=="server\start-gemini-control.bat" (
+if /I "%rel%"=="tools\batch\start-gemini-control.bat" (
     set "BATCH_NOTE=File-mode helper: lets file:// EveOS start/stop Gemini without an EveOS HTTP port."
     exit /b 0
 )
-if /I "%rel%"=="server\start-eveos-port.bat" (
+if /I "%rel%"=="tools\batch\start-eveos-port.bat" (
     set "BATCH_NOTE=Starts EveOS on a chosen HTTP port without prompting for a data-pack."
     exit /b 0
 )
@@ -107,11 +107,11 @@ if /I "%rel%"=="start-server.bat" (
     set "BATCH_NOTE=Master EveOS launcher menu (this script)."
     exit /b 0
 )
-if /I "%rel%"=="boot-eveos.bat" (
+if /I "%rel%"=="tools\batch\boot-eveos.bat" (
     set "BATCH_NOTE=Canonical one-shot boot: one web surface + Gemini + bridges, guarded. Recommended."
     exit /b 0
 )
-if /I "%rel%"=="tools\windows\eveos-ports.bat" (
+if /I "%rel%"=="tools\batch\eveos-ports.bat" (
     set "BATCH_NOTE=Single source of truth for all EveOS ports. Edit here to change any port."
     exit /b 0
 )

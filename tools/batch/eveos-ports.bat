@@ -3,12 +3,12 @@ rem ============================================================
 rem  EveOS - Canonical port definitions (SINGLE SOURCE OF TRUTH)
 rem ------------------------------------------------------------
 rem  Change a port HERE and every launcher picks it up:
-rem    - boot-eveos.bat (canonical stack boot)
-rem    - start-server.bat (master menu)
-rem    - server\server-menu.bat, server\start-gemini*.bat
+rem    - start-server.bat (the single root launcher: menu + canonical boot)
+rem    - tools\batch\server-menu.bat, tools\batch\start-gemini*.bat
 rem    - tools\batch\start-*-bridge.bat (the 4 bridge controllers)
+rem    - tools\batch\boot-eveos.bat (compat shim -> start-server.bat boot)
 rem
-rem  Loaded via:  call "<project>\tools\windows\eveos-ports.bat"
+rem  Loaded via:  call "<project>\tools\batch\eveos-ports.bat"
 rem  IMPORTANT: no setlocal here - these vars must propagate to
 rem             the calling script.
 rem ============================================================
