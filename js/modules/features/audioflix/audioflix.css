@@ -64,6 +64,7 @@
 
 /* Center the glyph inside the round header icon buttons (⛶ and ×). */
 .audioflix-fullscreen-toggle,
+.audioflix-settings-toggle,
 .audioflix-header-actions > button[data-af-action="close"] {
     display: inline-flex;
     align-items: center;
@@ -76,7 +77,12 @@
     font-size: 1.15rem;
 }
 
-.audioflix-fullscreen-toggle.is-active {
+.audioflix-settings-toggle {
+    font-size: 1.05rem;
+}
+
+.audioflix-fullscreen-toggle.is-active,
+.audioflix-settings-toggle.is-active {
     color: #071014;
     background: linear-gradient(135deg, #ffca5f, #00d4ff);
     border-color: transparent;
@@ -968,6 +974,11 @@
 
 .audioflix-hotkey-hint strong {
     color: #ffca5f;
+}
+
+.audioflix-input-invalid {
+    border-color: #ea4335 !important;
+    box-shadow: 0 0 0 1px rgba(234, 67, 53, 0.4);
 }
 
 .audioflix-item-card.is-hotkey-hit {

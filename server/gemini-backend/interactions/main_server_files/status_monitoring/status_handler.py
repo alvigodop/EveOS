@@ -40,7 +40,10 @@ class StatusHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-type', 'application/json; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
-        self.send_header('Access-Control-Allow-Origin', '*')
+        _o = (self.headers.get("Origin") or "").strip(); _lo = _o.lower()
+        if (not _o) or _lo == "null" or _lo.startswith("file://") or any(_lo == _h or _lo.startswith(_h + ":") for _h in ("http://localhost", "http://127.0.0.1", "https://localhost", "https://127.0.0.1")):
+            self.send_header("Access-Control-Allow-Origin", _o or "*")
+        self.send_header("Vary", "Origin")
         self.send_header('Connection', 'close')
         self.end_headers()
         try:

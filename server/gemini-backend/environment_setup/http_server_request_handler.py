@@ -15,7 +15,10 @@ from http_server_runtime import STATIC_DIR
 
 class CORSRequestHandler(BaseHTTPRequestHandler):
     def send_cors_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
+        _o = (self.headers.get("Origin") or "").strip(); _lo = _o.lower()
+        if (not _o) or _lo == "null" or _lo.startswith("file://") or any(_lo == _h or _lo.startswith(_h + ":") for _h in ("http://localhost", "http://127.0.0.1", "https://localhost", "https://127.0.0.1")):
+            self.send_header("Access-Control-Allow-Origin", _o or "*")
+        self.send_header("Vary", "Origin")
         self.send_header('Access-Control-Allow-Methods', '*')
         self.send_header('Access-Control-Allow-Headers', '*')
         # Disable caching to ensure fresh content on each request

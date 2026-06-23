@@ -16,7 +16,10 @@ server_process = None
 class LauncherHandler(BaseHTTPRequestHandler):
     def _send_cors_headers(self):
         print("DEBUG: Sending CORS headers...")
-        self.send_header('Access-Control-Allow-Origin', '*')
+        _o = (self.headers.get("Origin") or "").strip(); _lo = _o.lower()
+        if (not _o) or _lo == "null" or _lo.startswith("file://") or any(_lo == _h or _lo.startswith(_h + ":") for _h in ("http://localhost", "http://127.0.0.1", "https://localhost", "https://127.0.0.1")):
+            self.send_header("Access-Control-Allow-Origin", _o or "*")
+        self.send_header("Vary", "Origin")
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Accept, Content-Type, Origin, Cache-Control')
         self.send_header('Access-Control-Max-Age', '3600')

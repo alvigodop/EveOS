@@ -62,6 +62,12 @@ _ready = threading.Event()      # set once the message-loop thread is up
 _loop_tid = [0]                 # native id of the loop thread (for PostThreadMessage wakeups)
 _triggers = [0]                 # diagnostic: how many times any hotkey has fired
 _last_fired = {}                # {vid, combo, at} of the most recent hotkey -> on-site flash feedback
+# Bypass toggle: a user-set combo that suspends/re-arms ALL sound hotkeys so the keys pass
+# through for typing/use mid-game, then toggles them back on. Lives server-side so it works
+# while EveOS is unfocused. The bypass key itself stays registered while suspended.
+_bypass_id = [0]                # hk_id of the bypass toggle combo (0 = none)
+_bypass_combo = [None]          # the bypass combo string (for status/UI)
+_bypassed = [False]             # True = sound hotkeys currently suspended (typing mode)
 
 
 def available():
@@ -78,15 +84,20 @@ def _wake():
 
 
 def _parse_combo(combo):
-    """'ctrl+y' / 'shift+t' / 'f5' -> (modifier_flags, vk) or None if unusable."""
+    """'ctrl+y' / 'shift+t' / 'f5' / 'y' -> (modifier_flags, vk), else None.
+
+    RegisterHotKey allows modifiers + exactly ONE non-modifier key. Two plain keys like 'y+t'
+    aren't expressible, so reject them (return None -> reported in 'skipped') instead of
+    silently registering just the last key."""
     parts = [p.strip().lower() for p in str(combo or '').split('+') if p.strip()]
-    mods, vk = 0, None
+    mods, vk, mainkeys = 0, None, 0
     for p in parts:
         if p in _MODS:
             mods |= _MODS[p]
         else:
+            mainkeys += 1
             vk = _VK.get(p)
-    if vk is None:
+    if vk is None or mainkeys != 1:
         return None
     return mods, vk
 
@@ -108,6 +119,25 @@ def _trigger(hk_id):
         _last_fired.update({'vid': vid, 'combo': b.get('combo'), 'at': time.time()})
     except Exception as e:
         print(f"[Hotkey Engine] playback error for id={hk_id}: {e}", flush=True)
+
+
+def _toggle_bypass():
+    """Flip the bypass state. Runs on the loop thread (from WM_HOTKEY), so it just queues
+    (un)register commands — the loop drains them on its next pass. Bypassed -> unregister every
+    sound hotkey so the OS stops consuming those keys (you can type); un-bypassed -> re-register
+    them from the cached bindings. The bypass key stays registered throughout."""
+    _bypassed[0] = not _bypassed[0]
+    with _lock:
+        items = list(_bindings.items())
+    if _bypassed[0]:
+        for hk_id, _b in items:
+            _cmd_q.put(('unregister', hk_id))
+    else:
+        for hk_id, b in items:
+            if b.get('vk') is not None:
+                _cmd_q.put(('register', hk_id, b.get('mods', 0), b['vk']))
+    _wake()
+    print(f"[Hotkey Engine] bypass toggled -> {_bypassed[0]}", flush=True)
 
 
 def _apply(user32, cmd):
@@ -154,7 +184,11 @@ def _loop():
         if r in (0, -1):
             continue
         if msg.message == WM_HOTKEY:
-            _trigger(int(msg.wParam))
+            hk = int(msg.wParam)
+            if hk and hk == _bypass_id[0]:
+                _toggle_bypass()
+            else:
+                _trigger(hk)
         else:
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
@@ -174,6 +208,12 @@ def clear_all():
         _bindings.clear()
     for hk_id in ids:
         _cmd_q.put(('unregister', hk_id))
+    # Drop the bypass key too and reset to active so the next arm starts clean.
+    if _bypass_id[0]:
+        _cmd_q.put(('unregister', _bypass_id[0]))
+        _bypass_id[0] = 0
+    _bypass_combo[0] = None
+    _bypassed[0] = False
     _wake()
     return {'ok': True, 'cleared': len(ids)}
 
@@ -219,9 +259,21 @@ def set_bindings(payload):
             _next_id[0] += 1
             _bindings[hk_id] = {'samples': samples, 'rate': rate, 'device': device,
                                 'vol': float(it.get('volume') or 1.0), 'combo': combo, 'ok': None,
-                                'vid': str(it.get('voiceId') or '') or None}
+                                'vid': str(it.get('voiceId') or '') or None,
+                                'mods': mods, 'vk': vk}  # mods/vk kept so bypass can re-arm
         _cmd_q.put(('register', hk_id, mods, vk))
         queued.append(hk_id)
+    # Register the bypass toggle key (own id, not in _bindings so it never plays a sound).
+    bypass_combo = str(payload.get('bypassCombo') or '')
+    parsed_b = _parse_combo(bypass_combo)
+    if parsed_b:
+        mods_b, vk_b = parsed_b
+        with _lock:
+            bid = _next_id[0]
+            _next_id[0] += 1
+            _bypass_id[0] = bid
+            _bypass_combo[0] = bypass_combo
+        _cmd_q.put(('register', bid, mods_b, vk_b))
     _wake()
     # Wait briefly for the loop thread to actually RegisterHotKey each combo so we can report
     # real success/conflict (a combo already owned by another app fails to register).
@@ -242,4 +294,5 @@ def status():
     with _lock:
         binds = [{'combo': b['combo'], 'registered': b['ok']} for b in _bindings.values()]
     return {'ok': True, 'bindings': binds, 'active': _started, 'triggers': _triggers[0],
-            'elevated': _is_elevated(), 'lastFired': dict(_last_fired) if _last_fired else None}
+            'elevated': _is_elevated(), 'lastFired': dict(_last_fired) if _last_fired else None,
+            'bypassed': _bypassed[0], 'bypassCombo': _bypass_combo[0]}

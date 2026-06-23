@@ -1,4 +1,5 @@
-.audioflix-routing-drawer {
+.audioflix-routing-drawer,
+.audioflix-settings-drawer {
     margin: 12px 24px 0;
     overflow: hidden;
     border: 1px solid rgba(255, 202, 95, 0.22);
@@ -6,6 +7,64 @@
     background:
         radial-gradient(circle at 8% 20%, rgba(255, 202, 95, 0.1), transparent 44%),
         linear-gradient(135deg, rgba(14, 18, 18, 0.84), rgba(8, 22, 28, 0.72));
+}
+
+.audioflix-settings-body {
+    padding: 4px 14px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.audioflix-settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.audioflix-settings-field > span {
+    color: rgba(255, 202, 95, 0.86);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.audioflix-settings-field > input {
+    padding: 9px 12px;
+    border-radius: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(8, 14, 16, 0.72);
+    color: #f7fbff;
+    font-size: 0.95rem;
+}
+
+.audioflix-settings-hint {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: rgba(234, 242, 246, 0.62);
+}
+
+.audioflix-settings-hint strong {
+    color: #ffca5f;
+}
+
+.audioflix-bypass-status {
+    font-size: 0.82rem;
+    color: rgba(234, 242, 246, 0.7);
+}
+
+.audioflix-bypass-state {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.audioflix-bypass-state[data-state="active"] {
+    color: #34d399;
+}
+
+.audioflix-bypass-state[data-state="bypassed"] {
+    color: #ffca5f;
 }
 
 .audioflix-routing-summary {

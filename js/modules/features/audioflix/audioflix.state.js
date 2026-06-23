@@ -42,6 +42,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         soundboardGroups: [],
         soundGroupMap: {},
         activeFrontendGroup: '',
+        hotkeyBypassCombo: '',
         counters: {
             plays: 0,
             routedGeminiEvents: 0
@@ -159,6 +160,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                     .filter(([, v]) => v.length))
                 : {},
             activeFrontendGroup: text(source.activeFrontendGroup, ''),
+            hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
                 routedGeminiEvents: Number(source.counters?.routedGeminiEvents || 0) || 0

@@ -320,7 +320,7 @@ def _open_output_stream(device_index: int, channels: int, callback, preferred_ra
 class _PcmPlayer:
     def __init__(self, device_index: int, source_rate: int, channels: int) -> None:
         self.device_index, self.source_rate, self.channels = device_index, int(source_rate), channels
-        self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=64), None, False, time.monotonic()
+        self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=128), None, False, time.monotonic()
         # One-shot "voices" (soundboard layers) are mixed together in the callback so
         # multiple/overlapping presses sum cleanly instead of fighting over one FIFO
         # queue (which interleaved chunks and sounded choppy).
@@ -393,11 +393,13 @@ class _PcmPlayer:
         try:
             self.q.put_nowait(samples)
         except queue.Full:
-            while not self.q.empty():
-                try:
-                    self.q.get_nowait()
-                except queue.Empty:
-                    break
+            # Drop only the OLDEST chunk and append this one (a tiny gap) instead of clearing
+            # the whole buffer. Clearing everything is what made the first Gemini reply cut out:
+            # a cold WASAPI open let chunks pile past maxsize and the whole reply was dumped.
+            try:
+                self.q.get_nowait()
+            except queue.Empty:
+                pass
             try:
                 self.q.put_nowait(samples)
             except queue.Full:
@@ -498,6 +500,23 @@ def play_voice(payload: dict) -> dict:
     player.add_voice(samples, payload.get("voiceId"), volume)
     return {"ok": True, "kind": "voice", "queued": int(samples.shape[0]), "deviceId": device_id, "voices": len(player.voices)}
 
+def warm(payload: dict) -> dict:
+    """Pre-open the output stream for a device + rate so the FIRST stream/voice isn't clipped by
+    a cold WASAPI open. The client calls this when the native bridge is armed, so the first
+    Gemini reply hits an already-running CABLE stream (was the first-play cutout)."""
+    if sd is None or np is None:
+        return {"ok": False, "message": "Native playback unavailable."}
+    device_id = str(payload.get("deviceId") or "")
+    if not device_id:
+        return {"ok": False, "message": "No native output device selected."}
+    rate = int(payload.get("sampleRate") or 24000)
+    try:
+        player = _player_for(device_id, rate, 1)
+        return {"ok": True, "deviceId": device_id, "sampleRate": rate, "warmed": bool(player and player.stream)}
+    except Exception as exc:
+        return {"ok": False, "message": str(exc)}
+
+
 def set_voice_volume(payload: dict) -> dict:
     if sd is None or np is None:
         return {"ok": False, "message": "Native playback unavailable."}
@@ -567,7 +586,7 @@ def hotkeys_clear(payload: dict) -> dict:
 
 
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear}.get(path)
     if not action:
         return False
     if not _can_control(handler):

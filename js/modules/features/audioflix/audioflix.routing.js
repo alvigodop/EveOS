@@ -39,8 +39,13 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             ].join('');
         }
         return ['<option value="">Default output</option>'].concat(devices.map((device) => {
-            const blocked = entry.blocked && device.deviceId === entry.blocked;
-            const label = blocked ? `${device.label || 'Selected output'} (Voice Port route)` : device.label;
+            const blockedById = entry.blocked && device.deviceId === entry.blocked;
+            // Monitor is meant for real speakers/headphones. Routing it to a CABLE Input would feed
+            // Gemini's voice straight back into the mic path -> feedback loop. Block CABLE sinks here.
+            const blockedCable = entry.blockCable && isCableLabel(device.label);
+            const blocked = blockedById || blockedCable;
+            const suffix = blockedCable ? ' (avoid - feedback loop)' : (blockedById ? ' (Voice Port route)' : '');
+            const label = `${device.label || (blocked ? 'Selected output' : 'Output')}${suffix}`;
             return `<option value="${esc(device.deviceId)}"${blocked ? ' disabled' : ''}>${esc(label)}</option>`;
         })).join('');
     }
@@ -332,12 +337,19 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
         }
         [
             { selector: '[data-af-control="output-select"]', current: snapshot.preferredSinkId || '' },
-            { selector: '[data-af-control="monitor-output-select"]', current: snapshot.geminiVoiceMonitorSinkId || '', blocked: snapshot.preferredSinkId || '' }
+            { selector: '[data-af-control="monitor-output-select"]', current: snapshot.geminiVoiceMonitorSinkId || '', blocked: snapshot.preferredSinkId || '', blockCable: true }
         ].forEach(function (entry) {
             const select = overlay.querySelector(entry.selector);
             if (!select) return;
             select.innerHTML = renderBrowserOptions(devices, entry);
-            select.value = !hasAnonymousOutputs(devices) && entry.current && entry.current !== entry.blocked ? entry.current : '';
+            const curDev = devices.find((d) => d.deviceId === entry.current);
+            const currentBlocked = (entry.current && entry.current === entry.blocked)
+                || (entry.blockCable && curDev && isCableLabel(curDev.label));
+            select.value = !hasAnonymousOutputs(devices) && entry.current && !currentBlocked ? entry.current : '';
+            // Self-heal a legacy/feedback-prone monitor sink (e.g. a CABLE Input saved before this guard).
+            if (entry.blockCable && currentBlocked && entry.current) {
+                window.EveAudioflixGemini?.setMonitorSink?.('', 'Default monitor output');
+            }
         });
         listNativeOutputs(false).then((payload) => {
             const select = overlay.querySelector('[data-af-control="native-output-select"]');

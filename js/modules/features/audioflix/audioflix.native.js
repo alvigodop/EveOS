@@ -125,14 +125,37 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return lastStatus;
     }
 
+    async function warm(sampleRate) {
+        const current = state();
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
+        const payload = await fetchJson('/api/audioflix/warm', {
+            method: 'POST',
+            body: JSON.stringify({ deviceId: current.nativeOutputId, sampleRate: sampleRate || 24000 }),
+            timeout: DEFAULT_TIMEOUT_MS
+        });
+        return payload?.ok === true;
+    }
+
+    // Pre-open the CABLE stream(s) when the bridge is armed so the FIRST Gemini reply (24k) and
+    // first soundboard voice (48k) aren't clipped by a cold WASAPI open.
+    function maybeWarm() {
+        const current = state();
+        if (current.nativeBridgeEnabled === true && current.nativeOutputId) {
+            warm(24000).catch(() => {});
+            warm(48000).catch(() => {});
+        }
+    }
+
     function selectNativeOutput(deviceId, label) {
         const enabled = !!deviceId;
-        return update({
+        const result = update({
             nativeBridgeEnabled: enabled,
             nativeOutputId: String(deviceId || ''),
             nativeOutputLabel: String(label || '').trim(),
             routeMode: enabled ? 'native-bridge' : 'browser'
         }, 'audioflix-native-output');
+        if (enabled) maybeWarm();
+        return result;
     }
 
     function selectNativeInput(deviceId, label) {
@@ -144,10 +167,12 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     function setNativeBridgeEnabled(enabled) {
         const current = state();
-        return update({
+        const result = update({
             nativeBridgeEnabled: enabled === true && !!current.nativeOutputId,
             routeMode: enabled === true && current.nativeOutputId ? 'native-bridge' : 'browser'
         }, 'audioflix-native-bridge-toggle');
+        if (enabled === true && current.nativeOutputId) maybeWarm();
+        return result;
     }
 
     function shouldSuppressBrowserPlayback() {
@@ -297,6 +322,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         setHotkeys,
         clearHotkeys,
         hotkeyStatus,
+        warm,
         getStatus: function () { return lastStatus; }
     });
 })();
