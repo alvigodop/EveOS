@@ -181,7 +181,16 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
 
         function handleOutsideClick(event) {
             const indicator = document.getElementById('loadingIndicator');
-            if (indicator && !indicator.contains(event.target)) {
+            if (!indicator) return;
+            // Dialogs/confirms opened from the monitor are appended to <body>, outside the
+            // indicator. Clicking one is not "clicking out" of the monitor.
+            const target = event.target;
+            const isDialog = target && typeof target.closest === 'function' && target.closest(
+                '#custom-modal-overlay, #chat-clear-dialog, #chat-clear-overlay, '
+                + '#gemini-new-chat-confirm, #eve-inline-prompt-overlay, .modal-overlay, '
+                + '[role="dialog"], [data-eve-dialog]'
+            );
+            if (!indicator.contains(target) && !isDialog) {
                 collapse();
             }
         }

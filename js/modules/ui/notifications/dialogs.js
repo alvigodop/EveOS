@@ -1,10 +1,24 @@
 window.getModalStackZIndex = function () {
-    const candidates = [
-        document.getElementById('constellation-map-overlay'),
-        document.getElementById('custom-modal-overlay'),
-        document.getElementById('custom-confirm-modal'),
-        ...Array.from(document.querySelectorAll('.modal-overlay'))
-    ].filter(Boolean);
+    // Any currently-open overlay/dialog that the confirm modal must sit ON TOP of. This must
+    // include high-z dialogs spawned from other surfaces (e.g. the Chat Clear dialog at z=100000),
+    // otherwise a confirm triggered from inside one of them renders BEHIND it.
+    const selectors = [
+        '#constellation-map-overlay',
+        '#custom-modal-overlay',
+        '#custom-confirm-modal',
+        '#chat-clear-dialog',
+        '#chat-clear-overlay',
+        '#gemini-new-chat-confirm',
+        '.modal-overlay',
+        '[data-eve-dialog]'
+    ];
+    const seen = new Set();
+    const candidates = [];
+    selectors.forEach((selector) => {
+        document.querySelectorAll(selector).forEach((element) => {
+            if (element && !seen.has(element)) { seen.add(element); candidates.push(element); }
+        });
+    });
 
     return candidates.reduce((maxZ, element) => {
         const style = window.getComputedStyle ? window.getComputedStyle(element) : null;

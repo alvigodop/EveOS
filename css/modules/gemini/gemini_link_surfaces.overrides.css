@@ -289,6 +289,20 @@
     overflow: hidden;
 }
 
+/* The voice/command buttons (Clear Chat, Clear System Log, Toggle Past Chats, etc.) live
+   inside .video-section. The overflow:hidden above clipped them when they wrapped at normal
+   zoom — they only appeared after zooming out. Let .video-section show its content; the
+   scrolling .left-column makes any overflow reachable instead of clipped. Also drop the legacy
+   `background:white` (video_section.css) that made light-on-light titles invisible in the dark
+   monitor. */
+#loadingIndicator #gemini-ui-root .video-section {
+    background: transparent !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .video-section {
+    overflow: visible !important;
+}
+
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
     padding: 10px !important;
     margin: 0 !important;

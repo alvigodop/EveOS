@@ -291,9 +291,21 @@
         return true;
     }
 
+    // Dialogs/confirms opened FROM the monitor (clear chat, clear-all confirm, new-chat confirm,
+    // inline prompts, generic modals) are appended to <body>, OUTSIDE the indicator's DOM. A click
+    // on one of those is interaction with a monitor-spawned surface, not "clicking out" of it.
+    function isMonitorDialogTarget(target) {
+        if (!target || typeof target.closest !== 'function') return false;
+        return !!target.closest(
+            '#custom-modal-overlay, #chat-clear-dialog, #chat-clear-overlay, '
+            + '#gemini-new-chat-confirm, #eve-inline-prompt-overlay, .modal-overlay, '
+            + '[role="dialog"], [data-eve-dialog]'
+        );
+    }
+
     function handleOutsideClick(event) {
         const indicator = getIndicator();
-        if (!indicator || indicator.contains(event.target)) {
+        if (!indicator || indicator.contains(event.target) || isMonitorDialogTarget(event.target)) {
             return;
         }
 
