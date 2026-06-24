@@ -10,7 +10,11 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     const LIVE_CONTEXT_CHUNK_CHARS = 45000;
-    const LIVE_CONTEXT_MAX_CHARS = 120000;
+    // The Gemini Live oversized-frame disconnect is a PER-FRAME limit, not a total one — every
+    // chunk we send is already a safe 45k, staggered 180ms apart. So the whole datapack can go
+    // through as more batches without risking a reload; this ceiling is only a runaway guard for a
+    // pathological multi-MB state (≈13 frames at 600k), not a content cap that silently drops cards.
+    const LIVE_CONTEXT_MAX_CHARS = 600000;
     const LIVE_CONTEXT_CHUNK_DELAY_MS = 180;
 
     async function syncNow(force = true) {
@@ -315,7 +319,7 @@ window.EveDataStore = window.EveDataStore || {};
         const raw = String(message || '');
         const truncated = raw.length > LIVE_CONTEXT_MAX_CHARS;
         const clipped = truncated
-            ? `${raw.slice(0, LIVE_CONTEXT_MAX_CHARS)}\n\n[TRANSPORT NOTICE: EveOS context was clipped at ${LIVE_CONTEXT_MAX_CHARS.toLocaleString()} characters to avoid a Gemini Live oversized-frame disconnect. Narrow the scope or use Rich Summary for the full live session.]`
+            ? `${raw.slice(0, LIVE_CONTEXT_MAX_CHARS)}\n\n[TRANSPORT NOTICE: EveOS context was very large and was capped at ${LIVE_CONTEXT_MAX_CHARS.toLocaleString()} characters (sent as ${Math.ceil(LIVE_CONTEXT_MAX_CHARS / LIVE_CONTEXT_CHUNK_CHARS)} batched chunks). Narrow the scope or lower the detail tier to send the remainder.]`
             : raw;
         const parts = [];
         for (let index = 0; index < clipped.length; index += LIVE_CONTEXT_CHUNK_CHARS) {
