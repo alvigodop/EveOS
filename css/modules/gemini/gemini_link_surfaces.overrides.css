@@ -290,17 +290,29 @@
 }
 
 /* The voice/command buttons (Clear Chat, Clear System Log, Toggle Past Chats, etc.) live
-   inside .video-section. The overflow:hidden above clipped them when they wrapped at normal
-   zoom — they only appeared after zooming out. Let .video-section show its content; the
-   scrolling .left-column makes any overflow reachable instead of clipped. Also drop the legacy
-   `background:white` (video_section.css) that made light-on-light titles invisible in the dark
-   monitor. */
+   inside .video-section in the left control column. Two things clipped the lower rows at normal
+   zoom (you had to zoom out to see them):
+     1. overflow:hidden above clipped anything past the section box.
+     2. the control-column cards default to flex-shrink:1, so when the column is height-bounded
+        they get COMPRESSED to fit and the bottom command rows vanish under Agentic Functions.
+   Fix: drop the legacy `background:white` (video_section.css) that made light-on-light titles
+   invisible, let .video-section show its content, and stop the column's cards from shrinking so
+   they keep full height while the column scrolls. */
 #loadingIndicator #gemini-ui-root .video-section {
     background: transparent !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .video-section {
     overflow: visible !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .left-column {
+    overflow-y: auto !important;
+    min-height: 0 !important;
+}
+
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .left-column > * {
+    flex-shrink: 0 !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] .chat-container {
