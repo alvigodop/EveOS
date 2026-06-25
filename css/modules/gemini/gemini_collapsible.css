@@ -56,6 +56,25 @@
     margin-bottom: 0 !important;
 }
 
+/* In the base (non-full / non-fullscreen) monitor view, chat_log.css sets
+   `#systemLog .system-messages-container { max-height: 100% !important }` (specificity 1-1-0),
+   which outranked the generic collapse rule above (0-2-0) and kept the log body open when
+   collapsed — leaving the box at full height with a big empty gap above the input. These
+   id+two-class selectors (1-2-0) win, so the body actually collapses and the placeholder shrinks
+   to its header in every view. */
+#systemLog.collapsed > .system-messages-container,
+#systemLog.collapsed > .gemini-system-messages,
+#chatLog.collapsed > .chat-messages-container,
+#chatLog.collapsed > .gemini-chat-messages,
+#pastChatsLog.collapsed > .gemini-history-content {
+    max-height: 0 !important;
+    min-height: 0 !important;
+    height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    overflow: hidden !important;
+}
+
 /* Keep header looking clean when collapsed */
 [data-collapsible-section].collapsed {
     padding-bottom: 0;

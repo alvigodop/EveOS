@@ -320,10 +320,12 @@
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #main-chat-log-placeholder {
+    /* Grow to fill the chat-container so a collapsed system log leaves no dead gap above the
+       input (fixed-height chat in a full-height column was the cause). */
     height: auto !important;
-    min-height: clamp(300px, 30dvh, 520px) !important;
-    max-height: clamp(300px, 30dvh, 520px) !important;
-    flex: 0 0 auto !important;
+    min-height: clamp(280px, 30dvh, 460px) !important;
+    max-height: none !important;
+    flex: 1 1 auto !important;
 }
 
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="full"] #chatLog {
