@@ -3,13 +3,15 @@
  *
  * Contains the AudioWorklet processor code and registration logic.
  *
- * Playback uses a FIXED pre-allocated ring buffer. The audio render thread is a
- * "no-allocation zone": the previous version reallocated and copied the entire
- * audio history on every incoming chunk and never freed already-played samples,
- * so over a long session the per-chunk copy grew O(n), the worklet missed its
- * render deadline, and playback dropped out / degraded. A bounded ring buffer
- * keeps memory and per-chunk work constant, and a small jitter pre-roll stops the
- * first reply from cutting out before enough audio is queued.
+ * Playback uses a FIXED pre-allocated ring buffer (the audio render thread is a "no-allocation
+ * zone") with a jitter buffer for smooth live streaming:
+ *   - A ~200ms pre-roll raises the steady-state buffer floor, so normal network jitter rarely
+ *     drains it to empty (fewer underruns => less choppiness).
+ *   - A momentary drain is tolerated as a tiny gap, but a SUSTAINED underrun rebuffers (waits for
+ *     the cushion again) so playback resumes cleanly instead of micro-stuttering chunk by chunk.
+ *   - Every chunk is played in arrival order. There is no seq gap-drop: the old version discarded
+ *     valid late/resent packets (seq <= lastSeq) and could carve holes into the audio. The Live
+ *     transport is ordered and reliable, so in-order playback is correct.
  */
 
 window.AudioWorkletCode = {
@@ -24,9 +26,9 @@ window.AudioWorkletCode = {
                     this.readIndex = 0;
                     this.writeIndex = 0;
                     this.available = 0;        // queued (unplayed) samples
-                    this.started = false;      // gate FIRST play on a small jitter pre-roll
-                    this.preroll = 2400;       // ~100ms @ 24kHz -> no first-reply cut-out
-                    this.lastSeq = -1;
+                    this.started = false;      // gate first play / rebuffer on the jitter cushion
+                    this.preroll = 4800;       // ~200ms @ 24kHz jitter buffer
+                    this.emptyQuanta = 0;      // consecutive silent render quanta while playing
                     this.isFinal = false;
 
                     this.port.onmessage = (event) => {
@@ -38,34 +40,13 @@ window.AudioWorkletCode = {
                             this.writeIndex = 0;
                             this.available = 0;
                             this.started = false;
-                            this.lastSeq = -1;
+                            this.emptyQuanta = 0;
                             this.isFinal = false;
                             return;
                         }
 
-                        // New audio payload with sequencing (preferred)
+                        // Audio payload — play every chunk in arrival order.
                         if (msg && msg.type === 'audio' && msg.data instanceof Float32Array) {
-                            const seq = typeof msg.seq === 'number' ? msg.seq : -1;
-
-                            // Detect gaps or out-of-order delivery
-                            if (seq !== -1) {
-                                if (this.lastSeq !== -1 && seq > this.lastSeq + 1) {
-                                    const missing = [];
-                                    for (let s = this.lastSeq + 1; s < seq; s++) missing.push(s);
-                                    if (missing.length > 0) {
-                                        try {
-                                            this.port.postMessage({ type: 'requestMissing', seq: missing });
-                                        } catch (e) {
-                                            // best-effort gap recovery
-                                        }
-                                    }
-                                }
-                                if (seq <= this.lastSeq) {
-                                    return; // stale / duplicate packet
-                                }
-                                this.lastSeq = seq;
-                            }
-
                             this._write(msg.data);
                             if (msg.final) this.isFinal = true;
                             return;
@@ -100,8 +81,6 @@ window.AudioWorkletCode = {
                     }
                     this.writeIndex = w;
                     this.available += len;
-
-                    if (this.available > 0) this.playing = true;
                 }
 
                 process(inputs, outputs, parameters) {
@@ -110,9 +89,12 @@ window.AudioWorkletCode = {
                     if (!channel) return true;
                     const need = channel.length;
 
-                    // Hold the very first samples until a small pre-roll is buffered so the start
-                    // of a reply is not clipped by a cold/underrun start.
-                    if (!this.started && this.available >= this.preroll) this.started = true;
+                    // Hold until a jitter cushion is queued — gates the first play and any rebuffer
+                    // after a sustained underrun, so the start of speech is never clipped.
+                    if (!this.started && this.available >= this.preroll) {
+                        this.started = true;
+                        this.emptyQuanta = 0;
+                    }
 
                     if (this.started && this.available > 0) {
                         const toCopy = Math.min(need, this.available);
@@ -125,17 +107,29 @@ window.AudioWorkletCode = {
                         }
                         this.readIndex = r;
                         this.available -= toCopy;
-
-                        // Underrun within a render quantum -> brief silence, resume when more
-                        // data arrives (started stays true so there is no choppy re-buffer).
                         for (let i = toCopy; i < need; i++) channel[i] = 0;
 
+                        // Healthy if data remains; if we just drained, leave the counter for the
+                        // underrun branch to decide whether it is momentary or sustained.
+                        if (this.available > 0) this.emptyQuanta = 0;
                         if (this.available === 0 && this.isFinal) {
                             this.started = false;
                             this.isFinal = false;
+                            this.emptyQuanta = 0;
                         }
                     } else {
                         for (let i = 0; i < need; i++) channel[i] = 0;
+                        if (this.started) {
+                            // Underrun: producer fell behind. Tolerate a momentary gap, but on a
+                            // sustained underrun rebuffer so playback resumes smoothly rather than
+                            // stuttering quantum by quantum.
+                            this.emptyQuanta++;
+                            if (this.emptyQuanta > 2 || this.isFinal) {
+                                this.started = false;
+                                this.isFinal = false;
+                                this.emptyQuanta = 0;
+                            }
+                        }
                     }
 
                     // Always continue processing

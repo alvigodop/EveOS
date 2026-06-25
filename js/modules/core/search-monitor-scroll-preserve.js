@@ -1,15 +1,16 @@
 /**
  * Search Monitor Scroll Preservation
  *
- * The expanded Search Monitor / Gemini workspace scroll areas (the control column, chat log,
- * system log, past chats) could snap back to the top when a periodic update re-rendered a
- * subtree or some code reset scrollTop. The fix here is source-agnostic: remember where the USER
- * scrolled each container, and if something later resets it to the top without user input, snap
- * it back to where they were.
+ * The expanded Search Monitor / Gemini workspace scroll areas could snap back to the top when a
+ * periodic update or a new Gemini message re-rendered a subtree or reset scrollTop. The fix is
+ * source-agnostic: remember where the USER scrolled, and if something later resets a container to
+ * the top without user input, snap it back.
  *
- * It only ever restores when a container is reset to ~top while we hold a meaningful saved
- * position, so it never fights a deliberate scroll-to-top and never interferes with the chat's
- * auto-scroll-to-bottom (which lands far from the top).
+ * It is GENERIC — it tracks any scrollable element the user actually scrolls inside the monitor
+ * (the outer `.gemini-monitor-shell`, the control column, chat/system logs, past chats, etc.)
+ * rather than a hard-coded list, so it can't miss a container. It only restores when a tracked
+ * element is reset to ~top while we hold a meaningful saved position, so it never fights a
+ * deliberate scroll-to-top and never interferes with the chat's auto-scroll-to-bottom.
  */
 (function () {
     'use strict';
@@ -17,62 +18,52 @@
     window.__eveMonitorScrollPreserveReady = true;
 
     const ROOT_ID = 'loadingIndicator';
-    const SCROLLER_SELECTOR = [
-        '.left-column', '.right-column',
-        '.chat-messages-container', '.gemini-chat-messages',
-        '.system-messages-container', '.gemini-system-messages',
-        '#pastChatsLog', '#previousConversationContent'
-    ].join(', ');
-    // Stable keys so a saved position survives the container being re-rendered/replaced.
-    const KEY_CLASSES = [
-        'left-column', 'right-column', 'chat-messages-container', 'gemini-chat-messages',
-        'system-messages-container', 'gemini-system-messages'
-    ];
-    const MIN_MEANINGFUL = 4;     // ignore tiny scrolls
+    const MIN_MEANINGFUL = 4;          // ignore tiny scrolls
+    const SCROLLABLE_SLACK = 8;        // px of overflow needed to count as scrollable
     const USER_INPUT_WINDOW_MS = 700;
 
-    const saved = Object.create(null);
+    const sigTop = Object.create(null);   // signature -> last user scrollTop (survives re-render)
+    const tracked = new Set();            // live element refs the user has scrolled
     let lastUserInputAt = 0;
     let restoring = false;
 
     function root() { return document.getElementById(ROOT_ID); }
 
-    function keyFor(el) {
+    function isScrollable(el) {
+        return el instanceof Element && (el.scrollHeight - el.clientHeight) > SCROLLABLE_SLACK;
+    }
+
+    // Stable-ish key so a saved position can survive the container being re-rendered/replaced.
+    function signature(el) {
         if (el.id) return '#' + el.id;
-        for (let i = 0; i < KEY_CLASSES.length; i += 1) {
-            if (el.classList && el.classList.contains(KEY_CLASSES[i])) return '.' + KEY_CLASSES[i];
+        let cls = '';
+        if (typeof el.className === 'string' && el.className.trim()) {
+            cls = '.' + el.className.trim().split(/\s+/).slice(0, 3).join('.');
         }
-        return null;
+        return el.tagName.toLowerCase() + cls;
     }
 
-    function isScroller(el) {
-        return el instanceof Element
-            && typeof el.matches === 'function'
-            && el.matches(SCROLLER_SELECTOR)
-            && !!keyFor(el);
-    }
-
-    // Track genuine user intent so we don't mistake a programmatic reset for a user scroll.
+    // Track genuine user intent so a programmatic reset isn't mistaken for a user scroll.
     ['wheel', 'touchmove', 'keydown', 'pointerdown', 'mousedown'].forEach(function (type) {
         document.addEventListener(type, function () { lastUserInputAt = Date.now(); },
             { capture: true, passive: true });
     });
 
-    // scroll doesn't bubble -> listen in the capture phase.
+    // scroll doesn't bubble -> capture phase.
     document.addEventListener('scroll', function (event) {
         const el = event.target;
-        if (restoring || !isScroller(el)) return;
+        if (restoring || !(el instanceof Element)) return;
         const host = root();
-        if (!host || !host.contains(el)) return;
-        const key = keyFor(el);
-        const userDriven = (Date.now() - lastUserInputAt) < USER_INPUT_WINDOW_MS;
-        if (userDriven) {
-            // Remember where the user put it (including a deliberate scroll to top).
-            saved[key] = el.scrollTop;
-        } else if (el.scrollTop <= 1 && saved[key] > MIN_MEANINGFUL && el.scrollHeight > el.clientHeight) {
+        if (!host || !host.contains(el) || !isScrollable(el)) return;
+        const key = signature(el);
+        if ((Date.now() - lastUserInputAt) < USER_INPUT_WINDOW_MS) {
+            // User put it here (including a deliberate scroll to top) -> remember it.
+            sigTop[key] = el.scrollTop;
+            tracked.add(el);
+        } else if (el.scrollTop <= 1 && sigTop[key] > MIN_MEANINGFUL) {
             // A non-user reset to the top -> put it back where the user was.
             restoring = true;
-            el.scrollTop = saved[key];
+            el.scrollTop = sigTop[key];
             restoring = false;
         }
     }, true);
@@ -82,11 +73,10 @@
         if (!host) return;
         restoring = true;
         try {
-            host.querySelectorAll(SCROLLER_SELECTOR).forEach(function (el) {
-                const key = keyFor(el);
-                if (!key) return;
-                const want = saved[key];
-                if (want > MIN_MEANINGFUL && el.scrollTop <= 1 && el.scrollHeight > el.clientHeight) {
+            tracked.forEach(function (el) {
+                if (!host.contains(el)) { tracked.delete(el); return; }
+                const want = sigTop[signature(el)];
+                if (want > MIN_MEANINGFUL && el.scrollTop <= 1 && (el.scrollHeight - el.clientHeight) > SCROLLABLE_SLACK) {
                     el.scrollTop = want;
                 }
             });
@@ -98,9 +88,12 @@
     function start() {
         const host = root();
         if (!host) { window.setTimeout(start, 800); return; }
-        // Any subtree re-render under the monitor can reset a scroller -> restore next frame.
+        // Any subtree re-render under the monitor (e.g. a new Gemini message) can reset a
+        // scroller -> restore on the next frame, and again shortly after in case content/height
+        // was still settling when the first restore ran.
         const observer = new MutationObserver(function () {
             window.requestAnimationFrame(restoreAll);
+            window.setTimeout(restoreAll, 120);
         });
         observer.observe(host, { childList: true, subtree: true });
     }
@@ -111,5 +104,5 @@
         start();
     }
 
-    window.EveMonitorScrollPreserve = { restoreAll: restoreAll, _saved: saved };
+    window.EveMonitorScrollPreserve = { restoreAll: restoreAll, _sigTop: sigTop, _tracked: tracked };
 })();
