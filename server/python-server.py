@@ -108,8 +108,28 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
         self.send_header("Access-Control-Max-Age", "86400")  # 24 hours
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self._send_cache_control()
         super().end_headers()
+
+    def _send_cache_control(self):
+        """Pick a cache policy so localhost loads fast without serving stale code.
+
+        - API responses are always dynamic -> never cache.
+        - Versioned static assets (URL carries `?v=`) are safe to cache hard: the version IS the
+          cache-buster, so bumping it changes the URL and forces a fresh fetch. This is what makes
+          repeat loads fast — the hundreds of `?v=` JS/CSS files come straight from the browser
+          cache instead of being re-downloaded every time (the old `no-store` defeated the app's
+          own `?v=` design).
+        - Everything else (EveOS.html, the manifest, any unversioned file) is cached but always
+          revalidated (304 when unchanged) so edits and manifest version bumps show up immediately.
+        """
+        path = self.path or ""
+        if path.startswith("/api/"):
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        elif "?v=" in path or "&v=" in path:
+            self.send_header("Cache-Control", "public, max-age=86400")
+        else:
+            self.send_header("Cache-Control", "no-cache")
     
     def do_OPTIONS(self):
         """Handle OPTIONS request method for CORS preflight requests"""
