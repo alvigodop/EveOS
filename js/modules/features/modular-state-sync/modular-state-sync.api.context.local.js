@@ -953,10 +953,15 @@ window.EveDataStore = window.EveDataStore || {};
             localFallback: true
         } : summary;
         const header = `[SYSTEM CONTEXT: ${LOCAL_CONTEXT_MODE_PROFILES[safeMode].header} follows as JSON. Use it as reference context. cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]`;
+        // Anti-bloat gradient: the lean tiers (Quick/Rich) ship COMPACT JSON — the pretty-print
+        // indentation/newlines are pure whitespace tokens that cost Gemini context for zero info.
+        // The expansive tiers (Deep/Complete) stay pretty-printed so the larger tree is readable.
+        const prettyPrint = (safeMode === 'deep' || safeMode === 'full');
+        const json = prettyPrint ? JSON.stringify(payload, null, 2) : JSON.stringify(payload);
         return {
             ok: true,
             mode: safeMode,
-            contextText: `${header}\n${JSON.stringify(payload, null, 2)}`,
+            contextText: `${header}\n${json}`,
             payload,
             localFallback: true
         };
