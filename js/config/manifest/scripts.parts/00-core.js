@@ -10,6 +10,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/utils.js?v=0.2.1",
     "js/modules/core/favicon-utils.js?v=0.1.2",
     "js/modules/core/search-monitor-boot.js?v=0.1.6",
+    "js/modules/core/search-monitor-scroll-preserve.js?v=0.1.0",
     "js/modules/core/performance-monitor.js?v=0.1.2",
     "js/modules/core/indexeddb-store.js",
     "js/modules/core/storage.runtime.shared.js?v=0.1.0",
