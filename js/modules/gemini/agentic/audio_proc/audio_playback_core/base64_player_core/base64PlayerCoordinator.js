@@ -138,6 +138,29 @@ window.Base64PlayerCore.Coordinator = {
                 source.start();
                 console.log("Audio playback started successfully");
 
+                // Reflect the PLAYING state on the player's button for EVERY trigger — auto-play on
+                // message arrival, queue playback, and seek all call this coordinator directly and
+                // bypass the click handler that used to be the only place the icon flipped. Without
+                // this the icon stayed on "play" through the whole playback. Cleanup/onended reverts
+                // it back to play_arrow.
+                if (playButton) {
+                    const playIcon = playButton.querySelector('i');
+                    if (playIcon) playIcon.textContent = 'pause';
+                }
+
+                // Drive the player's live waveform visualizer from the playback signal (tap the
+                // source through an AnalyserNode — it doesn't need to reach the destination).
+                try {
+                    if (typeof container._startWaveform === 'function' && container.audioContext) {
+                        const analyser = container.audioContext.createAnalyser();
+                        analyser.fftSize = 64;
+                        analyser.smoothingTimeConstant = 0.7;
+                        source.connect(analyser);
+                        container._waveformAnalyser = analyser;
+                        container._startWaveform(analyser);
+                    }
+                } catch (e) { /* visualizer is optional */ }
+
                 // Attach diagnostics without replacing the lifecycle cleanup handler.
                 const lifecycleOnEnded = source.onended;
                 source.onended = function (event) {

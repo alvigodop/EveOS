@@ -4,7 +4,7 @@ from .session_handler.session_loop import execute_session_loop
 import websockets
 import asyncio
 import json
-from main_server_files.session_management.session_manager import cleanup_resources
+from main_server_files.session_management.session_manager import cleanup_resources, disconnect_other_sessions
 from main_server_files.api_configuration.api_client_manager import initialize_api_client
 from main_server_files.api_configuration.api_key_manager import persist_api_key
 
@@ -27,6 +27,14 @@ async def gemini_session_handler(websocket, client):
     monitor_task = asyncio.create_task(connection_monitor.monitor_connection())
     
     try:
+        # 1b. SINGLE-OWNER ROUTING
+        # This newest surface takes over the Gemini link: cut any prior client (e.g. a file://
+        # tab when you just connected from localhost) so the session routes here, then give the
+        # kicked sessions a beat to release their semaphore slot before we acquire ours.
+        kicked = await disconnect_other_sessions(connection_id)
+        if kicked:
+            await asyncio.sleep(0.15)
+
         # 2. ACQUIRE SESSION SLOT
         slot_acquired = await acquire_session_slot(connection_monitor, error_handler, connection_id)
         if not slot_acquired:

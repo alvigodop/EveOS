@@ -28,4 +28,9 @@ window.AudioContainerHelper.cleanupContainerState = function (container, playBut
         cancelAnimationFrame(container.animationFrame);
         container.animationFrame = null;
     }
+
+    // Settle the live waveform back to its idle/flat state when playback stops.
+    if (typeof container._stopWaveform === 'function') {
+        try { container._stopWaveform(); } catch (e) { /* visualizer optional */ }
+    }
 };

@@ -704,6 +704,29 @@
             if (!state.running) return { ...state };
             await toggleServer();
             return { ...state };
+        },
+        // Manually connect/disconnect THIS client's Gemini link WITHOUT stopping the server, so you
+        // can cut the connection from one EveOS surface (e.g. file://) and bring it up on another
+        // (e.g. localhost). The server keeps running — single-owner routing on the backend hands the
+        // live link to whichever surface connects next. The manual-stop flag set here blocks
+        // auto-reconnect so a manual disconnect sticks until you click connect again.
+        setClientLink: function (connected) {
+            if (connected) {
+                setManualStop(false);
+                setDesiredServerState(true);
+                setConnectionPreference(true);
+                reconcileClientConnection();
+            } else {
+                setManualStop(true);
+                setDesiredServerState(false);
+                setConnectionPreference(false);
+                disconnectClient();
+            }
+            publish();
+            return { ...state };
+        },
+        isClientLinked: function () {
+            return !!(window.webSocket && window.webSocket.readyState === WebSocket.OPEN);
         }
     };
 

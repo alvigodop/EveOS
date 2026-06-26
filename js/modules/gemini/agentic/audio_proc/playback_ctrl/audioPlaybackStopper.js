@@ -45,6 +45,11 @@ function stopAudioPlayback(container) {
         playButton.querySelector('i').textContent = 'play_arrow';
     }
 
+    // Settle the live waveform back to idle.
+    if (typeof container._stopWaveform === 'function') {
+        try { container._stopWaveform(); } catch (e) { /* visualizer optional */ }
+    }
+
     // Reset all flags
     container.isPlaying = false;
     container.isStartingPlayback = false;

@@ -27,6 +27,60 @@ window.MessagingLog.AudioPlayerComponentCreator = {
         progressBar.style.cssText = 'width: 0%; height: 100%; background-color: #7c4dff; border-radius: 2px; position: absolute;';
         progressContainer.appendChild(progressBar);
 
+        // Live waveform — a small "vocal-cord vibration" visualizer between the controls and the
+        // time. Bars react to the audio intensity while it plays (and sit idle/flat otherwise).
+        const waveformCanvas = document.createElement('canvas');
+        waveformCanvas.className = 'audio-waveform-canvas';
+        waveformCanvas.width = 132;   // hi-dpi backing store; CSS scales it down for crispness
+        waveformCanvas.height = 44;
+        waveformCanvas.style.cssText = 'width: 66px; height: 22px; margin: 0 8px; flex: 0 0 auto; opacity: 0.95;';
+
+        const WAVE_BARS = 16;
+        const WAVE_ACCENT = '#b39dff';
+        function drawWaveBars(values) {
+            const ctx = waveformCanvas.getContext('2d');
+            if (!ctx) return;
+            const W = waveformCanvas.width, H = waveformCanvas.height;
+            ctx.clearRect(0, 0, W, H);
+            const slot = W / values.length;
+            const bw = Math.max(2, slot * 0.55);
+            ctx.fillStyle = WAVE_ACCENT;
+            for (let i = 0; i < values.length; i++) {
+                const v = Math.max(0, Math.min(1, values[i]));
+                const bh = Math.max(2, v * (H - 2));
+                const x = i * slot + (slot - bw) / 2;
+                const y = (H - bh) / 2;
+                ctx.fillRect(x, y, bw, bh);
+            }
+        }
+        function idleBars() { return new Array(WAVE_BARS).fill(0.07); }
+
+        audioPlayerContainer._waveformCanvas = waveformCanvas;
+        audioPlayerContainer._startWaveform = function (analyser) {
+            if (!analyser || typeof analyser.getByteFrequencyData !== 'function') return;
+            let data;
+            try { data = new Uint8Array(analyser.frequencyBinCount); } catch (e) { return; }
+            const self = this;
+            const frame = function () {
+                if (!self.isPlaying) { self._stopWaveform(); return; }
+                analyser.getByteFrequencyData(data);
+                const vals = [];
+                for (let b = 0; b < WAVE_BARS; b++) {
+                    const idx = Math.floor((b / WAVE_BARS) * data.length);
+                    vals.push((data[idx] || 0) / 255);
+                }
+                drawWaveBars(vals);
+                self._waveformRAF = requestAnimationFrame(frame);
+            };
+            if (self._waveformRAF) cancelAnimationFrame(self._waveformRAF);
+            self._waveformRAF = requestAnimationFrame(frame);
+        };
+        audioPlayerContainer._stopWaveform = function () {
+            if (this._waveformRAF) { cancelAnimationFrame(this._waveformRAF); this._waveformRAF = null; }
+            drawWaveBars(idleBars());
+        };
+        drawWaveBars(idleBars());   // idle state on creation
+
         // Create time display
         const timeDisplay = document.createElement('div');
         timeDisplay.className = 'audio-time-display';
@@ -63,6 +117,7 @@ window.MessagingLog.AudioPlayerComponentCreator = {
         // Add all elements to the container
         audioPlayerContainer.appendChild(playButton);
         audioPlayerContainer.appendChild(progressContainer);
+        audioPlayerContainer.appendChild(waveformCanvas);
         audioPlayerContainer.appendChild(timeDisplay);
         audioPlayerContainer.appendChild(volumeSlider);
         audioPlayerContainer.appendChild(speedSelector);

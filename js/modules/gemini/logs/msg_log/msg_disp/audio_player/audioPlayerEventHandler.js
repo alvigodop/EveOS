@@ -6,7 +6,9 @@ window.MessagingLog.AudioPlayerEventHandler = {
 
         // Play button handler
         playButton.addEventListener('click', function () {
-            if (!container.isPlaying) {
+            // Treat a live source as "playing" too, so a stale isPlaying flag can't turn a pause
+            // click into a SECOND playback (which would leave audio running with no way to stop).
+            if (!container.isPlaying && !container.audioSource) {
                 // Stop any currently playing audio first
                 const allContainers = document.querySelectorAll('.audio-player-container');
                 allContainers.forEach(otherContainer => {
@@ -44,17 +46,21 @@ window.MessagingLog.AudioPlayerEventHandler = {
                     console.error("playAudioFromBase64 function not found");
                 }
             } else {
-                // Pause playback
+                // Pause playback — fully stop this clip via the shared stopper (source + progress
+                // animation + UI + flags), not just a bare source.stop(). Also flag any in-flight
+                // start to abort so a mid-start clip can't keep playing.
+                container.needsToStop = true;
+                if (typeof window.stopAudioPlayback === 'function') {
+                    window.stopAudioPlayback(container);
+                } else {
+                    container.isPlaying = false;
+                    if (container.audioSource) {
+                        try { container.audioSource.stop(); } catch (e) { console.error('Error stopping audio:', e); }
+                        container.audioSource = null;
+                    }
+                }
                 playButton.querySelector('i').textContent = 'play_arrow';
                 container.isPlaying = false;
-                if (container.audioSource) {
-                    try {
-                        container.audioSource.stop();
-                    } catch (e) {
-                        console.error('Error stopping audio:', e);
-                    }
-                    container.audioSource = null;
-                }
             }
         });
 

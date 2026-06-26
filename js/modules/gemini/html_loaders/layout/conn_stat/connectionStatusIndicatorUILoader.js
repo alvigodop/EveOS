@@ -19,6 +19,31 @@ async function loadConnectionStatusIndicator() {
 `;
         placeholder.innerHTML = htmlContent;
 
+        // Make the connection pill a manual connect/disconnect control: click it to cut THIS
+        // device's Gemini link (the server keeps running) or to bring it back up. Single-owner
+        // routing on the backend then hands the live link to wherever you connect from, so you can
+        // move the session between the file:// and localhost surfaces just by clicking connect.
+        const pill = document.getElementById('connectionStatus');
+        if (pill && pill.dataset.linkToggleBound !== '1') {
+            pill.dataset.linkToggleBound = '1';
+            pill.style.cursor = 'pointer';
+            pill.setAttribute('role', 'button');
+            pill.setAttribute('tabindex', '0');
+            pill.title = 'Click to connect / disconnect this device from the Gemini server';
+            const toggleLink = function () {
+                const connected = pill.dataset.status === 'connected'
+                    || (window.GeminiServerControl && window.GeminiServerControl.isClientLinked
+                        ? window.GeminiServerControl.isClientLinked() : false);
+                if (window.GeminiServerControl && typeof window.GeminiServerControl.setClientLink === 'function') {
+                    window.GeminiServerControl.setClientLink(!connected);
+                }
+            };
+            pill.addEventListener('click', toggleLink);
+            pill.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleLink(); }
+            });
+        }
+
         console.log('Connection Status Indicator HTML loaded successfully.');
 
         // After loading the HTML, initialize the connection status properly
