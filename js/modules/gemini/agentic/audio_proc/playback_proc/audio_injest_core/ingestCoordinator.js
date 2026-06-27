@@ -19,8 +19,12 @@ let ingestionQueue = Promise.resolve();
 window.EveLiveWaveform = window.EveLiveWaveform || (function () {
     const BARS = 16;
     // The audio is heard ~one jitter buffer behind ingest, so hold each chunk's profile this long
-    // before showing it — keeps the bars in step with the sound instead of running ahead of it.
-    const LIVE_SYNC_DELAY_MS = 200;
+    // before showing it — keeps the bars in step with the sound instead of running ahead. NOTE the
+    // bars then EASE toward the chunk (the loop below), and that rise adds ~80-100ms on its own, so
+    // the real perceived offset is roughly syncDelayMs + ~90ms. Default is tuned for the browser
+    // worklet's ~200ms pre-roll; the CABLE/native bridge has its own latency. Tune it live without
+    // a reload via  window.EveLiveWaveform.setSyncDelay(ms)  — lower = bars earlier, higher = later.
+    let syncDelayMs = 120;
     let target = new Array(BARS).fill(0.06);
     let display = new Array(BARS).fill(0.06);
     let lastFeedAt = 0;
@@ -90,11 +94,16 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
                 lastFeedAt = performance.now();
                 if (container) activeContainer = container;
                 ensureLoop();
-            }, LIVE_SYNC_DELAY_MS);
+            }, syncDelayMs);
         } catch (e) { /* visualizer is optional */ }
     }
 
-    return { feedFromPcm };
+    return {
+        feedFromPcm,
+        // Live tuning knob for the audio/visual offset (see syncDelayMs note above).
+        setSyncDelay: function (ms) { syncDelayMs = Math.max(0, Number(ms) || 0); return syncDelayMs; },
+        getSyncDelay: function () { return syncDelayMs; }
+    };
 })();
 
 async function injestAudioChuckToPlay(base64AudioChunk, isFinalAudio = true) {
