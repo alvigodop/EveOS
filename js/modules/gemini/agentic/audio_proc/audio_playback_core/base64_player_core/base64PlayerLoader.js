@@ -11,7 +11,7 @@ const base64PlayerScripts = [
     `${BASE64_PLAYER_CORE_PATH}/playerStateManagement.js`,
     `${BASE64_PLAYER_CORE_PATH}/audioBufferHandler.js`,
     `${BASE64_PLAYER_CORE_PATH}/playbackLifecycleHandler.js?v=0.1.1`,
-    `${BASE64_PLAYER_CORE_PATH}/base64PlayerCoordinator.js?v=0.1.4`
+    `${BASE64_PLAYER_CORE_PATH}/base64PlayerCoordinator.js?v=0.1.5`
 ];
 
 function loadBase64PlayerScripts() {

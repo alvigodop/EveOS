@@ -9,6 +9,80 @@ window.AudioIngestCore = window.AudioIngestCore || {};
 // Centralized ingestion queue to prevent race conditions in scheduling
 let ingestionQueue = Promise.resolve();
 
+// --- Live waveform driver (routing-agnostic) ---
+// Every incoming live chunk passes through here BEFORE it is routed to the browser worklet OR the
+// CABLE bypass, so driving the message player's waveform from the raw PCM makes it animate no
+// matter where the sound actually goes. A rAF loop eases the bars toward each chunk's amplitude
+// profile and decays back to idle once chunks stop arriving.
+window.EveLiveWaveform = window.EveLiveWaveform || (function () {
+    const BARS = 16;
+    // The audio is heard ~one jitter buffer behind ingest, so hold each chunk's profile this long
+    // before showing it — keeps the bars in step with the sound instead of running ahead of it.
+    const LIVE_SYNC_DELAY_MS = 200;
+    let target = new Array(BARS).fill(0.06);
+    let display = new Array(BARS).fill(0.06);
+    let lastFeedAt = 0;
+    let raf = null;
+
+    function newestPlayer() {
+        const players = document.querySelectorAll('.audio-player-container');
+        for (let i = players.length - 1; i >= 0; i--) {
+            // Skip a player that's replaying — its own analyser drives it then.
+            if (typeof players[i]._renderWaveBars === 'function' && !players[i].isPlaying) return players[i];
+        }
+        return null;
+    }
+
+    function ensureLoop() {
+        if (raf) return;
+        const loop = function () {
+            const idle = (performance.now() - lastFeedAt) > 350;
+            let settled = true;
+            for (let b = 0; b < BARS; b++) {
+                const goal = idle ? 0.06 : target[b];
+                display[b] += (goal - display[b]) * 0.35;       // smooth ease toward the goal
+                if (Math.abs(display[b] - 0.06) > 0.02) settled = false;
+            }
+            const container = newestPlayer();
+            if (container) container._renderWaveBars(display.slice());
+            if (idle && settled) { raf = null; return; }         // stop once back at idle
+            raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+    }
+
+    // Build an amplitude profile (RMS per segment) from a base64 int16 LE PCM chunk.
+    function feedFromPcm(base64Chunk) {
+        try {
+            if (!base64Chunk) return;
+            const bin = atob(base64Chunk);
+            const sampleCount = bin.length >> 1;
+            if (sampleCount < BARS) return;
+            const seg = Math.floor(sampleCount / BARS);
+            const next = new Array(BARS).fill(0);
+            for (let b = 0; b < BARS; b++) {
+                let sum = 0;
+                const start = b * seg;
+                for (let i = 0; i < seg; i++) {
+                    const idx = (start + i) * 2;
+                    let s = (bin.charCodeAt(idx) | (bin.charCodeAt(idx + 1) << 8));
+                    if (s >= 32768) s -= 65536;
+                    const f = s / 32768;
+                    sum += f * f;
+                }
+                next[b] = Math.min(1, Math.sqrt(sum / seg) * 3.2);  // RMS, scaled for visibility
+            }
+            setTimeout(function () {
+                target = next;
+                lastFeedAt = performance.now();
+                ensureLoop();
+            }, LIVE_SYNC_DELAY_MS);
+        } catch (e) { /* visualizer is optional */ }
+    }
+
+    return { feedFromPcm };
+})();
+
 async function injestAudioChuckToPlay(base64AudioChunk, isFinalAudio = true) {
     // Guard: Ignore null or undefined chunks
     if (!base64AudioChunk) {
@@ -43,6 +117,10 @@ async function _processInjest(base64AudioChunk, isFinalAudio = true) {
         console.log("Master audio toggle is off: skipping audio chunk ingestion");
         return;
     }
+
+    // Drive the live message-player waveform from the raw PCM here — BEFORE the worklet/CABLE/native
+    // routing split — so it animates no matter where the audio actually plays.
+    if (window.EveLiveWaveform) window.EveLiveWaveform.feedFromPcm(base64AudioChunk);
 
     const SequentialHandler = window.AudioIngestCore.SequentialIngestHandler;
     const InterimHandler = window.AudioIngestCore.InterimIngestHandler;

@@ -148,14 +148,26 @@ window.Base64PlayerCore.Coordinator = {
                     if (playIcon) playIcon.textContent = 'pause';
                 }
 
-                // Drive the player's live waveform visualizer from the playback signal (tap the
-                // source through an AnalyserNode — it doesn't need to reach the destination).
+                // Drive the player's live waveform visualizer from the playback signal. The
+                // analyser sees samples BEFORE they reach the speakers, so feed it through a
+                // DelayNode set to the context's output latency — that lines the bars up with what
+                // you actually hear instead of running ahead of it.
                 try {
                     if (typeof container._startWaveform === 'function' && container.audioContext) {
-                        const analyser = container.audioContext.createAnalyser();
+                        const ctx = container.audioContext;
+                        const analyser = ctx.createAnalyser();
                         analyser.fftSize = 64;
                         analyser.smoothingTimeConstant = 0.7;
-                        source.connect(analyser);
+                        const latency = Math.min(0.95, Math.max(0, Number(ctx.outputLatency || ctx.baseLatency || 0.12)));
+                        if (latency > 0.005 && typeof ctx.createDelay === 'function') {
+                            const delay = ctx.createDelay(1.0);
+                            delay.delayTime.value = latency;
+                            source.connect(delay);
+                            delay.connect(analyser);
+                            container._waveformDelay = delay;
+                        } else {
+                            source.connect(analyser);
+                        }
                         container._waveformAnalyser = analyser;
                         container._startWaveform(analyser);
                     }

@@ -79,6 +79,12 @@ window.MessagingLog.AudioPlayerComponentCreator = {
             if (this._waveformRAF) { cancelAnimationFrame(this._waveformRAF); this._waveformRAF = null; }
             drawWaveBars(idleBars());
         };
+        // Draw a set of bar values directly. Used by the LIVE incoming-audio driver so the waveform
+        // also dances while a Gemini reply is streaming in (not only when you replay it).
+        audioPlayerContainer._renderWaveBars = function (values) {
+            drawWaveBars(values && values.length ? values : idleBars());
+        };
+        audioPlayerContainer._waveformBarCount = WAVE_BARS;
         drawWaveBars(idleBars());   // idle state on creation
 
         // Create time display
