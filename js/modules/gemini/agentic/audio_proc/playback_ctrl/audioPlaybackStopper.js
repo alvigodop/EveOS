@@ -23,6 +23,17 @@ function stopAudioPlayback(container) {
         container.audioSource = null;
     }
 
+    // If the Native Bridge (CABLE bypass) is armed, the sound the user actually hears drains from
+    // the bridge's streaming queue on the server — NOT this browser AudioBufferSourceNode — so
+    // stopping the source alone left it playing while only the icon flipped. Flush the bridge's
+    // live stream too. clearVoices() self-guards to a no-op when the bridge is off, so browser-only
+    // playback is unaffected. Fire-and-forget; the turn-handoff's existing waits cover ordering.
+    try {
+        if (window.EveAudioflixNative && typeof window.EveAudioflixNative.clearVoices === 'function') {
+            window.EveAudioflixNative.clearVoices();
+        }
+    } catch (e) { /* native flush is best-effort */ }
+
     // Reset position tracking
     container.playbackStartPosition = 0;
 

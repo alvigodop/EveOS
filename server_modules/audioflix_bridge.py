@@ -321,6 +321,9 @@ class _PcmPlayer:
     def __init__(self, device_index: int, source_rate: int, channels: int) -> None:
         self.device_index, self.source_rate, self.channels = device_index, int(source_rate), channels
         self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=128), None, False, time.monotonic()
+        # Set by clear_stream() (any thread); honored + reset inside the audio callback so we can
+        # drop the in-flight chunk without racing the callback's slicing of self.pending.
+        self.flush_pending = False
         # One-shot "voices" (soundboard layers) are mixed together in the callback so
         # multiple/overlapping presses sum cleanly instead of fighting over one FIFO
         # queue (which interleaved chunks and sounded choppy).
@@ -334,6 +337,11 @@ class _PcmPlayer:
         self.last_frames = frames
         self.cb_count += 1
         outdata.fill(0)
+        # A pause/stop asked us to flush the live stream — drop the in-flight chunk here, in the
+        # callback thread, so we never index a chunk that another thread nulled mid-slice.
+        if self.flush_pending:
+            self.flush_pending = False
+            self.pending = None
         # Streaming channel (Gemini live): FIFO chunks, mixed in additively.
         written = 0
         while written < frames:
@@ -386,6 +394,22 @@ class _PcmPlayer:
             before = len(self.voices)
             self.voices = [] if vid is None else [v for v in self.voices if v.get("vid") != vid]
             return before - len(self.voices)
+
+    def clear_stream(self) -> int:
+        """Stop the live streaming lane (the Gemini play-pcm channel). Drains the FIFO from this
+        thread and flags the callback to drop the in-flight chunk on its next tick. The voices
+        mixer is a separate lane (clear_voices) and is left alone. This is the piece that actually
+        silences a Gemini reply playing out over CABLE — clear_voices never touched this queue,
+        which is why pausing only flipped the icon while the sound kept draining."""
+        dropped = 0
+        while True:
+            try:
+                self.q.get_nowait()
+                dropped += 1
+            except queue.Empty:
+                break
+        self.flush_pending = True
+        return dropped
 
     def enqueue(self, samples) -> None:
         self.last_used = time.monotonic()
@@ -538,7 +562,13 @@ def clear_voices(payload: dict) -> dict:
     with _LOCK:
         players = [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
     cleared = sum(p.clear_voices(vid) for p in players)
-    return {"ok": True, "cleared": cleared}
+    # A full clear (no specific voiceId) means "stop everything on this device" — also drain the
+    # live streaming lane so a Gemini reply playing out over CABLE actually stops, not just the
+    # soundboard voices. A targeted clear (replacing one voice id) leaves the stream untouched.
+    stream_dropped = 0
+    if vid is None:
+        stream_dropped = sum(p.clear_stream() for p in players)
+    return {"ok": True, "cleared": cleared, "streamDropped": stream_dropped}
 
 
 def handle_get_request(handler, path: str, query) -> bool:
