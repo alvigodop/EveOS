@@ -122,6 +122,15 @@ console.log("audioPlayerUI.js loading...");
                     }
                 });
             }
+
+            // Drive the live "vocal-cord" waveform as the audio ARRIVES. This runs for every incoming
+            // chunk on every branch of handleAudioMessage (before its early returns), so the bars
+            // animate live whether the sound is routed to the browser worklet, the CABLE bypass, or
+            // the native bridge — not only when the message is replayed. Feed the new chunk only
+            // (not the accumulated buffer) and bind this exact container so we don't guess.
+            if (audioData && window.EveLiveWaveform && typeof window.EveLiveWaveform.feedFromPcm === 'function') {
+                window.EveLiveWaveform.feedFromPcm(audioData, container);
+            }
         }
         return container;
     }

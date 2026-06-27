@@ -10,10 +10,12 @@ window.AudioIngestCore = window.AudioIngestCore || {};
 let ingestionQueue = Promise.resolve();
 
 // --- Live waveform driver (routing-agnostic) ---
-// Every incoming live chunk passes through here BEFORE it is routed to the browser worklet OR the
-// CABLE bypass, so driving the message player's waveform from the raw PCM makes it animate no
-// matter where the sound actually goes. A rAF loop eases the bars toward each chunk's amplitude
-// profile and decays back to idle once chunks stop arriving.
+// Fed from ensureAudioPlayerUI (audioPlayerUI.js) for EVERY incoming chunk — that runs before any of
+// handleAudioMessage's early returns (processing-disabled, interim-disabled, native/CABLE suppress),
+// so the bars animate as the audio arrives no matter where the sound is actually routed. The caller
+// hands us the exact player container it just ensured; we also keep a newestPlayer() fallback in case
+// that element detaches. A rAF loop eases the bars toward each chunk's amplitude profile and decays
+// back to idle once chunks stop arriving.
 window.EveLiveWaveform = window.EveLiveWaveform || (function () {
     const BARS = 16;
     // The audio is heard ~one jitter buffer behind ingest, so hold each chunk's profile this long
@@ -23,6 +25,7 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
     let display = new Array(BARS).fill(0.06);
     let lastFeedAt = 0;
     let raf = null;
+    let activeContainer = null;   // the player the caller bound us to for the current stream
 
     function newestPlayer() {
         const players = document.querySelectorAll('.audio-player-container');
@@ -31,6 +34,15 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
             if (typeof players[i]._renderWaveBars === 'function' && !players[i].isPlaying) return players[i];
         }
         return null;
+    }
+
+    // Prefer the explicitly-bound container; fall back to the newest idle player if it's gone or busy.
+    function resolveContainer() {
+        if (activeContainer && document.body.contains(activeContainer) &&
+            !activeContainer.isPlaying && typeof activeContainer._renderWaveBars === 'function') {
+            return activeContainer;
+        }
+        return newestPlayer();
     }
 
     function ensureLoop() {
@@ -43,7 +55,7 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
                 display[b] += (goal - display[b]) * 0.35;       // smooth ease toward the goal
                 if (Math.abs(display[b] - 0.06) > 0.02) settled = false;
             }
-            const container = newestPlayer();
+            const container = resolveContainer();
             if (container) container._renderWaveBars(display.slice());
             if (idle && settled) { raf = null; return; }         // stop once back at idle
             raf = requestAnimationFrame(loop);
@@ -51,8 +63,9 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
         raf = requestAnimationFrame(loop);
     }
 
-    // Build an amplitude profile (RMS per segment) from a base64 int16 LE PCM chunk.
-    function feedFromPcm(base64Chunk) {
+    // Build an amplitude profile (RMS per segment) from a base64 int16 LE PCM chunk and drive the
+    // given container's bars. `container` is the player ensureAudioPlayerUI just created/updated.
+    function feedFromPcm(base64Chunk, container) {
         try {
             if (!base64Chunk) return;
             const bin = atob(base64Chunk);
@@ -75,6 +88,7 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
             setTimeout(function () {
                 target = next;
                 lastFeedAt = performance.now();
+                if (container) activeContainer = container;
                 ensureLoop();
             }, LIVE_SYNC_DELAY_MS);
         } catch (e) { /* visualizer is optional */ }
@@ -117,10 +131,6 @@ async function _processInjest(base64AudioChunk, isFinalAudio = true) {
         console.log("Master audio toggle is off: skipping audio chunk ingestion");
         return;
     }
-
-    // Drive the live message-player waveform from the raw PCM here — BEFORE the worklet/CABLE/native
-    // routing split — so it animates no matter where the audio actually plays.
-    if (window.EveLiveWaveform) window.EveLiveWaveform.feedFromPcm(base64AudioChunk);
 
     const SequentialHandler = window.AudioIngestCore.SequentialIngestHandler;
     const InterimHandler = window.AudioIngestCore.InterimIngestHandler;
