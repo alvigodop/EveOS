@@ -233,6 +233,20 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload?.ok === true;
     }
 
+    // Stop ONLY the live Gemini streaming lane (play-pcm) — leaves soundboard voices untouched.
+    // Used by the audio player's pause/stop so silencing a Gemini reply over CABLE can't wipe
+    // soundboard sounds mixing on the same output.
+    async function stopStream() {
+        const current = state();
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
+        const payload = await fetchJson('/api/audioflix/stop-stream', {
+            method: 'POST',
+            body: JSON.stringify({ deviceId: current.nativeOutputId, sampleRate: 24000 }),
+            timeout: DEFAULT_TIMEOUT_MS
+        }).catch(() => null);
+        return payload?.ok === true;
+    }
+
     async function sendTone(detail = {}) {
         const current = state();
         if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
@@ -316,6 +330,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         playVoice,
         setVoiceVolume,
         clearVoices,
+        stopStream,
         sendTone,
         playMediaItem,
         shouldSuppressBrowserPlayback,

@@ -26,11 +26,12 @@ function stopAudioPlayback(container) {
     // If the Native Bridge (CABLE bypass) is armed, the sound the user actually hears drains from
     // the bridge's streaming queue on the server — NOT this browser AudioBufferSourceNode — so
     // stopping the source alone left it playing while only the icon flipped. Flush the bridge's
-    // live stream too. clearVoices() self-guards to a no-op when the bridge is off, so browser-only
-    // playback is unaffected. Fire-and-forget; the turn-handoff's existing waits cover ordering.
+    // Gemini STREAM lane only (stopStream), NOT the voices mixer: clearing voices here would wipe
+    // any soundboard sounds playing on the same CABLE output. Self-guards to a no-op when the
+    // bridge is off, so browser-only playback is unaffected. Fire-and-forget.
     try {
-        if (window.EveAudioflixNative && typeof window.EveAudioflixNative.clearVoices === 'function') {
-            window.EveAudioflixNative.clearVoices();
+        if (window.EveAudioflixNative && typeof window.EveAudioflixNative.stopStream === 'function') {
+            window.EveAudioflixNative.stopStream();
         }
     } catch (e) { /* native flush is best-effort */ }
 

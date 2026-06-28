@@ -253,11 +253,40 @@ def _copy_device_payload(payload: dict, cached: bool) -> dict:
     return {**payload, "cached": cached, "devices": [dict(d) for d in payload.get("devices", [])]}
 
 
+def _refresh_portaudio() -> None:
+    """sounddevice/PortAudio enumerates audio devices ONCE when it first initializes; devices that
+    are added, renamed, or enabled afterwards (a new Voicemeeter VAIO output, a freshly-plugged DAC,
+    etc.) never appear until PortAudio is re-initialized — re-querying alone keeps returning the
+    stale boot-time list. A forced device scan re-inits PortAudio so the list reflects the CURRENT
+    Windows devices. The terminate invalidates open output streams, so close + drop the players
+    first under the lock (which also blocks a concurrent play from opening a stream mid-reinit);
+    they're lazily re-created on the next play."""
+    if sd is None:
+        return
+    try:
+        with _LOCK:
+            for player in list(_PLAYERS.values()):
+                try:
+                    player.close()
+                except Exception:
+                    pass
+            _PLAYERS.clear()
+            sd._terminate()
+            sd._initialize()
+    except Exception as exc:
+        print(f"[Audioflix] PortAudio device refresh failed: {exc}", flush=True)
+
+
 def list_devices(force: bool = False) -> dict:
     now = time.monotonic()
     cached_payload = _DEVICE_CACHE.get("payload")
     if not force and cached_payload and now - float(_DEVICE_CACHE.get("at") or 0.0) < _DEVICE_CACHE_TTL:
         return _copy_device_payload(cached_payload, True)
+
+    # A forced scan means the user is (re)opening the device picker — re-enumerate the hardware so
+    # newly added/renamed outputs show up and are selectable, not just the boot-time set.
+    if force:
+        _refresh_portaudio()
 
     sd_outputs = _sd_outputs()
     sd_inputs = _sd_inputs()
@@ -562,13 +591,21 @@ def clear_voices(payload: dict) -> dict:
     with _LOCK:
         players = [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
     cleared = sum(p.clear_voices(vid) for p in players)
-    # A full clear (no specific voiceId) means "stop everything on this device" — also drain the
-    # live streaming lane so a Gemini reply playing out over CABLE actually stops, not just the
-    # soundboard voices. A targeted clear (replacing one voice id) leaves the stream untouched.
-    stream_dropped = 0
-    if vid is None:
-        stream_dropped = sum(p.clear_stream() for p in players)
-    return {"ok": True, "cleared": cleared, "streamDropped": stream_dropped}
+    return {"ok": True, "cleared": cleared}
+
+
+def stop_stream(payload: dict) -> dict:
+    """Stop ONLY the live streaming lane (the Gemini play-pcm channel) on a device — soundboard
+    voices keep playing. A Gemini pause / turn-handoff calls this so it silences the reply over
+    CABLE WITHOUT wiping unrelated soundboard sounds mixing on the same output. Keeping the stream
+    lane and the voices lane separate is exactly what stops a pause from killing the soundboard."""
+    if sd is None or np is None:
+        return {"ok": False, "message": "Native playback unavailable."}
+    device_id = str(payload.get("deviceId") or "")
+    with _LOCK:
+        players = [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
+    dropped = sum(p.clear_stream() for p in players)
+    return {"ok": True, "streamDropped": dropped}
 
 
 def handle_get_request(handler, path: str, query) -> bool:
@@ -616,7 +653,7 @@ def hotkeys_clear(payload: dict) -> dict:
 
 
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/stop-stream": stop_stream, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear}.get(path)
     if not action:
         return False
     if not _can_control(handler):
