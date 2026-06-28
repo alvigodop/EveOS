@@ -366,6 +366,22 @@ class _PcmPlayer:
         self.last_frames = frames
         self.cb_count += 1
         outdata.fill(0)
+        # CRITICAL: a raised exception out of a sounddevice callback ABORTS the stream permanently.
+        # That is exactly what silently broke the soundboard — one bad mix killed the output stream,
+        # then every later voice just queued onto a dead stream (stream_active=False, pos never
+        # advancing) and was never heard. Never let the callback raise: emit silence for this block
+        # and log the real cause ONCE so the stream stays alive and the next block recovers.
+        try:
+            self._mix(outdata, frames)
+        except Exception as exc:
+            outdata.fill(0)
+            if not getattr(self, "_cb_error_logged", False):
+                self._cb_error_logged = True
+                import traceback
+                print(f"[Audioflix] audio callback error (stream kept alive): {exc!r}", flush=True)
+                traceback.print_exc()
+
+    def _mix(self, outdata, frames) -> None:
         # A pause/stop asked us to flush the live stream — drop the in-flight chunk here, in the
         # callback thread, so we never index a chunk that another thread nulled mid-slice.
         if self.flush_pending:
@@ -387,16 +403,22 @@ class _PcmPlayer:
             if self.voices:
                 survivors = []
                 for v in self.voices:
-                    samples, pos, vol = v["samples"], v["pos"], v.get("vol", 1.0)
-                    n = min(len(samples) - pos, frames)
-                    if n > 0:
-                        if vol == 1.0:
-                            outdata[:n, 0] += samples[pos:pos + n]
-                        else:
-                            outdata[:n, 0] += samples[pos:pos + n] * np.float32(vol)
-                        v["pos"] = pos + n
-                    if v["pos"] < len(samples):
-                        survivors.append(v)
+                    try:
+                        samples, pos, vol = v["samples"], v["pos"], v.get("vol", 1.0)
+                        n = min(len(samples) - pos, frames)
+                        if n > 0:
+                            seg = np.asarray(samples[pos:pos + n], dtype="float32").reshape(-1)[:n]
+                            if vol != 1.0:
+                                seg = seg * np.float32(vol)
+                            outdata[:n, 0] += seg
+                            v["pos"] = pos + n
+                        if v["pos"] < len(samples):
+                            survivors.append(v)
+                    except Exception as exc:
+                        # Drop just this voice rather than wedging the whole player on every block.
+                        if not getattr(self, "_cb_error_logged", False):
+                            self._cb_error_logged = True
+                            print(f"[Audioflix] dropped an unmixable voice: {exc!r}", flush=True)
                 self.voices = survivors
         np.clip(outdata[:, 0], -1.0, 1.0, out=outdata[:, 0])
 
@@ -483,7 +505,19 @@ def _player_for(device_id: str, sample_rate: int, channels: int) -> _PcmPlayer:
     index = int(str(device_id).split(":", 1)[1])
     with _LOCK:
         player = _PLAYERS.get(key)
-        if player is None or player.closed:
+        # Recreate if missing, closed, OR its stream has died. A dead stream silently swallowed
+        # soundboard voices — they queued onto it but never played — so reviving here self-heals the
+        # next play even if a stream ever stops (callback error, device hiccup, sample-rate switch).
+        try:
+            alive = player is not None and not player.closed and player.stream is not None and player.stream.active
+        except Exception:
+            alive = False
+        if not alive:
+            if player is not None:
+                try:
+                    player.close()
+                except Exception:
+                    pass
             player = _PcmPlayer(index, sample_rate, channels)
             _PLAYERS[key] = player
         return player
