@@ -387,13 +387,19 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                     // Fast non-choppy voice upload for soundboard clips, matching layerPlay.
                     // replace:true makes the bridge swap the prior 'singleton-main' voice
                     // atomically (one POST) so a separate clear can't race and drop this one.
-                    window.EveAudioflixNative?.playVoice(encodeBufferToBase64(audioBuffer), {
+                    // AWAIT the send and only claim success when the bridge accepted it: the old
+                    // fire-and-forget returned true unconditionally, so with the bridge armed but
+                    // unreachable (file:// page, server off) the play button produced NOTHING
+                    // while the status read "Native route playing...". Throwing drops us into
+                    // the browser-playback fallback below instead.
+                    const ok = await window.EveAudioflixNative?.playVoice(encodeBufferToBase64(audioBuffer), {
                         sampleRate: audioBuffer.sampleRate,
                         channels: 1,
                         volume: safeItem.volume ?? 1,
                         voiceId: 'singleton-main',
                         replace: true
-                    }).catch(()=>{});
+                    }).catch(() => false);
+                    if (ok !== true) throw new Error('Native bridge unreachable for voice playback');
                 } else {
                     // Stream long audio
                     await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1);

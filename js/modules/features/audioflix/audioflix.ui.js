@@ -4,7 +4,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     const ns = window.EveAudioflix;
     if (ns.ready) return;
 
-    let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = false, portedSounds = [], collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
+    let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = false, portedSounds = [], fsPortFolders = [], deadServerPorts = new Set(), collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
     const playSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`, closeSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`, stopSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>`, layerPlaySvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 4v16l10-8z"/><path d="M12 4v16l10-8z"/></svg>`;
     const cogSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`;
 
@@ -38,17 +38,13 @@ window.EveAudioflix = window.EveAudioflix || {};
     const renderGroupAssign = (item, mine = new Set(groupsOf(item.id))) => `<div class="audioflix-info-groups"><span class="audioflix-info-groups-label">Frontend Groups</span><div class="audioflix-group-checklist">${allGroups().map(g => `<label class="audioflix-group-check"><input type="checkbox" class="audioflix-group-cb" data-af-id="${esc(item.id)}" data-af-group="${esc(g)}" ${mine.has(g) ? 'checked' : ''}><span>${esc(g)}</span></label>`).join('') || '<span class="audioflix-group-empty">No groups yet — create one below.</span>'}</div><form class="audioflix-group-quick" data-af-form="assign-new-group" data-af-id="${esc(item.id)}"><input name="name" placeholder="New group" autocomplete="off" maxlength="40"><button type="submit" data-af-action="submit-form">Add</button></form></div>`;
 
     async function loadPortedSounds() {
-        const snapshot = state(), ports = snapshot.ports || [], fetched = [], portVols = snapshot.portVolumes || {}, portExposed = snapshot.exposedPortedSounds || {}, portHotkeys = snapshot.portHotkeys || {}, base = (window.location.origin && !window.location.origin.startsWith('file:')) ? window.location.origin.replace('localhost', '127.0.0.1') : 'http://127.0.0.1:8765';
-        for (const p of ports) {
-            try {
-                const res = await fetch(`${base}/api/audioflix/port/list?path=${encodeURIComponent(p.path)}`), data = await res.json();
-                if (data.ok && Array.isArray(data.files)) data.files.forEach(f => {
-                    const id = `ported_${p.id}_${f.name}`;
-                    fetched.push({ id, type: 'sound', title: f.name.replace(/\.[^/.]+$/, ""), url: `${base}/api/audioflix/port/file?path=${encodeURIComponent(f.path)}`, category: p.nickname, isPorted: true, volume: portVols[id] ?? 1, exposed: portExposed[id] === true, hotkey: portHotkeys[id] ?? '' });
-                });
-            } catch (err) { console.error(`Failed to load port: ${p.nickname}`, err); }
-        }
-        portedSounds = fetched; pushHotkeysToBridge(); rerender();
+        const snapshot = state(), base = (window.location.origin && !window.location.origin.startsWith('file:')) ? window.location.origin.replace('localhost', '127.0.0.1') : 'http://127.0.0.1:8765';
+        deadServerPorts = new Set();
+        try {
+            const res = await window.EveAudioflixFsPorts?.loadPortedSounds?.(snapshot, base, deadServerPorts);
+            if (res) { portedSounds = res.fetched; fsPortFolders = res.fsPortFolders; }
+        } catch (err) { console.error('Failed to load ported sounds:', err); }
+        pushHotkeysToBridge(); rerender();
     }
 
     async function pushHotkeysToBridge() {
@@ -177,7 +173,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     const renderForm = (type, m = type === 'music') => `<form class="audioflix-form" data-af-form="${m ? 'music' : 'sound'}"><label><span>${m ? 'Track Title' : 'Sound Name'}</span><input name="title" required></label><label class="audioflix-wide-field"><span>URL / Path</span><input name="url" required></label><label><span>${m ? 'Artist' : 'Category'}</span><input name="${m ? 'artist' : 'category'}"></label><label><span>${m ? 'Folder' : 'Volume'}</span><input name="${m ? 'folder' : 'volume'}"></label><button type="submit" data-af-action="submit-form">${m ? 'Add Track' : 'Add Sound'}</button></form>`;
-    const renderPortsManager = () => `<div class="audioflix-ports-mgr"><h4>Soundboard Ports</h4>${(state().ports || []).map(p => `<div class="audioflix-port-item"><div><strong>${esc(p.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${esc(p.path)}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-action="remove-port" data-af-id="${esc(p.id)}">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No ports configured.</div>'}<form class="audioflix-ports-form" data-af-form="add-port"><label><span>Nickname</span><input name="nickname" required></label><label><span>Directory Path</span><input name="path" required></label><button type="submit" data-af-action="submit-form">Add Port</button></form></div>`;
+    const renderPortsManager = () => window.EveAudioflixFsPorts?.renderPortsManager?.(state(), fsPortFolders, deadServerPorts, esc, closeSvg) || '';
     function renderGroupsManager() {
         const groups = allGroups(), map = state().soundGroupMap || {}, countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length;
         const list = groups.map((g) => `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${countFor(g)} sound${countFor(g) === 1 ? '' : 's'}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-group="${esc(g)}" data-af-action="remove-group">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No groups yet.</div>';
@@ -283,7 +279,13 @@ window.EveAudioflix = window.EveAudioflix || {};
             const next = (state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
             window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode'); pushHotkeysToBridge(); rerender(); return;
         }
-        if (action === 'remove-port') { window.EveAudioflixState?.removePort?.(id); loadPortedSounds(); return; }
+        if (action === 'remove-port') { window.EveAudioflixState?.removePort?.(id); }
+        if (['remove-port', 'link-fsport', 'add-fsport', 'remove-fsport', 'reconnect-fsports'].includes(action)) {
+            const status = await window.EveAudioflixFsPorts?.handleAction?.(action, id, actionTarget);
+            if (status) playbackStatus = status;
+            loadPortedSounds();
+            return;
+        }
         if (action === 'pause') { window.EveAudioflixAudio?.pause?.(); return; }
         if (action === 'play') { if (item) try { await window.EveAudioflixAudio?.playItem?.(item); } catch (err) { playbackStatus = err.message || 'Playback failed'; rerender(); } return; }
         if (action === 'remove') { window.EveAudioflixState?.removeItem?.(type, id); rerender(); return; }

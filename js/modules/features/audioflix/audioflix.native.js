@@ -12,6 +12,11 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     let deviceCache = null;
     let lastStatus = { ok: false, message: 'Native bridge not checked yet.', devices: [], attempts: [] };
+    // After a probe where NO base even answered (nothing listening), remember the bridge is down
+    // for a few seconds so every native call doesn't re-pay the multi-base probe cost. This is
+    // what makes Test Route / soundboard fall back to browser playback instantly on file:// with
+    // the server off, instead of stalling on dead fetches every single click.
+    let bridgeDownUntil = 0;
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -72,6 +77,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     async function fetchJson(path, options = {}) {
+        if (Date.now() < bridgeDownUntil && options.probe !== true) {
+            return { ok: false, cachedDown: true, message: 'Native bridge offline (recent probe failed; will retry shortly).' };
+        }
         const attempts = [];
         for (const base of candidateBases()) {
             try {
@@ -81,6 +89,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                     continue;
                 }
                 if (payload?.ok !== false) {
+                    bridgeDownUntil = 0;
                     update({ nativeBridgeBase: base }, 'audioflix-native-bridge-base');
                     return payload;
                 }
@@ -94,6 +103,11 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                         : (error?.message || 'Request failed.')
                 });
             }
+        }
+        // Only cache "down" when nothing answered at all (pure network failures). A base that
+        // returned an HTTP error means a server IS there — don't suppress retries against it.
+        if (!attempts.some((item) => item.status)) {
+            bridgeDownUntil = Date.now() + 10000;
         }
         lastStatus = Object.assign({}, lastStatus, {
             ok: false,
@@ -119,7 +133,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     async function listSystemDevices(force = false) {
         if (deviceCache && !force && Date.now() - deviceCache.at < 5000) return deviceCache.payload;
         const path = force ? '/api/audioflix/devices?refresh=1' : '/api/audioflix/devices';
-        const payload = await fetchJson(path, { timeout: DEVICE_SCAN_TIMEOUT_MS });
+        // A forced refresh is an explicit user probe — bypass the bridge-down cache so starting
+        // the server and clicking "Refresh System Outputs" reconnects immediately.
+        const payload = await fetchJson(path, { timeout: DEVICE_SCAN_TIMEOUT_MS, probe: force === true });
         lastStatus = Object.assign({}, payload, { devices: payload.devices || [] });
         deviceCache = { at: Date.now(), payload: lastStatus };
         return lastStatus;
