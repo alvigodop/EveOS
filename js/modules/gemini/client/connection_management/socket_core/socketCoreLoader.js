@@ -19,7 +19,7 @@ const socketCoreScripts = [
     `${SOCKET_CORE_BASE_PATH}/socketMessageRouter.js?v=0.2.7`,
     `${SOCKET_CORE_BASE_PATH}/audioPlayerUI.js`,
     `${SOCKET_CORE_BASE_PATH}/socketAudioLogic.js?v=0.2.4`,
-    `${SOCKET_CORE_BASE_PATH}/serverStatusChecker.js?v=0.2.7`
+    `${SOCKET_CORE_BASE_PATH}/serverStatusChecker.js?v=0.2.8`
 ];
 
 // Load scripts sequentially to ensure dependencies are met

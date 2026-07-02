@@ -5,6 +5,11 @@ window.EveAudioflix = window.EveAudioflix || {};
     if (ns.ready) return;
 
     let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = false, portedSounds = [], fsPortFolders = [], deadServerPorts = new Set(), collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
+    // True only when the Python bridge ACCEPTED the current hotkey bindings (system-wide
+    // RegisterHotKey is live). The in-app keydown matcher stands down only then — standing down on
+    // mere configuration left ZERO hotkeys on file:// with the server off (bridge armed in state,
+    // but no process to register the keys).
+    let nativeHotkeysLive = false;
     const playSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`, closeSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`, stopSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>`, layerPlaySvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 4v16l10-8z"/><path d="M12 4v16l10-8z"/></svg>`;
     const cogSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`;
 
@@ -26,15 +31,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         return parts.length === 1 ? { invalid: false, msg: 'Heads up: a lone key is grabbed globally (you won’t be able to type it). A modifier combo (ctrl+y) is safer.' } : null;
     }
 
-    function renderInfoModal(item, type) {
-        const dur = formatDuration(item.duration), src = item.isPorted ? `${item.category} (Ported)` : (type === 'music' ? 'Music Library' : 'Local Soundboard');
-        const row = (lbl, val) => `<div class="audioflix-info-row"><span>${lbl}</span><strong>${val}</strong></div>`;
-        const exposeRow = type === 'sound' ? row('Expose to Frontend', `<input type="checkbox" class="audioflix-expose-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" ${isItemExposed(item) ? 'checked' : ''}>`) : '';
-        const hotkeyRow = type === 'sound' ? row('Global Hotkey', `<input type="text" class="audioflix-hotkey-input" placeholder="e.g. ctrl+y, f5" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" value="${esc(item.hotkey || '')}">`) : '';
-        const rep = activeRepeaters[item.id];
-        const repeaterBlock = type === 'sound' ? `<div class="audioflix-repeater"><span class="audioflix-repeater-title">Sound Repeater</span><div class="audioflix-repeater-row"><label class="audioflix-repeater-field"><span>Interval (sec)</span><input type="number" step="0.1" min="0.1" value="${rep ? rep.intervalMs / 1000 : 1.0}" id="audioflix-rep-interval" ${rep ? 'disabled' : ''}></label><label class="audioflix-repeater-field"><span>Count (0 = inf)</span><input type="number" min="0" value="${rep ? rep.count : 0}" id="audioflix-rep-count" ${rep ? 'disabled' : ''}></label><button type="button" class="audioflix-repeater-btn${rep ? ' is-active' : ''}" data-af-action="toggle-repeater" data-af-id="${esc(item.id)}">${rep ? 'Stop' : 'Start'}</button></div></div>` : '';
-        return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card"><div class="audioflix-info-header"><div><span class="audioflix-kicker">Sound Details</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div><div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}${hotkeyRow}${repeaterBlock}${type === 'sound' ? renderGroupAssign(item) : ''}<div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div></div><div class="audioflix-info-footer"><button type="button" class="audioflix-info-close-action" data-af-action="close-info">Close</button></div></div></div>`;
-    }
+    const renderInfoModal = (item, type) => { const dur = formatDuration(item.duration), src = item.isPorted ? `${item.category} (Ported)` : (type === 'music' ? 'Music Library' : 'Local Soundboard'), row = (lbl, val) => `<div class="audioflix-info-row"><span>${lbl}</span><strong>${val}</strong></div>`, exposeRow = type === 'sound' ? row('Expose to Frontend', `<input type="checkbox" class="audioflix-expose-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" ${isItemExposed(item) ? 'checked' : ''}>`) : '', hotkeyRow = type === 'sound' ? row('Global Hotkey', `<input type="text" class="audioflix-hotkey-input" placeholder="e.g. ctrl+y, f5" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" value="${esc(item.hotkey || '')}">`) : '', rep = activeRepeaters[item.id], repeaterBlock = type === 'sound' ? `<div class="audioflix-repeater"><span class="audioflix-repeater-title">Sound Repeater</span><div class="audioflix-repeater-row"><label class="audioflix-repeater-field"><span>Interval (sec)</span><input type="number" step="0.1" min="0.1" value="${rep ? rep.intervalMs / 1000 : 1.0}" id="audioflix-rep-interval" ${rep ? 'disabled' : ''}></label><label class="audioflix-repeater-field"><span>Count (0 = inf)</span><input type="number" min="0" value="${rep ? rep.count : 0}" id="audioflix-rep-count" ${rep ? 'disabled' : ''}></label><button type="button" class="audioflix-repeater-btn${rep ? ' is-active' : ''}" data-af-action="toggle-repeater" data-af-id="${esc(item.id)}">${rep ? 'Stop' : 'Start'}</button></div></div>` : ''; return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card"><div class="audioflix-info-header"><div><span class="audioflix-kicker">Sound Details</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div><div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}${hotkeyRow}${repeaterBlock}${type === 'sound' ? renderGroupAssign(item) : ''}<div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div></div><div class="audioflix-info-footer"><button type="button" class="audioflix-info-close-action" data-af-action="close-info">Close</button></div></div></div>`; };
     const renderGroupAssign = (item, mine = new Set(groupsOf(item.id))) => `<div class="audioflix-info-groups"><span class="audioflix-info-groups-label">Frontend Groups</span><div class="audioflix-group-checklist">${allGroups().map(g => `<label class="audioflix-group-check"><input type="checkbox" class="audioflix-group-cb" data-af-id="${esc(item.id)}" data-af-group="${esc(g)}" ${mine.has(g) ? 'checked' : ''}><span>${esc(g)}</span></label>`).join('') || '<span class="audioflix-group-empty">No groups yet — create one below.</span>'}</div><form class="audioflix-group-quick" data-af-form="assign-new-group" data-af-id="${esc(item.id)}"><input name="name" placeholder="New group" autocomplete="off" maxlength="40"><button type="submit" data-af-action="submit-form">Add</button></form></div>`;
 
     async function loadPortedSounds() {
@@ -50,7 +47,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     async function pushHotkeysToBridge() {
         const u = state(), { items } = frontendActiveGroup(), hotkeyItems = items.filter(it => it.hotkey);
         const isActive = overlay && !overlay.hidden && activeTab === 'soundboard' && (u.soundboardViewMode || 'backend') === 'frontend';
-        if (!isActive || !hotkeyItems.length) return window.EveAudioflixNative?.clearHotkeys?.().catch(() => {});
+        if (!isActive || !hotkeyItems.length) { nativeHotkeysLive = false; return window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); }
         let sampleRate = 48000; const bindings = [];
         for (const item of hotkeyItems) {
             try {
@@ -61,8 +58,8 @@ window.EveAudioflix = window.EveAudioflix || {};
                 }
             } catch (e) { console.error(`Failed to decode hotkey sound ${item.title}:`, e); }
         }
-        if (bindings.length) window.EveAudioflixNative?.setHotkeys?.({ deviceId: u.nativeOutputId || 'default', sampleRate, bindings, bypassCombo: u.hotkeyBypassCombo || '' }).catch(e => console.error('Failed to set hotkeys:', e));
-        else window.EveAudioflixNative?.clearHotkeys?.().catch(() => {});
+        if (bindings.length) window.EveAudioflixNative?.setHotkeys?.({ deviceId: u.nativeOutputId || 'default', sampleRate, bindings, bypassCombo: u.hotkeyBypassCombo || '' }).then(p => { nativeHotkeysLive = p?.ok === true; }).catch(e => { nativeHotkeysLive = false; console.error('Failed to set hotkeys:', e); });
+        else { nativeHotkeysLive = false; window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); }
     }
 
     function ensureOverlay() {
@@ -167,25 +164,12 @@ window.EveAudioflix = window.EveAudioflix || {};
         return [...groups.entries()].map(([n, gi]) => `<section class="audioflix-group ${collapsedGroups[n] ? 'is-collapsed' : ''}" data-af-group="${esc(n)}"><button type="button" class="audioflix-group-title" data-af-action="toggle-group" data-af-group="${esc(n)}" aria-expanded="${collapsedGroups[n] ? 'false' : 'true'}">${esc(n)}<span class="audioflix-group-count">${gi.length} item${gi.length === 1 ? '' : 's'}</span></button><div class="audioflix-item-grid">${gi.map(it => renderItemCard(it, type)).join('')}</div></section>`).join('');
     }
 
-    function renderFrontendActive() {
-        const { name, items, entries } = frontendActiveGroup(), selector = `<div class="audioflix-group-selector">${entries.map(([g, members]) => `<button type="button" class="audioflix-group-pill${g === name ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-group="${esc(g)}">${esc(g)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('')}</div>`;
-        return `${selector}<div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map(it => renderItemCard(it, 'sound')).join('')}</div>${items.some(it => it.hotkey) ? '<div class="audioflix-hotkey-hint">Custom hotkeys are active system-wide.</div>' : ''}`;
-    }
+    const renderFrontendActive = () => { const { name, items, entries } = frontendActiveGroup(), selector = `<div class="audioflix-group-selector">${entries.map(([g, members]) => `<button type="button" class="audioflix-group-pill${g === name ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-group="${esc(g)}">${esc(g)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('')}</div>`; return `${selector}<div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map(it => renderItemCard(it, 'sound')).join('')}</div>${items.some(it => it.hotkey) ? '<div class="audioflix-hotkey-hint">Custom hotkeys are active system-wide.</div>' : ''}`; };
 
     const renderForm = (type, m = type === 'music') => `<form class="audioflix-form" data-af-form="${m ? 'music' : 'sound'}"><label><span>${m ? 'Track Title' : 'Sound Name'}</span><input name="title" required></label><label class="audioflix-wide-field"><span>URL / Path</span><input name="url" required></label><label><span>${m ? 'Artist' : 'Category'}</span><input name="${m ? 'artist' : 'category'}"></label><label><span>${m ? 'Folder' : 'Volume'}</span><input name="${m ? 'folder' : 'volume'}"></label><button type="submit" data-af-action="submit-form">${m ? 'Add Track' : 'Add Sound'}</button></form>`;
     const renderPortsManager = () => window.EveAudioflixFsPorts?.renderPortsManager?.(state(), fsPortFolders, deadServerPorts, esc, closeSvg) || '';
-    function renderGroupsManager() {
-        const groups = allGroups(), map = state().soundGroupMap || {}, countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length;
-        const list = groups.map((g) => `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${countFor(g)} sound${countFor(g) === 1 ? '' : 's'}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-group="${esc(g)}" data-af-action="remove-group">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No groups yet.</div>';
-        return `<div class="audioflix-ports-mgr"><h4>Frontend Groups</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`;
-    }
-    function renderAddSection(type) {
-        if (type === 'music') return `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${addFormOpen.music ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${addFormOpen.music ? '− Hide add track' : '+ Add Track'}</button></div></div>${addFormOpen.music ? renderForm('music') : ''}`;
-        const isF = (state().soundboardViewMode || 'backend') === 'frontend', open = addFormOpen.sound === true;
-        const vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" style="margin-left: auto;">${isF ? 'Backend' : 'Frontend'}</button>`, gBtn = `<button type="button" class="audioflix-add-toggle${groupsOpen ? ' is-active' : ''}" data-af-action="toggle-groups" style="margin-left: 8px;">Groups</button>`;
-        if (isF) return `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen ? renderGroupsManager() : ''}`;
-        return `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound">${open ? '− Hide add sound' : '+ Add Sound'}</button></div><button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" style="margin-left: 8px;">Ports</button>${gBtn}${vBtn}</div>${open ? renderForm('sound') : ''}${portsOpen ? renderPortsManager() : ''}${groupsOpen ? renderGroupsManager() : ''}`;
-    }
+    const renderGroupsManager = () => { const groups = allGroups(), map = state().soundGroupMap || {}, countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length, list = groups.map((g) => `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${countFor(g)} sound${countFor(g) === 1 ? '' : 's'}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-group="${esc(g)}" data-af-action="remove-group">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No groups yet.</div>'; return `<div class="audioflix-ports-mgr"><h4>Frontend Groups</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`; };
+    const renderAddSection = (type) => { if (type === 'music') return `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${addFormOpen.music ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${addFormOpen.music ? '− Hide add track' : '+ Add Track'}</button></div></div>${addFormOpen.music ? renderForm('music') : ''}`; const isF = (state().soundboardViewMode || 'backend') === 'frontend', open = addFormOpen.sound === true, vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" style="margin-left: auto;">${isF ? 'Backend' : 'Frontend'}</button>`, gBtn = `<button type="button" class="audioflix-add-toggle${groupsOpen ? ' is-active' : ''}" data-af-action="toggle-groups" style="margin-left: 8px;">Groups</button>`; return isF ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen ? renderGroupsManager() : ''}` : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound">${open ? '− Hide add sound' : '+ Add Sound'}</button></div><button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" style="margin-left: 8px;">Ports</button>${gBtn}${vBtn}</div>${open ? renderForm('sound') : ''}${portsOpen ? renderPortsManager() : ''}${groupsOpen ? renderGroupsManager() : ''}`; };
 
     function renderPanel() {
         const snapshot = state(), musicCount = snapshot.music?.length || 0, soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length, routedCount = snapshot.counters?.routedGeminiEvents || 0;
@@ -194,17 +178,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title"><header class="audioflix-header"><div><span class="audioflix-kicker">EveOS Audio Backend</span><h2 id="audioflix-title">Audioflix</h2><p>Soundboard, music cards, browser output routing, and Gemini voice-port staging.</p></div><div class="audioflix-header-actions"><button type="button" class="audioflix-clear-events" data-af-action="clear-gemini-events">Clear events</button><span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span><button type="button" class="audioflix-settings-toggle${settingsOpen ? ' is-active' : ''}" data-af-action="toggle-settings" title="Audioflix settings (hotkey bypass)" aria-label="Audioflix settings">⚙</button><button type="button" class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen">⛶</button><button type="button" data-af-action="close">${closeSvg}</button></div></header><nav class="audioflix-tabs">${tabButton('soundboard', 'Soundboard')}${tabButton('music', 'Music Library')}${tabButton('router', 'Routing Notes')}</nav>${renderSettings(snapshot)}${renderRoutingDrawer(snapshot)}<div class="audioflix-content">${tabBody}</div>${activeInfoItem ? renderInfoModal(activeInfoItem, activeInfoType) : ''}</div>`;
     }
 
-    function renderSettings(snapshot) {
-        const combo = snapshot.hotkeyBypassCombo || '', issue = hotkeyComboIssue(combo), summary = combo ? esc(combo) : 'Not set';
-        if (!settingsOpen) return `<section class="audioflix-settings-drawer"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Open settings</b></button></section>`;
-        return `<section class="audioflix-settings-drawer is-open"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Collapse</b></button><div class="audioflix-settings-body"><label class="audioflix-settings-field"><span>Hotkey bypass toggle key</span><input type="text" class="audioflix-bypass-input${issue?.invalid ? ' audioflix-input-invalid' : ''}" placeholder="e.g. ctrl+shift+b" value="${esc(combo)}" title="${issue ? esc(issue.msg) : 'Press this to suspend/resume all sound hotkeys'}"></label><p class="audioflix-settings-hint">Press this key while in-game to <strong>suspend</strong> every sound hotkey so the keys type/act normally — press again to re-arm. Use a modifier combo (e.g. <strong>ctrl+shift+b</strong>) so it never clashes with normal typing. Single plain keys get grabbed globally.</p><div class="audioflix-bypass-status">Sound hotkeys: <span class="audioflix-bypass-state" data-state="unknown">—</span></div></div></section>`;
-    }
-
-    function renderRoutingDrawer(snapshot) {
-        const routeLabel = snapshot.nativeBridgeEnabled && snapshot.nativeOutputLabel ? snapshot.nativeOutputLabel : (snapshot.preferredSinkLabel || 'Default browser output');
-        const stateLabel = snapshot.nativeBridgeEnabled ? 'Native route active' : (snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback');
-        return `<section class="audioflix-routing-drawer ${routingOpen ? 'is-open' : ''}"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-routing-drawer"><span>Gemini / Voice Port</span><strong>${esc(stateLabel)}</strong><em>${esc(routeLabel)}</em><b>${routingOpen ? 'Collapse' : 'Open routing'}</b></button>${routingOpen ? `<div class="audioflix-routing-body">${window.EveAudioflixRouting?.renderStatusCards?.(snapshot, playbackStatus) || ''}<section class="audioflix-player" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}><div><strong>Waveform</strong><span>${esc(playbackStatus)}</span></div><canvas id="audioflix-waveform" height="90"></canvas><button type="button" data-af-action="pause">Pause</button></section></div>` : ''}</section>`;
-    }
+    const renderSettings = (snapshot) => { const combo = snapshot.hotkeyBypassCombo || '', issue = hotkeyComboIssue(combo), summary = combo ? esc(combo) : 'Not set'; return !settingsOpen ? `<section class="audioflix-settings-drawer"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Open settings</b></button></section>` : `<section class="audioflix-settings-drawer is-open"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Collapse</b></button><div class="audioflix-settings-body"><label class="audioflix-settings-field"><span>Hotkey bypass toggle key</span><input type="text" class="audioflix-bypass-input${issue?.invalid ? ' audioflix-input-invalid' : ''}" placeholder="e.g. ctrl+shift+b" value="${esc(combo)}" title="${issue ? esc(issue.msg) : 'Press this to suspend/resume all sound hotkeys'}"></label><p class="audioflix-settings-hint">Press this key while in-game to <strong>suspend</strong> every sound hotkey so the keys type/act normally — press again to re-arm. Use a modifier combo (e.g. <strong>ctrl+shift+b</strong>) so it never clashes with normal typing. Single plain keys get grabbed globally.</p><div class="audioflix-bypass-status">Sound hotkeys: <span class="audioflix-bypass-state" data-state="unknown">—</span></div></div></section>`; };
+    const renderRoutingDrawer = (snapshot) => { const routeLabel = snapshot.nativeBridgeEnabled && snapshot.nativeOutputLabel ? snapshot.nativeOutputLabel : (snapshot.preferredSinkLabel || 'Default browser output'), stateLabel = snapshot.nativeBridgeEnabled ? 'Native route active' : (snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback'); return `<section class="audioflix-routing-drawer ${routingOpen ? 'is-open' : ''}"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-routing-drawer"><span>Gemini / Voice Port</span><strong>${esc(stateLabel)}</strong><em>${esc(routeLabel)}</em><b>${routingOpen ? 'Collapse' : 'Open routing'}</b></button>${routingOpen ? `<div class="audioflix-routing-body">${window.EveAudioflixRouting?.renderStatusCards?.(snapshot, playbackStatus) || ''}<section class="audioflix-player" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}><div><strong>Waveform</strong><span>${esc(playbackStatus)}</span></div><canvas id="audioflix-waveform" height="90"></canvas><button type="button" data-af-action="pause">Pause</button></section></div>` : ''}</section>`; };
 
     const tabButton = (tab, label) => `<button type="button" class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
 
@@ -218,20 +193,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
     }
 
-    function startRepeater(item, intervalMs, count) {
-        stopRepeater(item.id); let rem = count;
-        const play = () => Promise.resolve(window.EveAudioflixAudio?.playItem?.(item)).catch(() => {});
-        play(); if (rem > 0) rem--;
-        const id = setInterval(() => {
-            if (rem === 0) return stopRepeater(item.id);
-            play(); if (rem > 0) rem--;
-        }, intervalMs);
-        activeRepeaters[item.id] = { id, intervalMs, count }; rerender();
-    }
-
-    function stopRepeater(itemId) {
-        if (activeRepeaters[itemId]) { clearInterval(activeRepeaters[itemId].id); delete activeRepeaters[itemId]; rerender(); }
-    }
+    const stopRepeater = (itemId) => { if (activeRepeaters[itemId]) { clearInterval(activeRepeaters[itemId].id); delete activeRepeaters[itemId]; rerender(); } };
+    const startRepeater = (item, intervalMs, count) => { stopRepeater(item.id); let rem = count; const play = () => Promise.resolve(window.EveAudioflixAudio?.playItem?.(item)).catch(() => {}); play(); if (rem > 0) rem--; const id = setInterval(() => { if (rem === 0) return stopRepeater(item.id); play(); if (rem > 0) rem--; }, intervalMs); activeRepeaters[item.id] = { id, intervalMs, count }; rerender(); };
 
     const findItem = (type, itemId) => ((type === 'music' ? state().music : state().soundboard) || []).find(item => item.id === itemId);
 
@@ -345,15 +308,28 @@ window.EveAudioflix = window.EveAudioflix || {};
         try { window.SearchMonitorBoot?.recordNexusTrace?.({ id: 'af-' + Date.now().toString(36), kind: 'audioflix', summary: String(summary || 'Audioflix activity'), totalMs: 0, endedAt: Date.now() }); } catch (e) {}
     }
 
-    let hotkeyPollTimer = null, lastFiredAt = 0;
+    let hotkeyPollTimer = null, lastFiredAt = 0, hotkeyPollTick = 0;
     function startHotkeyFeedbackPoll() {
         if (hotkeyPollTimer) clearInterval(hotkeyPollTimer);
+        hotkeyPollTick = 0;
         window.EveAudioflixNative?.hotkeyStatus?.().then(r => lastFiredAt = r?.lastFired?.at || 0).catch(() => {});
         hotkeyPollTimer = setInterval(() => {
             if (!overlay || overlay.hidden) return;
             const onSoundboardFrontend = activeTab === 'soundboard' && (state().soundboardViewMode || 'backend') === 'frontend';
             if (!onSoundboardFrontend && !settingsOpen) return;
+            hotkeyPollTick++;
+            // Bridge isn't live (server off): the fast poll is only for hotkey-hit feedback from
+            // the GLOBAL hook, which doesn't exist right now — the in-app matcher flashes its own
+            // hits. Just peek every ~10s for a server coming back, and re-register when it does.
+            if (!nativeHotkeysLive) {
+                if (hotkeyPollTick % 40 !== 0) return;
+                window.EveAudioflixNative?.hotkeyStatus?.().then(r => { if (r?.ok !== false) pushHotkeysToBridge(); }).catch(() => {});
+                return;
+            }
             window.EveAudioflixNative?.hotkeyStatus?.().then(r => {
+                // Bridge stopped answering (server died mid-session): re-arm the in-app matcher
+                // so hotkeys keep working while the tab is focused.
+                if (r?.ok === false) nativeHotkeysLive = false;
                 if (settingsOpen) {
                     const el = overlay.querySelector('.audioflix-bypass-state');
                     if (el) {
@@ -387,10 +363,11 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     function handleHotkey(e) {
         if (!overlay || overlay.hidden || activeTab !== 'soundboard' || activeInfoItem || (state().soundboardViewMode || 'backend') !== 'frontend') return;
-        // When the native bridge is active, the system-wide global hook already plays these
-        // combos (even while focused). Running the in-app matcher too would double-fire, so this
-        // browser path is only a fallback for when the bridge is off.
-        if (state().nativeBridgeEnabled && state().nativeOutputId) return;
+        // When the system-wide global hook is LIVE (bridge accepted our bindings), it already
+        // plays these combos even while focused — running the in-app matcher too would
+        // double-fire. But stand down only on confirmed liveness: gating on mere configuration
+        // left zero hotkeys on file:// with the server off (bridge armed in state, no process).
+        if (nativeHotkeysLive && state().nativeBridgeEnabled && state().nativeOutputId) return;
         const tag = (e.target?.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
         const { items } = frontendActiveGroup(), matched = items.find(item => matchEventToHotkey(e, item.hotkey));

@@ -13,10 +13,14 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     let deviceCache = null;
     let lastStatus = { ok: false, message: 'Native bridge not checked yet.', devices: [], attempts: [] };
     // After a probe where NO base even answered (nothing listening), remember the bridge is down
-    // for a few seconds so every native call doesn't re-pay the multi-base probe cost. This is
-    // what makes Test Route / soundboard fall back to browser playback instantly on file:// with
-    // the server off, instead of stalling on dead fetches every single click.
+    // so every native call doesn't re-pay the multi-base probe cost. This is what makes Test
+    // Route / soundboard fall back to browser playback instantly on file:// with the server off.
+    // The hold time escalates (10s -> 20s -> 40s -> 80s -> 120s cap) so a session that's clearly
+    // serverless stops spraying ERR_CONNECTION_REFUSED into the console, while a server that
+    // comes up is still noticed within a couple of minutes (or instantly via a forced refresh).
     let bridgeDownUntil = 0;
+    let bridgeMissStreak = 0;
+    let bridgeOfflineNoticeShown = false;
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -43,9 +47,11 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
             }
             bases.push(location.origin);
         }
+        // 127.0.0.1 only for the fallback list — the localhost twins doubled every dead-server
+        // probe (and console error line) for zero gain: localhost resolves to the same machine,
+        // just via the flaky IPv6-first path the comment above already avoids.
         ['8765', '3000'].forEach((port) => {
             bases.push(`http://127.0.0.1:${port}`);
-            bases.push(`http://localhost:${port}`);
         });
         return [...new Set(bases.filter(Boolean))];
     }
@@ -90,6 +96,11 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 }
                 if (payload?.ok !== false) {
                     bridgeDownUntil = 0;
+                    bridgeMissStreak = 0;
+                    if (bridgeOfflineNoticeShown) {
+                        bridgeOfflineNoticeShown = false;
+                        console.info('[Audioflix] Native bridge is back online — CABLE routing and global hotkeys available again.');
+                    }
                     update({ nativeBridgeBase: base }, 'audioflix-native-bridge-base');
                     return payload;
                 }
@@ -107,7 +118,12 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         // Only cache "down" when nothing answered at all (pure network failures). A base that
         // returned an HTTP error means a server IS there — don't suppress retries against it.
         if (!attempts.some((item) => item.status)) {
-            bridgeDownUntil = Date.now() + 10000;
+            bridgeMissStreak = Math.min(bridgeMissStreak + 1, 5);
+            bridgeDownUntil = Date.now() + Math.min(120000, 10000 * Math.pow(2, bridgeMissStreak - 1));
+            if (!bridgeOfflineNoticeShown) {
+                bridgeOfflineNoticeShown = true;
+                console.info('[Audioflix] No EveOS server found — browser-only mode. Soundboard plays through your browser output; start an EveOS server (start-server.bat) and click "Refresh System Outputs" for the CABLE bridge, global hotkeys, and path ports.');
+            }
         }
         lastStatus = Object.assign({}, lastStatus, {
             ok: false,

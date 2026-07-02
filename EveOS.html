@@ -10,6 +10,19 @@
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.css?v=0.1.16">
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.routing.css?v=0.1.2">
     <script src="js/modules/core/theme-boot.js?v=0.2.2"></script>
+    <script>
+        // Friendly heads-up when EveOS runs straight off the disk: everything browser-side is
+        // fully local; the connection errors that follow just mean the OPTIONAL servers are off.
+        if (location.protocol === 'file:') {
+            console.info(
+                '%cEveOS — local file mode',
+                'font-weight:bold;color:#7ee2a8;font-size:1.05em;',
+                '\nRunning from file:// with no server — browser-side features work fully offline.' +
+                '\nAny "ERR_CONNECTION_REFUSED" lines below are just optional servers being off (they are retried gently in the background).' +
+                '\nFor the Gemini backend, CABLE bridge, global hotkeys, and path ports: run start-server.bat and open http://127.0.0.1:8765/EveOS.html'
+            );
+        }
+    </script>
     <script type="importmap">
     {
         "imports": {
@@ -165,11 +178,11 @@
     <script src="js/modules/features/matrix-workshop/matrix-workshop.js?v=0.4.0"></script>
     <script src="js/modules/features/audioflix/audioflix.state.js?v=0.1.11"></script>
     <script src="js/modules/features/audioflix/audioflix.fsports.js?v=0.1.1"></script>
-    <script src="js/modules/features/audioflix/audioflix.native.js?v=0.1.12"></script>
-    <script src="js/modules/features/audioflix/audioflix.audio.js?v=0.1.11"></script>
+    <script src="js/modules/features/audioflix/audioflix.native.js?v=0.1.13"></script>
+    <script src="js/modules/features/audioflix/audioflix.audio.js?v=0.1.12"></script>
     <script src="js/modules/features/audioflix/audioflix.gemini.js?v=0.1.3"></script>
     <script src="js/modules/features/audioflix/audioflix.routing.js?v=0.1.8"></script>
-    <script src="js/modules/features/audioflix/audioflix.ui.js?v=0.1.33"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.js?v=0.1.34"></script>
     <script src="js/config/manifest/scripts.parts/00-core.js"></script>
     <script src="js/config/manifest/scripts.parts/01-ui.js?v=0.4.0"></script>
     <script src="js/config/manifest/scripts.parts/02-dashboard-categories.js?v=0.1.2"></script>

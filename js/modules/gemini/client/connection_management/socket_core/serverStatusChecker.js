@@ -101,12 +101,10 @@ console.log("serverStatusChecker.js loading...");
             // Extract port from WebSocket URL and calculate status port
             const wsPort = parseInt(State.WS_URL.split(':')[2]) || 9083;
             const statusPort = wsPort + 1; // Status server is always WebSocket port + 1
-            const hosts = ['127.0.0.1', 'localhost'];
-            for (const host of hosts) {
-                const data = await fetchStatusJson(`http://${host}:${statusPort}/status`);
-                if (isStatusPayloadRunning(data)) return true;
-            }
-            return false;
+            // 127.0.0.1 only: the localhost twin probed the SAME machine a second time (via the
+            // flaky IPv6-first path) and doubled the console error spam on every offline check.
+            const data = await fetchStatusJson(`http://127.0.0.1:${statusPort}/status`);
+            return isStatusPayloadRunning(data);
         } catch (error) {
             // Server not responding yet
             return false;
@@ -201,7 +199,11 @@ console.log("serverStatusChecker.js loading...");
                 if (serverStatusCheckCount === 1 || serverStatusCheckCount === maxStatusChecks) {
                     console.log("Gemini server unavailable; background monitoring remains active.");
                 }
-                const fastProbe = serverStatusCheckCount < maxStatusChecks;
+                // file:// pages usually run without any server on purpose — skip the fast-probe
+                // burst (5s x10) and go straight to the slow poll so an intentionally serverless
+                // session isn't peppered with connection errors. A server that starts is still
+                // picked up within one slow interval.
+                const fastProbe = serverStatusCheckCount < maxStatusChecks && window.location.protocol !== 'file:';
                 if (typeof updateConnectionStatus === 'function') {
                     updateConnectionStatus('waiting', fastProbe ? 'Waiting for Gemini Server...' : 'Gemini Server Offline - Monitoring');
                 }

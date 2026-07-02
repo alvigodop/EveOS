@@ -16,6 +16,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     let lastStatus = 'Idle';
     let activeStreamTimer = null;
     let isStreamPlaying = false;
+    // One-time console notice for the normal "bridge off -> browser playback" mode; reset when a
+    // native send succeeds again so a mid-session server restart re-announces cleanly.
+    let nativeFallbackNoticeShown = false;
     const activeLayers = new Map();
     // Cache decoded AudioBuffers by URL so retriggering the SAME sound is instant
     // (skip the fetch + decodeAudioData that otherwise runs on every press).
@@ -400,6 +403,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                         replace: true
                     }).catch(() => false);
                     if (ok !== true) throw new Error('Native bridge unreachable for voice playback');
+                    nativeFallbackNoticeShown = false;
                 } else {
                     // Stream long audio
                     await streamPCMToBridge(audioBuffer, audioBuffer.sampleRate, safeItem.volume ?? 1);
@@ -408,7 +412,16 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 window.EveAudioflixState?.recordPlay?.(safeItem);
                 return true;
             } catch (err) {
-                console.warn('[Audioflix] native stream failed, falling back:', err);
+                // Bridge simply not running (file:// with the server off) is a NORMAL mode, not an
+                // error — say so once and play through the browser. Real failures still warn.
+                if (String(err?.message || '').includes('Native bridge unreachable')) {
+                    if (!nativeFallbackNoticeShown) {
+                        nativeFallbackNoticeShown = true;
+                        console.info('[Audioflix] Native bridge offline — playing soundboard through the browser route instead.');
+                    }
+                } else {
+                    console.warn('[Audioflix] native stream failed, falling back:', err);
+                }
             }
         }
 
