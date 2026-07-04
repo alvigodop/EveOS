@@ -141,8 +141,9 @@ Please acknowledge that you've received this context and can now continue the co
                     setattr(connection_monitor, "screen_share_silent_response_started_at", time.time())
                     print("Silent modular EveOS context enabled for next model turn.")
 
-                await session.send(input=system_instruction, end_of_turn=True)
-                print("System context sent to Gemini as system instruction")
+                end_of_turn = not modular_context_silent
+                await session.send(input=system_instruction, end_of_turn=end_of_turn)
+                print(f"System context sent to Gemini as system instruction (end_of_turn={end_of_turn})")
                 
                 # Live data stream updates are intentionally silent and frequent.
                 if not modular_context_silent:
