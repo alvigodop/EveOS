@@ -558,7 +558,7 @@ rem Stagger each console spawn ~1s. On Win11 with Windows Terminal as the defaul
 rem firing several `start ... cmd /k` windows back-to-back races the DefTerm/ConPTY handoff and
 rem one tab dies with "[error 0x800700e8 ...] (the pipe is being closed)", leaving that bridge
 rem down. Spacing the spawns lets each tab finish initializing before the next handoff.
-timeout /t 1 /nobreak >nul
+ping 127.0.0.1 -n 2 >nul
 start "EveOS %_LABEL%" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%_SCRIPT%"" %_PORT%"
 exit /b 0
 
