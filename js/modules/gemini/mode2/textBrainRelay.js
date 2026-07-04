@@ -242,7 +242,8 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
                 const ws = window.webSocket;
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
-                        source: "text_brain_context_injection",
+                        source: "modular_gemini_context",
+                        is_modular_context: true,
                         is_system_context: true,
                         silent_response: true,
                         realtime_input: {
