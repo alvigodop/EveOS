@@ -196,3 +196,5 @@ tools/windows/allow-eveos-lightpanda.ps1
 server/chat_history.json
 server/gemini-backend/interactions/chat_history.json
 server/gemini-backend/interactions/debug_received_image.jpg
+chat_history.json
+
