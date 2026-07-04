@@ -163,11 +163,15 @@ function makeRelayVm({ textBrainMode }) {
         assert(req.text === 'what cards do I have?', 'user text should reach the brain');
         assert(String(req.context || '').includes('[EVEOS CONTEXT SNAPSHOT'), 'relayed snapshot marker missing from brain request');
         assert(String(req.context || '').length >= slot.chars, 'brain request should carry the full snapshot');
-        assert(spoken[0] === 'Brain reply about your cards.', 'brain reply should be handed to the live model to speak');
+        assert(spoken[0] === 'what cards do I have?', 'user query should be handed to the live model to answer');
+        assert(wsFrames.length === 1, 'exactly one system context frame should be sent');
+        assert(wsFrames[0].is_system_context === true, 'frame should be system context');
+        assert(wsFrames[0].realtime_input.media_chunks[0].data.includes('Brain reply about your cards.'), 'system context should contain extracted facts');
         console.log(`mode 2 routing OK: ${result.mode} snapshot (${result.manifest.messageChars} chars) -> brain slot -> next turn carried ${String(req.context).length} chars; live WS untouched`);
 
         // Data Stream deltas also route to the brain in Mode 2 (the live session never sees them)
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.js');
+        wsFrames.length = 0; // Clear frames sent by context injection turn
         const streamResult = api.sendDataStreamToGemini(
             { source: 'state-mutated', kind: 'data', mutationSeq: 3, at: Date.now(), meta: { dataDelta: { complete: true, workspaceIds: ['main'], categoryNames: ['Test'], addedLinkIds: ['k1'] } } },
             { scope: { scope: 'workspace', workspaceId: 'main', workspaceIds: ['main'], categoryName: '', label: 'Main' } }

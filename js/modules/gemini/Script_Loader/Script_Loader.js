@@ -44,7 +44,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/idleDetector.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=0.1.1`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=0.1.0`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.4`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.7`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
@@ -64,7 +64,7 @@ const masterScriptList = [
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/popout_chat_feature/popoutChatHandler.js`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_message_operations/textMessageSender.js`,
     // Mode 2: Text Brain -> Live Voice relay (loads after sendTextMessage/socket/waitForConnection)
-    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.1.3',
+    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.1.4',
     `${BASE_PATHS.COMM_PANEL}/input_attachments/imageAttachmentHandler.js?v=0.1.0`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_input_handling/textInputHandler.js?v=0.2.0`,
 

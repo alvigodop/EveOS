@@ -226,17 +226,39 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     async function relayUserUtterance(userText) {
         const text = String(userText || '').trim();
         if (!text) return false;
-        display('🧠 Text Brain is thinking…');
+        display('🧠 Text Brain is extracting context…');
         try {
             const res = await sendRequest(text);
-            const reply = String(res.text || '').trim();
+            const extractedContext = String(res.text || '').trim();
             accrueTokens(res.usage);
-            if (!reply) throw new Error('text brain returned empty reply');
-            display('TEXT BRAIN → LIVE: ' + reply);
-            window.dispatchEvent(new CustomEvent('eve:mode2-relay', {
-                detail: { user: text, reply: reply, usage: res.usage || null }
-            }));
-            if (typeof window.sendTextMessage === 'function') window.sendTextMessage(reply);
+            
+            if (extractedContext) {
+                display('TEXT BRAIN → LIVE: Injected Extracted Context');
+                window.dispatchEvent(new CustomEvent('eve:mode2-relay', {
+                    detail: { user: text, reply: extractedContext, usage: res.usage || null }
+                }));
+                
+                // Silently inject background context into the Live session
+                const ws = window.webSocket;
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        source: "text_brain_context_injection",
+                        is_system_context: true,
+                        silent_response: true,
+                        realtime_input: {
+                            media_chunks: [
+                                {
+                                    mime_type: "text/plain",
+                                    data: `[BACKGROUND CONTEXT FROM TEXT BRAIN]: The following relevant facts and state details were extracted from the user's digital workspaces/history:\n${extractedContext}`
+                                }
+                            ]
+                        }
+                    }));
+                }
+            }
+
+            // Route the user's original message to the Live session so the Live model replies natively
+            if (typeof window.sendTextMessage === 'function') window.sendTextMessage(text);
             return true;
         } catch (error) {
             console.warn('[Mode2] text brain relay failed; falling back to direct live:', error);

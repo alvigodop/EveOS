@@ -141,6 +141,14 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
             mode: state.geminiConversationMode,
             readyForBackend: normalized === 'text-brain-live-voice'
         });
+        // Automatically reconnect with the new system instructions
+        if (typeof window.resetConnection === 'function' && typeof window.connect === 'function' && window.webSocket) {
+            console.log(`[ConversationMode] Switching mode to ${normalized}; reinitializing Gemini connection...`);
+            window.resetConnection();
+            setTimeout(() => {
+                window.connect();
+            }, 500);
+        }
         return state.geminiConversationMode;
     }
 
