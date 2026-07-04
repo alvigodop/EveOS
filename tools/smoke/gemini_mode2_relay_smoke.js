@@ -15,6 +15,7 @@ async function main() {
 
     const fakeSocket = {
         __eveMode2Listener: false,
+        readyState: 1,
         addEventListener(type, fn) {
             listeners[type] = listeners[type] || [];
             listeners[type].push(fn);
@@ -72,16 +73,38 @@ async function main() {
     if (!sandbox.window.EveGeminiMode2.ready) throw new Error('relay did not mark ready');
     if (!sandbox.window.EveGeminiMode2.isMode2()) throw new Error('mode2 flag not detected');
 
+    // The brain is only consulted when there is EveOS context to extract from (quota guard).
+    sandbox.window.EveGeminiMode2.setEveContext('dummy EveOS snapshot: card Alpha in workspace Main', null);
+
     const ok = await sandbox.window.EveGeminiMode2.relayUserUtterance('hello mode two');
     if (!ok) throw new Error('relay returned false');
-    if (spoken[0] !== 'This is the text brain reply.') throw new Error(`unexpected spoken handoff: ${spoken[0]}`);
-    if (sent[0]?.type !== 'text_brain_request') throw new Error('text brain request not sent');
-    if (sent[0]?.context !== 'scoped EveOS context') throw new Error('context not included');
-    if (!Array.isArray(sent[0]?.history) || sent[0].history.length !== 1) throw new Error('history not included');
+    // Extraction design: the LIVE model answers the USER's message natively...
+    if (spoken[0] !== 'hello mode two') throw new Error(`live model should receive the user text, saw: ${spoken[0]}`);
+    // ...while the brain's extraction is injected silently as background context.
+    const brainReq = sent.find((p) => p.type === 'text_brain_request');
+    if (!brainReq) throw new Error('text brain request not sent');
+    if (!String(brainReq.context || '').includes('scoped EveOS context')) throw new Error('legacy context not included');
+    if (!String(brainReq.context || '').includes('dummy EveOS snapshot')) throw new Error('relayed EveOS snapshot not included');
+    if (!Array.isArray(brainReq.history) || brainReq.history.length !== 1) throw new Error('history not included');
+    const injection = sent.find((p) => p.is_modular_context === true);
+    if (!injection) throw new Error('silent context injection not sent');
+    const injected = injection.realtime_input.media_chunks[0].data;
+    if (!injected.includes('This is the text brain reply.')) throw new Error('extraction missing from injection');
+    if (!injected.includes('Do NOT acknowledge')) throw new Error('injection must forbid acknowledgment');
+    if (injection.silent_response !== true) throw new Error('injection must request silent handling');
     if (!events.some((event) => event.type === 'eve:mode2-tokens' && event.detail.textBrain.total === 19)) {
         throw new Error('token event not dispatched');
     }
     if (!messages.some((message) => /TEXT BRAIN/.test(message))) throw new Error('text brain display message missing');
+
+    // A second identical extraction must NOT be re-injected (dedupe), and the throttle gate
+    // must be resettable for tests.
+    sandbox.window.EveGeminiMode2.resetBrainGate();
+    const injectionsBefore = sent.filter((p) => p.is_modular_context === true).length;
+    await sandbox.window.EveGeminiMode2.relayUserUtterance('hello again');
+    const injectionsAfter = sent.filter((p) => p.is_modular_context === true).length;
+    if (injectionsAfter !== injectionsBefore) throw new Error('identical extraction should not be re-injected');
+    if (spoken[1] !== 'hello again') throw new Error('second turn should still reach the live model');
 
     console.log('GEMINI_MODE2_RELAY_SMOKE_OK');
 }

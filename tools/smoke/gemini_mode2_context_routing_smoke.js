@@ -179,6 +179,7 @@ function makeRelayVm({ textBrainMode }) {
         assert(streamResult.ok && streamResult.sent && streamResult.route === 'text-brain', 'mode 2 delta should route to the brain');
         assert(wsFrames.length === 0, 'mode 2 delta must not touch the live WebSocket');
         assert(mode2.getEveContextStatus().updateCount === 1, 'delta should land in the brain update log');
+        mode2.resetBrainGate();   // clear the free-tier throttle between test turns
         await mode2.relayUserUtterance('and now?');
         const req2 = brainRequests[1];
         assert(String(req2.context || '').includes('[EVEOS DATA STREAM UPDATES'), 'delta log missing from next brain turn');

@@ -20,6 +20,13 @@ class GeminiResponseHandler:
     def _screen_response_suppressed(self):
         if not getattr(self.connection_monitor, "screen_share_silent_response_pending", False):
             return False
+        # NEVER suppress a turn that is already streaming to the client. The silent flag exists to
+        # swallow a SPONTANEOUS acknowledgment turn after a silent context injection — but Mode 2
+        # injections and data-stream deltas can arm it while a real reply is mid-stream, and
+        # suppressing from that point dropped audio chunks out of the MIDDLE of the reply (the
+        # "corrupted audio" symptom: gaps/garble where suppressed parts went missing).
+        if len(getattr(self.audio_processor, "audio_data", b"") or b"") > 0:
+            return False
         started_at = float(getattr(self.connection_monitor, "screen_share_silent_response_started_at", 0) or 0)
         if started_at and time.time() - started_at > 20:
             self._clear_screen_response_suppression()

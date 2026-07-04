@@ -9,6 +9,25 @@ console.log("audioPlayerUI.js loading...");
 
 (function () {
 
+    // Append a base64 audio chunk to an accumulated base64 string SAFELY. Plain string concat is
+    // only valid when the existing string has no '=' padding (i.e. its byte length is a multiple
+    // of 3). A padded tail mid-string makes the whole clip undecodable (atob throws) — the replay
+    // sounded corrupted/broken whenever Gemini emitted a chunk whose size wasn't a multiple of 3.
+    // The rare padded case decodes both sides and re-encodes the joined bytes.
+    function safeBase64Append(existing, chunk) {
+        const a = String(existing || '');
+        const b = String(chunk || '');
+        if (!a) return b;
+        if (!b) return a;
+        if (!/=+$/.test(a)) return a + b;
+        try {
+            return btoa(atob(a) + atob(b));
+        } catch (e) {
+            console.warn('[audioPlayerUI] base64 re-join failed; keeping plain concat:', e);
+            return a + b;
+        }
+    }
+
     // Helper function to ensure audio player UI exists and is updated
     function ensureAudioPlayerUI(audioData) {
         const chatLog = document.getElementById('chatLog');
@@ -85,7 +104,7 @@ console.log("audioPlayerUI.js loading...");
             container = existingPlayer;
             // APPEND: If container exists, accumulate the new chunk
             if (audioData) {
-                container.audioData = (container.audioData || "") + audioData;
+                container.audioData = safeBase64Append(container.audioData, audioData);
             }
         }
 

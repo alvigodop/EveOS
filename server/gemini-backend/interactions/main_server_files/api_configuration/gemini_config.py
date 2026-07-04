@@ -258,11 +258,13 @@ MODEL = MAIN_MODEL
 # ---------------------------------------------------------------------------
 # The "text brain" is a large-context text model that holds the grand EveOS
 # conversation history/context and produces the line the live voice model speaks.
-# gemini-2.5-flash carries a 1M-token context window - far more retention than the
-# live audio session - which is exactly why Mode 2 offloads memory to it. (Note:
-# gemini-2.0-flash is NOT free-tier eligible for generate_content - limit 0 - so the
-# text brain uses 2.5-flash, which has free quota and the same large context.)
-TEXT_BRAIN_MODEL = "gemini-2.5-flash"
+# The text brain needs a 1M-token context window, not deep reasoning: in the extraction
+# design the LIVE model does the thinking; the brain only pulls relevant facts out of the
+# (potentially huge) EveOS context. gemini-2.5-flash-lite has the same 1M window with
+# HIGHER free-tier limits than 2.5-flash — per-turn extraction burned through 2.5-flash's
+# free quota mid-conversation (429s at ~20 requests). (gemini-2.0-flash is NOT free-tier
+# eligible for generate_content - limit 0.)
+TEXT_BRAIN_MODEL = "gemini-2.5-flash-lite"
 
 TEXT_BRAIN_CONFIG = {
     "temperature": 0.8,
@@ -276,10 +278,14 @@ TEXT_BRAIN_CONFIG = {
 TEXT_BRAIN_SYSTEM_PREFIX = (
     "You are an information extraction assistant for a live voice model inside EveOS. "
     "Your job is to analyze the user's message, the conversation history, and the EveOS context, "
-    "and extract all relevant details, data, facts, and updates needed to answer the user's query. "
-    "Provide this extracted information clearly and concisely as context. "
+    "and extract the relevant details, data, facts, and updates needed to answer the user's query. "
+    "Provide this extracted information clearly and concisely as context, under 150 words. "
     "Do not write a conversational response to the user. "
-    "Focus purely on extracting the relevant facts and state information the live model needs to reply."
+    "Never quote, summarize, or repeat prior background-context injections, system messages, or "
+    "your own previous extractions that appear in the history — extract only from the EveOS "
+    "context and genuinely new user information. "
+    "If nothing in the EveOS context or history is relevant to the user's message (greetings, "
+    "small talk, acknowledgments, connection tests), reply with exactly: NO_CONTEXT"
 )
 
 # Recommended system instruction for the LIVE model when Mode 2 is active. The client

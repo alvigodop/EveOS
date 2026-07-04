@@ -16,10 +16,20 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     const ns = window.EveGeminiMode2;
     if (ns.ready) return;
 
-    const REQUEST_TIMEOUT_MS = 45000;
+    const REQUEST_TIMEOUT_MS = 20000;      // a voice turn can't stall 45s on a dead brain
     const HISTORY_LIMIT = 40;
     const HISTORY_TEXT_LIMIT = 1200;
     const CONTEXT_LIMIT = 80000;
+    // Quota guards: the brain is a FREE-TIER metered model and used to be called on every
+    // utterance with no spacing — one lively conversation exhausted the quota (429s), after
+    // which every turn still paid a doomed round-trip. Space the calls and, on failure,
+    // cool down instead of re-dialing a dead number.
+    const MIN_BRAIN_INTERVAL_MS = 10000;
+    const INJECT_MAX_CHARS = 2400;         // the live session needs facts, not essays
+    let lastBrainCallAt = 0;
+    let brainCooldownUntil = 0;
+    let cooldownNoticeShown = false;
+    let lastInjectedContext = '';
     const pending = new Map(); // requestId -> { resolve, reject, timer }
     const tokenTotals = { textBrain: { prompt: 0, output: 0, total: 0 }, calls: 0 };
     // EveOS Context Relay slot: in Mode 2 "Send Selected Context" hands the snapshot HERE instead
@@ -84,27 +94,55 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         entry.reject(new Error(message));
     }
 
+    // History entries that are OUR OWN plumbing must never reach the brain: scraping the chat
+    // log fed it its previous injections and the live model's context-acknowledgments, so each
+    // extraction re-extracted the last one — the feedback loop behind the repeated-sentence
+    // degeneration (the same line echoed dozens of times in one reply).
+    const HISTORY_EXCLUDE_MARKERS = [
+        'BACKGROUND CONTEXT FROM TEXT BRAIN',
+        'SILENT BACKGROUND CONTEXT',
+        'TEXT BRAIN → LIVE',
+        'Text Brain is extracting',
+        'Text Brain unavailable',
+        'EVEOS CONTEXT SNAPSHOT',
+        'EVEOS DATA STREAM UPDATE',
+        'System Message:'
+    ];
+
+    function sanitizeHistory(entries) {
+        const cleaned = [];
+        for (const entry of Array.isArray(entries) ? entries : []) {
+            const text = String(entry?.text || '').trim();
+            if (!text) continue;
+            if (HISTORY_EXCLUDE_MARKERS.some(function (marker) { return text.includes(marker); })) continue;
+            const prev = cleaned[cleaned.length - 1];
+            if (prev && prev.role === entry.role && prev.text === text) continue;   // collapse dupes
+            cleaned.push({ role: entry.role, text: text });
+        }
+        return cleaned;
+    }
+
     // Best-effort gather of recent conversation history for the text brain. Degrades to
     // [] if no known history source is present (the brain still works per-turn).
     function gatherHistory() {
         try {
             const src = window.chatHistory || window.conversationHistory;
             if (Array.isArray(src)) {
-                return src.slice(-HISTORY_LIMIT).map(function (m) {
+                return sanitizeHistory(src.slice(-HISTORY_LIMIT).map(function (m) {
                     const role = m.role || (m.isUser || m.is_user ? 'user' : 'model');
                     const text = m.text || m.content || m.message || '';
                     return { role: role, text: compactText(text, HISTORY_TEXT_LIMIT) };
-                }).filter(function (m) { return m.text.trim(); });
+                }));
             }
         } catch { /* fall through */ }
 
         try {
-            const nodeHistory = gatherHistoryFromDom();
+            const nodeHistory = sanitizeHistory(gatherHistoryFromDom());
             if (nodeHistory.length) return nodeHistory;
         } catch { /* fall through */ }
 
         try {
-            const savedHistory = gatherHistoryFromLocalStorage();
+            const savedHistory = sanitizeHistory(gatherHistoryFromLocalStorage());
             if (savedHistory.length) return savedHistory;
         } catch { /* fall through */ }
 
@@ -162,7 +200,8 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
 
     function setEveContext(text, manifest) {
         eveContext = { text: String(text || ''), manifest: manifest || null, at: Date.now() };
-        eveUpdates = [];   // a fresh snapshot supersedes the delta log
+        eveUpdates = [];           // a fresh snapshot supersedes the delta log
+        lastInjectedContext = '';  // new facts — allow the next extraction through the dedupe
         return { chars: eveContext.text.length, at: eveContext.at };
     }
 
@@ -218,53 +257,96 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         window.dispatchEvent(new CustomEvent('eve:mode2-tokens', { detail: JSON.parse(JSON.stringify(tokenTotals)) }));
     }
 
+    function sendDirect(text) {
+        if (typeof window.sendTextMessage === 'function') window.sendTextMessage(text);
+    }
+
+    // Decide whether this turn should consult the brain at all. Skipping is SILENT and cheap —
+    // the live model still answers natively; it just doesn't get a fresh fact extraction.
+    function brainSkipReason() {
+        if (!eveContext.text && !eveUpdates.length) return 'no-eveos-context';   // nothing to extract from
+        const now = Date.now();
+        if (now < brainCooldownUntil) return 'cooldown';
+        if (now - lastBrainCallAt < MIN_BRAIN_INTERVAL_MS) return 'throttled';
+        return '';
+    }
+
+    // Classify a brain failure into a cooldown so we stop paying round-trips to a dead/metered
+    // endpoint. 429s honor the API's own retry hint when present.
+    function enterCooldown(error) {
+        const message = String(error?.message || error || '');
+        let seconds = 15;
+        if (/429|quota|rate.?limit/i.test(message)) {
+            const hinted = /retry(?:_delay)?[^0-9]{0,20}(\d+(?:\.\d+)?)\s*s/i.exec(message);
+            seconds = Math.max(hinted ? Math.ceil(Number(hinted[1])) : 0, 60);
+        } else if (/timeout/i.test(message)) {
+            seconds = 30;
+        }
+        brainCooldownUntil = Date.now() + seconds * 1000;
+        if (!cooldownNoticeShown) {
+            cooldownNoticeShown = true;
+            display('System Message: Text Brain paused for ' + seconds + 's (' + compactText(message, 140) + '). Replies continue directly via the live model.');
+        }
+    }
+
     /**
-     * Route one user utterance through the text brain, then have the live model speak
-     * the brain's reply. Falls back to direct-live on any failure.
-     * @returns {Promise<boolean>} true if the relay succeeded, false if it fell back.
+     * Route one user utterance through the text brain: the brain extracts relevant EveOS facts,
+     * which are injected SILENTLY into the live session, then the live model answers the user's
+     * original message natively. Skips the brain (silently) when there is nothing to extract,
+     * during quota cooldowns, or when called faster than the free-tier spacing allows.
+     * @returns {Promise<boolean>} true if the brain contributed, false if the turn went direct.
      */
     async function relayUserUtterance(userText) {
         const text = String(userText || '').trim();
         if (!text) return false;
+
+        if (brainSkipReason()) { sendDirect(text); return false; }
+
         display('🧠 Text Brain is extracting context…');
+        lastBrainCallAt = Date.now();
         try {
             const res = await sendRequest(text);
-            const extractedContext = String(res.text || '').trim();
+            const extractedContext = compactText(String(res.text || ''), INJECT_MAX_CHARS);
             accrueTokens(res.usage);
-            
-            if (extractedContext) {
+            cooldownNoticeShown = false;
+
+            // NO_CONTEXT is the brain's explicit "nothing relevant here" answer (greetings, small
+            // talk). Repeat injections are also skipped — re-telling the live model the same facts
+            // only invites "I've got the context!" chatter and burns its window.
+            const noContext = !extractedContext || /^NO_CONTEXT\b/i.test(extractedContext);
+            if (!noContext && extractedContext !== lastInjectedContext) {
+                lastInjectedContext = extractedContext;
                 display('TEXT BRAIN → LIVE: Injected Extracted Context');
                 window.dispatchEvent(new CustomEvent('eve:mode2-relay', {
                     detail: { user: text, reply: extractedContext, usage: res.usage || null }
                 }));
-                
-                // Silently inject background context into the Live session
+
+                // Silent injection: the preamble must FORBID acknowledgment — without it the live
+                // model announced "I've totally got the context!" on every single turn.
                 const ws = window.webSocket;
-                if (ws && ws.readyState === WebSocket.OPEN) {
+                if (ws && ws.readyState === (window.WebSocket?.OPEN ?? 1)) {
                     ws.send(JSON.stringify({
-                        source: "modular_gemini_context",
+                        source: 'modular_gemini_context',
                         is_modular_context: true,
                         is_system_context: true,
                         silent_response: true,
                         realtime_input: {
-                            media_chunks: [
-                                {
-                                    mime_type: "text/plain",
-                                    data: `[BACKGROUND CONTEXT FROM TEXT BRAIN]: The following relevant facts and state details were extracted from the user's digital workspaces/history:\n${extractedContext}`
-                                }
-                            ]
+                            media_chunks: [{
+                                mime_type: 'text/plain',
+                                data: '[SILENT BACKGROUND CONTEXT — internal memory refresh only. Do NOT acknowledge, mention, or respond to this message in any way. Never say you received or understood context. Use these facts silently, and only if they help answer the user\'s next message.]\n' + extractedContext
+                            }]
                         }
                     }));
                 }
             }
 
-            // Route the user's original message to the Live session so the Live model replies natively
-            if (typeof window.sendTextMessage === 'function') window.sendTextMessage(text);
-            return true;
+            // The live model answers the user's original message natively.
+            sendDirect(text);
+            return !noContext;
         } catch (error) {
             console.warn('[Mode2] text brain relay failed; falling back to direct live:', error);
-            display('System Message: Text Brain unavailable (' + (error.message || error) + '); sending directly to the live model.');
-            if (typeof window.sendTextMessage === 'function') window.sendTextMessage(text);
+            enterCooldown(error);
+            sendDirect(text);
             return false;
         }
     }
@@ -278,7 +360,11 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         clearEveContext: clearEveContext,
         getEveContextStatus: getEveContextStatus,
         getTokenTotals: function () { return JSON.parse(JSON.stringify(tokenTotals)); },
-        resetTokenTotals: function () { tokenTotals.textBrain = { prompt: 0, output: 0, total: 0 }; tokenTotals.calls = 0; }
+        resetTokenTotals: function () { tokenTotals.textBrain = { prompt: 0, output: 0, total: 0 }; tokenTotals.calls = 0; },
+        // Clears throttle/cooldown gates (console tuning + smoke tests). Injection dedupe is NOT
+        // cleared here — it resets when a new EveOS snapshot arrives (new facts, new injection).
+        resetBrainGate: function () { lastBrainCallAt = 0; brainCooldownUntil = 0; cooldownNoticeShown = false; },
+        getBrainGateStatus: function () { return { skipReason: brainSkipReason(), cooldownUntil: brainCooldownUntil, lastCallAt: lastBrainCallAt }; }
     });
 
     console.log('[Mode2] Text Brain relay ready.');

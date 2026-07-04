@@ -197,8 +197,14 @@ async function _processInjest(base64AudioChunk, isFinalAudio = true) {
                 return;
             }
 
-            // sequentialAudioPlay is disabled — allow the normal final-audio fallback path to run so the final chunk isn't dropped.
-            console.log("[TurnHandoff] sequentialAudioPlay disabled — allowing fallback final playback.");
+            // sequentialAudioPlay is disabled and the interim stream ALREADY SPOKE this reply.
+            // Falling through here used to reset the interim clock mid-stream, stop the live
+            // speech, and replay the whole clip from zero via the worklet — heard as the reply
+            // cutting off and racing through itself ("sped through / corrupted"). The final
+            // audio_data is not lost: ensureAudioPlayerUI already archived it on the message
+            // player for replay. So: leave the live stream to finish naturally and do nothing.
+            console.log("[TurnHandoff] sequentialAudioPlay disabled — interim already played this turn; final audio archived to the message player only.");
+            return;
         }
 
         // NO TURN HANDOFF: This is a fresh non-streamed response or a manual completion
