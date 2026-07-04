@@ -10,12 +10,41 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     const LIVE_CONTEXT_CHUNK_CHARS = 45000;
-    // The Gemini Live oversized-frame disconnect is a PER-FRAME limit, not a total one — every
-    // chunk we send is already a safe 45k, staggered 180ms apart. So the whole datapack can go
-    // through as more batches without risking a reload; this ceiling is only a runaway guard for a
-    // pathological multi-MB state (≈13 frames at 600k), not a content cap that silently drops cards.
+    // Absolute transport runaway guard (per-frame limits are handled by the 45k chunking; this
+    // only stops a pathological multi-MB state from flooding the socket).
     const LIVE_CONTEXT_MAX_CHARS = 600000;
     const LIVE_CONTEXT_CHUNK_DELAY_MS = 180;
+    // MODEL budget — the ceiling that actually matters. The live voice model (gemini-2.5-flash
+    // native audio) runs a ~128k-TOKEN session window shared by the system prompt, the whole
+    // conversation, and streamed audio (~25 tok/s in, ~150 tok/s out). A context snapshot must
+    // leave most of that window for the actual conversation, so the default budget is ~32k tokens
+    // (≈128k chars at ~4 chars/token — roughly a quarter of the window). The tier ladder steps
+    // detail down to fit; narrow scopes (card/tab) keep the high tiers. Tunable per model without
+    // a code change: localStorage 'geminiContextCharBudget' (clamped 20k..600k).
+    const LIVE_CONTEXT_DEFAULT_BUDGET_CHARS = 128000;
+    function liveContextBudgetChars() {
+        let override = 0;
+        try { override = Number(window.localStorage?.getItem('geminiContextCharBudget')) || 0; } catch (e) { /* storage blocked */ }
+        const budget = override > 0 ? override : LIVE_CONTEXT_DEFAULT_BUDGET_CHARS;
+        return Math.max(20000, Math.min(LIVE_CONTEXT_MAX_CHARS, budget));
+    }
+    // Mode 2 budget — the snapshot goes to the TEXT BRAIN (gemini-2.5-flash, 1M-token window)
+    // instead of the live session, so it can afford much more detail. Capped at ~50k tokens
+    // (200k chars) anyway because the brain is stateless per turn: the snapshot rides along on
+    // EVERY request and the free tier meters tokens per minute. Override with localStorage
+    // 'geminiTextBrainContextCharBudget'.
+    const TEXT_BRAIN_CONTEXT_DEFAULT_BUDGET_CHARS = 200000;
+    function textBrainContextBudgetChars() {
+        let override = 0;
+        try { override = Number(window.localStorage?.getItem('geminiTextBrainContextCharBudget')) || 0; } catch (e) { /* storage blocked */ }
+        const budget = override > 0 ? override : TEXT_BRAIN_CONTEXT_DEFAULT_BUDGET_CHARS;
+        return Math.max(20000, Math.min(LIVE_CONTEXT_MAX_CHARS, budget));
+    }
+    function textBrainContextSlot() {
+        const mode2 = window.EveAudioflixState?.isTextBrainMode?.() === true;
+        const slot = window.EveGeminiMode2;
+        return mode2 && typeof slot?.setEveContext === 'function' ? slot : null;
+    }
 
     async function syncNow(force = true) {
         if (!ns.isHttpContext()) return false;
@@ -315,12 +344,19 @@ window.EveDataStore = window.EveDataStore || {};
             }, null, 2);
     }
 
-    function prepareLiveContextMessage(message) {
+    function prepareLiveContextMessage(message, budgetChars = liveContextBudgetChars()) {
         const raw = String(message || '');
-        const truncated = raw.length > LIVE_CONTEXT_MAX_CHARS;
-        const clipped = truncated
-            ? `${raw.slice(0, LIVE_CONTEXT_MAX_CHARS)}\n\n[TRANSPORT NOTICE: EveOS context was very large and was capped at ${LIVE_CONTEXT_MAX_CHARS.toLocaleString()} characters (sent as ${Math.ceil(LIVE_CONTEXT_MAX_CHARS / LIVE_CONTEXT_CHUNK_CHARS)} batched chunks). Narrow the scope or lower the detail tier to send the remainder.]`
-            : raw;
+        const cap = Math.max(20000, Math.min(LIVE_CONTEXT_MAX_CHARS, Number(budgetChars) || LIVE_CONTEXT_MAX_CHARS));
+        const truncated = raw.length > cap;
+        let clipped = raw;
+        if (truncated) {
+            // Last-resort clip only (the send path first steps the detail tier down to avoid this
+            // entirely). Cut at a line boundary so we never split a JSON token / URL mid-way —
+            // a blind byte slice fed Gemini megabytes of syntactically broken JSON.
+            let cut = raw.lastIndexOf('\n', cap);
+            if (cut < cap - 2000) cut = cap;
+            clipped = `${raw.slice(0, cut)}\n\n[TRANSPORT NOTICE: EveOS context was very large and was capped at ~${cap.toLocaleString()} characters to protect the live model's context window, so the JSON above may be incomplete near the end. Narrow the scope or lower the detail tier to receive a complete snapshot.]`;
+        }
         const parts = [];
         for (let index = 0; index < clipped.length; index += LIVE_CONTEXT_CHUNK_CHARS) {
             parts.push(clipped.slice(index, index + LIVE_CONTEXT_CHUNK_CHARS));
@@ -426,15 +462,43 @@ window.EveDataStore = window.EveDataStore || {};
         return { ok: false, error: remoteError || 'Failed to build Gemini context.' };
     }
 
+    // Lower-detail tiers rebuild the SAME scope with fewer samples and tighter field limits, so
+    // stepping down produces a complete, valid JSON snapshot that fits the transport ceiling —
+    // unlike byte-chopping a huge one, which shipped Gemini broken JSON on extreme datapacks.
+    const CONTEXT_TIER_LADDER = ['full', 'deep', 'summary', 'brief'];
+    // Headroom reserved for the nexus-trace block + chunk markers appended after tier selection.
+    const LIVE_CONTEXT_APPEND_RESERVE_CHARS = 12000;
+
     async function sendContextToGemini(mode = 'summary', limit = 25, options = {}) {
-        const context = await fetchGeminiContext(mode, limit, options);
+        let context = await fetchGeminiContext(mode, limit, options);
         if (!context.ok) return context;
+
+        // Auto-step the detail tier down until the snapshot fits the MODEL budget (not just the
+        // transport guard). In Mode 2 the destination is the text brain's 1M-token window, so the
+        // budget is far roomier than the live session's.
+        const brainSlot = textBrainContextSlot();
+        const budgetChars = brainSlot ? textBrainContextBudgetChars() : liveContextBudgetChars();
+        let autoDegradedFrom = null;
+        let autoDegradedChars = 0;
+        let ladderIndex = CONTEXT_TIER_LADDER.indexOf(normalizeContextMode(context.mode));
+        if (ladderIndex === -1) ladderIndex = CONTEXT_TIER_LADDER.indexOf('summary');
+        while ((context.contextText || '').length > budgetChars - LIVE_CONTEXT_APPEND_RESERVE_CHARS
+            && ladderIndex < CONTEXT_TIER_LADDER.length - 1) {
+            if (!autoDegradedFrom) {
+                autoDegradedFrom = normalizeContextMode(context.mode);
+                autoDegradedChars = (context.contextText || '').length;
+            }
+            ladderIndex += 1;
+            const lower = await fetchGeminiContext(CONTEXT_TIER_LADDER[ladderIndex], limit, options);
+            if (!lower.ok) break;
+            context = lower;
+        }
 
         const payloadHasNexusLog = Array.isArray(context?.payload?.nexusLog) && context.payload.nexusLog.length;
         const traceLimit = context.mode === 'brief' ? 1 : 3;
         const recentNexusTraces = payloadHasNexusLog ? [] : getRecentNexusTraces(traceLimit);
         const rawMessage = (context.contextText || '') + buildNexusTraceContextBlock(recentNexusTraces);
-        const prepared = prepareLiveContextMessage(rawMessage);
+        const prepared = prepareLiveContextMessage(rawMessage, budgetChars);
         const message = prepared.message;
         if (!message) return { ok: false, error: 'Empty Gemini context payload.' };
 
@@ -447,13 +511,44 @@ window.EveDataStore = window.EveDataStore || {};
             contextSource: context.localFallback ? 'browser-state-fallback' : 'server-api',
             transportChunkCount: prepared.parts.length,
             transportChunkChars: LIVE_CONTEXT_CHUNK_CHARS,
-            transportTruncated: prepared.truncated
+            transportTruncated: prepared.truncated,
+            autoDegradedFrom,
+            autoDegradedChars,
+            modelBudgetChars: budgetChars,
+            estimatedTokens: Math.round(message.length / 4)
         };
 
         const rememberReplay = () => {
             window.GeminiLiveLinkAgentic = window.GeminiLiveLinkAgentic || {};
             window.GeminiLiveLinkAgentic._lastContextReplay = { mode: context.mode, limit, options, at: Date.now() };
         };
+
+        // Mode 2: hand the snapshot to the TEXT BRAIN instead of spending the live session's
+        // ~128k-token window on it. The brain (1M-token window) includes it on every turn and
+        // already tells the live model what to say — so the context informs every reply without
+        // the live session ever seeing the bulk.
+        if (brainSlot) {
+            rememberReplay();
+            const handoff = brainSlot.setEveContext(message, { ...manifest, route: 'text-brain' });
+            if (typeof window.displayMessage === 'function') {
+                const degradeNote = autoDegradedFrom
+                    ? ` — auto-stepped down from ${autoDegradedFrom} (${autoDegradedChars.toLocaleString()} chars exceeded the text-brain budget)`
+                    : '';
+                window.displayMessage(
+                    `System Message: Handed EveOS context snapshot (${context.mode}, ${manifest.messageChars} chars, ${manifest.contextSource})${degradeNote} to the Mode 2 Text Brain — it now informs every reply.`,
+                    true
+                );
+            }
+            return {
+                ok: true,
+                sent: true,
+                route: 'text-brain',
+                mode: context.mode,
+                manifest: { ...manifest, route: 'text-brain' },
+                localFallback: !!context.localFallback,
+                handoffChars: handoff?.chars || message.length
+            };
+        }
 
         const sendPayload = (route = 'websocket') => {
             rememberReplay();
@@ -494,8 +589,11 @@ window.EveDataStore = window.EveDataStore || {};
                 }
             });
             if (typeof window.displayMessage === 'function') {
+                const degradeNote = autoDegradedFrom
+                    ? ` — auto-stepped down from ${autoDegradedFrom} (${autoDegradedChars.toLocaleString()} chars exceeded the transport ceiling)`
+                    : '';
                 window.displayMessage(
-                    `System Message: Sent EveOS context snapshot (${context.mode}, ${manifest.messageChars} chars, ${manifest.transportChunkCount} chunk(s), ${manifest.contextSource}) to Gemini`,
+                    `System Message: Sent EveOS context snapshot (${context.mode}, ${manifest.messageChars} chars, ${manifest.transportChunkCount} chunk(s), ${manifest.contextSource})${degradeNote} to Gemini`,
                     true
                 );
             }

@@ -223,7 +223,19 @@ def create_gemini_config(voice_name="Aoede", context=None, generation_config=Non
     if context:
          full_context = context
          base_config["system_instruction"] = types.Content(parts=[types.Part(text=full_context)])
-    
+
+    # The live-session window is BOUNDED (native-audio live models run ~128k tokens — NOT the 1M
+    # of text 2.5-flash) and fills with conversation + streamed audio + EveOS context snapshots.
+    # Without compression the API terminates the session when the window fills; sliding-window
+    # compression evicts the oldest turns instead, so long sessions and large context relays
+    # survive. Guarded for older google-genai builds that predate the config type.
+    try:
+        base_config["context_window_compression"] = types.ContextWindowCompressionConfig(
+            sliding_window=types.SlidingWindow()
+        )
+    except Exception as compression_error:  # pragma: no cover - depends on installed SDK
+        print(f"[GeminiConfig] Context window compression unavailable: {compression_error}", flush=True)
+
     return base_config
 
 # Define model names as constants, gemini-2.5-flash-preview-native-audio-dialog, gemini-2.0-flash-exp, gemini-2.0-flash-live-001

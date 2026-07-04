@@ -22,6 +22,17 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     const CONTEXT_LIMIT = 80000;
     const pending = new Map(); // requestId -> { resolve, reject, timer }
     const tokenTotals = { textBrain: { prompt: 0, output: 0, total: 0 }, calls: 0 };
+    // EveOS Context Relay slot: in Mode 2 "Send Selected Context" hands the snapshot HERE instead
+    // of the live session (whose window is ~128k tokens) — the text brain's 1M-token window is
+    // where the big context belongs. The brain is stateless per turn, so this slot rides along on
+    // EVERY text_brain_request until replaced or cleared.
+    let eveContext = { text: '', manifest: null, at: 0 };
+    // Silent Data Stream deltas land here in Mode 2 (instead of the live session, which has no
+    // use for them and a much smaller window). Ring-buffered: the brain sees the latest changes
+    // since the snapshot without the update log growing unbounded.
+    const EVE_UPDATE_MAX_COUNT = 24;
+    const EVE_UPDATE_MAX_CHARS = 30000;
+    let eveUpdates = [];
 
     function isMode2() {
         try { return window.EveAudioflixState?.isTextBrainMode?.() === true; }
@@ -133,11 +144,46 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     }
 
     function gatherContext() {
+        const parts = [];
+        // Relayed EveOS snapshot first (already budgeted by the Context Relay's tier ladder —
+        // do NOT compact it here, that would re-break the JSON the ladder kept valid).
+        if (eveContext.text) {
+            parts.push('[EVEOS CONTEXT SNAPSHOT relayed from the EveOS Context Relay. Use it to answer questions about the user\'s workspaces, cards, and bookmarks.]\n' + eveContext.text);
+        }
+        if (eveUpdates.length) {
+            parts.push('[EVEOS DATA STREAM UPDATES since the snapshot above, oldest first. These reflect live changes to the user\'s state.]\n' + eveUpdates.join('\n'));
+        }
         try {
-            if (typeof window.getGeminiSystemContext === 'function') return compactText(window.getGeminiSystemContext(), CONTEXT_LIMIT);
-            if (typeof window.buildGeminiContext === 'function') return compactText(window.buildGeminiContext(), CONTEXT_LIMIT);
+            if (typeof window.getGeminiSystemContext === 'function') parts.push(compactText(window.getGeminiSystemContext(), CONTEXT_LIMIT));
+            else if (typeof window.buildGeminiContext === 'function') parts.push(compactText(window.buildGeminiContext(), CONTEXT_LIMIT));
         } catch { /* fall through */ }
-        return '';
+        return parts.filter(Boolean).join('\n\n');
+    }
+
+    function setEveContext(text, manifest) {
+        eveContext = { text: String(text || ''), manifest: manifest || null, at: Date.now() };
+        eveUpdates = [];   // a fresh snapshot supersedes the delta log
+        return { chars: eveContext.text.length, at: eveContext.at };
+    }
+
+    function appendEveUpdate(text) {
+        const update = String(text || '').trim();
+        if (!update) return { count: eveUpdates.length };
+        eveUpdates.push(update);
+        while (eveUpdates.length > EVE_UPDATE_MAX_COUNT
+            || eveUpdates.reduce((sum, item) => sum + item.length, 0) > EVE_UPDATE_MAX_CHARS) {
+            eveUpdates.shift();
+        }
+        return { count: eveUpdates.length };
+    }
+
+    function clearEveContext() {
+        eveContext = { text: '', manifest: null, at: 0 };
+        eveUpdates = [];
+    }
+
+    function getEveContextStatus() {
+        return { chars: eveContext.text.length, at: eveContext.at, manifest: eveContext.manifest, updateCount: eveUpdates.length };
     }
 
     function sendRequest(userText) {
@@ -204,6 +250,10 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         ready: true,
         isMode2: isMode2,
         relayUserUtterance: relayUserUtterance,
+        setEveContext: setEveContext,
+        appendEveUpdate: appendEveUpdate,
+        clearEveContext: clearEveContext,
+        getEveContextStatus: getEveContextStatus,
         getTokenTotals: function () { return JSON.parse(JSON.stringify(tokenTotals)); },
         resetTokenTotals: function () { tokenTotals.textBrain = { prompt: 0, output: 0, total: 0 }; tokenTotals.calls = 0; }
     });

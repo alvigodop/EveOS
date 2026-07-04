@@ -57,7 +57,12 @@ window.EveDataStore = window.EveDataStore || {};
             scope: 'workspace',
             workspaceId: text(getConfig().activeWorkspace, 'main')
         };
-        const raw = options?.scope || options || {};
+        // Unwrap { scope: {...} } wrappers ONLY when .scope is an object. When a scope object is
+        // passed directly, its .scope is the mode STRING ('workspace'/'card'/'all') — the old
+        // `options?.scope || options` grabbed that string, Object.assign spread its characters,
+        // and the caller's selected scope was silently REPLACED by the current surface. That made
+        // Data Stream scope selection a no-op.
+        const raw = (options && typeof options.scope === 'object' && options.scope) ? options.scope : (options || {});
         const merged = Object.assign({}, base, raw);
         const scope = normalizeScope(merged.scope);
         const workspaceId = text(merged.workspaceId, text(getConfig().activeWorkspace, 'main'));
@@ -171,6 +176,15 @@ window.EveDataStore = window.EveDataStore || {};
         const scope = normalizeScopeOptions(options?.scope || options);
         if (!mutationMatchesScope(detail, scope)) {
             return { ok: true, sent: false, skipped: true, reason: 'outside-scope', scope };
+        }
+        // Mode 2: deltas belong with the TEXT BRAIN (which holds the snapshot they update), not
+        // the live session — the live model only voices replies and its ~128k window would slowly
+        // fill with updates it never uses. The brain sees them on its next turn.
+        if (window.EveAudioflixState?.isTextBrainMode?.() === true
+            && typeof window.EveGeminiMode2?.appendEveUpdate === 'function') {
+            const brainContext = buildDataStreamContext(detail, scope);
+            const appended = window.EveGeminiMode2.appendEveUpdate(JSON.stringify(brainContext));
+            return { ok: true, sent: true, route: 'text-brain', scope, manifest: brainContext, updateCount: appended.count };
         }
         const socket = getSocket();
         if (!socket) return { ok: false, sent: false, skipped: true, reason: 'socket-offline', scope };

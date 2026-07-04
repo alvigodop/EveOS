@@ -1,0 +1,204 @@
+/**
+ * gemini_mode2_context_routing_smoke.js
+ *
+ * Mode 2 as the default conversation mode + the Context Relay routing to the Text Brain:
+ *   1. State migration: pre-default saves carrying 'direct-live' (the OLD default) flip to
+ *      Mode 2 once; an explicit post-migration 'direct-live' choice is respected.
+ *   2. In Mode 2, "Send Selected Context" hands the snapshot to the text brain slot (1M-token
+ *      model, 200k-char budget) — the live session's WebSocket gets NOTHING.
+ *   3. The next Mode 2 turn carries the snapshot to the backend and the brain's reply is
+ *      relayed to the live model.
+ *   4. Mode 1 still routes context over the live WebSocket (regression).
+ */
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const root = path.resolve(__dirname, '..', '..');
+
+function runScript(context, relativePath) {
+    vm.runInNewContext(fs.readFileSync(path.join(root, relativePath), 'utf8'), context, { filename: relativePath });
+}
+function assert(condition, message) { if (!condition) throw new Error('ASSERT FAILED: ' + message); }
+
+// Big dummy pack (Nova pattern): full tier builds ~478k chars -> must ladder under the 200k budget.
+const LONG_NOTE = ('This is an intentionally long note describing the card in detail. ').repeat(12);
+function makeLinks(n) {
+    const links = [];
+    for (let i = 0; i < n; i += 1) {
+        links.push({
+            id: 'k' + i, title: 'Card ' + i, workspace: 'main', category: 'Test',
+            url: 'https://example.test/series/' + i + '?utm_source=x&ref=' + 'r'.repeat(90),
+            notes: 'Card ' + i + ': ' + LONG_NOTE,
+            tags: Array.from({ length: 18 }, (_, t) => 'tag' + t),
+            genre: Array.from({ length: 18 }, (_, g) => 'genre' + g),
+            relatedUrls: Array.from({ length: 8 }, (_, r) => ({ url: 'https://mirror' + r + '.test/' + i })),
+            priority: 'High', chapter: String(i), identifiers: ['listening']
+        });
+    }
+    return links;
+}
+
+function makeStateVm(storedState) {
+    const stores = { eveAudioflixFallbackState: storedState ? JSON.stringify(storedState) : null };
+    const context = {
+        console, Date, JSON, Math, Object, Array, String, Number, Boolean,
+        localStorage: {
+            getItem: (k) => (k in stores ? stores[k] : null),
+            setItem: (k, v) => { stores[k] = String(v); },
+            removeItem: (k) => { delete stores[k]; }
+        },
+        setTimeout, clearTimeout,
+        window: { dispatchEvent() {}, addEventListener() {} },
+        CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init?.detail; }
+    };
+    context.window.window = context.window;
+    context.window.localStorage = context.localStorage;
+    context.window.CustomEvent = context.CustomEvent;
+    return context;
+}
+
+function makeRelayVm({ textBrainMode }) {
+    const wsFrames = [];
+    const brainRequests = [];
+    const spoken = [];
+    let messageListener = null;
+    const ws = {
+        readyState: 1,
+        addEventListener(type, fn) { if (type === 'message') messageListener = fn; },
+        send(payload) {
+            const data = JSON.parse(payload);
+            if (data.type === 'text_brain_request') {
+                brainRequests.push(data);
+                // Backend echo: answer immediately so relayUserUtterance resolves.
+                messageListener({ data: JSON.stringify({ type: 'text_brain_response', requestId: data.requestId, text: 'Brain reply about your cards.', usage: { prompt: 10, output: 5, total: 15 } }) });
+            } else {
+                wsFrames.push(data);
+            }
+        }
+    };
+    const context = {
+        console, Date, JSON, URLSearchParams, URL, setTimeout, clearTimeout,
+        WebSocket: { OPEN: 1 },
+        navigator: {},
+        window: {
+            localStorage: { getItem: () => null },
+            config: { activeWorkspace: 'main', workspaces: [{ id: 'main', name: 'Main', subTabs: [] }] },
+            EveAudioflixState: { isTextBrainMode: () => textBrainMode },
+            EveDataStore: {
+                _modularSync: {
+                    sharedReady: true, engineReady: true,
+                    isHttpContext: () => false,
+                    getStore: () => ({
+                        captureState: () => ({
+                            metadata: { version: 1 },
+                            bookmarks: {
+                                config: { activeWorkspace: 'main', workspaces: [{ id: 'main', name: 'Main', subTabs: [] }], bookmarkIdentifiers: [] },
+                                links: makeLinks(110), folders: {}, pins: []
+                            },
+                            library: { categories: {}, connections: [] }
+                        })
+                    }),
+                    requestJson: async () => { throw new Error('file:// mode'); }
+                }
+            },
+            webSocket: ws,
+            WebSocket: { OPEN: 1 },
+            sendTextMessage: (text) => spoken.push(text),
+            displayMessage() {},
+            dispatchEvent() {},
+            CustomEvent: function CustomEvent(type, init) { this.type = type; this.detail = init?.detail; }
+        }
+    };
+    context.window.window = context.window;
+    context.CustomEvent = context.window.CustomEvent;
+    return { context, wsFrames, brainRequests, spoken };
+}
+
+(async function main() {
+    // --- 1. State default + one-time migration ---
+    {
+        const oldSave = makeStateVm({ geminiConversationMode: 'direct-live' });   // pre-default save, no flag
+        runScript(oldSave, 'js/modules/features/audioflix/audioflix.state.js');
+        const migrated = oldSave.window.EveAudioflixState.ensure();
+        assert(migrated.geminiConversationMode === 'text-brain-live-voice', 'old direct-live save should migrate to Mode 2');
+        assert(migrated.geminiModeDefaultV2Applied === true, 'migration flag should be set');
+
+        const explicit = makeStateVm({ geminiConversationMode: 'direct-live', geminiModeDefaultV2Applied: true });
+        runScript(explicit, 'js/modules/features/audioflix/audioflix.state.js');
+        assert(explicit.window.EveAudioflixState.ensure().geminiConversationMode === 'direct-live',
+            'explicit post-migration direct-live choice must be respected');
+
+        const fresh = makeStateVm(null);
+        runScript(fresh, 'js/modules/features/audioflix/audioflix.state.js');
+        assert(fresh.window.EveAudioflixState.ensure().geminiConversationMode === 'text-brain-live-voice',
+            'fresh state should default to Mode 2');
+        console.log('state default + migration OK');
+    }
+
+    // --- 2 + 3. Mode 2: context routes to the text brain; next turn carries it ---
+    {
+        const { context, wsFrames, brainRequests, spoken } = makeRelayVm({ textBrainMode: true });
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
+        runScript(context, 'js/modules/gemini/mode2/textBrainRelay.js');
+        const api = context.window.EveDataStore._modularSync;
+        const mode2 = context.window.EveGeminiMode2;
+
+        const result = await api.sendContextToGemini('full', 90);
+        assert(result.ok && result.sent, 'mode 2 context send failed: ' + (result.error || ''));
+        assert(result.route === 'text-brain', 'route should be text-brain, saw ' + result.route);
+        assert(result.manifest.modelBudgetChars === 200000, 'mode 2 should use the 200k text-brain budget');
+        assert(result.manifest.messageChars <= 200000, 'snapshot exceeds the text-brain budget');
+        assert(result.manifest.autoDegradedFrom === 'full', 'big pack should ladder down from full');
+        assert(result.manifest.transportTruncated === false, 'laddered handoff must not byte-clip');
+        assert(wsFrames.length === 0, 'live WebSocket must receive NOTHING in mode 2, saw ' + wsFrames.length + ' frames');
+        const slot = mode2.getEveContextStatus();
+        assert(slot.chars === result.manifest.messageChars, 'text brain slot should hold the snapshot');
+
+        const relayed = await mode2.relayUserUtterance('what cards do I have?');
+        assert(relayed === true, 'mode 2 turn should relay through the brain');
+        assert(brainRequests.length === 1, 'exactly one text_brain_request expected');
+        const req = brainRequests[0];
+        assert(req.text === 'what cards do I have?', 'user text should reach the brain');
+        assert(String(req.context || '').includes('[EVEOS CONTEXT SNAPSHOT'), 'relayed snapshot marker missing from brain request');
+        assert(String(req.context || '').length >= slot.chars, 'brain request should carry the full snapshot');
+        assert(spoken[0] === 'Brain reply about your cards.', 'brain reply should be handed to the live model to speak');
+        console.log(`mode 2 routing OK: ${result.mode} snapshot (${result.manifest.messageChars} chars) -> brain slot -> next turn carried ${String(req.context).length} chars; live WS untouched`);
+
+        // Data Stream deltas also route to the brain in Mode 2 (the live session never sees them)
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.js');
+        const streamResult = api.sendDataStreamToGemini(
+            { source: 'state-mutated', kind: 'data', mutationSeq: 3, at: Date.now(), meta: { dataDelta: { complete: true, workspaceIds: ['main'], categoryNames: ['Test'], addedLinkIds: ['k1'] } } },
+            { scope: { scope: 'workspace', workspaceId: 'main', workspaceIds: ['main'], categoryName: '', label: 'Main' } }
+        );
+        assert(streamResult.ok && streamResult.sent && streamResult.route === 'text-brain', 'mode 2 delta should route to the brain');
+        assert(wsFrames.length === 0, 'mode 2 delta must not touch the live WebSocket');
+        assert(mode2.getEveContextStatus().updateCount === 1, 'delta should land in the brain update log');
+        await mode2.relayUserUtterance('and now?');
+        const req2 = brainRequests[1];
+        assert(String(req2.context || '').includes('[EVEOS DATA STREAM UPDATES'), 'delta log missing from next brain turn');
+        assert(String(req2.context || '').includes('eveos.gemini-data-stream.v1'), 'delta payload missing from next brain turn');
+        mode2.setEveContext('fresh snapshot', null);
+        assert(mode2.getEveContextStatus().updateCount === 0, 'a fresh snapshot should clear the delta log');
+        console.log('mode 2 data stream OK: delta -> brain update log -> carried on next turn; cleared by fresh snapshot');
+    }
+
+    // --- 4. Mode 1 regression: context still goes over the live WebSocket ---
+    {
+        const { context, wsFrames } = makeRelayVm({ textBrainMode: false });
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
+        const api = context.window.EveDataStore._modularSync;
+        const result = await api.sendContextToGemini('summary', 30);
+        assert(result.ok && result.sent && result.route === 'websocket', 'mode 1 should route over the websocket');
+        assert(wsFrames.length > 0, 'mode 1 should emit websocket frames');
+        assert(result.manifest.modelBudgetChars === 128000, 'mode 1 keeps the live-session budget');
+        console.log('mode 1 regression OK: websocket route intact');
+    }
+
+    console.log('GEMINI_MODE2_CONTEXT_ROUTING_SMOKE_OK');
+})().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});

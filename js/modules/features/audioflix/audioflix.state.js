@@ -30,7 +30,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         geminiVoiceMonitorSinkId: '',
         geminiVoiceMonitorSinkLabel: '',
         geminiVoiceMonitorVolume: 0.75,
-        geminiConversationMode: 'direct-live',
+        geminiConversationMode: 'text-brain-live-voice',
+        geminiModeDefaultV2Applied: true,
         soundboard: [],
         music: [],
         recentPlays: [],
@@ -140,9 +141,15 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             geminiVoiceMonitorSinkId: text(source.geminiVoiceMonitorSinkId, ''),
             geminiVoiceMonitorSinkLabel: text(source.geminiVoiceMonitorSinkLabel, ''),
             geminiVoiceMonitorVolume: Math.max(0, Math.min(1, Number(source.geminiVoiceMonitorVolume ?? 0.75) || 0.75)),
-            geminiConversationMode: source.geminiConversationMode === 'text-brain-live-voice'
-                ? 'text-brain-live-voice'
-                : 'direct-live',
+            // Mode 2 (Text Brain -> Live Voice) is the DEFAULT conversation mode: the 1M-token
+            // text brain does the thinking and holds the relayed EveOS context; the live model
+            // just voices its reply. One-time migration: states saved BEFORE this default carried
+            // 'direct-live' merely as the old default, so 'direct-live' is only respected once
+            // the migration flag exists (i.e. the user re-chose it after the switch).
+            geminiConversationMode: source.geminiModeDefaultV2Applied === true
+                ? (source.geminiConversationMode === 'direct-live' ? 'direct-live' : 'text-brain-live-voice')
+                : 'text-brain-live-voice',
+            geminiModeDefaultV2Applied: true,
             soundboard: boundedItems(source.soundboard, 'sound', MAX_SOUNDBOARD),
             music: boundedItems(source.music, 'music', MAX_MUSIC),
             recentPlays: (Array.isArray(source.recentPlays) ? source.recentPlays : []).slice(-MAX_RECENT),
