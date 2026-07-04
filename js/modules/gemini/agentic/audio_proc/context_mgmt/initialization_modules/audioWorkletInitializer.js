@@ -39,7 +39,7 @@ window.AudioContextInitializer.AudioWorkletHelper = {
             // Safely create Blob URL
             // Load the processor file directly
             // This avoids "blob:null" errors in some environments/configurations
-            const processorPath = 'client/pcm-processor.js';
+            const processorPath = 'js/modules/gemini/client/pcm-processor.js';
             console.log("AudioWorkletHelper: Attempting to load module from:", processorPath);
 
             await state.audioInputContext.audioWorklet.addModule(processorPath);

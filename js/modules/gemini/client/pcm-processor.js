@@ -1,118 +1,121 @@
 class SimpleAudioProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
-        this.buffer = new Float32Array(0);
-        this.position = 0;
-        this.playing = false;
-        this.lastSeq = -1;
+        // ~5 minutes @ 24kHz, bounded — never reallocated.
+        this.capacity = 24000 * 300;
+        this.ring = new Float32Array(this.capacity);
+        this.readIndex = 0;
+        this.writeIndex = 0;
+        this.available = 0;        // queued (unplayed) samples
+        this.started = false;      // gate first play / rebuffer on the jitter cushion
+        this.preroll = 4800;       // ~200ms @ 24kHz jitter buffer
+        this.emptyQuanta = 0;      // consecutive silent render quanta while playing
         this.isFinal = false;
 
         this.port.onmessage = (event) => {
             const msg = event.data;
+
             // Stop command - clear state
             if (msg && msg.command === 'stop') {
-                console.log('Received stop command in worklet');
-                this.buffer = new Float32Array(0);
-                this.position = 0;
-                this.playing = false;
-                this.lastSeq = -1;
+                this.readIndex = 0;
+                this.writeIndex = 0;
+                this.available = 0;
+                this.started = false;
+                this.emptyQuanta = 0;
                 this.isFinal = false;
                 return;
             }
 
-            // New audio payload with sequencing (preferred)
+            // Audio payload — play every chunk in arrival order.
             if (msg && msg.type === 'audio' && msg.data instanceof Float32Array) {
-                const seq = typeof msg.seq === 'number' ? msg.seq : -1;
-                // console.log('Worklet received audio seq=', seq, 'len=', msg.data.length, 'lastSeq=', this.lastSeq); 
-
-                // Detect gaps or out-of-order delivery
-                if (seq !== -1) {
-                    if (this.lastSeq !== -1 && seq > this.lastSeq + 1) {
-                        console.warn('Worklet detected gap: lastSeq=', this.lastSeq, 'incomingSeq=', seq);
-                        // Request missing sequences from the main thread
-                        const missing = [];
-                        for (let s = this.lastSeq + 1; s < seq; s++) missing.push(s);
-                        if (missing.length > 0) {
-                            try {
-                                this.port.postMessage({ type: 'requestMissing', seq: missing });
-                                console.log('Worklet requested missing seq:', missing);
-                            } catch (e) {
-                                console.warn('Worklet failed to request missing seq:', e);
-                            }
-                        }
-                    }
-                    if (seq <= this.lastSeq) {
-                        console.warn('Worklet dropping stale packet seq=', seq, 'lastSeq=', this.lastSeq);
-                        return;
-                    }
-                    this.lastSeq = seq;
-                }
-
-                const newData = msg.data;
-                const newBuffer = new Float32Array(this.buffer.length + newData.length);
-                newBuffer.set(this.buffer);
-                newBuffer.set(newData, this.buffer.length);
-                this.buffer = newBuffer;
-                this.playing = true;
+                this._write(msg.data);
                 if (msg.final) this.isFinal = true;
                 return;
             }
 
             // Backwards-compatible: raw Float32Array
             if (msg instanceof Float32Array) {
-                const newData = msg;
-                const newBuffer = new Float32Array(this.buffer.length + newData.length);
-                newBuffer.set(this.buffer);
-                newBuffer.set(newData, this.buffer.length);
-                this.buffer = newBuffer;
-                this.playing = true;
+                this._write(msg);
                 return;
             }
         };
     }
 
+    // Copy a chunk into the ring buffer. If the producer outruns playback, drop the
+    // oldest queued samples so latency stays bounded instead of growing without end.
+    _write(data) {
+        let len = data.length;
+        if (len === 0) return;
+
+        // If incoming chunk exceeds capacity, keep only the most recent part
+        if (len > this.capacity) {
+            data = data.subarray(len - this.capacity);
+            len = this.capacity;
+        }
+
+        if (this.available + len > this.capacity) {
+            const drop = (this.available + len) - this.capacity;
+            this.readIndex = (this.readIndex + drop) % this.capacity;
+            this.available -= drop;
+        }
+
+        let w = this.writeIndex;
+        const cap = this.capacity;
+        for (let i = 0; i < len; i++) {
+            this.ring[w] = data[i];
+            w++;
+            if (w === cap) w = 0;
+        }
+        this.writeIndex = w;
+        this.available += len;
+    }
+
     process(inputs, outputs, parameters) {
         const output = outputs[0];
         const channel = output[0];
+        const need = channel.length;
 
-        if (this.playing && this.buffer.length > 0) {
-            const available = this.buffer.length - this.position;
-            if (available <= 0) {
-                // We've reached the end
-                this.playing = false;
-                return true;
-            }
+        // Rebuffer threshold: wait for preroll cushion if we underran
+        if (!this.started && this.available >= this.preroll) {
+            this.started = true;
+            this.emptyQuanta = 0;
+        }
 
-            // Calculate how many samples to copy
-            const toCopy = Math.min(channel.length, available);
-
-            // Copy data to output
+        if (this.started && this.available > 0) {
+            const toCopy = Math.min(need, this.available);
+            const cap = this.capacity;
+            let r = this.readIndex;
             for (let i = 0; i < toCopy; i++) {
-                channel[i] = this.buffer[this.position + i];
+                channel[i] = this.ring[r];
+                r++;
+                if (r === cap) r = 0;
+            }
+            this.readIndex = r;
+            this.available -= toCopy;
+            for (let i = toCopy; i < need; i++) channel[i] = 0;
+
+            if (this.available === 0 && this.isFinal) {
+                this.started = false;
+                this.isFinal = false;
+                this.emptyQuanta = 0;
             }
 
-            // Advance position
-            this.position += toCopy;
-
-            // If we didn't fill the buffer, fill with zeros
-            if (toCopy < channel.length) {
-                for (let i = toCopy; i < channel.length; i++) {
-                    channel[i] = 0;
-                }
-
-                // Check if we're done
-                if (this.position >= this.buffer.length) {
-                    this.playing = false;
+            if (this.started) {
+                // Underrun: producer fell behind. Tolerate a momentary gap, but on a
+                // sustained underrun rebuffer so playback resumes smoothly rather than
+                // stuttering quantum by quantum.
+                this.emptyQuanta++;
+                if (this.emptyQuanta > 2 || this.isFinal) {
+                    this.started = false;
+                    this.isFinal = false;
+                    this.emptyQuanta = 0;
                 }
             }
         } else {
-            // Fill with zeros if not playing
-            for (let i = 0; i < channel.length; i++) {
-                channel[i] = 0;
-            }
+            // Silent fill
+            for (let i = 0; i < need; i++) channel[i] = 0;
         }
 
-        // Always continue processing
         return true;
     }
 }

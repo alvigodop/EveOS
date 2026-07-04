@@ -21,7 +21,7 @@ const audioProcessingScripts = [
 
     // Audio Context and Buffer Management
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextState.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioWorkletProcessor.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioWorkletProcessor.js?v=0.1.1`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/iOSAudioUnlock.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/user_gesture_core/userGestureLoader.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextHelpers.js`,

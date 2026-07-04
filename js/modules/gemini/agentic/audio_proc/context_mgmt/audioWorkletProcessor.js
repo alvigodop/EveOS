@@ -20,8 +20,8 @@ window.AudioWorkletCode = {
             class SimpleAudioProcessor extends AudioWorkletProcessor {
                 constructor() {
                     super();
-                    // ~16s @ 24kHz, bounded — never reallocated.
-                    this.capacity = 24000 * 16;
+                    // ~5 minutes @ 24kHz, bounded — never reallocated.
+                    this.capacity = 24000 * 300;
                     this.ring = new Float32Array(this.capacity);
                     this.readIndex = 0;
                     this.writeIndex = 0;
@@ -63,8 +63,14 @@ window.AudioWorkletCode = {
                 // Copy a chunk into the ring buffer. If the producer outruns playback, drop the
                 // oldest queued samples so latency stays bounded instead of growing without end.
                 _write(data) {
-                    const len = data.length;
+                    let len = data.length;
                     if (len === 0) return;
+
+                    // If incoming chunk exceeds capacity, keep only the most recent part
+                    if (len > this.capacity) {
+                        data = data.subarray(len - this.capacity);
+                        len = this.capacity;
+                    }
 
                     if (this.available + len > this.capacity) {
                         const drop = (this.available + len) - this.capacity;
