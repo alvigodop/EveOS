@@ -7,6 +7,7 @@
     font-size: 0.78em;
     color: rgba(255, 255, 255, 0.6);
     transition: all 0.3s ease;
+    overflow: hidden;
 }
 
 /* Stats row */
@@ -34,6 +35,45 @@
     margin-top: 0;
     padding: 0;
     border-top: none;
+    overflow: hidden;
+}
+
+/* Collapsible search monitor status group styling */
+#loadingIndicator:not(.compact) .status-group {
+    cursor: pointer;
+    user-select: none;
+}
+
+#loadingIndicator:not(.compact) .status-group:hover .status-text {
+    color: var(--accent, #00d4ff) !important;
+}
+
+#loadingIndicator .monitor-details-collapse-arrow {
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.3);
+    transition: transform 0.25s ease, color 0.2s ease;
+    margin-left: 8px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+#loadingIndicator:not(.compact) .status-group:hover .monitor-details-collapse-arrow {
+    color: var(--accent, #00d4ff);
+}
+
+#loadingIndicator.details-collapsed .monitor-details-collapse-arrow {
+    transform: rotate(-90deg); /* point right when collapsed */
+}
+
+/* Collapsed mode - hide expanded content inside search monitor */
+#loadingIndicator.details-collapsed .expanded-content {
+    max-height: 0 !important;
+    opacity: 0 !important;
+    margin-top: 0 !important;
+    padding: 0 !important;
+    border-top: none !important;
+    pointer-events: none;
+    overflow: hidden;
 }
 
 

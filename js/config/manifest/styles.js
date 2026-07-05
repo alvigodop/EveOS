@@ -17,7 +17,7 @@ window.EveModuleManifestParts.styles = [
         'js/modules/ui/scratchpad.css?v=0.1.1',
         'js/modules/ui/context-menus/styles.css?v=0.2.41',
         'js/modules/ui/inline-prompt.css',
-        'js/modules/features/scraper/ui/loading-indicator/loading-indicator.css',
+        'js/modules/features/scraper/ui/loading-indicator/loading-indicator.css?v=0.1.1',
 
         // Feature Modules
         'js/modules/features/widgets.css',

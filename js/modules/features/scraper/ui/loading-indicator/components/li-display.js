@@ -164,6 +164,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             indicator.classList.remove('compact');
             indicator.classList.remove('searching');
             indicator.classList.add('error');
+            indicator.classList.remove('details-collapsed'); // Auto-expand panel on error so detail is visible
             applyMonitorLabels(indicator, DEFAULT_MONITOR_LABELS);
 
             if (statusText) statusText.textContent = 'Error';

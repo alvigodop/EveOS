@@ -19,6 +19,19 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             const indicator = document.getElementById('loadingIndicator');
             if (indicator) {
                 indicator.addEventListener('click', (event) => {
+                    const statusGroup = event.target.closest('.status-group');
+                    if (statusGroup && indicator.contains(statusGroup)) {
+                        if (!state.compact) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            const isCollapsed = indicator.classList.toggle('details-collapsed');
+                            try {
+                                localStorage.setItem('searchMonitorDetailsCollapsed', isCollapsed ? '1' : '0');
+                            } catch (e) {}
+                        }
+                        return;
+                    }
+
                     if (state.compact) {
                         api.expand();
                         event.stopPropagation();
@@ -49,9 +62,11 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 const placeholder = content.querySelector('#gemini-placeholder');
                 const statusGroup = document.createElement('div');
                 statusGroup.className = 'status-group';
+                statusGroup.title = 'Toggle stats panel';
                 statusGroup.innerHTML = `
                     <div class="status-text">Idle</div>
                     <div class="wave-container"><div class="wave"></div></div>
+                    <span class="monitor-details-collapse-arrow">▼</span>
                 `;
                 if (placeholder && placeholder.nextSibling) {
                     content.insertBefore(statusGroup, placeholder.nextSibling);
@@ -103,11 +118,12 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                     <div class="indicator-content">
                         <div class="indicator-title">Search Monitor</div>
                         <div id="gemini-placeholder"></div>
-                        <div class="status-group">
+                        <div class="status-group" title="Toggle stats panel">
                             <div class="status-text">Idle</div>
                             <div class="wave-container">
                                 <div class="wave"></div>
                             </div>
+                            <span class="monitor-details-collapse-arrow">▼</span>
                         </div>
                         <div class="expanded-content">
                             <div class="stats-row">
@@ -142,6 +158,13 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
 
             setupEventListeners();
             ensureWideToggle(indicator);
+
+            // Restore details collapsed on initial load
+            try {
+                if (localStorage.getItem('searchMonitorDetailsCollapsed') === '1') {
+                    indicator.classList.add('details-collapsed');
+                }
+            } catch (e) { /* ignore */ }
         }
 
         function ensureTopLevel() {
@@ -166,6 +189,15 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             try {
                 if (localStorage.getItem('searchMonitorWide') === 'true') {
                     indicator.classList.add('wide-mode');
+                }
+            } catch (e) { /* ignore */ }
+
+            // Restore details collapsed preference
+            try {
+                if (localStorage.getItem('searchMonitorDetailsCollapsed') === '1') {
+                    indicator.classList.add('details-collapsed');
+                } else {
+                    indicator.classList.remove('details-collapsed');
                 }
             } catch (e) { /* ignore */ }
         }
