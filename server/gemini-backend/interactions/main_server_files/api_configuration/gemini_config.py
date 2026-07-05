@@ -266,6 +266,26 @@ MODEL = MAIN_MODEL
 # eligible for generate_content - limit 0.)
 TEXT_BRAIN_MODEL = "gemini-2.5-flash-lite"
 
+# Text-capable models the Mode 2 text brain may be switched to from Session Controls. This is the
+# server-side allowlist: the client can only select a KNOWN text-generation model, so a stale or
+# tampered value can never send an invalid/unsupported model id to the API. Ordered by how well
+# each suits the extraction role on a free key (fast + large window + generous quota first).
+TEXT_BRAIN_MODEL_OPTIONS = (
+    "gemini-2.5-flash-lite",   # default: fastest, 1M window, highest free-tier limits
+    "gemini-2.5-flash",        # smarter, 1M window, lower free quota (can 429 in long sessions)
+    "gemini-2.0-flash-lite",   # lightweight alternate
+    "gemini-2.0-flash",        # 1M window (free-tier availability varies by key/region)
+    "gemini-2.5-pro",          # smartest, very limited free quota
+)
+
+
+def resolve_text_brain_model(name):
+    """Return a validated text-brain model id. Any unknown/empty value falls back to the default,
+    so a bad client selection can never reach the API as an invalid model."""
+    candidate = str(name or "").strip()
+    return candidate if candidate in TEXT_BRAIN_MODEL_OPTIONS else TEXT_BRAIN_MODEL
+
+
 TEXT_BRAIN_CONFIG = {
     "temperature": 0.8,
     "top_k": 40,

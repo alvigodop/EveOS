@@ -30,6 +30,7 @@ from main_server_files.api_configuration.gemini_config import (
     TEXT_BRAIN_MODEL,
     TEXT_BRAIN_CONFIG,
     TEXT_BRAIN_SYSTEM_PREFIX,
+    resolve_text_brain_model,
 )
 
 
@@ -53,8 +54,10 @@ async def handle_text_brain_request(data, connection_monitor):
         if context:
             system_instruction = f"{system_instruction}\n\n[EVEOS CONTEXT]\n{context}"
 
+        # Model is picked in Session Controls; validated against the allowlist (unknown -> default).
+        selected_model = resolve_text_brain_model(data.get("model"))
         model = generative.GenerativeModel(
-            model_name=TEXT_BRAIN_MODEL,
+            model_name=selected_model,
             generation_config=TEXT_BRAIN_CONFIG,
             system_instruction=system_instruction,
         )
@@ -70,7 +73,7 @@ async def handle_text_brain_request(data, connection_monitor):
             "requestId": request_id,
             "text": reply,
             "usage": usage,
-            "model": TEXT_BRAIN_MODEL,
+            "model": selected_model,
             "timestamp": time.time(),
         })
     except Exception as exc:  # noqa: BLE001 - report any failure to the client, never crash the session

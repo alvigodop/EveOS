@@ -113,6 +113,19 @@ async function loadSessionControlsSettingsDialog() {
                 <label class="gemini-session-field"><span>Top P</span><input type="number" id="topPInputSess" min="0" max="1" step="0.1" value="1"></label>
                 <label class="gemini-session-field"><span>Max tokens</span><input type="number" id="maxTokensInputSess" min="1" value="2048"></label>
             </div>
+            <div class="gemini-session-field-grid">
+                <label class="gemini-session-field gemini-session-field--wide">
+                    <span>Mode 2 text-brain model</span>
+                    <select id="textBrainModelSelectSess">
+                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (recommended &middot; fastest, highest free quota)</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (smarter &middot; lower free quota)</option>
+                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite</option>
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (smartest &middot; very limited free quota)</option>
+                    </select>
+                </label>
+            </div>
+            <p class="gemini-session-help">The text brain runs only in <strong>Mode 2</strong> (Text Brain &rarr; Live Voice). It extracts EveOS context facts for the live model to speak &mdash; it is not the voice itself. Heavier models are smarter but hit free-tier limits faster; on a 429 the relay cools down and replies directly.</p>
         </section>
 
         <section class="gemini-session-section" aria-labelledby="geminiVoiceHeading">

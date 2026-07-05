@@ -349,7 +349,13 @@ def _open_output_stream(device_index: int, channels: int, callback, preferred_ra
 class _PcmPlayer:
     def __init__(self, device_index: int, source_rate: int, channels: int) -> None:
         self.device_index, self.source_rate, self.channels = device_index, int(source_rate), channels
-        self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=128), None, False, time.monotonic()
+        # Stream-lane depth: Gemini delivers a long reply FASTER than realtime, so the queue must
+        # hold the whole backlog. The old maxsize=128 was a CHUNK count (~40ms each ≈ 5 seconds);
+        # any reply longer than that overflowed and enqueue()'s drop-oldest ate unplayed chunks
+        # out of the middle — heard as long replies racing through themselves ("sped up") over
+        # CABLE while short ones sounded fine. 4096 chunks ≈ several minutes: a true runaway
+        # guard, not a cap that live replies can hit.
+        self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=4096), None, False, time.monotonic()
         # Set by clear_stream() (any thread); honored + reset inside the audio callback so we can
         # drop the in-flight chunk without racing the callback's slicing of self.pending.
         self.flush_pending = False

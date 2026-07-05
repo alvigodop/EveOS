@@ -93,23 +93,26 @@ class SimpleAudioProcessor extends AudioWorkletProcessor {
             this.readIndex = r;
             this.available -= toCopy;
             for (let i = toCopy; i < need; i++) channel[i] = 0;
+            // A quantum that produced audio is NOT an underrun. (This counter used to increment
+            // here on every SUCCESSFUL quantum, tripping the rebuffer gate every ~16ms — which
+            // froze playback whenever fewer than preroll samples remained queued, wedging clip
+            // tails and stuttering live streams.)
+            this.emptyQuanta = 0;
 
             if (this.available === 0 && this.isFinal) {
                 this.started = false;
                 this.isFinal = false;
-                this.emptyQuanta = 0;
             }
-
-            if (this.started) {
-                // Underrun: producer fell behind. Tolerate a momentary gap, but on a
-                // sustained underrun rebuffer so playback resumes smoothly rather than
-                // stuttering quantum by quantum.
-                this.emptyQuanta++;
-                if (this.emptyQuanta > 2 || this.isFinal) {
-                    this.started = false;
-                    this.isFinal = false;
-                    this.emptyQuanta = 0;
-                }
+        } else if (this.started) {
+            // Started but nothing queued: a genuinely EMPTY quantum. Tolerate a momentary gap;
+            // on a sustained underrun drop back to rebuffering so playback resumes smoothly on
+            // the preroll cushion instead of stuttering quantum by quantum.
+            for (let i = 0; i < need; i++) channel[i] = 0;
+            this.emptyQuanta++;
+            if (this.emptyQuanta > 2 || this.isFinal) {
+                this.started = false;
+                this.isFinal = false;
+                this.emptyQuanta = 0;
             }
         } else {
             // Silent fill

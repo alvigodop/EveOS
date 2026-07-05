@@ -375,7 +375,7 @@ if "%LP_ENABLED_STATE%"=="0" (
     call :EnsureLightpandaMonitor
 )
 
-start "EveOS Instance %INSTANCE_PORT%" cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
+start "EveOS Instance %INSTANCE_PORT%" /min cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
 call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
 exit /b 0
 
@@ -405,7 +405,7 @@ echo      URL: http://127.0.0.1:%INSTANCE_PORT%/EveOS.html
 echo      Data: current active modular data-pack
 echo.
 
-start "EveOS Port %INSTANCE_PORT%" cmd /k "cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
+start "EveOS Port %INSTANCE_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
 call :TrackInstance "%INSTANCE_PORT%" "active modular data-pack" "PortOnly"
 exit /b 0
 
@@ -512,7 +512,9 @@ if defined _WEB_PID (
     echo [OK]    EveOS web already running on port %EVEOS_WEB_PORT% ^(PID !_WEB_PID!^).
 ) else (
     echo [START] EveOS web ^(hotkeys + audio bypass^) on port %EVEOS_WEB_PORT%...
-    start "EveOS %EVEOS_WEB_PORT%" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u server/python-server.py %EVEOS_WEB_PORT%"
+    rem /min matches the Gemini Main window: spawns minimized so every EveOS server window opens in
+    rem the same slim, out-of-the-way style instead of a wide console grabbing the screen.
+    start "EveOS %EVEOS_WEB_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u server/python-server.py %EVEOS_WEB_PORT%"
 )
 rem --- 2. Gemini backend + file-mode control helper (start-gemini guards internally) ---
 echo [BOOT]  Ensuring Gemini backend ^(WS %GEMINI_WS_PORT% / status %GEMINI_STATUS_PORT%^)...
@@ -559,7 +561,8 @@ rem firing several `start ... cmd /k` windows back-to-back races the DefTerm/Con
 rem one tab dies with "[error 0x800700e8 ...] (the pipe is being closed)", leaving that bridge
 rem down. Spacing the spawns lets each tab finish initializing before the next handoff.
 ping 127.0.0.1 -n 2 >nul
-start "EveOS %_LABEL%" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%_SCRIPT%"" %_PORT%"
+rem /min: same slim, minimized style as the Gemini Main window (consistent across all servers).
+start "EveOS %_LABEL%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%_SCRIPT%"" %_PORT%"
 exit /b 0
 
 :ReportPort

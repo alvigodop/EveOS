@@ -49,6 +49,13 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         catch { return false; }
     }
 
+    // The text-brain model is chosen in Session Controls (persisted as 'textBrainModel'). Empty is
+    // fine — the backend validates against its allowlist and falls back to the default.
+    function getSelectedTextBrainModel() {
+        try { return String(window.localStorage?.getItem('textBrainModel') || '').trim(); }
+        catch { return ''; }
+    }
+
     function display(text) {
         try { if (typeof window.displayMessage === 'function') window.displayMessage(text, true); }
         catch { /* logging only */ }
@@ -235,7 +242,8 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
                 requestId: requestId,
                 text: userText,
                 history: gatherHistory(),
-                context: gatherContext()
+                context: gatherContext(),
+                model: getSelectedTextBrainModel()
             };
             const timer = setTimeout(function () { rejectPending(requestId, 'text brain timeout'); }, REQUEST_TIMEOUT_MS);
             pending.set(requestId, { resolve: resolve, reject: reject, timer: timer });
