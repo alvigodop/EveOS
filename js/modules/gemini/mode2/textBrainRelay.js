@@ -209,6 +209,8 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         eveContext = { text: String(text || ''), manifest: manifest || null, at: Date.now() };
         eveUpdates = [];           // a fresh snapshot supersedes the delta log
         lastInjectedContext = '';  // new facts — allow the next extraction through the dedupe
+        brainCooldownUntil = 0;    // clear cooldown state on explicit context refresh
+        cooldownNoticeShown = false;
         return { chars: eveContext.text.length, at: eveContext.at };
     }
 
