@@ -117,15 +117,15 @@ async function loadSessionControlsSettingsDialog() {
                 <label class="gemini-session-field gemini-session-field--wide">
                     <span>Mode 2 text-brain model</span>
                     <select id="textBrainModelSelectSess">
-                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite (recommended &middot; fastest, highest free quota)</option>
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash (smarter &middot; lower free quota)</option>
-                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite</option>
-                        <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
-                        <option value="gemini-2.5-pro">Gemini 2.5 Pro (smartest &middot; very limited free quota)</option>
+                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite &mdash; 1M context (recommended &middot; fastest, highest free quota)</option>
+                        <option value="gemini-2.5-flash">Gemini 2.5 Flash &mdash; 1M context (smarter &middot; lower free quota)</option>
+                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite &mdash; 1M context</option>
+                        <option value="gemini-2.0-flash">Gemini 2.0 Flash &mdash; 1M context</option>
+                        <option value="gemini-2.5-pro">Gemini 2.5 Pro &mdash; 1M context (smartest &middot; very limited free quota)</option>
                     </select>
                 </label>
             </div>
-            <p class="gemini-session-help">The text brain runs only in <strong>Mode 2</strong> (Text Brain &rarr; Live Voice). It extracts EveOS context facts for the live model to speak &mdash; it is not the voice itself. Heavier models are smarter but hit free-tier limits faster; on a 429 the relay cools down and replies directly.</p>
+            <p class="gemini-session-help">The text brain runs only in <strong>Mode 2</strong> (Text Brain &rarr; Live Voice). Because it has a <strong>1M-token window</strong> versus the live model's <strong>128K</strong>, it can absorb the full EveOS context relay and hand the live model just the facts it needs to speak &mdash; so the live session never gets overloaded. Heavier models are smarter but hit free-tier limits faster; on a 429 the relay cools down and replies directly.</p>
         </section>
 
         <section class="gemini-session-section" aria-labelledby="geminiVoiceHeading">
