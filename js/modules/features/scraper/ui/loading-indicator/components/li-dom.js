@@ -21,7 +21,8 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 const statusGroup = indicator.querySelector('.status-group');
                 if (statusGroup) {
                     statusGroup.addEventListener('click', (event) => {
-                        if (!state.compact) {
+                        const isCompact = indicator.classList.contains('compact');
+                        if (!isCompact) {
                             event.preventDefault();
                             event.stopPropagation();
                             const isCollapsed = indicator.classList.toggle('details-collapsed');
@@ -33,7 +34,8 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 }
 
                 indicator.addEventListener('click', (event) => {
-                    if (state.compact) {
+                    const isCompact = indicator.classList.contains('compact');
+                    if (isCompact) {
                         api.expand();
                         event.stopPropagation();
                     }
