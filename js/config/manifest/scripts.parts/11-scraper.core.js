@@ -116,7 +116,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/ui/toast-notification/components/tn-styles.js",
     "js/modules/features/scraper/ui/toast-notification/toast-notification.js",
     "js/modules/features/scraper/ui/loading-indicator/components/li-stats.js",
-    "js/modules/features/scraper/ui/loading-indicator/components/li-dom.js?v=0.1.6",
+    "js/modules/features/scraper/ui/loading-indicator/components/li-dom.js?v=0.1.7",
     "js/modules/features/scraper/ui/loading-indicator/components/li-display.js?v=0.1.1",
     "js/modules/features/scraper/ui/loading-indicator/loading-indicator.js",
     "js/modules/features/scraper/ui/module-status/status-data-components/sd-collector.js",
