@@ -38,7 +38,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/svg_fixing/svgFixerLoader.js`,
-    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=0.1.8`,
+    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=0.1.9`,
     `${BASE_PATHS.CLIENT_CORE}/themeToggle.js`,
     `${BASE_PATHS.CLIENT_CORE}/response_handling/responseClass.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js`,

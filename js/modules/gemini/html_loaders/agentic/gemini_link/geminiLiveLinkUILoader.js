@@ -135,9 +135,12 @@ function _escapeGeminiLiveLinkHtml(value) {
 function _getGeminiLiveLinkActiveWorkspaceLabel(workspaceId) {
     const cfg = _getGeminiLiveLinkConfig() || {};
     const activeId = String(workspaceId || cfg.activeWorkspace || 'main');
-    const workspace = Array.isArray(cfg.workspaces)
-        ? cfg.workspaces.find((item) => String(item?.id || '') === activeId)
-        : null;
+    // Use the RECURSIVE helper so NESTED sub-tabs resolve to their name. A flat find only checked
+    // top-level workspaces, so any sub-tab (or a recovered tab) fell back to showing its raw id.
+    const helpers = window.EveWorkspaceHelpers;
+    const workspace = helpers?.findById
+        ? helpers.findById(cfg.workspaces || [], activeId)
+        : (Array.isArray(cfg.workspaces) ? cfg.workspaces.find((item) => String(item?.id || '') === activeId) : null);
     return workspace?.name || activeId;
 }
 
@@ -533,6 +536,13 @@ async function initializeGeminiLiveLinkCard() {
     if (settingsButton) {
         settingsButton.addEventListener('click', () => {
             if (dialog) {
+                // Rebuild the scope selects + manifest from LIVE config every time the dialog opens,
+                // so the Scope/Active-tab summary reflects the tab you're on RIGHT NOW. Previously
+                // it only rendered at load / on control changes, so after switching tabs it showed
+                // the old tab until a full page reload.
+                _refreshGeminiLiveLinkScopeOptions();
+                _refreshGeminiLiveLinkCardOptions();
+                _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(), 'Ready to prepare');
                 if (typeof dialog.showModal === 'function') {
                     dialog.showModal();
                 } else {

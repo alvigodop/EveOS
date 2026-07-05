@@ -51,13 +51,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return ids;
     }
 
-    function buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, totalLinks, source) {
+    function buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, totalLinks, source, ghostLabels) {
         const ghostWorkspaces = Object.keys(orphanedByWorkspace || {}).sort();
         return {
             knownIds: Array.from(knownIds || []),
             orphaned: orphaned,
             orphanedByWorkspace: orphanedByWorkspace,
             ghostWorkspaces: ghostWorkspaces,
+            // ghostId -> the last human name the Nexus index saw for that workspace (before it
+            // orphaned). This is how a recovered tab gets its ORIGINAL name back instead of a raw
+            // id: once a workspace drops out of live config the name is gone from config, but the
+            // indexed records still carry the label captured while it existed.
+            ghostLabels: ghostLabels || {},
             totalOrphaned: orphaned.length,
             totalLinks: totalLinks,
             source: source
@@ -70,12 +75,19 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const snapshot = getDatapackSnapshot(indexApi);
         const orphaned = [];
         const orphanedByWorkspace = {};
+        const ghostLabels = {};
 
         if (Array.isArray(snapshot?.records)) {
             snapshot.records.forEach(function (record, idx) {
                 if (String(record?.type || '') !== 'bookmark') return;
                 const linkId = String(record?.path?.linkId || record?.provenance?.linkId || '').trim();
                 const workspaceId = String(record?.workspaceId || record?.path?.workspaceId || 'main').trim() || 'main';
+                // Remember the human name this workspace had when it was indexed. Only keep a label
+                // that is a real name (not just the id echoed back), so recovery can restore it.
+                const indexedLabel = String(record?.path?.workspaceLabel || record?.workspaceLabel || '').trim();
+                if (indexedLabel && indexedLabel !== workspaceId && !ghostLabels[workspaceId]) {
+                    ghostLabels[workspaceId] = indexedLabel;
+                }
                 const resolved = linkId && typeof indexApi?.resolveBookmarkLink === 'function'
                     ? indexApi.resolveBookmarkLink(linkId)
                     : null;
@@ -105,7 +117,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 orphaned,
                 orphanedByWorkspace,
                 snapshot.records.filter(function (record) { return String(record?.type || '') === 'bookmark'; }).length,
-                'datapack-index'
+                'datapack-index',
+                ghostLabels
             );
         }
 
@@ -128,7 +141,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         });
 
-        return buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, links.length, 'live-links');
+        return buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, links.length, 'live-links', ghostLabels);
     }
 
     function rescueOrphanedLinks() {
@@ -143,9 +156,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 link.category = 'Recovered';
             }
         });
+        const ghostLabels = report.ghostLabels || {};
         const restoredTabs = [];
         ghostIds.forEach(function (ghostId) {
-            restoredTabs.push({ id: ghostId, name: `Recovered ${ghostId}`, icon: 'folder', subTabs: [] });
+            // Restore the ORIGINAL tab name when the index still knows it; only fall back to the
+            // id-based placeholder when no prior name survives anywhere.
+            const originalName = String(ghostLabels[ghostId] || '').trim();
+            const name = (originalName && originalName !== ghostId) ? originalName : `Recovered ${ghostId}`;
+            restoredTabs.push({ id: ghostId, name: name, icon: 'folder', subTabs: [] });
         });
         if (restoredTabs.length && Array.isArray(configObject?.workspaces)) {
             const existing = new Set(getKnownWorkspaceIds());

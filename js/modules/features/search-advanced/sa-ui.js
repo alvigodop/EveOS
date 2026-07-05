@@ -80,7 +80,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function resolveCurrentScope(scopeMode) {
         const mode = scopeMode === 'all' ? 'all' : getCurrentScopeMode();
         if (mode === 'all') return {};
-        if (hasScopeTarget(activeScope)) return activeScope;
+        if (hasScopeTarget(activeScope)) {
+            // Only keep a pinned drill-down scope while we're still on its tab. A plain tab switch
+            // doesn't clear this pin, so Nexus used to keep searching/showing the PREVIOUS tab until
+            // a full reload. Once the live active workspace differs from the pin, the current tab wins.
+            const liveWs = String(
+                window.eveState?.config?.activeWorkspace
+                || (typeof config !== 'undefined' ? config?.activeWorkspace : '')
+                || 'main'
+            ).trim() || 'main';
+            const pinnedWs = String(activeScope.workspaceId || '').trim();
+            if (!pinnedWs || pinnedWs === liveWs) return activeScope;
+        }
 
         const groupScope = resolveGroupOverviewScope();
         if (groupScope) return groupScope;
