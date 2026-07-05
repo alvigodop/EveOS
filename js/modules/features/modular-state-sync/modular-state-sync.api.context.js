@@ -370,9 +370,9 @@ window.EveDataStore = window.EveDataStore || {};
         const payloadScope = payload?.scope || payload?.metadata?.geminiScope || context?.scope || getCurrentGeminiContextScope();
         const scopeMode = normalizeContextScope(payloadScope?.scope);
         const activeWorkspaceId = String(payloadScope?.workspaceId || cfg.activeWorkspace || 'main');
-        const activeWorkspace = Array.isArray(cfg.workspaces)
-            ? cfg.workspaces.find((workspace) => String(workspace?.id || '') === activeWorkspaceId)
-            : null;
+        const activeWorkspace = window.EveWorkspaceHelpers?.findById
+            ? window.EveWorkspaceHelpers.findById(cfg.workspaces || [], activeWorkspaceId)
+            : (Array.isArray(cfg.workspaces) ? cfg.workspaces.find((workspace) => String(workspace?.id || '') === activeWorkspaceId) : null);
         const defaultLabel = scopeMode === 'all'
             ? 'Whole datapack'
             : (scopeMode === 'card' ? 'Current card' : 'Current tab branch');
