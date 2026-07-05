@@ -1,4 +1,4 @@
-﻿window.EveOS = window.EveOS || {};
+window.EveOS = window.EveOS || {};
 window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
 (function () {
@@ -257,7 +257,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         }
 
         const modal = byId('expandedSearchModal');
-        if (modal) modal.style.display = 'flex';
+        if (modal) {
+            // Stack ABOVE whatever surface is on screen — including the Search Monitor, which reaches
+            // z=1000000 in fullscreen/workspace mode.
+            const stackZ = (typeof window.getModalStackZIndex === 'function' ? window.getModalStackZIndex() : 3000);
+            modal.style.zIndex = String(stackZ + 1);
+            modal.style.display = 'flex';
+        }
 
         refreshScopeIndicator();
         refreshVisibleDatapackViewState();

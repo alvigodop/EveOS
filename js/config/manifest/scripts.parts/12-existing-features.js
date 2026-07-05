@@ -60,7 +60,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-ui.helpers.js",
     "js/modules/features/search-advanced/sa-ui.monitor.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-ui.commands.js?v=0.1.0",
-    "js/modules/features/search-advanced/sa-ui.js?v=0.5.0",
+    "js/modules/features/search-advanced/sa-ui.js?v=0.5.1",
     "js/modules/features/bookmark-identifiers.core.js?v=0.1.1",
     "js/modules/features/bookmark-identifiers.settings.js?v=0.1.0",
     "js/modules/features/bookmark-identifiers.quick-panel.render.js?v=0.1.0",
