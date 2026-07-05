@@ -939,7 +939,10 @@ window.EveDataStore = window.EveDataStore || {};
         const safeMode = normalizeContextMode(mode);
         const safeLimit = Math.max(5, Math.min(200, Number(limit) || LOCAL_CONTEXT_MODE_PROFILES[safeMode].budget));
         const scope = normalizeScopeOptions(state, options?.scope || options);
+        console.log('[GeminiContextDebug] options:', options);
+        console.log('[GeminiContextDebug] normalized scope:', scope);
         const scopedState = filterStateForScope(state, scope);
+        console.log('[GeminiContextDebug] scopedState links count:', scopedState?.bookmarks?.links?.length);
         const summary = summarizeState(scopedState, safeLimit, scope, safeMode);
         const payload = safeMode === 'full' ? {
             kind: 'eveos_scoped_context_snapshot',

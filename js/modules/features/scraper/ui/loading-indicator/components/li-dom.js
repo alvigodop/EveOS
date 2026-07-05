@@ -18,9 +18,9 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
 
             const indicator = document.getElementById('loadingIndicator');
             if (indicator) {
-                indicator.addEventListener('click', (event) => {
-                    const statusGroup = event.target.closest('.status-group');
-                    if (statusGroup && indicator.contains(statusGroup)) {
+                const statusGroup = indicator.querySelector('.status-group');
+                if (statusGroup) {
+                    statusGroup.addEventListener('click', (event) => {
                         if (!state.compact) {
                             event.preventDefault();
                             event.stopPropagation();
@@ -29,9 +29,10 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                                 localStorage.setItem('searchMonitorDetailsCollapsed', isCollapsed ? '1' : '0');
                             } catch (e) {}
                         }
-                        return;
-                    }
+                    });
+                }
 
+                indicator.addEventListener('click', (event) => {
                     if (state.compact) {
                         api.expand();
                         event.stopPropagation();

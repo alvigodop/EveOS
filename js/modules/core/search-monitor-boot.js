@@ -246,7 +246,7 @@
         const target = event.target;
         if (!target || target === indicator) return false;
         if (typeof target.closest !== 'function') return false;
-        const interactive = target.closest('button, a, input, textarea, select, summary, [role="button"], [contenteditable="true"]');
+        const interactive = target.closest('button, a, input, textarea, select, summary, [role="button"], [contenteditable="true"], .status-group');
         return !!interactive && indicator.contains(interactive);
     }
 
