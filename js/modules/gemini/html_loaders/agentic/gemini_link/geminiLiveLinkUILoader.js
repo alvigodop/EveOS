@@ -310,20 +310,11 @@ function _bindGeminiLiveLinkDataStream() {
 }
 
 function _applyGeminiLiveLinkSettingsState() {
-    const root = document.getElementById('gemini-live-link-card');
     const button = document.getElementById('geminiLiveLinkSettingsButton');
-    const controls = document.getElementById('geminiLiveLinkControls');
     const isEnabled = _isGeminiLiveLinkEnabled();
-    const isOpen = isEnabled && _isGeminiLiveLinkSettingsOpen();
-    if (root) root.classList.toggle('is-settings-collapsed', !isOpen);
     if (button) {
-        button.classList.toggle('is-active', isOpen);
-        button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        button.title = isOpen ? 'Hide EveOS relay settings' : 'Show EveOS relay settings';
-    }
-    if (controls) {
-        controls.style.display = isOpen ? 'block' : 'none';
-        controls.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+        button.disabled = !isEnabled;
+        button.title = 'Configure Context Relay';
     }
 }
 
@@ -332,13 +323,6 @@ function _applyGeminiLiveLinkEnabledState(enabled) {
     const root = document.getElementById('gemini-live-link-card');
     const toggle = document.getElementById('geminiLiveLinkToggle');
     const settingsButton = document.getElementById('geminiLiveLinkSettingsButton');
-    if (settingsButton && settingsButton.dataset.bound !== '1') {
-        settingsButton.dataset.bound = '1';
-        settingsButton.addEventListener('click', () => {
-            _setGeminiLiveLinkSettingsOpen(!_isGeminiLiveLinkSettingsOpen());
-            _applyGeminiLiveLinkSettingsState();
-        });
-    }
 
     const modeSelect = document.getElementById('geminiLiveLinkMode');
     const scopeSelect = document.getElementById('geminiLiveLinkScopeMode');
@@ -349,6 +333,7 @@ function _applyGeminiLiveLinkEnabledState(enabled) {
 
     if (root) root.classList.toggle('is-relay-paused', !isEnabled);
     if (toggle) toggle.checked = isEnabled;
+    if (settingsButton) settingsButton.disabled = !isEnabled;
     if (modeSelect) modeSelect.disabled = !isEnabled;
     if (scopeSelect) scopeSelect.disabled = !isEnabled;
     if (cardSelect) cardSelect.disabled = !isEnabled;
@@ -426,6 +411,128 @@ async function initializeGeminiLiveLinkCard() {
         return;
     }
     root.dataset.bound = '1';
+
+    // Construct and append settings dialog if not already in document
+    let dialog = document.getElementById('geminiLiveLinkSettingsDialog');
+    if (!dialog) {
+        const dialogDiv = document.createElement('div');
+        dialogDiv.innerHTML = `
+<dialog id="geminiLiveLinkSettingsDialog" class="mdl-dialog gemini-session-dialog" aria-labelledby="geminiLiveLinkSettingsTitle">
+    <header class="gemini-session-dialog__header">
+        <div>
+            <span class="gemini-session-dialog__kicker">Agentic Functions</span>
+            <h2 id="geminiLiveLinkSettingsTitle">Context Relay Settings</h2>
+            <p>Configure snapshot details, scoping behaviors, and live state streaming.</p>
+        </div>
+        <button type="button" id="geminiLiveLinkSettingsClose" class="gemini-session-dialog__icon" aria-label="Close settings">
+            <i class="material-icons" aria-hidden="true">close</i>
+        </button>
+    </header>
+
+    <div class="mdl-dialog__content gemini-session-dialog__content">
+        <section class="gemini-session-section" aria-labelledby="contextRelayConfigHeading">
+            <div class="gemini-session-section__heading">
+                <div>
+                    <span class="gemini-session-section__kicker">Scoping & Detail</span>
+                    <h3 id="contextRelayConfigHeading">Relay Behavior</h3>
+                </div>
+            </div>
+            
+            <div class="gemini-session-field-grid">
+                <label class="gemini-session-field">
+                    <span>Context Detail</span>
+                    <select id="geminiLiveLinkMode">
+                        <option value="brief">Quick Scoped Brief</option>
+                        <option value="summary">Rich Scoped Summary</option>
+                        <option value="deep">Deep Scoped Snapshot</option>
+                        <option value="full">Complete Scoped Snapshot</option>
+                    </select>
+                </label>
+                <label class="gemini-session-field">
+                    <span>Context Scope</span>
+                    <select id="geminiLiveLinkScopeMode">
+                        <option value="auto">Auto: Current Surface</option>
+                        <option value="tab-current">Current Tab Only</option>
+                        <option value="tab-branch">Current Tab + Sub Tabs</option>
+                        <option value="card">Specific Card</option>
+                    </select>
+                </label>
+            </div>
+            
+            <div id="geminiLiveLinkCardScopeWrap" class="gemini-session-field gemini-session-field--wide" hidden style="margin-top: 12px;">
+                <span>Select Card</span>
+                <select id="geminiLiveLinkCardScope"></select>
+            </div>
+            
+            <div id="geminiLiveLinkScopeExplain" class="gemini-session-help" style="margin-top: 12px;"></div>
+        </section>
+
+        <section class="gemini-session-section" aria-labelledby="contextRelayStreamHeading">
+            <div class="gemini-session-section__heading">
+                <div>
+                    <span class="gemini-session-section__kicker">Live Updates</span>
+                    <h3 id="contextRelayStreamHeading">Data Stream</h3>
+                </div>
+                <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch" for="geminiLiveLinkDataStreamToggle">
+                    <input type="checkbox" id="geminiLiveLinkDataStreamToggle" class="mdl-switch__input">
+                    <span class="gemini-session-switch-label">Streaming</span>
+                </label>
+            </div>
+            <p class="gemini-session-help">
+                Silently send matching Nexus/state updates for the selected scope. Scope decides what Gemini sees. Quick is lean, Rich is readable, Deep expands the selected tree, and Complete is the largest safe scoped snapshot.
+            </p>
+        </section>
+    </div>
+
+    <footer class="mdl-dialog__actions gemini-session-dialog__actions">
+        <span class="gemini-session-dialog__save-note">Settings are applied immediately.</span>
+        <button type="button" class="gemini-session-button gemini-session-button--primary" id="geminiLiveLinkSettingsSave">Done</button>
+    </footer>
+</dialog>
+`;
+        document.body.appendChild(dialogDiv.firstElementChild);
+        dialog = document.getElementById('geminiLiveLinkSettingsDialog');
+        if (typeof componentHandler !== 'undefined') {
+            componentHandler.upgradeElements(dialog);
+        }
+        if (typeof dialog.showModal !== 'function' && typeof dialogPolyfill !== 'undefined') {
+            dialogPolyfill.registerDialog(dialog);
+        }
+
+        // Bind close events
+        const closeBtn = document.getElementById('geminiLiveLinkSettingsClose');
+        const saveBtn = document.getElementById('geminiLiveLinkSettingsSave');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                if (typeof dialog.close === 'function') dialog.close();
+                else dialog.style.display = 'none';
+            });
+        }
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => {
+                if (typeof dialog.close === 'function') dialog.close();
+                else dialog.style.display = 'none';
+            });
+        }
+        dialog.addEventListener('cancel', (e) => {
+            e.preventDefault();
+            if (typeof dialog.close === 'function') dialog.close();
+            else dialog.style.display = 'none';
+        });
+    }
+
+    const settingsButton = document.getElementById('geminiLiveLinkSettingsButton');
+    if (settingsButton) {
+        settingsButton.addEventListener('click', () => {
+            if (dialog) {
+                if (typeof dialog.showModal === 'function') {
+                    dialog.showModal();
+                } else {
+                    dialog.style.display = 'grid';
+                }
+            }
+        });
+    }
 
     const modeSelect = document.getElementById('geminiLiveLinkMode');
     if (modeSelect) {
@@ -525,44 +632,7 @@ async function loadGeminiLiveLinkCard() {
     <div id="geminiLiveLinkStatus" class="gemini-live-link-status"></div>
     <div id="geminiLiveLinkManifest" class="gemini-live-link-manifest"></div>
     <div id="geminiLiveLinkControls" class="gemini-live-link-controls" style="display:block;">
-        <div class="gemini-live-link-row">
-            <div class="gemini-live-link-select-wrap">
-                <label for="geminiLiveLinkMode" class="gemini-live-link-label">Context Detail</label>
-                <select id="geminiLiveLinkMode" class="gemini-live-link-select">
-                    <option value="brief">Quick Scoped Brief</option>
-                    <option value="summary">Rich Scoped Summary</option>
-                    <option value="deep">Deep Scoped Snapshot</option>
-                    <option value="full">Complete Scoped Snapshot</option>
-                </select>
-            </div>
-            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send">Send Selected Context</button>
-        </div>
-        <div class="gemini-live-link-scope-grid">
-            <div class="gemini-live-link-select-wrap">
-                <label for="geminiLiveLinkScopeMode" class="gemini-live-link-label">Context Scope</label>
-                <select id="geminiLiveLinkScopeMode" class="gemini-live-link-select">
-                    <option value="auto">Auto: Current Surface</option>
-                    <option value="tab-current">Current Tab Only</option>
-                    <option value="tab-branch">Current Tab + Sub Tabs</option>
-                    <option value="card">Specific Card</option>
-                </select>
-            </div>
-            <div id="geminiLiveLinkCardScopeWrap" class="gemini-live-link-select-wrap" hidden>
-                <label for="geminiLiveLinkCardScope" class="gemini-live-link-label">Card</label>
-                <select id="geminiLiveLinkCardScope" class="gemini-live-link-select"></select>
-            </div>
-        </div>
-        <div id="geminiLiveLinkScopeExplain" class="gemini-live-link-scope-explain"></div>
-        <label class="gemini-live-link-stream-row" for="geminiLiveLinkDataStreamToggle">
-            <span>
-                <b>Data Stream</b>
-                <small>Silently send matching Nexus/state updates for the selected scope.</small>
-            </span>
-            <input id="geminiLiveLinkDataStreamToggle" type="checkbox">
-        </label>
-        <div class="gemini-live-link-help">
-            Scope decides what Gemini sees. Quick is lean, Rich is readable, Deep expands the selected tree, and Complete is the largest safe scoped snapshot. Data Stream sends only silent live deltas for this scope.
-        </div>
+        <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send" style="width: 100%;">Send Selected Context</button>
     </div>
 </div>
 `;
