@@ -1,8 +1,12 @@
 window.getModalStackZIndex = function () {
-    // Any currently-open overlay/dialog that the confirm modal must sit ON TOP of. This must
-    // include high-z dialogs spawned from other surfaces (e.g. the Chat Clear dialog at z=100000),
-    // otherwise a confirm triggered from inside one of them renders BEHIND it.
+    // Any currently-open overlay/dialog/surface that a modal must sit ON TOP of. This must include:
+    //  - the Search Monitor (#loadingIndicator), which reaches z=1000000 in fullscreen/workspace
+    //    mode — modals spawned from the embedded Gemini workspace were rendering BEHIND it;
+    //  - other open native <dialog>s, so a confirm from inside one stacks above it;
+    //  - high-z overlays spawned from other surfaces (e.g. the Chat Clear dialog).
     const selectors = [
+        '#loadingIndicator',
+        'dialog[open]',
         '#constellation-map-overlay',
         '#custom-modal-overlay',
         '#custom-confirm-modal',

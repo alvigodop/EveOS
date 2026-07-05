@@ -6,7 +6,7 @@ window.EveModuleManifestScriptChunks.push([
     // UI Modules
     "js/modules/ui/notifications/templates.js?v=0.1.2",
     "js/modules/ui/notifications/toast.js?v=0.1.1",
-    "js/modules/ui/notifications/dialogs.js?v=0.1.3",
+    "js/modules/ui/notifications/dialogs.js?v=0.1.4",
     "js/modules/features/data-state/data-state.capture.clone.js?v=0.2.3",
     "js/modules/features/data-state/data-state.capture.scoped.filters.js?v=0.1.0",
     "js/modules/features/data-state/data-state.capture.scoped.structure.js?v=0.1.0",

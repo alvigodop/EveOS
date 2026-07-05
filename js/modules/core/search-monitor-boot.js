@@ -296,8 +296,11 @@
     // on one of those is interaction with a monitor-spawned surface, not "clicking out" of it.
     function isMonitorDialogTarget(target) {
         if (!target || typeof target.closest !== 'function') return false;
+        // `dialog` (the element) is essential: native <dialog> panels (audio/session/self-talk/
+        // screen-capture settings) have an IMPLICIT role, so `[role="dialog"]` does NOT match them —
+        // clicking one was read as "clicked out" and closed the monitor.
         return !!target.closest(
-            '#custom-modal-overlay, #chat-clear-dialog, #chat-clear-overlay, '
+            'dialog, #custom-modal-overlay, #chat-clear-dialog, #chat-clear-overlay, '
             + '#gemini-new-chat-confirm, #eve-inline-prompt-overlay, .modal-overlay, '
             + '[role="dialog"], [data-eve-dialog]'
         );

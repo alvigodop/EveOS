@@ -12,6 +12,10 @@ window.ChatClearing.UI = {
             return;
         }
 
+        // Stack ABOVE whatever surface is on screen — including the Search Monitor, which reaches
+        // z=1000000 in fullscreen/workspace mode. The old hardcoded 100000 rendered behind it.
+        const stackZ = (typeof window.getModalStackZIndex === 'function' ? window.getModalStackZIndex() : 100000);
+
         const clearDialog = document.createElement('div');
         clearDialog.id = 'chat-clear-dialog';
         clearDialog.style.position = 'fixed';
@@ -23,7 +27,7 @@ window.ChatClearing.UI = {
         clearDialog.style.padding = '24px';
         clearDialog.style.borderRadius = '16px';
         clearDialog.style.boxShadow = '0 24px 80px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05)';
-        clearDialog.style.zIndex = '100000'; // High enough to overlay Search Monitor
+        clearDialog.style.zIndex = String(stackZ + 2); // always above the Search Monitor
         clearDialog.style.minWidth = '320px';
         clearDialog.style.color = '#e8f7ff';
         clearDialog.style.backdropFilter = 'blur(10px)';
@@ -56,7 +60,7 @@ window.ChatClearing.UI = {
         overlay.style.bottom = '0';
         overlay.style.backgroundColor = 'rgba(0,0,0,0.65)';
         overlay.style.backdropFilter = 'blur(6px)';
-        overlay.style.zIndex = '99999';
+        overlay.style.zIndex = String(stackZ + 1);
 
         document.body.appendChild(overlay);
         document.body.appendChild(clearDialog);

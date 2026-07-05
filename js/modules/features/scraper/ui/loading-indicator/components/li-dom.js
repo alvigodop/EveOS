@@ -185,8 +185,10 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             // Dialogs/confirms opened from the monitor are appended to <body>, outside the
             // indicator. Clicking one is not "clicking out" of the monitor.
             const target = event.target;
+            // `dialog` (element) catches native <dialog> settings panels — their implicit role
+            // isn't matched by [role="dialog"], so clicking one used to collapse the monitor.
             const isDialog = target && typeof target.closest === 'function' && target.closest(
-                '#custom-modal-overlay, #chat-clear-dialog, #chat-clear-overlay, '
+                'dialog, #custom-modal-overlay, #chat-clear-dialog, #chat-clear-overlay, '
                 + '#gemini-new-chat-confirm, #eve-inline-prompt-overlay, .modal-overlay, '
                 + '[role="dialog"], [data-eve-dialog]'
             );
