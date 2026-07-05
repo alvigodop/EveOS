@@ -625,7 +625,6 @@ async function loadGeminiLiveLinkCard() {
         <div>
             <div class="gemini-live-link-kicker">EveOS Relay</div>
             <span class="gemini-live-link-title">EveOS Context Relay</span>
-            <div class="gemini-live-link-subtitle" style="display:none;">Choose a tab/card scope, inspect what will be sent, then relay it into Gemini.</div>
         </div>
         <div class="gemini-live-link-head-actions">
             <button type="button" id="geminiLiveLinkSettingsButton" class="gemini-live-link-settings-btn" aria-expanded="false" title="Show EveOS relay settings">
@@ -636,6 +635,9 @@ async function loadGeminiLiveLinkCard() {
                 <span class="mdl-switch__label"></span>
             </label>
         </div>
+    </div>
+    <div class="gemini-agentic-card-copy">
+        Choose a tab/card scope, inspect what will be sent, then relay it into Gemini.
     </div>
 </div>
 `;
