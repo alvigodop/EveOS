@@ -421,8 +421,8 @@ async function initializeGeminiLiveLinkCard() {
     <header class="gemini-session-dialog__header">
         <div>
             <span class="gemini-session-dialog__kicker">Agentic Functions</span>
-            <h2 id="geminiLiveLinkSettingsTitle">Context Relay Settings</h2>
-            <p>Configure snapshot details, scoping behaviors, and live state streaming.</p>
+            <h2 id="geminiLiveLinkSettingsTitle">Context Relay</h2>
+            <p>Inspect what will be sent, then relay it into Gemini.</p>
         </div>
         <button type="button" id="geminiLiveLinkSettingsClose" class="gemini-session-dialog__icon" aria-label="Close settings">
             <i class="material-icons" aria-hidden="true">close</i>
@@ -430,6 +430,14 @@ async function initializeGeminiLiveLinkCard() {
     </header>
 
     <div class="mdl-dialog__content gemini-session-dialog__content">
+        <!-- Live Status and Manifest Stats -->
+        <section class="gemini-session-section" style="margin-bottom: 20px;">
+            <div id="geminiLiveLinkStatus" class="gemini-live-link-status" style="margin-bottom: 12px;">Ready. Review the manifest, then send EveOS context to Gemini.</div>
+            <div id="geminiLiveLinkManifest" class="gemini-live-link-manifest" style="margin-bottom: 16px;"></div>
+            
+            <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send" style="width: 100%; min-height: 44px; font-weight: 600; text-transform: none; font-size: 0.95rem; border-radius: 12px;">Send Selected Context</button>
+        </section>
+
         <section class="gemini-session-section" aria-labelledby="contextRelayConfigHeading">
             <div class="gemini-session-section__heading">
                 <div>
@@ -612,12 +620,12 @@ async function loadGeminiLiveLinkCard() {
 
     try {
         const htmlContent = `
-<div id="gemini-live-link-card" class="agentic-function-card gemini-live-link-card">
+<div id="gemini-live-link-card" class="agentic-function-card gemini-live-link-card is-settings-collapsed">
     <div class="gemini-live-link-head">
         <div>
             <div class="gemini-live-link-kicker">EveOS Relay</div>
             <span class="gemini-live-link-title">EveOS Context Relay</span>
-            <div class="gemini-live-link-subtitle">Choose a tab/card scope, inspect what will be sent, then relay it into Gemini.</div>
+            <div class="gemini-live-link-subtitle" style="display:none;">Choose a tab/card scope, inspect what will be sent, then relay it into Gemini.</div>
         </div>
         <div class="gemini-live-link-head-actions">
             <button type="button" id="geminiLiveLinkSettingsButton" class="gemini-live-link-settings-btn" aria-expanded="false" title="Show EveOS relay settings">
@@ -628,11 +636,6 @@ async function loadGeminiLiveLinkCard() {
                 <span class="mdl-switch__label"></span>
             </label>
         </div>
-    </div>
-    <div id="geminiLiveLinkStatus" class="gemini-live-link-status"></div>
-    <div id="geminiLiveLinkManifest" class="gemini-live-link-manifest"></div>
-    <div id="geminiLiveLinkControls" class="gemini-live-link-controls" style="display:block;">
-        <button id="geminiLiveLinkSendButton" class="mdl-button mdl-js-button mdl-button--raised mdl-button--colored gemini-live-link-send" style="width: 100%;">Send Selected Context</button>
     </div>
 </div>
 `;
