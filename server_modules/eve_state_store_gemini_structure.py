@@ -1,3 +1,4 @@
+import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from server_modules.eve_state_store_layers_shared import (
@@ -47,6 +48,9 @@ def _compact_url(value, max_len=_URL_LIMIT):
     raw = str(value if value is not None else "").strip()
     if not raw:
         return ""
+    # Inline data: URIs are kilobytes of base64 that truncate into unusable noise — never ship.
+    if raw.lower().startswith("data:"):
+        return ""
     try:
         parts = urlsplit(raw)
         pairs = parse_qsl(parts.query, keep_blank_values=True)
@@ -56,6 +60,108 @@ def _compact_url(value, max_len=_URL_LIMIT):
     except Exception:
         pass
     return _middle_truncate(raw, max_len)
+
+
+def _is_empty_context_value(value):
+    """Empty strings/lists/dicts and None carry no info; numbers and booleans always ship."""
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, (list, dict)):
+        return len(value) == 0
+    return False
+
+
+def _prune_empty_deep(value):
+    if isinstance(value, list):
+        pruned = [_prune_empty_deep(item) for item in value]
+        return [item for item in pruned if not _is_empty_context_value(item)]
+    if isinstance(value, dict):
+        out = {}
+        for key, item in value.items():
+            pruned = _prune_empty_deep(item)
+            if not _is_empty_context_value(pruned):
+                out[key] = pruned
+        return out
+    return value
+
+
+# Stored notes can contain machine-written "=== Section ===" blocks (bookmark merge history,
+# alternate links, discarded titles). Shipping those raw burned hundreds of tokens per bookmark
+# on ids/timestamps the model can't use — compress each block to a one-line marker and keep only
+# the user's freeform text. Mirrors compactStoredNotes in the browser-local builder.
+_NOTE_SECTION_RE = re.compile(r"^===\s*(.+?)\s*===\s*$")
+
+
+def _note_section_value(body, label):
+    for line in body:
+        if line.strip().lower().startswith(label):
+            return line.split(":", 1)[1].strip() if ":" in line else ""
+    return ""
+
+
+def _compact_stored_notes(value, max_len=700, workspace_names=None):
+    raw = str(value if value is not None else "")
+    if not raw.strip():
+        return ""
+    names = workspace_names or {}
+    freeform = []
+    markers = []
+    section = None
+
+    def flush():
+        nonlocal section
+        if not section:
+            return
+        name = section["name"].lower()
+        body = section["lines"]
+        if name == "bookmark merge":
+            merged_at = _note_section_value(body, "merged at")[:10]
+            incoming_title = _note_section_value(body, "incoming title")
+            scope_raw = _note_section_value(body, "incoming scope")
+            from_part = ""
+            if scope_raw:
+                segments = [seg.strip() for seg in scope_raw.split("/") if seg.strip()][:2]
+                if segments:
+                    segments[0] = names.get(segments[0], segments[0])
+                    from_part = " from " + "/".join(segments)
+            title_part = f' "{_compact_text(incoming_title, 60)}"' if incoming_title else ""
+            date_part = f" on {merged_at}" if merged_at else ""
+            markers.append(f"[Merged{title_part}{from_part}{date_part}]")
+        elif name == "alternate links":
+            count = sum(1 for line in body if line.strip())
+            if count:
+                markers.append(f"[+{count} alternate link{'' if count == 1 else 's'} in stored notes]")
+        elif name == "other titles":
+            titles = [line.strip() for line in body if line.strip()]
+            if titles:
+                head = "; ".join(_compact_text(title, 50) for title in titles[:3])
+                extra = f" (+{len(titles) - 3} more)" if len(titles) > 3 else ""
+                markers.append(f"[Also titled: {head}{extra}]")
+        elif name == "previous seasons/episodes":
+            count = sum(1 for line in body if line.strip())
+            if count:
+                markers.append(f"[{count} previous season/episode marker{'' if count == 1 else 's'} in stored notes]")
+        else:
+            body_text = " ".join(body).strip()
+            if body_text:
+                markers.append(f"[{section['name']}: {_compact_text(body_text, 120)}]")
+        section = None
+
+    for line in raw.splitlines():
+        match = _NOTE_SECTION_RE.match(line)
+        if match:
+            flush()
+            section = {"name": match.group(1), "lines": []}
+            continue
+        if section is not None:
+            section["lines"].append(line)
+        else:
+            freeform.append(line)
+    flush()
+    combined = " ".join(part for part in [" ".join(freeform).strip()] + markers if part)
+    return _compact_text(combined, max_len)
 
 
 def _summary_list(value):
@@ -177,14 +283,15 @@ def _scalar(value):
 
 
 def _compact_api_ratings(api_ratings):
+    # Flat {Label: score} map — the old {values:{key:{label,score}},presentProviders,count}
+    # shape repeated every provider name twice and shipped derivable counts.
     values = {}
     if isinstance(api_ratings, dict):
         for key, label in _RATING_PROVIDER_LABELS.items():
             value = _scalar(api_ratings.get(key, api_ratings.get(label, api_ratings.get(label.lower()))))
             if value is not None:
-                values[key] = {"label": label, "score": value}
-    providers = list(values.keys())
-    return {"values": values, "presentProviders": providers, "count": len(providers)}
+                values[label] = value
+    return values
 
 
 def _compact_derived_ratings(derived_ratings):
@@ -254,23 +361,19 @@ def _attached_sources(link, linked_entry):
 
 
 def _rating_context(link, linked_entry):
+    # No `summary` block: it repeated a subset of `derived` verbatim on every rated bookmark.
     api = _compact_api_ratings((linked_entry or {}).get("apiRatings") or (link or {}).get("apiRatings"))
     derived = _compact_derived_ratings((linked_entry or {}).get("derivedRatings") or (link or {}).get("derivedRatings"))
     personal = _scalar(_summary_first(linked_entry, ["rating", "personalRating"], _summary_first(link, ["rating", "personalRating"])))
-    return {
-        "personal": personal,
-        "api": api,
-        "derived": derived,
-        "summary": {
-            "unified": derived.get("unified", derived.get("hybrid")),
-            "apiAverage": derived.get("apiAverage"),
-            "apiWeighted": derived.get("apiWeighted"),
-            "confidence": derived.get("confidence"),
-        },
-    }
+    return {"personal": personal, "api": api, "derived": derived}
+
+
+def _has_rating_signal(ratings):
+    return ratings.get("personal") is not None or bool(ratings.get("api")) or bool(ratings.get("derived"))
 
 
 def _media_context(link, linked_entry, category_data):
+    # No `flags` block: it was derivable from the mediaTypes list itself.
     media_types = list(dict.fromkeys(
         _summary_text(item)
         for item in (_summary_list((linked_entry or {}).get("mediaTypes")) + _summary_list((link or {}).get("mediaTypes")))
@@ -279,11 +382,6 @@ def _media_context(link, linked_entry, category_data):
     return {
         "dataType": _summary_text((category_data or {}).get("dataType") or (linked_entry or {}).get("dataType") or (link or {}).get("dataType")),
         "mediaTypes": media_types,
-        "flags": {
-            "graphicNovels": "graphicNovels" in media_types,
-            "films": "films" in media_types,
-            "novels": "novels" in media_types,
-        },
     }
 
 def _summary_aliases(entry):
@@ -302,14 +400,11 @@ def _bookmark_identifiers(link):
         )
         if _summary_text(item)
     ))[:20]
-    details = [{"id": item, "label": _DEFAULT_IDENTIFIER_LABELS.get(item, item), "description": ""} for item in ids]
-    # No per-bookmark explanatory note here: the SYSTEM CONTEXT header already explains the
-    # identifiers-vs-cardCategory distinction once, so repeating a sentence per bookmark only
-    # burned tokens (~105 chars x every bookmark occurrence).
+    # ids + labels only: a `details` list without descriptions just repeated the same data a
+    # third time, and the old per-bookmark explanatory note sentence lives in the header now.
     return {
         "ids": ids,
-        "labels": [item["label"] for item in details],
-        "details": details,
+        "labels": [_DEFAULT_IDENTIFIER_LABELS.get(item, item) for item in ids],
     }
 
 def _folder_nodes(tree):
@@ -451,7 +546,16 @@ def _sort_links_for_card(links, settings):
     ), reverse=reverse)
 
 
-def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folder_path="", category_data=None):
+def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, category_data=None, workspace_names=None):
+    """Slim bookmark shape (parity with the browser-local builder).
+
+    One locator string (`card` = "workspace::cardName") instead of the old location/card/
+    category/cardCategory quadruplication, no per-bookmark explainer sentences (the SYSTEM
+    CONTEXT header explains the schema once), no taskStatus (done covers it), no bookmarkLabels
+    or top-level identifiers (bookmarkIdentifiers covers both), ratings only when a rating
+    exists, covers only when a cover exists. Folder placement is encoded by nesting inside the
+    folder tree. Empty fields are stripped later by _prune_empty_deep.
+    """
     link = link or {}
     linked_entry = linked_entry or {}
     category_data = category_data or {}
@@ -464,59 +568,39 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
     sources = _attached_sources(link, linked_entry)
     ratings = _rating_context(link, linked_entry)
     media = _media_context(link, linked_entry, category_data)
-    notes_text = _summary_text(link.get("personalNotes") or link.get("notes") or linked_entry.get("notes") or linked_entry.get("summary") or linked_entry.get("description"))[:900]
+    covers = _summary_covers(link)
+    notes_text = _compact_stored_notes(
+        link.get("personalNotes") or link.get("notes"), 900, workspace_names,
+    )
     return {
         "id": link.get("id"),
         "title": _compact_text(_summary_text(link.get("title"), "Untitled"), _TEXT_LIMIT_TITLE),
-        # One URL slot only (mirrors the browser-local builder): duplicating the primary URL at a
-        # top-level `url` key doubled the token cost of every bookmark for zero extra information.
         "urls": {
             "primary": _compact_url(_summary_text(link.get("url") or link.get("href"))),
             "related": related_urls,
         },
-        "workspace": workspace,
-        "category": {"type": "card-container", "name": category, "note": "Not the bookmark identifier marker."},
-        "cardCategory": category,
-        "card": {"workspace": workspace, "name": category, "scopedKey": _scoped_key(workspace, category)},
-        "folderId": _summary_text(link.get("folderId")),
-        "folderPath": folder_path,
-        "location": {
-            "workspace": workspace,
-            "cardName": category,
-            "cardCategoryName": category,
-            "folderId": _summary_text(link.get("folderId")),
-            "folderPath": folder_path,
-            "note": "cardName/cardCategoryName is the EveOS card container. bookmarkIdentifiers are the user-facing category/marker pills.",
-        },
+        "card": _scoped_key(workspace, category),
         "bookmarkIdentifiers": identifiers,
-        "bookmarkLabels": identifiers.get("labels", []),
         "done": bool(link.get("done")),
-        "taskStatus": "Done" if link.get("done") else "Pending",
-        "pinned": bool(pin_ref or link.get("pinned")),
+        "pinned": True if (pin_ref or link.get("pinned")) else None,
         "pin": pin_ref or None,
         "priority": _summary_text(link.get("priority")),
         "icon": _compact_url(_summary_text(link.get("icon") or link.get("favicon") or link.get("imageIcon"))),
         "status": _summary_first(linked_entry, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
         "notes": notes_text,
         "progress": progress,
-        "ratings": ratings,
+        "ratings": ratings if _has_rating_signal(ratings) else None,
         "timestamps": {
             "updated": _summary_timestamp(link) or _summary_timestamp(linked_entry),
             "dateAdded": link.get("dateAdded") or linked_entry.get("dateAdded") or "",
-            "lastEdited": link.get("lastEdited") or linked_entry.get("lastEdited") or "",
             "lastVisited": link.get("lastVisited") or link.get("visitedAt") or "",
         },
         "tags": list(dict.fromkeys(_summary_text(item) for item in (_summary_list(link.get("tags")) + _summary_list(linked_entry.get("tags"))) if _summary_text(item)))[:30],
         "genres": list(dict.fromkeys(_summary_text(item) for item in (_summary_list(link.get("genres")) + _summary_list(linked_entry.get("genres"))) if _summary_text(item)))[:30],
-        "identifiers": identifiers.get("ids", []),
-        "covers": _summary_covers(link),
+        "covers": covers if covers.get("hasCover") else None,
         "attachedSources": sources,
         "sourceProviders": list(dict.fromkeys(_summary_text(source.get("provider")) for source in sources if _summary_text(source.get("provider"))))[:12],
-        "sort": {
-            "customOrderNumber": order_number,
-        },
-        # Unlinked bookmarks get the bare flag (parity with the browser-local builder) — shipping
-        # a full library block of empty strings per unlinked bookmark wasted ~400 chars each.
+        "sort": {"customOrderNumber": order_number} if order_number is not None else None,
         "library": {
             "linked": True,
             "title": _compact_text(linked_entry.get("title"), _TEXT_LIMIT_TITLE),
@@ -529,8 +613,7 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
             "artist": _summary_text(linked_entry.get("artist")),
             "language": _summary_text(linked_entry.get("language")),
             "sourceUrl": _compact_url(_summary_text(linked_entry.get("sourceUrl"))),
-            "summary": _summary_text(linked_entry.get("summary") or linked_entry.get("description"))[:700],
-            "ratings": ratings,
+            "summary": _compact_stored_notes(linked_entry.get("summary") or linked_entry.get("description"), 700, workspace_names),
         } if linked_entry else {"linked": False},
     }
 
@@ -545,11 +628,14 @@ def _build_workspace_context(workspaces, bookmarks, limit=80):
 
     def node_context(node):
         children = [node_context(child) for child in (node or {}).get("subTabs") or []]
+        linked_to = _summary_text((node or {}).get("linkedTo"))
+        # linkedTo/isShortcut only on actual shortcut tabs — the empty/false pair on every
+        # normal tab was pure noise.
         return {
             "id": _summary_text((node or {}).get("id"), "main"),
             "name": _summary_text((node or {}).get("name") or (node or {}).get("title"), _summary_text((node or {}).get("id"), "main")),
-            "linkedTo": _summary_text((node or {}).get("linkedTo")),
-            "isShortcut": bool(_summary_text((node or {}).get("linkedTo"))),
+            "linkedTo": linked_to or None,
+            "isShortcut": True if linked_to else None,
             "bookmarkCount": counts.get(_summary_text((node or {}).get("id"), "main"), 0),
             "cardCount": len(cards.get(_summary_text((node or {}).get("id"), "main"), set())),
             "children": children[:limit],
@@ -558,7 +644,7 @@ def _build_workspace_context(workspaces, bookmarks, limit=80):
     return [node_context(workspace) for workspace in (workspaces or [])[:limit]]
 
 
-def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categories=None, sample_limit=25):
+def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categories=None, sample_limit=25, workspace_names=None):
     by_bookmark_pin, by_card_pin, by_folder_pin = _pin_indexes(pins)
     links_by_card = {}
     for link in bookmarks:
@@ -576,56 +662,73 @@ def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categorie
         settings = _card_order_settings(config, workspace, category)
         ordered_links = _sort_links_for_card(card_links, settings)
         folder_tree = (folders or {}).get(scoped_key) or {}
-        _nodes, _by_id, children_by_parent = _build_folder_maps(folder_tree)
-        folder_path_by_id = _folder_paths(folder_tree)
+        _nodes, by_id, children_by_parent = _build_folder_maps(folder_tree)
         links_by_folder = {}
         for index, link in enumerate(ordered_links):
             link_id = _summary_text((link or {}).get("id"))
+            # customOrderNumber only when the user explicitly ordered this bookmark — the
+            # fallback (array index) is already encoded by list position.
+            explicit_order = (
+                _order_number(settings["customOrderMap"], link_id, index + 1)
+                if link_id in (settings["customOrderMap"] or {})
+                else None
+            )
             view = _bookmark_context(
                 link,
                 link_to_entry.get(link_id) or {},
                 by_bookmark_pin.get(link_id),
-                order_number=_order_number(settings["customOrderMap"], link_id, index + 1),
-                folder_path=folder_path_by_id.get(_summary_text((link or {}).get("folderId")), ""),
+                order_number=explicit_order,
                 category_data=category_data,
+                workspace_names=workspace_names,
             )
             links_by_folder.setdefault(_summary_text((link or {}).get("folderId")), []).append(view)
 
+        # Folder shape: nesting already encodes the path, `inherit` is the default for both mode
+        # fields, and pinned:false is the default — ship only real signals.
         def build_folder(node):
             folder_id = _summary_text((node or {}).get("id"))
             child_folders = [build_folder(child) for child in children_by_parent.get(folder_id, [])]
             direct_bookmarks = links_by_folder.get(folder_id, [])
+            task_mode = _summary_text((node or {}).get("taskMode"), "inherit")
+            click_mode = _summary_text((node or {}).get("clickBehaviorMode"), "inherit")
+            shipped = direct_bookmarks[:sample_limit]
             return {
                 "id": folder_id,
                 "name": _summary_text((node or {}).get("name"), "Folder"),
-                "path": folder_path_by_id.get(folder_id, ""),
-                "order": (node or {}).get("order"),
-                "taskMode": _summary_text((node or {}).get("taskMode"), "inherit"),
-                "clickBehaviorMode": _summary_text((node or {}).get("clickBehaviorMode"), "inherit"),
-                "pinned": bool(by_folder_pin.get(f"{workspace}::{category}::{folder_id}")),
+                "taskMode": task_mode if task_mode != "inherit" else None,
+                "clickBehaviorMode": click_mode if click_mode != "inherit" else None,
+                "pinned": True if by_folder_pin.get(f"{workspace}::{category}::{folder_id}") else None,
                 "pin": by_folder_pin.get(f"{workspace}::{category}::{folder_id}"),
-                "directBookmarkCount": len(direct_bookmarks),
-                "bookmarks": direct_bookmarks[:sample_limit],
+                "directBookmarkCount": len(direct_bookmarks) if len(direct_bookmarks) > len(shipped) else None,
+                "bookmarks": shipped,
                 "folders": child_folders,
             }
 
         root_bookmarks = links_by_folder.get("", [])
+        # Bookmarks whose folderId no longer exists in the tree used to be silently dropped from
+        # the card tree — surface them as detachedBookmarks (parity with the browser builder).
+        detached_bookmarks = [
+            view
+            for folder_id, views in links_by_folder.items()
+            if folder_id and folder_id not in by_id
+            for view in views
+        ]
         cards.append({
-            "workspace": workspace,
-            "category": category,
             "scopedKey": scoped_key,
+            "cardName": category,
             "cardType": _summary_text((category_data or {}).get("dataType"), "bookmarks"),
             "libraryEntryCount": len(category_entries or []),
             "settings": {
                 "taskModeEnabled": settings["taskModeEnabled"],
-                "customOrderEnabled": settings["customOrderEnabled"],
-                "customOrderSort": settings["customOrderSort"],
+                "customOrderEnabled": True if settings["customOrderEnabled"] else None,
+                "customOrderSort": settings["customOrderSort"] if settings["customOrderSort"] != "none" else None,
                 "cardOrderIndex": settings["cardOrderIndex"],
             },
-            "pinned": bool(by_card_pin.get(scoped_key)),
+            "pinned": True if by_card_pin.get(scoped_key) else None,
             "pin": by_card_pin.get(scoped_key),
             "bookmarkCount": len(card_links),
             "rootBookmarks": root_bookmarks[:sample_limit],
+            "detachedBookmarks": detached_bookmarks[:sample_limit],
             "folders": [build_folder(folder) for folder in children_by_parent.get("", [])],
         })
         if len(cards) >= min(80, max(10, sample_limit * 2)):
@@ -635,20 +738,20 @@ def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categorie
 
 def _compact_bookmark_for_view(link, linked_entry=None):
     # System-view samples are pointers into cardTrees, not full records (parity with the
-    # browser-local builder's small view objects): the full ratings/tags/source payload for the
-    # same bookmark already ships once in its card tree.
+    # browser-local builder's small view objects): the full record for the same bookmark
+    # already ships once in its card tree.
     identifiers = _bookmark_identifiers(link)
     return {
         "id": (link or {}).get("id"),
         "title": _compact_text((link or {}).get("title"), _TEXT_LIMIT_TITLE),
         "url": _compact_url((link or {}).get("url")),
-        "workspace": (link or {}).get("workspace") or "main",
-        "cardCategory": (link or {}).get("category") or "Unsorted",
-        "bookmarkIdentifiers": {"ids": identifiers.get("ids", []), "labels": identifiers.get("labels", [])},
-        "folderId": (link or {}).get("folderId") or "",
+        "card": _scoped_key(
+            _summary_text((link or {}).get("workspace"), "main"),
+            _summary_text((link or {}).get("category"), "Unsorted"),
+        ),
+        "bookmarkIdentifiers": identifiers,
         "status": _summary_first(linked_entry or {}, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
         "done": bool((link or {}).get("done")),
-        "covers": _summary_covers(link),
     }
 
 def _build_system_view_samples(bookmarks, link_to_entry, sample_limit=25):
@@ -688,10 +791,24 @@ def _build_system_view_samples(bookmarks, link_to_entry, sample_limit=25):
     }
 
 
+def _collect_workspace_names(nodes, names=None):
+    """id -> display name, so merge-note markers can say "from test/Reading" instead of ws ids."""
+    names = names if names is not None else {}
+    for node in nodes or []:
+        if not isinstance(node, dict):
+            continue
+        node_id = _summary_text(node.get("id"))
+        if node_id:
+            names[node_id] = _summary_text(node.get("name") or node.get("title"), node_id)
+        _collect_workspace_names(node.get("subTabs"), names)
+    return names
+
+
 def build_structured_scope(bookmarks, folders, config, link_to_entry, pins, categories=None, sample_limit=25):
+    workspace_names = _collect_workspace_names(config.get("workspaces") or [])
     return {
         "workspaces": _build_workspace_context(config.get("workspaces") or [], bookmarks, limit=max(20, sample_limit)),
-        "cardTrees": _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categories=categories, sample_limit=sample_limit),
+        "cardTrees": _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categories=categories, sample_limit=sample_limit, workspace_names=workspace_names),
         # Every bookmark already ships in full inside cardTrees; each system view re-samples the
         # same bookmarks (done|pending + covers|missing always match), so big sample lists here
         # only duplicate tokens. 10 samples per view mirrors the browser-local builder's budget.

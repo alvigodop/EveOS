@@ -129,6 +129,9 @@ window.EveDataStore = window.EveDataStore || {};
     function compactUrl(value, max = 180) {
         const raw = text(value, '');
         if (!raw) return '';
+        // Inline data: URIs are kilobytes of base64 that truncate into unusable noise — never
+        // ship them as context.
+        if (/^data:/i.test(raw)) return '';
         try {
             const parsed = new URL(raw);
             URL_TRACKING_PARAMS.forEach((key) => parsed.searchParams.delete(key));
@@ -136,6 +139,97 @@ window.EveDataStore = window.EveDataStore || {};
         } catch {
             return middleTruncate(raw, max);
         }
+    }
+
+    // Values that carry no information for the model: empty strings, nulls, empty arrays/objects.
+    // Numbers (incl. 0) and booleans (incl. false) are real signals and stay.
+    function isEmptyContextValue(value) {
+        if (value == null) return true;
+        if (typeof value === 'string') return value.trim() === '';
+        if (Array.isArray(value)) return value.length === 0;
+        if (typeof value === 'object') return Object.keys(value).length === 0;
+        return false;
+    }
+
+    function pruneEmptyDeep(value) {
+        if (Array.isArray(value)) {
+            return value.map(pruneEmptyDeep).filter((item) => !isEmptyContextValue(item));
+        }
+        if (value && typeof value === 'object') {
+            const out = {};
+            Object.entries(value).forEach(([key, item]) => {
+                const pruned = pruneEmptyDeep(item);
+                if (!isEmptyContextValue(pruned)) out[key] = pruned;
+            });
+            return out;
+        }
+        return value;
+    }
+
+    // Stored notes can contain machine-written "=== Section ===" blocks (bookmark merge history,
+    // alternate links, discarded titles). Shipping those raw burned hundreds of tokens per
+    // bookmark on ids/timestamps the model can't use — compress each block to a one-line marker
+    // and keep only the user's freeform text.
+    const NOTE_SECTION_RE = /^===\s*(.+?)\s*===\s*$/;
+
+    function compactStoredNotes(value, limit, workspaceNames) {
+        const raw = String(value == null ? '' : value);
+        if (!raw.trim()) return '';
+        const freeform = [];
+        const markers = [];
+        let section = null;
+        const sectionValue = (body, label) => {
+            const row = body.find((line) => line.trim().toLowerCase().startsWith(label));
+            return row ? row.slice(row.indexOf(':') + 1).trim() : '';
+        };
+        const flush = () => {
+            if (!section) return;
+            const name = section.name.toLowerCase();
+            const body = section.lines;
+            if (name === 'bookmark merge') {
+                const mergedAt = sectionValue(body, 'merged at').slice(0, 10);
+                const incomingTitle = sectionValue(body, 'incoming title');
+                const scopeRaw = sectionValue(body, 'incoming scope');
+                let from = '';
+                if (scopeRaw) {
+                    const segments = scopeRaw.split('/').map((part) => part.trim()).filter(Boolean).slice(0, 2);
+                    if (segments.length) {
+                        const wsName = workspaceNames?.get?.(segments[0]) || segments[0];
+                        from = ` from ${[wsName, segments[1]].filter(Boolean).join('/')}`;
+                    }
+                }
+                markers.push(`[Merged${incomingTitle ? ` "${compactText(incomingTitle, 60)}"` : ''}${from}${mergedAt ? ` on ${mergedAt}` : ''}]`);
+            } else if (name === 'alternate links') {
+                const count = body.filter((line) => line.trim()).length;
+                if (count) markers.push(`[+${count} alternate link${count === 1 ? '' : 's'} in stored notes]`);
+            } else if (name === 'other titles') {
+                const titles = body.map((line) => line.trim()).filter(Boolean);
+                if (titles.length) {
+                    const head = titles.slice(0, 3).map((title) => compactText(title, 50)).join('; ');
+                    markers.push(`[Also titled: ${head}${titles.length > 3 ? ` (+${titles.length - 3} more)` : ''}]`);
+                }
+            } else if (name === 'previous seasons/episodes') {
+                const count = body.filter((line) => line.trim()).length;
+                if (count) markers.push(`[${count} previous season/episode marker${count === 1 ? '' : 's'} in stored notes]`);
+            } else {
+                const bodyText = body.join(' ').trim();
+                if (bodyText) markers.push(`[${section.name}: ${compactText(bodyText, 120)}]`);
+            }
+            section = null;
+        };
+        raw.split(/\r?\n/).forEach((line) => {
+            const match = line.match(NOTE_SECTION_RE);
+            if (match) {
+                flush();
+                section = { name: match[1], lines: [] };
+                return;
+            }
+            if (section) section.lines.push(line);
+            else freeform.push(line);
+        });
+        flush();
+        const combined = [freeform.join(' ').trim()].concat(markers).filter(Boolean).join(' ');
+        return compactText(combined, limit);
     }
 
     function clone(value, fallback) {
@@ -264,11 +358,11 @@ window.EveDataStore = window.EveDataStore || {};
             tabs: ids.map((id) => {
                 const node = findWorkspace(id, nodes) || {};
                 const path = workspacePath(id, nodes);
+                // No parentPath: it is `path` minus its last segment.
                 return {
                     id,
                     name: text(node.name || node.title, id || 'Main'),
                     path: path.map((part) => part.name).join(' / '),
-                    parentPath: path.slice(0, -1).map((part) => part.name).join(' / '),
                     contentsIncluded: scope.scope === 'all' || selectedIds.has(id)
                 };
             }),
@@ -463,15 +557,16 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function compactApiRatings(apiRatings) {
+        // Flat {Label: score} map — the old {values:{key:{label,score}},presentProviders,count}
+        // shape repeated every provider name twice and shipped derivable counts.
         const values = {};
         if (apiRatings && typeof apiRatings === 'object') {
             Object.entries(RATING_PROVIDER_LABELS).forEach(([key, label]) => {
                 const value = scalar(apiRatings[key] ?? apiRatings[label] ?? apiRatings[label.toLowerCase()]);
-                if (value !== null) values[key] = { label, score: value };
+                if (value !== null) values[label] = value;
             });
         }
-        const presentProviders = Object.keys(values);
-        return { values, presentProviders, count: presentProviders.length };
+        return values;
     }
 
     function compactDerivedRatings(derivedRatings) {
@@ -529,32 +624,25 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function ratingContext(link, entry) {
+        // No `summary` block: it repeated a subset of `derived` verbatim on every rated bookmark.
         const api = compactApiRatings(entry?.apiRatings || link?.apiRatings);
         const derived = compactDerivedRatings(entry?.derivedRatings || link?.derivedRatings);
         const personal = scalar(first(entry, ['rating', 'personalRating']) || first(link, ['rating', 'personalRating']));
-        return {
-            personal,
-            api,
-            derived,
-            summary: {
-                unified: derived.unified ?? derived.hybrid ?? null,
-                apiAverage: derived.apiAverage ?? null,
-                apiWeighted: derived.apiWeighted ?? null,
-                confidence: derived.confidence ?? null
-            }
-        };
+        return { personal, api, derived };
+    }
+
+    function hasRatingSignal(ratings) {
+        return ratings.personal !== null
+            || Object.keys(ratings.api).length > 0
+            || Object.keys(ratings.derived).length > 0;
     }
 
     function mediaContext(link, entry, categoryData) {
+        // No `flags` block: it was derivable from the mediaTypes list itself.
         const mediaTypes = uniqueList(asArray(entry?.mediaTypes).concat(asArray(link?.mediaTypes)), 8);
         return {
             dataType: text(categoryData?.dataType || entry?.dataType || link?.dataType, ''),
-            mediaTypes,
-            flags: {
-                graphicNovels: mediaTypes.includes('graphicNovels'),
-                films: mediaTypes.includes('films'),
-                novels: mediaTypes.includes('novels')
-            }
+            mediaTypes
         };
     }
 
@@ -580,15 +668,15 @@ window.EveDataStore = window.EveDataStore || {};
     function bookmarkIdentifiers(link, definitions) {
         const ids = uniqueList([].concat(asArray(link?.identifiers), asArray(link?.identifierIds), asArray(link?.bookmarkIdentifiers)), 20);
         const details = ids.map((id) => definitions.get(id) || { id, label: id, description: '' });
+        // `details` only adds value when a definition carries a description — otherwise it just
+        // repeats ids+labels a third time.
+        const informative = details
+            .filter((definition) => definition.description)
+            .map((definition) => ({ id: definition.id, label: definition.label, description: definition.description }));
         return {
             ids,
             labels: details.map((definition) => definition.label),
-            details: details.map((definition) => ({
-                id: definition.id,
-                label: definition.label,
-                description: definition.description || '',
-                icon: definition.icon || ''
-            }))
+            details: informative.length ? informative : undefined
         };
     }
 
@@ -609,6 +697,11 @@ window.EveDataStore = window.EveDataStore || {};
         return { bookmarkPins, cardPins, folderPins };
     }
 
+    // Slim bookmark shape: one locator string (`card` = "workspace::cardName") instead of the old
+    // location/card/category/cardCategory quadruplication, no per-bookmark explainer sentences
+    // (the SYSTEM CONTEXT header explains the schema once), no taskStatus (done covers it), no
+    // bookmarkLabels (identifiers.labels covers it), ratings only when a rating exists, covers
+    // only when a cover exists. Folder placement is encoded by nesting inside the folder tree.
     function bookmarkContext(link, linkedEntry, context = {}) {
         const settings = modeSettings(context.detail || 'summary');
         const entry = linkedEntry || {};
@@ -622,6 +715,7 @@ window.EveDataStore = window.EveDataStore || {};
         const related = relatedUrls(link, settings.relatedUrlLimit, settings.urlLimit);
         const isBrief = settings.mode === 'brief';
         const isLinked = !!linkedEntry;
+        const covers = coverState(link, settings);
         const libraryDetails = isLinked ? {
             linked: true,
             title: compactText(entry.title, 160),
@@ -634,48 +728,34 @@ window.EveDataStore = window.EveDataStore || {};
             artist: isBrief ? undefined : compactText(entry.artist, 120),
             language: isBrief ? undefined : compactText(entry.language, 80),
             sourceUrl: isBrief ? undefined : compactUrl(entry.sourceUrl, settings.urlLimit),
-            summary: isBrief ? undefined : compactText(entry.summary || entry.description, settings.summaryLimit),
-            ratings: isBrief ? ratings.summary : ratings
+            summary: isBrief ? undefined : compactStoredNotes(entry.summary || entry.description, settings.summaryLimit, context.workspaceNames)
         } : { linked: false };
         return {
             id: link?.id,
             title: compactText(link?.title || 'Untitled', 160),
             urls: { primary: compactUrl(link?.url || link?.href, settings.urlLimit), related },
-            location: {
-                workspace,
-                cardName,
-                cardCategoryName: cardName,
-                folderId: text(link?.folderId, ''),
-                folderPath: text(context.folderPath, ''),
-                note: isBrief ? undefined : 'cardName/cardCategoryName is the EveOS card container. bookmarkIdentifiers are the user-facing category/marker pills.'
-            },
-            card: { workspace, name: cardName, scopedKey: scopedKey(workspace, cardName) },
-            category: isBrief ? undefined : { type: 'card-container', name: cardName, note: 'Not the bookmark identifier marker.' },
-            cardCategory: cardName,
+            card: scopedKey(workspace, cardName),
             bookmarkIdentifiers: isBrief ? { ids: markerState.ids, labels: markerState.labels } : markerState,
-            bookmarkLabels: markerState.labels,
-            taskStatus: link?.done ? 'Done' : 'Pending',
             done: !!link?.done,
-            pinned: !!(pin || link?.pinned),
-            pin: isBrief ? undefined : pin,
+            pinned: (pin || link?.pinned) ? true : undefined,
+            pin: isBrief ? undefined : (pin || undefined),
             priority: compactText(link?.priority, 60),
             icon: isBrief ? undefined : compactUrl(link?.icon || link?.favicon || link?.imageIcon, settings.urlLimit),
             status: compactText(entry.status || link?.status || link?.readingStatus || link?.mediaStatus, 80),
-            notes: compactText(link?.personalNotes || link?.notes || entry.notes || entry.summary, settings.noteLimit),
+            notes: compactStoredNotes(link?.personalNotes || link?.notes, settings.noteLimit, context.workspaceNames),
             progress: progress(Object.assign({}, entry, link)),
-            ratings: isBrief ? ratings.summary : ratings,
+            ratings: hasRatingSignal(ratings) ? ratings : undefined,
             timestamps: {
                 updated: timestamp(link) || timestamp(entry),
                 dateAdded: isBrief ? undefined : text(link?.dateAdded || entry.dateAdded, ''),
-                lastEdited: isBrief ? undefined : text(link?.lastEdited || entry.lastEdited, ''),
                 lastVisited: isBrief ? undefined : text(link?.lastVisited || link?.visitedAt, '')
             },
             tags: uniqueList(asArray(link?.tags).concat(asArray(entry.tags)), settings.tagLimit),
             genres: uniqueList(asArray(link?.genres).concat(asArray(entry.genres)), settings.genreLimit),
-            covers: coverState(link, settings),
+            covers: covers.hasCover ? covers : undefined,
             attachedSources: sources.length ? sources : undefined,
             sourceProviders: sources.length ? uniqueList(sources.map((source) => source.provider).filter(Boolean), 12) : undefined,
-            sort: { customOrderNumber: context.orderNumber || null, sourceIndex: context.sourceIndex || null },
+            sort: context.orderNumber != null ? { customOrderNumber: context.orderNumber } : undefined,
             library: libraryDetails
         };
     }
@@ -760,15 +840,26 @@ window.EveDataStore = window.EveDataStore || {};
         return sorted.sort((a, b) => reverse * (orderNumber(settings.customOrderMap, a?.id, 999999) - orderNumber(settings.customOrderMap, b?.id, 999999)) || text(a?.title, '').localeCompare(text(b?.title, '')));
     }
 
-    function systemViewHints(links, linkToEntry, identifierDefs, limit, detail = 'summary') {
+    function systemViewHints(links, linkToEntry, identifierDefs, limit, detail = 'summary', workspaceNames) {
         const settings = modeSettings(detail);
         const sampleLimit = Math.max(1, Math.min(settings.systemViewSampleLimit, Number(limit) || settings.systemViewSampleLimit));
         const views = { withCovers: [], withAdditionalCovers: [], missingCovers: [], libraryLinked: [], done: [], pending: [], withRelatedUrls: [] };
         links.forEach((link) => {
-            const compact = bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs, detail });
-            const small = { id: compact.id, title: compact.title, url: compact.urls.primary, bookmarkIdentifiers: compact.bookmarkIdentifiers, card: compact.card, covers: compact.covers, status: compact.status, done: compact.done };
-            (small.covers.hasCover ? views.withCovers : views.missingCovers).push(small);
-            if (small.covers.hasAdditionalCovers) views.withAdditionalCovers.push(small);
+            const compact = bookmarkContext(link, linkToEntry[text(link?.id, '')], { identifierDefs, detail, workspaceNames });
+            const hasCover = !!compact.covers;
+            // View samples are pointers into the card trees — id/title/locator only; the full
+            // record already ships once inside its card.
+            const small = {
+                id: compact.id,
+                title: compact.title,
+                url: compact.urls.primary,
+                bookmarkIdentifiers: { ids: compact.bookmarkIdentifiers.ids, labels: compact.bookmarkIdentifiers.labels },
+                card: compact.card,
+                status: compact.status,
+                done: compact.done
+            };
+            (hasCover ? views.withCovers : views.missingCovers).push(small);
+            if (compact.covers?.hasAdditionalCovers) views.withAdditionalCovers.push(small);
             if (compact.library.linked) views.libraryLinked.push(small);
             (compact.done ? views.done : views.pending).push(small);
             if (compact.urls.related.length) views.withRelatedUrls.push(small);
@@ -817,6 +908,15 @@ window.EveDataStore = window.EveDataStore || {};
         const { linkToEntry } = buildLibraryIndexes(categories, connections);
         const identifierDefs = identifierDefinitions(state);
         const pins = pinLookup(state);
+        // id -> display name, so merge-note markers can say "from test/Reading" instead of ws ids.
+        const workspaceNames = new Map();
+        (function collectNames(nodes) {
+            (Array.isArray(nodes) ? nodes : []).forEach((node) => {
+                const id = text(node?.id, '');
+                if (id) workspaceNames.set(id, text(node?.name || node?.title, id));
+                collectNames(node?.subTabs);
+            });
+        })(config?.workspaces);
         const byCard = new Map();
         links.forEach((link) => {
             const key = scopedKey(link?.workspace, link?.category);
@@ -838,27 +938,44 @@ window.EveDataStore = window.EveDataStore || {};
                 if (remaining <= 0) return;
                 const id = text(link?.id, '');
                 const folderId = text(link?.folderId, '');
-                const view = bookmarkContext(link, linkToEntry[id], { identifierDefs, pin: pins.bookmarkPins.get(id), orderNumber: orderNumber(settings.customOrderMap, id, index + 1), sourceIndex: index + 1, folderPath: maps.paths.get(folderId) || '', categoryData, detail });
+                // customOrderNumber only when the user explicitly ordered this bookmark — the
+                // fallback (array index) is already encoded by list position.
+                const explicitOrder = Object.prototype.hasOwnProperty.call(settings.customOrderMap, id)
+                    ? orderNumber(settings.customOrderMap, id, index + 1)
+                    : undefined;
+                const view = bookmarkContext(link, linkToEntry[id], { identifierDefs, pin: pins.bookmarkPins.get(id), orderNumber: explicitOrder, categoryData, detail, workspaceNames });
                 if (!linksByFolder.has(folderId)) linksByFolder.set(folderId, []);
                 linksByFolder.get(folderId).push(view);
                 remaining -= 1;
             });
+            // Folder shape: nesting already encodes the path, `inherit` is the default for both
+            // mode fields, and pinned:false is the default — ship only real signals.
             function buildFolder(node, depth = 0) {
                 const direct = linksByFolder.get(node.id) || [];
                 const childFolders = depth >= settingsForDetail.folderLimit
                     ? []
                     : (maps.children.get(node.id) || []).map((child) => buildFolder(child, depth + 1));
-                return { id: node.id, name: node.name, path: maps.paths.get(node.id) || node.name, taskMode: node.taskMode, clickBehaviorMode: node.clickBehaviorMode, pinned: pins.folderPins.has(`${parsed.workspace}::${parsed.category}::${node.id}`), bookmarks: direct, folders: childFolders };
+                return {
+                    id: node.id,
+                    name: node.name,
+                    taskMode: node.taskMode !== 'inherit' ? node.taskMode : undefined,
+                    clickBehaviorMode: node.clickBehaviorMode !== 'inherit' ? node.clickBehaviorMode : undefined,
+                    pinned: pins.folderPins.has(`${parsed.workspace}::${parsed.category}::${node.id}`) ? true : undefined,
+                    bookmarks: direct,
+                    folders: childFolders
+                };
             }
             cards.push({
-                workspace: parsed.workspace,
-                cardName: parsed.category,
-                cardCategoryName: parsed.category,
                 scopedKey: key,
-                note: 'cardName/cardCategoryName is the EveOS card container; bookmarkIdentifiers on each bookmark are the user-facing category/marker pills.',
-                settings,
-                pinned: pins.cardPins.has(key),
-                pin: pins.cardPins.get(key) || null,
+                cardName: parsed.category,
+                settings: {
+                    taskModeEnabled: settings.taskModeEnabled,
+                    customOrderEnabled: settings.customOrderEnabled ? true : undefined,
+                    customOrderSort: settings.customOrderSort !== 'none' ? settings.customOrderSort : undefined,
+                    cardOrderIndex: settings.cardOrderIndex || undefined
+                },
+                pinned: pins.cardPins.has(key) ? true : undefined,
+                pin: pins.cardPins.get(key) || undefined,
                 bookmarkCount: cardLinks.length,
                 rootBookmarks: linksByFolder.get('') || [],
                 detachedBookmarks: Array.from(linksByFolder.entries()).filter(([folderId]) => folderId && !maps.byId.has(folderId)).flatMap(([, items]) => items),
@@ -868,7 +985,7 @@ window.EveDataStore = window.EveDataStore || {};
         return {
             workspaceScope: collectWorkspaceMeta(config, scope),
             cards,
-            systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(settingsForDetail.systemViewSampleLimit, limit), detail),
+            systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(settingsForDetail.systemViewSampleLimit, limit), detail, workspaceNames),
             truncated: remaining <= 0,
             bookmarkBudget: budget
         };
@@ -943,23 +1060,23 @@ window.EveDataStore = window.EveDataStore || {};
         const scope = normalizeScopeOptions(state, options?.scope || options);
         const scopedState = filterStateForScope(state, scope);
         const summary = summarizeState(scopedState, safeLimit, scope, safeMode);
-        const payload = safeMode === 'full' ? {
+        const rawPayload = safeMode === 'full' ? {
             kind: 'eveos_scoped_context_snapshot',
             generatedAt: new Date().toISOString(),
             scope,
-            note: 'Complete scoped snapshot is compact and structured. It intentionally excludes raw config/knowledge dumps to avoid Gemini Live context overflow.',
             counts: summary.counts,
             breakdown: summary.breakdown,
             structuredScope: summary.structuredScope,
             nexusLog: summary.nexusLog || null,
             localFallback: true
         } : summary;
-        const header = `[SYSTEM CONTEXT: ${LOCAL_CONTEXT_MODE_PROFILES[safeMode].header} follows as JSON. Use it as reference context. cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]`;
-        // Anti-bloat gradient: the lean tiers (Quick/Rich) ship COMPACT JSON — the pretty-print
-        // indentation/newlines are pure whitespace tokens that cost Gemini context for zero info.
-        // The expansive tiers (Deep/Complete) stay pretty-printed so the larger tree is readable.
-        const prettyPrint = (safeMode === 'deep' || safeMode === 'full');
-        const json = prettyPrint ? JSON.stringify(payload, null, 2) : JSON.stringify(payload);
+        // Empty strings/arrays/objects carry zero information — strip them everywhere so the
+        // model only reads real values. Numbers and booleans (incl. 0/false) always ship.
+        const payload = pruneEmptyDeep(rawPayload);
+        const header = `[SYSTEM CONTEXT: ${LOCAL_CONTEXT_MODE_PROFILES[safeMode].header} follows as JSON. Each bookmark's \`card\` is its "workspaceId::cardName" container; bookmarkIdentifiers are the user-facing marker/category pills. Absent fields mean empty/none.]`;
+        // ALL tiers ship compact JSON — pretty-print indentation is pure whitespace tokens that
+        // cost Gemini context for zero info, even on the deep/full snapshots.
+        const json = JSON.stringify(payload);
         return {
             ok: true,
             mode: safeMode,

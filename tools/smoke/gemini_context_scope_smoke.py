@@ -170,7 +170,9 @@ def main():
     structured = branch["structuredScope"]
     workspaces = structured["workspaces"]
     main_workspace = next(item for item in workspaces if item["id"] == "main")
-    assert_true(any(child["isShortcut"] and child["linkedTo"] == "child" for child in main_workspace["children"]), "shortcut tab context missing")
+    assert_true(any(child.get("isShortcut") and child.get("linkedTo") == "child" for child in main_workspace["children"]), "shortcut tab context missing")
+    plain_child = next(child for child in main_workspace["children"] if child["id"] == "child")
+    assert_true("isShortcut" not in plain_child and "linkedTo" not in plain_child, "non-shortcut tabs should not carry shortcut fields")
 
     alpha_card = next(card for card in structured["cardTrees"] if card["scopedKey"] == "main::Alpha")
     assert_true(alpha_card["pinned"] is True, "card pin missing")
@@ -189,19 +191,19 @@ def main():
     youtube = video_folder["bookmarks"][0]
     assert_true(youtube["id"] == "m1", "foldered bookmark missing")
     assert_true(youtube["title"] == "YouTube", "YouTube tree bookmark missing")
-    assert_true(youtube["category"]["type"] == "card-container", "bookmark category should be typed as card container")
-    assert_true(youtube["category"]["name"] == "Alpha", "bookmark card category missing")
-    assert_true(youtube["bookmarkIdentifiers"]["ids"] == [], "empty bookmark identifiers should be explicit")
-    assert_true(youtube["folderPath"] == "Alpha Folder / Video Sources", "folder path missing")
-    assert_true(youtube["cardCategory"] == "Alpha", "card category missing from tree bookmark")
+    assert_true(youtube["card"] == "main::Alpha", "bookmark card locator missing")
+    assert_true("bookmarkIdentifiers" not in youtube, "empty bookmark identifiers should be pruned")
+    assert_true("folderPath" not in youtube and "location" not in youtube, "folder placement is encoded by tree nesting")
+    assert_true("cardCategory" not in youtube and "category" not in youtube and "workspace" not in youtube, "card locator should not be duplicated")
     assert_true(youtube["urls"]["primary"] == "https://youtube.com/watch?v=abc", "tree primary URL missing")
     assert_true(youtube["urls"]["related"] == ["https://example.test/mirror"], "tree related URL missing")
     assert_true("url" not in youtube and "relatedUrls" not in youtube, "duplicate top-level url keys should be dropped")
+    assert_true("taskStatus" not in youtube and youtube["done"] is False, "done boolean should replace taskStatus")
+    assert_true("bookmarkLabels" not in youtube and "identifiers" not in youtube, "identifier duplicates should be dropped")
     assert_true(youtube["library"]["linked"] is True, "tree library link missing")
     assert_true(youtube["library"]["aliases"] == ["YT"], "library aliases missing")
     assert_true(youtube["pinned"] is True and youtube["pin"]["scopeType"] == "card", "bookmark pin scope missing")
     assert_true(youtube["sort"]["customOrderNumber"] == 2, "custom order number missing")
-    assert_true(youtube["taskStatus"] == "Pending", "tree task status missing")
 
     # Token-budget guard: super-long titles/URLs must be truncated on the server relay path too.
     long_state = build_state()
@@ -228,17 +230,64 @@ def main():
 
     tree_ids = collect_tree_bookmark_ids(alpha_card)
     assert_true(tree_ids.count("m1") == 1 and tree_ids.count("m2") == 1, "card tree duplicated bookmarks")
-    assert_true(any(card["workspace"] == "shortcut" for card in structured["cardTrees"]), "shortcut card tree missing")
+    assert_true(any(card["scopedKey"].startswith("shortcut::") for card in structured["cardTrees"]), "shortcut card tree missing")
     assert_true(structured["systemViews"]["withCovers"]["count"] >= 1, "with-cover system view missing")
     assert_true(structured["systemViews"]["withAdditionalCovers"]["count"] >= 1, "additional-cover system view missing")
     assert_true(structured["systemViews"]["libraryLinked"]["count"] >= 3, "library-linked system view missing")
 
     nexus_log = branch["nexusLog"]
     assert_true(nexus_log["schema"] == "eveos.nexus-log.compact.v1", "Nexus log schema missing")
-    assert_true(any(item["title"] == "YouTube" and item["category"]["name"] == "Alpha" and item["cardCategory"] == "Alpha" for item in nexus_log["recentUpdates"]), "Nexus recent update log missing bookmark card category")
+    assert_true(any(item["title"] == "YouTube" and item["card"] == "main::Alpha" for item in nexus_log["recentUpdates"]), "Nexus recent update log missing bookmark card locator")
     assert_true(any(item["scopedKey"] == "main::Alpha" and "Video Sources" in item["folderNames"] for item in nexus_log["folderCards"]), "Nexus folder-card log missing folder names")
     assert_true(any(item["bookmarkTitle"] == "YouTube" and item["libraryTitle"] == "Library Main" for item in nexus_log["libraryConnections"]), "Nexus library connection log missing")
     assert_true(nexus_log["systemViewHints"]["withCovers"] >= 1, "Nexus system-view hints missing covers")
+
+    # Whitespace guard: every tier ships compact JSON — header line + exactly one JSON line,
+    # no pretty-print indentation anywhere (JSON escapes embedded newlines, so real newlines
+    # only come from indent).
+    for tier in ["brief", "summary", "deep", "full"]:
+        tier_text = build_gemini_context_from_state(
+            state, mode=tier, sample_limit=25, scope="workspace", workspace_id="main",
+        )["contextText"]
+        assert_true(len(tier_text.split("\n")) == 2, f"{tier} tier should ship compact single-line JSON")
+
+    # Merge-history notes must ship as one-line markers, never the raw block.
+    merge_state = build_state()
+    merge_state["bookmarks"]["links"].append({
+        "id": "merged1",
+        "title": "Merged Bookmark",
+        "url": "https://example.test/merged",
+        "workspace": "main",
+        "category": "Alpha",
+        "notes": (
+            "My own note about this.\n"
+            "=== Bookmark Merge ===\n"
+            "Merged At: 2026-05-03T23:57:43.294Z\n"
+            "Reason: Manual bulk merge with explicit base from Search Monitor.\n"
+            "Mode: manual\n"
+            "Destination Kept: Merged Bookmark <https://example.test/merged>\n"
+            "Incoming Title: Old Duplicate Bookmark\n"
+            "Incoming URL: https://example.test/old-dupe\n"
+            "Incoming Scope: child / Beta\n"
+            "\n"
+            "Incoming Bookmark Notes:\n"
+            "Some long incoming notes that should not ship.\n"
+            "=== Alternate Links ===\n"
+            "https://mirror-a.test/x\n"
+            "https://mirror-b.test/y\n"
+        ),
+    })
+    merge_branch = build_gemini_context_from_state(
+        merge_state, mode="summary", sample_limit=25, scope="workspace", workspace_id="main",
+    )["payload"]
+    merge_card = next(card for card in merge_branch["structuredScope"]["cardTrees"] if card["scopedKey"] == "main::Alpha")
+    merged_view = next(item for item in collect_tree_bookmarks(merge_card) if item["id"] == "merged1")
+    merged_notes = merged_view["notes"]
+    assert_true(merged_notes.startswith("My own note about this."), "freeform note text should be kept")
+    assert_true('[Merged "Old Duplicate Bookmark" from Child/Beta on 2026-05-03]' in merged_notes, "merge block should compact to a one-line marker with resolved tab name")
+    assert_true("[+2 alternate links in stored notes]" in merged_notes, "alternate links should compact to a count marker")
+    assert_true("Merged At:" not in merged_notes and "Incoming URL" not in merged_notes, "raw merge block should not ship")
+    assert_true("should not ship" not in merged_notes, "incoming merged notes body should not ship")
 
     card = build_gemini_context_from_state(
         state,

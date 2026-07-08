@@ -8,6 +8,8 @@ from server_modules.eve_state_store_layers_shared import (
 from server_modules.eve_state_store_gemini_structure import (
     _TEXT_LIMIT_TITLE,
     _bookmark_identifiers,
+    _collect_workspace_names,
+    _compact_stored_notes,
     _compact_text,
     build_structured_scope,
 )
@@ -256,9 +258,10 @@ def _build_nexus_log(bookmarks, folders, categories, connections, link_to_entry,
         linked_connections.append({
             "linkId": link_id,
             "bookmarkTitle": _compact_text(_summary_text((link or {}).get("title"), "Untitled"), _TEXT_LIMIT_TITLE),
-            "workspace": _summary_text((link or {}).get("workspace"), _summary_text((conn or {}).get("workspaceId"), "main")),
-            "category": {"type": "card-container", "name": _summary_text((link or {}).get("category"), "Unsorted")},
-            "cardCategory": _summary_text((link or {}).get("category"), "Unsorted"),
+            "card": _scoped_key(
+                _summary_text((link or {}).get("workspace"), _summary_text((conn or {}).get("workspaceId"), "main")),
+                _summary_text((link or {}).get("category"), "Unsorted"),
+            ),
             "bookmarkIdentifiers": _bookmark_identifiers(link),
             "libraryEntryId": _summary_text(_connection_entry_id(conn or {})),
             "libraryTitle": _compact_text(_summary_text((entry or {}).get("title")), _TEXT_LIMIT_TITLE),
@@ -274,16 +277,11 @@ def _build_nexus_log(bookmarks, folders, categories, connections, link_to_entry,
     }
     return {
         "schema": "eveos.nexus-log.compact.v1",
-        "source": "server-scoped-modular-state",
-        "note": "Derived scoped Nexus log context. Live browser search traces are appended by the client when available.",
         "recentUpdates": [{
             "id": (link or {}).get("id"),
             "title": _compact_text((link or {}).get("title"), _TEXT_LIMIT_TITLE),
-            "workspace": (link or {}).get("workspace") or "main",
-            "category": {"type": "card-container", "name": (link or {}).get("category") or "Unsorted"},
-            "cardCategory": (link or {}).get("category") or "Unsorted",
+            "card": _scoped_key((link or {}).get("workspace") or "main", (link or {}).get("category") or "Unsorted"),
             "bookmarkIdentifiers": _bookmark_identifiers(link),
-            "folderId": (link or {}).get("folderId") or "",
             "updated": _summary_timestamp(link),
             "status": _summary_first(link_to_entry.get(_summary_text((link or {}).get("id"))) or {}, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
         } for link in recent_updates],
@@ -315,6 +313,7 @@ def build_gemini_summary(state, sample_limit=25):
     status_counts = {}
     type_counts = {}
     library_samples = []
+    workspace_names = _collect_workspace_names(config.get("workspaces") or [])
     _entries_by_id, _entry_scope, link_to_entry = _build_library_indexes(categories, connections)
 
     for scoped_key, data in categories.items():
@@ -330,11 +329,10 @@ def build_gemini_summary(state, sample_limit=25):
                 library_samples.append({
                     "id": (entry or {}).get("id"),
                     "title": _compact_text((entry or {}).get("title"), _TEXT_LIMIT_TITLE),
-                    "workspace": parsed["workspace_id"] or "main",
-                    "category": parsed["category_name"],
+                    "card": _scoped_key(parsed["workspace_id"] or "main", parsed["category_name"]),
                     "status": (entry or {}).get("status") or "",
                     "aliases": _summary_aliases(entry),
-                    "notes": _summary_text((entry or {}).get("notes") or (entry or {}).get("summary") or (entry or {}).get("description"))[:700],
+                    "notes": _compact_stored_notes((entry or {}).get("notes") or (entry or {}).get("summary") or (entry or {}).get("description"), 700, workspace_names),
                     "progress": _summary_progress(entry),
                     "timestamps": {
                         "updated": _summary_timestamp(entry),
@@ -385,9 +383,7 @@ def build_gemini_summary(state, sample_limit=25):
             "recentlyUpdated": [{
                 "id": (link or {}).get("id"),
                 "title": _compact_text((link or {}).get("title"), _TEXT_LIMIT_TITLE),
-                "workspace": (link or {}).get("workspace") or "main",
-                "category": {"type": "card-container", "name": (link or {}).get("category") or "Unsorted"},
-                "cardCategory": (link or {}).get("category") or "Unsorted",
+                "card": _scoped_key((link or {}).get("workspace") or "main", (link or {}).get("category") or "Unsorted"),
                 "bookmarkIdentifiers": _bookmark_identifiers(link),
                 "updated": _summary_timestamp(link),
             } for link in recent_updated if _summary_timestamp(link)],

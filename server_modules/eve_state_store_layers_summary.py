@@ -1,6 +1,7 @@
 import json
 import time
 
+from server_modules.eve_state_store_gemini_structure import _prune_empty_deep
 from server_modules.eve_state_store_gemini_summary import (
     _summary_text,
     build_gemini_summary,
@@ -298,29 +299,23 @@ def build_gemini_context_from_state(state, mode="summary", sample_limit=25, scop
             "kind": "eveos_scoped_context_snapshot",
             "generatedAt": payload.get("generatedAt"),
             "scope": payload.get("scope"),
-            "note": "Complete scoped snapshot is compact and structured. It excludes raw internal config/knowledge dumps to avoid Gemini Live context overflow.",
             "counts": payload.get("counts"),
             "breakdown": payload.get("breakdown"),
             "structuredScope": payload.get("structuredScope"),
             "nexusLog": payload.get("nexusLog"),
         }
-        header = (
-            f"[SYSTEM CONTEXT: {profile['header']} "
-            "cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
-        )
-    else:
-        header = (
-            f"[SYSTEM CONTEXT: {profile['header']} "
-            "cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
-        )
+    # Empty strings/arrays/objects carry zero information — strip them everywhere so the model
+    # only reads real values. Numbers and booleans (incl. 0/false) always ship.
+    payload = _prune_empty_deep(payload)
+    header = (
+        f"[SYSTEM CONTEXT: {profile['header']} "
+        "Each bookmark's `card` is its \"workspaceId::cardName\" container; bookmarkIdentifiers "
+        "are the user-facing marker/category pills. Absent fields mean empty/none.]"
+    )
 
-    # Anti-bloat gradient (parity with the browser-local builder): lean tiers (brief/summary) ship
-    # COMPACT JSON — indentation is pure whitespace tokens that cost Gemini context for zero info.
-    # The expansive tiers (deep/full) stay pretty-printed so the larger tree is readable.
-    if mode_value in {"deep", "full"}:
-        payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
-    else:
-        payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    # ALL tiers ship compact JSON — pretty-print indentation is pure whitespace tokens that cost
+    # Gemini context for zero info, even on the deep/full snapshots.
+    payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     return {
         "mode": mode_value,
         "payload": payload,

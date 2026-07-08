@@ -32,8 +32,9 @@ function makeLinks(n) {
             notes: 'Card ' + i + ': ' + LONG_NOTE,
             tags: Array.from({ length: 18 }, (_, t) => 'tag' + t),
             genre: Array.from({ length: 18 }, (_, g) => 'genre' + g),
-            relatedUrls: Array.from({ length: 8 }, (_, r) => ({ url: 'https://mirror' + r + '.test/' + i })),
-            priority: 'High', chapter: String(i), identifiers: ['listening']
+            relatedUrls: Array.from({ length: 8 }, (_, r) => ({ url: 'https://mirror' + r + '.test/' + i + '/' + 'p'.repeat(120) })),
+            priority: 'High', chapter: String(i), identifiers: ['listening'],
+            summary: LONG_NOTE, description: LONG_NOTE
         });
     }
     return links;
