@@ -125,17 +125,21 @@ def assert_true(condition, message):
         raise AssertionError(message)
 
 
-def collect_tree_bookmark_ids(card):
-    ids = [bookmark["id"] for bookmark in card.get("rootBookmarks") or []]
+def collect_tree_bookmarks(card):
+    items = list(card.get("rootBookmarks") or [])
 
     def walk(folder):
-        ids.extend(bookmark["id"] for bookmark in folder.get("bookmarks") or [])
+        items.extend(folder.get("bookmarks") or [])
         for child in folder.get("folders") or []:
             walk(child)
 
     for folder in card.get("folders") or []:
         walk(folder)
-    return ids
+    return items
+
+
+def collect_tree_bookmark_ids(card):
+    return [bookmark["id"] for bookmark in collect_tree_bookmarks(card)]
 
 
 def main():
@@ -161,17 +165,7 @@ def main():
     assert_true(branch["breakdown"]["nexusSignals"]["health"]["withRelatedUrls"] == 1, "Nexus related-url signal missing")
     assert_true(branch["breakdown"]["nexusSignals"]["topTags"]["Video"] == 1, "Nexus tag signal missing")
 
-    sample = next(item for item in branch["samples"]["bookmarks"] if item["id"] == "m1")
-    assert_true(sample["title"] == "YouTube", "YouTube sample missing")
-    assert_true(sample["category"]["type"] == "card-container", "bookmark category should be typed as card container")
-    assert_true(sample["category"]["name"] == "Alpha", "bookmark card category missing from sample")
-    assert_true(sample["cardCategory"] == "Alpha", "bookmark cardCategory alias missing from sample")
-    assert_true(sample["bookmarkIdentifiers"]["ids"] == [], "empty bookmark identifiers should be explicit")
-    assert_true(sample["urls"]["primary"] == "https://youtube.com/watch?v=abc", "primary URL missing")
-    assert_true(sample["relatedUrls"] == ["https://example.test/mirror"], "related URLs missing")
-    assert_true(sample["library"]["linked"] is True, "library link status missing")
-    assert_true(sample["library"]["aliases"] == ["YT"], "library aliases missing")
-    assert_true(sample["taskStatus"] == "Pending", "pending task status missing")
+    assert_true("bookmarks" not in branch["samples"], "samples.bookmarks should be dropped (bookmarks ship in cardTrees)")
 
     structured = branch["structuredScope"]
     workspaces = structured["workspaces"]
@@ -194,14 +188,43 @@ def main():
     assert_true(video_folder["pinned"] is True, "folder pin missing")
     youtube = video_folder["bookmarks"][0]
     assert_true(youtube["id"] == "m1", "foldered bookmark missing")
+    assert_true(youtube["title"] == "YouTube", "YouTube tree bookmark missing")
+    assert_true(youtube["category"]["type"] == "card-container", "bookmark category should be typed as card container")
+    assert_true(youtube["category"]["name"] == "Alpha", "bookmark card category missing")
+    assert_true(youtube["bookmarkIdentifiers"]["ids"] == [], "empty bookmark identifiers should be explicit")
     assert_true(youtube["folderPath"] == "Alpha Folder / Video Sources", "folder path missing")
     assert_true(youtube["cardCategory"] == "Alpha", "card category missing from tree bookmark")
     assert_true(youtube["urls"]["primary"] == "https://youtube.com/watch?v=abc", "tree primary URL missing")
-    assert_true(youtube["relatedUrls"] == ["https://example.test/mirror"], "tree related URL missing")
+    assert_true(youtube["urls"]["related"] == ["https://example.test/mirror"], "tree related URL missing")
+    assert_true("url" not in youtube and "relatedUrls" not in youtube, "duplicate top-level url keys should be dropped")
     assert_true(youtube["library"]["linked"] is True, "tree library link missing")
+    assert_true(youtube["library"]["aliases"] == ["YT"], "library aliases missing")
     assert_true(youtube["pinned"] is True and youtube["pin"]["scopeType"] == "card", "bookmark pin scope missing")
     assert_true(youtube["sort"]["customOrderNumber"] == 2, "custom order number missing")
     assert_true(youtube["taskStatus"] == "Pending", "tree task status missing")
+
+    # Token-budget guard: super-long titles/URLs must be truncated on the server relay path too.
+    long_state = build_state()
+    long_state["bookmarks"]["links"].append({
+        "id": "long1",
+        "title": "Very Long Title " * 40,
+        "url": "https://example.test/really/long/path?" + "&".join(f"p{i}={'x' * 40}" for i in range(30)) + "&utm_source=tracker",
+        "workspace": "main",
+        "category": "Alpha",
+        "relatedUrls": ["https://mirror.test/" + "y" * 500],
+        "coverImage": "https://img.test/" + "z" * 500 + ".jpg",
+    })
+    long_branch = build_gemini_context_from_state(
+        long_state, mode="summary", sample_limit=25, scope="workspace", workspace_id="main",
+    )["payload"]
+    long_card = next(card for card in long_branch["structuredScope"]["cardTrees"] if card["scopedKey"] == "main::Alpha")
+    long_view = next(item for item in collect_tree_bookmarks(long_card) if item["id"] == "long1")
+    assert_true(len(long_view["title"]) <= 160, "long title should be capped at 160 chars")
+    assert_true(long_view["title"].endswith("..."), "capped title should end with ellipsis")
+    assert_true(len(long_view["urls"]["primary"]) <= 180, "long primary URL should be capped at 180 chars")
+    assert_true("utm_source" not in long_view["urls"]["primary"], "tracking params should be stripped")
+    assert_true(all(len(url) <= 180 for url in long_view["urls"]["related"]), "long related URLs should be capped")
+    assert_true(len(long_view["covers"]["primary"]) <= 180, "long cover URL should be capped")
 
     tree_ids = collect_tree_bookmark_ids(alpha_card)
     assert_true(tree_ids.count("m1") == 1 and tree_ids.count("m2") == 1, "card tree duplicated bookmarks")
@@ -252,6 +275,9 @@ def main():
     assert_true(selected_group["scope"]["scope"] == "all", "selected group should keep all-scope metadata")
     assert_true(selected_group["counts"]["bookmarks"] == 3, "selected group should filter to workspaceIds")
     assert_true("other" not in selected_group["breakdown"]["bookmarksByWorkspace"], "selected group leaked unrelated workspace")
+    group_workspaces = selected_group["structuredScope"]["workspaces"]
+    assert_true([item["id"] for item in group_workspaces] == ["main"], "nested selected tab should not duplicate at top level")
+    assert_true(any(child["id"] == "child" for child in group_workspaces[0]["children"]), "selected sub tab should stay nested under its parent")
 
     print("GEMINI_CONTEXT_SCOPE_SMOKE_OK")
 

@@ -1,3 +1,5 @@
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from server_modules.eve_state_store_layers_shared import (
     _parse_scoped_category_key,
     _scoped_key,
@@ -7,6 +9,53 @@ from server_modules.eve_state_store_layers_shared import (
 def _summary_text(value, fallback=""):
     text = str(value if value is not None else "").strip()
     return text or str(fallback or "").strip()
+
+
+# Token-budget parity with the browser-local builder (modular-state-sync.api.context.local.js):
+# every free-text / URL field that reaches Gemini is capped, so one bookmark with a huge title or
+# a 600-char tracking URL cannot eat hundreds of context tokens on the server relay path.
+_TEXT_LIMIT_TITLE = 160
+_URL_LIMIT = 180
+
+_URL_TRACKING_PARAMS = {
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+    "utm_id", "utm_name", "fbclid", "gclid", "mc_cid", "mc_eid", "igshid",
+}
+
+
+def _compact_text(value, max_len=240):
+    normalized = " ".join(str(value if value is not None else "").split())
+    limit = max(0, int(max_len or 0))
+    if not limit:
+        return ""
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:max(0, limit - 3)].strip() + "..."
+
+
+def _middle_truncate(value, max_len=_URL_LIMIT):
+    raw = "".join(str(value if value is not None else "").split())
+    limit = max(24, int(max_len or _URL_LIMIT))
+    if len(raw) <= limit:
+        return raw
+    head = -(-(limit - 3) * 58 // 100)  # ceil(58%) — keep the identifying host/path start
+    tail = max(8, limit - 3 - head)
+    return f"{raw[:head]}...{raw[-tail:]}"
+
+
+def _compact_url(value, max_len=_URL_LIMIT):
+    raw = str(value if value is not None else "").strip()
+    if not raw:
+        return ""
+    try:
+        parts = urlsplit(raw)
+        pairs = parse_qsl(parts.query, keep_blank_values=True)
+        kept = [(key, val) for key, val in pairs if key.lower() not in _URL_TRACKING_PARAMS]
+        if len(kept) != len(pairs):
+            raw = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(kept), parts.fragment))
+    except Exception:
+        pass
+    return _middle_truncate(raw, max_len)
 
 
 def _summary_list(value):
@@ -75,22 +124,22 @@ def _summary_related_urls(link):
             else:
                 candidate = _summary_text(entry)
             if candidate:
-                urls.append(candidate)
+                urls.append(_compact_url(candidate))
     for key in scalar_keys:
         candidate = _summary_text((link or {}).get(key))
         if candidate:
-            urls.append(candidate)
-    return list(dict.fromkeys(urls))[:12]
+            urls.append(_compact_url(candidate))
+    return [url for url in dict.fromkeys(urls) if url][:8]
 
 def _summary_covers(link):
     additional = []
     for key in ["additionalCovers", "coverImages", "extraCovers"]:
         additional.extend(
-            _summary_text(item.get("url") or item.get("src")) if isinstance(item, dict) else _summary_text(item)
+            _compact_url(_summary_text(item.get("url") or item.get("src")) if isinstance(item, dict) else _summary_text(item))
             for item in _summary_list((link or {}).get(key))
         )
     additional = [value for value in dict.fromkeys(additional) if value]
-    primary = _summary_text(_summary_first(link, ["coverImage", "cover", "imageUrl", "thumbnail", "thumbnailUrl"]))
+    primary = _compact_url(_summary_text(_summary_first(link, ["coverImage", "cover", "imageUrl", "thumbnail", "thumbnailUrl"])))
     return {
         "primary": primary,
         "additional": additional[:8],
@@ -160,8 +209,8 @@ def _source_context(source):
     if not isinstance(source, dict):
         return None
     provider = _summary_text(source.get("source") or source.get("provider") or source.get("site") or source.get("name"))
-    title = _summary_text(source.get("title") or source.get("name") or source.get("label"))
-    url = _summary_text(source.get("providerUrl") or source.get("url") or source.get("sourceUrl") or source.get("link"))
+    title = _compact_text(_summary_text(source.get("title") or source.get("name") or source.get("label")), 120)
+    url = _compact_url(_summary_text(source.get("providerUrl") or source.get("url") or source.get("sourceUrl") or source.get("link")))
     score = _scalar(source.get("score", source.get("rating", source.get("averageScore"))))
     return {
         "provider": provider,
@@ -179,7 +228,7 @@ def _source_context(source):
             if _summary_text(item)
         ]))[:12],
         "progress": _summary_progress(source),
-        "coverUrl": _summary_text(source.get("coverUrl") or source.get("image") or source.get("imageUrl")),
+        "coverUrl": _compact_url(_summary_text(source.get("coverUrl") or source.get("image") or source.get("imageUrl"))),
     }
 
 
@@ -254,11 +303,13 @@ def _bookmark_identifiers(link):
         if _summary_text(item)
     ))[:20]
     details = [{"id": item, "label": _DEFAULT_IDENTIFIER_LABELS.get(item, item), "description": ""} for item in ids]
+    # No per-bookmark explanatory note here: the SYSTEM CONTEXT header already explains the
+    # identifiers-vs-cardCategory distinction once, so repeating a sentence per bookmark only
+    # burned tokens (~105 chars x every bookmark occurrence).
     return {
         "ids": ids,
         "labels": [item["label"] for item in details],
         "details": details,
-        "note": "Bookmark identifiers are the user-facing category/marker pills; cardCategory is only the card container.",
     }
 
 def _folder_nodes(tree):
@@ -416,13 +467,13 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
     notes_text = _summary_text(link.get("personalNotes") or link.get("notes") or linked_entry.get("notes") or linked_entry.get("summary") or linked_entry.get("description"))[:900]
     return {
         "id": link.get("id"),
-        "title": _summary_text(link.get("title"), "Untitled"),
-        "url": _summary_text(link.get("url") or link.get("href")),
+        "title": _compact_text(_summary_text(link.get("title"), "Untitled"), _TEXT_LIMIT_TITLE),
+        # One URL slot only (mirrors the browser-local builder): duplicating the primary URL at a
+        # top-level `url` key doubled the token cost of every bookmark for zero extra information.
         "urls": {
-            "primary": _summary_text(link.get("url") or link.get("href")),
+            "primary": _compact_url(_summary_text(link.get("url") or link.get("href"))),
             "related": related_urls,
         },
-        "relatedUrls": related_urls,
         "workspace": workspace,
         "category": {"type": "card-container", "name": category, "note": "Not the bookmark identifier marker."},
         "cardCategory": category,
@@ -444,7 +495,7 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
         "pinned": bool(pin_ref or link.get("pinned")),
         "pin": pin_ref or None,
         "priority": _summary_text(link.get("priority")),
-        "icon": _summary_text(link.get("icon") or link.get("favicon") or link.get("imageIcon")),
+        "icon": _compact_url(_summary_text(link.get("icon") or link.get("favicon") or link.get("imageIcon"))),
         "status": _summary_first(linked_entry, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
         "notes": notes_text,
         "progress": progress,
@@ -464,21 +515,23 @@ def _bookmark_context(link, linked_entry, pin_ref=None, order_number=None, folde
         "sort": {
             "customOrderNumber": order_number,
         },
+        # Unlinked bookmarks get the bare flag (parity with the browser-local builder) — shipping
+        # a full library block of empty strings per unlinked bookmark wasted ~400 chars each.
         "library": {
-            "linked": bool(linked_entry),
-            "title": linked_entry.get("title") if linked_entry else "",
-            "status": linked_entry.get("status") if linked_entry else "",
+            "linked": True,
+            "title": _compact_text(linked_entry.get("title"), _TEXT_LIMIT_TITLE),
+            "status": linked_entry.get("status") or "",
             "aliases": _summary_aliases(linked_entry),
-            "entryId": linked_entry.get("id") if linked_entry else "",
+            "entryId": linked_entry.get("id") or "",
             "media": media,
             "author": _summary_text(linked_entry.get("author")),
             "authorAltNames": _summary_list(linked_entry.get("authorAltNames"))[:12],
             "artist": _summary_text(linked_entry.get("artist")),
             "language": _summary_text(linked_entry.get("language")),
-            "sourceUrl": _summary_text(linked_entry.get("sourceUrl")),
+            "sourceUrl": _compact_url(_summary_text(linked_entry.get("sourceUrl"))),
             "summary": _summary_text(linked_entry.get("summary") or linked_entry.get("description"))[:700],
             "ratings": ratings,
-        },
+        } if linked_entry else {"linked": False},
     }
 
 def _build_workspace_context(workspaces, bookmarks, limit=80):
@@ -581,23 +634,21 @@ def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categorie
 
 
 def _compact_bookmark_for_view(link, linked_entry=None):
-    ratings = _rating_context(link or {}, linked_entry or {})
+    # System-view samples are pointers into cardTrees, not full records (parity with the
+    # browser-local builder's small view objects): the full ratings/tags/source payload for the
+    # same bookmark already ships once in its card tree.
+    identifiers = _bookmark_identifiers(link)
     return {
         "id": (link or {}).get("id"),
-        "title": (link or {}).get("title"),
-        "url": (link or {}).get("url"),
+        "title": _compact_text((link or {}).get("title"), _TEXT_LIMIT_TITLE),
+        "url": _compact_url((link or {}).get("url")),
         "workspace": (link or {}).get("workspace") or "main",
-        "category": {"type": "card-container", "name": (link or {}).get("category") or "Unsorted"},
         "cardCategory": (link or {}).get("category") or "Unsorted",
-        "bookmarkIdentifiers": _bookmark_identifiers(link),
-        "bookmarkLabels": _bookmark_identifiers(link).get("labels", []),
+        "bookmarkIdentifiers": {"ids": identifiers.get("ids", []), "labels": identifiers.get("labels", [])},
         "folderId": (link or {}).get("folderId") or "",
         "status": _summary_first(linked_entry or {}, ["status"], _summary_first(link, ["status", "readingStatus", "mediaStatus"])),
         "done": bool((link or {}).get("done")),
-        "tags": _summary_list((link or {}).get("tags"))[:12],
         "covers": _summary_covers(link),
-        "ratings": ratings,
-        "sourceProviders": list(dict.fromkeys(_summary_text(source.get("provider")) for source in _attached_sources(link or {}, linked_entry or {}) if _summary_text(source.get("provider"))))[:8],
     }
 
 def _build_system_view_samples(bookmarks, link_to_entry, sample_limit=25):
@@ -641,5 +692,8 @@ def build_structured_scope(bookmarks, folders, config, link_to_entry, pins, cate
     return {
         "workspaces": _build_workspace_context(config.get("workspaces") or [], bookmarks, limit=max(20, sample_limit)),
         "cardTrees": _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categories=categories, sample_limit=sample_limit),
-        "systemViews": _build_system_view_samples(bookmarks, link_to_entry, sample_limit=min(25, sample_limit)),
+        # Every bookmark already ships in full inside cardTrees; each system view re-samples the
+        # same bookmarks (done|pending + covers|missing always match), so big sample lists here
+        # only duplicate tokens. 10 samples per view mirrors the browser-local builder's budget.
+        "systemViews": _build_system_view_samples(bookmarks, link_to_entry, sample_limit=min(10, sample_limit)),
     }

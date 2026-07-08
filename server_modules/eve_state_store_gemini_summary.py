@@ -6,8 +6,9 @@ from server_modules.eve_state_store_layers_shared import (
     _scoped_key,
 )
 from server_modules.eve_state_store_gemini_structure import (
-    _bookmark_context,
+    _TEXT_LIMIT_TITLE,
     _bookmark_identifiers,
+    _compact_text,
     build_structured_scope,
 )
 
@@ -254,13 +255,13 @@ def _build_nexus_log(bookmarks, folders, categories, connections, link_to_entry,
         entry = link_to_entry.get(link_id) or {}
         linked_connections.append({
             "linkId": link_id,
-            "bookmarkTitle": _summary_text((link or {}).get("title"), "Untitled"),
+            "bookmarkTitle": _compact_text(_summary_text((link or {}).get("title"), "Untitled"), _TEXT_LIMIT_TITLE),
             "workspace": _summary_text((link or {}).get("workspace"), _summary_text((conn or {}).get("workspaceId"), "main")),
             "category": {"type": "card-container", "name": _summary_text((link or {}).get("category"), "Unsorted")},
             "cardCategory": _summary_text((link or {}).get("category"), "Unsorted"),
             "bookmarkIdentifiers": _bookmark_identifiers(link),
             "libraryEntryId": _summary_text(_connection_entry_id(conn or {})),
-            "libraryTitle": _summary_text((entry or {}).get("title")),
+            "libraryTitle": _compact_text(_summary_text((entry or {}).get("title")), _TEXT_LIMIT_TITLE),
             "libraryStatus": _summary_text((entry or {}).get("status")),
         })
     system_hints = {
@@ -277,7 +278,7 @@ def _build_nexus_log(bookmarks, folders, categories, connections, link_to_entry,
         "note": "Derived scoped Nexus log context. Live browser search traces are appended by the client when available.",
         "recentUpdates": [{
             "id": (link or {}).get("id"),
-            "title": (link or {}).get("title"),
+            "title": _compact_text((link or {}).get("title"), _TEXT_LIMIT_TITLE),
             "workspace": (link or {}).get("workspace") or "main",
             "category": {"type": "card-container", "name": (link or {}).get("category") or "Unsorted"},
             "cardCategory": (link or {}).get("category") or "Unsorted",
@@ -328,7 +329,7 @@ def build_gemini_summary(state, sample_limit=25):
             if len(library_samples) < sample_limit:
                 library_samples.append({
                     "id": (entry or {}).get("id"),
-                    "title": (entry or {}).get("title"),
+                    "title": _compact_text((entry or {}).get("title"), _TEXT_LIMIT_TITLE),
                     "workspace": parsed["workspace_id"] or "main",
                     "category": parsed["category_name"],
                     "status": (entry or {}).get("status") or "",
@@ -344,11 +345,6 @@ def build_gemini_summary(state, sample_limit=25):
                     "rating": (entry or {}).get("rating"),
                     "confidence": ((entry or {}).get("derivedRatings") or {}).get("confidence"),
                 })
-
-    bookmark_samples = []
-    for link in bookmarks[:sample_limit]:
-        linked_entry = link_to_entry.get(_summary_text((link or {}).get("id"))) or {}
-        bookmark_samples.append(_bookmark_context(link, linked_entry))
 
     recent_updated = sorted(bookmarks, key=lambda item: str(_summary_timestamp(item) or ""), reverse=True)[:min(sample_limit, 25)]
     return {
@@ -383,11 +379,12 @@ def build_gemini_summary(state, sample_limit=25):
         },
         "nexusLog": _build_nexus_log(bookmarks, folders, categories, connections, link_to_entry, sample_limit=sample_limit),
         "samples": {
-            "bookmarks": bookmark_samples,
+            # No `bookmarks` list here: every bookmark already ships fully structured inside
+            # structuredScope.cardTrees, so repeating them all doubled the payload for Gemini.
             "libraryEntries": library_samples,
             "recentlyUpdated": [{
                 "id": (link or {}).get("id"),
-                "title": (link or {}).get("title"),
+                "title": _compact_text((link or {}).get("title"), _TEXT_LIMIT_TITLE),
                 "workspace": (link or {}).get("workspace") or "main",
                 "category": {"type": "card-container", "name": (link or {}).get("category") or "Unsorted"},
                 "cardCategory": (link or {}).get("category") or "Unsorted",

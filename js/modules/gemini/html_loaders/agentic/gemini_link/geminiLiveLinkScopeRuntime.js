@@ -115,11 +115,23 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
         }
         if (mode === 'card') {
             const workspaceId = String(cfg.geminiContextSelectedCardWorkspaceId || activeWorkspace);
+            const categoryName = String(cfg.geminiContextSelectedCardCategory || '');
+            if (!categoryName) {
+                // No card picked: both context builders treat an empty categoryName as "no card
+                // filter" and ship the whole tab — so label it honestly instead of "Specific card".
+                return {
+                    scope: 'workspace',
+                    workspaceId,
+                    workspaceIds: [workspaceId],
+                    label: 'Current tab only (no card selected)',
+                    source: 'manual-card-fallback'
+                };
+            }
             return {
                 scope: 'card',
                 workspaceId,
                 workspaceIds: [workspaceId],
-                categoryName: String(cfg.geminiContextSelectedCardCategory || ''),
+                categoryName,
                 label: 'Specific card',
                 source: 'manual-card'
             };

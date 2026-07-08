@@ -196,11 +196,24 @@ def _filter_state_for_gemini_scope(state, scope="workspace", workspace_id="", ca
     next_config = _clone_json_compatible(current_config, {})
     next_config["activeWorkspace"] = target_workspace_id
     if explicit_workspace_ids:
-        next_config["workspaces"] = [
-            _clone_workspace_node(workspace)
+        # Keep only ROOT nodes of the selection: a selected workspace whose ancestor is also
+        # selected already ships nested inside that ancestor's subTabs — listing it again at top
+        # level duplicated its whole subtree in the workspaces context.
+        selected_nodes = [
+            (workspace_id_item, workspace)
             for workspace_id_item in sorted(explicit_workspace_ids)
             for workspace in [_find_workspace_node(all_workspaces, workspace_id_item)]
             if workspace
+        ]
+        descendant_ids = set()
+        for _node_id, node in selected_nodes:
+            branch = _collect_workspace_branch_ids(node)
+            branch.discard(_node_id)
+            descendant_ids.update(branch)
+        next_config["workspaces"] = [
+            _clone_workspace_node(node)
+            for node_id, node in selected_nodes
+            if node_id not in descendant_ids
         ] or _workspace_config_entries(current_config, target_workspace_id)
     else:
         next_config["workspaces"] = [_clone_workspace_node(target_workspace)] if target_workspace else _workspace_config_entries(current_config, target_workspace_id)
@@ -301,7 +314,13 @@ def build_gemini_context_from_state(state, mode="summary", sample_limit=25, scop
             "cardCategory is the card container; bookmarkIdentifiers are the user-facing marker/category pills.]"
         )
 
-    payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
+    # Anti-bloat gradient (parity with the browser-local builder): lean tiers (brief/summary) ship
+    # COMPACT JSON — indentation is pure whitespace tokens that cost Gemini context for zero info.
+    # The expansive tiers (deep/full) stay pretty-printed so the larger tree is readable.
+    if mode_value in {"deep", "full"}:
+        payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
+    else:
+        payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     return {
         "mode": mode_value,
         "payload": payload,
