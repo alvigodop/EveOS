@@ -240,7 +240,9 @@ window.EveDataStore = window.EveDataStore || {};
             const nextTrail = trail.concat([{ id, name }]);
             if (id.toLowerCase() === target) return nextTrail;
             const nested = workspacePath(workspaceId, node?.subTabs, nextTrail);
-            if (nested) return nested;
+            // A miss returns [] (falsy-looking but TRUTHY as an array). Guard on length, or the
+            // first node's empty subtree short-circuits the search and every path comes back blank.
+            if (nested && nested.length) return nested;
         }
         return [];
     }
@@ -939,10 +941,7 @@ window.EveDataStore = window.EveDataStore || {};
         const safeMode = normalizeContextMode(mode);
         const safeLimit = Math.max(5, Math.min(200, Number(limit) || LOCAL_CONTEXT_MODE_PROFILES[safeMode].budget));
         const scope = normalizeScopeOptions(state, options?.scope || options);
-        console.log('[GeminiContextDebug] options:', options);
-        console.log('[GeminiContextDebug] normalized scope:', scope);
         const scopedState = filterStateForScope(state, scope);
-        console.log('[GeminiContextDebug] scopedState links count:', scopedState?.bookmarks?.links?.length);
         const summary = summarizeState(scopedState, safeLimit, scope, safeMode);
         const payload = safeMode === 'full' ? {
             kind: 'eveos_scoped_context_snapshot',

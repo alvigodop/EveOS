@@ -9,7 +9,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/category-order.js?v=0.1.1",
     "js/modules/core/utils.js?v=0.2.1",
     "js/modules/core/favicon-utils.js?v=0.1.2",
-    "js/modules/core/search-monitor-boot.js?v=0.1.7",
+    "js/modules/core/search-monitor-boot.js?v=0.1.8",
     "js/modules/core/search-monitor-scroll-preserve.js?v=0.1.1",
     "js/modules/core/performance-monitor.js?v=0.1.2",
     "js/modules/core/indexeddb-store.js",

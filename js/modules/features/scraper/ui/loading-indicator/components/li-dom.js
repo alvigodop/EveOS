@@ -18,17 +18,18 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
 
             const indicator = document.getElementById('loadingIndicator');
             if (indicator) {
+                // NOTE: This module (LoadingIndicatorModules) is NOT loaded in the current build —
+                // the live Search Monitor controller is js/modules/core/search-monitor-boot.js, which
+                // owns the stats-panel collapse (details-collapsed) handling. This handler is kept
+                // only as a fallback for builds that do load this facade.
                 const statusGroup = indicator.querySelector('.status-group');
                 if (statusGroup) {
                     statusGroup.addEventListener('click', (event) => {
-                        console.log('[SearchMonitorClickDebug] .status-group clicked! target:', event.target);
                         const isCompact = indicator.classList.contains('compact');
-                        console.log('[SearchMonitorClickDebug] isCompact:', isCompact);
                         if (!isCompact) {
                             event.preventDefault();
                             event.stopPropagation();
                             const isCollapsed = indicator.classList.toggle('details-collapsed');
-                            console.log('[SearchMonitorClickDebug] details-collapsed toggled. New state:', isCollapsed);
                             try {
                                 localStorage.setItem('searchMonitorDetailsCollapsed', isCollapsed ? '1' : '0');
                             } catch (e) {}

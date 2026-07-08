@@ -250,6 +250,43 @@
         return !!interactive && indicator.contains(interactive);
     }
 
+    // The bottom stats panel (Status / Wikis / Results / Trace) collapses independently of the
+    // whole-monitor compact toggle. State lives as the `details-collapsed` class on the indicator;
+    // matching CSS (loading-indicator.details-message.css) hides `.expanded-content` and rotates
+    // the ▼ arrow when the class is present.
+    function setDetailsCollapsed(indicator, collapsed) {
+        if (!indicator) return;
+        indicator.classList.toggle('details-collapsed', !!collapsed);
+        try {
+            localStorage.setItem('searchMonitorDetailsCollapsed', collapsed ? '1' : '0');
+        } catch (error) {
+            // Restricted storage must not block the view control.
+        }
+    }
+
+    function restoreDetailsCollapsed(indicator) {
+        if (!indicator) return;
+        let stored = null;
+        try {
+            stored = localStorage.getItem('searchMonitorDetailsCollapsed');
+        } catch (error) {
+            stored = null;
+        }
+        indicator.classList.toggle('details-collapsed', stored === '1');
+    }
+
+    // The status header row is the collapse affordance. Guarantee the ▼ arrow exists (the static
+    // markup ships with it, but rebuilt/legacy indicators may not) so the control is discoverable.
+    function ensureDetailsArrow(indicator) {
+        if (!indicator) return;
+        const statusGroup = indicator.querySelector('.status-group');
+        if (!statusGroup || statusGroup.querySelector('.monitor-details-collapse-arrow')) return;
+        const arrow = document.createElement('span');
+        arrow.className = 'monitor-details-collapse-arrow';
+        arrow.textContent = '▼';
+        statusGroup.appendChild(arrow);
+    }
+
     function expandFallback(indicator) {
         if (!indicator) return;
         ensureVisible(indicator);
@@ -323,6 +360,21 @@
     function handleToggle(event) {
         const indicator = getIndicator();
         if (!indicator) return;
+
+        // Clicking the status header row toggles just the stats panel — but only while the monitor
+        // is expanded. In compact mode we let the click fall through so it expands the whole monitor.
+        if (!isCompact(indicator)) {
+            const statusGroup = event.target && typeof event.target.closest === 'function'
+                ? event.target.closest('.status-group')
+                : null;
+            if (statusGroup && indicator.contains(statusGroup)) {
+                event.preventDefault();
+                event.stopPropagation();
+                setDetailsCollapsed(indicator, !indicator.classList.contains('details-collapsed'));
+                return;
+            }
+        }
+
         if (shouldIgnoreToggleEvent(event, indicator)) return;
 
         if (toggleViaModule(event)) {
@@ -352,6 +404,8 @@
         ensureTraceRow(indicator);
         ensureTraceDetails(indicator);
         ensureNexusLauncher(indicator);
+        ensureDetailsArrow(indicator);
+        restoreDetailsCollapsed(indicator);
         bindModeControls(indicator);
 
         indicator.addEventListener('click', handleToggle);
