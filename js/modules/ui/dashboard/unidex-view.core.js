@@ -184,6 +184,27 @@ window.UnidexView = (function () {
         }
     }
 
+    // Collapse/expand the SUB TABS section of a tab wrapper card (tabs stage). Pure DOM toggle —
+    // no re-render — with the state remembered per session in window.__unidexExpandedSubTabs so
+    // navigating stages keeps a section open; a fresh page load returns to collapsed.
+    function toggleSubTabs(el) {
+        const frame = el && typeof el.closest === 'function' ? el.closest('.unidex-tab-wrapper-frame') : null;
+        if (!frame) return;
+        const id = frame.getAttribute('data-subtabs-id') || '';
+        const expandedMap = window.__unidexExpandedSubTabs = window.__unidexExpandedSubTabs || {};
+        const collapsed = frame.classList.toggle('is-subtabs-collapsed');
+        if (collapsed) delete expandedMap[id];
+        else expandedMap[id] = true;
+        const toggle = frame.querySelector('.unidex-subtabs-toggle');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', String(!collapsed));
+            toggle.title = (collapsed ? 'Expand' : 'Collapse') + ' sub tabs';
+        }
+        frame.querySelectorAll('.unidex-subtabs-arrow').forEach(function (arrowEl) {
+            arrowEl.textContent = collapsed ? '▸' : '▾';
+        });
+    }
+
     return {
         render: stages.render,
         switchWorkspaceTab: navigation.switchWorkspaceTab,
@@ -211,6 +232,7 @@ window.UnidexView = (function () {
         openConstellationMap,
         getMatrixScope,
         openMatrixWorkshop,
-        openNexusSearch
+        openNexusSearch,
+        toggleSubTabs
     };
 })();

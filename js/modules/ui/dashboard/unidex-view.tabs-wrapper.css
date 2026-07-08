@@ -149,6 +149,51 @@
     background: rgba(170, 185, 190, 0.12);
 }
 
+/* SUB TABS divider doubles as the collapse/expand control (button element needs its resets) */
+.unidex-subtabs-toggle {
+    width: 100%;
+    margin: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.18s ease;
+}
+
+.unidex-subtabs-toggle:hover,
+.unidex-subtabs-toggle:focus-visible {
+    color: var(--accent, #00d4ff);
+}
+
+.unidex-subtabs-toggle:hover::before,
+.unidex-subtabs-toggle:hover::after,
+.unidex-subtabs-toggle:focus-visible::before,
+.unidex-subtabs-toggle:focus-visible::after {
+    background: color-mix(in srgb, var(--accent, #00d4ff) 30%, transparent);
+}
+
+.unidex-subtabs-arrow {
+    display: inline-block;
+    font-size: 0.72rem;
+    line-height: 1;
+    transition: transform 0.18s ease;
+}
+
+.unidex-subtabs-chip {
+    cursor: pointer;
+    transition: border-color 0.18s ease, color 0.18s ease;
+}
+
+.unidex-subtabs-chip:hover,
+.unidex-subtabs-chip:focus-visible {
+    border-color: color-mix(in srgb, var(--accent, #00d4ff) 64%, transparent);
+    color: var(--accent, #00d4ff);
+}
+
+.unidex-tab-wrapper-frame.is-subtabs-collapsed .unidex-tab-wrap-grid {
+    display: none;
+}
+
 .unidex-tab-wrap-grid {
     position: relative;
     z-index: 3;

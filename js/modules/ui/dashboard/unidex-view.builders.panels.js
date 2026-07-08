@@ -54,8 +54,16 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const pathHtml = settings.pathLabel
                 ? `<span class="unidex-tab-path">${escapeHtml(settings.pathLabel)}</span>`
                 : '';
+            // badgeToggle turns the root tile's "N nested tabs" chip into the sub-tabs
+            // collapse/expand control (stopPropagation keeps the tile's open-tab click intact).
             const badgeHtml = settings.badge
-                ? `<span class="unidex-tab-wrap-badge">${escapeHtml(settings.badge)}</span>`
+                ? (settings.badgeToggle
+                    ? `<span class="unidex-tab-wrap-badge unidex-subtabs-chip" role="button" tabindex="0"
+                        title="Show or hide sub tabs"
+                        onclick="event.stopPropagation(); window.UnidexView.toggleSubTabs(this);"
+                        onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();window.UnidexView.toggleSubTabs(this);}"
+                        >${escapeHtml(settings.badge)} <span class="unidex-subtabs-arrow">${settings.expanded ? '&#9662;' : '&#9656;'}</span></span>`
+                    : `<span class="unidex-tab-wrap-badge">${escapeHtml(settings.badge)}</span>`)
                 : '';
 
             return `<button type="button"
@@ -91,6 +99,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const workspaces = config.workspaces || [];
             if (!workspaces.length) return '';
 
+            // Sub-tab sections are COLLAPSED by default; the per-session registry keeps a tab's
+            // section open across re-renders once the user expands it (fresh page load resets).
+            const expandedMap = window.__unidexExpandedSubTabs = window.__unidexExpandedSubTabs || {};
+
             return workspaces.map(function (workspace) {
                 const name = getWorkspaceName(workspace);
                 const descendants = getBranchTabCount(workspace);
@@ -100,8 +112,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const emptyHtml = childHtml
                     ? ''
                     : '<div class="unidex-tab-wrap-empty">NO SUB TABS IN THIS BRANCH</div>';
+                const expanded = !!expandedMap[String(workspace.id)];
+                const arrow = expanded ? '&#9662;' : '&#9656;';
 
-                return `<article class="unidex-tab-wrapper-frame">
+                return `<article class="unidex-tab-wrapper-frame${expanded ? '' : ' is-subtabs-collapsed'}" data-subtabs-id="${escapeHtml(String(workspace.id))}">
                     <div class="unidex-tab-frame-top-beam" aria-hidden="true"></div>
                     <div class="unidex-tab-frame-left-glow" aria-hidden="true"></div>
                     <div class="unidex-tab-scan-beam" aria-hidden="true"></div>
@@ -112,7 +126,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     <div class="unidex-tab-wrapper-header">
                         ${buildWrappedTabButton(workspace, 0, {
                             root: true,
-                            badge: descendants + ' nested tab' + (descendants === 1 ? '' : 's')
+                            badge: descendants + ' nested tab' + (descendants === 1 ? '' : 's'),
+                            badgeToggle: true,
+                            expanded: expanded
                         })}
                         <div class="unidex-tab-wrapper-stats">
                             <span>${directChildren} direct</span>
@@ -120,7 +136,13 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             <span>${branchLinks} branch links</span>
                         </div>
                     </div>
-                    <div class="unidex-manhwa-divider">SUB TABS</div>
+                    <button type="button" class="unidex-manhwa-divider unidex-subtabs-toggle"
+                        aria-expanded="${expanded}"
+                        title="${expanded ? 'Collapse' : 'Expand'} sub tabs"
+                        onclick="window.UnidexView.toggleSubTabs(this)">
+                        SUB TABS &middot; ${descendants}
+                        <span class="unidex-subtabs-arrow">${arrow}</span>
+                    </button>
                     <div class="unidex-tab-wrap-grid">
                         ${childHtml || emptyHtml}
                     </div>
