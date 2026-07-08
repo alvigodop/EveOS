@@ -29,6 +29,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     let lastBrainCallAt = 0;
     let brainCooldownUntil = 0;
     let cooldownNoticeShown = false;
+    let cooldownModel = ''; // which model hit the wall — a different selection gets fresh quota
     let lastInjectedContext = '';
     const pending = new Map(); // requestId -> { resolve, reject, timer }
     const tokenTotals = { textBrain: { prompt: 0, output: 0, total: 0 }, calls: 0 };
@@ -276,7 +277,18 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     function brainSkipReason() {
         if (!eveContext.text && !eveUpdates.length) return 'no-eveos-context';   // nothing to extract from
         const now = Date.now();
-        if (now < brainCooldownUntil) return 'cooldown';
+        if (now < brainCooldownUntil) {
+            // The cooldown belongs to the model that 429'd/timed out. Each model has its own
+            // quota bucket, so switching the Mode 2 model in Session Controls resumes instantly
+            // instead of waiting out a pause that no longer applies.
+            if (getSelectedTextBrainModel() !== cooldownModel) {
+                brainCooldownUntil = 0;
+                cooldownNoticeShown = false;
+                display('System Message: Text Brain model switched — cooldown cleared, resuming extraction.');
+            } else {
+                return 'cooldown';
+            }
+        }
         if (now - lastBrainCallAt < MIN_BRAIN_INTERVAL_MS) return 'throttled';
         return '';
     }
@@ -286,16 +298,21 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     function enterCooldown(error) {
         const message = String(error?.message || error || '');
         let seconds = 15;
-        if (/429|quota|rate.?limit/i.test(message)) {
+        const isQuota = /429|quota|rate.?limit/i.test(message);
+        if (isQuota) {
             const hinted = /retry(?:_delay)?[^0-9]{0,20}(\d+(?:\.\d+)?)\s*s/i.exec(message);
             seconds = Math.max(hinted ? Math.ceil(Number(hinted[1])) : 0, 60);
         } else if (/timeout/i.test(message)) {
             seconds = 30;
         }
         brainCooldownUntil = Date.now() + seconds * 1000;
+        cooldownModel = getSelectedTextBrainModel();
         if (!cooldownNoticeShown) {
             cooldownNoticeShown = true;
-            display('System Message: Text Brain paused for ' + seconds + 's (' + compactText(message, 140) + '). Replies continue directly via the live model.');
+            const switchHint = isQuota
+                ? ' Or switch the Mode 2 text-brain model in Session Controls to resume immediately on a different quota.'
+                : '';
+            display('System Message: Text Brain paused for ' + seconds + 's (' + compactText(message, 140) + '). Replies continue directly via the live model.' + switchHint);
         }
     }
 
@@ -373,7 +390,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         resetTokenTotals: function () { tokenTotals.textBrain = { prompt: 0, output: 0, total: 0 }; tokenTotals.calls = 0; },
         // Clears throttle/cooldown gates (console tuning + smoke tests). Injection dedupe is NOT
         // cleared here — it resets when a new EveOS snapshot arrives (new facts, new injection).
-        resetBrainGate: function () { lastBrainCallAt = 0; brainCooldownUntil = 0; cooldownNoticeShown = false; },
+        resetBrainGate: function () { lastBrainCallAt = 0; brainCooldownUntil = 0; cooldownNoticeShown = false; cooldownModel = ''; },
         getBrainGateStatus: function () { return { skipReason: brainSkipReason(), cooldownUntil: brainCooldownUntil, lastCallAt: lastBrainCallAt }; }
     });
 
