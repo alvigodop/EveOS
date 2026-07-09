@@ -19,6 +19,8 @@ window.EveDataStore = window.EveDataStore || {};
         sendContextToGemini: ns.sendContextToGemini,
         getGeminiContextCardOptions: ns.getGeminiContextCardOptions,
         sendDataStreamToGemini: ns.sendDataStreamToGemini,
+        buildSelectiveContext: ns.buildSelectiveContext,
+        sendSelectiveContext: ns.sendSelectiveContext,
         mutationMatchesScope: ns.mutationMatchesScope,
         buildDataStreamContext: ns.buildDataStreamContext,
         getStorePath: ns.getStorePath,

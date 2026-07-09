@@ -493,6 +493,26 @@ async function initializeGeminiLiveLinkCard() {
                 Silently send matching Nexus/state updates for the selected scope. Scope decides what Gemini sees. Quick is lean, Rich is readable, Deep expands the selected tree, and Complete is the largest safe scoped snapshot.
             </p>
         </section>
+
+        <section class="gemini-session-section" aria-labelledby="contextRelaySelectiveHeading">
+            <div class="gemini-session-section__heading">
+                <div>
+                    <span class="gemini-session-section__kicker">Selective Send</span>
+                    <h3 id="contextRelaySelectiveHeading">Send Just One Layer</h3>
+                </div>
+            </div>
+            <p class="gemini-session-help">
+                Each button sends only that layer for the surface you are on <strong>right now</strong>:
+                a normal tab sends its branch, the Unidex overview sends the whole datapack, and a tab
+                opened inside Unidex sends just that tab's branch. Names only &mdash; sent silently.
+            </p>
+            <div class="gemini-session-field-grid" style="margin-top: 12px; gap: 10px;">
+                <button type="button" class="gemini-session-button" id="geminiSelectiveTabsBtn" data-selective-kind="tabs" style="width: 100%;">Tab &amp; Sub-Tab Names</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveTabTreeBtn" data-selective-kind="tab-tree" style="width: 100%;">Full Tab Tree Names</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveCardsBtn" data-selective-kind="cards" style="width: 100%;">Card Names</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveBookmarksBtn" data-selective-kind="bookmarks" style="width: 100%;">Bookmarks &amp; Folders</button>
+            </div>
+        </section>
     </div>
 
     <footer class="mdl-dialog__actions gemini-session-dialog__actions">
@@ -593,6 +613,33 @@ async function initializeGeminiLiveLinkCard() {
                 : 'Data Stream paused.', false);
         });
     }
+
+    // Selective sends: ship exactly one layer (tab names / full tab tree / card names /
+    // bookmarks + folders) for the surface the user is on right now.
+    ['geminiSelectiveTabsBtn', 'geminiSelectiveTabTreeBtn', 'geminiSelectiveCardsBtn', 'geminiSelectiveBookmarksBtn'].forEach((buttonId) => {
+        const button = document.getElementById(buttonId);
+        if (!button) return;
+        button.addEventListener('click', () => {
+            const api = _getGeminiLiveLinkApi();
+            if (typeof api?.sendSelectiveContext !== 'function') {
+                _setGeminiLiveLinkStatus('Selective context module is unavailable.', true);
+                return;
+            }
+            const result = api.sendSelectiveContext(button.dataset.selectiveKind || 'tabs');
+            if (!result?.sent) {
+                _setGeminiLiveLinkStatus(result?.reason === 'socket-offline'
+                    ? 'Gemini Live is offline — connect a session first, then resend.'
+                    : 'Selective send failed.', true);
+                return;
+            }
+            const folderNote = result.folderCount ? ` + ${_formatGeminiLiveLinkNumber(result.folderCount)} folders` : '';
+            _setGeminiLiveLinkStatus(
+                `Sent ${_formatGeminiLiveLinkNumber(result.count)} ${result.unit}${result.count === 1 ? '' : 's'}${folderNote} `
+                + `for ${result.surface} (${_formatGeminiLiveLinkNumber(result.chars)} chars, ${result.route === 'text-brain' ? 'Mode 2 text brain' : 'live session'}).`,
+                false
+            );
+        });
+    });
 
     const toggle = document.getElementById('geminiLiveLinkToggle');
     if (toggle) {
