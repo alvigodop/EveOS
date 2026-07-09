@@ -51,7 +51,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return ids;
     }
 
-    function buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, totalLinks, source, ghostLabels) {
+    function buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, totalLinks, source, ghostLabels, ghostGroups, groupLabels) {
         const ghostWorkspaces = Object.keys(orphanedByWorkspace || {}).sort();
         return {
             knownIds: Array.from(knownIds || []),
@@ -63,6 +63,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             // id: once a workspace drops out of live config the name is gone from config, but the
             // indexed records still carry the label captured while it existed.
             ghostLabels: ghostLabels || {},
+            // ghostId -> the sidebar-group id the tab belonged to, and groupId -> the group's
+            // last known name. Groups live only in config, so when corruption takes them out the
+            // indexed records are the only surviving source for rebuilding group membership.
+            ghostGroups: ghostGroups || {},
+            groupLabels: groupLabels || {},
             totalOrphaned: orphaned.length,
             totalLinks: totalLinks,
             source: source
@@ -76,6 +81,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const orphaned = [];
         const orphanedByWorkspace = {};
         const ghostLabels = {};
+        const ghostGroups = {};
+        const groupLabels = {};
 
         if (Array.isArray(snapshot?.records)) {
             snapshot.records.forEach(function (record, idx) {
@@ -87,6 +94,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 const indexedLabel = String(record?.path?.workspaceLabel || record?.workspaceLabel || '').trim();
                 if (indexedLabel && indexedLabel !== workspaceId && !ghostLabels[workspaceId]) {
                     ghostLabels[workspaceId] = indexedLabel;
+                }
+                // Remember group membership + group name the same way — any record (orphaned or
+                // not) can teach us a group's name, so a corrupted group is recoverable as long
+                // as one indexed record still carries it.
+                const recordGroupId = String(record?.path?.groupId || '').trim();
+                const recordGroupLabel = String(record?.path?.groupLabel || '').trim();
+                if (recordGroupId) {
+                    if (recordGroupLabel && !groupLabels[recordGroupId]) groupLabels[recordGroupId] = recordGroupLabel;
+                    if (!ghostGroups[workspaceId]) ghostGroups[workspaceId] = recordGroupId;
                 }
                 const resolved = linkId && typeof indexApi?.resolveBookmarkLink === 'function'
                     ? indexApi.resolveBookmarkLink(linkId)
@@ -118,7 +134,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 orphanedByWorkspace,
                 snapshot.records.filter(function (record) { return String(record?.type || '') === 'bookmark'; }).length,
                 'datapack-index',
-                ghostLabels
+                ghostLabels,
+                ghostGroups,
+                groupLabels
             );
         }
 
@@ -141,7 +159,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         });
 
-        return buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, links.length, 'live-links', ghostLabels);
+        return buildOrphanReport(knownIds, orphaned, orphanedByWorkspace, links.length, 'live-links', ghostLabels, ghostGroups, groupLabels);
     }
 
     function rescueOrphanedLinks() {
@@ -157,19 +175,52 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
         });
         const ghostLabels = report.ghostLabels || {};
+        const ghostGroups = report.ghostGroups || {};
+        const groupLabels = report.groupLabels || {};
         const restoredTabs = [];
+        const neededGroupIds = new Set();
         ghostIds.forEach(function (ghostId) {
             // Restore the ORIGINAL tab name when the index still knows it; only fall back to the
             // id-based placeholder when no prior name survives anywhere.
             const originalName = String(ghostLabels[ghostId] || '').trim();
             const name = (originalName && originalName !== ghostId) ? originalName : `Recovered ${ghostId}`;
-            restoredTabs.push({ id: ghostId, name: name, icon: 'folder', subTabs: [] });
+            const restoredTab = { id: ghostId, name: name, icon: 'folder', subTabs: [] };
+            // Restore sidebar-group membership the same way: the indexed records remember which
+            // group the tab lived in even after config lost it.
+            const groupId = String(ghostGroups[ghostId] || '').trim();
+            if (groupId) {
+                restoredTab.groupId = groupId;
+                neededGroupIds.add(groupId);
+            }
+            restoredTabs.push(restoredTab);
         });
         if (restoredTabs.length && Array.isArray(configObject?.workspaces)) {
             const existing = new Set(getKnownWorkspaceIds());
             configObject.workspaces = configObject.workspaces.concat(restoredTabs.filter(function (tab) {
                 return !existing.has(String(tab.id || '').trim());
             }));
+        }
+        // Recreate group tabs that recovered tabs point at, with their ORIGINAL names when the
+        // index still knows them. Existing groups are left untouched.
+        const restoredGroups = [];
+        if (neededGroupIds.size && configObject) {
+            if (!Array.isArray(configObject.sidebarGroups)) configObject.sidebarGroups = [];
+            neededGroupIds.forEach(function (groupId) {
+                const exists = configObject.sidebarGroups.some(function (group) {
+                    return String(group?.id || '').trim() === groupId;
+                });
+                if (exists) return;
+                const group = {
+                    id: groupId,
+                    name: String(groupLabels[groupId] || '').trim() || `Recovered Group ${groupId}`,
+                    color: '',
+                    collapsed: false,
+                    hidden: false,
+                    parentWorkspaceId: ''
+                };
+                configObject.sidebarGroups.push(group);
+                restoredGroups.push(group);
+            });
         }
         if (typeof window.setLiveLinks === 'function') {
             window.setLiveLinks(links);
@@ -189,6 +240,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         if (typeof renderDashboard === 'function') renderDashboard();
         return {
             restoredTabs: restoredTabs,
+            restoredGroups: restoredGroups,
             rescued: Number(report.totalOrphaned || 0),
             mode: restoredTabs.length ? 'restored-tabs' : 'none'
         };

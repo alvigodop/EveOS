@@ -147,11 +147,30 @@ def prepare_workspace_map(links, workspaces, categories=None, folder_trees=None)
         by_workspace[workspace_id]["links"].append(item)
         by_workspace[workspace_id]["categories"].setdefault(category_name, []).append(item)
 
+    def _scoped_leftover_has_content(scoped_key_value):
+        category_bucket = (categories or {}).get(scoped_key_value)
+        if isinstance(category_bucket, dict) and (category_bucket.get("entries") or []):
+            return True
+        if isinstance(category_bucket, list) and category_bucket:
+            return True
+        folder_tree = (folder_trees or {}).get(scoped_key_value)
+        if isinstance(folder_tree, dict) and (folder_tree.get("nodes") or folder_tree.get("folders") or []):
+            return True
+        if isinstance(folder_tree, list) and folder_tree:
+            return True
+        return False
+
     for scoped_key_value in list((categories or {}).keys()) + list((folder_trees or {}).keys()):
         parsed = parse_scoped_category_key(scoped_key_value)
         workspace_id = str(parsed.get("workspace_id") or "").strip() or "main"
         category_name = str(parsed.get("category_name") or "").strip() or "Unsorted"
         if workspace_id not in by_workspace:
+            # Fabricating a workspace from a scoped leftover is RECOVERY (preserve real data whose
+            # tab vanished) — but doing it for EMPTY leftovers resurrected deliberately deleted
+            # tabs forever: a stray "deletedWs::Card" key with no entries and no folders kept
+            # re-creating an empty tab named after its raw id on every save/boot cycle.
+            if not _scoped_leftover_has_content(scoped_key_value):
+                continue
             by_workspace[workspace_id] = {
                 "meta": {"id": workspace_id, "name": workspace_id, "icon": "\U0001F4C1"},
                 "links": [],

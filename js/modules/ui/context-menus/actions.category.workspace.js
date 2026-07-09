@@ -24,7 +24,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         const helpers = window.EveWorkspaceHelpers;
         const allFlat = helpers ? helpers.flatten(config.workspaces) : config.workspaces;
         if (allFlat.length <= 1) return showToast('Cannot delete last workspace', 'error');
-        if (await showConfirm('Delete Workspace? Links move to Main.')) {
+        if (await showConfirm('Delete Workspace? Links and library entries move to Main.')) {
             const targetWs = helpers ? helpers.findById(config.workspaces, ctxWsId) : null;
             const removedIds = new Set([ctxWsId]);
             if (targetWs && helpers) {
@@ -51,6 +51,36 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             });
             setLiveLinks(liveLinks);
             window.EveBookmarkFolders?.moveWorkspaceTrees?.(ctxWsId, targetWorkspaceId);
+            // Library categories scoped to the deleted tab must move too. Leftover
+            // "deletedWs::Card" library buckets were the ghost anchor: the datapack writer
+            // fabricates a workspace entry for every scoped key it finds, so the "deleted" tab
+            // kept resurrecting (empty, named after its raw id) on every restart.
+            const libraryState = window.EveLibrary?.State;
+            const allLibraries = typeof libraryState?.getAllLibraries === 'function'
+                ? libraryState.getAllLibraries()
+                : null;
+            if (allLibraries && typeof allLibraries === 'object') {
+                Object.keys(allLibraries).forEach(function (scopedKey) {
+                    const pivot = scopedKey.indexOf('::');
+                    if (pivot < 0) return;
+                    if (!removedIds.has(scopedKey.slice(0, pivot))) return;
+                    const categoryName = scopedKey.slice(pivot + 2);
+                    const targetKey = targetWorkspaceId + '::' + categoryName;
+                    const sourceBucket = allLibraries[scopedKey];
+                    const targetBucket = allLibraries[targetKey];
+                    if (targetBucket && Array.isArray(targetBucket.entries)) {
+                        const existingIds = new Set(targetBucket.entries.map(function (entry) {
+                            return String(entry?.id || '');
+                        }));
+                        (Array.isArray(sourceBucket?.entries) ? sourceBucket.entries : []).forEach(function (entry) {
+                            if (!existingIds.has(String(entry?.id || ''))) targetBucket.entries.push(entry);
+                        });
+                    } else if (sourceBucket) {
+                        allLibraries[targetKey] = sourceBucket;
+                    }
+                    delete allLibraries[scopedKey];
+                });
+            }
             config.activeWorkspace = config.workspaces[0].id;
             saveConfig({
                 source: 'workspace-delete-config',

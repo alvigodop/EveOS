@@ -72,6 +72,21 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return ids;
     }
 
+    // Capture the ROOT tab's sidebar-group membership at index time. Group name + membership
+    // live only in config — once corruption drops them there, the indexed records are the only
+    // place recovery can learn "this tab belonged to group X named Y".
+    function buildGroupMeta(trail) {
+        const rootId = Array.isArray(trail) && trail.length ? String(trail[0].id || '').trim() : '';
+        if (!rootId) return { groupId: '', groupLabel: '' };
+        const root = findWorkspaceById(rootId);
+        const groupId = String(root?.groupId || '').trim();
+        if (!groupId) return { groupId: '', groupLabel: '' };
+        const cfg = window.eveState?.config || (typeof config !== 'undefined' ? config : null);
+        const groups = Array.isArray(cfg?.sidebarGroups) ? cfg.sidebarGroups : [];
+        const group = groups.find(function (item) { return String(item?.id || '') === groupId; });
+        return { groupId: groupId, groupLabel: String(group?.name || '').trim() };
+    }
+
     function buildPathMeta(input) {
         const workspaceIds = sortWorkspaceIds(input?.workspaceIds || [input?.workspaceId]);
         const workspaceId = String(input?.workspaceId || workspaceIds[0] || 'main').trim() || 'main';
@@ -80,12 +95,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         const folderLabel = String(input?.folderLabel || '').trim();
         const pathLabelParts = [buildWorkspaceLabel(workspaceId), categoryName];
         if (folderLabel) pathLabelParts.push(folderLabel);
+        const trail = buildWorkspaceTrail(workspaceId);
+        const groupMeta = buildGroupMeta(trail);
 
         return {
             workspaceId: workspaceId,
             workspaceIds: workspaceIds,
             workspaceLabel: buildWorkspaceLabel(workspaceId),
-            workspaceTrail: buildWorkspaceTrail(workspaceId),
+            workspaceTrail: trail,
+            groupId: groupMeta.groupId,
+            groupLabel: groupMeta.groupLabel,
             categoryName: categoryName,
             folderId: folderId,
             folderLabel: folderLabel,

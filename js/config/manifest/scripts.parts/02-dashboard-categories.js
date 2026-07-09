@@ -77,7 +77,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/ui/context-menus/actions.link.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.category.shared.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.category.category.js?v=0.1.1",
-    "js/modules/ui/context-menus/actions.category.workspace.js?v=0.1.3",
+    "js/modules/ui/context-menus/actions.category.workspace.js?v=0.1.4",
     "js/modules/ui/context-menus/actions.category.groups.js?v=0.1.0",
     "js/modules/ui/context-menus/actions.category.js?v=0.3.3",
     "js/modules/ui/context-menus/actions.folder.js?v=0.1.1",

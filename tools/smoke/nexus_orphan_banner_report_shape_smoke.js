@@ -164,9 +164,103 @@ function testDiagnosticsContract() {
     }
 }
 
+function testGroupRecoveryContract() {
+    const { ctx, window } = makeContext();
+    loadScript(ctx, 'js/modules/features/search-advanced/sa-cache-aggregator.diagnostics.js');
+
+    // Simulate corruption that took out a grouped tab AND its group: config has neither, but the
+    // Nexus index records still carry the tab's original name plus its group id + group name.
+    window.eveState.config.sidebarGroups = [
+        { id: 'sg_existing', name: 'Untouched Group', color: '', collapsed: false, hidden: false, parentWorkspaceId: '' }
+    ];
+    window.EveOS.SearchAdvanced.CacheAggregatorScope = {
+        getDatapackIndexApi() { return {}; },
+        getDatapackSnapshot() {
+            return {
+                records: [
+                    {
+                        type: 'bookmark',
+                        workspaceId: 'ws-lost-grouped',
+                        title: 'Grouped Bookmark',
+                        url: 'https://grouped.test',
+                        categoryName: 'Research',
+                        path: {
+                            linkId: 'lost-1',
+                            workspaceId: 'ws-lost-grouped',
+                            workspaceLabel: 'Deep Research',
+                            groupId: 'sg_work',
+                            groupLabel: 'Work Stuff'
+                        }
+                    },
+                    {
+                        type: 'bookmark',
+                        workspaceId: 'ws-lost-plain',
+                        title: 'Ungrouped Bookmark',
+                        url: 'https://plain.test',
+                        categoryName: 'Misc',
+                        path: {
+                            linkId: 'lost-2',
+                            workspaceId: 'ws-lost-plain',
+                            workspaceLabel: 'Scratch Tab'
+                        }
+                    }
+                ]
+            };
+        },
+        getLiveLinks() { return window.links; }
+    };
+    window.links = [];
+
+    const diagnostics = window.EveOS.SearchAdvanced.CacheAggregatorDiagnostics;
+    const report = diagnostics.detectOrphanedLinks();
+    if (report.ghostLabels['ws-lost-grouped'] !== 'Deep Research') {
+        throw new Error('Report should keep the original tab name for the grouped ghost.');
+    }
+    if (report.ghostGroups['ws-lost-grouped'] !== 'sg_work') {
+        throw new Error('Report should remember which group the ghost tab belonged to.');
+    }
+    if (report.groupLabels.sg_work !== 'Work Stuff') {
+        throw new Error('Report should remember the original group name.');
+    }
+    if (report.ghostGroups['ws-lost-plain']) {
+        throw new Error('Ungrouped ghosts must not be assigned a group.');
+    }
+
+    const rescued = diagnostics.rescueOrphanedLinks();
+    const groupedTab = ctx.config.workspaces.find((tab) => tab.id === 'ws-lost-grouped');
+    const plainTab = ctx.config.workspaces.find((tab) => tab.id === 'ws-lost-plain');
+    if (!groupedTab || groupedTab.name !== 'Deep Research') {
+        throw new Error('Rescue should restore the grouped tab with its original name.');
+    }
+    if (groupedTab.groupId !== 'sg_work') {
+        throw new Error('Rescue should restore the tab\'s group membership.');
+    }
+    if (!plainTab || plainTab.groupId) {
+        throw new Error('Rescue should restore ungrouped tabs without inventing a group.');
+    }
+    const recoveredGroup = ctx.config.sidebarGroups.find((group) => group.id === 'sg_work');
+    if (!recoveredGroup || recoveredGroup.name !== 'Work Stuff') {
+        throw new Error('Rescue should recreate the missing group with its original name.');
+    }
+    if (!rescued.restoredGroups.some((group) => group.id === 'sg_work')) {
+        throw new Error('Rescue result should report the recreated group.');
+    }
+    if (ctx.config.sidebarGroups[0].name !== 'Untouched Group') {
+        throw new Error('Existing groups must be left untouched.');
+    }
+
+    // A second rescue must not duplicate the group.
+    diagnostics.rescueOrphanedLinks();
+    const workGroups = ctx.config.sidebarGroups.filter((group) => group.id === 'sg_work');
+    if (workGroups.length !== 1) {
+        throw new Error('Repeat rescues must not duplicate recovered groups.');
+    }
+}
+
 (async function main() {
     await testBannerContract();
     testDiagnosticsContract();
+    testGroupRecoveryContract();
     console.log('NEXUS_ORPHAN_BANNER_REPORT_SHAPE_OK');
 })().catch((err) => {
     console.error(err);
