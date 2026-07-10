@@ -72,10 +72,16 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     : `<span class="unidex-tab-wrap-badge">${escapeHtml(settings.badge)}</span>`)
                 : '';
 
+            const collapsedClass = settings.collapsedByAncestor ? ' is-subtab-button-hidden' : '';
+            const ancestorAttr = settings.ancestorIds ? ` data-ancestor-ids="${escapeHtml(settings.ancestorIds)}"` : '';
+            const parentAttr = settings.parentId ? ` data-parent-id="${escapeHtml(settings.parentId)}"` : '';
+
             return `<button type="button"
-                class="unidex-tab-btn unidex-tab-wrap-tile${settings.root ? ' is-root-tile' : ''}${depthClass}${hiddenClass}${inactiveClass}"
+                class="unidex-tab-btn unidex-tab-wrap-tile${settings.root ? ' is-root-tile' : ''}${depthClass}${hiddenClass}${inactiveClass}${collapsedClass}"
                 data-text="${safeName.toUpperCase()}"
                 data-ws-depth="${depthValue}"
+                data-subtabs-id="${escapeHtml(String(workspace.id))}"
+                ${ancestorAttr}${parentAttr}
                 onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
                 title="${hiddenState ? safeName + ' is ' + hiddenState : 'Open ' + safeName}">
                 <span class="unidex-tab-wrap-bar" aria-hidden="true"></span>
@@ -107,21 +113,45 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return '';
         }
 
-        function buildWrappedDescendants(workspace, depth, pathParts) {
+        function buildWrappedDescendants(workspace, depth, pathParts, ancestors = []) {
             const showInactive = shouldShowInactiveTabs();
+            const expandedMap = window.__unidexExpandedSubTabs = window.__unidexExpandedSubTabs || {};
+
             return getSubTabs(workspace).filter(function (child) {
-                return showInactive || !child.inactive;
+                return showInactive || !getTabHiddenState(child);
             }).map(function (child) {
                 const childName = getWorkspaceName(child);
                 const childPath = pathParts.concat([childName]);
-                const childCount = getSubTabs(child).length;
+                const children = getSubTabs(child).filter(function (sub) {
+                    return showInactive || !getTabHiddenState(sub);
+                });
+                const childCount = children.length;
                 const badgeText = childCount > 0
                     ? childCount + ' child tab' + (childCount === 1 ? '' : 's')
                     : '';
+                const childHiddenState = getTabHiddenState(child);
+                const expanded = !!expandedMap[String(child.id)];
+
+                const currentAncestors = ancestors.concat([String(workspace.id)]);
+                let collapsedByAncestor = false;
+                for (let i = 0; i < currentAncestors.length; i++) {
+                    const ancId = currentAncestors[i];
+                    if (!expandedMap[ancId]) {
+                        collapsedByAncestor = true;
+                        break;
+                    }
+                }
+
                 return buildWrappedTabButton(child, depth, {
                     pathLabel: childPath.join(' / '),
-                    badge: badgeText
-                }) + buildWrappedDescendants(child, depth + 1, childPath);
+                    badge: badgeText,
+                    badgeToggle: childCount > 0,
+                    expanded: expanded,
+                    hiddenState: childHiddenState,
+                    collapsedByAncestor: collapsedByAncestor,
+                    ancestorIds: currentAncestors.join(','),
+                    parentId: String(workspace.id)
+                }) + buildWrappedDescendants(child, depth + 1, childPath, currentAncestors);
             }).join('');
         }
 
@@ -143,7 +173,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 const descendants = getBranchTabCount(workspace);
                 const directChildren = getSubTabs(workspace).length;
                 const branchLinks = getBranchBookmarkCount(workspace);
-                const childHtml = buildWrappedDescendants(workspace, 1, [name]);
+                const childHtml = buildWrappedDescendants(workspace, 1, [name], [String(workspace.id)]);
                 const emptyHtml = childHtml
                     ? ''
                     : '<div class="unidex-tab-wrap-empty">NO SUB TABS IN THIS BRANCH</div>';

@@ -1,4 +1,4 @@
-﻿// Unidex View Stage Panel Renderers Module
+// Unidex View Stage Panel Renderers Module
 window.UnidexViewModules = window.UnidexViewModules || {};
 
 (function () {
@@ -226,12 +226,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                         return st && !st.hiddenInParent;
                     });
                     visibleSubTabs.forEach(function (subTab) {
-                        const stLinks = getWorkspaceLinks(subTab.id, searchStr);
-                        const stCount = typeof getWorkspaceBookmarkCount === 'function'
-                            ? getWorkspaceBookmarkCount(subTab.id, searchStr, stLinks)
-                            : stLinks.length;
+                        const stResult = getWorkspaceAndSubTabLinks(subTab.id, searchStr);
+                        const stLinks = stResult?.links || [];
+                        const stCount = stLinks.length;
                         if (stCount === 0) return;
-                        const stModels = getCategoryModelsForWorkspace(subTab.id, searchStr, stLinks);
+                        const stModels = getCategoryModels(stLinks);
                         const depth = helpers.getDepth(config.workspaces, subTab.id);
                         const depthClass = depth > 0 ? ' unidex-subtab-section-depth-' + Math.min(depth, 4) : '';
                         const safeIcon = escapeHtml(subTab.icon || '📁');

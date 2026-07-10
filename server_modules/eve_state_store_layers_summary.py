@@ -56,6 +56,8 @@ def _clone_json_compatible(value, fallback):
 
 def _normalize_scope_value(value):
     normalized = str(value or "").strip().lower()
+    if normalized == "group":
+        return "group"
     if normalized in {"all", "store", "datapack"}:
         return "all"
     if normalized in {"card", "category"}:
@@ -225,6 +227,8 @@ def _filter_state_for_gemini_scope(state, scope="workspace", workspace_id="", ca
         scope_label = "Current tab only"
     elif explicit_workspace_ids and scope_value == "all":
         scope_label = "Selected tab group"
+    elif scope_value == "group":
+        scope_label = "Current group"
     else:
         scope_label = "Current tab branch"
     metadata = _clone_json_compatible(base.get("metadata") or {}, {})

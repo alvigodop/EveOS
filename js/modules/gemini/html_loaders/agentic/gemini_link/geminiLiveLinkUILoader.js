@@ -15,6 +15,7 @@ const GEMINI_LIVE_LINK_SCOPE_DESCRIPTIONS = {
     auto: 'Auto follows the current EveOS surface. In normal tabs it uses the active tab branch; in card drill-ins it can scope to that card; in Unidex it can expose the global datapack.',
     'tab-current': 'Current Tab Only sends this tab name, path, visible cards, folders, bookmarks, notes, pins, and library links. Sub-tab paths may be named, but sub-tab contents are not included.',
     'tab-branch': 'Current Tab + Sub Tabs sends this tab and its visible sub-tab branch, preserving tab paths while keeping each card and folder tree separated.',
+    group: 'Current Group sends all tabs, sub-tabs, cards, folders, bookmarks, notes, and library connections belonging to the active sidebar group.',
     card: 'Specific Card sends one selected card, its folders, root bookmarks, bookmark identifier/category pills, linked-library state, pins, URLs, notes, progress, and compact system-view hints.',
     all: 'Whole Datapack is only available from Unidex/global surfaces. Use it sparingly; it is chunked but still the largest scope.'
 };
@@ -160,13 +161,22 @@ function _buildPendingGeminiLiveLinkManifest(mode, selectedScope) {
         ? 'Whole datapack'
         : (scopeMode === 'card' ? 'Specific card' : 'Selected tab scope'));
     const profile = _getGeminiLiveLinkModeProfile(mode || _getGeminiLiveLinkMode());
+    const cfg = _getGeminiLiveLinkConfig() || {};
+    const groupId = cfg.groupOverviewId;
+    let activeGroupName = '';
+    if (groupId) {
+        const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime;
+        const group = typeof groupsApi?.findGroupById === 'function' ? groupsApi.findGroupById(groupId, cfg) : null;
+        activeGroupName = group?.name || 'Group Overview';
+    }
     return {
         mode: profile.id,
         scope: scopeLabel,
         scopeMode,
         source: scope.source || 'search-monitor',
-        activeWorkspaceId: scope.workspaceId || String(_getGeminiLiveLinkConfig()?.activeWorkspace || 'main'),
+        activeWorkspaceId: scope.workspaceId || String(cfg.activeWorkspace || 'main'),
         activeWorkspaceName: scope.workspaceId ? _getGeminiLiveLinkActiveWorkspaceLabel(scope.workspaceId) : 'All tabs',
+        activeGroupName: activeGroupName,
         categoryName: scope.categoryName || '',
         sampleLimit: profile.limit,
         messageChars: 0,
@@ -200,6 +210,7 @@ function _refreshGeminiLiveLinkScopeOptions() {
         ['auto', 'Auto: Current Surface'],
         ['tab-current', 'Current Tab Only'],
         ['tab-branch', 'Current Tab + Sub Tabs'],
+        ['group', 'Current Group'],
         ['card', 'Specific Card']
     ];
     if (allowWhole) options.push(['all', 'Whole Datapack']);
@@ -253,6 +264,10 @@ function _renderGeminiLiveLinkManifest(manifest, stateLabel) {
         ? `${_formatGeminiLiveLinkNumber(data.messageChars)} chars`
         : 'Not generated yet';
 
+    const activeHeaderHtml = data.activeGroupName
+        ? `<span>Active group</span><b>${_escapeGeminiLiveLinkHtml(data.activeGroupName)}</b>`
+        : `<span>Active tab</span><b>${_escapeGeminiLiveLinkHtml(data.activeWorkspaceName || data.activeWorkspaceId || 'main')}</b>`;
+
     manifestEl.innerHTML = `
         <div class="gemini-live-link-manifest-head">
             <span>${_escapeGeminiLiveLinkHtml(stateLabel || 'Inspectable relay manifest')}</span>
@@ -260,7 +275,7 @@ function _renderGeminiLiveLinkManifest(manifest, stateLabel) {
         </div>
         <div class="gemini-live-link-manifest-grid">
             <span>Scope</span><b>${_escapeGeminiLiveLinkHtml(data.scope || 'current modular datapack')}</b>
-            <span>Active tab</span><b>${_escapeGeminiLiveLinkHtml(data.activeWorkspaceName || data.activeWorkspaceId || 'main')}</b>
+            ${activeHeaderHtml}
             ${data.categoryName ? `<span>Card</span><b>${_escapeGeminiLiveLinkHtml(data.categoryName)}</b>` : ''}
             <span>Contents</span><b>${_escapeGeminiLiveLinkHtml(countSummary)}</b>
             <span>Size / route</span><b>${_escapeGeminiLiveLinkHtml(`${sizeSummary} · ${_getGeminiLiveLinkRouteLabel(data.route)}`)}</b>

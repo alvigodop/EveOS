@@ -148,6 +148,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     function normalizeContextScope(scope) {
         const value = String(scope || '').trim().toLowerCase();
+        if (value === 'group') return 'group';
         if (value === 'all' || value === 'store' || value === 'datapack') return 'all';
         if (value === 'card' || value === 'category') return 'card';
         return 'workspace';

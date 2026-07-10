@@ -198,21 +198,63 @@ window.UnidexView = (function () {
     // no re-render — with the state remembered per session in window.__unidexExpandedSubTabs so
     // navigating stages keeps a section open; a fresh page load returns to collapsed.
     function toggleSubTabs(el) {
-        const frame = el && typeof el.closest === 'function' ? el.closest('.unidex-tab-wrapper-frame') : null;
+        const frame = el && typeof el.closest === 'function' 
+            ? (el.closest('.unidex-tab-btn') || el.closest('.unidex-tab-wrapper-frame')) 
+            : null;
         if (!frame) return;
         const id = frame.getAttribute('data-subtabs-id') || '';
         const expandedMap = window.__unidexExpandedSubTabs = window.__unidexExpandedSubTabs || {};
-        const collapsed = frame.classList.toggle('is-subtabs-collapsed');
-        if (collapsed) delete expandedMap[id];
-        else expandedMap[id] = true;
-        const toggle = frame.querySelector('.unidex-subtabs-toggle');
-        if (toggle) {
-            toggle.setAttribute('aria-expanded', String(!collapsed));
-            toggle.title = (collapsed ? 'Expand' : 'Collapse') + ' sub tabs';
+        
+        let collapsed;
+        if (frame.classList.contains('unidex-tab-btn')) {
+            collapsed = !expandedMap[id];
+            if (collapsed) expandedMap[id] = true;
+            else delete expandedMap[id];
+            
+            const arrow = frame.querySelector('.unidex-subtabs-arrow');
+            if (arrow) {
+                arrow.innerHTML = collapsed ? '&#9662;' : '&#9656;';
+            }
+        } else {
+            collapsed = frame.classList.toggle('is-subtabs-collapsed');
+            if (collapsed) delete expandedMap[id];
+            else expandedMap[id] = true;
+            
+            const toggle = frame.querySelector('.unidex-subtabs-toggle');
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', String(!collapsed));
+                toggle.title = (collapsed ? 'Expand' : 'Collapse') + ' sub tabs';
+            }
+            frame.querySelectorAll('.unidex-subtabs-arrow').forEach(function (arrowEl) {
+                arrowEl.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+            });
         }
-        frame.querySelectorAll('.unidex-subtabs-arrow').forEach(function (arrowEl) {
-            arrowEl.textContent = collapsed ? '▸' : '▾';
-        });
+
+        const rootFrame = frame.closest('.unidex-tab-wrapper-frame');
+        if (rootFrame) {
+            const grid = rootFrame.querySelector('.unidex-tab-wrap-grid');
+            if (grid) {
+                const buttons = grid.querySelectorAll('.unidex-tab-btn');
+                buttons.forEach(function (btn) {
+                    const ancestorIdsAttr = btn.getAttribute('data-ancestor-ids') || '';
+                    if (!ancestorIdsAttr) return;
+                    const ancestorsList = ancestorIdsAttr.split(',');
+                    let hidden = false;
+                    for (let i = 0; i < ancestorsList.length; i++) {
+                        const ancId = ancestorsList[i];
+                        if (!expandedMap[ancId]) {
+                            hidden = true;
+                            break;
+                        }
+                    }
+                    if (hidden) {
+                        btn.classList.add('is-subtab-button-hidden');
+                    } else {
+                        btn.classList.remove('is-subtab-button-hidden');
+                    }
+                });
+            }
+        }
     }
 
     return {

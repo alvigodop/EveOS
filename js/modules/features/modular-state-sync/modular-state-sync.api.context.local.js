@@ -377,8 +377,19 @@ window.EveDataStore = window.EveDataStore || {};
         };
     }
 
+    function getWorkspaceGroupId(workspaceId, nodes) {
+        const target = text(workspaceId, '').toLowerCase();
+        for (const node of Array.isArray(nodes) ? nodes : []) {
+            if (text(node?.id, '').toLowerCase() === target) return text(node?.groupId, '');
+            const nested = getWorkspaceGroupId(workspaceId, node?.subTabs);
+            if (nested) return nested;
+        }
+        return '';
+    }
+
     function normalizeScope(scope) {
         const value = text(scope, 'workspace').toLowerCase();
+        if (value === 'group') return 'group';
         if (['all', 'store', 'datapack'].includes(value)) return 'all';
         if (['card', 'category'].includes(value)) return 'card';
         return 'workspace';
@@ -390,14 +401,33 @@ window.EveDataStore = window.EveDataStore || {};
         const scope = normalizeScope(raw.scope);
         const workspaceId = text(raw.workspaceId, cfg.activeWorkspace || 'main');
         const source = text(raw.source, 'browser-local-fallback');
-        const label = text(raw.label, scope === 'all' ? 'Whole datapack' : (scope === 'card' ? 'Specific card' : 'Current tab branch'));
+        const label = text(raw.label, scope === 'all' ? 'Whole datapack' : (scope === 'group' ? 'Current group' : (scope === 'card' ? 'Specific card' : 'Current tab branch')));
         const currentTabOnly = source === 'manual-tab-current'
             || label.toLowerCase().includes('current tab only')
             || raw.includeBranch === false;
         let workspaceIds = asArray(raw.workspaceIds).map((id) => text(id, '')).filter(Boolean);
-        if (scope !== 'all' && (scope === 'card' || currentTabOnly)) {
+        if (scope === 'group' && !workspaceIds.length) {
+            const groupId = text(cfg?.groupOverviewId, '') || getWorkspaceGroupId(workspaceId, cfg.workspaces);
+            if (groupId) {
+                const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime;
+                if (typeof groupsApi?.getGroupRoots === 'function') {
+                    const ids = new Set();
+                    (groupsApi.getGroupRoots(groupId, cfg) || []).forEach((root) => {
+                        if (!root?.id) return;
+                        const rootNode = findWorkspace(root.id, cfg.workspaces);
+                        if (rootNode) {
+                            collectBranchIds(rootNode).forEach((id) => ids.add(id));
+                        } else {
+                            ids.add(root.id);
+                        }
+                    });
+                    workspaceIds = Array.from(ids);
+                }
+            }
+        }
+        if (scope !== 'all' && scope !== 'group' && (scope === 'card' || currentTabOnly)) {
             workspaceIds = [workspaceId];
-        } else if (!workspaceIds.length && scope !== 'all') {
+        } else if (!workspaceIds.length && scope !== 'all' && scope !== 'group') {
             const root = findWorkspace(workspaceId, cfg.workspaces);
             workspaceIds = Array.from(root ? collectBranchIds(root) : new Set([workspaceId]));
         }

@@ -8,6 +8,7 @@ window.GeminiLiveLinkAssistRuntime = window.GeminiLiveLinkAssistRuntime || {};
         'tab-current': 'Current Tab Only sends the active tab, its cards, folders, bookmarks, notes, URLs, status/progress, pins, and compact system-view hints. Sub-tabs are listed as path context only when available; their contents are not included.',
         'tab-branch': 'Current Tab + Sub Tabs sends the active tab branch: parent tab plus visible child tabs, their cards, folder trees, shortcuts, bookmarks, notes, timestamps, pins, and compact system-view hints.',
         tab: 'Current Tab + Sub Tabs sends the active tab branch: parent tab plus visible child tabs, their cards, folder trees, shortcuts, bookmarks, notes, timestamps, pins, and compact system-view hints.',
+        group: 'Current Group sends all tabs, sub-tabs, cards, folders, bookmarks, notes, and library connections belonging to the active sidebar group.',
         card: 'Specific Card sends one chosen card only, including its folder tree, root bookmarks, shortcut links, notes, URLs, linked-library status, task state, bookmark identifier markers, category/order data, and scoped Nexus traces.',
         all: 'Whole Datapack is only available from Unidex/global context. Large payloads are chunked and capped before Gemini Live transport.'
     };

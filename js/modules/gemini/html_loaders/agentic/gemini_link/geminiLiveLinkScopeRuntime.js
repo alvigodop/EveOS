@@ -107,6 +107,16 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
             : { scope: 'workspace', workspaceId: activeWorkspace, workspaceIds: collectBranchIds(activeWorkspace), label: 'Current tab branch cards', source: 'card-options-branch' };
     }
 
+    function getWorkspaceGroupId(workspaceId, nodes) {
+        const target = String(workspaceId || '').toLowerCase();
+        for (const node of Array.isArray(nodes) ? nodes : []) {
+            if (String(node?.id || '').toLowerCase() === target) return String(node?.groupId || '');
+            const nested = getWorkspaceGroupId(workspaceId, node?.subTabs);
+            if (nested) return nested;
+        }
+        return '';
+    }
+
     function getSelectedScope() {
         const cfg = getConfig() || {};
         const mode = getScopeMode();
@@ -116,6 +126,29 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
             // "whole datapack" the site currently shows.
             const visibleIds = window.EveDataStore?._modularSync?.getVisibleContextWorkspaceIds?.() || [];
             return { scope: 'all', workspaceId: '', workspaceIds: visibleIds, label: 'Whole datapack', source: 'manual-all-unidex' };
+        }
+        if (mode === 'group') {
+            const groupId = String(cfg.groupOverviewId || getWorkspaceGroupId(activeWorkspace, cfg.workspaces) || '').trim();
+            const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime;
+            const ids = new Set();
+            let groupName = '';
+            if (groupId && typeof groupsApi?.getGroupRoots === 'function') {
+                (groupsApi.getGroupRoots(groupId, cfg) || []).forEach((root) => {
+                    if (!root?.id) return;
+                    collectBranchIds(root.id).forEach((id) => ids.add(id));
+                });
+                const group = typeof groupsApi.findGroupById === 'function' ? groupsApi.findGroupById(groupId, cfg) : null;
+                groupName = group?.name || '';
+            }
+            const workspaceIds = Array.from(ids);
+            return {
+                scope: 'group',
+                workspaceId: activeWorkspace,
+                workspaceIds,
+                categoryName: '',
+                label: groupName ? `Group: ${groupName}` : 'Current group',
+                source: 'manual-group'
+            };
         }
         if (mode === 'card') {
             const workspaceId = String(cfg.geminiContextSelectedCardWorkspaceId || activeWorkspace);

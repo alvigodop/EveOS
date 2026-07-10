@@ -349,3 +349,7 @@
         grid-template-columns: 1fr;
     }
 }
+
+.unidex-tab-btn.is-subtab-button-hidden {
+    display: none !important;
+}
