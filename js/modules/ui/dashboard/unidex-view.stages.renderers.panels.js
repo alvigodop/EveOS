@@ -222,10 +222,14 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (hasSubTabs && !cardsUnifiedMode && getWorkspaceAndSubTabLinks) {
                 const helpers = window.EveWorkspaceHelpers;
                 if (helpers) {
+                    const showInactiveInCards = !!(typeof config !== 'undefined' && config.unidexShowInactiveTabs);
                     subTabCardsHtml = (function renderDescendants(node) {
                         let html = '';
                         (node.subTabs || []).forEach(function (subTab) {
                             if (!subTab || subTab.hiddenInParent) return;
+                            // Inactive sub-tabs follow the same rule as the tabs stage: hidden
+                            // unless "Show Inactive Tabs" is on, grayed when shown.
+                            if (subTab.inactive && !showInactiveInCards) return;
 
                             const stLinks = getWorkspaceLinks(subTab.id, searchStr);
                             const stCount = stLinks.length;
@@ -260,7 +264,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             const collapsedClasses = [];
                             if (!subTabsExpanded) collapsedClasses.push('is-subtabs-collapsed');
                             if (!cardsExpanded) collapsedClasses.push('is-card-list-collapsed');
+                            if (subTab.inactive) collapsedClasses.push('is-inactive-section');
                             const collapsedClassStr = collapsedClasses.length > 0 ? ' ' + collapsedClasses.join(' ') : '';
+                            const inactiveTagHtml = subTab.inactive
+                                ? ' <span class="unidex-tab-inactive-tag">inactive</span>'
+                                : '';
 
                             // Badge triggers cards list collapse/expand
                             let badgeHtml = '';
@@ -297,7 +305,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             html += `
                             <div class="unidex-subtab-section${depthClass}${collapsedClassStr}">
                                 <div class="unidex-subtab-section-header">
-                                    ${badgeHtml}
+                                    ${badgeHtml}${inactiveTagHtml}
                                     <span class="unidex-subtab-count">${stCount} links</span>
                                     ${childrenHtmlChip}
                                 </div>

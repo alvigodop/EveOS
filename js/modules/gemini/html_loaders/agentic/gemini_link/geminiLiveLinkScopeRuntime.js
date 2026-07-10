@@ -16,7 +16,9 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
     function normalizeScopeMode(mode) {
         const value = String(mode || '').toLowerCase();
         if (value === 'tab') return 'tab-branch';
-        return ['auto', 'tab-current', 'tab-branch', 'card', 'all'].includes(value) ? value : 'auto';
+        // 'group' must be in this allowlist or the "Current Group" dropdown option silently
+        // normalizes to 'auto' and the manual group branch below never runs.
+        return ['auto', 'tab-current', 'tab-branch', 'group', 'card', 'all'].includes(value) ? value : 'auto';
     }
 
     function isWholeDatapackAllowed() {
@@ -141,6 +143,17 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
                 groupName = group?.name || '';
             }
             const workspaceIds = Array.from(ids);
+            if (!workspaceIds.length) {
+                // No resolvable group (active tab is ungrouped and no overview is open): fall
+                // back honestly to the current tab instead of shipping a mislabeled scope.
+                return {
+                    scope: 'workspace',
+                    workspaceId: activeWorkspace,
+                    workspaceIds: collectBranchIds(activeWorkspace),
+                    label: 'Current tab branch (no group here)',
+                    source: 'manual-group-fallback'
+                };
+            }
             return {
                 scope: 'group',
                 workspaceId: activeWorkspace,

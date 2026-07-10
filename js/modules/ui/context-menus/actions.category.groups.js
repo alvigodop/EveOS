@@ -128,7 +128,10 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
         if (nextWorkspaceId && typeof switchWorkspace === 'function') {
             switchWorkspace(nextWorkspaceId, { forceRender: true });
         } else {
-            ns.saveAndRefreshSidebar?.(wasOverviewGroup);
+            // Unidex renders group visibility live (hidden-group tabs disappear/gray there), so
+            // a hide/show must repaint the dashboard immediately — not only when the toggled
+            // group was the overview group.
+            ns.saveAndRefreshSidebar?.(wasOverviewGroup || config.viewMode === 'unidex');
         }
         if (updatedGroup) {
             showToast(updatedGroup.hidden ? 'Group hidden from sidebar' : 'Group visible in sidebar', 'info');

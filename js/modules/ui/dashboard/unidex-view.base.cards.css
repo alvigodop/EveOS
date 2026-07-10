@@ -207,6 +207,17 @@
     display: none !important;
 }
 
+/* Inactive sub-tab sections in the drill-in view (visible via "Show Inactive Tabs") gray out
+   like their tabs-stage tiles. */
+.unidex-subtab-section.is-inactive-section {
+    filter: grayscale(0.85);
+    opacity: 0.5;
+}
+
+.unidex-subtab-section.is-inactive-section:hover {
+    opacity: 0.75;
+}
+
 .unidex-subtab-section-header {
     display: flex;
     align-items: center;
