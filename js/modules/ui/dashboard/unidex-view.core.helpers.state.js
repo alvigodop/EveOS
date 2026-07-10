@@ -1,4 +1,4 @@
-﻿window.UnidexViewModules = window.UnidexViewModules || {};
+window.UnidexViewModules = window.UnidexViewModules || {};
 (function () {
     window.UnidexViewModules.createCoreHelperState = function createCoreHelperState(deps) {
         const state = deps.state;
@@ -185,11 +185,19 @@
                 return String(workspace.id) === String(workspaceId);
             }) || null;
         }
+        function resolveWorkspaceId(workspaceId) {
+            const workspace = getWorkspaceById(workspaceId);
+            if (workspace && workspace.linkedTo) {
+                return String(workspace.linkedTo);
+            }
+            return String(workspaceId);
+        }
         function getWorkspaceLinks(workspaceId, searchStr) {
+            const resolvedId = resolveWorkspaceId(workspaceId);
             const rawLinks = getAllLinks().filter(function (link) {
-                return String(link.workspace) === String(workspaceId) && matchesSearch(link, searchStr);
+                return String(link.workspace) === resolvedId && matchesSearch(link, searchStr);
             });
-            const indexedLinks = getIndexedWorkspaceLinks(workspaceId);
+            const indexedLinks = getIndexedWorkspaceLinks(resolvedId);
             if (!Array.isArray(indexedLinks)) return rawLinks;
             const filteredIndexedLinks = indexedLinks.filter(function (link) {
                 return matchesSearch(link, searchStr);
@@ -199,8 +207,9 @@
         }
         function getWorkspaceAndSubTabLinks(workspaceId, searchStr) {
             var helpers = window.EveWorkspaceHelpers;
-            var workspace = getWorkspaceById(workspaceId);
-            var visibleIds = new Set([String(workspaceId)]);
+            var resolvedId = resolveWorkspaceId(workspaceId);
+            var workspace = getWorkspaceById(resolvedId);
+            var visibleIds = new Set([resolvedId]);
             var subTabIds = new Set();
             if (workspace && helpers && helpers.getVisibleDescendantIds) {
                 helpers.getVisibleDescendantIds(workspace).forEach(function (id) {
@@ -208,10 +217,29 @@
                     subTabIds.add(id);
                 });
             }
+            // Second pass: resolve linkedTo for any sub-tab that is itself a linked tab.
+            var resolvedLinkedIds = new Set();
+            visibleIds.forEach(function (wsId) {
+                if (wsId === resolvedId) return;
+                var ws = getWorkspaceById(wsId);
+                if (ws && ws.linkedTo && !resolvedLinkedIds.has(ws.linkedTo)) {
+                    resolvedLinkedIds.add(ws.linkedTo);
+                    var targetId = String(ws.linkedTo);
+                    var linkedTarget = getWorkspaceById(targetId);
+                    if (linkedTarget) {
+                        visibleIds.add(targetId);
+                        if (helpers && helpers.getVisibleDescendantIds) {
+                            helpers.getVisibleDescendantIds(linkedTarget).forEach(function (descId) {
+                                visibleIds.add(descId);
+                            });
+                        }
+                    }
+                }
+            });
             var rawLinks = getAllLinks().filter(function (link) {
                 return visibleIds.has(String(link.workspace)) && matchesSearch(link, searchStr);
             });
-            var indexedLinks = getIndexedScopedLinks({ workspaceId: workspaceId });
+            var indexedLinks = getIndexedScopedLinks({ workspaceId: resolvedId });
             if (!Array.isArray(indexedLinks)) {
                 return { links: rawLinks, subTabIds: subTabIds };
             }

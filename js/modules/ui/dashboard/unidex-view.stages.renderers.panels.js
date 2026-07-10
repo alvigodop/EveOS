@@ -217,37 +217,53 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 ? unifiedScope.subTabIds
                 : new Set();
 
-            // Build sub-tab card sections
+            // Build sub-tab card sections recursively (nested structure)
             let subTabCardsHtml = '';
             if (hasSubTabs && !cardsUnifiedMode && getWorkspaceAndSubTabLinks) {
                 const helpers = window.EveWorkspaceHelpers;
                 if (helpers) {
-                    const visibleSubTabs = (workspace.subTabs || []).filter(function (st) {
-                        return st && !st.hiddenInParent;
-                    });
-                    visibleSubTabs.forEach(function (subTab) {
-                        const stResult = getWorkspaceAndSubTabLinks(subTab.id, searchStr);
-                        const stLinks = stResult?.links || [];
-                        const stCount = stLinks.length;
-                        if (stCount === 0) return;
-                        const stModels = getCategoryModels(stLinks);
-                        const depth = helpers.getDepth(config.workspaces, subTab.id);
-                        const depthClass = depth > 0 ? ' unidex-subtab-section-depth-' + Math.min(depth, 4) : '';
-                        const safeIcon = escapeHtml(subTab.icon || '📁');
-                        const safeName = escapeHtml(subTab.name || subTab.id);
-                        subTabCardsHtml += `
-                        <div class="unidex-subtab-section${depthClass}">
-                            <div class="unidex-subtab-section-header">
-                                <span class="unidex-subtab-badge">${safeIcon} ${safeName}</span>
-                                <span class="unidex-subtab-count">${stCount} links</span>
-                            </div>
-                            ${buildWrappedCardsHtml(subTab, stModels, {
-                                depth: depth,
-                                badge: 'Nested Tab',
-                                sectionLabel: 'CARDS'
-                            })}
-                        </div>`;
-                    });
+                    subTabCardsHtml = (function renderDescendants(node) {
+                        let html = '';
+                        (node.subTabs || []).forEach(function (subTab) {
+                            if (!subTab || subTab.hiddenInParent) return;
+
+                            const stLinks = getWorkspaceLinks(subTab.id, searchStr);
+                            const stCount = stLinks.length;
+
+                            // Check branch links to decide if we should render this sub-tab branch
+                            const branchResult = getWorkspaceAndSubTabLinks(subTab.id, searchStr);
+                            const branchLinksCount = branchResult?.links?.length || 0;
+                            if (branchLinksCount === 0) return;
+
+                            const depth = helpers.getDepth(config.workspaces, subTab.id);
+                            const depthClass = depth > 0 ? ' unidex-subtab-section-depth-' + Math.min(depth, 4) : '';
+                            const safeIcon = escapeHtml(subTab.icon || '📁');
+                            const safeName = escapeHtml(subTab.name || subTab.id);
+
+                            let directCardsHtml = '';
+                            if (stCount > 0) {
+                                const stModels = getCategoryModelsForWorkspace(subTab.id, searchStr, stLinks);
+                                directCardsHtml = buildWrappedCardsHtml(subTab, stModels, {
+                                    depth: depth,
+                                    badge: 'Nested Tab',
+                                    sectionLabel: 'CARDS'
+                                });
+                            }
+
+                            const childrenHtml = renderDescendants(subTab);
+
+                            html += `
+                            <div class="unidex-subtab-section${depthClass}">
+                                <div class="unidex-subtab-section-header">
+                                    <span class="unidex-subtab-badge">${safeIcon} ${safeName}</span>
+                                    <span class="unidex-subtab-count">${stCount} links</span>
+                                </div>
+                                ${directCardsHtml}
+                                ${childrenHtml}
+                            </div>`;
+                        });
+                        return html;
+                    })(workspace);
                 }
             }
 
