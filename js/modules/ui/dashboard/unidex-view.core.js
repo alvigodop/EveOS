@@ -257,6 +257,42 @@ window.UnidexView = (function () {
         }
     }
 
+    function toggleCardList(el, subTabId) {
+        const section = el && typeof el.closest === 'function' ? el.closest('.unidex-subtab-section') : null;
+        if (!section) return;
+        const collapsed = section.classList.toggle('is-card-list-collapsed');
+        const cardListsMap = window.__unidexExpandedCardLists = window.__unidexExpandedCardLists || {};
+        
+        if (collapsed) {
+            cardListsMap[subTabId] = false;
+        } else {
+            cardListsMap[subTabId] = true;
+        }
+        
+        const arrow = el.querySelector('.unidex-subtabs-arrow');
+        if (arrow) {
+            arrow.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+        }
+    }
+
+    function toggleCardSubTabs(el, subTabId) {
+        const section = el && typeof el.closest === 'function' ? el.closest('.unidex-subtab-section') : null;
+        if (!section) return;
+        const collapsed = section.classList.toggle('is-subtabs-collapsed');
+        const cardSubTabsMap = window.__unidexExpandedCardSubTabs = window.__unidexExpandedCardSubTabs || {};
+        
+        if (collapsed) {
+            cardSubTabsMap[subTabId] = false;
+        } else {
+            cardSubTabsMap[subTabId] = true;
+        }
+        
+        const arrow = el.querySelector('.unidex-subtabs-arrow');
+        if (arrow) {
+            arrow.innerHTML = collapsed ? '&#9656;' : '&#9662;';
+        }
+    }
+
     return {
         render: stages.render,
         switchWorkspaceTab: navigation.switchWorkspaceTab,
@@ -286,6 +322,8 @@ window.UnidexView = (function () {
         openMatrixWorkshop,
         openNexusSearch,
         toggleSubTabs,
+        toggleCardList,
+        toggleCardSubTabs,
         setShowInactiveTabs
     };
 })();

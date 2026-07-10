@@ -199,6 +199,14 @@
     padding-left: 16px;
 }
 
+.unidex-subtab-section.is-card-list-collapsed > .unidex-card-wrapper-frame {
+    display: none !important;
+}
+
+.unidex-subtab-section.is-subtabs-collapsed > .unidex-subtab-section {
+    display: none !important;
+}
+
 .unidex-subtab-section-header {
     display: flex;
     align-items: center;

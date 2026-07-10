@@ -240,6 +240,48 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             const safeIcon = escapeHtml(subTab.icon || '📁');
                             const safeName = escapeHtml(subTab.name || subTab.id);
 
+                            // Count child tabs of this sub-tab that have links
+                            const directChildren = (subTab.subTabs || []).filter(function (st) {
+                                return st && !st.hiddenInParent;
+                            });
+                            const activeChildren = directChildren.filter(function (child) {
+                                const childBranch = getWorkspaceAndSubTabLinks(child.id, searchStr);
+                                return (childBranch?.links?.length || 0) > 0;
+                            });
+                            const childrenCount = activeChildren.length;
+
+                            // Read states from global session maps
+                            const cardSubTabsMap = window.__unidexExpandedCardSubTabs = window.__unidexExpandedCardSubTabs || {};
+                            const cardListsMap = window.__unidexExpandedCardLists = window.__unidexExpandedCardLists || {};
+                            const subTabId = String(subTab.id);
+                            const subTabsExpanded = cardSubTabsMap[subTabId] === true;
+                            const cardsExpanded = cardListsMap[subTabId] === true;
+
+                            const collapsedClasses = [];
+                            if (!subTabsExpanded) collapsedClasses.push('is-subtabs-collapsed');
+                            if (!cardsExpanded) collapsedClasses.push('is-card-list-collapsed');
+                            const collapsedClassStr = collapsedClasses.length > 0 ? ' ' + collapsedClasses.join(' ') : '';
+
+                            // Badge triggers cards list collapse/expand
+                            let badgeHtml = '';
+                            if (stCount > 0) {
+                                badgeHtml = `
+                                    <span class="unidex-subtab-badge" role="button" onclick="window.UnidexView.toggleCardList(this, '${subTabId}')" style="cursor: pointer; user-select: none;" title="Toggle cards list">
+                                        ${safeIcon} ${safeName} <span class="unidex-subtabs-arrow" style="margin-left: 4px;">${cardsExpanded ? '&#9662;' : '&#9656;'}</span>
+                                    </span>`;
+                            } else {
+                                badgeHtml = `<span class="unidex-subtab-badge">${safeIcon} ${safeName}</span>`;
+                            }
+
+                            // Chip triggers child sub-tabs collapse/expand
+                            let childrenHtmlChip = '';
+                            if (childrenCount > 0) {
+                                childrenHtmlChip = `
+                                    <span class="unidex-tab-wrap-badge unidex-subtabs-chip" role="button" onclick="window.UnidexView.toggleCardSubTabs(this, '${subTabId}')" style="margin-left: 8px; cursor: pointer; user-select: none;" title="Toggle sub tabs list">
+                                        ${childrenCount} child tabs <span class="unidex-subtabs-arrow" style="margin-left: 4px;">${subTabsExpanded ? '&#9662;' : '&#9656;'}</span>
+                                    </span>`;
+                            }
+
                             let directCardsHtml = '';
                             if (stCount > 0) {
                                 const stModels = getCategoryModelsForWorkspace(subTab.id, searchStr, stLinks);
@@ -253,10 +295,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             const childrenHtml = renderDescendants(subTab);
 
                             html += `
-                            <div class="unidex-subtab-section${depthClass}">
+                            <div class="unidex-subtab-section${depthClass}${collapsedClassStr}">
                                 <div class="unidex-subtab-section-header">
-                                    <span class="unidex-subtab-badge">${safeIcon} ${safeName}</span>
+                                    ${badgeHtml}
                                     <span class="unidex-subtab-count">${stCount} links</span>
+                                    ${childrenHtmlChip}
                                 </div>
                                 ${directCardsHtml}
                                 ${childrenHtml}
