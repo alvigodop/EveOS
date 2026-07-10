@@ -6,9 +6,17 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function ensureUnidexMode() {
         if (typeof config === 'undefined') return;
+        let changed = false;
+        if (config.groupOverviewId !== '') {
+            config.groupOverviewId = '';
+            changed = true;
+        }
         if (config.viewMode !== 'unidex') {
             config.viewMode = 'unidex';
-            if (typeof saveConfig === 'function') saveConfig();
+            changed = true;
+        }
+        if (changed && typeof saveConfig === 'function') {
+            saveConfig();
         }
         if (typeof renderDashboard === 'function') renderDashboard();
     }

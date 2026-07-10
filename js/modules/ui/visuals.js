@@ -88,6 +88,7 @@ function openUnidexView() {
     if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
         window.UnidexView.resetSelection();
     }
+    config.groupOverviewId = '';
     config.viewMode = 'unidex';
     saveConfig();
     if (typeof window.EveSidebarRuntime?.syncSidebarViewState === 'function') {

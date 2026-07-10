@@ -118,6 +118,14 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
             var current = String(config.groupOverviewId || '').trim();
             var next = current === groupId ? '' : groupId;
             config.groupOverviewId = next;
+
+            if (next && config.viewMode === 'unidex') {
+                if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
+                    window.UnidexView.resetSelection();
+                }
+                config.viewMode = 'grid';
+            }
+
             saveConfig();
             if (typeof rt.syncSidebarViewState === 'function') rt.syncSidebarViewState();
             if (typeof renderDashboard === 'function') renderDashboard();

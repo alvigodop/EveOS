@@ -1,4 +1,4 @@
-﻿window.EveSidebarRuntime = window.EveSidebarRuntime || {};
+window.EveSidebarRuntime = window.EveSidebarRuntime || {};
 (function () {
     'use strict';
     var rt = window.EveSidebarRuntime;
@@ -18,6 +18,7 @@
             if (typeof openUnidexView === 'function') {
                 openUnidexView();
             } else {
+                config.groupOverviewId = '';
                 config.viewMode = 'unidex';
                 if (window.UnidexView && typeof window.UnidexView.resetSelection === 'function') {
                     window.UnidexView.resetSelection();
