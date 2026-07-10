@@ -51,7 +51,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const depthValue = Math.max(0, Number(depth) || 0);
             const depthClass = ' unidex-tab-depth-' + Math.min(depthValue, 4);
             const hiddenClass = workspace.hiddenInParent ? ' unidex-tab-is-hidden' : '';
-            const inactiveClass = workspace.inactive ? ' unidex-tab-is-inactive-state' : '';
+            // Roots pass their computed state (inactive OR hidden group); descendants only
+            // carry their own inactive flag (group membership is root-level).
+            const hiddenState = settings.hiddenState !== undefined
+                ? settings.hiddenState
+                : (workspace.inactive ? 'inactive' : '');
+            const inactiveClass = hiddenState ? ' unidex-tab-is-inactive-state' : '';
             const pathHtml = settings.pathLabel
                 ? `<span class="unidex-tab-path">${escapeHtml(settings.pathLabel)}</span>`
                 : '';
@@ -72,9 +77,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 data-text="${safeName.toUpperCase()}"
                 data-ws-depth="${depthValue}"
                 onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
-                title="${workspace.inactive ? safeName + ' is inactive' : 'Open ' + safeName}">
+                title="${hiddenState ? safeName + ' is ' + hiddenState : 'Open ' + safeName}">
                 <span class="unidex-tab-wrap-bar" aria-hidden="true"></span>
-                <span class="unidex-tab-main">${safeIcon} ${safeName}${workspace.inactive ? ' <span class="unidex-tab-inactive-tag">inactive</span>' : ''}</span>
+                <span class="unidex-tab-main">${safeIcon} ${safeName}${hiddenState ? ' <span class="unidex-tab-inactive-tag">' + escapeHtml(hiddenState) + '</span>' : ''}</span>
                 <span class="unidex-tab-count">${workspaceCount} links</span>
                 ${pathHtml}
                 ${badgeHtml}
@@ -121,11 +126,11 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function buildWrappedTabsHtml() {
-            // Inactive tabs match the datapack's hidden state: hidden from Unidex by default,
-            // grayed out when "Show Inactive Tabs" is on.
+            // Inactive tabs AND tabs in hidden groups match the datapack's hidden state: hidden
+            // from Unidex by default, grayed out when "Show Inactive Tabs" is on.
             const showInactive = shouldShowInactiveTabs();
             const workspaces = (config.workspaces || []).filter(function (workspace) {
-                return showInactive || !workspace.inactive;
+                return showInactive || !getTabHiddenState(workspace);
             });
             if (!workspaces.length) return '';
 
@@ -144,8 +149,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     : '<div class="unidex-tab-wrap-empty">NO SUB TABS IN THIS BRANCH</div>';
                 const expanded = !!expandedMap[String(workspace.id)];
                 const arrow = expanded ? '&#9662;' : '&#9656;';
+                const rootHiddenState = getTabHiddenState(workspace);
 
-                return `<article class="unidex-tab-wrapper-frame${expanded ? '' : ' is-subtabs-collapsed'}" data-subtabs-id="${escapeHtml(String(workspace.id))}">
+                return `<article class="unidex-tab-wrapper-frame${expanded ? '' : ' is-subtabs-collapsed'}${rootHiddenState ? ' is-inactive-frame' : ''}" data-subtabs-id="${escapeHtml(String(workspace.id))}">
                     <div class="unidex-tab-frame-top-beam" aria-hidden="true"></div>
                     <div class="unidex-tab-frame-left-glow" aria-hidden="true"></div>
                     <div class="unidex-tab-scan-beam" aria-hidden="true"></div>
@@ -158,7 +164,8 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                             root: true,
                             badge: descendants + ' nested tab' + (descendants === 1 ? '' : 's'),
                             badgeToggle: true,
-                            expanded: expanded
+                            expanded: expanded,
+                            hiddenState: rootHiddenState
                         })}
                         <div class="unidex-tab-wrapper-stats">
                             <span>${directChildren} direct</span>
@@ -262,28 +269,44 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             if (mode === 'wrapped') return buildWrappedTabsHtml();
 
             const helpers = window.EveWorkspaceHelpers;
-            const workspaces = config.workspaces || [];
+            const showInactive = shouldShowInactiveTabs();
+            // A hidden-group ROOT taints its whole branch (group membership is root-level);
+            // per-node inactive flags are picked up individually below.
+            const branchState = new Map();
+            (config.workspaces || []).forEach(function (root) {
+                const state = getTabHiddenState(root);
+                if (!state) return;
+                (function mark(node) {
+                    if (!node || !node.id) return;
+                    branchState.set(String(node.id), state);
+                    (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(mark);
+                })(root);
+            });
+            const workspaces = (config.workspaces || []).filter(function (root) {
+                return showInactive || !getTabHiddenState(root);
+            });
             const tabHtmlParts = [];
 
             function buildTab(workspace, depth) {
-                if (workspace.inactive && !shouldShowInactiveTabs()) return;
+                const hiddenState = branchState.get(String(workspace.id)) || (workspace.inactive ? 'inactive' : '');
+                if (hiddenState && !showInactive) return;
                 const workspaceCount = getWorkspaceBookmarkCount(workspace.id);
 
                 const encodedId = encodeParam(workspace.id);
                 const safeName = escapeHtml(workspace.name);
                 const safeIcon = escapeHtml(workspace.icon || '');
                 const hiddenMarker = (depth > 0 && workspace.hiddenInParent) ? ' <span class="unidex-tab-hidden">👁‍🗨</span>' : '';
-                const inactiveMarker = workspace.inactive ? ' <span class="unidex-tab-inactive-tag">inactive</span>' : '';
+                const inactiveMarker = hiddenState ? ' <span class="unidex-tab-inactive-tag">' + escapeHtml(hiddenState) + '</span>' : '';
                 const depthClass = depth > 0 ? ' unidex-tab-sub unidex-tab-depth-' + Math.min(depth, 4) : '';
                 const hiddenClass = (depth > 0 && workspace.hiddenInParent) ? ' unidex-tab-is-hidden' : '';
-                const inactiveClass = workspace.inactive ? ' unidex-tab-is-inactive-state' : '';
+                const inactiveClass = hiddenState ? ' unidex-tab-is-inactive-state' : '';
 
                 const btnHtml = `<button type="button"
                     class="unidex-tab-btn${depthClass}${hiddenClass}${inactiveClass}"
                     data-text="${safeName.toUpperCase()}"
                     data-ws-depth="${depth}"
                     onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
-                    title="${workspace.inactive ? safeName + ' is inactive' : 'Open ' + safeName}">
+                    title="${hiddenState ? safeName + ' is ' + hiddenState : 'Open ' + safeName}">
                     <span class="unidex-tab-main">${safeIcon} ${safeName}${hiddenMarker}${inactiveMarker}</span>
                     <span class="unidex-tab-count">${workspaceCount} links</span>
                 </button>`;

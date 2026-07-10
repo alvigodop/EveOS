@@ -194,11 +194,22 @@
     display: none;
 }
 
-/* Inactive tabs (shown via the "Show Inactive Tabs" toggle) render grayed out so their
-   hidden-state is obvious at a glance. */
+/* Inactive tabs and tabs in hidden groups (shown via the "Show Inactive Tabs" toggle) render
+   grayed out so their hidden-state is obvious at a glance. */
 .unidex-tab-btn.unidex-tab-is-inactive-state {
     filter: grayscale(0.9);
     opacity: 0.42;
+}
+
+/* Whole-frame gray for wrapped cards whose ROOT tab is inactive / in a hidden group — the
+   sub-tab tiles and stats inside inherit the muted look. */
+.unidex-tab-wrapper-frame.is-inactive-frame {
+    filter: grayscale(0.85);
+    opacity: 0.5;
+}
+
+.unidex-tab-wrapper-frame.is-inactive-frame:hover {
+    opacity: 0.75;
 }
 
 .unidex-tab-btn.unidex-tab-is-inactive-state:hover {

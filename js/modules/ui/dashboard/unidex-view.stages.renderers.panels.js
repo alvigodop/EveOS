@@ -100,7 +100,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         `;
             const showInactiveTabs = !!(typeof config !== 'undefined' && config.unidexShowInactiveTabs);
             const showInactiveToggleHtml = `
-            <label class="unidex-switch" title="Show tabs that are currently inactive (grayed out). Off hides them from Unidex.">
+            <label class="unidex-switch" title="Show tabs that are inactive or in hidden groups (grayed out). Off hides them from Unidex.">
                 <input type="checkbox" class="unidex-switch-input" onchange="window.UnidexView.setShowInactiveTabs(this.checked)" ${showInactiveTabs ? 'checked' : ''}>
                 <span class="unidex-switch-track" aria-hidden="true"></span>
                 <span class="unidex-switch-label">Show Inactive Tabs</span>
