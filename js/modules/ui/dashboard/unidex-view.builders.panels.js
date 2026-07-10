@@ -85,6 +85,23 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             return !!(typeof config !== 'undefined' && config.unidexShowInactiveTabs);
         }
 
+        // Tabs in HIDDEN sidebar groups are treated exactly like inactive tabs: hidden from
+        // Unidex by default, grayed out under the "Show Inactive Tabs" toggle.
+        function isInHiddenGroup(workspace) {
+            const groupId = String(workspace?.groupId || '').trim();
+            if (!groupId) return false;
+            const groups = (typeof config !== 'undefined' && Array.isArray(config?.sidebarGroups)) ? config.sidebarGroups : [];
+            const group = groups.find(function (item) { return String(item?.id || '') === groupId; });
+            return !!(group && group.hidden === true);
+        }
+
+        // '' when the tab is normally visible; otherwise the reason label shown on its tag.
+        function getTabHiddenState(workspace) {
+            if (workspace?.inactive) return 'inactive';
+            if (isInHiddenGroup(workspace)) return 'hidden group';
+            return '';
+        }
+
         function buildWrappedDescendants(workspace, depth, pathParts) {
             const showInactive = shouldShowInactiveTabs();
             return getSubTabs(workspace).filter(function (child) {
