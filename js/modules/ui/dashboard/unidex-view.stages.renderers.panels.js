@@ -98,6 +98,14 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 <span class="unidex-switch-label">Unified Across Tabs</span>
             </label>
         `;
+            const showInactiveTabs = !!(typeof config !== 'undefined' && config.unidexShowInactiveTabs);
+            const showInactiveToggleHtml = `
+            <label class="unidex-switch" title="Show tabs that are currently inactive (grayed out). Off hides them from Unidex.">
+                <input type="checkbox" class="unidex-switch-input" onchange="window.UnidexView.setShowInactiveTabs(this.checked)" ${showInactiveTabs ? 'checked' : ''}>
+                <span class="unidex-switch-track" aria-hidden="true"></span>
+                <span class="unidex-switch-label">Show Inactive Tabs</span>
+            </label>
+        `;
 
             if (!tabsUnifiedMode) {
                 gridContainer.innerHTML = `
@@ -107,6 +115,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     </header>
                     <div class="unidex-panel-controls unidex-tabs-controls">
                         ${tabsUnifiedToggleHtml}
+                        ${showInactiveToggleHtml}
                         ${buildTabsTreeModeButton()}
                         ${nexusAllTabsBtn}
                         ${mapButtonHtml}

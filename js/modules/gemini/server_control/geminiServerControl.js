@@ -86,6 +86,8 @@
                         ? 'Recovering'
                         : state.serverState === 'reconnecting'
                             ? 'Reconnecting'
+                : state.serverState === 'manual-stop'
+                    ? 'Stopped'
                 : state.serverState === 'error'
                     ? 'Error'
                     : 'Offline';
@@ -280,6 +282,11 @@
         if (isManualStopActive()) {
             state.desiredRunning = false;
             state.connectionPhase = 'manual-stop';
+            // Stop means stopped: if any other path revived the socket meanwhile, close it —
+            // only a user Start ends a manual stop.
+            if (window.webSocket && window.webSocket.readyState < WebSocket.CLOSING) {
+                disconnectClient();
+            }
             publish();
             return false;
         }
@@ -561,6 +568,18 @@
             state.message = 'Gemini server is online; reconnecting Live Workspace.';
             if (typeof window.updateConnectionStatus === 'function') {
                 window.updateConnectionStatus('connecting', 'Gemini server online - reconnecting...');
+            }
+        }
+        // Manual stop wins the PRESENTATION: without the lifecycle controller a Stop can only
+        // disconnect this browser, so the backend may still answer status probes. Reporting that
+        // as "Online" read as the assistant turning itself back on — while manually stopped the
+        // pill stays "Stopped" and only a user Start (or credential save) revives it.
+        if (isManualStopActive()) {
+            state.desiredRunning = false;
+            state.serverState = 'manual-stop';
+            state.connectionPhase = 'manual-stop';
+            if (state.running) {
+                state.message = 'Assistant stopped by you. The Gemini backend process is still up; press Start to reconnect.';
             }
         }
         publish();

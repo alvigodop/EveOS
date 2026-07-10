@@ -480,14 +480,16 @@ async function initializeGeminiLiveLinkCard() {
 
         <section class="gemini-session-section" aria-labelledby="contextRelayStreamHeading">
             <div class="gemini-session-section__heading">
-                <div>
+                <div class="gemini-session-section__heading-text">
                     <span class="gemini-session-section__kicker">Live Updates</span>
                     <h3 id="contextRelayStreamHeading">Data Stream</h3>
                 </div>
-                <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch" for="geminiLiveLinkDataStreamToggle">
-                    <input type="checkbox" id="geminiLiveLinkDataStreamToggle" class="mdl-switch__input">
-                    <span class="gemini-session-switch-label">Streaming</span>
-                </label>
+                <div class="gemini-session-heading-switch">
+                    <span class="gemini-session-switch-inline-label">Streaming</span>
+                    <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch" for="geminiLiveLinkDataStreamToggle">
+                        <input type="checkbox" id="geminiLiveLinkDataStreamToggle" class="mdl-switch__input">
+                    </label>
+                </div>
             </div>
             <p class="gemini-session-help">
                 Silently send matching Nexus/state updates for the selected scope. Scope decides what Gemini sees. Quick is lean, Rich is readable, Deep expands the selected tree, and Complete is the largest safe scoped snapshot.

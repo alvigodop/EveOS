@@ -123,7 +123,10 @@ function _renderDashboardCore(renderHint) {
     if (!grid) return;
     window.__eveDashboardLastRenderAt = Date.now();
 
-    const searchStr = searchInput ? searchInput.value.toLowerCase() : '';
+    // In Gemini ask mode the bar holds a QUESTION, not a filter — never search the datapack
+    // with it, no matter what triggers a render while it's active.
+    const askModeActive = !!window.EveGeminiAskBar?.isActive?.();
+    const searchStr = (searchInput && !askModeActive) ? searchInput.value.toLowerCase() : '';
     const searchTerms = searchStr ? searchStr.split(/\s+/).filter(Boolean) : [];
     const isSearchActive = searchTerms.length > 0;
     const isListMode = config.viewMode === 'list';

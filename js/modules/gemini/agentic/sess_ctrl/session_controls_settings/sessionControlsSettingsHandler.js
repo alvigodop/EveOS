@@ -152,7 +152,14 @@
         elements.saveBtn.textContent = 'Saving...';
 
         try {
+            const previousTextBrainModel = safeStorageGet('textBrainModel', 'gemini-2.5-flash-lite');
             persistSettings(elements);
+            const nextTextBrainModel = safeStorageGet('textBrainModel', 'gemini-2.5-flash-lite');
+            // The text-brain model rides on every request — switching it needs NO reconnect.
+            // Say so explicitly, or a switch during a session reads as "stuck".
+            if (nextTextBrainModel !== previousTextBrainModel) {
+                announce(displayMessage, `Mode 2 text-brain model switched to ${nextTextBrainModel} — active immediately on the next text-brain request (no reconnect needed).`);
+            }
             const apiKey = String(elements.apiKeyInput?.value || '').trim();
             let apiKeySyncState = '';
             if (apiKey) {
@@ -191,7 +198,7 @@
                 ? (apiKeySyncState === 'secured'
                     ? 'Settings and Gemini credentials secured. Reconnecting now.'
                     : 'Settings saved. Gemini API key kept locally and will sync when the controller is available.')
-                : 'Session settings saved. Model changes apply on reconnect.');
+                : 'Session settings saved. LIVE model changes apply on reconnect; the Mode 2 text-brain model applies immediately.');
             closeDialog(elements.dialog);
         } catch (error) {
             console.error('[SessionControls] Error saving settings:', error);

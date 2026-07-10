@@ -83,7 +83,8 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
         const ids = new Set([String(workspaceId || cfg.activeWorkspace || 'main')]);
         function visit(node) {
             (Array.isArray(node?.subTabs) ? node.subTabs : []).forEach((child) => {
-                if (!child?.id || child.hiddenInParent) return;
+                // Inactive tabs are hidden state on the site — not eligible as context.
+                if (!child?.id || child.hiddenInParent || child.inactive === true) return;
                 ids.add(String(child.id));
                 if (!child.hideSubTabs) visit(child);
             });
@@ -111,7 +112,10 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
         const mode = getScopeMode();
         const activeWorkspace = String(cfg.activeWorkspace || 'main');
         if (mode === 'all' && isWholeDatapackAllowed()) {
-            return { scope: 'all', workspaceId: '', workspaceIds: [], label: 'Whole datapack', source: 'manual-all-unidex' };
+            // Explicit visible set: hidden groups and inactive tabs are not part of the
+            // "whole datapack" the site currently shows.
+            const visibleIds = window.EveDataStore?._modularSync?.getVisibleContextWorkspaceIds?.() || [];
+            return { scope: 'all', workspaceId: '', workspaceIds: visibleIds, label: 'Whole datapack', source: 'manual-all-unidex' };
         }
         if (mode === 'card') {
             const workspaceId = String(cfg.geminiContextSelectedCardWorkspaceId || activeWorkspace);

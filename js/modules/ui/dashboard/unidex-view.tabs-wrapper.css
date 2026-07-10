@@ -194,6 +194,30 @@
     display: none;
 }
 
+/* Inactive tabs (shown via the "Show Inactive Tabs" toggle) render grayed out so their
+   hidden-state is obvious at a glance. */
+.unidex-tab-btn.unidex-tab-is-inactive-state {
+    filter: grayscale(0.9);
+    opacity: 0.42;
+}
+
+.unidex-tab-btn.unidex-tab-is-inactive-state:hover {
+    opacity: 0.7;
+}
+
+.unidex-tab-inactive-tag {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border: 1px solid rgba(170, 185, 190, 0.35);
+    border-radius: 999px;
+    color: rgba(170, 185, 190, 0.8);
+    font-family: "Share Tech Mono", monospace;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    vertical-align: middle;
+}
+
 .unidex-tab-wrap-grid {
     position: relative;
     z-index: 3;

@@ -51,6 +51,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const depthValue = Math.max(0, Number(depth) || 0);
             const depthClass = ' unidex-tab-depth-' + Math.min(depthValue, 4);
             const hiddenClass = workspace.hiddenInParent ? ' unidex-tab-is-hidden' : '';
+            const inactiveClass = workspace.inactive ? ' unidex-tab-is-inactive-state' : '';
             const pathHtml = settings.pathLabel
                 ? `<span class="unidex-tab-path">${escapeHtml(settings.pathLabel)}</span>`
                 : '';
@@ -67,21 +68,28 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 : '';
 
             return `<button type="button"
-                class="unidex-tab-btn unidex-tab-wrap-tile${settings.root ? ' is-root-tile' : ''}${depthClass}${hiddenClass}"
+                class="unidex-tab-btn unidex-tab-wrap-tile${settings.root ? ' is-root-tile' : ''}${depthClass}${hiddenClass}${inactiveClass}"
                 data-text="${safeName.toUpperCase()}"
                 data-ws-depth="${depthValue}"
                 onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
-                title="Open ${safeName}">
+                title="${workspace.inactive ? safeName + ' is inactive' : 'Open ' + safeName}">
                 <span class="unidex-tab-wrap-bar" aria-hidden="true"></span>
-                <span class="unidex-tab-main">${safeIcon} ${safeName}</span>
+                <span class="unidex-tab-main">${safeIcon} ${safeName}${workspace.inactive ? ' <span class="unidex-tab-inactive-tag">inactive</span>' : ''}</span>
                 <span class="unidex-tab-count">${workspaceCount} links</span>
                 ${pathHtml}
                 ${badgeHtml}
             </button>`;
         }
 
+        function shouldShowInactiveTabs() {
+            return !!(typeof config !== 'undefined' && config.unidexShowInactiveTabs);
+        }
+
         function buildWrappedDescendants(workspace, depth, pathParts) {
-            return getSubTabs(workspace).map(function (child) {
+            const showInactive = shouldShowInactiveTabs();
+            return getSubTabs(workspace).filter(function (child) {
+                return showInactive || !child.inactive;
+            }).map(function (child) {
                 const childName = getWorkspaceName(child);
                 const childPath = pathParts.concat([childName]);
                 const childCount = getSubTabs(child).length;
@@ -96,7 +104,12 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         }
 
         function buildWrappedTabsHtml() {
-            const workspaces = config.workspaces || [];
+            // Inactive tabs match the datapack's hidden state: hidden from Unidex by default,
+            // grayed out when "Show Inactive Tabs" is on.
+            const showInactive = shouldShowInactiveTabs();
+            const workspaces = (config.workspaces || []).filter(function (workspace) {
+                return showInactive || !workspace.inactive;
+            });
             if (!workspaces.length) return '';
 
             // Sub-tab sections are COLLAPSED by default; the per-session registry keeps a tab's
@@ -236,22 +249,25 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const tabHtmlParts = [];
 
             function buildTab(workspace, depth) {
+                if (workspace.inactive && !shouldShowInactiveTabs()) return;
                 const workspaceCount = getWorkspaceBookmarkCount(workspace.id);
 
                 const encodedId = encodeParam(workspace.id);
                 const safeName = escapeHtml(workspace.name);
                 const safeIcon = escapeHtml(workspace.icon || '');
                 const hiddenMarker = (depth > 0 && workspace.hiddenInParent) ? ' <span class="unidex-tab-hidden">👁‍🗨</span>' : '';
+                const inactiveMarker = workspace.inactive ? ' <span class="unidex-tab-inactive-tag">inactive</span>' : '';
                 const depthClass = depth > 0 ? ' unidex-tab-sub unidex-tab-depth-' + Math.min(depth, 4) : '';
                 const hiddenClass = (depth > 0 && workspace.hiddenInParent) ? ' unidex-tab-is-hidden' : '';
+                const inactiveClass = workspace.inactive ? ' unidex-tab-is-inactive-state' : '';
 
                 const btnHtml = `<button type="button"
-                    class="unidex-tab-btn${depthClass}${hiddenClass}"
+                    class="unidex-tab-btn${depthClass}${hiddenClass}${inactiveClass}"
                     data-text="${safeName.toUpperCase()}"
                     data-ws-depth="${depth}"
                     onclick="window.UnidexView.switchWorkspaceTab('${encodedId}')"
-                    title="Open ${safeName}">
-                    <span class="unidex-tab-main">${safeIcon} ${safeName}${hiddenMarker}</span>
+                    title="${workspace.inactive ? safeName + ' is inactive' : 'Open ' + safeName}">
+                    <span class="unidex-tab-main">${safeIcon} ${safeName}${hiddenMarker}${inactiveMarker}</span>
                     <span class="unidex-tab-count">${workspaceCount} links</span>
                 </button>`;
 

@@ -38,7 +38,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/svg_fixing/svgFixerLoader.js`,
-    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=0.1.11`,
+    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=0.1.12`,
     `${BASE_PATHS.CLIENT_CORE}/themeToggle.js`,
     `${BASE_PATHS.CLIENT_CORE}/response_handling/responseClass.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js`,
@@ -53,7 +53,7 @@ const masterScriptList = [
     `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=0.1.5`,
     `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=0.1.1`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js`,
-    `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=0.2.2`,
+    `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=0.2.3`,
     `${BASE_PATHS.AGENTIC}/conv_mem/conv_mem.js`,
     `${BASE_PATHS.AGENTIC}/time_perc/time_perc.js`,
 
@@ -64,7 +64,7 @@ const masterScriptList = [
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/popout_chat_feature/popoutChatHandler.js`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_message_operations/textMessageSender.js`,
     // Mode 2: Text Brain -> Live Voice relay (loads after sendTextMessage/socket/waitForConnection)
-    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.1.9',
+    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.1.10',
     `${BASE_PATHS.COMM_PANEL}/input_attachments/imageAttachmentHandler.js?v=0.1.0`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_input_handling/textInputHandler.js?v=0.2.0`,
 

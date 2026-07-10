@@ -174,13 +174,39 @@ window.EveDataStore = window.EveDataStore || {};
         const ids = new Set([text(workspaceId, 'main')]);
         function visit(node) {
             (Array.isArray(node?.subTabs) ? node.subTabs : []).forEach((child) => {
-                if (!child?.id || child.hiddenInParent) return;
+                // Inactive tabs are hidden state on the site — they are not eligible as context.
+                if (!child?.id || child.hiddenInParent || child.inactive === true) return;
                 ids.add(text(child.id, ''));
                 if (!child.hideSubTabs) visit(child);
             });
         }
         if (root && !root.hideSubTabs) visit(root);
         return Array.from(ids).filter(Boolean);
+    }
+
+    // Context must match what the site currently SHOWS: inactive tabs and root tabs living in
+    // hidden sidebar groups are invisible on the site, so they are not eligible to be sent.
+    function isWorkspaceContextEligible(rootNode, cfg) {
+        if (!rootNode || rootNode.inactive === true) return false;
+        const groupId = text(rootNode.groupId, '');
+        if (!groupId) return true;
+        const groups = Array.isArray(cfg?.sidebarGroups) ? cfg.sidebarGroups : [];
+        const group = groups.find((item) => String(item?.id || '') === groupId);
+        return !(group && group.hidden === true);
+    }
+
+    function getVisibleContextWorkspaceIds() {
+        const cfg = getRuntimeConfigForContext() || {};
+        const ids = [];
+        (Array.isArray(cfg.workspaces) ? cfg.workspaces : []).forEach((root) => {
+            if (!isWorkspaceContextEligible(root, cfg)) return;
+            (function visit(node) {
+                if (!node?.id || node.inactive === true) return;
+                ids.push(String(node.id));
+                (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(visit);
+            })(root);
+        });
+        return ids;
     }
 
     function getGroupOverviewContextScope(cfg) {
@@ -233,7 +259,11 @@ window.EveDataStore = window.EveDataStore || {};
             return {
                 scope: 'all',
                 workspaceId: '',
+                // Explicit visible set: hidden groups and inactive tabs stay out of the
+                // whole-datapack scope, matching what Unidex actually shows.
+                workspaceIds: getVisibleContextWorkspaceIds(),
                 categoryName: '',
+                label: 'Whole datapack',
                 source: 'unidex-global'
             };
         }
@@ -630,6 +660,8 @@ window.EveDataStore = window.EveDataStore || {};
         pullNow,
         normalizeBookmarkFilenames,
         getCurrentGeminiContextScope,
+        getVisibleContextWorkspaceIds,
+        isWorkspaceContextEligible,
         fetchGeminiContext,
         sendContextToGemini
     });

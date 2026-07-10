@@ -26,6 +26,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     // cool down instead of re-dialing a dead number.
     const MIN_BRAIN_INTERVAL_MS = 10000;
     const INJECT_MAX_CHARS = 2400;         // the live session needs facts, not essays
+    const TEXT_BRAIN_DEFAULT_LABEL = 'gemini-2.5-flash-lite (default)';
     let lastBrainCallAt = 0;
     let brainCooldownUntil = 0;
     let cooldownNoticeShown = false;
@@ -307,12 +308,19 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         }
         brainCooldownUntil = Date.now() + seconds * 1000;
         cooldownModel = getSelectedTextBrainModel();
+        const modelLabel = cooldownModel || TEXT_BRAIN_DEFAULT_LABEL;
+        if (isQuota) {
+            // Quota hits are NEVER silent: name the model plainly so the user knows exactly
+            // which one is exhausted and that switching resumes right away.
+            display('System Message: Text-brain model "' + modelLabel + '" hit its quota limit (429). '
+                + 'Paused ' + seconds + 's — replies continue directly via the live model. '
+                + 'Switch the Mode 2 text-brain model in Session Controls to resume immediately on a different quota.');
+            cooldownNoticeShown = true;
+            return;
+        }
         if (!cooldownNoticeShown) {
             cooldownNoticeShown = true;
-            const switchHint = isQuota
-                ? ' Or switch the Mode 2 text-brain model in Session Controls to resume immediately on a different quota.'
-                : '';
-            display('System Message: Text Brain paused for ' + seconds + 's (' + compactText(message, 140) + '). Replies continue directly via the live model.' + switchHint);
+            display('System Message: Text Brain paused for ' + seconds + 's (' + compactText(message, 140) + '). Replies continue directly via the live model.');
         }
     }
 
@@ -341,6 +349,26 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
             // talk). Repeat injections are also skipped — re-telling the live model the same facts
             // only invites "I've got the context!" chatter and burns its window.
             const noContext = !extractedContext || /^NO_CONTEXT\b/i.test(extractedContext);
+            if (noContext) {
+                // Guard the live model against filling the gap with invented datapack facts
+                // (it once answered "chat, perks, inventory, map, system" for tabs that never
+                // existed). Tiny silent note: no data this turn -> say so, don't guess.
+                const ws = window.webSocket;
+                if (ws && ws.readyState === (window.WebSocket?.OPEN ?? 1)) {
+                    ws.send(JSON.stringify({
+                        source: 'modular_gemini_context',
+                        is_modular_context: true,
+                        is_system_context: true,
+                        silent_response: true,
+                        realtime_input: {
+                            media_chunks: [{
+                                mime_type: 'text/plain',
+                                data: '[SILENT GUARD — internal note, do NOT acknowledge: the EveOS context system found NO datapack information for this turn. If the user\'s message asks about EveOS datapack contents (tabs, sub-tabs, cards, folders, bookmarks), say you do not have that context loaded and suggest sending it via the Context Relay — never invent or guess datapack contents.]'
+                            }]
+                        }
+                    }));
+                }
+            }
             if (!noContext && extractedContext !== lastInjectedContext) {
                 lastInjectedContext = extractedContext;
                 display('TEXT BRAIN → LIVE: Injected Extracted Context');

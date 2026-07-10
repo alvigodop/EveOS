@@ -184,6 +184,16 @@ window.UnidexView = (function () {
         }
     }
 
+    // Whether Unidex shows inactive tabs (grayed) or hides them entirely. Persisted so the
+    // choice survives reloads; default OFF keeps the overview matched to the active datapack.
+    function setShowInactiveTabs(enabled) {
+        if (typeof config !== 'undefined' && config) {
+            config.unidexShowInactiveTabs = !!enabled;
+            if (typeof saveConfig === 'function') saveConfig({ source: 'unidex-show-inactive-tabs' });
+        }
+        if (typeof renderDashboard === 'function') renderDashboard();
+    }
+
     // Collapse/expand the SUB TABS section of a tab wrapper card (tabs stage). Pure DOM toggle —
     // no re-render — with the state remembered per session in window.__unidexExpandedSubTabs so
     // navigating stages keeps a section open; a fresh page load returns to collapsed.
@@ -233,6 +243,7 @@ window.UnidexView = (function () {
         getMatrixScope,
         openMatrixWorkshop,
         openNexusSearch,
-        toggleSubTabs
+        toggleSubTabs,
+        setShowInactiveTabs
     };
 })();

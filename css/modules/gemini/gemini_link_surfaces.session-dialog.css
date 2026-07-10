@@ -127,6 +127,33 @@
     gap: 14px;
 }
 
+.gemini-session-section__heading-text {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Inline label + switch pair for section headings. The old absolutely-positioned switch label
+   hung to the LEFT of the switch track and overlapped the section kicker in the narrow dialog. */
+.gemini-session-heading-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.gemini-session-heading-switch .mdl-switch {
+    width: 44px;
+}
+
+.gemini-session-switch-inline-label {
+    color: rgba(230, 246, 255, 0.68);
+    font-size: 0.68rem;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
 .gemini-session-section__heading h3 {
     margin: 3px 0 0;
     color: #edfaff;

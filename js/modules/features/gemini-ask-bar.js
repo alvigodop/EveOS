@@ -38,16 +38,22 @@
 
     function sendQuestion(question) {
         const message = '[User is viewing: ' + describeSurface() + '] ' + question;
+        const canSend = (window.EveAudioflixState?.isTextBrainMode?.() === true
+            && typeof window.EveGeminiMode2?.relayUserUtterance === 'function')
+            || typeof window.sendTextMessage === 'function';
+        if (!canSend) return { sent: false };
+        // Mirror the Gemini chat input: the user's message must appear in the conversation feed
+        // exactly like a message typed there (the scope prefix stays out of the visible log).
+        if (typeof window.displayMessage === 'function') {
+            window.displayMessage('YOU: ' + question);
+        }
         if (window.EveAudioflixState?.isTextBrainMode?.() === true
             && typeof window.EveGeminiMode2?.relayUserUtterance === 'function') {
             window.EveGeminiMode2.relayUserUtterance(message);
             return { sent: true, route: 'mode2' };
         }
-        if (typeof window.sendTextMessage === 'function') {
-            window.sendTextMessage(message);
-            return { sent: true, route: 'live' };
-        }
-        return { sent: false };
+        window.sendTextMessage(message);
+        return { sent: true, route: 'live' };
     }
 
     function injectStyles() {
@@ -78,20 +84,42 @@
         wrapper.appendChild(button);
 
         let active = false;
+        let placeholderTimer = null;
         const originalPlaceholder = input.placeholder;
+
+        function refreshPlaceholder() {
+            if (active) input.placeholder = 'Ask Gemini — viewing ' + describeSurface() + '…';
+        }
 
         function setActive(next) {
             active = !!next;
             wrapper.classList.toggle('is-gemini-ask-mode', active);
             button.classList.toggle('is-active', active);
             button.setAttribute('aria-pressed', String(active));
-            input.placeholder = active
-                ? 'Ask Gemini — viewing ' + describeSurface() + '…'
-                : originalPlaceholder;
-            if (active) input.focus();
+            if (active) {
+                refreshPlaceholder();
+                // Keep the depth hint live while ask mode is on: switching tabs or moving
+                // through Unidex updates the label without re-toggling.
+                if (!placeholderTimer) placeholderTimer = setInterval(refreshPlaceholder, 1000);
+                input.focus();
+            } else {
+                if (placeholderTimer) { clearInterval(placeholderTimer); placeholderTimer = null; }
+                input.placeholder = originalPlaceholder;
+                // Leaving ask mode: drop the question text and restore the unfiltered dashboard
+                // (the bar is a search filter again from here on).
+                input.value = '';
+                if (typeof window.renderDashboard === 'function') window.renderDashboard();
+            }
         }
 
         button.addEventListener('click', function () { setActive(!active); });
+
+        // While ask mode is on, typing must NOT run the datapack title filter: block the
+        // dashboard's re-render-on-input listener (registered later in boot, so
+        // stopImmediatePropagation from this earlier listener wins).
+        input.addEventListener('input', function (event) {
+            if (active) event.stopImmediatePropagation();
+        });
 
         // Keydown capture + preventDefault suppresses the inline onkeypress omnibox handler, so
         // Enter in ask mode goes to Gemini instead of running a web search.

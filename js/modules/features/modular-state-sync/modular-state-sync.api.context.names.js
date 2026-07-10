@@ -49,8 +49,21 @@ window.EveDataStore = window.EveDataStore || {};
         return null;
     }
 
+    // Inactive tabs are hidden state on the site — never eligible as context, at any depth.
+    function isNodeActive(node) {
+        return !!node && node.inactive !== true;
+    }
+
+    function isRootEligible(rootNode) {
+        if (typeof ns.isWorkspaceContextEligible === 'function') {
+            return ns.isWorkspaceContextEligible(rootNode, getConfig());
+        }
+        return isNodeActive(rootNode);
+    }
+
     function branchIds(node, out) {
         const ids = out || new Set();
+        if (!isNodeActive(node)) return ids;
         const id = text(node?.id, '');
         if (id) ids.add(id);
         (Array.isArray(node?.subTabs) ? node.subTabs : []).forEach(function (child) { branchIds(child, ids); });
@@ -63,7 +76,7 @@ window.EveDataStore = window.EveDataStore || {};
         const workspaces = Array.isArray(getConfig().workspaces) ? getConfig().workspaces : [];
         if (scope.scope === 'all') {
             const selected = Array.isArray(scope.workspaceIds) ? scope.workspaceIds.map(function (id) { return text(id, ''); }).filter(Boolean) : [];
-            if (!selected.length) return workspaces;
+            if (!selected.length) return workspaces.filter(isRootEligible);
             // Group overview lists every branch id — keep only ROOT nodes so subtrees are not
             // duplicated (a selected sub-tab already ships nested inside its selected ancestor).
             const nodes = selected.map(function (id) { return findWorkspace(id, workspaces); }).filter(Boolean);
@@ -73,7 +86,8 @@ window.EveDataStore = window.EveDataStore || {};
                 ids.delete(text(node?.id, ''));
                 ids.forEach(function (id) { descendantIds.add(id); });
             });
-            return nodes.filter(function (node) { return !descendantIds.has(text(node?.id, '')); });
+            return nodes.filter(function (node) { return !descendantIds.has(text(node?.id, '')); })
+                .filter(isRootEligible);
         }
         const root = findWorkspace(scope.workspaceId, workspaces);
         return root ? [root] : [];
@@ -92,17 +106,41 @@ window.EveDataStore = window.EveDataStore || {};
         return 'Tab "' + tabName + '"';
     }
 
+    function tabName(node) {
+        return text(node?.name || node?.title, text(node?.id, 'Tab'));
+    }
+
+    // Shortcut tabs must never read as the tab they point at: name the TARGET explicitly so the
+    // model can say "X is a shortcut to Y" instead of conflating them.
+    function shortcutTargetName(node) {
+        const linkedTo = text(node?.linkedTo, '');
+        if (!linkedTo) return '';
+        const target = findWorkspace(linkedTo, getConfig().workspaces);
+        return tabName(target || { id: linkedTo });
+    }
+
+    function shortcutSuffix(node) {
+        const targetName = shortcutTargetName(node);
+        return targetName ? ' [shortcut to tab "' + targetName + '"]' : '';
+    }
+
     function tabLine(node, depth) {
-        const name = text(node?.name || node?.title, text(node?.id, 'Tab'));
-        const shortcut = text(node?.linkedTo, '') ? ' [shortcut]' : '';
-        return depth ? '  '.repeat(depth) + '- ' + name + shortcut : name + shortcut;
+        const label = tabName(node) + shortcutSuffix(node);
+        return depth ? '  '.repeat(depth) + '- ' + label : label;
+    }
+
+    // "Tab \"test\"" for roots, "Sub-tab \"1Tester\" (under \"test\")" for children — spoken-model
+    // proof: a sub-tab's cards can't be misread as its parent's.
+    function tabContextLabel(node, parentPath) {
+        if (!parentPath) return 'Tab "' + tabName(node) + '"';
+        return 'Sub-tab "' + tabName(node) + '" (under "' + parentPath + '")';
     }
 
     function buildTabNames(roots, maxDepth) {
         const lines = [];
         let count = 0;
         function visit(node, depth) {
-            if (!node) return;
+            if (!isNodeActive(node)) return;
             lines.push(tabLine(node, depth));
             count += 1;
             if (depth >= maxDepth) return;
@@ -133,30 +171,32 @@ window.EveDataStore = window.EveDataStore || {};
         return byWorkspace;
     }
 
-    function tabPathLabel(node, prefix) {
-        const name = text(node?.name || node?.title, text(node?.id, 'Tab'));
-        return prefix ? prefix + ' > ' + name : name;
-    }
-
     function buildCardNames(roots, scope) {
         const idSet = new Set();
         roots.forEach(function (root) { branchIds(root, idSet); });
         const cards = cardsByWorkspace(idSet);
         const lines = [];
         let count = 0;
-        function visit(node, prefix) {
-            if (!node) return;
-            const label = tabPathLabel(node, prefix);
+        function visit(node, parentPath) {
+            if (!isNodeActive(node)) return;
+            const name = tabName(node);
+            // Shortcuts own no content — emit a pointer so the model never attributes the
+            // TARGET tab's cards to the shortcut (or vice versa).
+            if (text(node?.linkedTo, '')) {
+                lines.push(tabContextLabel(node, parentPath) + ' is a shortcut to tab "' + shortcutTargetName(node) + '" — its cards are listed under that tab.');
+                return;
+            }
             const wsId = text(node?.id, '');
             let names = Array.from(cards.get(wsId) || []).sort();
             if (scope.scope === 'card' && text(scope.categoryName, '') && wsId === text(scope.workspaceId, '')) {
-                names = names.filter(function (name) { return name === scope.categoryName; });
+                names = names.filter(function (cardName) { return cardName === scope.categoryName; });
             }
             if (names.length) {
-                lines.push(label + ': ' + names.join(', '));
+                lines.push(tabContextLabel(node, parentPath) + ' has cards: ' + names.join(', '));
                 count += names.length;
             }
-            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, label); });
+            const childPath = parentPath ? parentPath + ' > ' + name : name;
+            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, childPath); });
         }
         roots.forEach(function (root) { visit(root, ''); });
         return { body: lines.join('\n'), count: count };
@@ -206,20 +246,24 @@ window.EveDataStore = window.EveDataStore || {};
                 emitFolder(folder.id, maps, byFolder, indent + '  ');
             });
         }
-        function visit(node, prefix) {
-            if (!node) return;
-            const label = tabPathLabel(node, prefix);
+        function visit(node, parentPath) {
+            if (!isNodeActive(node)) return;
+            const name = tabName(node);
+            if (text(node?.linkedTo, '')) {
+                lines.push(tabContextLabel(node, parentPath) + ' is a shortcut to tab "' + shortcutTargetName(node) + '" — its bookmarks are listed under that tab.');
+                return;
+            }
             const wsId = text(node?.id, '');
             let names = Array.from(cards.get(wsId) || []).sort();
             if (scope.scope === 'card' && text(scope.categoryName, '') && wsId === text(scope.workspaceId, '')) {
-                names = names.filter(function (name) { return name === scope.categoryName; });
+                names = names.filter(function (cardName) { return cardName === scope.categoryName; });
             }
             names.forEach(function (cardName) {
                 const key = wsId + '::' + cardName;
                 const cardLinks = linksByCard.get(key) || [];
                 const maps = folderMaps(folderTrees[key] || {});
                 if (!cardLinks.length && !maps.byId.size) return;
-                lines.push(label + ' > ' + cardName + ':');
+                lines.push(tabContextLabel(node, parentPath) + ' > card "' + cardName + '":');
                 const byFolder = new Map();
                 cardLinks.forEach(function (link) {
                     const folderId = text(link?.folderId, '');
@@ -233,7 +277,8 @@ window.EveDataStore = window.EveDataStore || {};
                 });
                 emitFolder('', maps, byFolder, '  ');
             });
-            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, label); });
+            const childPath = parentPath ? parentPath + ' > ' + name : name;
+            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, childPath); });
         }
         roots.forEach(function (root) { visit(root, ''); });
         return { body: lines.join('\n'), count: bookmarkCount, folderCount: folderCount };
