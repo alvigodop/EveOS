@@ -4,7 +4,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Modal Logic Modules
-    "js/modules/modals/logic/utils.js",
+    "js/modules/modals/logic/utils.js?v=0.1.0",
     "js/modules/modals/logic/link-form.shared.data.js?v=0.2.1",
     "js/modules/modals/logic/link-form.shared.ui.js?v=0.2.1",
     "js/modules/modals/logic/link-form.shared.js?v=0.2.3",
@@ -19,7 +19,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-bookmark-focus.view.library.js?v=0.1.1",
     "js/modules/modals/modal-bookmark-focus.view.js?v=0.3.0",
     "js/modules/modals/modal-bookmark-focus.metadata.js?v=0.2.1",
-    "js/modules/modals/modal-bookmark-focus.helpers.js",
+    "js/modules/modals/modal-bookmark-focus.helpers.js?v=0.1.0",
     "js/modules/modals/modal-bookmark-focus.js?v=0.3.0",
     "js/modules/modals/logic/link-form.cover-images.js?v=0.1.0",
     "js/modules/modals/logic/link-form.related-urls.js?v=0.1.0",

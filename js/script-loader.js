@@ -13,7 +13,10 @@
     } = bootstrap;
     const DEFERRED_LOAD_DELAY_MS = 1500;
     const CRITICAL_BATCH_SIZE = 12;
-    const CRITICAL_BATCH_PAUSE_MS = 15;
+    // Batching (12 in flight, awaited per batch) is what keeps the main thread responsive;
+    // this pause is only extra paint headroom. At 15ms the ~55 inter-batch pauses added a
+    // fixed ~825ms to every boot, so keep it just above zero.
+    const CRITICAL_BATCH_PAUSE_MS = 3;
     const LOCALHOST_CRITICAL_BATCH_MIN_SCRIPTS = 80;
     const DEFERRED_IDLE_TIMEOUT_MS = 2500;
     const DEFERRED_BATCH_SIZE = 4;
@@ -336,6 +339,7 @@
             const { criticalScripts, deferredScripts } = getBootBuckets();
             const hasDeferredScripts = deferredScripts.length > 0;
             let deferredLoadPromise = null;
+            performance.mark('eve:critical-scripts:start');
             if (shouldBatchCriticalScripts(criticalScripts)) {
                 console.log(`Starting batched critical script loading (${criticalScripts.length})...`);
                 await loadScriptsInBatches(criticalScripts, CRITICAL_BATCH_SIZE, CRITICAL_BATCH_PAUSE_MS);
@@ -343,11 +347,14 @@
                 console.log('Starting parallel script loading...');
                 await Promise.all(criticalScripts.map((src) => loadScript(src)));
             }
+            performance.mark('eve:critical-scripts:end');
+            const criticalMeasure = performance.measure('eve:critical-scripts', 'eve:critical-scripts:start', 'eve:critical-scripts:end');
+            const criticalMs = Math.round(criticalMeasure ? criticalMeasure.duration : 0);
             clearReloadAttempts();
             if (hasDeferredScripts) {
-                console.log(`Critical scripts loaded (${criticalScripts.length}/${scripts.length}). Initializing...`);
+                console.log(`Critical scripts loaded (${criticalScripts.length}/${scripts.length}) in ${criticalMs}ms. Initializing...`);
             } else {
-                console.log('All scripts loaded. Initializing...');
+                console.log(`All scripts loaded in ${criticalMs}ms. Initializing...`);
             }
 
             // Initialize Modals
@@ -375,9 +382,12 @@
                 if (!deferredLoadPromise) {
                     deferredLoadPromise = (async () => {
                         try {
+                            performance.mark('eve:deferred-scripts:start');
                             await loadDeferredScriptsInBatches(deferredScripts);
+                            performance.mark('eve:deferred-scripts:end');
+                            const deferredMeasure = performance.measure('eve:deferred-scripts', 'eve:deferred-scripts:start', 'eve:deferred-scripts:end');
                             if (window.ScraperInit && typeof ScraperInit.init === 'function') ScraperInit.init();
-                            console.log('All scripts loaded.');
+                            console.log(`All scripts loaded (deferred phase ${Math.round(deferredMeasure ? deferredMeasure.duration : 0)}ms).`);
                         } catch (deferredError) {
                             console.warn('[ScriptLoader] Deferred script load warning:', deferredError);
                             throw deferredError;

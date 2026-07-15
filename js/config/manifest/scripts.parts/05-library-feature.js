@@ -13,7 +13,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/ratings/engine-components/engine-derived.js?v=0.2.4",
     "js/modules/features/library/ratings/engine-core.js?v=0.2.4",
     "js/modules/features/library/ratings/engine.js?v=0.2.3",
-    "js/modules/features/library/library-storage.js",
+    "js/modules/features/library/library-storage.js?v=0.1.0",
     "js/modules/features/library/entry-manager.form.js?v=0.2.1",
     "js/modules/features/library/entry-manager.crud.js?v=0.2.1",
     "js/modules/features/library/entry-manager.js?v=0.2.3",
@@ -31,6 +31,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/entries-renderer.helpers.js?v=0.2.1",
     "js/modules/features/library/entries-renderer.templates.js?v=0.2.2",
     "js/modules/features/library/entries-renderer.js?v=0.2.7",
-    "js/modules/features/library/library-ui.shared.js",
+    "js/modules/features/library/library-ui.shared.js?v=0.1.0",
     "js/modules/features/library/library-ui.template.js?v=0.2.2"
 ]);

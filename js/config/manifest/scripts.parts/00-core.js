@@ -12,7 +12,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/search-monitor-boot.js?v=0.1.8",
     "js/modules/core/search-monitor-scroll-preserve.js?v=0.1.1",
     "js/modules/core/performance-monitor.js?v=0.1.2",
-    "js/modules/core/indexeddb-store.js",
+    "js/modules/core/indexeddb-store.js?v=0.1.0",
     "js/modules/core/storage.runtime.shared.js?v=0.1.0",
     "js/modules/core/storage.runtime.backend.js?v=0.1.0",
     "js/modules/core/storage.runtime.io.js?v=0.1.1",

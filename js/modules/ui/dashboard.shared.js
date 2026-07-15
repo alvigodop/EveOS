@@ -4,9 +4,10 @@ function renderDashboard() {
     // Coalesce rapid-fire render calls into a single frame
     if (window._eveDashRenderPending) return;
     window._eveDashRenderPending = true;
-    window._eveDashRenderRafId = requestAnimationFrame(function () {
+    var runCoalescedRender = function () {
         window._eveDashRenderPending = false;
         window._eveDashRenderRafId = 0;
+        window._eveDashRenderTimerId = 0;
         var finishPerf = window.EvePerformanceMonitor?.startOperation?.('renderDashboard', {
             source: window.__eveDashboardRenderHint?.source || window.__eveDashboardRenderHint?.kind || 'render'
         });
@@ -14,15 +15,29 @@ function renderDashboard() {
         finishPerf?.({
             dirty: !!window._evePerfMode
         });
-    });
+    };
+    if (document.visibilityState === 'hidden') {
+        // rAF never fires while the tab is hidden, which would leave the pending flag stuck
+        // and swallow every later render call. Build the DOM on a timer instead so the app
+        // is already rendered the moment the tab is focused.
+        window._eveDashRenderRafId = 0;
+        window._eveDashRenderTimerId = window.setTimeout(runCoalescedRender, 0);
+    } else {
+        window._eveDashRenderTimerId = 0;
+        window._eveDashRenderRafId = requestAnimationFrame(runCoalescedRender);
+    }
 }
 
 window.cancelPendingDashboardRender = function cancelPendingDashboardRender() {
     if (window._eveDashRenderPending && window._eveDashRenderRafId) {
         cancelAnimationFrame(window._eveDashRenderRafId);
     }
+    if (window._eveDashRenderPending && window._eveDashRenderTimerId) {
+        window.clearTimeout(window._eveDashRenderTimerId);
+    }
     window._eveDashRenderPending = false;
     window._eveDashRenderRafId = 0;
+    window._eveDashRenderTimerId = 0;
 };
 
 function _getRobustScrollTop() {

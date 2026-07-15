@@ -14,7 +14,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/autotitle/strategies/scraper-engine.js?v=0.2.9",
     "js/modules/features/autotitle/strategies/lightpanda.js?v=0.1.6",
     "js/modules/features/autotitle/strategies/camofox.js?v=0.1.1",
-    "js/modules/features/autotitle/strategies/url-slug.js",
+    "js/modules/features/autotitle/strategies/url-slug.js?v=0.1.0",
     "js/modules/features/autotitle/autotitle-utils.js?v=0.2.4",
     "js/modules/features/autotitle/autotitle-core.helpers.js?v=0.1.0",
     "js/modules/features/autotitle/autotitle-core.bridges.js?v=0.1.0",
