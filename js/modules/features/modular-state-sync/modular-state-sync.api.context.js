@@ -238,6 +238,7 @@ window.EveDataStore = window.EveDataStore || {};
     // Depth-aware tab classification for the Gemini agent, mirroring the sidebar's Sub^N
     // notation: depth 0 is a "root tab", depth 1 a "sub tab", deeper levels "sub^N tab" —
     // always with the full parent path so the agent knows exactly where the user is.
+    // Shortcut tabs are annotated with their linked targets (real tabs).
     function describeWorkspaceTabPath(workspaceId) {
         const cfg = getRuntimeConfigForContext();
         const roots = Array.isArray(cfg.workspaces) ? cfg.workspaces : [];
@@ -253,17 +254,37 @@ window.EveDataStore = window.EveDataStore || {};
         }
         const depth = chain.length - 1;
         const name = text(node.name, node.id);
-        const tabClass = depth === 0 ? 'root tab' : (depth === 1 ? 'sub tab' : 'sub^' + depth + ' tab');
+
+        let tabClass = depth === 0 ? 'root tab' : (depth === 1 ? 'sub tab' : 'sub^' + depth + ' tab');
+        if (text(node.linkedTo, '')) {
+            const targetId = text(node.linkedTo, '');
+            const targetNode = helpers?.findById ? helpers.findById(roots, targetId) : null;
+            const targetName = targetNode ? text(targetNode.name, targetNode.id) : targetId;
+            tabClass = 'shortcut ' + tabClass + ' (pointing to tab "' + targetName + '")';
+        }
+
         const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime;
         const rootGroupId = text(chain[0]?.groupId, '');
         const group = rootGroupId && typeof groupsApi?.findGroupById === 'function'
             ? groupsApi.findGroupById(rootGroupId, cfg)
             : null;
         const groupName = text(group?.name, '');
+
         if (depth === 0) {
-            return 'root tab "' + name + '"' + (groupName ? ' (inside group "' + groupName + '")' : '');
+            return tabClass + ' "' + name + '"' + (groupName ? ' (inside group "' + groupName + '")' : '');
         }
-        const pathText = chain.map((entry) => text(entry?.name, entry?.id)).join(' > ');
+
+        const pathText = chain.map((entry) => {
+            const entryName = text(entry?.name, entry?.id);
+            if (text(entry?.linkedTo, '')) {
+                const targetId = text(entry.linkedTo, '');
+                const targetNode = helpers?.findById ? helpers.findById(roots, targetId) : null;
+                const targetName = targetNode ? text(targetNode.name, targetNode.id) : targetId;
+                return entryName + ' [shortcut to "' + targetName + '"]';
+            }
+            return entryName;
+        }).join(' > ');
+
         const groupNote = groupName ? '; root tab is inside group "' + groupName + '"' : '';
         return tabClass + ' "' + name + '" (path: ' + pathText + groupNote + ')';
     }
