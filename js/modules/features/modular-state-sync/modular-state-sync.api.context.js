@@ -220,14 +220,52 @@ window.EveDataStore = window.EveDataStore || {};
             collectContextWorkspaceBranchIds(root.id).forEach((id) => ids.add(id));
         });
         const group = typeof groupsApi.findGroupById === 'function' ? groupsApi.findGroupById(groupId, cfg) : null;
+        const groupName = text(group?.name, '');
         return ids.size ? {
             scope: 'all',
             workspaceId: Array.from(ids)[0] || '',
             workspaceIds: Array.from(ids),
             categoryName: '',
-            label: text(group?.name, 'Group overview'),
+            // The label is what the model sees as "where the user is" — a bare group name here
+            // reads as a normal tab, so classify the surface explicitly.
+            label: groupName
+                ? 'Group tab "' + groupName + '" (a group of tabs, not a single tab)'
+                : 'Group tab (a group of tabs, not a single tab)',
             source: 'group-overview'
         } : null;
+    }
+
+    // Depth-aware tab classification for the Gemini agent, mirroring the sidebar's Sub^N
+    // notation: depth 0 is a "root tab", depth 1 a "sub tab", deeper levels "sub^N tab" —
+    // always with the full parent path so the agent knows exactly where the user is.
+    function describeWorkspaceTabPath(workspaceId) {
+        const cfg = getRuntimeConfigForContext();
+        const roots = Array.isArray(cfg.workspaces) ? cfg.workspaces : [];
+        const helpers = window.EveWorkspaceHelpers;
+        const target = text(workspaceId, '');
+        const node = helpers?.findById ? helpers.findById(roots, target) : null;
+        if (!node) return 'tab "' + target + '"';
+        const chain = [node];
+        let parent = typeof helpers?.findParent === 'function' ? helpers.findParent(roots, node.id) : null;
+        while (parent) {
+            chain.unshift(parent);
+            parent = helpers.findParent(roots, parent.id);
+        }
+        const depth = chain.length - 1;
+        const name = text(node.name, node.id);
+        const tabClass = depth === 0 ? 'root tab' : (depth === 1 ? 'sub tab' : 'sub^' + depth + ' tab');
+        const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime;
+        const rootGroupId = text(chain[0]?.groupId, '');
+        const group = rootGroupId && typeof groupsApi?.findGroupById === 'function'
+            ? groupsApi.findGroupById(rootGroupId, cfg)
+            : null;
+        const groupName = text(group?.name, '');
+        if (depth === 0) {
+            return 'root tab "' + name + '"' + (groupName ? ' (inside group "' + groupName + '")' : '');
+        }
+        const pathText = chain.map((entry) => text(entry?.name, entry?.id)).join(' > ');
+        const groupNote = groupName ? '; root tab is inside group "' + groupName + '"' : '';
+        return tabClass + ' "' + name + '" (path: ' + pathText + groupNote + ')';
     }
 
     function getCurrentGeminiContextScope() {
@@ -245,6 +283,7 @@ window.EveDataStore = window.EveDataStore || {};
                     scope: 'card',
                     workspaceId: selectedWorkspace,
                     categoryName: selectedCategory,
+                    label: 'card "' + selectedCategory + '" in ' + describeWorkspaceTabPath(selectedWorkspace),
                     source: 'unidex-card'
                 };
             }
@@ -254,6 +293,7 @@ window.EveDataStore = window.EveDataStore || {};
                     workspaceId: selectedWorkspace,
                     workspaceIds: collectContextWorkspaceBranchIds(selectedWorkspace),
                     categoryName: '',
+                    label: describeWorkspaceTabPath(selectedWorkspace),
                     source: 'unidex-workspace'
                 };
             }
@@ -273,6 +313,7 @@ window.EveDataStore = window.EveDataStore || {};
             workspaceId: activeWorkspace,
             workspaceIds: collectContextWorkspaceBranchIds(activeWorkspace),
             categoryName: '',
+            label: describeWorkspaceTabPath(activeWorkspace),
             source: 'search-monitor'
         };
     }
@@ -661,6 +702,7 @@ window.EveDataStore = window.EveDataStore || {};
         pullNow,
         normalizeBookmarkFilenames,
         getCurrentGeminiContextScope,
+        describeWorkspaceTabPath,
         getVisibleContextWorkspaceIds,
         isWorkspaceContextEligible,
         fetchGeminiContext,

@@ -15,6 +15,7 @@ window.EveDataStore = window.EveDataStore || {};
         pullNow: ns.pullNow,
         normalizeBookmarkFilenames: ns.normalizeBookmarkFilenames,
         getCurrentGeminiContextScope: ns.getCurrentGeminiContextScope,
+        describeWorkspaceTabPath: ns.describeWorkspaceTabPath,
         fetchGeminiContext: ns.fetchGeminiContext,
         sendContextToGemini: ns.sendContextToGemini,
         getGeminiContextCardOptions: ns.getGeminiContextCardOptions,

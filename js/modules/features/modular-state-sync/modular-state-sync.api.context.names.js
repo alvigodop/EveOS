@@ -93,17 +93,35 @@ window.EveDataStore = window.EveDataStore || {};
         return root ? [root] : [];
     }
 
+    // Depth-aware surface description: root/sub/sub^N tab classification with the full parent
+    // path, via the canonical describer in the context API.
+    function describeTabSurface(workspaceId) {
+        if (typeof ns.describeWorkspaceTabPath === 'function') {
+            return ns.describeWorkspaceTabPath(workspaceId);
+        }
+        const root = findWorkspace(workspaceId, getConfig().workspaces);
+        return 'tab "' + text(root?.name, workspaceId) + '"';
+    }
+
+    function capitalize(value) {
+        const normalized = text(value, '');
+        return normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : normalized;
+    }
+
     function describeSurface(scope) {
         if (scope.scope === 'all') {
+            // Group overviews must never read as a normal tab: the classified label from the
+            // scope builder wins, and the fallback stays classified too.
             if (text(scope.label, '')) return scope.label;
-            return text(scope.source, '').indexOf('group') === 0 ? 'Group overview' : 'Unidex datapack overview';
+            return text(scope.source, '').indexOf('group') === 0
+                ? 'Group tab (a group of tabs, not a single tab)'
+                : 'Unidex datapack overview';
         }
-        const root = findWorkspace(scope.workspaceId, getConfig().workspaces);
-        const tabName = text(root?.name, scope.workspaceId);
+        const surface = describeTabSurface(scope.workspaceId);
         if (scope.scope === 'card' && text(scope.categoryName, '')) {
-            return 'Card "' + scope.categoryName + '" in tab "' + tabName + '"';
+            return 'Card "' + scope.categoryName + '" in ' + surface;
         }
-        return 'Tab "' + tabName + '"';
+        return capitalize(surface);
     }
 
     function tabName(node) {
