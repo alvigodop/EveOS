@@ -84,9 +84,13 @@
             '.gemini-ask-panel-collapse:hover { opacity: 1; color: var(--accent, #00d4ff); }',
             '.gemini-ask-panel.is-collapsed .gemini-ask-panel-collapse { transform: rotate(-90deg); }',
             // Generous body: this space is reserved for the upcoming ask-surface content.
-            '.gemini-ask-panel-body { min-height: 320px; max-height: 60vh; overflow-y: auto; display: flex; align-items: center; justify-content: center; padding: 18px; }',
+            '.gemini-ask-panel-body { min-height: 320px; max-height: 60vh; overflow-y: auto; display: flex; align-items: center; justify-content: center; padding: 18px; position: relative; }',
             '.gemini-ask-panel.is-collapsed .gemini-ask-panel-body { display: none; }',
-            '.gemini-ask-panel-placeholder { font-size: 2.4rem; font-weight: 700; letter-spacing: 2px; color: var(--text-main, #eee); opacity: 0.25; text-transform: uppercase; }'
+            '.gemini-ask-panel-placeholder { font-size: 2.4rem; font-weight: 700; letter-spacing: 2px; color: var(--text-main, #eee); opacity: 0.25; text-transform: uppercase; }',
+            '.agent-space-popout-btn { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }',
+            '.agent-space-popout-btn:hover { background: rgba(0, 212, 255, 0.1); border-color: color-mix(in srgb, var(--accent, #00d4ff) 50%, transparent); color: var(--accent, #00d4ff); }',
+            '.agent-space-popout-btn .material-icons { font-size: 18px; line-height: 1; }',
+            '#chatPopup ~ #loadingIndicator, #chatPopupOverlay ~ #loadingIndicator { display: none !important; }'
         ].join('\n');
         document.head.appendChild(style);
     }
@@ -107,7 +111,7 @@
         header.className = 'gemini-ask-panel-header';
         const title = document.createElement('span');
         title.className = 'gemini-ask-panel-title';
-        title.textContent = '✨ Ask Gemini';
+        title.textContent = '✨ Agent Space';
         const collapseBtn = document.createElement('button');
         collapseBtn.type = 'button';
         collapseBtn.className = 'gemini-ask-panel-collapse';
@@ -123,6 +127,53 @@
         placeholder.className = 'gemini-ask-panel-placeholder';
         placeholder.textContent = 'TO BE FILLED';
         body.appendChild(placeholder);
+
+        const shortcutBtn = document.createElement('button');
+        shortcutBtn.type = 'button';
+        shortcutBtn.className = 'agent-space-popout-btn';
+        shortcutBtn.title = 'Open Gemini in a separate window';
+        shortcutBtn.innerHTML = '<i class="material-icons">open_in_new</i>';
+        shortcutBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+
+            const realPopout = document.getElementById('popoutButton');
+            if (realPopout) {
+                realPopout.click();
+            } else {
+                // Boot Gemini and wait for the popout button to load
+                if (typeof window.requestGeminiBoot === 'function') {
+                    window.requestGeminiBoot('ui-interaction').then(function () {
+                        let retries = 30;
+                        const poll = setInterval(function () {
+                            const btn = document.getElementById('popoutButton');
+                            if (btn) {
+                                clearInterval(poll);
+                                if (btn.dataset.bubbleStopped !== 'true') {
+                                    btn.addEventListener('click', function (event) {
+                                        event.stopPropagation();
+                                    });
+                                    btn.dataset.bubbleStopped = 'true';
+                                }
+                                btn.click();
+                            } else {
+                                retries--;
+                                if (retries <= 0) {
+                                    clearInterval(poll);
+                                    if (typeof window.showToast === 'function') {
+                                        window.showToast('Failed to initialize popout chat.', 'error');
+                                    }
+                                }
+                            }
+                        }, 100);
+                    });
+                } else {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Gemini connection is not initialized yet.', 'warning');
+                    }
+                }
+            }
+        });
+        body.appendChild(shortcutBtn);
 
         panel.appendChild(header);
         panel.appendChild(body);

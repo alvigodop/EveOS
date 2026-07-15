@@ -114,7 +114,8 @@ function initializePopoutChatFeature() {
         popupOpen = false;
     }
 
-    popoutButton.addEventListener('click', () => {
+    popoutButton.addEventListener('click', (event) => {
+        if (event) event.stopPropagation();
         if (!popupOpen) {
             openPopup();
         } else {
