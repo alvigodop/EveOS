@@ -562,7 +562,7 @@ window.EveDataStore = window.EveDataStore || {};
     // Headroom reserved for the nexus-trace block + chunk markers appended after tier selection.
     const LIVE_CONTEXT_APPEND_RESERVE_CHARS = 12000;
 
-    async function sendContextToGemini(mode = 'summary', limit = 25, options = {}) {
+    async function sendContextToGeminiCore(mode = 'summary', limit = 25, options = {}) {
         let context = await fetchGeminiContext(mode, limit, options);
         if (!context.ok) return context;
 
@@ -708,6 +708,29 @@ window.EveDataStore = window.EveDataStore || {};
         }
 
         return { ok: false, error: 'Gemini socket unavailable and clipboard access denied.' };
+    }
+
+    // Traced wrapper: every relay send (button sends, replays) lands in the Data Stream
+    // insight timeline, so scoped context handoffs are visible in the Agent Space viewer
+    // instead of only their config side-effects.
+    async function sendContextToGemini(mode = 'summary', limit = 25, options = {}) {
+        const result = await sendContextToGeminiCore(mode, limit, options);
+        try {
+            const manifest = result?.manifest || {};
+            ns.recordDataStreamEvent?.({
+                type: 'relay',
+                outcome: result?.sent ? 'sent' : (result?.copied ? 'copied' : 'skipped'),
+                reason: result?.ok ? '' : String(result?.error || 'failed'),
+                route: result?.route || '',
+                relayMode: result?.mode || mode,
+                scope: { label: String(manifest.scope || ''), scope: String(manifest.scopeMode || '') },
+                counts: manifest.counts || null,
+                messageChars: Number(manifest.messageChars) || 0,
+                transportChunks: Number(manifest.transportChunkCount) || 1,
+                autoDegradedFrom: manifest.autoDegradedFrom || null
+            });
+        } catch { /* tracing is best effort */ }
+        return result;
     }
 
     window.GeminiLiveLinkAgentic = window.GeminiLiveLinkAgentic || {};

@@ -998,6 +998,10 @@ window.EveDataStore = window.EveDataStore || {};
             cards.push({
                 scopedKey: key,
                 cardName: parsed.category,
+                // Explicit owning-tab attribution: the scopedKey's workspace half is a raw id
+                // the model cannot trace, which made it attribute sub-tab cards to parent tabs.
+                tabId: parsed.workspace,
+                tabName: workspaceNames.get(parsed.workspace) || parsed.workspace,
                 settings: {
                     taskModeEnabled: settings.taskModeEnabled,
                     customOrderEnabled: settings.customOrderEnabled ? true : undefined,

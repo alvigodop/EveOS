@@ -716,6 +716,10 @@ def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categorie
         cards.append({
             "scopedKey": scoped_key,
             "cardName": category,
+            # Explicit owning-tab attribution: the scopedKey's workspace half is a raw id the
+            # model cannot trace, which made it attribute sub-tab cards to parent tabs.
+            "tabId": workspace,
+            "tabName": (workspace_names or {}).get(workspace) or workspace,
             "cardType": _summary_text((category_data or {}).get("dataType"), "bookmarks"),
             "libraryEntryCount": len(category_entries or []),
             "settings": {

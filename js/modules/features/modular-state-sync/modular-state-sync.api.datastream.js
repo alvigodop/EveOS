@@ -128,42 +128,187 @@ window.EveDataStore = window.EveDataStore || {};
         };
     }
 
+    // --- Traceability: raw ids mean nothing to the agent, so every id the stream mentions is
+    // resolved to its real datapack name (and tab path) before it ships. ---------------------
+
+    function findWorkspaceNode(workspaceId, nodes) {
+        const target = text(workspaceId, '').toLowerCase();
+        if (!target) return null;
+        for (const node of Array.isArray(nodes) ? nodes : []) {
+            if (text(node?.id, '').toLowerCase() === target) return node;
+            const nested = findWorkspaceNode(workspaceId, node?.subTabs);
+            if (nested) return nested;
+        }
+        return null;
+    }
+
+    function workspaceTraceRef(workspaceId) {
+        const id = text(workspaceId, '');
+        const node = findWorkspaceNode(id, getConfig().workspaces);
+        const ref = { id, name: node ? text(node.name, id) : 'not found in datapack (possibly deleted)' };
+        if (typeof ns.describeWorkspaceTabPath === 'function' && node) {
+            ref.trace = ns.describeWorkspaceTabPath(id);
+        }
+        return ref;
+    }
+
+    function linkTraceRef(linkId) {
+        const id = text(linkId, '');
+        const link = getLinks().find((item) => text(item?.id, '') === id);
+        if (!link) return { id, note: 'bookmark not found (possibly deleted in this mutation)' };
+        const tab = findWorkspaceNode(link.workspace, getConfig().workspaces);
+        return {
+            id,
+            title: text(link.title || link.name, 'Untitled bookmark'),
+            card: text(link.category, 'Unsorted'),
+            tab: tab ? text(tab.name, link.workspace) : text(link.workspace, 'main')
+        };
+    }
+
+    function collectFolderNameMap() {
+        const map = {};
+        const scan = (value, depth) => {
+            if (!value || depth > 6) return;
+            if (Array.isArray(value)) { value.forEach((item) => scan(item, depth + 1)); return; }
+            if (typeof value !== 'object') return;
+            const id = text(value.id, '');
+            const name = text(value.name || value.title, '');
+            if (id && name) map[id] = name;
+            Object.values(value).forEach((item) => scan(item, depth + 1));
+        };
+        scan(window.eveState?.bookmarkFolders || window.bookmarkFolders || {}, 0);
+        return map;
+    }
+
+    function folderTraceRefs(folderIds) {
+        const ids = toList(folderIds, 16);
+        if (!ids.length) return [];
+        const names = collectFolderNameMap();
+        return ids.map((id) => ({ id: text(id, ''), name: names[text(id, '')] || 'folder not found (possibly deleted)' }));
+    }
+
+    // Human meaning for config keys so settings-only mutations are actionable, not obscure.
+    const CONFIG_KEY_MEANINGS = {
+        audioflix: 'Audioflix (audio player feature) settings',
+        geminiLiveLinkEnabled: 'Context Relay master toggle',
+        geminiContextDataStreamEnabled: 'Context Relay: Data Stream toggle',
+        geminiContextDataStreamSilent: 'Context Relay: Data Stream silent mode',
+        geminiContextScopeMode: 'Context Relay: scope mode selection',
+        geminiContextSelectedCardWorkspaceId: 'Context Relay: selected card scope (tab half)',
+        geminiContextSelectedCardCategory: 'Context Relay: selected card scope (card half)',
+        geminiAskPanelCollapsed: 'Agent Space panel collapse state',
+        activeWorkspace: 'Active tab switched',
+        viewMode: 'View mode (grid / list / unidex)',
+        workspaces: 'Tab tree structure (tabs and sub-tabs)',
+        sidebarGroups: 'Sidebar group definitions',
+        groupOverviewId: 'Group overview selection',
+        categoryOrder: 'Card ordering',
+        categoryOrderByWorkspace: 'Per-tab card ordering',
+        unidexStage: 'Unidex navigation depth',
+        unidexSelectedWorkspaceId: 'Unidex selected tab',
+        unidexSelectedCategory: 'Unidex selected card',
+        linksCollapsed: 'Card collapse state',
+        bookmarkIdentifiers: 'Bookmark identifier definitions (e.g. chapter trackers)',
+        quickPins: 'Quick pins'
+    };
+
+    function describeConfigKeys(configDelta) {
+        const keys = toList(configDelta?.changedKeys || configDelta?.keys || Object.keys(configDelta || {}), 16);
+        return keys.map((key) => ({
+            key: text(key, ''),
+            meaning: CONFIG_KEY_MEANINGS[text(key, '')] || ('EveOS setting "' + text(key, '') + '"')
+        }));
+    }
+
+    const MUTATION_SOURCE_MEANINGS = {
+        saveConfig: 'a general EveOS settings save',
+        'audioflix-native-bridge-base': 'Audioflix syncing its playback settings',
+        'state-mutated': 'an EveOS state change'
+    };
+
+    function buildStreamSummary(mutationSource, changes, settingsChanged, scope) {
+        const what = [];
+        if (changes.linksAdded?.length) what.push(changes.linksAdded.length + ' bookmark(s) added');
+        if (changes.linksUpdated?.length) what.push(changes.linksUpdated.length + ' bookmark(s) updated');
+        if (changes.linksRemoved?.length) what.push(changes.linksRemoved.length + ' bookmark(s) removed');
+        if (!what.length && changes.linksTouched?.length) what.push(changes.linksTouched.length + ' bookmark(s) touched');
+        if (changes.cards?.length) what.push('cards affected: ' + changes.cards.join(', '));
+        if (changes.folders?.length) what.push(changes.folders.length + ' folder(s) affected');
+        if (changes.tabs?.length) what.push('tabs affected: ' + changes.tabs.map((tabRef) => tabRef.name).join(', '));
+        if (changes.folderStoreChanged) what.push('folder store changed');
+        if (changes.quickPinsChanged) what.push('quick pins changed');
+        if (changes.constellationChanged) what.push('constellation map changed');
+        if (settingsChanged.length) what.push('settings changed: ' + settingsChanged.map((item) => item.meaning).join('; '));
+        const sourceMeaning = MUTATION_SOURCE_MEANINGS[mutationSource] || ('the EveOS module "' + mutationSource + '"');
+        const action = what.length ? what.join(' · ') : 'no datapack or settings changes detected';
+        return 'Update from ' + sourceMeaning + ': ' + action + '. Watched scope: ' + text(scope.label, scope.scope) + '.';
+    }
+
     function buildDataStreamContext(detail, scopeOptions = {}) {
         const scope = normalizeScopeOptions(scopeOptions);
         const delta = detail?.meta?.dataDelta || {};
         const configDelta = detail?.meta?.configDelta || {};
-        return {
-            schema: 'eveos.gemini-data-stream.v1',
+        const mutationSource = detail?.source || 'state-mutated';
+
+        // Changes block: only fields that actually changed, every id resolved to a real name.
+        const changes = {};
+        const tabRefs = toList(delta.workspaceIds, 12).map(workspaceTraceRef);
+        if (tabRefs.length) changes.tabs = tabRefs;
+        const cardNames = toList(delta.categoryNames, 12).map((name) => text(name, ''));
+        if (cardNames.length) changes.cards = cardNames;
+        const folderRefs = folderTraceRefs(delta.folderIds);
+        if (folderRefs.length) changes.folders = folderRefs;
+        const linkBuckets = [
+            ['linksAdded', delta.addedLinkIds],
+            ['linksUpdated', delta.updatedLinkIds],
+            ['linksRemoved', delta.removedLinkIds]
+        ];
+        let bucketed = false;
+        linkBuckets.forEach(([key, ids]) => {
+            const refs = toList(ids, 30).map(linkTraceRef);
+            if (refs.length) { changes[key] = refs; bucketed = true; }
+        });
+        if (!bucketed) {
+            const touched = toList(delta.linkIds, 30).map(linkTraceRef);
+            if (touched.length) changes.linksTouched = touched;
+        }
+        if (delta.hasFolderStoreChanges) changes.folderStoreChanged = true;
+        if (delta.hasQuickPinChanges) changes.quickPinsChanged = true;
+        if (delta.hasConstellationChanges) changes.constellationChanged = true;
+        if (!Object.keys(changes).length) {
+            changes.note = 'No bookmark, card, folder, or tab data changed — this was a settings-only mutation.';
+        }
+
+        const settingsChanged = describeConfigKeys(configDelta);
+        const nexus = getLatestNexusTraceSummary();
+
+        const context = {
+            schema: 'eveos.gemini-data-stream.v2',
             kind: 'eveos_data_stream_update',
             generatedAt: new Date().toISOString(),
             silent: true,
-            scope,
+            summary: buildStreamSummary(mutationSource, changes, settingsChanged, scope),
+            scope: {
+                scope: scope.scope,
+                label: scope.label || '',
+                source: scope.source || '',
+                categoryName: scope.categoryName || '',
+                // Watched tabs resolved to real names + paths — the agent never sees bare ids alone.
+                workspaces: toList(scope.workspaceIds, 24).map(workspaceTraceRef)
+            },
             mutation: {
-                source: detail?.source || 'state-mutated',
+                source: mutationSource,
+                sourceMeaning: MUTATION_SOURCE_MEANINGS[mutationSource] || ('the EveOS module "' + mutationSource + '"'),
                 kind: detail?.kind || 'data',
                 mutationSeq: Number(detail?.mutationSeq) || 0,
                 at: detail?.at || Date.now(),
                 immediate: !!detail?.immediate
             },
-            delta: {
-                complete: delta.complete !== false,
-                workspaceIds: toList(delta.workspaceIds, 12),
-                categoryNames: toList(delta.categoryNames, 12),
-                folderIds: toList(delta.folderIds, 16),
-                linkIds: toList(delta.linkIds, 30),
-                addedLinkIds: toList(delta.addedLinkIds, 30),
-                updatedLinkIds: toList(delta.updatedLinkIds, 30),
-                removedLinkIds: toList(delta.removedLinkIds, 30),
-                affectedScopes: toList(delta.affectedScopes, 12),
-                hasFolderStoreChanges: !!delta.hasFolderStoreChanges,
-                hasQuickPinChanges: !!delta.hasQuickPinChanges,
-                hasConstellationChanges: !!delta.hasConstellationChanges
-            },
-            configDelta: {
-                changedKeys: toList(configDelta.changedKeys || configDelta.keys || Object.keys(configDelta || {}), 16)
-            },
-            nexus: getLatestNexusTraceSummary()
+            changes
         };
+        if (settingsChanged.length) context.settingsChanged = settingsChanged;
+        if (nexus) context.nexus = nexus;
+        return context;
     }
 
     function getSocket() {
@@ -267,7 +412,7 @@ window.EveDataStore = window.EveDataStore || {};
                 route: 'text-brain',
                 scope: describeInsightScope(scope),
                 mutation: describeInsightMutation(detail),
-                deltaSummary: summarizeDelta(brainContext.delta),
+                deltaSummary: summarizeDelta(detail?.meta?.dataDelta),
                 nexus: brainContext.nexus,
                 messageChars: brainPayload.length,
                 brainQueueCount: appended.count,
@@ -318,7 +463,7 @@ window.EveDataStore = window.EveDataStore || {};
             route: 'websocket',
             scope: describeInsightScope(scope),
             mutation: describeInsightMutation(detail),
-            deltaSummary: summarizeDelta(context.delta),
+            deltaSummary: summarizeDelta(detail?.meta?.dataDelta),
             nexus: context.nexus,
             messageChars: message.length,
             payload: context
@@ -332,7 +477,10 @@ window.EveDataStore = window.EveDataStore || {};
         mutationMatchesScope,
         buildDataStreamContext,
         getDataStreamInsightLog,
-        recordDataStreamMarker
+        recordDataStreamMarker,
+        // General entry point for other pipeline stages (text brain turns, relay sends) to
+        // stamp their work into the same stream timeline the Insight viewer shows.
+        recordDataStreamEvent: recordDataStreamInsight
     });
 
     ns.apiDataStreamReady = true;

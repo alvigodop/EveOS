@@ -331,14 +331,31 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
      * during quota cooldowns, or when called faster than the free-tier spacing allows.
      * @returns {Promise<boolean>} true if the brain contributed, false if the turn went direct.
      */
+    // Stamp pipeline stages into the Data Stream insight timeline (Agent Space viewer): the
+    // user's prompt, then the brain turn — what went in, what came back, what reached live.
+    function recordStreamInsight(entry) {
+        const sync = window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync;
+        if (sync && typeof sync.recordDataStreamEvent === 'function') sync.recordDataStreamEvent(entry);
+    }
+
     async function relayUserUtterance(userText) {
         const text = String(userText || '').trim();
         if (!text) return false;
 
-        if (brainSkipReason()) { sendDirect(text); return false; }
+        const skipReason = brainSkipReason();
+        recordStreamInsight({
+            type: 'prompt',
+            outcome: 'sent',
+            route: skipReason ? 'live-direct' : 'text-brain',
+            reason: skipReason || '',
+            promptText: compactText(text, 240)
+        });
+        if (skipReason) { sendDirect(text); return false; }
 
         display('🧠 Text Brain is extracting context…');
         lastBrainCallAt = Date.now();
+        const turnStartedAt = Date.now();
+        const updatesInContext = eveUpdates.length;
         try {
             const res = await sendRequest(text);
             const extractedContext = compactText(String(res.text || ''), INJECT_MAX_CHARS);
@@ -369,7 +386,8 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
                     }));
                 }
             }
-            if (!noContext && extractedContext !== lastInjectedContext) {
+            const injectedToLive = !noContext && extractedContext !== lastInjectedContext;
+            if (injectedToLive) {
                 lastInjectedContext = extractedContext;
                 display('TEXT BRAIN → LIVE: Injected Extracted Context');
                 window.dispatchEvent(new CustomEvent('eve:mode2-relay', {
@@ -397,9 +415,34 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
 
             // The live model answers the user's original message natively.
             sendDirect(text);
+            recordStreamInsight({
+                type: 'brain-turn',
+                outcome: 'sent',
+                route: 'text-brain',
+                model: getSelectedTextBrainModel() || 'default',
+                promptText: compactText(text, 200),
+                durationMs: Date.now() - turnStartedAt,
+                updatesInContext: updatesInContext,
+                contextChars: eveContext.text.length,
+                usage: res.usage || null,
+                noContext: noContext,
+                injectedToLive: injectedToLive,
+                responsePreview: noContext
+                    ? 'NO_CONTEXT — nothing relevant to extract this turn (silent guard sent to the live model instead)'
+                    : compactText(extractedContext, 600)
+            });
             return !noContext;
         } catch (error) {
             console.warn('[Mode2] text brain relay failed; falling back to direct live:', error);
+            recordStreamInsight({
+                type: 'brain-turn',
+                outcome: 'skipped',
+                reason: compactText(String(error?.message || error || 'brain error'), 140),
+                route: 'live-direct',
+                model: getSelectedTextBrainModel() || 'default',
+                promptText: compactText(text, 200),
+                durationMs: Date.now() - turnStartedAt
+            });
             enterCooldown(error);
             sendDirect(text);
             return false;

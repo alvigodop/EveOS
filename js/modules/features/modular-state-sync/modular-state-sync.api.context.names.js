@@ -237,7 +237,34 @@ window.EveDataStore = window.EveDataStore || {};
         return { byId: byId, children: children };
     }
 
-    function buildBookmarksAndFolders(roots, scope) {
+    // One detail line per bookmark for the contents layer: the same fields the rich relay
+    // ships (identifiers like chapter trackers, status, notes, tags) in a compact pipe row.
+    function bookmarkDetailLine(link) {
+        const parts = [text(link?.title || link?.url, '(Untitled)')];
+        const url = text(link?.url || link?.href, '');
+        if (url) parts.push(url.length > 90 ? url.slice(0, 87) + '...' : url);
+        const idents = []
+            .concat(Array.isArray(link?.identifiers) ? link.identifiers : [])
+            .concat(Array.isArray(link?.identifierIds) ? link.identifierIds : [])
+            .concat(Array.isArray(link?.bookmarkIdentifiers) ? link.bookmarkIdentifiers : [])
+            .map(function (item) { return text(item, ''); })
+            .filter(Boolean);
+        if (idents.length) parts.push('identifiers: ' + Array.from(new Set(idents)).slice(0, 8).join(', '));
+        const status = text(link?.status || link?.readingStatus || link?.mediaStatus, '');
+        if (status) parts.push('status: ' + status);
+        if (link?.done) parts.push('done');
+        if (text(link?.priority, '')) parts.push('priority: ' + link.priority);
+        const notes = text(link?.personalNotes || link?.notes, '').replace(/\s+/g, ' ');
+        if (notes) parts.push('notes: "' + (notes.length > 140 ? notes.slice(0, 137) + '...' : notes) + '"');
+        const tags = (Array.isArray(link?.tags) ? link.tags : []).map(function (tag) { return text(tag, ''); }).filter(Boolean);
+        if (tags.length) parts.push('tags: ' + tags.slice(0, 6).join(', '));
+        return parts.join(' | ');
+    }
+
+    function buildBookmarksAndFolders(roots, scope, lineFor) {
+        const renderLine = typeof lineFor === 'function'
+            ? lineFor
+            : function (link) { return text(link?.title || link?.url, '(Untitled)'); };
         const idSet = new Set();
         roots.forEach(function (root) { branchIds(root, idSet); });
         const folderTrees = getFolderTrees();
@@ -258,7 +285,7 @@ window.EveDataStore = window.EveDataStore || {};
                 lines.push(indent + '[folder] ' + folder.name + ':');
                 folderCount += 1;
                 (byFolder.get(folder.id) || []).forEach(function (link) {
-                    lines.push(indent + '  - ' + text(link?.title || link?.url, '(Untitled)'));
+                    lines.push(indent + '  - ' + renderLine(link));
                     bookmarkCount += 1;
                 });
                 emitFolder(folder.id, maps, byFolder, indent + '  ');
@@ -290,7 +317,7 @@ window.EveDataStore = window.EveDataStore || {};
                     byFolder.get(target).push(link);
                 });
                 (byFolder.get('') || []).forEach(function (link) {
-                    lines.push('  - ' + text(link?.title || link?.url, '(Untitled)'));
+                    lines.push('  - ' + renderLine(link));
                     bookmarkCount += 1;
                 });
                 emitFolder('', maps, byFolder, '  ');
@@ -306,7 +333,12 @@ window.EveDataStore = window.EveDataStore || {};
         'tabs': { title: 'tab and sub-tab names', unit: 'tab' },
         'tab-tree': { title: 'full tab tree names (all nesting levels)', unit: 'tab' },
         'cards': { title: 'card names (no bookmarks or folders)', unit: 'card' },
-        'bookmarks': { title: 'bookmark titles organized by folder trees', unit: 'bookmark' }
+        'bookmarks': { title: 'bookmark titles organized by folder trees', unit: 'bookmark' },
+        'bookmark-contents': {
+            title: 'bookmark contents (titles, links, identifiers, status, notes, tags) organized by folder trees',
+            unit: 'bookmark',
+            note: 'Full bookmark details'
+        }
     };
 
     function buildSelectiveContext(kind) {
@@ -321,10 +353,11 @@ window.EveDataStore = window.EveDataStore || {};
         if (kind === 'tab-tree') built = buildTabNames(roots, Infinity);
         else if (kind === 'cards') built = buildCardNames(roots, scope);
         else if (kind === 'bookmarks') built = buildBookmarksAndFolders(roots, scope);
+        else if (kind === 'bookmark-contents') built = buildBookmarksAndFolders(roots, scope, bookmarkDetailLine);
         else built = buildTabNames(roots, 1);
         const surface = describeSurface(scope);
         const header = '[SYSTEM CONTEXT: EveOS selective context — ' + meta.title + ' for ' + surface
-            + '. Names only, silent reference — do not acknowledge.]';
+            + '. ' + text(meta.note, 'Names only') + ', silent reference — do not acknowledge.]';
         return {
             scope: scope,
             surface: surface,
@@ -338,6 +371,22 @@ window.EveDataStore = window.EveDataStore || {};
 
     // Same routing as the Data Stream: Mode 2 hands the text to the brain's update log; live
     // sessions get a silent system-context frame over the socket.
+    // Each selective send is stamped into the Data Stream insight timeline so scoped layer
+    // sends are visible in the Agent Space viewer, not just their config side-effects.
+    function recordSelectiveInsight(context, result) {
+        ns.recordDataStreamEvent?.({
+            type: 'relay',
+            outcome: result.sent ? 'sent' : 'skipped',
+            reason: result.sent ? '' : String(result.reason || 'not sent'),
+            route: result.route || '',
+            relayMode: 'selective: ' + String(context.kind || 'tabs'),
+            scope: { label: context.surface || '', scope: context.scope?.scope || '' },
+            counts: { [context.unit || 'items']: context.count || 0, folders: context.folderCount || 0 },
+            messageChars: context.message.length,
+            payload: { preview: context.message.slice(0, 1200) }
+        });
+    }
+
     function sendSelectiveContext(kind) {
         const context = buildSelectiveContext(kind);
         const result = {
@@ -355,13 +404,16 @@ window.EveDataStore = window.EveDataStore || {};
             window.EveGeminiMode2.appendEveUpdate(context.message);
             result.sent = true;
             result.route = 'text-brain';
+            recordSelectiveInsight(context, result);
             return result;
         }
         const socket = window.webSocket && window.webSocket.readyState === (window.WebSocket?.OPEN || 1)
             ? window.webSocket
             : null;
         if (!socket) {
-            return { ok: false, sent: false, reason: 'socket-offline', surface: context.surface, kind: context.kind };
+            const offline = { ok: false, sent: false, reason: 'socket-offline', surface: context.surface, kind: context.kind };
+            recordSelectiveInsight(context, offline);
+            return offline;
         }
         socket.send(JSON.stringify({
             source: 'modular_gemini_context',
@@ -386,6 +438,7 @@ window.EveDataStore = window.EveDataStore || {};
         }));
         result.sent = true;
         result.route = 'websocket';
+        recordSelectiveInsight(context, result);
         return result;
     }
 

@@ -22,6 +22,7 @@ window.EveDataStore = window.EveDataStore || {};
         sendDataStreamToGemini: ns.sendDataStreamToGemini,
         getDataStreamInsightLog: ns.getDataStreamInsightLog,
         recordDataStreamMarker: ns.recordDataStreamMarker,
+        recordDataStreamEvent: ns.recordDataStreamEvent,
         buildSelectiveContext: ns.buildSelectiveContext,
         sendSelectiveContext: ns.sendSelectiveContext,
         mutationMatchesScope: ns.mutationMatchesScope,

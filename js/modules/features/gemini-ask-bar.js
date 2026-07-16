@@ -130,6 +130,13 @@
             '.gemini-ask-insight-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }',
             '.gemini-ask-insight-chip { font-size: 0.62rem; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent); color: var(--accent, #00d4ff); white-space: nowrap; }',
             '.gemini-ask-insight-entry.is-skipped .gemini-ask-insight-chip { background: rgba(255, 179, 71, 0.15); color: #ffb347; }',
+            '.gemini-ask-insight-entry.is-prompt { border-left-color: #7ee2a8; }',
+            '.gemini-ask-insight-entry.is-prompt .gemini-ask-insight-chip { background: rgba(126, 226, 168, 0.14); color: #7ee2a8; }',
+            '.gemini-ask-insight-entry.is-brain { border-left-color: #b388ff; }',
+            '.gemini-ask-insight-entry.is-brain .gemini-ask-insight-chip { background: rgba(179, 136, 255, 0.14); color: #b388ff; }',
+            '.gemini-ask-insight-entry.is-relay { border-left-color: #64b5f6; }',
+            '.gemini-ask-insight-entry.is-relay .gemini-ask-insight-chip { background: rgba(100, 181, 246, 0.14); color: #64b5f6; }',
+            '.gemini-ask-insight-prompt-text { margin-top: 4px; font-style: italic; opacity: 0.85; }',
             '.gemini-ask-insight-time { opacity: 0.5; font-size: 0.68rem; }',
             '.gemini-ask-insight-scope { opacity: 0.9; }',
             '.gemini-ask-insight-meta { opacity: 0.6; font-size: 0.7rem; margin-top: 3px; }',
@@ -399,36 +406,123 @@
         viewer.appendChild(feed);
         body.appendChild(viewer);
 
+        function appendMetaLine(card, textContent, className) {
+            if (!text(textContent, '')) return;
+            const line = document.createElement('div');
+            line.className = className || 'gemini-ask-insight-meta';
+            line.textContent = textContent;
+            card.appendChild(line);
+        }
+
+        function appendPayloadDetails(card, label, payload, asText) {
+            if (payload == null) return;
+            const details = document.createElement('details');
+            const summary = document.createElement('summary');
+            summary.textContent = label;
+            const pre = document.createElement('pre');
+            if (asText) pre.textContent = String(payload);
+            else { try { pre.textContent = JSON.stringify(payload, null, 2); } catch { pre.textContent = String(payload); } }
+            details.appendChild(summary);
+            details.appendChild(pre);
+            card.appendChild(details);
+        }
+
         function buildInsightEntryCard(entry) {
             const card = document.createElement('div');
-            const isMarker = entry.type === 'marker';
+            const entryType = text(entry.type, 'send');
+            const isMarker = entryType === 'marker';
             const isSkipped = entry.outcome === 'skipped';
             card.className = 'gemini-ask-insight-entry'
                 + (isSkipped ? ' is-skipped' : '')
-                + (isMarker ? ' is-marker' : '');
+                + (isMarker ? ' is-marker' : '')
+                + (entryType === 'prompt' ? ' is-prompt' : '')
+                + (entryType === 'brain-turn' ? ' is-brain' : '')
+                + (entryType === 'relay' ? ' is-relay' : '');
             const when = new Date(entry.at || Date.now()).toLocaleTimeString();
             if (isMarker) {
                 card.textContent = when + ' — ' + text(entry.note, 'marker');
                 return card;
             }
+
             const row = document.createElement('div');
             row.className = 'gemini-ask-insight-row';
             const chip = document.createElement('span');
             chip.className = 'gemini-ask-insight-chip';
-            chip.textContent = isSkipped
-                ? 'skipped · ' + text(entry.reason, 'unknown')
-                : 'sent · ' + text(entry.route, 'unknown');
+            if (entryType === 'prompt') {
+                chip.textContent = 'prompt · ' + text(entry.route, 'unknown');
+            } else if (entryType === 'brain-turn') {
+                chip.textContent = isSkipped
+                    ? 'brain · failed'
+                    : 'brain · ' + text(entry.model, 'default');
+            } else if (entryType === 'relay') {
+                chip.textContent = (isSkipped ? 'relay skipped · ' : 'relay · ') + text(entry.relayMode, 'context');
+            } else {
+                chip.textContent = isSkipped
+                    ? 'skipped · ' + text(entry.reason, 'unknown')
+                    : 'sent · ' + text(entry.route, 'unknown');
+            }
             const time = document.createElement('span');
             time.className = 'gemini-ask-insight-time';
             time.textContent = when;
-            const scopeEl = document.createElement('span');
-            scopeEl.className = 'gemini-ask-insight-scope';
-            const scope = entry.scope || {};
-            scopeEl.textContent = text(scope.label, text(scope.scope, 'scope'));
             row.appendChild(chip);
             row.appendChild(time);
-            row.appendChild(scopeEl);
+            const scope = entry.scope || {};
+            if (text(scope.label, text(scope.scope, ''))) {
+                const scopeEl = document.createElement('span');
+                scopeEl.className = 'gemini-ask-insight-scope';
+                scopeEl.textContent = text(scope.label, scope.scope);
+                row.appendChild(scopeEl);
+            }
             card.appendChild(row);
+
+            if (entryType === 'prompt') {
+                appendMetaLine(card, '“' + text(entry.promptText, '') + '”', 'gemini-ask-insight-prompt-text');
+                if (isSkippedRouteNote(entry)) appendMetaLine(card, isSkippedRouteNote(entry));
+                return card;
+            }
+
+            if (entryType === 'brain-turn') {
+                if (isSkipped) {
+                    appendMetaLine(card, 'brain call failed (' + text(entry.reason, 'error') + ') — the live model answered directly');
+                } else {
+                    const bits = [];
+                    if (entry.durationMs) bits.push(Math.round(entry.durationMs / 100) / 10 + 's turn');
+                    if (typeof entry.updatesInContext === 'number') bits.push(entry.updatesInContext + ' stream update(s) in its context');
+                    if (entry.contextChars) bits.push('snapshot: ' + entry.contextChars + ' chars');
+                    if (entry.usage && (entry.usage.totalTokens || entry.usage.total_tokens)) {
+                        bits.push('tokens: ' + (entry.usage.totalTokens || entry.usage.total_tokens));
+                    }
+                    bits.push(entry.injectedToLive ? 'extraction injected to the live model' : (entry.noContext ? 'no context this turn' : 'repeat extraction — not re-injected'));
+                    appendMetaLine(card, bits.join(' · '));
+                }
+                appendMetaLine(card, 'prompt: “' + text(entry.promptText, '') + '”');
+                if (entry.responsePreview) {
+                    appendPayloadDetails(card, 'what the brain curated for the live model', entry.responsePreview, true);
+                }
+                return card;
+            }
+
+            if (entryType === 'relay') {
+                const bits = [];
+                if (entry.counts && typeof entry.counts === 'object') {
+                    Object.keys(entry.counts).forEach(function (key) {
+                        if (entry.counts[key]) bits.push(entry.counts[key] + ' ' + key);
+                    });
+                }
+                if (entry.messageChars) bits.push(entry.messageChars + ' chars');
+                if (entry.transportChunks > 1) bits.push(entry.transportChunks + ' chunks');
+                if (entry.autoDegradedFrom) bits.push('auto-stepped down from ' + entry.autoDegradedFrom);
+                if (isSkipped) bits.push('reason: ' + text(entry.reason, 'unknown'));
+                if (text(entry.route, '')) bits.push('route: ' + entry.route);
+                appendMetaLine(card, bits.join(' · '));
+                if (entry.payload && entry.payload.preview) {
+                    appendPayloadDetails(card, 'sent layer content (preview)', entry.payload.preview, true);
+                } else if (entry.payload) {
+                    appendPayloadDetails(card, 'payload sent to the agent', entry.payload);
+                }
+                return card;
+            }
+
             const meta = document.createElement('div');
             meta.className = 'gemini-ask-insight-meta';
             const mutation = entry.mutation || {};
@@ -441,23 +535,18 @@
             meta.textContent = metaBits.join(' · ');
             card.appendChild(meta);
             if (entry.nexus && (entry.nexus.summary || entry.nexus.query)) {
-                const nexus = document.createElement('div');
-                nexus.className = 'gemini-ask-insight-meta';
-                nexus.textContent = 'nexus: ' + text(entry.nexus.query, '') + (entry.nexus.summary ? ' — ' + entry.nexus.summary : '');
-                card.appendChild(nexus);
+                appendMetaLine(card, 'nexus: ' + text(entry.nexus.query, '') + (entry.nexus.summary ? ' — ' + entry.nexus.summary : ''));
             }
             if (entry.payload) {
-                const details = document.createElement('details');
-                const summary = document.createElement('summary');
-                summary.textContent = 'payload sent to the agent';
-                const pre = document.createElement('pre');
-                try { pre.textContent = JSON.stringify(entry.payload, null, 2); }
-                catch { pre.textContent = String(entry.payload); }
-                details.appendChild(summary);
-                details.appendChild(pre);
-                card.appendChild(details);
+                appendPayloadDetails(card, 'payload sent to the agent', entry.payload);
             }
             return card;
+        }
+
+        function isSkippedRouteNote(entry) {
+            return text(entry.reason, '')
+                ? 'brain skipped (' + entry.reason + ') — sent straight to the live model'
+                : '';
         }
 
         function refreshInsightStatus() {
@@ -477,9 +566,21 @@
             viewerStatus.textContent = bits.join('  ·  ');
         }
 
+        // Reconciliation state so the feed can self-heal if an insight event is ever missed:
+        // the 2s tick compares the log's tail id + length against what was last rendered.
+        let renderedCount = 0;
+        let renderedLastId = '';
+
+        function syncRenderedMarkers() {
+            const log = getInsightLog();
+            renderedCount = log.length;
+            renderedLastId = log.length ? String(log[log.length - 1].id || '') : '';
+        }
+
         function renderInsightFeed() {
             feed.innerHTML = '';
             const log = getInsightLog();
+            syncRenderedMarkers();
             if (!log.length) {
                 const empty = document.createElement('div');
                 empty.className = 'gemini-ask-insight-empty';
@@ -490,6 +591,15 @@
             log.slice().reverse().forEach(function (entry) {
                 feed.appendChild(buildInsightEntryCard(entry));
             });
+        }
+
+        function reconcileInsightFeed() {
+            const log = getInsightLog();
+            const lastId = log.length ? String(log[log.length - 1].id || '') : '';
+            if (log.length !== renderedCount || lastId !== renderedLastId) {
+                renderInsightFeed();
+                refreshInsightStatus();
+            }
         }
 
         function refreshStreamNote() {
@@ -512,7 +622,11 @@
         }
 
         function refreshStreamPanelState() {
-            const enabled = !!getConfig().geminiContextDataStreamEnabled;
+            const cfg = getConfig();
+            // The Context Relay master toggle governs the whole agentic function — with it off
+            // the stream is dead regardless of its own toggle, so the panel must fall back to
+            // the idle placeholder, not keep announcing an initiated stream.
+            const enabled = !!cfg.geminiContextDataStreamEnabled && !!cfg.geminiLiveLinkEnabled;
             body.classList.toggle('is-streaming', enabled);
             if (!enabled) closeInsightViewer();
             else refreshStreamNote();
@@ -540,13 +654,18 @@
             const empty = feed.querySelector('.gemini-ask-insight-empty');
             if (empty) empty.remove();
             feed.insertBefore(buildInsightEntryCard(event.detail || {}), feed.firstChild);
+            syncRenderedMarkers();
             refreshInsightStatus();
         });
         // Poll fallback: the toggle can flip through paths that do not dispatch the event
-        // (settings import, direct config edits), and route/status lines should stay honest.
+        // (settings import, direct config edits, the relay MASTER toggle), status lines must
+        // stay honest, and the feed self-heals if an insight event was ever missed.
         window.setInterval(function () {
             refreshStreamPanelState();
-            if (body.classList.contains('is-insight-open')) refreshInsightStatus();
+            if (body.classList.contains('is-insight-open')) {
+                reconcileInsightFeed();
+                refreshInsightStatus();
+            }
         }, 2000);
         refreshStreamPanelState();
 
