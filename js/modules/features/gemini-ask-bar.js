@@ -84,13 +84,13 @@
             '.gemini-ask-panel-collapse:hover { opacity: 1; color: var(--accent, #00d4ff); }',
             '.gemini-ask-panel.is-collapsed .gemini-ask-panel-collapse { transform: rotate(-90deg); }',
             // Generous body: this space is reserved for the upcoming ask-surface content.
-            '.gemini-ask-panel-body { min-height: 320px; max-height: 60vh; overflow-y: auto; display: flex; align-items: center; justify-content: center; padding: 18px; position: relative; }',
+            '.gemini-ask-panel-body { min-height: 320px; max-height: 60vh; overflow-y: auto; overflow-x: hidden; display: flex; align-items: center; justify-content: center; padding: 18px; position: relative; }',
             '.gemini-ask-panel.is-collapsed .gemini-ask-panel-body { display: none; }',
             '.gemini-ask-panel-placeholder { font-size: 2.4rem; font-weight: 700; letter-spacing: 2px; color: var(--text-main, #eee); opacity: 0.25; text-transform: uppercase; }',
-            '.agent-space-popout-btn { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }',
-            '.agent-space-tools-btn { position: absolute; top: 12px; right: 54px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }',
+            '.agent-space-popout-btn { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; overflow: hidden; }',
+            '.agent-space-tools-btn { position: absolute; top: 12px; right: 54px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; overflow: hidden; }',
             '.agent-space-popout-btn:hover, .agent-space-tools-btn:hover { background: rgba(0, 212, 255, 0.1); border-color: color-mix(in srgb, var(--accent, #00d4ff) 50%, transparent); color: var(--accent, #00d4ff); }',
-            '.agent-space-popout-btn .material-icons, .agent-space-tools-btn .material-icons { font-size: 18px; line-height: 1; }',
+            '.agent-space-popout-btn, .agent-space-tools-btn { font-size: 18px; line-height: 1; }',
             '#agenticPopupOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 1000; }',
             '.agentic-popup-content { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90%, 800px); max-height: 85%; display: flex; flex-direction: column; background: linear-gradient(145deg, rgba(12, 17, 24, 0.96), rgba(8, 12, 18, 0.95)) !important; border: 1px solid rgba(0, 212, 255, 0.15) !important; border-radius: 18px !important; z-index: 1001 !important; overflow-y: auto !important; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6) !important; color: #e8f7ff !important; padding: 16px !important; }',
             '#agenticPopupCloseButton { align-self: flex-end; margin: 0 0 10px 0; cursor: pointer; width: 32px; height: 32px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.5); font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }',
@@ -110,7 +110,7 @@
             '.gemini-ask-stream-box-title { font-size: 0.78rem; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--text-main, #eee); opacity: 0.7; }',
             '.gemini-ask-insight-btn { width: 44px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s; }',
             '.gemini-ask-insight-btn:hover { background: rgba(0, 212, 255, 0.12); border-color: color-mix(in srgb, var(--accent, #00d4ff) 55%, transparent); color: var(--accent, #00d4ff); box-shadow: 0 0 12px color-mix(in srgb, var(--accent, #00d4ff) 25%, transparent); }',
-            '.gemini-ask-insight-btn .material-icons { font-size: 22px; line-height: 1; }',
+            '.gemini-ask-insight-btn { font-size: 20px; line-height: 1; }',
             '.gemini-ask-stream-box-note { font-size: 0.72rem; opacity: 0.55; text-align: center; max-width: 320px; }',
             '.gemini-ask-insight-viewer { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }',
             '.gemini-ask-panel-body.is-insight-open { height: 60vh; overflow: hidden; }',
@@ -368,7 +368,7 @@
         insightBtn.type = 'button';
         insightBtn.className = 'gemini-ask-insight-btn';
         insightBtn.title = 'Insight Gathering';
-        insightBtn.innerHTML = '<i class="material-icons">insights</i>';
+        insightBtn.textContent = '📡';
         const streamNote = document.createElement('div');
         streamNote.className = 'gemini-ask-stream-box-note';
         streamBox.appendChild(streamBoxTitle);
