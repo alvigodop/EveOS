@@ -92,11 +92,23 @@ function _setGeminiLiveLinkMode(mode) {
 function _setGeminiLiveLinkEnabled(enabled) {
     const value = !!enabled;
     const cfg = _getGeminiLiveLinkConfig();
+    const changed = !cfg || cfg.geminiLiveLinkEnabled !== value;
     if (cfg) {
         cfg.geminiLiveLinkEnabled = value;
         if (typeof saveConfig === 'function') {
             saveConfig();
         }
+    }
+    if (changed) {
+        try {
+            window.dispatchEvent(new CustomEvent('eve:gemini-live-link-toggled', {
+                detail: { enabled: value }
+            }));
+        } catch { /* optional host event */ }
+        const sync = window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync;
+        sync?.recordDataStreamMarker?.(`Context Relay ${value ? 'enabled' : 'disabled'}`, {
+            relayEnabled: value
+        });
     }
     return value;
 }

@@ -59,10 +59,13 @@ async function measureWorkspace(page) {
 
 function assertMetrics(metrics) {
   const minIndicatorWidth = metrics.viewport.width - 48;
-  const minChatHeight = Math.max(330, Math.floor(metrics.viewport.height * 0.31));
-  const maxChatHeight = Math.max(430, Math.ceil(metrics.viewport.height * 0.39));
-  const minSystemHeight = Math.max(185, Math.floor(metrics.viewport.height * 0.18));
-  const maxSystemHeight = Math.max(245, Math.ceil(metrics.viewport.height * 0.24));
+  // Production uses bounded viewport clamps so ultrawide/tall displays do not
+  // turn the logs into full-page voids. Keep the smoke aligned with those
+  // bounds while still catching cramped or runaway layouts.
+  const minChatHeight = Math.min(430, Math.max(280, Math.floor(metrics.viewport.height * 0.28)));
+  const maxChatHeight = 540;
+  const minSystemHeight = Math.min(280, Math.max(165, Math.floor(metrics.viewport.height * 0.16)));
+  const maxSystemHeight = 340;
 
   if (!metrics.indicator || metrics.indicator.width < minIndicatorWidth) {
     throw new Error(`Gemini workspace wide panel is too narrow: ${JSON.stringify(metrics)}`);

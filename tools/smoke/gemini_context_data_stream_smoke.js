@@ -17,6 +17,8 @@ const context = {
   window: {
     config: {
       activeWorkspace: 'main',
+      geminiLiveLinkEnabled: true,
+      geminiContextDataStreamEnabled: true,
       workspaces: [
         { id: 'main', name: 'Main', subTabs: [{ id: 'child', name: 'Child', subTabs: [] }] },
         { id: 'other', name: 'Other', subTabs: [] }
@@ -62,6 +64,7 @@ function assert(condition, message) {
 
 (async function main() {
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.datastream.trace.js');
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.datastream.js');
   const api = context.window.EveDataStore._modularSync;
 
@@ -94,9 +97,20 @@ function assert(condition, message) {
   assert(payload.silent_response === true && payload.data_stream.silent === true, 'data stream must be silent');
   assert(payload.context_manifest.mode === 'stream', 'manifest mode should be stream');
   const text = payload.realtime_input.media_chunks[0].data;
-  assert(text.includes('eveos.gemini-data-stream.v1'), 'stream schema missing');
+  assert(text.includes('eveos.gemini-data-stream.v2'), 'stream schema missing');
   assert(text.includes('nexus-1'), 'latest Nexus trace should be included');
-  assert(text.includes('updatedLinkIds'), 'mutation delta should be included');
+  assert(text.includes('linksUpdated'), 'resolved mutation changes should be included');
+  assert(text.includes('"title":"Beta"') || text.includes('"title": "Beta"'), 'updated bookmark should be traceable by title');
+  assert(text.includes('"name":"Child"') || text.includes('"name": "Child"'), 'workspace should be traceable by name');
+
+  context.window.config.geminiLiveLinkEnabled = false;
+  const relayDisabled = api.sendDataStreamToGemini(matchingDetail, { scope });
+  assert(relayDisabled.skipped && relayDisabled.reason === 'relay-disabled', 'master relay must gate stream sends');
+  context.window.config.geminiLiveLinkEnabled = true;
+  context.window.config.geminiContextDataStreamEnabled = false;
+  const streamDisabled = api.sendDataStreamToGemini(matchingDetail, { scope });
+  assert(streamDisabled.skipped && streamDisabled.reason === 'stream-disabled', 'stream toggle must gate stream sends');
+  assert(sent.length === 1, 'disabled stream paths must not emit WebSocket frames');
 
   console.log('GEMINI_CONTEXT_DATA_STREAM_SMOKE_OK');
 })().catch((error) => {

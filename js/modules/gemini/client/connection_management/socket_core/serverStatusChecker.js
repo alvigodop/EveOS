@@ -203,7 +203,8 @@ console.log("serverStatusChecker.js loading...");
                 // burst (5s x10) and go straight to the slow poll so an intentionally serverless
                 // session isn't peppered with connection errors. A server that starts is still
                 // picked up within one slow interval.
-                const fastProbe = serverStatusCheckCount < maxStatusChecks && window.location.protocol !== 'file:';
+                const isFilePage = window.location?.protocol === 'file:';
+                const fastProbe = serverStatusCheckCount < maxStatusChecks && !isFilePage;
                 if (typeof updateConnectionStatus === 'function') {
                     updateConnectionStatus('waiting', fastProbe ? 'Waiting for Gemini Server...' : 'Gemini Server Offline - Monitoring');
                 }

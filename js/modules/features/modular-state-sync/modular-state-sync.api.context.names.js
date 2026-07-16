@@ -220,113 +220,21 @@ window.EveDataStore = window.EveDataStore || {};
         return { body: lines.join('\n'), count: count };
     }
 
-    function folderMaps(tree) {
-        const nodes = Array.isArray(tree) ? tree : (tree?.nodes || tree?.folders || []);
-        const byId = new Map();
-        const children = new Map();
-        (Array.isArray(nodes) ? nodes : []).forEach(function (node) {
-            const id = text(node?.id, '');
-            if (id && !byId.has(id)) byId.set(id, { id: id, name: text(node?.name || node?.title, 'Folder'), parentId: text(node?.parentId, '') });
-        });
-        byId.forEach(function (node) {
-            const parent = byId.has(node.parentId) && node.parentId !== node.id ? node.parentId : '';
-            if (!children.has(parent)) children.set(parent, []);
-            children.get(parent).push(node);
-        });
-        children.forEach(function (list) { list.sort(function (a, b) { return a.name.localeCompare(b.name); }); });
-        return { byId: byId, children: children };
-    }
-
-    // One detail line per bookmark for the contents layer: the same fields the rich relay
-    // ships (identifiers like chapter trackers, status, notes, tags) in a compact pipe row.
-    function bookmarkDetailLine(link) {
-        const parts = [text(link?.title || link?.url, '(Untitled)')];
-        const url = text(link?.url || link?.href, '');
-        if (url) parts.push(url.length > 90 ? url.slice(0, 87) + '...' : url);
-        const idents = []
-            .concat(Array.isArray(link?.identifiers) ? link.identifiers : [])
-            .concat(Array.isArray(link?.identifierIds) ? link.identifierIds : [])
-            .concat(Array.isArray(link?.bookmarkIdentifiers) ? link.bookmarkIdentifiers : [])
-            .map(function (item) { return text(item, ''); })
-            .filter(Boolean);
-        if (idents.length) parts.push('identifiers: ' + Array.from(new Set(idents)).slice(0, 8).join(', '));
-        const status = text(link?.status || link?.readingStatus || link?.mediaStatus, '');
-        if (status) parts.push('status: ' + status);
-        if (link?.done) parts.push('done');
-        if (text(link?.priority, '')) parts.push('priority: ' + link.priority);
-        const notes = text(link?.personalNotes || link?.notes, '').replace(/\s+/g, ' ');
-        if (notes) parts.push('notes: "' + (notes.length > 140 ? notes.slice(0, 137) + '...' : notes) + '"');
-        const tags = (Array.isArray(link?.tags) ? link.tags : []).map(function (tag) { return text(tag, ''); }).filter(Boolean);
-        if (tags.length) parts.push('tags: ' + tags.slice(0, 6).join(', '));
-        return parts.join(' | ');
-    }
-
-    function buildBookmarksAndFolders(roots, scope, lineFor) {
-        const renderLine = typeof lineFor === 'function'
-            ? lineFor
-            : function (link) { return text(link?.title || link?.url, '(Untitled)'); };
-        const idSet = new Set();
-        roots.forEach(function (root) { branchIds(root, idSet); });
-        const folderTrees = getFolderTrees();
-        const cards = cardsByWorkspace(idSet);
-        const linksByCard = new Map();
-        getLinks().forEach(function (link) {
-            const wsId = text(link?.workspace, 'main');
-            if (!idSet.has(wsId)) return;
-            const key = wsId + '::' + text(link?.category, 'Unsorted');
-            if (!linksByCard.has(key)) linksByCard.set(key, []);
-            linksByCard.get(key).push(link);
-        });
-        const lines = [];
-        let bookmarkCount = 0;
-        let folderCount = 0;
-        function emitFolder(folderId, maps, byFolder, indent) {
-            (maps.children.get(folderId) || []).forEach(function (folder) {
-                lines.push(indent + '[folder] ' + folder.name + ':');
-                folderCount += 1;
-                (byFolder.get(folder.id) || []).forEach(function (link) {
-                    lines.push(indent + '  - ' + renderLine(link));
-                    bookmarkCount += 1;
-                });
-                emitFolder(folder.id, maps, byFolder, indent + '  ');
-            });
-        }
-        function visit(node, parentPath) {
-            if (!isNodeActive(node)) return;
-            const name = tabName(node);
-            if (text(node?.linkedTo, '')) {
-                lines.push(tabContextLabel(node, parentPath) + ' is a shortcut to tab "' + shortcutTargetName(node) + '" — its bookmarks are listed under that tab.');
-                return;
-            }
-            const wsId = text(node?.id, '');
-            let names = Array.from(cards.get(wsId) || []).sort();
-            if (scope.scope === 'card' && text(scope.categoryName, '') && wsId === text(scope.workspaceId, '')) {
-                names = names.filter(function (cardName) { return cardName === scope.categoryName; });
-            }
-            names.forEach(function (cardName) {
-                const key = wsId + '::' + cardName;
-                const cardLinks = linksByCard.get(key) || [];
-                const maps = folderMaps(folderTrees[key] || {});
-                if (!cardLinks.length && !maps.byId.size) return;
-                lines.push(tabContextLabel(node, parentPath) + ' > card "' + cardName + '":');
-                const byFolder = new Map();
-                cardLinks.forEach(function (link) {
-                    const folderId = text(link?.folderId, '');
-                    const target = maps.byId.has(folderId) ? folderId : '';
-                    if (!byFolder.has(target)) byFolder.set(target, []);
-                    byFolder.get(target).push(link);
-                });
-                (byFolder.get('') || []).forEach(function (link) {
-                    lines.push('  - ' + renderLine(link));
-                    bookmarkCount += 1;
-                });
-                emitFolder('', maps, byFolder, '  ');
-            });
-            const childPath = parentPath ? parentPath + ' > ' + name : name;
-            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, childPath); });
-        }
-        roots.forEach(function (root) { visit(root, ''); });
-        return { body: lines.join('\n'), count: bookmarkCount, folderCount: folderCount };
+    const bookmarkLayer = window.EveGeminiSelectiveBookmarks?.create?.({
+        text,
+        getConfig,
+        getLinks,
+        getFolderTrees,
+        cardsByWorkspace,
+        branchIds,
+        isNodeActive,
+        tabName,
+        tabContextLabel,
+        shortcutTargetName
+    });
+    if (!bookmarkLayer) {
+        console.warn('[ModularStateSync] Selective bookmark helper missing; selective context not initialized.');
+        return;
     }
 
     const SELECTIVE_KINDS = {
@@ -352,8 +260,8 @@ window.EveDataStore = window.EveDataStore || {};
         let built;
         if (kind === 'tab-tree') built = buildTabNames(roots, Infinity);
         else if (kind === 'cards') built = buildCardNames(roots, scope);
-        else if (kind === 'bookmarks') built = buildBookmarksAndFolders(roots, scope);
-        else if (kind === 'bookmark-contents') built = buildBookmarksAndFolders(roots, scope, bookmarkDetailLine);
+        else if (kind === 'bookmarks') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope);
+        else if (kind === 'bookmark-contents') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope, bookmarkLayer.bookmarkDetailLine);
         else built = buildTabNames(roots, 1);
         const surface = describeSurface(scope);
         const header = '[SYSTEM CONTEXT: EveOS selective context — ' + meta.title + ' for ' + surface
@@ -388,6 +296,26 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function sendSelectiveContext(kind) {
+        const meta = SELECTIVE_KINDS[kind] || SELECTIVE_KINDS.tabs;
+        if (getConfig().geminiLiveLinkEnabled !== true) {
+            const scope = ns.getCurrentGeminiContextScope?.() || {
+                scope: 'workspace',
+                workspaceId: text(getConfig().activeWorkspace, 'main'),
+                workspaceIds: [text(getConfig().activeWorkspace, 'main')]
+            };
+            const context = {
+                kind,
+                scope,
+                surface: describeSurface(scope),
+                count: 0,
+                folderCount: 0,
+                unit: meta.unit,
+                message: ''
+            };
+            const disabled = { ok: true, sent: false, skipped: true, reason: 'relay-disabled', kind };
+            recordSelectiveInsight(context, disabled);
+            return disabled;
+        }
         const context = buildSelectiveContext(kind);
         const result = {
             ok: true,

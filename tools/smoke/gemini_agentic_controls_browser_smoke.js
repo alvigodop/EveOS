@@ -115,6 +115,12 @@ async function main() {
             throw new Error(`Agentic controls are not fully wired: ${JSON.stringify(controls)}`);
         }
 
+        await page.evaluate(() => {
+            window.__geminiRelayToggleEvents = [];
+            window.addEventListener('eve:gemini-live-link-toggled', (event) => {
+                window.__geminiRelayToggleEvents.push(event.detail?.enabled);
+            });
+        });
         await page.click('label[for="geminiLiveLinkToggle"]');
         const relayPaused = await page.evaluate(() => {
             const box = (selector) => {
@@ -129,7 +135,10 @@ async function main() {
                 };
             };
             return {
-                controlsHidden: document.getElementById('geminiLiveLinkControls')?.getAttribute('aria-hidden'),
+                settingsDisabled: document.getElementById('geminiLiveLinkSettingsButton')?.disabled,
+                persistedEnabled: window.eveState?.config?.geminiLiveLinkEnabled,
+                toggleEvents: window.__geminiRelayToggleEvents || [],
+                toggleChecked: document.getElementById('geminiLiveLinkToggle')?.checked,
                 card: box('#gemini-live-link-card'),
                 toggle: box('label[for="geminiLiveLinkToggle"]'),
                 track: box('label[for="geminiLiveLinkToggle"] .mdl-switch__track'),
@@ -140,9 +149,11 @@ async function main() {
                 paused: document.getElementById('gemini-live-link-card')?.classList.contains('is-relay-paused')
             };
         });
-        const liveLinkHidden = relayPaused.controlsHidden;
-        if (liveLinkHidden !== 'true') {
-            throw new Error(`Gemini Live Link toggle is not wired: ${liveLinkHidden}`);
+        if (relayPaused.settingsDisabled !== true
+            || relayPaused.persistedEnabled !== false
+            || relayPaused.toggleChecked !== false
+            || relayPaused.toggleEvents.at(-1) !== false) {
+            throw new Error(`Gemini Live Link toggle is not wired: ${JSON.stringify(relayPaused)}`);
         }
         if (!relayPaused.paused
             || relayPaused.card.height > 175
@@ -150,9 +161,7 @@ async function main() {
             || relayPaused.track.width !== 36
             || relayPaused.track.height !== 14
             || relayPaused.thumb.width !== 20
-            || relayPaused.thumb.height !== 20
-            || relayPaused.manifest.display !== 'none'
-            || relayPaused.status.display !== 'none') {
+            || relayPaused.thumb.height !== 20) {
             throw new Error(`Gemini Live Link paused state is not compact: ${JSON.stringify(relayPaused)}`);
         }
         await page.click('label[for="geminiLiveLinkToggle"]');
@@ -199,7 +208,7 @@ async function main() {
             || narrowDialog.background === 'rgba(0, 0, 0, 0)'
             || narrowDialog.headerMarginBottom !== '0px'
             || narrowDialog.actionsPadding !== '12px 16px'
-            || narrowDialog.chatHeight > 245 || narrowDialog.systemHeight > 185) {
+            || narrowDialog.chatHeight > 320 || narrowDialog.systemHeight > 185) {
             throw new Error(`Agentic layout escaped its viewport: ${JSON.stringify(narrowDialog)}`);
         }
 

@@ -96,6 +96,9 @@ async function main() {
     await page.fill('form[data-af-form="sound"] input[name="category"]', 'Smoke');
     await page.fill('form[data-af-form="sound"] input[name="volume"]', '0.5');
     await page.click('form[data-af-form="sound"] button[type="submit"]');
+    await page.waitForFunction(() => (
+        window.EveAudioflixState?.getSnapshot?.().soundboard?.length > 0
+    ), undefined, { timeout: 5000 });
 
     // --- Frontend/Backend view + exposure (sounds now default exposed=false) ---
     const soundId = await page.evaluate(() => window.EveAudioflixState.getSnapshot().soundboard[0].id);

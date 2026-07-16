@@ -50,6 +50,8 @@ function makeVmContext({ budgetOverride } = {}) {
             localStorage: { getItem: (key) => (key === 'geminiContextCharBudget' && budgetOverride ? String(budgetOverride) : null) },
             config: {
                 activeWorkspace: 'main',
+                geminiLiveLinkEnabled: true,
+                geminiContextDataStreamEnabled: true,
                 workspaces: WORKSPACES.map((id) => ({ id, name: id[0].toUpperCase() + id.slice(1), subTabs: [] }))
             },
             eveState: { links },
@@ -90,6 +92,7 @@ function runScript(context, relativePath) {
 function loadPipeline(context) {
     runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
     runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.trace.js');
     runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.js');
 }
 function assert(condition, message) { if (!condition) throw new Error('ASSERT FAILED: ' + message); }

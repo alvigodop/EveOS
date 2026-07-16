@@ -84,7 +84,12 @@ function makeRelayVm({ textBrainMode }) {
         navigator: {},
         window: {
             localStorage: { getItem: () => null },
-            config: { activeWorkspace: 'main', workspaces: [{ id: 'main', name: 'Main', subTabs: [] }] },
+            config: {
+                activeWorkspace: 'main',
+                geminiLiveLinkEnabled: true,
+                geminiContextDataStreamEnabled: true,
+                workspaces: [{ id: 'main', name: 'Main', subTabs: [] }]
+            },
             EveAudioflixState: { isTextBrainMode: () => textBrainMode },
             EveDataStore: {
                 _modularSync: {
@@ -171,6 +176,7 @@ function makeRelayVm({ textBrainMode }) {
         console.log(`mode 2 routing OK: ${result.mode} snapshot (${result.manifest.messageChars} chars) -> brain slot -> next turn carried ${String(req.context).length} chars; live WS untouched`);
 
         // Data Stream deltas also route to the brain in Mode 2 (the live session never sees them)
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.trace.js');
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.js');
         wsFrames.length = 0; // Clear frames sent by context injection turn
         const streamResult = api.sendDataStreamToGemini(
@@ -184,7 +190,7 @@ function makeRelayVm({ textBrainMode }) {
         await mode2.relayUserUtterance('and now?');
         const req2 = brainRequests[1];
         assert(String(req2.context || '').includes('[EVEOS DATA STREAM UPDATES'), 'delta log missing from next brain turn');
-        assert(String(req2.context || '').includes('eveos.gemini-data-stream.v1'), 'delta payload missing from next brain turn');
+        assert(String(req2.context || '').includes('eveos.gemini-data-stream.v2'), 'delta payload missing from next brain turn');
         mode2.setEveContext('fresh snapshot', null);
         assert(mode2.getEveContextStatus().updateCount === 0, 'a fresh snapshot should clear the delta log');
         console.log('mode 2 data stream OK: delta -> brain update log -> carried on next turn; cleared by fresh snapshot');
