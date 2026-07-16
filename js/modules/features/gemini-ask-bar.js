@@ -88,12 +88,18 @@
             '.gemini-ask-panel.is-collapsed .gemini-ask-panel-body { display: none; }',
             '.gemini-ask-panel-placeholder { font-size: 2.4rem; font-weight: 700; letter-spacing: 2px; color: var(--text-main, #eee); opacity: 0.25; text-transform: uppercase; }',
             '.agent-space-popout-btn { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }',
-            '.agent-space-popout-btn:hover { background: rgba(0, 212, 255, 0.1); border-color: color-mix(in srgb, var(--accent, #00d4ff) 50%, transparent); color: var(--accent, #00d4ff); }',
-            '.agent-space-popout-btn .material-icons { font-size: 18px; line-height: 1; }',
-            // Hide the floating Search Monitor while the chat popout is open. (The popup is
+            '.agent-space-tools-btn { position: absolute; top: 12px; right: 54px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }',
+            '.agent-space-popout-btn:hover, .agent-space-tools-btn:hover { background: rgba(0, 212, 255, 0.1); border-color: color-mix(in srgb, var(--accent, #00d4ff) 50%, transparent); color: var(--accent, #00d4ff); }',
+            '.agent-space-popout-btn .material-icons, .agent-space-tools-btn .material-icons { font-size: 18px; line-height: 1; }',
+            '#agenticPopupOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 1000; }',
+            '.agentic-popup-content { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(90%, 800px); max-height: 85%; display: flex; flex-direction: column; background: linear-gradient(145deg, rgba(12, 17, 24, 0.96), rgba(8, 12, 18, 0.95)) !important; border: 1px solid rgba(0, 212, 255, 0.15) !important; border-radius: 18px !important; z-index: 1001 !important; overflow-y: auto !important; box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6) !important; color: #e8f7ff !important; padding: 16px !important; }',
+            '#agenticPopupCloseButton { align-self: flex-end; margin: 0 0 10px 0; cursor: pointer; width: 32px; height: 32px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.5); font-size: 18px; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; }',
+            '#agenticPopupCloseButton:hover { background: rgba(255, 82, 82, 0.2); border-color: rgba(255, 82, 82, 0.4); color: #ff8a80; }',
+            '.agentic-popup-content .gemini-agentic-shell { background: transparent !important; border: none !important; box-shadow: none !important; padding: 0 !important; }',
+            // Hide the floating Search Monitor while the chat popout or agentic functions popup is open. (The popup is
             // appended at the END of body, so a sibling combinator can never match the
             // earlier #loadingIndicator — :has() on body is the working form.)
-            'body:has(#chatPopup) #loadingIndicator { display: none !important; }'
+            'body:has(#chatPopup) #loadingIndicator, body:has(.agentic-popup-content) #loadingIndicator { display: none !important; }'
         ].join('\n');
         document.head.appendChild(style);
     }
@@ -183,6 +189,106 @@
             }, 200);
         });
         body.appendChild(shortcutBtn);
+
+        const toolsBtn = document.createElement('button');
+        toolsBtn.type = 'button';
+        toolsBtn.className = 'agent-space-tools-btn';
+        toolsBtn.title = 'Agentic Functions';
+        toolsBtn.innerHTML = '<i class="material-icons">widgets</i>';
+
+        let popupOpen = false;
+        let popupOverlay = null;
+        let popupContent = null;
+        let originalParent = null;
+
+        function closeAgenticPopup() {
+            if (!popupOpen) return;
+            const shell = popupContent?.querySelector('.gemini-agentic-shell');
+            if (shell && originalParent) {
+                originalParent.appendChild(shell);
+            }
+            if (popupContent) popupContent.remove();
+            if (popupOverlay) popupOverlay.remove();
+
+            const inactiveRoot = document.getElementById('gemini-ui-root-inactive');
+            if (inactiveRoot) {
+                inactiveRoot.id = 'gemini-ui-root';
+            }
+            popupOpen = false;
+        }
+
+        function openAgenticPopup() {
+            if (popupOpen) return false;
+            const originalRoot = document.getElementById('gemini-ui-root');
+            const shell = document.querySelector('.gemini-agentic-shell');
+            if (!shell) {
+                return false;
+            }
+
+            originalParent = shell.parentNode;
+
+            if (originalRoot) {
+                originalRoot.id = 'gemini-ui-root-inactive';
+            }
+
+            popupOverlay = document.createElement('div');
+            popupOverlay.id = 'agenticPopupOverlay';
+            popupOverlay.addEventListener('click', closeAgenticPopup);
+
+            popupContent = document.createElement('div');
+            popupContent.id = 'gemini-ui-root';
+            popupContent.className = 'gemini-monitor-shell agentic-popup-content';
+
+            const closeBtn = document.createElement('button');
+            closeBtn.id = 'agenticPopupCloseButton';
+            closeBtn.type = 'button';
+            closeBtn.className = 'mdl-button mdl-js-button mdl-button--icon';
+            closeBtn.innerHTML = '<i class="material-icons">close</i>';
+            closeBtn.addEventListener('click', function (event) {
+                event.stopPropagation();
+                closeAgenticPopup();
+            });
+            popupContent.appendChild(closeBtn);
+            popupContent.appendChild(shell);
+
+            document.body.appendChild(popupOverlay);
+            document.body.appendChild(popupContent);
+            popupOpen = true;
+            return true;
+        }
+
+        toolsBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (popupOpen) {
+                closeAgenticPopup();
+                return;
+            }
+
+            if (openAgenticPopup()) return;
+
+            // Not booted/loaded yet, trigger boot
+            window.__GEMINI_BOOT_REQUESTED = true;
+            let bootStarted = false;
+            let retries = 60;
+            const poll = setInterval(function () {
+                if (!bootStarted && typeof window.__loadGeminiScriptsNow === 'function') {
+                    bootStarted = true;
+                    window.__loadGeminiScriptsNow();
+                }
+                if (openAgenticPopup()) {
+                    clearInterval(poll);
+                    return;
+                }
+                retries--;
+                if (retries <= 0) {
+                    clearInterval(poll);
+                    if (typeof window.showToast === 'function') {
+                        window.showToast('Failed to load Agentic Functions.', 'error');
+                    }
+                }
+            }, 200);
+        });
+        body.appendChild(toolsBtn);
 
         panel.appendChild(header);
         panel.appendChild(body);
