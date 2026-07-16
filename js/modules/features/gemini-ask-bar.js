@@ -90,7 +90,10 @@
             '.agent-space-popout-btn { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }',
             '.agent-space-popout-btn:hover { background: rgba(0, 212, 255, 0.1); border-color: color-mix(in srgb, var(--accent, #00d4ff) 50%, transparent); color: var(--accent, #00d4ff); }',
             '.agent-space-popout-btn .material-icons { font-size: 18px; line-height: 1; }',
-            '#chatPopup ~ #loadingIndicator, #chatPopupOverlay ~ #loadingIndicator { display: none !important; }'
+            // Hide the floating Search Monitor while the chat popout is open. (The popup is
+            // appended at the END of body, so a sibling combinator can never match the
+            // earlier #loadingIndicator — :has() on body is the working form.)
+            'body:has(#chatPopup) #loadingIndicator { display: none !important; }'
         ].join('\n');
         document.head.appendChild(style);
     }
@@ -128,50 +131,56 @@
         placeholder.textContent = 'TO BE FILLED';
         body.appendChild(placeholder);
 
+        // Opening from Agent Space always means Agent Space MODE: the popout chats through the
+        // same Mode 2 / surface-prefixed pipeline as the ask bar. Prefer the popout API; fall
+        // back to a one-shot mode flag + synthetic click while the API is still booting.
+        function triggerAgentSpacePopout() {
+            if (window.EvePopoutChat && typeof window.EvePopoutChat.toggleAgentSpace === 'function') {
+                window.EvePopoutChat.toggleAgentSpace();
+                return true;
+            }
+            const realPopout = document.getElementById('popoutButton');
+            if (realPopout) {
+                window.__evePopoutOpenMode = 'agent-space';
+                realPopout.click();
+                return true;
+            }
+            return false;
+        }
+
         const shortcutBtn = document.createElement('button');
         shortcutBtn.type = 'button';
         shortcutBtn.className = 'agent-space-popout-btn';
-        shortcutBtn.title = 'Open Gemini in a separate window';
+        shortcutBtn.title = 'Open Gemini in a separate window (Agent Space Mode)';
         shortcutBtn.innerHTML = '<i class="material-icons">open_in_new</i>';
         shortcutBtn.addEventListener('click', function (e) {
             e.stopPropagation();
 
-            const realPopout = document.getElementById('popoutButton');
-            if (realPopout) {
-                realPopout.click();
-            } else {
-                // Boot Gemini and wait for the popout button to load
-                if (typeof window.requestGeminiBoot === 'function') {
-                    window.requestGeminiBoot('ui-interaction').then(function () {
-                        let retries = 30;
-                        const poll = setInterval(function () {
-                            const btn = document.getElementById('popoutButton');
-                            if (btn) {
-                                clearInterval(poll);
-                                if (btn.dataset.bubbleStopped !== 'true') {
-                                    btn.addEventListener('click', function (event) {
-                                        event.stopPropagation();
-                                    });
-                                    btn.dataset.bubbleStopped = 'true';
-                                }
-                                btn.click();
-                            } else {
-                                retries--;
-                                if (retries <= 0) {
-                                    clearInterval(poll);
-                                    if (typeof window.showToast === 'function') {
-                                        window.showToast('Failed to initialize popout chat.', 'error');
-                                    }
-                                }
-                            }
-                        }, 100);
-                    });
-                } else {
+            if (triggerAgentSpacePopout()) return;
+
+            // Gemini UI not booted yet. There is no window.requestGeminiBoot global — the
+            // real boot trigger is __loadGeminiScriptsNow, exported by the gemini
+            // Script_Loader (which may itself still be in the deferred queue, so poll for it).
+            window.__GEMINI_BOOT_REQUESTED = true;
+            let bootStarted = false;
+            let retries = 60;
+            const poll = setInterval(function () {
+                if (!bootStarted && typeof window.__loadGeminiScriptsNow === 'function') {
+                    bootStarted = true;
+                    window.__loadGeminiScriptsNow();
+                }
+                if (triggerAgentSpacePopout()) {
+                    clearInterval(poll);
+                    return;
+                }
+                retries--;
+                if (retries <= 0) {
+                    clearInterval(poll);
                     if (typeof window.showToast === 'function') {
-                        window.showToast('Gemini connection is not initialized yet.', 'warning');
+                        window.showToast('Failed to initialize popout chat.', 'error');
                     }
                 }
-            }
+            }, 200);
         });
         body.appendChild(shortcutBtn);
 
@@ -287,6 +296,10 @@
             isActive: function () { return active; },
             setActive: setActive,
             describeSurface: describeSurface,
+            // Shared routing for every "ask about the datapack" entry point (search bar, Agent
+            // Space popout): Mode 2 text brain when active, live send otherwise, always with
+            // the [User is viewing: ...] surface prefix.
+            sendQuestion: sendQuestion,
             getPanel: function () { return document.getElementById('gemini-ask-panel'); },
             getPanelBody: function () { return document.querySelector('#gemini-ask-panel .gemini-ask-panel-body'); }
         };
