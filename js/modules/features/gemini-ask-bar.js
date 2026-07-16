@@ -108,8 +108,9 @@
             '.gemini-ask-stream-header { text-align: center; margin: 2px auto 0; padding: 6px 96px 0; font-size: 1.15rem; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent, #00d4ff); opacity: 0.75; text-shadow: 0 0 14px color-mix(in srgb, var(--accent, #00d4ff) 30%, transparent); }',
             '.gemini-ask-stream-box { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px 34px; border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 30%, transparent); border-radius: 14px; background: rgba(0, 212, 255, 0.045); box-shadow: 0 0 18px color-mix(in srgb, var(--accent, #00d4ff) 10%, transparent); }',
             '.gemini-ask-stream-box-title { font-size: 0.78rem; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--text-main, #eee); opacity: 0.7; }',
-            '.gemini-ask-insight-btn { width: 52px; height: 52px; border-radius: 16px; background: rgba(0, 212, 255, 0.05); border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 30%, transparent); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s; font-size: 22px; line-height: 1; }',
+            '.gemini-ask-insight-btn { width: 44px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s; }',
             '.gemini-ask-insight-btn:hover { background: rgba(0, 212, 255, 0.12); border-color: color-mix(in srgb, var(--accent, #00d4ff) 55%, transparent); color: var(--accent, #00d4ff); box-shadow: 0 0 12px color-mix(in srgb, var(--accent, #00d4ff) 25%, transparent); }',
+            '.gemini-ask-insight-btn .material-icons { font-size: 22px; line-height: 1; }',
             '.gemini-ask-stream-box-note { font-size: 0.72rem; opacity: 0.55; text-align: center; max-width: 320px; }',
             '.gemini-ask-insight-viewer { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }',
             '.gemini-ask-panel-body.is-insight-open { height: 60vh; overflow: hidden; }',
@@ -367,7 +368,7 @@
         insightBtn.type = 'button';
         insightBtn.className = 'gemini-ask-insight-btn';
         insightBtn.title = 'Insight Gathering';
-        insightBtn.textContent = '📡';
+        insightBtn.innerHTML = '<i class="material-icons">insights</i>';
         const streamNote = document.createElement('div');
         streamNote.className = 'gemini-ask-stream-box-note';
         streamBox.appendChild(streamBoxTitle);
