@@ -66,6 +66,13 @@ window.GeminiLiveLinkScopeRuntime = window.GeminiLiveLinkScopeRuntime || {};
             cfg.geminiContextDataStreamSilent = true;
             save();
         }
+        // Let stream-aware surfaces (Agent Space) react instantly, and stamp the lifecycle
+        // into the insight log so the viewer timeline shows when streaming started/stopped.
+        try {
+            window.dispatchEvent(new CustomEvent('eve:datastream-toggled', { detail: { enabled: value } }));
+        } catch { /* best effort */ }
+        const sync = window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync;
+        sync?.recordDataStreamMarker?.(value ? 'Data Stream enabled' : 'Data Stream disabled');
         return value;
     }
 

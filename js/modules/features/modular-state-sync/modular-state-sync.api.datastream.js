@@ -172,9 +172,86 @@ window.EveDataStore = window.EveDataStore || {};
             : null;
     }
 
+    // --- Stream insight log -------------------------------------------------------------
+    // Every send attempt (delivered or skipped) is recorded so the Agent Space "Insight
+    // Gathering" viewer can show the real flow: what EveOS sent, over which route, and what
+    // the agent now holds. Ring buffer on window so it survives module reloads.
+    const INSIGHT_LOG_MAX = 120;
+
+    function getDataStreamInsightLog() {
+        return window.__eveDataStreamInsightLog = window.__eveDataStreamInsightLog || [];
+    }
+
+    function summarizeDelta(delta) {
+        if (!delta || typeof delta !== 'object') return '';
+        const bits = [];
+        const count = (list) => (Array.isArray(list) ? list.length : 0);
+        if (count(delta.addedLinkIds)) bits.push(count(delta.addedLinkIds) + ' link(s) added');
+        if (count(delta.updatedLinkIds)) bits.push(count(delta.updatedLinkIds) + ' link(s) updated');
+        if (count(delta.removedLinkIds)) bits.push(count(delta.removedLinkIds) + ' link(s) removed');
+        if (!bits.length && count(delta.linkIds)) bits.push(count(delta.linkIds) + ' link(s) touched');
+        if (count(delta.categoryNames)) bits.push('cards: ' + toList(delta.categoryNames, 4).join(', '));
+        if (count(delta.workspaceIds)) bits.push(count(delta.workspaceIds) + ' tab(s)');
+        if (delta.hasFolderStoreChanges) bits.push('folders changed');
+        if (delta.hasQuickPinChanges) bits.push('quick pins changed');
+        if (delta.hasConstellationChanges) bits.push('constellation changed');
+        return bits.join(' · ');
+    }
+
+    function recordDataStreamInsight(entry) {
+        const log = getDataStreamInsightLog();
+        const record = Object.assign({
+            id: 'ds_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+            at: Date.now(),
+            type: 'send'
+        }, entry || {});
+        log.push(record);
+        while (log.length > INSIGHT_LOG_MAX) log.shift();
+        try {
+            window.dispatchEvent(new CustomEvent('eve:datastream-insight', { detail: record }));
+        } catch { /* insight events are best effort */ }
+        return record;
+    }
+
+    // Marker entries (toggle flips, notes) so the viewer timeline shows stream lifecycle.
+    function recordDataStreamMarker(note, extra) {
+        return recordDataStreamInsight(Object.assign({
+            type: 'marker',
+            outcome: 'marker',
+            note: text(note, 'marker')
+        }, extra || {}));
+    }
+
+    function describeInsightScope(scope) {
+        return {
+            scope: scope.scope,
+            label: scope.label || '',
+            workspaceId: scope.workspaceId || '',
+            workspaceIds: toList(scope.workspaceIds, 24),
+            categoryName: scope.categoryName || '',
+            source: scope.source || ''
+        };
+    }
+
+    function describeInsightMutation(detail) {
+        return {
+            source: detail?.source || 'state-mutated',
+            kind: detail?.kind || 'data',
+            mutationSeq: Number(detail?.mutationSeq) || 0,
+            immediate: !!detail?.immediate
+        };
+    }
+
     function sendDataStreamToGemini(detail, options = {}) {
         const scope = normalizeScopeOptions(options?.scope || options);
         if (!mutationMatchesScope(detail, scope)) {
+            recordDataStreamInsight({
+                outcome: 'skipped',
+                reason: 'outside-scope',
+                scope: describeInsightScope(scope),
+                mutation: describeInsightMutation(detail),
+                deltaSummary: summarizeDelta(detail?.meta?.dataDelta)
+            });
             return { ok: true, sent: false, skipped: true, reason: 'outside-scope', scope };
         }
         // Mode 2: deltas belong with the TEXT BRAIN (which holds the snapshot they update), not
@@ -183,11 +260,32 @@ window.EveDataStore = window.EveDataStore || {};
         if (window.EveAudioflixState?.isTextBrainMode?.() === true
             && typeof window.EveGeminiMode2?.appendEveUpdate === 'function') {
             const brainContext = buildDataStreamContext(detail, scope);
-            const appended = window.EveGeminiMode2.appendEveUpdate(JSON.stringify(brainContext));
+            const brainPayload = JSON.stringify(brainContext);
+            const appended = window.EveGeminiMode2.appendEveUpdate(brainPayload);
+            recordDataStreamInsight({
+                outcome: 'sent',
+                route: 'text-brain',
+                scope: describeInsightScope(scope),
+                mutation: describeInsightMutation(detail),
+                deltaSummary: summarizeDelta(brainContext.delta),
+                nexus: brainContext.nexus,
+                messageChars: brainPayload.length,
+                brainQueueCount: appended.count,
+                payload: brainContext
+            });
             return { ok: true, sent: true, route: 'text-brain', scope, manifest: brainContext, updateCount: appended.count };
         }
         const socket = getSocket();
-        if (!socket) return { ok: false, sent: false, skipped: true, reason: 'socket-offline', scope };
+        if (!socket) {
+            recordDataStreamInsight({
+                outcome: 'skipped',
+                reason: 'socket-offline',
+                scope: describeInsightScope(scope),
+                mutation: describeInsightMutation(detail),
+                deltaSummary: summarizeDelta(detail?.meta?.dataDelta)
+            });
+            return { ok: false, sent: false, skipped: true, reason: 'socket-offline', scope };
+        }
         const context = buildDataStreamContext(detail, scope);
         const message = [
             '[LIVE EVEOS DATA STREAM UPDATE: silent context. Observe this update without replying unless the user asks or the update is safety-critical.]',
@@ -215,6 +313,16 @@ window.EveDataStore = window.EveDataStore || {};
                 generatedAt: context.generatedAt
             }
         }));
+        recordDataStreamInsight({
+            outcome: 'sent',
+            route: 'websocket',
+            scope: describeInsightScope(scope),
+            mutation: describeInsightMutation(detail),
+            deltaSummary: summarizeDelta(context.delta),
+            nexus: context.nexus,
+            messageChars: message.length,
+            payload: context
+        });
         return { ok: true, sent: true, route: 'websocket', scope, manifest: context };
     }
 
@@ -222,7 +330,9 @@ window.EveDataStore = window.EveDataStore || {};
         getGeminiContextCardOptions,
         sendDataStreamToGemini,
         mutationMatchesScope,
-        buildDataStreamContext
+        buildDataStreamContext,
+        getDataStreamInsightLog,
+        recordDataStreamMarker
     });
 
     ns.apiDataStreamReady = true;

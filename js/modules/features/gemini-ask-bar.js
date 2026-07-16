@@ -99,7 +99,44 @@
             // Hide the floating Search Monitor while the chat popout or agentic functions popup is open. (The popup is
             // appended at the END of body, so a sibling combinator can never match the
             // earlier #loadingIndicator — :has() on body is the working form.)
-            'body:has(#chatPopup) #loadingIndicator, body:has(.agentic-popup-content) #loadingIndicator { display: none !important; }'
+            'body:has(#chatPopup) #loadingIndicator, body:has(.agentic-popup-content) #loadingIndicator { display: none !important; }',
+            // --- Data Stream state (stream toggle ON) + Insight Gathering viewer ---
+            '.gemini-ask-panel-body.is-streaming { flex-direction: column; align-items: stretch; justify-content: flex-start; }',
+            '.gemini-ask-panel-body.is-streaming .gemini-ask-panel-placeholder { display: none; }',
+            '.gemini-ask-stream-state { display: none; }',
+            '.gemini-ask-panel-body.is-streaming:not(.is-insight-open) .gemini-ask-stream-state { display: flex; flex-direction: column; flex: 1; }',
+            '.gemini-ask-stream-header { text-align: center; margin: 2px auto 0; padding: 6px 96px 0; font-size: 1.15rem; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: var(--accent, #00d4ff); opacity: 0.75; text-shadow: 0 0 14px color-mix(in srgb, var(--accent, #00d4ff) 30%, transparent); }',
+            '.gemini-ask-stream-box { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 22px 34px; border: 1px solid color-mix(in srgb, var(--accent, #00d4ff) 30%, transparent); border-radius: 14px; background: rgba(0, 212, 255, 0.045); box-shadow: 0 0 18px color-mix(in srgb, var(--accent, #00d4ff) 10%, transparent); }',
+            '.gemini-ask-stream-box-title { font-size: 0.78rem; font-weight: 600; letter-spacing: 1.6px; text-transform: uppercase; color: var(--text-main, #eee); opacity: 0.7; }',
+            '.gemini-ask-insight-btn { width: 44px; height: 44px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main, #eee); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; outline: none; transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s; }',
+            '.gemini-ask-insight-btn:hover { background: rgba(0, 212, 255, 0.12); border-color: color-mix(in srgb, var(--accent, #00d4ff) 55%, transparent); color: var(--accent, #00d4ff); box-shadow: 0 0 12px color-mix(in srgb, var(--accent, #00d4ff) 25%, transparent); }',
+            '.gemini-ask-insight-btn .material-icons { font-size: 22px; line-height: 1; }',
+            '.gemini-ask-stream-box-note { font-size: 0.72rem; opacity: 0.55; text-align: center; max-width: 320px; }',
+            '.gemini-ask-insight-viewer { display: none; width: 100%; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }',
+            '.gemini-ask-panel-body.is-insight-open { height: 60vh; overflow: hidden; }',
+            '.gemini-ask-panel-body.is-insight-open .gemini-ask-insight-viewer { display: flex; }',
+            '.gemini-ask-panel-body.is-insight-open .gemini-ask-stream-state { display: none; }',
+            '.gemini-ask-insight-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-right: 96px; }',
+            '.gemini-ask-insight-title { color: var(--accent, #00d4ff); font-weight: 600; font-size: 0.9rem; letter-spacing: 0.6px; }',
+            '.gemini-ask-insight-actions { display: flex; gap: 6px; margin-left: auto; }',
+            '.gemini-ask-insight-actions button { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); color: var(--text-main, #eee); border-radius: 8px; padding: 4px 12px; font-size: 0.7rem; letter-spacing: 0.6px; cursor: pointer; transition: background 0.2s, border-color 0.2s, color 0.2s; }',
+            '.gemini-ask-insight-actions button:hover { background: rgba(0, 212, 255, 0.1); border-color: color-mix(in srgb, var(--accent, #00d4ff) 50%, transparent); color: var(--accent, #00d4ff); }',
+            '.gemini-ask-insight-status { font-size: 0.72rem; opacity: 0.7; letter-spacing: 0.3px; }',
+            '.gemini-ask-insight-feed { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; }',
+            '.gemini-ask-insight-empty { margin: auto; opacity: 0.45; font-size: 0.85rem; text-align: center; max-width: 380px; }',
+            '.gemini-ask-insight-entry { border: 1px solid rgba(255, 255, 255, 0.08); border-left: 3px solid var(--accent, #00d4ff); border-radius: 10px; padding: 9px 12px; background: rgba(255, 255, 255, 0.03); font-size: 0.78rem; }',
+            '.gemini-ask-insight-entry.is-skipped { border-left-color: #ffb347; }',
+            '.gemini-ask-insight-entry.is-marker { border-left-color: rgba(255, 255, 255, 0.25); opacity: 0.75; text-align: center; font-size: 0.7rem; }',
+            '.gemini-ask-insight-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }',
+            '.gemini-ask-insight-chip { font-size: 0.62rem; letter-spacing: 0.8px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--accent, #00d4ff) 18%, transparent); color: var(--accent, #00d4ff); white-space: nowrap; }',
+            '.gemini-ask-insight-entry.is-skipped .gemini-ask-insight-chip { background: rgba(255, 179, 71, 0.15); color: #ffb347; }',
+            '.gemini-ask-insight-time { opacity: 0.5; font-size: 0.68rem; }',
+            '.gemini-ask-insight-scope { opacity: 0.9; }',
+            '.gemini-ask-insight-meta { opacity: 0.6; font-size: 0.7rem; margin-top: 3px; }',
+            '.gemini-ask-insight-entry details { margin-top: 6px; }',
+            '.gemini-ask-insight-entry summary { cursor: pointer; font-size: 0.68rem; opacity: 0.6; user-select: none; }',
+            '.gemini-ask-insight-entry summary:hover { opacity: 1; color: var(--accent, #00d4ff); }',
+            '.gemini-ask-insight-entry pre { margin: 6px 0 0; padding: 8px 10px; background: rgba(0, 0, 0, 0.35); border-radius: 8px; overflow: auto; font-size: 0.68rem; line-height: 1.45; color: #9fdcef; max-height: 240px; }'
         ].join('\n');
         document.head.appendChild(style);
     }
@@ -289,6 +326,234 @@
             }, 200);
         });
         body.appendChild(toolsBtn);
+
+        // --- Data Stream state + Insight Gathering viewer -----------------------------------
+        // While the Context Relay's Data Stream toggle is ON, the placeholder gives way to a
+        // stream header plus the "Data Stream Activated" box, whose Insight Gathering button
+        // opens a live view of everything the stream sends and what the agent holds.
+        function getSyncApi() {
+            return window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync || null;
+        }
+
+        function getInsightLog() {
+            const api = getSyncApi();
+            if (api && typeof api.getDataStreamInsightLog === 'function') return api.getDataStreamInsightLog();
+            return window.__eveDataStreamInsightLog = window.__eveDataStreamInsightLog || [];
+        }
+
+        function routeStatusText() {
+            if (window.EveAudioflixState?.isTextBrainMode?.() === true) return 'Text Brain (Mode 2)';
+            const ws = window.webSocket;
+            return (ws && ws.readyState === 1) ? 'Live socket' : 'Offline — updates will be skipped';
+        }
+
+        const streamState = document.createElement('div');
+        streamState.className = 'gemini-ask-stream-state';
+        const streamHeader = document.createElement('div');
+        streamHeader.className = 'gemini-ask-stream-header';
+        streamHeader.textContent = 'Datapack Stream Initiated';
+        const streamBox = document.createElement('div');
+        streamBox.className = 'gemini-ask-stream-box';
+        const streamBoxTitle = document.createElement('div');
+        streamBoxTitle.className = 'gemini-ask-stream-box-title';
+        streamBoxTitle.textContent = 'Data Stream Activated';
+        const insightBtn = document.createElement('button');
+        insightBtn.type = 'button';
+        insightBtn.className = 'gemini-ask-insight-btn';
+        insightBtn.title = 'Insight Gathering';
+        insightBtn.innerHTML = '<i class="material-icons">insights</i>';
+        const streamNote = document.createElement('div');
+        streamNote.className = 'gemini-ask-stream-box-note';
+        streamBox.appendChild(streamBoxTitle);
+        streamBox.appendChild(insightBtn);
+        streamBox.appendChild(streamNote);
+        streamState.appendChild(streamHeader);
+        streamState.appendChild(streamBox);
+        body.appendChild(streamState);
+
+        const viewer = document.createElement('div');
+        viewer.className = 'gemini-ask-insight-viewer';
+        const viewerHead = document.createElement('div');
+        viewerHead.className = 'gemini-ask-insight-head';
+        const viewerTitle = document.createElement('span');
+        viewerTitle.className = 'gemini-ask-insight-title';
+        viewerTitle.textContent = '📡 Insight Gathering — Live Data Stream';
+        const viewerActions = document.createElement('div');
+        viewerActions.className = 'gemini-ask-insight-actions';
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.textContent = 'Clear';
+        const backBtn = document.createElement('button');
+        backBtn.type = 'button';
+        backBtn.textContent = 'Back';
+        viewerActions.appendChild(clearBtn);
+        viewerActions.appendChild(backBtn);
+        viewerHead.appendChild(viewerTitle);
+        viewerHead.appendChild(viewerActions);
+        const viewerStatus = document.createElement('div');
+        viewerStatus.className = 'gemini-ask-insight-status';
+        const feed = document.createElement('div');
+        feed.className = 'gemini-ask-insight-feed';
+        viewer.appendChild(viewerHead);
+        viewer.appendChild(viewerStatus);
+        viewer.appendChild(feed);
+        body.appendChild(viewer);
+
+        function buildInsightEntryCard(entry) {
+            const card = document.createElement('div');
+            const isMarker = entry.type === 'marker';
+            const isSkipped = entry.outcome === 'skipped';
+            card.className = 'gemini-ask-insight-entry'
+                + (isSkipped ? ' is-skipped' : '')
+                + (isMarker ? ' is-marker' : '');
+            const when = new Date(entry.at || Date.now()).toLocaleTimeString();
+            if (isMarker) {
+                card.textContent = when + ' — ' + text(entry.note, 'marker');
+                return card;
+            }
+            const row = document.createElement('div');
+            row.className = 'gemini-ask-insight-row';
+            const chip = document.createElement('span');
+            chip.className = 'gemini-ask-insight-chip';
+            chip.textContent = isSkipped
+                ? 'skipped · ' + text(entry.reason, 'unknown')
+                : 'sent · ' + text(entry.route, 'unknown');
+            const time = document.createElement('span');
+            time.className = 'gemini-ask-insight-time';
+            time.textContent = when;
+            const scopeEl = document.createElement('span');
+            scopeEl.className = 'gemini-ask-insight-scope';
+            const scope = entry.scope || {};
+            scopeEl.textContent = text(scope.label, text(scope.scope, 'scope'));
+            row.appendChild(chip);
+            row.appendChild(time);
+            row.appendChild(scopeEl);
+            card.appendChild(row);
+            const meta = document.createElement('div');
+            meta.className = 'gemini-ask-insight-meta';
+            const mutation = entry.mutation || {};
+            const metaBits = [
+                'mutation: ' + text(mutation.source, 'state') + '/' + text(mutation.kind, 'data') + ' #' + (mutation.mutationSeq || 0)
+            ];
+            if (text(entry.deltaSummary, '')) metaBits.push(entry.deltaSummary);
+            if (entry.messageChars) metaBits.push(entry.messageChars + ' chars');
+            if (typeof entry.brainQueueCount === 'number') metaBits.push('brain queue: ' + entry.brainQueueCount + ' pending');
+            meta.textContent = metaBits.join(' · ');
+            card.appendChild(meta);
+            if (entry.nexus && (entry.nexus.summary || entry.nexus.query)) {
+                const nexus = document.createElement('div');
+                nexus.className = 'gemini-ask-insight-meta';
+                nexus.textContent = 'nexus: ' + text(entry.nexus.query, '') + (entry.nexus.summary ? ' — ' + entry.nexus.summary : '');
+                card.appendChild(nexus);
+            }
+            if (entry.payload) {
+                const details = document.createElement('details');
+                const summary = document.createElement('summary');
+                summary.textContent = 'payload sent to the agent';
+                const pre = document.createElement('pre');
+                try { pre.textContent = JSON.stringify(entry.payload, null, 2); }
+                catch { pre.textContent = String(entry.payload); }
+                details.appendChild(summary);
+                details.appendChild(pre);
+                card.appendChild(details);
+            }
+            return card;
+        }
+
+        function refreshInsightStatus() {
+            const cfg = getConfig();
+            const streamOn = !!cfg.geminiContextDataStreamEnabled;
+            const relayOn = !!cfg.geminiLiveLinkEnabled;
+            const queue = window.EveGeminiMode2?.getEveContextStatus?.();
+            const bits = [
+                'Stream: ' + (streamOn ? 'ON' : 'OFF'),
+                'Relay: ' + (relayOn ? 'ON' : 'OFF — stream paused'),
+                'Route: ' + routeStatusText(),
+                'Events: ' + getInsightLog().length
+            ];
+            if (queue && typeof queue.updateCount === 'number') {
+                bits.splice(3, 0, 'Brain queue: ' + queue.updateCount + ' pending update(s)');
+            }
+            viewerStatus.textContent = bits.join('  ·  ');
+        }
+
+        function renderInsightFeed() {
+            feed.innerHTML = '';
+            const log = getInsightLog();
+            if (!log.length) {
+                const empty = document.createElement('div');
+                empty.className = 'gemini-ask-insight-empty';
+                empty.textContent = 'No stream events yet — change something in the datapack (add, edit, or move a bookmark) and the update will flow through here.';
+                feed.appendChild(empty);
+                return;
+            }
+            log.slice().reverse().forEach(function (entry) {
+                feed.appendChild(buildInsightEntryCard(entry));
+            });
+        }
+
+        function refreshStreamNote() {
+            const cfg = getConfig();
+            if (!cfg.geminiLiveLinkEnabled) {
+                streamNote.textContent = 'Context Relay master toggle is OFF — the stream is paused until it is re-enabled.';
+            } else {
+                streamNote.textContent = 'Route: ' + routeStatusText();
+            }
+        }
+
+        function closeInsightViewer() {
+            body.classList.remove('is-insight-open');
+        }
+
+        function openInsightViewer() {
+            body.classList.add('is-insight-open');
+            renderInsightFeed();
+            refreshInsightStatus();
+        }
+
+        function refreshStreamPanelState() {
+            const enabled = !!getConfig().geminiContextDataStreamEnabled;
+            body.classList.toggle('is-streaming', enabled);
+            if (!enabled) closeInsightViewer();
+            else refreshStreamNote();
+        }
+
+        insightBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            openInsightViewer();
+        });
+        backBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            closeInsightViewer();
+        });
+        clearBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            const log = getInsightLog();
+            log.length = 0;
+            renderInsightFeed();
+            refreshInsightStatus();
+        });
+
+        window.addEventListener('eve:datastream-toggled', refreshStreamPanelState);
+        window.addEventListener('eve:datastream-insight', function (event) {
+            if (!body.classList.contains('is-insight-open')) return;
+            const empty = feed.querySelector('.gemini-ask-insight-empty');
+            if (empty) empty.remove();
+            feed.insertBefore(buildInsightEntryCard(event.detail || {}), feed.firstChild);
+            refreshInsightStatus();
+        });
+        // Poll fallback: the toggle can flip through paths that do not dispatch the event
+        // (settings import, direct config edits), and route/status lines should stay honest.
+        window.setInterval(function () {
+            refreshStreamPanelState();
+            if (body.classList.contains('is-insight-open')) refreshInsightStatus();
+        }, 2000);
+        refreshStreamPanelState();
+
+        if (window.EveGeminiAskBar) {
+            window.EveGeminiAskBar.refreshStreamPanel = refreshStreamPanelState;
+            window.EveGeminiAskBar.openInsightViewer = openInsightViewer;
+        }
 
         panel.appendChild(header);
         panel.appendChild(body);
