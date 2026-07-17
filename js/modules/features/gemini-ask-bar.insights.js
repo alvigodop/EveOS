@@ -242,7 +242,7 @@
                 if (text(entry.route, '')) bits.push('route: ' + entry.route);
                 appendMetaLine(card, bits.join(' · '));
                 if (entry.payload && entry.payload.preview) {
-                    appendPayloadDetails(card, 'sent layer content (preview)', entry.payload.preview, true);
+                    appendPayloadDetails(card, 'sent layer content', entry.payload.preview, true);
                 } else if (entry.payload) {
                     appendPayloadDetails(card, 'payload sent to the agent', entry.payload);
                 }

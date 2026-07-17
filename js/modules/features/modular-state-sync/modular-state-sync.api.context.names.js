@@ -305,7 +305,7 @@ window.EveDataStore = window.EveDataStore || {};
             scope: { label: context.surface || '', scope: context.scope?.scope || '' },
             counts: { [context.unit || 'items']: context.count || 0, folders: context.folderCount || 0 },
             messageChars: context.message.length,
-            payload: { preview: context.message.slice(0, 4000) }
+            payload: { preview: context.message }
         });
     }
 

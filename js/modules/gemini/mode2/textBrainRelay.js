@@ -200,8 +200,8 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         const update = String(text || '').trim();
         if (!update) return { count: eveUpdates.length };
         eveUpdates.push(update);
-        while (eveUpdates.length > 1 && (eveUpdates.length > EVE_UPDATE_MAX_COUNT
-            || eveUpdates.reduce((sum, item) => sum + item.length, 0) > EVE_UPDATE_MAX_CHARS)) {
+        while (eveUpdates.length > EVE_UPDATE_MAX_COUNT
+            || eveUpdates.reduce((sum, item) => sum + item.length, 0) > EVE_UPDATE_MAX_CHARS) {
             eveUpdates.shift();
         }
         return { count: eveUpdates.length };
