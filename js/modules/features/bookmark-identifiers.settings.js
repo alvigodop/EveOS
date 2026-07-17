@@ -245,7 +245,7 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
 
         const confirmed = typeof showConfirm === 'function'
             ? await showConfirm(`Delete bookmark identifier "${definition.label}"?`)
-            : window.confirm(`Delete bookmark identifier "${definition.label}"?`);
+            : false;
         if (!confirmed) return;
 
         const cfg = getConfigObject();
@@ -275,7 +275,8 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
     }
 
     async function quickAddBookmarkIdentifier() {
-        const promptFn = typeof showPrompt === 'function' ? showPrompt : window.prompt;
+        const promptFn = typeof showPrompt === 'function' ? showPrompt : null;
+        if (!promptFn) return;
         const result = promptFn('Enter a label for the new custom identifier:');
         
         const label = (result instanceof Promise) ? await result : result;
@@ -318,7 +319,7 @@ window.EveBookmarkIdentifiers = window.EveBookmarkIdentifiers || {};
     async function resetToDefaults() {
         const confirmed = typeof showConfirm === 'function'
             ? await showConfirm('Restore default bookmark identifiers? This replaces the identifier registry but keeps matching bookmark assignments where IDs still exist.')
-            : window.confirm('Restore default bookmark identifiers?');
+            : false;
         if (!confirmed) return;
         const cfg = getConfigObject();
         if (!cfg) return;

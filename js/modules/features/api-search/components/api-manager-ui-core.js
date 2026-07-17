@@ -86,7 +86,8 @@ window.EveOS.API = window.EveOS.API || {};
 
         const popup = window.open(targetUrl, 'apiResultPopup', 'width=900,height=700,scrollbars=yes,resizable=yes');
         if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-            window.alert('Popup blocked. Please allow popups for this site.');
+            if (typeof window.showToast === 'function') window.showToast('Popup blocked. Please allow popups for this site.', 'warning');
+            else console.warn('Popup blocked. Please allow popups for this site.');
             return false;
         }
         return true;

@@ -16,13 +16,11 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             ? deps.confirmAsync
             : async function (message) {
                 if (typeof showConfirm === 'function') return showConfirm(message);
-                return typeof confirm === 'function' ? confirm(message) : false;
+                return false;
             };
         const confirmSync = typeof deps?.confirmSync === 'function'
             ? deps.confirmSync
-            : function (message) {
-                return typeof confirm === 'function' ? confirm(message) : false;
-            };
+            : null;
         const notify = typeof deps?.notify === 'function'
             ? deps.notify
             : function (message, type) {
@@ -93,7 +91,7 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
             });
         }
 
-        function batchDelete(categoryName) {
+        async function batchDelete(categoryName) {
             const escapedCategory = categoryName.replace(/"/g, '\"');
             const checkboxes = queryAll(`input.lib-batch-checkbox[data-category="${escapedCategory}"]:checked`);
             const ids = Array.from(checkboxes).map(cb => cb.getAttribute('data-id'));
@@ -101,7 +99,11 @@ window.EveLibrary.UIModules = window.EveLibrary.UIModules || {};
                 notify('No entries selected', 'warning');
                 return;
             }
-            if (confirmSync(`Delete ${ids.length} entries?`)) {
+            const message = 'Delete ' + ids.length + ' entries?';
+            const confirmed = confirmSync
+                ? confirmSync(message)
+                : await confirmAsync(message);
+            if (confirmed) {
                 EntryManager.batchDelete(categoryName, ids, () => refreshLibrary(categoryName));
             }
         }

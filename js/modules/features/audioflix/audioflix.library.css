@@ -1,0 +1,317 @@
+.audioflix-tabs {
+    display: flex;
+    gap: 10px;
+    padding: 18px 24px 0;
+}
+
+.audioflix-tabs button {
+    padding: 10px 16px;
+    color: rgba(244, 248, 250, 0.72);
+    border-color: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.audioflix-tabs button.active {
+    color: #071014;
+    background: linear-gradient(135deg, #ffca5f, #00d4ff);
+}
+
+.audioflix-content {
+    padding: 16px 24px 24px;
+}
+
+.audioflix-form {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    gap: 10px;
+    padding: 14px;
+    margin-bottom: 14px;
+}
+
+.audioflix-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.audioflix-form span {
+    font-size: 0.72rem;
+    color: rgba(234, 242, 246, 0.68);
+}
+
+.audioflix-form input {
+    min-width: 0;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 10px 11px;
+    background: rgba(0, 0, 0, 0.22);
+    color: var(--text-main, #fff);
+}
+
+.audioflix-wide-field {
+    grid-column: span 2;
+}
+
+.audioflix-item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.audioflix-group {
+    margin-bottom: 20px;
+    padding: 16px;
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.012);
+    border: 1px solid rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.15);
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.audioflix-group:hover {
+    background: rgba(255, 255, 255, 0.018);
+    border-color: rgba(255, 202, 95, 0.1);
+}
+
+.audioflix-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    font-size: 0.82rem;
+    letter-spacing: 0.06em;
+    color: #ffca5f;
+    text-transform: uppercase;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+    width: fit-content;
+    transition: color 0.15s ease;
+}
+
+.audioflix-group-title:hover {
+    color: #fff0b8;
+}
+
+.audioflix-group.is-collapsed .audioflix-group-title {
+    margin-bottom: 0;
+}
+
+.audioflix-group-title::before {
+    content: "▼ 📂";
+    font-size: 0.85rem;
+}
+
+.audioflix-group.is-collapsed {
+    display: inline-block;
+    width: fit-content;
+    margin-right: 12px;
+    vertical-align: top;
+}
+
+.audioflix-group.is-collapsed .audioflix-group-title::before {
+    content: "▶ 📁";
+}
+
+.audioflix-group.is-collapsed .audioflix-item-grid {
+    display: none !important;
+}
+
+.audioflix-group-title .audioflix-group-count {
+    color: rgba(234, 242, 246, 0.55);
+    font-size: 0.74rem;
+    letter-spacing: 0.04em;
+    text-transform: none;
+}
+
+.audioflix-item-card {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 12px;
+}
+
+.audioflix-play,
+.audioflix-stop {
+    width: 30px;
+    height: 30px;
+}
+
+.audioflix-layer-play {
+    width: 30px;
+    height: 30px;
+    border-color: rgba(255, 202, 95, 0.4);
+    background: rgba(255, 202, 95, 0.1);
+    color: #ffca5f;
+}
+
+.audioflix-layer-play:hover {
+    background: rgba(255, 202, 95, 0.22);
+    border-color: rgba(255, 202, 95, 0.6);
+}
+
+.audioflix-icon-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 1.1rem;
+}
+
+.audioflix-play,
+.audioflix-stop,
+.audioflix-layer-play,
+.audioflix-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+
+.audioflix-playback-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+}
+
+.audioflix-icon-btn.danger {
+    color: #ffc8c8;
+    border-color: rgba(255, 78, 78, 0.38);
+    background: rgba(255, 78, 78, 0.1);
+}
+
+.audioflix-item-volume-wrapper {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 10px;
+    width: 60%;
+    margin: 6px auto -4px auto;
+    transition: height 0.2s, opacity 0.2s;
+    opacity: 0.5;
+}
+
+.audioflix-item-volume-wrapper:hover {
+    height: 18px;
+    opacity: 1;
+}
+
+.audioflix-volume-slider {
+    -webkit-appearance: none;
+    flex: 1;
+    height: 1.5px;
+    min-height: 1.5px;
+    max-height: 1.5px;
+    background: linear-gradient(to right, rgba(255, 202, 95, 0.9) var(--vol), rgba(255, 255, 255, 0.15) var(--vol));
+    border-radius: 2px;
+    outline: none;
+    border: none;
+    transition: height 0.2s, min-height 0.2s, max-height 0.2s, background 0.2s;
+    cursor: pointer;
+    margin: 0;
+    padding: 0;
+}
+
+.audioflix-item-volume-wrapper:hover .audioflix-volume-slider {
+    height: 4px;
+    min-height: 4px;
+    max-height: 4px;
+    background: linear-gradient(to right, rgba(255, 202, 95, 1) var(--vol), rgba(255, 255, 255, 0.25) var(--vol));
+}
+
+.audioflix-volume-slider::-webkit-slider-runnable-track {
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    height: 100%;
+}
+
+.audioflix-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0px;
+    height: 0px;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    margin-top: 0;
+    transition: width 0.2s, height 0.2s, margin-top 0.2s, background 0.2s;
+}
+
+.audioflix-item-volume-wrapper:hover .audioflix-volume-slider::-webkit-slider-thumb {
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    background: #ffca5f;
+    box-shadow: 0 0 8px rgba(255, 202, 95, 0.5);
+}
+
+.audioflix-volume-label {
+    font-size: 0.72rem;
+    color: rgba(255, 202, 95, 0.9);
+    min-width: 2.5em;
+    text-align: right;
+    font-weight: 500;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, visibility 0.2s;
+}
+
+.audioflix-item-volume-wrapper:hover .audioflix-volume-label {
+    opacity: 1;
+    visibility: visible;
+}
+
+.audioflix-item-body {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.audioflix-item-body code {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgba(156, 255, 173, 0.82);
+}
+
+.audioflix-empty {
+    border: 1px dashed rgba(255, 202, 95, 0.28);
+    border-radius: 18px;
+    padding: 28px;
+    text-align: center;
+    color: rgba(234, 242, 246, 0.7);
+}
+
+@media (max-width: 980px) {
+    .audioflix-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 680px) {
+    .audioflix-overlay {
+        padding: 8px;
+    }
+
+    .audioflix-header,
+    .audioflix-player {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+    }
+
+    .audioflix-form {
+        grid-template-columns: 1fr;
+    }
+
+    .audioflix-wide-field {
+        grid-column: auto;
+    }
+}
+

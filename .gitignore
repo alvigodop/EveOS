@@ -159,6 +159,7 @@ Thumbs.db
 
 # EveOS local modular state store (generated at runtime)
 data/modular-state/
+data/runtime/
 
 # EveOS local runtime path/session state (machine-specific)
 data/launcher-last-pack.txt
@@ -168,22 +169,6 @@ out_win.txt
 test_comick.txt
 tmp_comick_data.json
 tmp_comick_out.txt
-
-# System
-Thumbs.db
-
-# EveOS local modular state store (generated at runtime)
-data/modular-state/
-
-# EveOS local runtime path/session state (machine-specific)
-data/launcher-last-pack.txt
-data/modular-store-settings.json
-out.txt
-out_win.txt
-test_comick.txt
-tmp_comick_data.json
-tmp_comick_out.txt
-
 
 # Lightpanda binary
 bin/lightpanda

@@ -1,24 +1,27 @@
-/**
- * monitor_state.js
- * 
- * Shared state and constants for the Server Monitor.
- */
+(function () {
+    'use strict';
 
-window.MonitorState = {
-    LAUNCHER_URL: 'http://localhost:9084',
-    CHECK_INTERVAL: 10000, // 10 seconds between checks
-    RETRY_DELAY: 2000,     // 2 seconds between retries
-    MAX_RETRIES: 3,
+    const hostedLocally = /^https?:$/.test(window.location.protocol)
+        && /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname);
+    const currentPort = hostedLocally ? Number(window.location.port || 80) : 0;
 
-    lastCheckTime: 0,
-    isCheckingStatus: false,
-    connectionAttempts: 0,
-    isRestartingMainServer: false,
-
-    // Server state tracking
-    serverStates: {
-        launcher: { running: false, port: 9084, command: { start: '1', stop: '4' } },
-        main: { running: false, port: 9083, command: { start: '2', stop: '5' } },
-        http: { running: false, port: 8000, command: { start: '3', stop: '6' } }
-    }
-};
+    window.MonitorState = {
+        CONTROL_URL: 'http://127.0.0.1:9082',
+        STATUS_URL: 'http://127.0.0.1:9084/status',
+        WS_URL: 'ws://127.0.0.1:9083',
+        EVEOS_URL: hostedLocally
+            ? window.location.origin + '/EveOS.html'
+            : 'http://127.0.0.1:8765/EveOS.html',
+        INTERFACE_URL: new URL('gemini_chat_interface.html', window.location.href).href,
+        CHECK_INTERVAL: 10000,
+        REQUEST_TIMEOUT: 1200,
+        lastCheckTime: 0,
+        isCheckingStatus: false,
+        userRequestedStop: false,
+        serverStates: {
+            control: { running: false, port: 9082 },
+            gemini: { running: false, port: 9083 },
+            web: { running: hostedLocally || window.location.protocol === 'file:', port: currentPort }
+        }
+    };
+})();

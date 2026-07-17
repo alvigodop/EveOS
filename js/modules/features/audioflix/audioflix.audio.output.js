@@ -1,0 +1,166 @@
+window.EveAudioflixAudioOutput = window.EveAudioflixAudioOutput || {};
+
+(function () {
+    const ns = window.EveAudioflixAudioOutput;
+    ns.createController = function createController(deps) {
+        const { ensureAudio, state, dispatch, runtime } = deps;
+    async function applySink(deviceId) {
+        const player = ensureAudio();
+        if (!deviceId || typeof player.setSinkId !== 'function') return false;
+        await player.setSinkId(deviceId);
+        return true;
+    }
+
+    async function selectOutput() {
+        const devices = navigator.mediaDevices || {};
+        if (typeof devices.selectAudioOutput !== 'function') {
+            runtime.lastStatus = 'Browser output picker unavailable';
+            dispatch('eve:audioflix-playback', { status: runtime.lastStatus, unsupported: true });
+            return false;
+        }
+        const device = await devices.selectAudioOutput();
+        if (!device?.deviceId) return false;
+        return await commitOutput(device.deviceId, device.label || 'Selected output device');
+    }
+
+    // Persist a chosen output device and route both Audioflix's own player and the
+    // live Gemini voice context to it (so picking "CABLE Input" arms the mic-spoof).
+    async function commitOutput(deviceId, label) {
+        const applied = await applySink(deviceId);
+        window.EveAudioflixState?.update?.({
+            preferredSinkId: deviceId,
+            preferredSinkLabel: label || 'Selected output device',
+            routeMode: 'browser-selective'
+        }, 'audioflix-output-device');
+        try { await window.EveAudioflixGemini?.applyVoiceSink?.(window.audioInputContext); } catch { }
+        runtime.lastStatus = applied ? `Output routed to ${label || 'selected device'}` : 'Output saved for supported browsers';
+        dispatch('eve:audioflix-playback', { status: runtime.lastStatus, deviceId, label });
+        return true;
+    }
+
+    // Enumerate available audio output devices for the in-app dropdown picker.
+    // Labels are only populated in a secure context after a media permission has
+    // been granted at least once; we still return ids so selection works.
+    async function listOutputs() {
+        const devices = navigator.mediaDevices || {};
+        if (typeof devices.enumerateDevices !== 'function') return [];
+        try {
+            const all = await devices.enumerateDevices();
+            return all
+                .filter((d) => d.kind === 'audiooutput')
+                .map((d, i) => ({
+                    deviceId: d.deviceId,
+                    label: d.label || `Output device ${i + 1}`,
+                    anonymous: !d.label
+                }));
+        } catch (error) {
+            console.warn('[Audioflix] enumerateDevices failed:', error);
+            return [];
+        }
+    }
+
+    function hasNamedOutputs(list) {
+        return (list || []).some((device) => device && device.label && !device.anonymous);
+    }
+
+    async function unlockDeviceLabels() {
+        const devices = navigator.mediaDevices || {};
+
+        // Browsers only expose audio-output device NAMES in a secure context (https or
+        // http://localhost). On file:// or a LAN IP, getUserMedia can't reveal them, so
+        // "Grant Output Access" can never work there. Say so plainly + point to the fix.
+        if (window.isSecureContext !== true || typeof devices.enumerateDevices !== 'function') {
+            runtime.lastStatus = 'Output names need a secure page. Open EveOS at http://localhost:8765 (not file://) to unlock names, or use the Native Bridge / Windows Mixer below.';
+            dispatch('eve:audioflix-playback', { status: runtime.lastStatus, insecure: true });
+            return false;
+        }
+
+        let micPermissionTried = false;
+        let stream = null;
+        try {
+            if (typeof devices.getUserMedia === 'function') {
+                micPermissionTried = true;
+                // Hold an active mic capture and enumerate WHILE it is live; Chromium/Edge
+                // expose labels lazily, so retry briefly before giving up. Track is stopped
+                // in finally so we never leave the mic open.
+                stream = await devices.getUserMedia({ audio: true, video: false });
+                for (let attempt = 0; attempt < 4; attempt += 1) {
+                    if (hasNamedOutputs(await listOutputs())) {
+                        runtime.lastStatus = 'Audio output names unlocked. Pick CABLE Input from the list.';
+                        dispatch('eve:audioflix-playback', { status: runtime.lastStatus, labelsUnlocked: true });
+                        return true;
+                    }
+                    await new Promise((resolve) => setTimeout(resolve, 150));
+                }
+            }
+            if (typeof devices.selectAudioOutput === 'function') {
+                const device = await devices.selectAudioOutput();
+                if (device?.deviceId) {
+                    await commitOutput(device.deviceId, device.label || 'Selected output device');
+                    runtime.lastStatus = `Output access granted for ${device.label || 'selected output'}.`;
+                    dispatch('eve:audioflix-playback', { status: runtime.lastStatus, labelsUnlocked: true });
+                    return true;
+                }
+            }
+            runtime.lastStatus = micPermissionTried
+                ? 'Mic permission is granted, but Edge is still hiding output names. Try "Pick Browser Output", the Native Bridge, or Windows Mixer.'
+                : 'Cannot unlock device names here; use Pick Browser Output, Native Bridge, or Windows Mixer.';
+            dispatch('eve:audioflix-playback', { status: runtime.lastStatus, unsupported: true });
+            return false;
+        } catch (error) {
+            runtime.lastStatus = error?.name === 'NotAllowedError'
+                ? 'Microphone access was blocked, so output names stay hidden. Allow the mic for this site, then try Grant Output Access again.'
+                : (error?.message || 'Device-name unlock was blocked');
+            dispatch('eve:audioflix-playback', { status: runtime.lastStatus, error: true });
+            return false;
+        } finally {
+            if (stream) stream.getTracks().forEach((track) => { try { track.stop(); } catch { } });
+        }
+    }
+
+    async function setOutputById(deviceId, label) {
+        if (!deviceId) return false;
+        return await commitOutput(deviceId, label || 'Selected output device');
+    }
+
+    async function tryNativePlayback(safeItem) {
+        if (safeItem.type === 'sound') return false; // Force soundboard sounds to use voice playback path for layering/volume support!
+        if (!window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) return false;
+        const isWav = String(safeItem.url || '').toLowerCase().split('?')[0].split('#')[0].endsWith('.wav');
+        if (!isWav) return false;
+        const payload = await window.EveAudioflixNative?.playMediaItem?.(safeItem);
+        if (payload?.ok !== true) {
+            return false;
+        }
+        runtime.currentItem = safeItem;
+        runtime.lastStatus = `Native route playing ${safeItem.title || 'audio'} -> ${state().nativeOutputLabel || 'selected output'}`;
+        dispatch('eve:audioflix-playback', { status: runtime.lastStatus, item: safeItem, native: true, payload });
+        window.EveAudioflixState?.recordPlay?.(safeItem);
+        return true;
+    }
+
+    function browserOutputStatus() {
+        const devices = navigator.mediaDevices || {};
+        const player = ensureAudio();
+        return {
+            secureContext: window.isSecureContext === true,
+            hasSetSinkId: typeof player.setSinkId === 'function',
+            hasAudioContextSink: typeof AudioContext !== 'undefined'
+                && typeof AudioContext.prototype?.setSinkId === 'function',
+            hasOutputPicker: typeof devices.selectAudioOutput === 'function',
+            hasEnumerate: typeof devices.enumerateDevices === 'function',
+            activeSinkId: player.sinkId || ''
+        };
+    }
+
+        return {
+            applySink,
+            selectOutput,
+            listOutputs,
+            setOutputById,
+            unlockDeviceLabels,
+            tryNativePlayback,
+            browserOutputStatus
+        };
+    };
+})();

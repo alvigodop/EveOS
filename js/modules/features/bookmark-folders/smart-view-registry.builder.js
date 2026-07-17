@@ -1,4 +1,4 @@
-﻿window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
+window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
 
 (function (api) {
     const h = api._shared || {};
@@ -183,7 +183,7 @@
         const message = 'Delete Smart View "' + name + '"? Matching bookmarks stay untouched.';
         const confirmed = typeof showConfirm === 'function'
             ? await showConfirm(message)
-            : (typeof window.confirm === 'function' ? window.confirm(message) : true);
+            : false;
         if (!confirmed) return false;
         deleteCardView(workspaceId, categoryName, viewId);
         if (typeof showToast === 'function') showToast('Deleted Smart View: ' + name, 'success');

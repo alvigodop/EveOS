@@ -9,6 +9,8 @@ set "BAT_DIR=%PROJECT_ROOT%\tools\batch"
 set "START_SERVER_BROWSE_BAT=%BAT_DIR%\start-server.browse.bat"
 set "START_SERVER_PATHS_BAT=%BAT_DIR%\start-server.paths.bat"
 set "START_SERVER_BROWSER_BAT=%BAT_DIR%\start-server.browser.bat"
+set "START_SERVER_INSTANCE_BAT=%BAT_DIR%\start-server.instance.bat"
+set "START_SERVER_STACK_BAT=%BAT_DIR%\start-server.stack.bat"
 
 set "GEMINI_MENU_BAT=%BAT_DIR%\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%BAT_DIR%\start-gemini.bat"
@@ -325,90 +327,12 @@ call "%START_SERVER_PATHS_BAT%" :PromptDataPackPath %*
 exit /b %ERRORLEVEL%
 
 :LaunchEveInstance
-set "INSTANCE_PORT=%~1"
-set "INSTANCE_PACK_PATH=%~2"
-set "INSTANCE_KIND=%~3"
-set "PORT_MODE=%~4"
-
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo Install Python from https://www.python.org/downloads/
-    echo Make sure "Add Python to PATH" is enabled.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo.
-echo [OK] Python found:
-python --version
-echo.
-
-if not exist "%INSTANCE_PACK_PATH%" mkdir "%INSTANCE_PACK_PATH%" >nul 2>nul
-
-netstat -ano | findstr ":%INSTANCE_PORT%" | find "LISTENING" >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
-    if /I "%PORT_MODE%"=="replace" (
-        echo [INFO] Port %INSTANCE_PORT% is in use. Stopping listeners on that port...
-        for /f "tokens=5" %%a in ('netstat -aon ^| find ":%INSTANCE_PORT%" ^| find "LISTENING"') do (
-            if "%%a" NEQ "0" (
-                echo Killing PID %%a...
-                taskkill /f /pid %%a >nul 2>nul
-            )
-        )
-        timeout /t 2 /nobreak >nul
-    ) else (
-        echo [ERROR] Port %INSTANCE_PORT% is already in use. Pick another port.
-        timeout /t 1 /nobreak >nul
-        exit /b 1
-    )
-)
-
-echo [OK] Launching %INSTANCE_KIND% EveOS instance in a new window:
-echo      Port: %INSTANCE_PORT%
-echo      Data: %INSTANCE_PACK_PATH%
-set "LP_FLAG="
-if "%LP_ENABLED_STATE%"=="0" (
-    set "LP_FLAG=set ""EVEOS_LIGHTPANDA_DISABLED=1"" && "
-) else (
-    call :EnsureLightpandaMonitor
-)
-
-start "EveOS Instance %INSTANCE_PORT%" /min cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
-call :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
-exit /b 0
+call "%START_SERVER_INSTANCE_BAT%" :LaunchEveInstance %*
+exit /b %ERRORLEVEL%
 
 :LaunchEvePortOnly
-set "INSTANCE_PORT=%~1"
-
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo Install Python from https://www.python.org/downloads/
-    echo Make sure "Add Python to PATH" is enabled.
-    echo.
-    pause
-    exit /b 1
-)
-
-netstat -ano | findstr ":%INSTANCE_PORT%" | find "LISTENING" >nul 2>nul
-if %ERRORLEVEL% EQU 0 (
-    echo [ERROR] Port %INSTANCE_PORT% is already in use. Pick another port.
-    timeout /t 1 /nobreak >nul
-    exit /b 1
-)
-
-echo.
-echo [OK] Launching EveOS HTTP port in a new window:
-echo      URL: http://127.0.0.1:%INSTANCE_PORT%/EveOS.html
-echo      Data: current active modular data-pack
-echo.
-
-start "EveOS Port %INSTANCE_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
-call :TrackInstance "%INSTANCE_PORT%" "active modular data-pack" "PortOnly"
-exit /b 0
-
+call "%START_SERVER_INSTANCE_BAT%" :LaunchEvePortOnly %*
+exit /b %ERRORLEVEL%
 :LaunchBatch
 call "%START_SERVER_BROWSE_BAT%" :LaunchBatch %*
 exit /b %ERRORLEVEL%
@@ -493,94 +417,17 @@ rem  the Gemini backend + the bridges, each guarded so nothing
 rem  double-launches. Reached via menu [S] or "start-server.bat boot".
 rem ============================================================
 :BootStandardStack
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo         Install from https://www.python.org/downloads/ ^(enable "Add to PATH"^).
-    pause
-    exit /b 1
-)
-echo.
-echo ========================================
-echo   EveOS Canonical Boot
-echo ========================================
-echo   Web + hotkeys + audio bypass: http://127.0.0.1:%EVEOS_WEB_PORT%/EveOS.html
-echo.
-rem --- 1. EveOS web (guarded). Hosts the soundboard, VB-Cable bypass and global hotkeys. ---
-call :PortInUse "%EVEOS_WEB_PORT%" _WEB_PID
-if defined _WEB_PID (
-    echo [OK]    EveOS web already running on port %EVEOS_WEB_PORT% ^(PID !_WEB_PID!^).
-) else (
-    echo [START] EveOS web ^(hotkeys + audio bypass^) on port %EVEOS_WEB_PORT%...
-    rem /min matches the Gemini Main window: spawns minimized so every EveOS server window opens in
-    rem the same slim, out-of-the-way style instead of a wide console grabbing the screen.
-    start "EveOS %EVEOS_WEB_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u server/python-server.py %EVEOS_WEB_PORT%"
-)
-rem --- 2. Gemini backend + file-mode control helper (start-gemini guards internally) ---
-echo [BOOT]  Ensuring Gemini backend ^(WS %GEMINI_WS_PORT% / status %GEMINI_STATUS_PORT%^)...
-call "%GEMINI_AUTOSTART_BAT%" >nul 2>nul
-call :ReportPort "Gemini WebSocket" "%GEMINI_WS_PORT%"
-call :ReportPort "Gemini control  " "%GEMINI_CONTROL_PORT%"
-rem --- 3. Popup bridge (file:// popups + Wikimedia transport) ---
-call :EnsureBridge "Popup bridge   " "%POPUP_BRIDGE_PORT%" "server\bridges\popup-bridge.py"
-rem --- 4. Lightpanda bridge (only if the binary is present) ---
-if exist "%PROJECT_ROOT%\bin\lightpanda" (
-    call :EnsureBridge "Lightpanda     " "%LIGHTPANDA_BRIDGE_PORT%" "server\bridges\lightpanda-bridge.py"
-) else (
-    echo [SKIP]  Lightpanda bridge - binary not found ^(bin\lightpanda^).
-)
-rem --- 5. Camofox bridge (only if the runtime is installed) ---
-if exist "%CAMOFOX_RUNTIME_SERVER%" (
-    call :EnsureBridge "Camofox        " "%CAMOFOX_BRIDGE_PORT%" "server\bridges\camofox-bridge.py"
-) else (
-    echo [SKIP]  Camofox bridge - runtime not installed.
-)
-echo.
-echo ========================================
-echo   Boot complete. Open: http://127.0.0.1:%EVEOS_WEB_PORT%/EveOS.html
-echo ========================================
-exit /b 0
+call "%START_SERVER_STACK_BAT%" :BootStandardStack %*
+exit /b %ERRORLEVEL%
 
 :EnsureBridge
-rem %1=label  %2=port  %3=relative script path
-set "_LABEL=%~1"
-set "_PORT=%~2"
-set "_SCRIPT=%PROJECT_ROOT%\%~3"
-if not exist "%_SCRIPT%" (
-    echo [SKIP]  %_LABEL% - script not found: %_SCRIPT%
-    exit /b 0
-)
-call :PortInUse "%_PORT%" _BPID
-if defined _BPID (
-    echo [OK]    %_LABEL% already running on port %_PORT% ^(PID !_BPID!^).
-    exit /b 0
-)
-echo [START] %_LABEL% on port %_PORT%...
-rem Stagger each console spawn ~1s. On Win11 with Windows Terminal as the default terminal,
-rem firing several `start ... cmd /k` windows back-to-back races the DefTerm/ConPTY handoff and
-rem one tab dies with "[error 0x800700e8 ...] (the pipe is being closed)", leaving that bridge
-rem down. Spacing the spawns lets each tab finish initializing before the next handoff.
-ping 127.0.0.1 -n 2 >nul
-rem /min: same slim, minimized style as the Gemini Main window (consistent across all servers).
-start "EveOS %_LABEL%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%_SCRIPT%"" %_PORT%"
-exit /b 0
+call "%START_SERVER_STACK_BAT%" :EnsureBridge %*
+exit /b %ERRORLEVEL%
 
 :ReportPort
-set "_LABEL=%~1"
-call :PortInUse "%~2" _RPID
-if defined _RPID (
-    echo [OK]    %_LABEL% running on port %~2 ^(PID !_RPID!^).
-) else (
-    echo [WARN]  %_LABEL% not detected on port %~2 yet ^(may still be starting^).
-)
-exit /b 0
+call "%START_SERVER_STACK_BAT%" :ReportPort %*
+exit /b %ERRORLEVEL%
 
 :PortInUse
-rem %1=port  %2=name of output var (set to listening PID, else empty).
-set "%~2="
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%~1 .*LISTENING"') do (
-    set "%~2=%%P"
-    goto :PortInUseDone
-)
-:PortInUseDone
-exit /b 0
+call "%START_SERVER_STACK_BAT%" :PortInUse %*
+exit /b %ERRORLEVEL%

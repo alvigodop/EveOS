@@ -98,8 +98,11 @@ window.EveConstellationMap = window.EveConstellationMap || {};
             });
             return String(raw || '').trim();
         }
-        const raw = window.prompt(text(promptText, 'Name'), text(fallbackValue, ''));
-        return String(raw || '').trim();
+        if (typeof window.showPrompt === 'function') {
+            const raw = await window.showPrompt(text(promptText, 'Name'), text(fallbackValue, ''));
+            return String(raw || '').trim();
+        }
+        return '';
     }
 
     function refreshGraphAfterMutation(selectionId, options = {}) {

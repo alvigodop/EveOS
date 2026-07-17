@@ -61,7 +61,7 @@ async function promptMoveCategory(cat, currentIndex, workspaceId, anchorEl) {
     } else if (typeof window.showPrompt === 'function') {
         rawValue = await window.showPrompt(promptLabel, String(currentPosition));
     } else {
-        rawValue = prompt(promptLabel, String(currentPosition));
+        rawValue = null;
     }
 
     if (rawValue === null || rawValue === undefined) return;

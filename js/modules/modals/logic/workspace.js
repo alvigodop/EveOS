@@ -2,6 +2,15 @@ function getSidebarGroupsApi() {
     return window.EveSidebarGroups || null;
 }
 
+function notifyWorkspaceValidation(message) {
+    if (typeof window.showToast === 'function') {
+        window.showToast(message, 'warning');
+    } else {
+        console.warn('[EveOS workspace]', message);
+    }
+    return false;
+}
+
 function populateWorkspaceGroupSelect(selectedGroupId) {
     const select = document.getElementById('wsGroupId');
     if (!select) return;
@@ -153,7 +162,7 @@ window.saveWorkspace = function () {
     const helpers = window.EveWorkspaceHelpers;
     const groupsApi = getSidebarGroupsApi();
 
-    if (!name) return alert('Name required');
+    if (!name) return notifyWorkspaceValidation('Name required');
 
     const resolvedGroupId = groupsApi && rawGroupId && groupsApi.findGroupById(rawGroupId, config)
         ? rawGroupId
@@ -174,7 +183,7 @@ window.saveWorkspace = function () {
             if (isRootWorkspace) {
                 if (resolvedGroupId && groupsApi && typeof groupsApi.canGroupWorkspaceInGroup === 'function'
                     && !groupsApi.canGroupWorkspaceInGroup(id, resolvedGroupId, config)) {
-                    return alert('This group is nested inside that tab branch, so assigning the tab to it would create a recursive sidebar layout.');
+                    return notifyWorkspaceValidation('This group is nested inside that tab branch, so assigning the tab to it would create a recursive sidebar layout.');
                 }
                 if (resolvedGroupId) ws.groupId = resolvedGroupId;
                 else delete ws.groupId;
@@ -237,7 +246,7 @@ window.saveSidebarGroup = async function () {
     const name = document.getElementById('sgName').value.trim();
     const color = document.getElementById('sgColor').value || '#00d4ff';
 
-    if (!name) return alert('Group name required');
+    if (!name) return notifyWorkspaceValidation('Group name required');
 
     groupsApi.ensureConfigDefaults(config);
     if (editId) {

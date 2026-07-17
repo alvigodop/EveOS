@@ -171,7 +171,6 @@ function requestCategoryCardMoveConfirm(sourceCat, targetName, targetWs, targetE
     if (typeof window.showConfirm === 'function') {
         return window.showConfirm(message, options);
     }
-    if (typeof window.confirm === 'function') return window.confirm(message);
-    return true;
+    return false;
 }
 

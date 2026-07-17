@@ -237,7 +237,7 @@ window.EveBookmarkFolders = window.EveBookmarkFolders || {};
         if (!target) return;
         const confirmed = typeof showConfirm === 'function'
             ? await showConfirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`)
-            : window.confirm(`Delete "${target.name}"? Bookmarks move to the parent/root and subfolders move up one level.`);
+            : false;
         if (!confirmed) return;
         if (!deleteFolder({
             workspaceId: resolvedWorkspace,

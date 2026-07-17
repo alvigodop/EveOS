@@ -147,6 +147,7 @@ function makeRelayVm({ textBrainMode }) {
         const { context, wsFrames, brainRequests, spoken } = makeRelayVm({ textBrainMode: true });
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
+        runScript(context, 'js/modules/gemini/mode2/textBrainRelay.config.js');
         runScript(context, 'js/modules/gemini/mode2/textBrainRelay.js');
         const api = context.window.EveDataStore._modularSync;
         const mode2 = context.window.EveGeminiMode2;

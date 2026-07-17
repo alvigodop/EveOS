@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-"""
-Fandom Discovery Toolkit Server
-A simple HTTP server with CORS support and error handling
-
-This server enables local development and testing of the Fandom Discovery Toolkit.
-"""
+"""EveOS local web and API server."""
 
 import http.server
 import socketserver
 import os
 import sys
 import argparse
+import errno
 import logging
 import socket
 import webbrowser
@@ -22,8 +18,9 @@ PROJECT_ROOT = os.path.dirname(SERVER_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# Import modular handlers
-# Ensure the directory is in path if needed (implicit for same dir)
+# These handlers back advertised API routes. Starting without one leaves the
+# process listening while requests fail later with NameError, so imports are a
+# hard startup contract rather than an optional best-effort step.
 try:
     from server_modules import wikipedia
     from server_modules import proxy
@@ -33,10 +30,8 @@ try:
     from server_modules import gemini_control
     from server_modules import gemini_credentials
     from server_modules import audioflix_bridge
-except ImportError as e:
-    print(f"Error importing modules: {e}")
-    # Fallback or exit? For now, let's assume it works.
-    pass
+except ImportError as exc:
+    raise SystemExit(f"[FATAL] EveOS server dependency import failed: {exc}") from exc
 
 # Configure logging
 logging.basicConfig(
@@ -44,7 +39,7 @@ logging.basicConfig(
     format="[Server] %(message)s",
     handlers=[logging.StreamHandler()]
 )
-logger = logging.getLogger("FandomDiscoveryServer")
+logger = logging.getLogger("EveOSServer")
 
 # Default port
 DEFAULT_PORT = 3000
@@ -57,10 +52,6 @@ def configure_modular_store(modular_root=None, persist_modular_root=False):
     different data-pack folders at the same time.
     """
     if not modular_root:
-        return
-
-    if "eve_state_store" not in globals():
-        print("[WARN] eve_state_store module unavailable; modular root override skipped.")
         return
 
     try:
@@ -151,7 +142,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             # If headers haven't been sent, send error
             try:
                 self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Server error: {str(e)}")
-            except:
+            except (BrokenPipeError, ConnectionError, OSError):
                 pass # Headers likely already sent
 
     def do_POST(self):
@@ -165,7 +156,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             logger.error(f"Error handling POST request: {str(e)}")
             try:
                 self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, f"Server error: {str(e)}")
-            except:
+            except (BrokenPipeError, ConnectionError, OSError):
                 pass
     
     def log_message(self, format, *args):
@@ -323,24 +314,30 @@ def get_local_ip():
     except Exception:
         return "127.0.0.1"
 
+class EveOSThreadingServer(socketserver.ThreadingTCPServer):
+    """Thread-per-request server that exits cleanly after Ctrl+C."""
+
+    allow_reuse_address = True
+    daemon_threads = True
+    block_on_close = False
+
+
 def run_server(port=DEFAULT_PORT, open_browser=True):
     """Run the HTTP server"""
     try:
         # Create server with threading support
         handler = CORSHTTPRequestHandler
-        socketserver.ThreadingTCPServer.allow_reuse_address = True
-        with socketserver.ThreadingTCPServer(("", port), handler) as httpd:
+        with EveOSThreadingServer(("", port), handler) as httpd:
             local_ip = get_local_ip()
             url = f"http://localhost:{port}/EveOS.html"
             active_store = ""
-            if "eve_state_store" in globals():
-                try:
-                    active_store = str(eve_state_store.get_active_store_root())
-                except Exception:
-                    active_store = ""
+            try:
+                active_store = str(eve_state_store.get_active_store_root())
+            except Exception:
+                active_store = ""
             
             # Print server information
-            print("[OK] Fandom Discovery Toolkit Server")
+            print("[OK] EveOS Local Server")
             print("  ------------------------------")
             print(f"  Local:   {url}")
             print(f"  Network: http://{local_ip}:{port}/EveOS.html")
@@ -354,12 +351,11 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
             print("  Audio:   Soundboard + VB-Cable bypass + global hotkeys at /api/audioflix/*")
             # Pre-warm the audio device scan so the first soundboard press / hotkey right after
             # boot isn't delayed by a cold WASAPI device enumeration. Non-fatal, off-thread.
-            if "audioflix_bridge" in globals():
-                try:
-                    import threading as _af_t
-                    _af_t.Thread(target=lambda: audioflix_bridge.list_devices(force=True), daemon=True).start()
-                except Exception:
-                    pass
+            try:
+                import threading as _af_t
+                _af_t.Thread(target=lambda: audioflix_bridge.list_devices(force=True), daemon=True).start()
+            except Exception as exc:
+                logger.debug("Audioflix device prewarm skipped: %s", exc)
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the server")
             
@@ -375,7 +371,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
     except Exception as e:
         print(f"[ERROR] Server error: {str(e)}")
         # If port is in use, suggest another port
-        if isinstance(e, OSError) and e.errno == 98:  # Address already in use
+        if isinstance(e, OSError) and e.errno in {errno.EADDRINUSE, 10048}:
             suggested_port = port + 1
             print(f"[WARN] Port {port} is already in use. Try using port {suggested_port}:")
             print(f"   python server/python-server.py {suggested_port}")
@@ -384,7 +380,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Fandom Discovery Toolkit Server (EveOS backend)"
+        description="EveOS local web and API server"
     )
     parser.add_argument(
         "port",

@@ -3,7 +3,9 @@ const path = require('path');
 const vm = require('vm');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const configPath = path.join(REPO_ROOT, 'js/modules/gemini/mode2/textBrainRelay.config.js');
 const relayPath = path.join(REPO_ROOT, 'js/modules/gemini/mode2/textBrainRelay.js');
+const configSource = fs.readFileSync(configPath, 'utf8');
 const source = fs.readFileSync(relayPath, 'utf8');
 
 async function main() {
@@ -89,6 +91,7 @@ async function main() {
     };
     sandbox.globalThis = sandbox.window;
 
+    vm.runInNewContext(configSource, sandbox, { filename: configPath });
     vm.runInNewContext(source, sandbox, { filename: relayPath });
 
     if (!sandbox.window.EveGeminiMode2.ready) throw new Error('relay did not mark ready');

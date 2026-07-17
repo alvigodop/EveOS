@@ -155,7 +155,7 @@ window.EveContextMenuActions = window.EveContextMenuActions || {};
             if (typeof showToast === 'function') {
                 showToast(`Failed to delete category: ${error.message}`, 'error');
             } else {
-                alert(`Failed to delete category: ${error.message}`);
+                console.error('Failed to delete category:', error);
             }
         }
     };

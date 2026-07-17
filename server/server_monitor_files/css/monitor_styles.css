@@ -270,3 +270,83 @@ body {
     color: #b71c1c;
     background-color: #ffebee;
 }
+.monitor-title-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.monitor-title-row h1 {
+    margin: 0;
+}
+
+.eyebrow {
+    margin: 0 0 6px;
+    color: #00838f;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.monitor-copy {
+    color: #546e7a;
+}
+
+.service-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.service-card {
+    display: grid;
+    gap: 5px;
+    padding: 14px;
+    border: 1px solid #cfd8dc;
+    border-radius: 8px;
+    background: #fafcfd;
+}
+
+.service-card[data-running="true"] {
+    border-color: #80cbc4;
+    background: #e0f2f1;
+}
+
+.service-card strong {
+    font-size: 18px;
+}
+
+.service-card small {
+    color: #607d8b;
+    overflow-wrap: anywhere;
+}
+
+.server-controls {
+    flex-wrap: wrap;
+}
+
+.server-controls .material-icons {
+    vertical-align: middle;
+    margin-right: 4px;
+}
+
+@media (max-width: 760px) {
+    body {
+        padding: 10px;
+    }
+
+    .monitor-title-row {
+        display: grid;
+    }
+
+    .service-grid {
+        grid-template-columns: 1fr;
+    }
+
+    #serverFrame {
+        height: 70vh;
+    }
+}

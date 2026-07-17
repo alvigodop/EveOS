@@ -12,21 +12,13 @@
 window.EveGeminiMode2 = window.EveGeminiMode2 || {};
 (function () {
     'use strict';
-
     const ns = window.EveGeminiMode2;
     if (ns.ready) return;
-
-    const REQUEST_TIMEOUT_MS = 20000;      // a voice turn can't stall 45s on a dead brain
-    const HISTORY_LIMIT = 40;
-    const HISTORY_TEXT_LIMIT = 1200;
-    const CONTEXT_LIMIT = 80000;
-    // Quota guards: the brain is a FREE-TIER metered model and used to be called on every
-    // utterance with no spacing — one lively conversation exhausted the quota (429s), after
-    // which every turn still paid a doomed round-trip. Space the calls and, on failure,
-    // cool down instead of re-dialing a dead number.
-    const MIN_BRAIN_INTERVAL_MS = 10000;
-    const INJECT_MAX_CHARS = 2400;         // the live session needs facts, not essays
-    const TEXT_BRAIN_DEFAULT_LABEL = 'gemini-2.5-flash-lite (default)';
+    const relayConfig = window.EveGeminiMode2Config;
+    if (!relayConfig) throw new Error('[Mode2] Relay configuration missing.');
+    const { REQUEST_TIMEOUT_MS, HISTORY_LIMIT, HISTORY_TEXT_LIMIT, CONTEXT_LIMIT,
+        MIN_BRAIN_INTERVAL_MS, INJECT_MAX_CHARS, TEXT_BRAIN_DEFAULT_LABEL,
+        EVE_UPDATE_MAX_COUNT, EVE_UPDATE_MAX_CHARS, HISTORY_EXCLUDE_MARKERS } = relayConfig;
     let lastBrainCallAt = 0;
     let brainCooldownUntil = 0;
     let cooldownNoticeShown = false;
@@ -42,10 +34,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     // Silent Data Stream deltas land here in Mode 2 (instead of the live session, which has no
     // use for them and a much smaller window). Ring-buffered: the brain sees the latest changes
     // since the snapshot without the update log growing unbounded.
-    const EVE_UPDATE_MAX_COUNT = 24;
-    const EVE_UPDATE_MAX_CHARS = 30000;
     let eveUpdates = [];
-
     function isMode2() {
         try { return window.EveAudioflixState?.isTextBrainMode?.() === true; }
         catch { return false; }
@@ -107,16 +96,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     // log fed it its previous injections and the live model's context-acknowledgments, so each
     // extraction re-extracted the last one — the feedback loop behind the repeated-sentence
     // degeneration (the same line echoed dozens of times in one reply).
-    const HISTORY_EXCLUDE_MARKERS = [
-        'BACKGROUND CONTEXT FROM TEXT BRAIN',
-        'SILENT BACKGROUND CONTEXT',
-        'TEXT BRAIN → LIVE',
-        'Text Brain is extracting',
-        'Text Brain unavailable',
-        'EVEOS CONTEXT SNAPSHOT',
-        'EVEOS DATA STREAM UPDATE',
-        'System Message:'
-    ];
+
 
     function sanitizeHistory(entries) {
         const cleaned = [];
