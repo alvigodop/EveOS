@@ -223,10 +223,15 @@ class CORSRequestHandler(BaseHTTPRequestHandler):
                                     creationflags=subprocess.CREATE_NO_WINDOW)
                         time.sleep(1)
                         
-                        # Start the main server in the same style as HTTP server
+                        # Start the main server as an argument list (shell=False) in its own
+                        # console — no shell string interpolation of paths that may contain
+                        # spaces or shell metacharacters.
+                        new_console = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
                         process = subprocess.Popen(
-                            f'start "Main Server" /min cmd /c "cd /d "{script_dir}" && python "{script_path}" --port 9083"',
-                            shell=True
+                            [sys.executable, script_path, "--port", "9083"],
+                            cwd=script_dir,
+                            shell=False,
+                            creationflags=new_console
                         )
                         
                         time.sleep(2)  # Wait for server to start
@@ -234,12 +239,15 @@ class CORSRequestHandler(BaseHTTPRequestHandler):
                         success = True
                         message = "Main server starting in new window"
                     else:
-                        # Other commands run normally
-                        result = subprocess.run([server_control, command], 
+                        # Other commands run normally. shell=False with an argument list: on
+                        # Windows shell=True would route only the first list element through
+                        # cmd.exe and mangle the rest, so this was both fragile and an injection
+                        # surface.
+                        result = subprocess.run([server_control, command],
                                              cwd=root_dir,
                                              capture_output=True,
                                              text=True,
-                                             shell=True,
+                                             shell=False,
                                              creationflags=subprocess.CREATE_NO_WINDOW)
                         
                         print(f"Command output: {result.stdout}")

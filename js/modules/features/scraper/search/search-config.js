@@ -7,7 +7,7 @@ const SearchConfig = (function () {
     const _config = {
         googleCSE: {
             cseId: '646ca4244f3524a8e',  // Default CSE ID used for Google searches
-            apiKey: '***REMOVED-GOOGLE-API-KEY***',  // User provided Custom Search API Key
+            apiKey: '',  // Resolved at runtime from the user's Settings (config.expandedSearch.apiKey) — never hardcode a key here
             containerIds: {
                 searchBoxId: 'google-searchbox-container',
                 resultsContainerId: 'google-results-container'
@@ -99,7 +99,11 @@ const SearchConfig = (function () {
          * @returns {string} API Key
          */
         getApiKey: function () {
-            return _config.googleCSE.apiKey;
+            // The key lives in the user's Settings (config.expandedSearch.apiKey), populated
+            // through the Integrations panel — resolve it at call time so nothing is hardcoded.
+            return _config.googleCSE.apiKey
+                || (typeof window !== 'undefined' && window.config?.expandedSearch?.apiKey)
+                || '';
         },
 
         /**

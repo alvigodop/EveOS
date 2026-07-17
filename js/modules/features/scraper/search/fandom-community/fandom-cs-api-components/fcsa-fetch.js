@@ -6,9 +6,16 @@
     'use strict';
 
     const FCSAFetch = {
-        // Credentials (Scoped to this component)
-        API_KEY: '***REMOVED-GOOGLE-API-KEY***',
+        // Credentials: the API key comes from the user's Settings (config.expandedSearch.apiKey)
+        // at request time via getApiKey() — never hardcode a key here. CX is a public search
+        // engine id, not a secret.
+        API_KEY: '',
         CX: '646ca4244f3524a8e',
+        getApiKey: function () {
+            return this.API_KEY
+                || (typeof window !== 'undefined' && window.config?.expandedSearch?.apiKey)
+                || '';
+        },
 
         /**
          * Fetch search results based on current state
@@ -66,7 +73,7 @@
                 : 'site:fandom.com -site:www.fandom.com';
 
             const firstNum = Math.min(10, RESULTS_PER_PAGE);
-            const url1 = `https://www.googleapis.com/customsearch/v1?key=${this.API_KEY}&cx=${this.CX}&q=${encodeURIComponent(currentQuery)}&start=${start}&num=${firstNum}`;
+            const url1 = `https://www.googleapis.com/customsearch/v1?key=${this.getApiKey()}&cx=${this.CX}&q=${encodeURIComponent(currentQuery)}&start=${start}&num=${firstNum}`;
             console.log(`Fandom Search: Fetching Google results: ${url1}`);
 
             fetch(url1)
@@ -88,7 +95,7 @@
 
                     if (stillNeeded > 0 && resultsFetchedPart1 === 10 && nextStart <= maxApiStart) {
                         const secondNum = Math.min(10, stillNeeded);
-                        const url2 = `https://www.googleapis.com/customsearch/v1?key=${this.API_KEY}&cx=${this.CX}&q=${encodeURIComponent(currentQuery)}&start=${nextStart}&num=${secondNum}`;
+                        const url2 = `https://www.googleapis.com/customsearch/v1?key=${this.getApiKey()}&cx=${this.CX}&q=${encodeURIComponent(currentQuery)}&start=${nextStart}&num=${secondNum}`;
 
                         fetch(url2)
                             .then(response2 => response2.json())

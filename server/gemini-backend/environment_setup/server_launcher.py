@@ -100,7 +100,7 @@ if __name__ == '__main__':
     print(f"Starting Launcher Server on port {args.port}...")
     server = None # Initialize server variable
     try:
-        server = HTTPServer(('0.0.0.0', args.port), LauncherHandler)
+        server = HTTPServer(('127.0.0.1', args.port), LauncherHandler)  # Loopback only: local-first launcher
         print(f"Launcher running on http://localhost:{args.port}")
         server.serve_forever()
     except Exception as e:

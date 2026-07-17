@@ -20,43 +20,49 @@ def is_port_in_use(port):
     return ipv4_in_use or ipv6_in_use
 
 def free_port(port):
-    """Attempt to free a port by killing the process using it."""
+    """Attempt to free a port by killing the process using it.
+
+    All process control runs through argument lists (shell=False) so nothing is passed
+    through a shell parser — no quoting/injection surface, and the `:port` marker is matched
+    in Python instead of by findstr/grep.
+    """
     try:
+        marker = f":{int(port)}"  # int() also rejects any non-numeric port up front
         if platform.system() == "Windows":
-            # Find the process ID using the port (both IPv4 and IPv6)
             result = subprocess.run(
-                f'netstat -ano | findstr :{port}', 
-                shell=True, 
-                capture_output=True, 
-                text=True
+                ["netstat", "-ano", "-p", "tcp"],
+                shell=False,
+                capture_output=True,
+                text=True,
             )
-            
+
             if result.stdout:
-                # Extract the PID from the last column
                 pids = set()
                 for line in result.stdout.strip().split('\n'):
-                    if "LISTENING" in line:
+                    if marker in line and "LISTENING" in line.upper():
                         parts = line.strip().split()
-                        if len(parts) > 4:
-                            pid = parts[-1]
-                            pids.add(pid)
-                
+                        if len(parts) > 4 and parts[-1].isdigit():
+                            pids.add(parts[-1])
+
                 if pids:
                     for pid in pids:
                         print(f"Found process using port {port}: PID {pid}")
-                        # Kill the process
-                        subprocess.run(f'taskkill /F /PID {pid}', shell=True)
+                        subprocess.run(["taskkill", "/F", "/PID", pid], shell=False)
                     return True
             return False
         elif platform.system() == "Linux" or platform.system() == "Darwin":  # Linux or macOS
-            cmd = f"lsof -i :{port} | grep LISTEN | awk '{{print $2}}'"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            
+            result = subprocess.run(
+                ["lsof", "-nP", f"-iTCP{marker}", "-sTCP:LISTEN", "-t"],
+                shell=False,
+                capture_output=True,
+                text=True,
+            )
+
             if result.stdout:
                 for pid in result.stdout.strip().split('\n'):
-                    if pid:
+                    if pid.isdigit():
                         print(f"Found process using port {port}: PID {pid}")
-                        subprocess.run(f'kill -9 {pid}', shell=True)
+                        subprocess.run(["kill", "-9", pid], shell=False)
                 return True
             return False
         else:
@@ -64,4 +70,4 @@ def free_port(port):
             return False
     except Exception as e:
         print(f"Error freeing port: {e}")
-        return False 
+        return False

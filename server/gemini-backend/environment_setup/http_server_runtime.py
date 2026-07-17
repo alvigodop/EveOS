@@ -80,27 +80,30 @@ def is_port_in_use(port):
         return s.connect_ex(('localhost', port)) == 0
 
 def find_process_using_port(port):
-    """Find the process ID using the specified port."""
+    """Find the process ID using the specified port.
+
+    Process discovery runs through argument lists (shell=False); the `:port` marker is
+    matched in Python rather than by findstr, so nothing crosses a shell parser.
+    """
+    marker = f":{int(port)}"
     if os.name == 'nt':  # Windows
         try:
-            # Use netstat to find the process using the port
-            output = subprocess.check_output(f'netstat -ano | findstr :{port}', shell=True).decode()
+            output = subprocess.check_output(["netstat", "-ano", "-p", "tcp"], shell=False).decode(errors="ignore")
             if output:
-                # Extract the PID from the output
-                lines = output.strip().split('\n')
-                for line in lines:
-                    if f':{port}' in line and ('LISTENING' in line or 'ESTABLISHED' in line):
+                for line in output.strip().split('\n'):
+                    if marker in line and ('LISTENING' in line.upper() or 'ESTABLISHED' in line.upper()):
                         parts = line.strip().split()
-                        if len(parts) >= 5:
+                        if len(parts) >= 5 and parts[-1].isdigit():
                             return int(parts[-1])
         except subprocess.CalledProcessError:
             pass
     else:  # Linux/Mac
         try:
-            # Use lsof to find the process using the port
-            output = subprocess.check_output(f'lsof -i :{port} -t', shell=True).decode()
+            output = subprocess.check_output(["lsof", "-nP", f"-iTCP{marker}", "-sTCP:LISTEN", "-t"], shell=False).decode(errors="ignore")
             if output:
-                return int(output.strip())
+                first = output.strip().split('\n')[0]
+                if first.isdigit():
+                    return int(first)
         except subprocess.CalledProcessError:
             pass
     return None
@@ -109,7 +112,7 @@ def kill_process(pid):
     """Kill a process by its PID."""
     if os.name == 'nt':  # Windows
         try:
-            subprocess.run(f'taskkill /F /PID {pid}', shell=True, check=True)
+            subprocess.run(["taskkill", "/F", "/PID", str(pid)], shell=False, check=True)
             print(f"Process with PID {pid} has been terminated.")
             return True
         except subprocess.CalledProcessError:

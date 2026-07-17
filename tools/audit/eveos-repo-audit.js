@@ -200,6 +200,27 @@ function main() {
         const matches = read(filePath).match(nativeDialogPattern);
         if (matches) warnings.push('native-dialog ' + matches.length + ': ' + rel);
     }
+    // Hardcoded-secret guard: any real credential in source is a FAILURE. Keys belong in the
+    // user's Settings (config.expandedSearch) and are resolved at runtime — never committed.
+    const secretPatterns = [
+        { name: 'google-api-key', re: /AIza[0-9A-Za-z_-]{35}/ },
+        { name: 'google-oauth-id', re: /[0-9]+-[0-9a-z]{32}\.apps\.googleusercontent\.com/ },
+        { name: 'aws-access-key', re: /AKIA[0-9A-Z]{16}/ },
+        { name: 'private-key-block', re: /-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/ },
+        { name: 'generic-bearer-secret', re: /(?:secret|token|passwd|password)\s*[:=]\s*['"][A-Za-z0-9_\-]{24,}['"]/i }
+    ];
+    const secretScanExtensions = new Set(['.js', '.py', '.html', '.json', '.bat', '.ps1', '.css', '.md']);
+    for (const filePath of allFiles) {
+        if (!secretScanExtensions.has(path.extname(filePath).toLowerCase())) continue;
+        const rel = relative(filePath);
+        // The audit tool itself defines these patterns as strings; don't self-flag.
+        if (rel === 'tools/audit/eveos-repo-audit.js') continue;
+        const contents = read(filePath);
+        for (const { name, re } of secretPatterns) {
+            if (re.test(contents)) failures.push(`hardcoded-secret ${name}: ${rel}`);
+        }
+    }
+
     const summary = {
         sourceFiles: sourceFiles.length,
         manifestScripts: (manifest.scripts || []).length,

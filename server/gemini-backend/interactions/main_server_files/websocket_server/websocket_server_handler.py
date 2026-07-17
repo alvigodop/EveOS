@@ -44,7 +44,7 @@ async def initialize_websocket_server(port, gemini_session_handler, cleanup_inte
                 # Create and start the WebSocket server with enhanced settings for deadline handling
                 server = await websockets.serve(
                     gemini_session_handler,
-                    "0.0.0.0",  # Listen on all interfaces, not just localhost
+                    "127.0.0.1",  # Loopback only: EveOS is local-first, the browser connects over 127.0.0.1
                     port,
                     ping_interval=30,  # More frequent pings to keep connection alive (was 20)
                     ping_timeout=TimeoutConfig.WEBSOCKET_PING_TIMEOUT,   # Use configurable timeout for backend delays
@@ -59,7 +59,7 @@ async def initialize_websocket_server(port, gemini_session_handler, cleanup_inte
                     print("\n=== WebSocket Server Details ===")
                     print("Status: Running")
                     print(f"Address: ws://localhost:{port}")
-                    print(f"External Address: ws://0.0.0.0:{port}")
+                    print(f"Bind: 127.0.0.1 (loopback only)")
                     print("Enhanced Configuration for Deadline Error Prevention:")
                     print(f"  - Ping interval: 30s (heartbeat)")
                     print(f"  - Ping timeout: {TimeoutConfig.WEBSOCKET_PING_TIMEOUT}s (deadline handling)")
