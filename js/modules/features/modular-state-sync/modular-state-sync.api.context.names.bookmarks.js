@@ -206,11 +206,13 @@
                     && workspaceId === text(scope.workspaceId, '')) {
                     names = names.filter((cardName) => cardName === scope.categoryName);
                 }
+                let printedAny = false;
                 names.forEach((cardName) => {
                     const key = workspaceId + '::' + cardName;
                     const cardLinks = linksByCard.get(key) || [];
                     const maps = folderMaps(folderTrees[key] || {});
                     if (!cardLinks.length && !maps.byId.size) return;
+                    printedAny = true;
                     lines.push(tabContextLabel(node, parentPath) + ' > card "' + cardName + '":');
                     const byFolder = new Map();
                     cardLinks.forEach((link) => {
@@ -225,6 +227,9 @@
                     });
                     emitFolder('', maps, byFolder, '  ');
                 });
+                if (!printedAny) {
+                    lines.push(tabContextLabel(node, parentPath) + ' has no bookmarks');
+                }
                 if (depth >= depthLimit) return;
                 const childPath = parentPath ? parentPath + ' > ' + name : name;
                 (Array.isArray(node.subTabs) ? node.subTabs : []).forEach((child) => visit(child, childPath, depth + 1));

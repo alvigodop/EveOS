@@ -215,6 +215,8 @@ window.EveDataStore = window.EveDataStore || {};
             if (names.length) {
                 lines.push(tabContextLabel(node, parentPath) + ' has cards: ' + names.join(', '));
                 count += names.length;
+            } else {
+                lines.push(tabContextLabel(node, parentPath) + ' has no cards');
             }
             if (depth >= depthLimit) return;
             const childPath = parentPath ? parentPath + ' > ' + name : name;
