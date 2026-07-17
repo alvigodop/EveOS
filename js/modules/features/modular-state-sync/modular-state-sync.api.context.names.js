@@ -215,8 +215,6 @@ window.EveDataStore = window.EveDataStore || {};
             if (names.length) {
                 lines.push(tabContextLabel(node, parentPath) + ' has cards: ' + names.join(', '));
                 count += names.length;
-            } else {
-                lines.push(tabContextLabel(node, parentPath) + ' has no cards');
             }
             if (depth >= depthLimit) return;
             const childPath = parentPath ? parentPath + ' > ' + name : name;
@@ -307,7 +305,7 @@ window.EveDataStore = window.EveDataStore || {};
             scope: { label: context.surface || '', scope: context.scope?.scope || '' },
             counts: { [context.unit || 'items']: context.count || 0, folders: context.folderCount || 0 },
             messageChars: context.message.length,
-            payload: { preview: context.message.slice(0, 1200) }
+            payload: { preview: context.message.slice(0, 4000) }
         });
     }
 
