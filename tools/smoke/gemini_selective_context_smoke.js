@@ -136,6 +136,33 @@ function assert(condition, message) {
   assert(details.message.includes('related: https://mirror.example/polo?source=kept'), 'related URL missing or noisy');
   assert(details.message.indexOf('Polo |') === details.message.lastIndexOf('Polo |'), 'shortcut duplicated target content');
 
+  // "This Tab" variants stop at the scope tab; the chain variants include every sub^N level.
+  const cardsCurrent = api.buildSelectiveContext('cards-current');
+  assert(cardsCurrent.message.includes('Main Card'), 'current-only cards should include the scope tab card');
+  assert(!cardsCurrent.message.includes('Child Card'), 'current-only cards leaked a sub-tab card');
+  const bookmarksCurrent = api.buildSelectiveContext('bookmarks-current');
+  assert(bookmarksCurrent.message.includes('Marco'), 'current-only bookmarks should include the scope tab bookmark');
+  assert(!bookmarksCurrent.message.includes('Polo'), 'current-only bookmarks leaked a sub-tab bookmark');
+  const contentsCurrent = api.buildSelectiveContext('bookmark-contents-current');
+  assert(!contentsCurrent.message.includes('Polo'), 'current-only contents leaked a sub-tab bookmark');
+
+  // Linked-library data must ride along in the contents layer.
+  context.window.EveLibrary = {
+    ConnectionsAPI: {
+      getLinkedEntry(id) {
+        if (id !== 'child-link') return null;
+        return { entry: { status: 'Reading', rating: 9, author: 'AuthorX', genres: ['Action'], summary: 'Linked entry summary.', tags: ['LibTag'] } };
+      }
+    }
+  };
+  const linkedDetails = api.buildSelectiveContext('bookmark-contents').message;
+  assert(linkedDetails.includes('library-linked'), 'library-linked marker missing');
+  assert(linkedDetails.includes('rating: 9'), 'linked library rating missing');
+  assert(linkedDetails.includes('author: AuthorX'), 'linked library author missing');
+  assert(linkedDetails.includes('library summary: "Linked entry summary."'), 'linked library summary missing');
+  assert(linkedDetails.includes('LibTag'), 'linked library tags missing');
+  delete context.window.EveLibrary;
+
   const sent = api.sendSelectiveContext('bookmark-contents');
   assert(sent.sent && sent.route === 'websocket' && socketFrames.length === 1, 'selective context did not use live socket');
   assert(insights.some((entry) => entry.outcome === 'sent' && entry.relayMode === 'selective: bookmark-contents'), 'send insight missing');

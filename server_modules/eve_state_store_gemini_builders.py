@@ -54,10 +54,18 @@ def _build_workspace_context(workspaces, bookmarks, limit=80):
 def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categories=None, sample_limit=25, workspace_names=None):
     by_bookmark_pin, by_card_pin, by_folder_pin = _pin_indexes(pins)
     links_by_card = {}
+    scoped_workspaces = set()
     for link in bookmarks:
         workspace = _summary_text((link or {}).get("workspace"), "main")
         category = _summary_text((link or {}).get("category"), "Unsorted")
+        scoped_workspaces.add(workspace)
         links_by_card.setdefault(_scoped_key(workspace, category), []).append(link)
+
+    # The card cap used to be fixed regardless of scope breadth, so deep sub^N branches
+    # (dozens of nested sub-tabs) silently lost most of their cards. Scale it with the
+    # number of tabs actually contributing bookmarks; the detail-tier ladder above still
+    # guards the model budget.
+    card_cap = min(400, max(min(80, max(10, sample_limit * 2)), len(scoped_workspaces) * 6))
 
     cards = []
     for scoped_key, card_links in sorted(links_by_card.items()):
@@ -142,7 +150,7 @@ def _build_card_trees(bookmarks, folders, config, link_to_entry, pins, categorie
             "detachedBookmarks": detached_bookmarks[:sample_limit],
             "folders": [build_folder(folder) for folder in children_by_parent.get("", [])],
         })
-        if len(cards) >= min(80, max(10, sample_limit * 2)):
+        if len(cards) >= card_cap:
             break
     return cards
 

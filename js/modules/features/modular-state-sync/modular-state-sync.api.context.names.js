@@ -189,13 +189,16 @@ window.EveDataStore = window.EveDataStore || {};
         return byWorkspace;
     }
 
-    function buildCardNames(roots, scope) {
+    // maxSubDepth: how many sub-tab levels to descend (0 = the scope tab only,
+    // Infinity = the whole sub^N chain). Both are real user choices in Selective Send.
+    function buildCardNames(roots, scope, maxSubDepth) {
+        const depthLimit = typeof maxSubDepth === 'number' ? maxSubDepth : Infinity;
         const idSet = new Set();
         roots.forEach(function (root) { branchIds(root, idSet); });
         const cards = cardsByWorkspace(idSet);
         const lines = [];
         let count = 0;
-        function visit(node, parentPath) {
+        function visit(node, parentPath, depth) {
             if (!isNodeActive(node)) return;
             const name = tabName(node);
             // Shortcuts own no content — emit a pointer so the model never attributes the
@@ -213,10 +216,11 @@ window.EveDataStore = window.EveDataStore || {};
                 lines.push(tabContextLabel(node, parentPath) + ' has cards: ' + names.join(', '));
                 count += names.length;
             }
+            if (depth >= depthLimit) return;
             const childPath = parentPath ? parentPath + ' > ' + name : name;
-            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, childPath); });
+            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, childPath, depth + 1); });
         }
-        roots.forEach(function (root) { visit(root, ''); });
+        roots.forEach(function (root) { visit(root, '', 0); });
         return { body: lines.join('\n'), count: count };
     }
 
@@ -240,10 +244,17 @@ window.EveDataStore = window.EveDataStore || {};
     const SELECTIVE_KINDS = {
         'tabs': { title: 'tab and sub-tab names', unit: 'tab' },
         'tab-tree': { title: 'full tab tree names (all nesting levels)', unit: 'tab' },
-        'cards': { title: 'card names (no bookmarks or folders)', unit: 'card' },
-        'bookmarks': { title: 'bookmark titles organized by folder trees', unit: 'bookmark' },
+        'cards-current': { title: 'card names for this tab only (sub-tabs excluded)', unit: 'card' },
+        'cards': { title: 'card names for this tab and its whole sub^N chain (no bookmarks or folders)', unit: 'card' },
+        'bookmarks-current': { title: 'bookmark titles organized by folder trees for this tab only (sub-tabs excluded)', unit: 'bookmark' },
+        'bookmarks': { title: 'bookmark titles organized by folder trees for this tab and its whole sub^N chain', unit: 'bookmark' },
+        'bookmark-contents-current': {
+            title: 'bookmark contents (titles, links, identifiers, status, library info, notes, tags) for this tab only (sub-tabs excluded)',
+            unit: 'bookmark',
+            note: 'Full bookmark details'
+        },
         'bookmark-contents': {
-            title: 'bookmark contents (titles, links, identifiers, status, notes, tags) organized by folder trees',
+            title: 'bookmark contents (titles, links, identifiers, status, library info, notes, tags) for this tab and its whole sub^N chain',
             unit: 'bookmark',
             note: 'Full bookmark details'
         }
@@ -259,9 +270,12 @@ window.EveDataStore = window.EveDataStore || {};
         const roots = scopeRootNodes(scope);
         let built;
         if (kind === 'tab-tree') built = buildTabNames(roots, Infinity);
-        else if (kind === 'cards') built = buildCardNames(roots, scope);
-        else if (kind === 'bookmarks') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope);
-        else if (kind === 'bookmark-contents') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope, bookmarkLayer.bookmarkDetailLine);
+        else if (kind === 'cards') built = buildCardNames(roots, scope, Infinity);
+        else if (kind === 'cards-current') built = buildCardNames(roots, scope, 0);
+        else if (kind === 'bookmarks') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope, null, Infinity);
+        else if (kind === 'bookmarks-current') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope, null, 0);
+        else if (kind === 'bookmark-contents') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope, bookmarkLayer.bookmarkDetailLine, Infinity);
+        else if (kind === 'bookmark-contents-current') built = bookmarkLayer.buildBookmarksAndFolders(roots, scope, bookmarkLayer.bookmarkDetailLine, 0);
         else built = buildTabNames(roots, 1);
         const surface = describeSurface(scope);
         const header = '[SYSTEM CONTEXT: EveOS selective context — ' + meta.title + ' for ' + surface

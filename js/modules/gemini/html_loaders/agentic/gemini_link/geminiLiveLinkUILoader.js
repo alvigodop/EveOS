@@ -194,18 +194,22 @@ async function initializeGeminiLiveLinkCard() {
                 </div>
             </div>
             <p class="gemini-session-help">
-                Each button sends only that layer for the surface you are on <strong>right now</strong>:
-                a normal tab sends its branch, the Unidex overview sends the whole datapack, and a tab
-                opened inside Unidex sends just that tab's branch. Name buttons send names only;
-                the contents button also ships each bookmark's details (identifiers, status, notes,
-                tags) &mdash; all sent silently.
+                Each button sends only that layer for the surface you are on <strong>right now</strong>.
+                &ldquo;This Tab&rdquo; buttons send just the current tab's own layer;
+                &ldquo;+ Sub&#8319;&rdquo; buttons include the whole sub-tab chain at every depth
+                (the Unidex overview always covers the whole datapack). Contents buttons also ship
+                each bookmark's details &mdash; identifiers, status, library info, notes, tags &mdash;
+                all sent silently.
             </p>
             <div class="gemini-session-field-grid" style="margin-top: 12px; gap: 10px;">
                 <button type="button" class="gemini-session-button" id="geminiSelectiveTabsBtn" data-selective-kind="tabs" style="width: 100%;">Tab &amp; Sub-Tab Names</button>
                 <button type="button" class="gemini-session-button" id="geminiSelectiveTabTreeBtn" data-selective-kind="tab-tree" style="width: 100%;">Full Tab Tree Names</button>
-                <button type="button" class="gemini-session-button" id="geminiSelectiveCardsBtn" data-selective-kind="cards" style="width: 100%;">Card Names</button>
-                <button type="button" class="gemini-session-button" id="geminiSelectiveBookmarksBtn" data-selective-kind="bookmarks" style="width: 100%;">Bookmarks &amp; Folders</button>
-                <button type="button" class="gemini-session-button" id="geminiSelectiveBookmarkContentsBtn" data-selective-kind="bookmark-contents" style="width: 100%;">Bookmarks &amp; Folders + Contents</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveCardsCurrentBtn" data-selective-kind="cards-current" style="width: 100%;">Card Names &mdash; This Tab</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveCardsBtn" data-selective-kind="cards" style="width: 100%;">Cards + Sub&#8319; Tab Cards</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveBookmarksCurrentBtn" data-selective-kind="bookmarks-current" style="width: 100%;">Bookmarks &amp; Folders &mdash; This Tab</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveBookmarksBtn" data-selective-kind="bookmarks" style="width: 100%;">Bookmarks &amp; Folders + Sub&#8319;</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveBookmarkContentsCurrentBtn" data-selective-kind="bookmark-contents-current" style="width: 100%;">+ Contents &mdash; This Tab</button>
+                <button type="button" class="gemini-session-button" id="geminiSelectiveBookmarkContentsBtn" data-selective-kind="bookmark-contents" style="width: 100%;">+ Contents + Sub&#8319;</button>
             </div>
         </section>
     </div>
@@ -311,7 +315,7 @@ async function initializeGeminiLiveLinkCard() {
 
     // Selective sends: ship exactly one layer (tab names / full tab tree / card names /
     // bookmarks + folders) for the surface the user is on right now.
-    ['geminiSelectiveTabsBtn', 'geminiSelectiveTabTreeBtn', 'geminiSelectiveCardsBtn', 'geminiSelectiveBookmarksBtn', 'geminiSelectiveBookmarkContentsBtn'].forEach((buttonId) => {
+    ['geminiSelectiveTabsBtn', 'geminiSelectiveTabTreeBtn', 'geminiSelectiveCardsCurrentBtn', 'geminiSelectiveCardsBtn', 'geminiSelectiveBookmarksCurrentBtn', 'geminiSelectiveBookmarksBtn', 'geminiSelectiveBookmarkContentsCurrentBtn', 'geminiSelectiveBookmarkContentsBtn'].forEach((buttonId) => {
         const button = document.getElementById(buttonId);
         if (!button) return;
         button.addEventListener('click', () => {

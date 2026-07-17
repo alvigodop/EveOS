@@ -403,6 +403,8 @@ function loadScript(relPath) {
     const mdResult = await context.window.EveOS.API.MangaDex.searchMangaDex('naruto');
     assert(Array.isArray(mdResult.data) && mdResult.data[0].id === 'md-1', 'MangaDex search module should return bridge-off fallback results');
 
+    // Manifest order: the shared helpers (normalizeUrl etc.) load before the facade.
+    loadScript('js/modules/features/api-search/mangaupdates.shared.js');
     loadScript('js/modules/features/api-search/mangaupdates.js');
     const muResult = await context.window.EveOS.API.MangaUpdates.searchMangaUpdates('naruto');
     assert(Array.isArray(muResult.results) && muResult.results.length === 2, 'MangaUpdates should return parsed zero-server HTML results');

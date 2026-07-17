@@ -65,30 +65,66 @@
                 .slice(0, 3);
         }
 
+        // The "Add to Library" data of a linked bookmark lives on the LIBRARY ENTRY, not the
+        // link — without this lookup the contents layer shipped url/identifier info but lost
+        // the library side (status, chapters, ratings, author, summary) entirely.
+        function linkedLibraryEntry(link) {
+            try {
+                const linked = window.EveLibrary?.ConnectionsAPI?.getLinkedEntry?.(text(link?.id, ''));
+                return linked && linked.entry ? linked.entry : null;
+            } catch { return null; }
+        }
+
+        function compactQuote(value, max) {
+            const normalized = text(value, '').replace(/\s+/g, ' ');
+            if (!normalized) return '';
+            return '"' + (normalized.length > max ? normalized.slice(0, max - 3) + '...' : normalized) + '"';
+        }
+
         function bookmarkDetailLine(link) {
+            const entry = linkedLibraryEntry(link);
             const parts = [text(link?.title || link?.url, '(Untitled)')];
             const url = compactUrl(link?.url || link?.href, 120);
             if (url) parts.push(url);
             const identifiers = identifierLabels(link);
             if (identifiers.length) parts.push('labels: ' + identifiers.join(', '));
-            const status = text(link?.status || link?.readingStatus || link?.mediaStatus, '');
+            const status = text(link?.status || link?.readingStatus || link?.mediaStatus, '')
+                || (entry ? text(entry.status, '') : '');
             if (status) parts.push('status: ' + status);
+            const progressValue = (keys) => firstValue(link, keys) || (entry ? firstValue(entry, keys) : '');
             const progress = [
-                ['chapter', firstValue(link, ['chapter', 'graphicChapter'])],
-                ['novel chapter', firstValue(link, ['novelChapter'])],
-                ['volume', firstValue(link, ['volume'])],
-                ['season', firstValue(link, ['season'])],
-                ['episode', firstValue(link, ['episode'])],
-                ['progress', firstValue(link, ['progress', 'progressUnits'])]
+                ['chapter', progressValue(['chapter', 'graphicChapter'])],
+                ['novel chapter', progressValue(['novelChapter'])],
+                ['volume', progressValue(['volume'])],
+                ['season', progressValue(['season'])],
+                ['episode', progressValue(['episode'])],
+                ['progress', progressValue(['progress', 'progressUnits'])]
             ].filter((item) => item[1]);
             progress.forEach((item) => parts.push(item[0] + ': ' + item[1]));
             if (link?.done) parts.push('done');
             if (text(link?.priority, '')) parts.push('priority: ' + link.priority);
-            const notes = text(link?.personalNotes || link?.notes, '').replace(/\s+/g, ' ');
-            if (notes) parts.push('notes: "' + (notes.length > 140 ? notes.slice(0, 137) + '...' : notes) + '"');
-            const tags = (Array.isArray(link?.tags) ? link.tags : [])
+            const rating = firstValue(link, ['rating', 'personalRating'])
+                || (entry ? firstValue(entry, ['rating', 'personalRating']) : '');
+            if (rating) parts.push('rating: ' + rating);
+            const notes = compactQuote(link?.personalNotes || link?.notes, 140);
+            if (notes) parts.push('notes: ' + notes);
+            if (entry) {
+                parts.push('library-linked');
+                const author = text(entry.author || entry.artist, '');
+                if (author) parts.push('author: ' + author);
+                const genres = (Array.isArray(entry.genres) ? entry.genres : (Array.isArray(entry.genre) ? entry.genre : [text(entry.genre, '')]))
+                    .map((genre) => text(genre, ''))
+                    .filter(Boolean);
+                if (genres.length) parts.push('genres: ' + genres.slice(0, 5).join(', '));
+                const librarySummary = compactQuote(entry.summary || entry.description || entry.notes, 140);
+                if (librarySummary) parts.push('library summary: ' + librarySummary);
+            }
+            const tagSet = []
+                .concat(Array.isArray(link?.tags) ? link.tags : [])
+                .concat(entry && Array.isArray(entry.tags) ? entry.tags : [])
                 .map((tag) => text(tag, ''))
                 .filter(Boolean);
+            const tags = Array.from(new Set(tagSet));
             if (tags.length) parts.push('tags: ' + tags.slice(0, 6).join(', '));
             const mirrors = relatedUrls(link);
             if (mirrors.length) parts.push('related: ' + mirrors.join(', '));
@@ -120,7 +156,10 @@
             return { byId, children };
         }
 
-        function buildBookmarksAndFolders(roots, scope, lineFor) {
+        // maxSubDepth: how many sub-tab levels to descend (0 = the scope tab only,
+        // Infinity = the whole sub^N chain).
+        function buildBookmarksAndFolders(roots, scope, lineFor, maxSubDepth) {
+            const depthLimit = typeof maxSubDepth === 'number' ? maxSubDepth : Infinity;
             const renderLine = typeof lineFor === 'function'
                 ? lineFor
                 : (link) => text(link?.title || link?.url, '(Untitled)');
@@ -152,7 +191,7 @@
                 });
             }
 
-            function visit(node, parentPath) {
+            function visit(node, parentPath, depth) {
                 if (!isNodeActive(node)) return;
                 const name = tabName(node);
                 if (text(node?.linkedTo, '')) {
@@ -186,11 +225,12 @@
                     });
                     emitFolder('', maps, byFolder, '  ');
                 });
+                if (depth >= depthLimit) return;
                 const childPath = parentPath ? parentPath + ' > ' + name : name;
-                (Array.isArray(node.subTabs) ? node.subTabs : []).forEach((child) => visit(child, childPath));
+                (Array.isArray(node.subTabs) ? node.subTabs : []).forEach((child) => visit(child, childPath, depth + 1));
             }
 
-            roots.forEach((root) => visit(root, ''));
+            roots.forEach((root) => visit(root, '', 0));
             return { body: lines.join('\n'), count: bookmarkCount, folderCount };
         }
 

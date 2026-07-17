@@ -14,7 +14,7 @@ const agenticUILoaderScripts = [
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkScopeRuntime.js?v=0.2.5`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUIState.js?v=0.1.0`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUICard.js?v=0.1.0`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUILoader.js?v=0.6.0`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUILoader.js?v=0.6.1`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkAssistRuntime.js?v=0.2.2`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioProcessingControlsUILoader.js`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioSettingsDialogUILoader.js`,

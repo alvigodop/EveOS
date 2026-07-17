@@ -68,11 +68,26 @@ window.EveDataStore = window.EveDataStore || {};
             if (!byCard.has(key)) byCard.set(key, []);
             byCard.get(key).push(link);
         });
-        const budget = detailBudget(detail, limit);
+        // Deep sub^N branches: the per-tier card/link caps were FIXED, so a branch with dozens
+        // of nested sub-tabs silently lost most of its cards (and which ones survived was
+        // iteration luck). Scale the caps with the number of tabs actually in scope — the
+        // detail-tier auto-degrade ladder still guards the model budget above us.
+        const scopeBreadth = Math.max(1, Array.isArray(scope?.workspaceIds) ? scope.workspaceIds.length : 1);
+        const effectiveCardLimit = Math.max(settingsForDetail.cardLimit, Math.min(scopeBreadth * 6, 400));
+        const budget = Math.max(detailBudget(detail, limit), Math.min(scopeBreadth * 30, 6000));
         let remaining = budget;
         const cards = [];
+        const truncatedCards = [];
         byCard.forEach((cardLinks, key) => {
-            if (cards.length >= settingsForDetail.cardLimit || remaining <= 0) return;
+            if (cards.length >= effectiveCardLimit || remaining <= 0) {
+                // Truncation must be visible, not silent: name what was left out so the agent
+                // (and the user reading the manifest) knows the payload is partial.
+                if (truncatedCards.length < 150) {
+                    const parsedSkip = splitScopedKey(key);
+                    truncatedCards.push((workspaceNames.get(parsedSkip.workspace) || parsedSkip.workspace) + ' > ' + parsedSkip.category);
+                }
+                return;
+            }
             const parsed = splitScopedKey(key);
             const categoryData = categories[key] || {};
             const settings = cardOrderSettings(config, parsed.workspace, parsed.category);
@@ -131,13 +146,19 @@ window.EveDataStore = window.EveDataStore || {};
                 folders: (maps.children.get('') || []).slice(0, settingsForDetail.folderLimit).map((node) => buildFolder(node, 0))
             });
         });
-        return {
+        const structured = {
             workspaceScope: collectWorkspaceMeta(config, scope),
             cards,
             systemViews: systemViewHints(links, linkToEntry, identifierDefs, Math.min(settingsForDetail.systemViewSampleLimit, limit), detail, workspaceNames),
-            truncated: remaining <= 0,
+            truncated: remaining <= 0 || truncatedCards.length > 0,
             bookmarkBudget: budget
         };
+        if (truncatedCards.length) {
+            structured.truncatedCardCount = truncatedCards.length;
+            structured.truncatedCardsNote = 'These cards exist in the selected scope but were not expanded in this payload (size cap): '
+                + truncatedCards.join('; ');
+        }
+        return structured;
     }
 
     function summarizeState(state, limit, scope, detail = 'summary') {
