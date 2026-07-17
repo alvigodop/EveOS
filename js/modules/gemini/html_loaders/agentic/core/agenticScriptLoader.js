@@ -20,6 +20,11 @@ function loadAgenticUILoaderScripts() {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = scriptPath;
+            // Dynamically inserted scripts IGNORE `defer` and execute in download-completion
+            // order by default — with the UIState/UICard/UILoader (and scope runtime) splits
+            // this made the facade race its helpers, so the relay card loaded in some
+            // browsers and not others. async=false restores list-order execution.
+            script.async = false;
             script.defer = true;
             script.onload = () => {
                 // console.log(`${scriptPath} loaded.`); // Optional: Reduce noise

@@ -87,12 +87,24 @@ assert(/Transcription mode injection prompt/i.test(manualText), 'manual setup sh
 assert(/Screen observation policy/i.test(manualText), 'manual setup should include screen observation policy');
 
 runScript('js/modules/gemini/client/connection_management/autoSetupHandler.js');
-context.window.sendAutoSetupMessage();
-assert(sent.length === 1, 'auto setup should send one websocket payload');
-const autoText = instructionText(sent[0]);
-assert(/Saved persona/i.test(autoText), 'auto setup should include saved system instruction');
-assert(/Transcription mode injection prompt/i.test(autoText), 'auto setup should include transcription injection');
-assert(/Screen observation policy/i.test(autoText), 'auto setup should include screen observation policy');
-assert(sent[0].inlineTranscriptionMode === false, 'auto setup should preserve inline transcription setting');
+(async () => {
+    // The auto setup path runs an intentionally asynchronous credential check before it
+    // sends — await the call and give the send a bounded window instead of asserting
+    // synchronously against an empty queue.
+    const result = context.window.sendAutoSetupMessage();
+    if (result && typeof result.then === 'function') await result;
+    for (let i = 0; i < 50 && sent.length === 0; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert(sent.length === 1, 'auto setup should send one websocket payload');
+    const autoText = instructionText(sent[0]);
+    assert(/Saved persona/i.test(autoText), 'auto setup should include saved system instruction');
+    assert(/Transcription mode injection prompt/i.test(autoText), 'auto setup should include transcription injection');
+    assert(/Screen observation policy/i.test(autoText), 'auto setup should include screen observation policy');
+    assert(sent[0].inlineTranscriptionMode === false, 'auto setup should preserve inline transcription setting');
 
-console.log('GEMINI_INSTRUCTION_STATE_SMOKE_OK');
+    console.log('GEMINI_INSTRUCTION_STATE_SMOKE_OK');
+})().catch((error) => {
+    console.error(error && error.stack ? error.stack : error);
+    process.exit(1);
+});

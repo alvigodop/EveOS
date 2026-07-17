@@ -144,6 +144,17 @@ async function main() {
         rehydrateSourceRecords: list => list
     };
 
+    // The index facade refuses to initialize until its modular runtimes are present — load
+    // them in the same order as the production manifest (12-existing-features.js).
+    [
+        'js/modules/features/search-advanced/sa-index.search.js',
+        'js/modules/features/search-advanced/sa-index.graph.js',
+        'js/modules/features/search-advanced/sa-index.exact-scope.js',
+        'js/modules/features/search-advanced/sa-index.invalidation.js',
+        'js/modules/features/search-advanced/sa-index.persistence.js'
+    ].forEach((relPath) => {
+        eval(fs.readFileSync(path.join(repoRoot, relPath), 'utf8'));
+    });
     eval(fs.readFileSync(indexPath, 'utf8'));
 
     const indexApi = window.EveOS.SearchAdvanced.Index;

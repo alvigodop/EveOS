@@ -28,7 +28,10 @@ function loadChatLogDisplayScripts() {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = scriptPath;
-            script.defer = true; // Ensure scripts are executed in order after fetching
+            // `defer` is ignored on dynamically inserted scripts; async=false is what actually
+            // guarantees list-order execution instead of download-completion order.
+            script.async = false;
+            script.defer = true;
             script.onload = () => {
                 console.log(`${scriptPath} loaded.`);
                 resolve();

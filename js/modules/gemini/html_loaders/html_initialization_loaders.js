@@ -12,7 +12,7 @@ const htmlLoaderAggregatorScripts = [
     `${HTML_LOADERS_BASE_PATH}/layout/layout.js`, // Layout UI group aggregator
     `${HTML_LOADERS_BASE_PATH}/agentic/agentic.js?v=0.2.11`,
     `${HTML_LOADERS_BASE_PATH}/comm/comm.js?v=0.1.1`,
-    `${HTML_LOADERS_BASE_PATH}/chat_disp/chat_disp.js?v=0.1.0`, // Added new group aggregator
+    `${HTML_LOADERS_BASE_PATH}/chat_disp/chat_disp.js?v=0.1.1`, // Added new group aggregator
     `${HTML_LOADERS_BASE_PATH}/audio_worklet/audio_worklet.js` // Audio worklet components group aggregator
 ];
 
@@ -26,7 +26,10 @@ function loadHtmlLoaderAggregatorScripts() {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
             script.src = scriptPath;
-            script.defer = true; // Ensure scripts are executed in order after fetching
+            // `defer` is ignored on dynamically inserted scripts; async=false is what actually
+            // guarantees list-order execution instead of download-completion order.
+            script.async = false;
+            script.defer = true;
             script.onload = () => {
                 console.log(`${scriptPath} loaded.`);
                 resolve();

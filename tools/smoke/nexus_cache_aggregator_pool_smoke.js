@@ -93,6 +93,11 @@ function loadScript(relPath) {
     vm.runInContext(code, vmContext, { filename: relPath });
 }
 
+// Load the aggregator exactly as the production manifest does: helper modules first
+// (scope/records/diagnostics), then the facade.
+loadScript('js/modules/features/search-advanced/sa-cache-aggregator.scope.js');
+loadScript('js/modules/features/search-advanced/sa-cache-aggregator.records.js');
+loadScript('js/modules/features/search-advanced/sa-cache-aggregator.diagnostics.js');
 loadScript('js/modules/features/search-advanced/sa-cache-aggregator.js');
 
 (async () => {

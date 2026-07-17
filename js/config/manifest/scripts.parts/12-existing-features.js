@@ -36,7 +36,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-cache-aggregator.scope.js?v=0.1.1",
     "js/modules/features/search-advanced/sa-cache-aggregator.records.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-cache-aggregator.diagnostics.js?v=0.1.3",
-    "js/modules/features/search-advanced/sa-cache-aggregator.js?v=0.3.0",
+    "js/modules/features/search-advanced/sa-cache-aggregator.js?v=0.3.1",
     "js/modules/features/search-advanced/sa-search-vectors.js?v=0.2.0",
     "js/modules/features/search-advanced/sa-navigation.js?v=0.1.2",
     "js/modules/features/search-advanced/sa-debug-view.workspace.js?v=0.1.0",

@@ -10,7 +10,7 @@ const COMPONENT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/
 
 const pageInitScripts = [
     `${COMPONENT_BASE_PATH}/svgLifecycle.js`,
-    `${COMPONENT_BASE_PATH}/displayLoader.js?v=0.1.12`,
+    `${COMPONENT_BASE_PATH}/displayLoader.js?v=0.1.13`,
     `${COMPONENT_BASE_PATH}/connectivityStartup.js?v=0.1.3`,
     `${COMPONENT_BASE_PATH}/initializationCoordinator.js?v=0.1.1`
 ];
@@ -22,6 +22,9 @@ function loadPageInitScripts() {
     pageInitScripts.forEach(scriptPath => {
         const script = document.createElement('script');
         script.src = scriptPath;
+        // `defer` is ignored on dynamically inserted scripts; async=false is what actually
+        // guarantees list-order execution instead of download-completion order.
+        script.async = false;
         script.defer = true;
         script.onload = () => {
             loadedCount++;

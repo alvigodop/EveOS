@@ -65,8 +65,26 @@ const context = {
 context.window.window = context.window;
 
 const vmContext = vm.createContext(context);
-const code = fs.readFileSync(path.join(repoRoot, 'js/modules/core/categories.js'), 'utf8');
-vm.runInContext(code, vmContext, { filename: 'js/modules/core/categories.js' });
+// The modular move code defers UI refreshes through timers; give the sandbox the host timers.
+vmContext.setTimeout = setTimeout;
+vmContext.clearTimeout = clearTimeout;
+vmContext.setInterval = setInterval;
+vmContext.clearInterval = clearInterval;
+vmContext.window.setTimeout = setTimeout;
+vmContext.window.clearTimeout = clearTimeout;
+
+// Load the categories modules exactly as the production manifest does: shared helpers and
+// the move/ui modules first, then the facade (moveCategoryCardToWorkspace lives in
+// categories.move.js after modularization).
+[
+    'js/modules/core/categories.shared.js',
+    'js/modules/core/categories.move.js',
+    'js/modules/core/categories.ui.js',
+    'js/modules/core/categories.js'
+].forEach((relPath) => {
+    const moduleCode = fs.readFileSync(path.join(repoRoot, relPath), 'utf8');
+    vm.runInContext(moduleCode, vmContext, { filename: relPath });
+});
 
 (async () => {
     const moveResult = vmContext.window.moveCategoryCardToWorkspace('source-tab', 'Reading', 'target-tab', {

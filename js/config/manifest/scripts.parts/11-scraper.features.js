@@ -18,7 +18,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/features/wikipedia-search/components/wa-fetch.js?v=0.1.0",
     "js/modules/features/scraper/features/wikipedia-search/components/wa-enrich.js?v=0.1.0",
     "js/modules/features/scraper/features/wikipedia-search/wikipedia-api.js?v=0.1.0",
-    "js/modules/features/scraper/features/wikipedia-search/wikipedia-cache.js?v=1.0.1",
+    "js/modules/features/scraper/features/wikipedia-search/wikipedia-cache.js?v=1.0.2",
     "js/modules/features/scraper/features/wikipedia-search/wikipedia-processor.js?v=0.1.0",
     "js/modules/features/scraper/features/wikipedia-search/components/sw-orchestrator.js?v=1.0.1",
     "js/modules/features/scraper/features/wikipedia-search/search-wikipedia.js?v=0.1.0",

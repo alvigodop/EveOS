@@ -23,11 +23,25 @@
         recoveryAttempts: 0,
         manualStop: false
     };
+    // The EveOS python server's status endpoint does real work (listener sweep + backend
+    // probe) and can legitimately take over a second on Windows. A flat 700ms budget made
+    // localhost pages abort that probe every poll, so the controller was never "found" and
+    // the pill sat in "checking" forever — while file:// (which never probes the page
+    // origin) worked. Same-origin gets a budget that matches the endpoint's real cost.
+    function probeTimeoutFor(baseUrl) {
+        try {
+            if (/^https?:$/.test(window.location.protocol) && baseUrl === window.location.origin) {
+                return 3000;
+            }
+        } catch (error) { /* fall through to the fast budget */ }
+        return 700;
+    }
+
     async function findController() {
         const network = window.GeminiServerNetwork;
         if (state.baseUrl) {
             try {
-                const payload = await network.fetchJson(`${state.baseUrl}${STATUS_PATH}`, null, 1000);
+                const payload = await network.fetchJson(`${state.baseUrl}${STATUS_PATH}`, null, Math.max(1000, probeTimeoutFor(state.baseUrl)));
                 return { baseUrl: state.baseUrl, payload };
             } catch (error) {
                 state.baseUrl = '';
@@ -35,7 +49,7 @@
         }
         for (const baseUrl of network.localCandidateBases()) {
             try {
-                const payload = await network.fetchJson(`${baseUrl}${STATUS_PATH}`, null, 700);
+                const payload = await network.fetchJson(`${baseUrl}${STATUS_PATH}`, null, probeTimeoutFor(baseUrl));
                 state.baseUrl = baseUrl;
                 return { baseUrl, payload };
             } catch (error) {

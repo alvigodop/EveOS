@@ -56,18 +56,40 @@ def _status_http_ready() -> bool:
                 pass
 
 
-def _listener_pids(port: int) -> list[int]:
+# A full `netstat -ano` sweep costs hundreds of milliseconds on Windows, and the status
+# payload used to run it once PER PORT. Browser-side controller probes time out at well under
+# a second, so status calls that crossed that budget made localhost EveOS report the Gemini
+# controller as unreachable ("checking" forever). One shared snapshot with a short TTL keeps
+# polls cheap; lifecycle transitions request a fresh sweep.
+_NETSTAT_TTL_SECONDS = 2.0
+_NETSTAT_CACHE = {"at": 0.0, "text": ""}
+
+
+def _netstat_text(fresh: bool = False) -> str:
+    now = time.monotonic()
+    if (
+        not fresh
+        and _NETSTAT_CACHE["text"]
+        and (now - _NETSTAT_CACHE["at"]) < _NETSTAT_TTL_SECONDS
+    ):
+        return _NETSTAT_CACHE["text"]
+    result = subprocess.run(
+        ["netstat", "-ano", "-p", "tcp"],
+        capture_output=True,
+        text=True,
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    _NETSTAT_CACHE["at"] = now
+    _NETSTAT_CACHE["text"] = result.stdout or ""
+    return _NETSTAT_CACHE["text"]
+
+
+def _listener_pids(port: int, fresh: bool = False) -> list[int]:
     if os.name == "nt":
-        result = subprocess.run(
-            ["netstat", "-ano", "-p", "tcp"],
-            capture_output=True,
-            text=True,
-            check=False,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
         pids = []
         marker = f":{port}"
-        for line in result.stdout.splitlines():
+        for line in _netstat_text(fresh).splitlines():
             if marker not in line or "LISTENING" not in line.upper():
                 continue
             parts = line.split()
@@ -103,8 +125,8 @@ def _terminate_pid(pid: int) -> bool:
         return False
 
 
-def _status_payload(message: str = "") -> dict:
-    websocket_pids = _listener_pids(WEBSOCKET_PORT)
+def _status_payload(message: str = "", fresh: bool = False) -> dict:
+    websocket_pids = _listener_pids(WEBSOCKET_PORT, fresh)
     status_pids = _listener_pids(STATUS_PORT)
     websocket_ready = bool(websocket_pids) and _port_open(WEBSOCKET_PORT)
     status_port_open = bool(status_pids) and _port_open(STATUS_PORT)
@@ -134,7 +156,7 @@ def get_status() -> dict:
 def start_server() -> dict:
     global _PROCESS
 
-    current = _status_payload()
+    current = _status_payload(fresh=True)
     if current["running"]:
         current["message"] = "Gemini server is already running."
         return current
@@ -143,7 +165,7 @@ def start_server() -> dict:
     # health checks. Restart the Gemini backend instead of leaving it "starting"
     # forever.
     if (current["websocketReady"] or current.get("statusPortOpen")) and not current["running"]:
-        for pid in sorted(set(_listener_pids(WEBSOCKET_PORT) + _listener_pids(STATUS_PORT))):
+        for pid in sorted(set(_listener_pids(WEBSOCKET_PORT, fresh=True) + _listener_pids(STATUS_PORT))):
             _terminate_pid(pid)
         _PROCESS = None
         time.sleep(0.35)
@@ -192,7 +214,7 @@ def start_server() -> dict:
             break
         time.sleep(0.1)
 
-    payload = _status_payload("Gemini server started." if _port_open(WEBSOCKET_PORT) else "Gemini server is starting.")
+    payload = _status_payload("Gemini server started." if _port_open(WEBSOCKET_PORT) else "Gemini server is starting.", fresh=True)
     if _PROCESS.poll() is not None and not payload["running"]:
         payload.update(ok=False, state="error", message="Gemini server exited before becoming ready.")
     return payload
@@ -203,7 +225,7 @@ def stop_server() -> dict:
 
     stopped = False
     for port in (WEBSOCKET_PORT, STATUS_PORT):
-        for pid in _listener_pids(port):
+        for pid in _listener_pids(port, fresh=True):
             stopped = _terminate_pid(pid) or stopped
 
     if _PROCESS and _PROCESS.poll() is None:
@@ -223,7 +245,7 @@ def stop_server() -> dict:
     while time.monotonic() < deadline and (_port_open(WEBSOCKET_PORT) or _port_open(STATUS_PORT)):
         time.sleep(0.1)
 
-    return _status_payload("Gemini server stopped." if stopped else "Gemini server was already stopped.")
+    return _status_payload("Gemini server stopped." if stopped else "Gemini server was already stopped.", fresh=True)
 
 
 def request_can_control(handler) -> bool:

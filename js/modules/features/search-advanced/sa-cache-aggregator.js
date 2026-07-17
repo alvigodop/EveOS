@@ -124,6 +124,19 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     description: descriptionText,
                     provider: result.provider || result.source || '',
                     updatedAt: entry.updatedAt,
+                    // Legacy public contract (consumed by sa-datapack-view / sa-index / UI
+                    // diagnostics) — the modular refactor dropped these once; keep them beside
+                    // the newer metadata so old callers never lose attribution again.
+                    type: 'cached',
+                    displayUrl: result.displayUrl || result.formattedUrl || urlText,
+                    sourceCard: entry.categoryName,
+                    sourceQuery: entry.query,
+                    provenance: {
+                        kind: 'cached',
+                        sourceQuery: entry.query,
+                        provider: result.provider || result.source || 'unknown',
+                        perSource: entry.perSource || entry.summary?.perSource || {}
+                    },
                     score: (title.includes(q) ? 3 : 0)
                         + (url.includes(q) ? 2 : 0)
                         + (description.includes(q) ? 1 : 0)

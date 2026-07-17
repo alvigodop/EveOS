@@ -30,7 +30,11 @@
     }
 
     function resolveWikiCacheStore() {
-        if (window.CacheCore && !CacheCore._initialized) CacheCore.init();
+        // CacheCore may be a fallback stub without init() (smart-cache-stub) — never assume
+        // the full contract; a missing init just means the store is whatever is already there.
+        if (window.CacheCore && !CacheCore._initialized && typeof CacheCore.init === 'function') {
+            CacheCore.init();
+        }
         return window.CacheCore ? (CacheCore.wikiCacheStore || {}) : {};
     }
 
@@ -258,7 +262,7 @@
     WikipediaCache.updateWikiCacheStore = function (results) {
         if (results.length > 0 && window.CacheManager) {
             try {
-                CacheManager.init();
+                if (typeof CacheManager.init === 'function') CacheManager.init();
                 const wikiStore = (window.CacheCore && CacheCore.wikiCacheStore) ? CacheCore.wikiCacheStore : (CacheManager.wikiCacheStore || {});
                 
                 if (!wikiStore.entryResults) {
