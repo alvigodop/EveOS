@@ -11,13 +11,16 @@ function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForServer() {
-    for (let i = 0; i < 60; i += 1) {
+async function waitForServer(server, logs) {
+    for (let i = 0; i < 120; i += 1) {
         try {
             const response = await fetch(`${BASE_URL}/api/audioflix/devices`);
             if (response.ok) return await response.json();
         } catch { }
-        await wait(250);
+        if (server.exitCode != null) {
+            throw new Error(`EveOS Audioflix API server exited (${server.exitCode}).\n${logs.join('\n')}`);
+        }
+        await wait(500);
     }
     throw new Error('Timed out waiting for EveOS Audioflix API server.');
 }
@@ -34,7 +37,7 @@ async function main() {
 
     let browser = null;
     try {
-        const apiPayload = await waitForServer();
+        const apiPayload = await waitForServer(server, logs);
         if (!apiPayload.bridge) throw new Error('Audioflix API did not report bridge=true.');
 
         browser = await chromium.launch({ headless: true });

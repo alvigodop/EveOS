@@ -85,6 +85,9 @@ function assert(condition, message) {
     {
         const sent = [], fetchedModes = [];
         const ctx = makeContext({ full: 2400000, deep: 1100000, summary: 300000, brief: 40000 }, sent, fetchedModes);
+        runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+        runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+        runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
         runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
         const api = ctx.window.EveDataStore._modularSync;
         const result = await api.sendContextToGemini('full', 90);
@@ -107,6 +110,9 @@ function assert(condition, message) {
     {
         const sent = [], fetchedModes = [];
         const ctx = makeContext({ full: 3000000, deep: 2000000, summary: 1500000, brief: 900000 }, sent, fetchedModes);
+        runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+        runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+        runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
         runScript(ctx, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
         const api = ctx.window.EveDataStore._modularSync;
         const result = await api.sendContextToGemini('full', 90);

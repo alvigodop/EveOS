@@ -115,7 +115,14 @@ function assert(condition, message) {
 }
 
 (async function main() {
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.scope.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.bookmarks.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.nexus.js');
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
 
   const api = context.window.EveDataStore._modularSync;

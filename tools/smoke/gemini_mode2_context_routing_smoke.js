@@ -145,7 +145,14 @@ function makeRelayVm({ textBrainMode }) {
     // --- 2 + 3. Mode 2: context routes to the text brain; next turn carries it ---
     {
         const { context, wsFrames, brainRequests, spoken } = makeRelayVm({ textBrainMode: true });
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.scope.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.bookmarks.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.nexus.js');
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
         runScript(context, 'js/modules/gemini/mode2/textBrainRelay.config.js');
         runScript(context, 'js/modules/gemini/mode2/textBrainRelay.js');
@@ -200,7 +207,14 @@ function makeRelayVm({ textBrainMode }) {
     // --- 4. Mode 1 regression: context still goes over the live WebSocket ---
     {
         const { context, wsFrames } = makeRelayVm({ textBrainMode: false });
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.scope.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.bookmarks.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.nexus.js');
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+        runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
         const api = context.window.EveDataStore._modularSync;
         const result = await api.sendContextToGemini('summary', 30);

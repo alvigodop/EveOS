@@ -1,385 +1,45 @@
 /**
  * Loads the Gemini Live Link card and wires modular context send actions.
  */
-
 window.GeminiLiveLinkAgentic = window.GeminiLiveLinkAgentic || {};
 
-const GEMINI_LIVE_LINK_MODE_PROFILES = {
-    brief: { label: 'Quick Scoped Brief', limit: 10, note: 'Lean card and bookmark names, counts, and a small useful sample.' },
-    summary: { label: 'Rich Scoped Summary', limit: 30, note: 'Readable scoped sample with folders, bookmark identifiers, status, progress, ratings, URLs, and Nexus hints.' },
-    deep: { label: 'Deep Scoped Snapshot', limit: 60, note: 'More complete tree sample for the selected scope without raw internal state dumps.' },
-    full: { label: 'Complete Scoped Snapshot', limit: 90, note: 'Largest safe structured payload for the selected scope, chunked for Gemini Live.' }
-};
-
-const GEMINI_LIVE_LINK_SCOPE_DESCRIPTIONS = {
-    auto: 'Auto follows the current EveOS surface. In normal tabs it uses the active tab branch; in card drill-ins it can scope to that card; in Unidex it can expose the global datapack.',
-    'tab-current': 'Current Tab Only sends this tab name, path, visible cards, folders, bookmarks, notes, pins, and library links. Sub-tab paths may be named, but sub-tab contents are not included.',
-    'tab-branch': 'Current Tab + Sub Tabs sends this tab and its visible sub-tab branch, preserving tab paths while keeping each card and folder tree separated.',
-    group: 'Current Group sends all tabs, sub-tabs, cards, folders, bookmarks, notes, and library connections belonging to the active sidebar group.',
-    card: 'Specific Card sends one selected card, its folders, root bookmarks, bookmark identifier/category pills, linked-library state, pins, URLs, notes, progress, and compact system-view hints.',
-    all: 'Whole Datapack is only available from Unidex/global surfaces. Use it sparingly; it is chunked but still the largest scope.'
-};
-
-function _normalizeGeminiLiveLinkMode(mode) {
-    const value = String(mode || '').toLowerCase();
-    if (value === 'json' || value === 'complete') return 'full';
-    return GEMINI_LIVE_LINK_MODE_PROFILES[value] ? value : 'summary';
-}
-
-function _getGeminiLiveLinkModeProfile(mode) {
-    const normalized = _normalizeGeminiLiveLinkMode(mode);
-    return { id: normalized, ...GEMINI_LIVE_LINK_MODE_PROFILES[normalized] };
-}
-
-function _getGeminiLiveLinkConfig() {
-    if (window.eveState?.config) return window.eveState.config;
-    if (typeof config !== 'undefined') return config;
-    return window.config || null;
-}
-
-function _getGeminiLiveLinkMode() {
-    const cfg = _getGeminiLiveLinkConfig();
-    return _normalizeGeminiLiveLinkMode(cfg?.modularGeminiMode || 'summary');
-}
-
-function _getGeminiLiveLinkApi() {
-    return window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync || null;
-}
-
-function _isGeminiLiveLinkEnabled() {
-    const cfg = _getGeminiLiveLinkConfig();
-    if (cfg && typeof cfg.geminiLiveLinkEnabled === 'boolean') {
-        return cfg.geminiLiveLinkEnabled;
-    }
-    return true;
-}
-
-function _getGeminiLiveLinkScopeMode() {
-    return window.GeminiLiveLinkScopeRuntime?.getScopeMode?.() || 'auto';
-}
-
-function _isGeminiLiveLinkDataStreamEnabled() {
-    return !!window.GeminiLiveLinkScopeRuntime?.isDataStreamEnabled?.();
-}
-
-function _isGeminiLiveLinkSettingsOpen() {
-    const cfg = _getGeminiLiveLinkConfig();
-    return !!cfg?.geminiLiveLinkSettingsOpen;
-}
-
-function _setGeminiLiveLinkSettingsOpen(open) {
-    const cfg = _getGeminiLiveLinkConfig();
-    const value = !!open;
-    if (cfg) {
-        cfg.geminiLiveLinkSettingsOpen = value;
-        if (typeof saveConfig === 'function') saveConfig();
-    }
-    return value;
-}
-
-function _setGeminiLiveLinkMode(mode) {
-    const normalized = _normalizeGeminiLiveLinkMode(mode);
-    const cfg = _getGeminiLiveLinkConfig();
-    if (cfg) {
-        cfg.modularGeminiMode = normalized;
-        if (typeof saveConfig === 'function') {
-            saveConfig();
-        }
-    }
-    return normalized;
-}
-
-function _setGeminiLiveLinkEnabled(enabled) {
-    const value = !!enabled;
-    const cfg = _getGeminiLiveLinkConfig();
-    const changed = !cfg || cfg.geminiLiveLinkEnabled !== value;
-    if (cfg) {
-        cfg.geminiLiveLinkEnabled = value;
-        if (typeof saveConfig === 'function') {
-            saveConfig();
-        }
-    }
-    if (changed) {
-        try {
-            window.dispatchEvent(new CustomEvent('eve:gemini-live-link-toggled', {
-                detail: { enabled: value }
-            }));
-        } catch { /* optional host event */ }
-        const sync = window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync;
-        sync?.recordDataStreamMarker?.(`Context Relay ${value ? 'enabled' : 'disabled'}`, {
-            relayEnabled: value
-        });
-    }
-    return value;
-}
-
-function _setGeminiLiveLinkScopeMode(mode) {
-    return window.GeminiLiveLinkScopeRuntime?.setScopeMode?.(mode) || 'auto';
-}
-
-function _setGeminiLiveLinkSelectedCard(value) {
-    window.GeminiLiveLinkScopeRuntime?.setSelectedCard?.(value);
-}
-
-function _setGeminiLiveLinkDataStreamEnabled(enabled) {
-    return !!window.GeminiLiveLinkScopeRuntime?.setDataStreamEnabled?.(enabled);
-}
-
-function _getGeminiLiveLinkSelectedScope() {
-    return window.GeminiLiveLinkScopeRuntime?.getSelectedScope?.()
-        || { scope: 'workspace', workspaceId: String(_getGeminiLiveLinkConfig()?.activeWorkspace || 'main'), source: 'fallback' };
-}
-
-function _formatGeminiLiveLinkNumber(value) {
-    const number = Number(value) || 0;
-    return number.toLocaleString();
-}
-
-function _escapeGeminiLiveLinkHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (char) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    })[char]);
-}
-
-function _getGeminiLiveLinkActiveWorkspaceLabel(workspaceId) {
-    const cfg = _getGeminiLiveLinkConfig() || {};
-    const activeId = String(workspaceId || cfg.activeWorkspace || 'main');
-    // Use the RECURSIVE helper so NESTED sub-tabs resolve to their name. A flat find only checked
-    // top-level workspaces, so any sub-tab (or a recovered tab) fell back to showing its raw id.
-    const helpers = window.EveWorkspaceHelpers;
-    const workspace = helpers?.findById
-        ? helpers.findById(cfg.workspaces || [], activeId)
-        : (Array.isArray(cfg.workspaces) ? cfg.workspaces.find((item) => String(item?.id || '') === activeId) : null);
-    return workspace?.name || activeId;
-}
-
-function _getGeminiLiveLinkRouteLabel(route) {
-    if (route === 'websocket') return 'Live WebSocket';
-    if (route === 'queued-websocket') return 'Queued for WebSocket';
-    if (route === 'clipboard') return 'Clipboard fallback';
-    if (window.webSocket && window.webSocket.readyState === WebSocket.OPEN) return 'Live WebSocket';
-    if (typeof window.waitForConnection === 'function') return 'Auto-queue if offline';
-    return 'Clipboard fallback';
-}
-
-function _buildPendingGeminiLiveLinkManifest(mode, selectedScope) {
-    const scope = selectedScope || _getGeminiLiveLinkSelectedScope();
-    const scopeMode = String(scope.scope || 'workspace').toLowerCase();
-    const scopeLabel = scope.label || (scopeMode === 'all'
-        ? 'Whole datapack'
-        : (scopeMode === 'card' ? 'Specific card' : 'Selected tab scope'));
-    const profile = _getGeminiLiveLinkModeProfile(mode || _getGeminiLiveLinkMode());
-    const cfg = _getGeminiLiveLinkConfig() || {};
-    const groupId = cfg.groupOverviewId;
-    let activeGroupName = '';
-    if (groupId) {
-        const groupsApi = window.EveSidebarGroups || window.EveSidebarGroupsRuntime;
-        const group = typeof groupsApi?.findGroupById === 'function' ? groupsApi.findGroupById(groupId, cfg) : null;
-        activeGroupName = group?.name || 'Group Overview';
-    }
-    return {
-        mode: profile.id,
-        scope: scopeLabel,
-        scopeMode,
-        source: scope.source || 'search-monitor',
-        activeWorkspaceId: scope.workspaceId || String(cfg.activeWorkspace || 'main'),
-        activeWorkspaceName: scope.workspaceId ? _getGeminiLiveLinkActiveWorkspaceLabel(scope.workspaceId) : 'All tabs',
-        activeGroupName: activeGroupName,
-        categoryName: scope.categoryName || '',
-        sampleLimit: profile.limit,
-        messageChars: 0,
-        counts: null,
-        route: ''
-    };
-}
-
-function _formatGeminiLiveLinkModeLabel(mode) {
-    return _getGeminiLiveLinkModeProfile(mode).label;
-}
-
-function _withGeminiLiveLinkTimeout(promise, timeoutMs, label) {
-    let timer = 0;
-    const timeout = new Promise((_, reject) => {
-        timer = window.setTimeout(() => {
-            reject(new Error(`${label || 'Operation'} timed out after ${Math.round(timeoutMs / 1000)}s.`));
-        }, timeoutMs);
-    });
-    return Promise.race([promise, timeout]).finally(() => {
-        if (timer) window.clearTimeout(timer);
-    });
-}
-
-function _refreshGeminiLiveLinkScopeOptions() {
-    const select = document.getElementById('geminiLiveLinkScopeMode');
-    if (!select) return;
-    const current = _getGeminiLiveLinkScopeMode();
-    const allowWhole = !!window.GeminiLiveLinkScopeRuntime?.isWholeDatapackAllowed?.();
-    const options = [
-        ['auto', 'Auto: Current Surface'],
-        ['tab-current', 'Current Tab Only'],
-        ['tab-branch', 'Current Tab + Sub Tabs'],
-        ['group', 'Current Group'],
-        ['card', 'Specific Card']
-    ];
-    if (allowWhole) options.push(['all', 'Whole Datapack']);
-    select.innerHTML = options.map(([value, label]) => `<option value="${value}">${_escapeGeminiLiveLinkHtml(label)}</option>`).join('');
-    const nextValue = options.some(([value]) => value === current) ? current : 'auto';
-    select.value = nextValue;
-    if (nextValue !== current) _setGeminiLiveLinkScopeMode(nextValue);
-    _refreshGeminiLiveLinkScopeExplain(nextValue);
-}
-
-function _refreshGeminiLiveLinkScopeExplain(mode) {
-    const explain = document.getElementById('geminiLiveLinkScopeExplain');
-    if (!explain) return;
-    const selectedMode = mode || document.getElementById('geminiLiveLinkScopeMode')?.value || _getGeminiLiveLinkScopeMode();
-    explain.textContent = GEMINI_LIVE_LINK_SCOPE_DESCRIPTIONS[selectedMode] || GEMINI_LIVE_LINK_SCOPE_DESCRIPTIONS.auto;
-}
-
-function _refreshGeminiLiveLinkCardOptions() {
-    const select = document.getElementById('geminiLiveLinkCardScope');
-    const scopeMode = document.getElementById('geminiLiveLinkScopeMode')?.value || _getGeminiLiveLinkScopeMode();
-    const cfg = _getGeminiLiveLinkConfig() || {};
-    const cardWrap = document.getElementById('geminiLiveLinkCardScopeWrap');
-    if (cardWrap) cardWrap.hidden = scopeMode !== 'card';
-    if (!select) return;
-    const api = _getGeminiLiveLinkApi();
-    const optionScope = window.GeminiLiveLinkScopeRuntime?.getCardOptionScope?.() || _getGeminiLiveLinkSelectedScope();
-    const options = api?.getGeminiContextCardOptions?.({ scope: optionScope }) || [];
-    const currentValue = `${cfg.geminiContextSelectedCardWorkspaceId || ''}::${cfg.geminiContextSelectedCardCategory || ''}`;
-    select.innerHTML = options.length
-        ? options.map((item) => {
-            const value = `${item.workspaceId}::${item.categoryName}`;
-            return `<option value="${_escapeGeminiLiveLinkHtml(value)}">${_escapeGeminiLiveLinkHtml(item.categoryName)} (${_escapeGeminiLiveLinkHtml(item.workspaceId)}, ${item.count})</option>`;
-        }).join('')
-        : '<option value="">No cards in selected scope</option>';
-    if (currentValue && Array.from(select.options).some((option) => option.value === currentValue)) {
-        select.value = currentValue;
-    } else if (select.value) {
-        _setGeminiLiveLinkSelectedCard(select.value);
-    }
-}
-
-function _renderGeminiLiveLinkManifest(manifest, stateLabel) {
-    const manifestEl = document.getElementById('geminiLiveLinkManifest');
-    if (!manifestEl) return;
-    const data = manifest || _buildPendingGeminiLiveLinkManifest();
-    const counts = data.counts || {};
-    const countSummary = data.counts
-        ? `${_formatGeminiLiveLinkNumber(counts.bookmarks)} bookmarks / ${_formatGeminiLiveLinkNumber(counts.cards)} cards`
-        : 'Counts appear after prepare';
-    const sizeSummary = data.messageChars
-        ? `${_formatGeminiLiveLinkNumber(data.messageChars)} chars`
-        : 'Not generated yet';
-
-    const activeHeaderHtml = data.activeGroupName
-        ? `<span>Active group</span><b>${_escapeGeminiLiveLinkHtml(data.activeGroupName)}</b>`
-        : `<span>Active tab</span><b>${_escapeGeminiLiveLinkHtml(data.activeWorkspaceName || data.activeWorkspaceId || 'main')}</b>`;
-
-    manifestEl.innerHTML = `
-        <div class="gemini-live-link-manifest-head">
-            <span>${_escapeGeminiLiveLinkHtml(stateLabel || 'Inspectable relay manifest')}</span>
-            <strong>${_escapeGeminiLiveLinkHtml(String(data.mode || 'summary').toUpperCase())}</strong>
-        </div>
-        <div class="gemini-live-link-manifest-grid">
-            <span>Scope</span><b>${_escapeGeminiLiveLinkHtml(data.scope || 'current modular datapack')}</b>
-            ${activeHeaderHtml}
-            ${data.categoryName ? `<span>Card</span><b>${_escapeGeminiLiveLinkHtml(data.categoryName)}</b>` : ''}
-            <span>Contents</span><b>${_escapeGeminiLiveLinkHtml(countSummary)}</b>
-            <span>Size / route</span><b>${_escapeGeminiLiveLinkHtml(`${sizeSummary} · ${_getGeminiLiveLinkRouteLabel(data.route)}`)}</b>
-        </div>
-    `;
-}
-
-function _summarizeGeminiLiveLinkResult(result) {
-    const manifest = result?.manifest || {};
-    const counts = manifest.counts || {};
-    const bits = [
-        `${manifest.mode || result?.mode || 'summary'} mode`,
-        `${_formatGeminiLiveLinkNumber(manifest.messageChars)} chars`
-    ];
-    if (counts.bookmarks || counts.cards) {
-        bits.push(`${_formatGeminiLiveLinkNumber(counts.bookmarks)} bookmarks`);
-        bits.push(`${_formatGeminiLiveLinkNumber(counts.cards)} cards`);
-    }
-    bits.push(_getGeminiLiveLinkRouteLabel(result?.route));
-    return bits.join(' · ');
-}
-
-function _setGeminiLiveLinkStatus(message, isError) {
-    const statusEl = document.getElementById('geminiLiveLinkStatus');
-    if (!statusEl) return;
-    statusEl.textContent = message;
-    statusEl.classList.toggle('is-error', !!isError);
-}
-
-let _geminiLiveLinkStreamBound = false;
-let _geminiLiveLinkStreamTimer = 0;
-let _geminiLiveLinkPendingDetail = null;
-
-function _bindGeminiLiveLinkDataStream() {
-    if (_geminiLiveLinkStreamBound) return;
-    _geminiLiveLinkStreamBound = true;
-    window.addEventListener('eve:state-mutated', function (event) {
-        if (!_isGeminiLiveLinkEnabled() || !_isGeminiLiveLinkDataStreamEnabled()) return;
-        _geminiLiveLinkPendingDetail = event.detail || {};
-        if (_geminiLiveLinkStreamTimer) window.clearTimeout(_geminiLiveLinkStreamTimer);
-        _geminiLiveLinkStreamTimer = window.setTimeout(function () {
-            _geminiLiveLinkStreamTimer = 0;
-            const api = _getGeminiLiveLinkApi();
-            const result = api?.sendDataStreamToGemini?.(_geminiLiveLinkPendingDetail, {
-                scope: _getGeminiLiveLinkSelectedScope()
-            });
-            if (result?.sent) _setGeminiLiveLinkStatus('Data Stream sent a silent scoped update to Gemini.', false);
-        }, 900);
-    });
-}
-
-function _applyGeminiLiveLinkSettingsState() {
-    const button = document.getElementById('geminiLiveLinkSettingsButton');
-    const isEnabled = _isGeminiLiveLinkEnabled();
-    if (button) {
-        button.disabled = !isEnabled;
-        button.title = 'Configure Context Relay';
-    }
-}
-
-function _applyGeminiLiveLinkEnabledState(enabled) {
-    const isEnabled = !!enabled;
-    const root = document.getElementById('gemini-live-link-card');
-    const toggle = document.getElementById('geminiLiveLinkToggle');
-    const settingsButton = document.getElementById('geminiLiveLinkSettingsButton');
-
-    const modeSelect = document.getElementById('geminiLiveLinkMode');
-    const scopeSelect = document.getElementById('geminiLiveLinkScopeMode');
-    const cardSelect = document.getElementById('geminiLiveLinkCardScope');
-    const streamToggle = document.getElementById('geminiLiveLinkDataStreamToggle');
-    const sendButton = document.getElementById('geminiLiveLinkSendButton');
-    const statusEl = document.getElementById('geminiLiveLinkStatus');
-
-    if (root) root.classList.toggle('is-relay-paused', !isEnabled);
-    if (toggle) toggle.checked = isEnabled;
-    if (settingsButton) settingsButton.disabled = !isEnabled;
-    if (modeSelect) modeSelect.disabled = !isEnabled;
-    if (scopeSelect) scopeSelect.disabled = !isEnabled;
-    if (cardSelect) cardSelect.disabled = !isEnabled;
-    if (streamToggle) streamToggle.disabled = !isEnabled;
-    if (sendButton) sendButton.disabled = !isEnabled;
-    if (statusEl) statusEl.classList.toggle('is-collapsed', !isEnabled);
-
-    if (!isEnabled) {
-        _setGeminiLiveLinkStatus('EveOS Context Relay paused.', false);
-    } else {
-        _setGeminiLiveLinkStatus('Ready. Review the manifest, then send EveOS context to Gemini.', false);
-    }
-    _renderGeminiLiveLinkManifest(_buildPendingGeminiLiveLinkManifest(), isEnabled ? 'Ready to prepare' : 'Relay paused');
-    _applyGeminiLiveLinkSettingsState();
-}
-
+(function () {
+    const agentic = window.GeminiLiveLinkAgentic;
+    const state = agentic.uiState;
+    const card = agentic.uiCard;
+    if (!state || !card) throw new Error('[GeminiLiveLink] UI helper modules missing.');
+    const {
+        _getGeminiLiveLinkModeProfile,
+        _getGeminiLiveLinkConfig,
+        _getGeminiLiveLinkMode,
+        _getGeminiLiveLinkApi,
+        _isGeminiLiveLinkEnabled,
+        _getGeminiLiveLinkScopeMode,
+        _isGeminiLiveLinkDataStreamEnabled,
+        _isGeminiLiveLinkSettingsOpen,
+        _setGeminiLiveLinkSettingsOpen,
+        _setGeminiLiveLinkMode,
+        _setGeminiLiveLinkEnabled,
+        _setGeminiLiveLinkScopeMode,
+        _setGeminiLiveLinkSelectedCard,
+        _setGeminiLiveLinkDataStreamEnabled,
+        _getGeminiLiveLinkSelectedScope,
+        _formatGeminiLiveLinkNumber,
+        _buildPendingGeminiLiveLinkManifest,
+        _formatGeminiLiveLinkModeLabel,
+        _withGeminiLiveLinkTimeout
+    } = state;
+    const {
+        _refreshGeminiLiveLinkScopeOptions,
+        _refreshGeminiLiveLinkScopeExplain,
+        _refreshGeminiLiveLinkCardOptions,
+        _renderGeminiLiveLinkManifest,
+        _summarizeGeminiLiveLinkResult,
+        _setGeminiLiveLinkStatus,
+        _bindGeminiLiveLinkDataStream,
+        _applyGeminiLiveLinkSettingsState,
+        _applyGeminiLiveLinkEnabledState
+    } = card;
 async function sendGeminiLiveLinkContext() {
     if (!_isGeminiLiveLinkEnabled()) {
         _setGeminiLiveLinkStatus('Enable EveOS Context Relay to send context.', true);
@@ -750,3 +410,4 @@ async function loadGeminiLiveLinkCard() {
 window.GeminiLiveLinkAgentic.sendContextToGemini = sendGeminiLiveLinkContext;
 window.GeminiLiveLinkAgentic.initializeGeminiLiveLinkCard = initializeGeminiLiveLinkCard;
 window.loadGeminiLiveLinkCard = loadGeminiLiveLinkCard;
+})();

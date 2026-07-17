@@ -6,10 +6,13 @@ const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, 
 
 async function waitForApp(page) {
     await page.waitForFunction(() => (
-        typeof window.openAddModal === 'function'
+        window.__eveCoreDataLoaded === true
+        && typeof window.openAddModal === 'function'
         && typeof window.saveLink === 'function'
         && typeof window.openSettings === 'function'
         && !!window.EveBookmarkIdentifiers?.ready
+        && typeof window.EveBookmarkIdentifiers?.showQuickPanel === 'function'
+        && typeof window.EveBookmarkIdentifiers?.attachQuickPanelListeners === 'function'
         && typeof window.EveBookmarkFolders?.moveLinksToFolderTarget === 'function'
     ), undefined, { timeout: 180000 });
 }
@@ -162,7 +165,14 @@ async function main() {
                 readingBadge.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, relatedTarget: null }));
                 const quickPanel = document.getElementById('bookmarkIdentifierQuickPanel');
                 if (!quickPanel || !quickPanel.classList.contains('is-open')) {
-                    throw new Error('Quick panel did not open from label hover');
+                    throw new Error('Quick panel did not open from label hover: ' + JSON.stringify({
+                        apiReady: typeof window.EveBookmarkIdentifiers?.showQuickPanel === 'function',
+                        badgeInDom: document.body.contains(readingBadge),
+                        badgeIsCurrent: readingBadge === document.querySelector(readingBadgeSelector),
+                        panelClass: quickPanel?.className || '',
+                        linkInLiveState: (window.getLiveLinks?.() || []).some((link) => String(link?.id || '') === String(savedLink.id)),
+                        definitionReady: window.EveBookmarkIdentifiers.getDefinitions().some((definition) => definition.id === 'reading')
+                    }));
                 }
                 const summaryRect = quickPanel.getBoundingClientRect();
                 if (summaryRect.width > 380) {

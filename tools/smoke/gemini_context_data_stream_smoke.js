@@ -63,6 +63,9 @@ function assert(condition, message) {
 }
 
 (async function main() {
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.datastream.trace.js');
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.datastream.js');

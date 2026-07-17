@@ -90,7 +90,14 @@ function runScript(context, relativePath) {
     vm.runInNewContext(fs.readFileSync(path.join(root, relativePath), 'utf8'), context, { filename: relativePath });
 }
 function loadPipeline(context) {
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js');
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.scope.js');
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.bookmarks.js');
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.nexus.js');
     runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+    runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
     runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
     runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.trace.js');
     runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.js');

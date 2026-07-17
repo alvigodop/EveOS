@@ -84,6 +84,9 @@ function assert(condition, message) {
 }
 
 (async function main() {
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js');
+  runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
   runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
   const api = context.window.EveDataStore._modularSync;
   assert(api.apiContextReady === true, 'API context should initialize');

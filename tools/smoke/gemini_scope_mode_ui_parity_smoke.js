@@ -12,6 +12,7 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const RUNTIME_PATH = 'js/modules/gemini/html_loaders/agentic/gemini_link/geminiLiveLinkScopeRuntime.js';
+const UI_CARD_PATH = 'js/modules/gemini/html_loaders/agentic/gemini_link/geminiLiveLinkUICard.js';
 const UILOADER_PATH = 'js/modules/gemini/html_loaders/agentic/gemini_link/geminiLiveLinkUILoader.js';
 
 function read(relativePath) {
@@ -24,7 +25,7 @@ function assert(condition, message) {
 
 // --- 1. Extract the scope option values the dialog UI actually offers -----------------------
 function extractUiScopeOptions() {
-    const source = read(UILOADER_PATH);
+    const source = read(UI_CARD_PATH) + '\n' + read(UILOADER_PATH);
     const values = new Set();
     // The dynamic options list in _refreshGeminiLiveLinkScopeOptions: ['value', 'Label'] pairs.
     const optionsBlock = /_refreshGeminiLiveLinkScopeOptions\(\)\s*\{[\s\S]*?select\.innerHTML/.exec(source);

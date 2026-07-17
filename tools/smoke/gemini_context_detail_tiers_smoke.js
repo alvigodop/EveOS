@@ -84,6 +84,10 @@ function runScript(relativePath) {
 function assert(condition, message) { if (!condition) throw new Error('ASSERT FAILED: ' + message); }
 
 (function main() {
+    runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js');
+    runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.scope.js');
+    runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.bookmarks.js');
+    runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.nexus.js');
     runScript('js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js');
     const api = context.window.EveDataStore._modularSync;
 
