@@ -95,6 +95,62 @@ async function main() {
             searchableText: 'chihiro cooking notes'
         }),
         makeRecord({
+            id: 'bookmark::astro-boy',
+            type: 'bookmark',
+            title: 'Astro Boy ROMs',
+            workspaceId: 'main',
+            categoryName: 'Games',
+            searchableText: 'astro boy roms'
+        }),
+        makeRecord({
+            id: 'bookmark::astroboy',
+            type: 'bookmark',
+            title: 'Astroboy Legacy',
+            workspaceId: 'main',
+            categoryName: 'Games',
+            searchableText: 'astroboy legacy'
+        }),
+        makeRecord({
+            id: 'bookmark::astro-writing',
+            type: 'bookmark',
+            title: 'Astro Writing Focused',
+            workspaceId: 'main',
+            categoryName: 'Writing',
+            searchableText: 'astro writing focused'
+        }),
+        makeRecord({
+            id: 'bookmark::last-round',
+            type: 'bookmark',
+            title: 'DOA5 Last Round Mods',
+            workspaceId: 'main',
+            categoryName: 'Mods',
+            searchableText: 'doa5 last round mods'
+        }),
+        makeRecord({
+            id: 'bookmark::last-royal',
+            type: 'bookmark',
+            title: 'The Pirates: The Last Royal Treasure',
+            workspaceId: 'main',
+            categoryName: 'Movies',
+            searchableText: 'the pirates the last royal treasure'
+        }),
+        makeRecord({
+            id: 'bookmark::ad-astra',
+            type: 'bookmark',
+            title: 'Ad Astra',
+            workspaceId: 'main',
+            categoryName: 'Movies',
+            searchableText: 'ad astra movie'
+        }),
+        makeRecord({
+            id: 'bookmark::subsequence-noise',
+            type: 'bookmark',
+            title: 'A Situation Full of Erections',
+            workspaceId: 'main',
+            categoryName: 'Reading',
+            searchableText: 'a situation full of erections'
+        }),
+        makeRecord({
             id: 'cached::spirited',
             type: 'cached',
             title: 'Spirited Chihiro Web Result',
@@ -156,6 +212,7 @@ async function main() {
     // The index facade refuses to initialize until its modular runtimes are present — load
     // them in the same order as the production manifest (12-existing-features.js).
     [
+        'js/modules/features/search-advanced/sa-index.search.compact.js',
         'js/modules/features/search-advanced/sa-index.search.js',
         'js/modules/features/search-advanced/sa-index.graph.js',
         'js/modules/features/search-advanced/sa-index.exact-scope.js',
@@ -185,6 +242,45 @@ async function main() {
         activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
     });
     assert(partialResult.records.some(record => record.id === 'bookmark::spirited'), 'A short final prefix failed to match a longer title token.');
+
+    const literalResult = await indexApi.search('astro', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
+    });
+    const literalIds = literalResult.records.map(record => record.id);
+    assert(literalIds.includes('bookmark::astro-boy'), 'Literal astro result is missing.');
+    assert(!literalIds.includes('bookmark::ad-astra'), 'Typo-distance result leaked into a literal result set.');
+    assert(!literalIds.includes('bookmark::subsequence-noise'), 'Cross-word subsequence noise leaked into results.');
+    assert(!literalIds.includes('bookmark::last-round'), 'Last Round manufactured astro across a word boundary.');
+    assert(!literalIds.includes('bookmark::last-royal'), 'Last Royal manufactured astro across a word boundary.');
+
+    const compactResult = await indexApi.search('astrob', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
+    });
+    const compactIds = compactResult.records.map(record => record.id);
+    assert(compactIds.includes('bookmark::astro-boy'), 'Compact query did not match the spaced Astro Boy title.');
+    assert(compactIds.includes('bookmark::astroboy'), 'Compact query did not match the unspaced Astroboy title.');
+    assert(!compactIds.includes('bookmark::astro-writing'), 'Extended compact query collapsed to the shorter astro token.');
+    assert(!compactIds.includes('bookmark::ad-astra'), 'Compact query leaked into a typo-distance result.');
+    assert(!compactIds.includes('bookmark::subsequence-noise'), 'Compact query leaked into cross-word subsequence noise.');
+    assert(!compactIds.includes('bookmark::last-round'), 'Compact query leaked into Last Round.');
+    assert(!compactIds.includes('bookmark::last-royal'), 'Compact query leaked into Last Royal.');
+
+    const spacedCompactResult = await indexApi.search('astro b', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
+    });
+    const spacedCompactIds = spacedCompactResult.records.map(record => record.id);
+    assert(spacedCompactIds.includes('bookmark::astro-boy'), 'Spaced compact prefix did not match Astro Boy.');
+    assert(spacedCompactIds.includes('bookmark::astroboy'), 'Spaced compact prefix did not match Astroboy.');
+    assert(!spacedCompactIds.includes('bookmark::astro-writing'), 'Spaced compact prefix leaked into Astro Writing.');
+
+    const compactSuggestionResult = await indexApi.suggest('astrob', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true },
+        maxSuggestions: 8
+    });
+    const compactSuggestionIds = compactSuggestionResult.suggestions.map(record => record.id);
+    assert(compactSuggestionIds.includes('bookmark::astro-boy'), 'Compact suggestion did not include Astro Boy.');
+    assert(compactSuggestionIds.includes('bookmark::astroboy'), 'Compact suggestion did not include Astroboy.');
+    assert(!compactSuggestionIds.includes('bookmark::astro-writing'), 'Compact suggestion leaked into Astro Writing.');
 
     const operatorResult = await indexApi.search('type:bookmark sprited chihro', { workspaceId: 'main' }, {
         activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }

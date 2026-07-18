@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
+const compactSearchPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.search.compact.js');
 const searchPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.search.js');
 const graphPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.graph.js');
 const exactScopePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.exact-scope.js');
@@ -138,6 +139,7 @@ function assert(condition, message) {
 
 async function main() {
     setupWindow();
+    eval(fs.readFileSync(compactSearchPath, 'utf8'));
     eval(fs.readFileSync(searchPath, 'utf8'));
     eval(fs.readFileSync(graphPath, 'utf8'));
     eval(fs.readFileSync(exactScopePath, 'utf8'));

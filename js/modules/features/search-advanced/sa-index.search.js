@@ -6,6 +6,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function create(deps) {
         const shared = deps?.shared || {};
         const runtimeIntegrity = deps?.runtimeIntegrity || {};
+        const compactSearch = ns.IndexSearchCompact || {};
         const ensureFresh = deps?.ensureFresh;
         const loadPersistedSnapshot = deps?.loadPersistedSnapshot;
         const {
@@ -23,18 +24,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             computeHealth,
             diagnoseRecord
         } = runtimeIntegrity;
-        function looseFuzzyMatch(haystack, needle) {
-            if (!haystack || !needle || needle.length < 3) return false;
-            // Bound subsequence matching so short queries cannot match arbitrary large blobs.
-            if (haystack.length > Math.max(needle.length * 4, needle.length + 24)) return false;
-            let h = 0;
-            let n = 0;
-            while (h < haystack.length && n < needle.length) {
-                if (haystack[h] === needle[n]) n += 1;
-                h += 1;
-            }
-            return n === needle.length;
-        }
         function tokenizeSearchText(value) {
             return normalizeText(value)
                 .split(/[^a-z0-9]+/i)
@@ -92,6 +81,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     if (fieldToken === queryToken) best = Math.max(best, 42);
                     else if (queryToken.length >= 3 && fieldToken.startsWith(queryToken)) best = Math.max(best, 34);
                     else if (queryToken.length >= 4 && fieldToken.includes(queryToken)) best = Math.max(best, 24);
+                    else if (queryToken.length > fieldToken.length && queryToken.startsWith(fieldToken)) best = 0;
                     else {
                         const typoLimit = getTypoDistanceLimit(queryToken);
                         if (typoLimit > 0 && boundedEditDistance(fieldToken, queryToken, typoLimit) <= typoLimit) {
@@ -124,31 +114,33 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 if (acronym && acronym === query) return 70;
                 if (acronym && query.length >= 2 && acronym.startsWith(query)) return 44;
             }
-            if (looseFuzzyMatch(value, query)) return 18;
             return 0;
         }
-        function queryTokenMatchesFieldToken(queryToken, fieldToken, allowShortPrefix) {
+        function queryTokenMatchesFieldToken(queryToken, fieldToken, allowShortPrefix, allowTypos) {
             if (fieldToken === queryToken) return true;
             if ((allowShortPrefix || queryToken.length >= 3) && fieldToken.startsWith(queryToken)) return true;
             if (queryToken.length >= 4 && fieldToken.includes(queryToken)) return true;
+            if (queryToken.length > fieldToken.length && queryToken.startsWith(fieldToken)) return false;
+            if (allowTypos === false) return false;
             const typoLimit = getTypoDistanceLimit(queryToken);
             return typoLimit > 0 && boundedEditDistance(fieldToken, queryToken, typoLimit) <= typoLimit;
         }
-        function hasFullTokenCoverage(record, query) {
+        function hasFullTokenCoverage(record, query, allowTypos) {
             const queryTokens = Array.from(new Set(tokenizeSearchText(query)));
-            if (queryTokens.length <= 1) return true;
+            if (!queryTokens.length) return true;
             const fieldTokens = tokenizeSearchText(recordSearchHaystack(record));
             return queryTokens.every(function (queryToken, index) {
                 return fieldTokens.some(function (fieldToken) {
-                    return queryTokenMatchesFieldToken(queryToken, fieldToken, index === queryTokens.length - 1);
+                    return queryTokenMatchesFieldToken(queryToken, fieldToken, index === queryTokens.length - 1, allowTypos);
                 });
             });
         }
         function computeScore(record, query, scope) {
             const q = normalizeText(query);
             if (!q) return 0;
+            const compactLiteral = compactSearch.matchesRecord?.(record, q) === true;
             // Require every plain term across the record while preserving typo tolerance.
-            if (!hasFullTokenCoverage(record, q)) return 0;
+            if (!compactLiteral && !hasFullTokenCoverage(record, q)) return 0;
             let score = 0;
             const title = normalizeText(record?.title);
             const description = normalizeText(record?.description);
@@ -163,8 +155,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             score += Math.floor(scoreField(displayUrl, q) * 0.45);
             score += Math.floor(scoreField(description, q) * 0.35);
             score += Math.floor(scoreField(provider, q) * 0.2);
+            if (compactLiteral) score += 70;
             if (!score && searchText.includes(q)) score += 26;
-            if (!score && looseFuzzyMatch(searchText.replace(/\s+/g, ''), q.replace(/\s+/g, ''))) score += 12;
             if (score < 18) return 0;
             if (titleScore >= 140) score += 70;
             if (pathScore >= 140) score += 48;
@@ -340,6 +332,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (!q && !intent.hasFilters) return { records: [], facets: {}, stats: {}, snapshot: snapshot };
             const allowedTypes = buildAllowedTypes(settings);
             const records = [];
+            const literalRecords = [];
             snapshot.records.forEach(function (record) {
                 if (!record || !allowedTypes.has(record.type) || !matchesScope(record, scope)) return;
                 const visibility = computeVisibility(record);
@@ -357,7 +350,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                         severity: 'ok',
                         reasons: []
                     };
-                records.push(Object.assign({}, record, {
+                const rankedRecord = Object.assign({}, record, {
                     score: score,
                     visibility: visibility,
                     visibilityState: visibility.state,
@@ -366,12 +359,15 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     health: health,
                     healthState: health.state,
                     diagnostic: diagnostic
-                }));
+                });
+                records.push(rankedRecord);
+                if (!q || compactSearch.matchesRecord?.(record, q) === true || hasFullTokenCoverage(record, q, false)) literalRecords.push(rankedRecord);
             });
-            records.sort(compareRankedRecords);
+            const resolvedRecords = q && literalRecords.length ? literalRecords : records;
+            resolvedRecords.sort(compareRankedRecords);
             return {
-                records: records,
-                facets: buildFacets(records),
+                records: resolvedRecords,
+                facets: buildFacets(resolvedRecords),
                 stats: snapshot.stats || {},
                 snapshot: snapshot,
                 queryIntent: intent
@@ -419,19 +415,20 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const allowedTypes = buildAllowedTypes(settings);
             const maxSuggestions = Math.max(1, Math.min(20, Number(settings?.maxSuggestions || 8)));
             const suggestions = [];
+            const literalSuggestions = [];
             toArray(snapshot?.records).forEach(function (record) {
                 if (!record || !allowedTypes.has(record.type) || !matchesScope(record, scope)) return;
                 const score = computeScore(record, q, scope);
                 if (score <= 0) return;
-                suggestions.push(buildSuggestionRecord(record, score));
-                if (suggestions.length > maxSuggestions) {
-                    suggestions.sort(compareRankedRecords);
-                    suggestions.length = maxSuggestions;
-                }
+                const suggestion = buildSuggestionRecord(record, score);
+                suggestions.push(suggestion);
+                if (compactSearch.matchesRecord?.(record, q) === true || hasFullTokenCoverage(record, q, false)) literalSuggestions.push(suggestion);
             });
-            suggestions.sort(compareRankedRecords);
+            const resolvedSuggestions = literalSuggestions.length ? literalSuggestions : suggestions;
+            resolvedSuggestions.sort(compareRankedRecords);
+            resolvedSuggestions.length = Math.min(resolvedSuggestions.length, maxSuggestions);
             return {
-                suggestions: suggestions,
+                suggestions: resolvedSuggestions,
                 stats: snapshot?.stats || {},
                 snapshot: snapshot
             };
