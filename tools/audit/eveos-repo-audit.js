@@ -16,6 +16,21 @@ const SKIP_PREFIXES = [
     path.join('data', 'modular-packs'),
     path.join('tools', 'camofox-runtime', 'node_modules')
 ];
+const RUNTIME_SOURCE_PREFIXES = ['js/', 'css/', 'server/', 'server_modules/'];
+const MOJIBAKE_MARKERS = [
+    '\u00c2\u00b7',
+    '\u00c3\u00a2',
+    '\u00c3\u00d7',
+    '\u00e2\u20ac',
+    '\u00e2\u2020',
+    '\u00e2\u2013',
+    '\u00e2\u2014',
+    '\u00e2\u0161',
+    '\u00e2\u017e',
+    '\u00e2\u201d',
+    '\u00f0\u0178',
+    '\ufffd'
+];
 
 function relative(filePath) {
     return path.relative(ROOT, filePath).replace(/\\/g, '/');
@@ -140,6 +155,16 @@ function inspectLauncherContracts(failures) {
     }
 }
 
+function inspectRuntimeEncoding(sourceFiles, failures) {
+    for (const filePath of sourceFiles) {
+        const rel = relative(filePath);
+        if (!RUNTIME_SOURCE_PREFIXES.some((prefix) => rel.startsWith(prefix))) continue;
+        const source = read(filePath);
+        const marker = MOJIBAKE_MARKERS.find((candidate) => source.includes(candidate));
+        if (marker) failures.push(`mojibake: ${rel}`);
+    }
+}
+
 function main() {
     const allFiles = walk(ROOT);
     const sourceFiles = allFiles.filter((filePath) => SOURCE_EXTENSIONS.has(path.extname(filePath).toLowerCase()));
@@ -153,6 +178,7 @@ function main() {
 
     inspectJavaScriptSyntax(sourceFiles, failures);
     inspectLauncherContracts(failures);
+    inspectRuntimeEncoding(sourceFiles, failures);
 
     let manifest = { scripts: [], styles: [] };
     try {

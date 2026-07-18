@@ -296,6 +296,23 @@ window.EveDataStore = window.EveDataStore || {};
     // Each selective send is stamped into the Data Stream insight timeline so scoped layer
     // sends are visible in the Agent Space viewer, not just their config side-effects.
     function recordSelectiveInsight(context, result) {
+        // Keep the newest selective payload complete for inspection, but archive older large
+        // previews. Otherwise repeated 100k+ sends turn the 120-entry insight ring into tens of
+        // megabytes of retained strings and eventually make Agent Space itself lag.
+        const insightLog = ns.getDataStreamInsightLog?.() || [];
+        let completePreviewsKept = 0;
+        for (let index = insightLog.length - 1; index >= 0; index -= 1) {
+            const entry = insightLog[index];
+            const preview = entry?.payload?.preview;
+            if (!String(entry?.relayMode || '').startsWith('selective:') || typeof preview !== 'string') continue;
+            completePreviewsKept += 1;
+            if (completePreviewsKept <= 2 || preview.length <= 6000) continue;
+            entry.payload = Object.assign({}, entry.payload, {
+                preview: preview.slice(0, 6000) + '\n[Older insight preview compacted; the original send was not truncated.]',
+                previewChars: preview.length,
+                previewCompacted: true
+            });
+        }
         ns.recordDataStreamEvent?.({
             type: 'relay',
             outcome: result.sent ? 'sent' : 'skipped',

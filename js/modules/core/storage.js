@@ -100,7 +100,7 @@ function _saveDataImmediate(options = {}) {
     const persistPromise = dirty ? persistCoreStateAsync(snapshot) : Promise.resolve(true);
     const shouldRefresh = dirty || forceRender;
 
-    // In perf mode, skip the full DOM rebuild â€” actions handle their own UI updates
+    // In perf mode, skip the full DOM rebuild; actions handle their own UI updates.
     if (window._evePerfMode && !forceRender) {
         finishPerf?.({ dirty, skippedByPerfMode: true });
         return persistPromise;

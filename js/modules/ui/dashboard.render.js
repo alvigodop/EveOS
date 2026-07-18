@@ -72,7 +72,7 @@ function _renderDashboardImmediate() {
         }
     }
 
-    // Run render synchronously â€” DOM is rebuilt immediately but Masonry takes later frames
+    // Rebuild the DOM synchronously; Masonry settles during later frames.
     var libraryProtectionMs = getDashboardLibrarySurfaceScrollProtectionMs(openLibrarySurface);
     if (libraryProtectionMs > 0) {
         markDashboardProgrammaticScrollWindow(libraryProtectionMs);
@@ -180,7 +180,7 @@ function _renderDashboardCore(renderHint) {
         }
     }
 
-    // Bump generation â€” all in-flight deferred work from previous renders is now stale
+    // Bump generation so all in-flight deferred work from previous renders becomes stale.
     _eveDashRenderGen++;
     window._eveDashRenderGen = _eveDashRenderGen;
 
@@ -227,7 +227,7 @@ function _renderDashboardCore(renderHint) {
                 const linkedTarget = helpers.findById(config.workspaces || [], rootWs.linkedTo);
                 if (linkedTarget) {
                     visibleWorkspaceIds.add(String(linkedTarget.id));
-                    // Don't overwrite â€” if the linkedTo target is itself a group root, it owns its own cards.
+                    // Do not overwrite a linked group root because it owns its own cards.
                     if (!groupOverviewRootMap.has(String(linkedTarget.id))) {
                         groupOverviewRootMap.set(String(linkedTarget.id), rootId);
                     }

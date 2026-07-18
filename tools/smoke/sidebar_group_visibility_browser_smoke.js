@@ -15,7 +15,7 @@ async function waitForApp(page) {
 }
 
 async function seedState(page) {
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
         config = window.config = {
             activeWorkspace: 'main',
             viewMode: 'grid',
@@ -56,6 +56,14 @@ async function seedState(page) {
         } catch (_) {
             // file:// runs can reject storage access
         }
+        window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+            detail: { source: 'sidebar-group-visibility-smoke-seed' }
+        }));
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index;
+        if (indexApi?.markDirty) indexApi.markDirty('sidebar-group-visibility-smoke-seed');
+        if (indexApi?.ensureFresh) {
+            await indexApi.ensureFresh({ force: true, reason: 'sidebar-group-visibility-smoke-seed' });
+        }
     });
 }
 
@@ -80,7 +88,7 @@ async function runSmoke(page) {
         throw new Error(`Expected empty sidebar group placeholder, got ${JSON.stringify(emptyGroup)}`);
     }
 
-    const overviewGroupId = await page.evaluate(() => {
+    const overviewGroupId = await page.evaluate(async () => {
         const groupsApi = window.EveSidebarGroups;
         const group = groupsApi.createGroup({ name: 'Overview Group', color: '#ffb84d' }, config);
         const groupedWorkspace = config.workspaces.find((ws) => ws.id === 'grpws');
@@ -89,6 +97,14 @@ async function runSmoke(page) {
         groupedWorkspaceTwo.groupId = group.id;
 
         config.groupOverviewId = group.id;
+        window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+            detail: { source: 'sidebar-group-overview-smoke-seed' }
+        }));
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index;
+        if (indexApi?.markDirty) indexApi.markDirty('sidebar-group-overview-smoke-seed');
+        if (indexApi?.ensureFresh) {
+            await indexApi.ensureFresh({ force: true, reason: 'sidebar-group-overview-smoke-seed' });
+        }
         window.renderSidebar();
         window.renderDashboard();
         return group.id;
@@ -96,7 +112,7 @@ async function runSmoke(page) {
 
     await page.waitForSelector('.category-card[data-card-category="Alpha"]', { timeout: 10000 });
 
-    await page.locator('.topbar-map-btn').click();
+    await page.locator('.topbar-constellation-btn').click();
     await page.waitForFunction(() => {
         const overlay = document.getElementById('constellation-map-overlay');
         return overlay && overlay.style.display !== 'none' && !!window.EveConstellationMap?.__debugGetGraphStats?.().visible;
@@ -160,6 +176,7 @@ async function main() {
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
         await waitForApp(page);
+        await page.evaluate(() => window.__eveWaitForCoreData?.(120000) || true);
         await seedState(page);
         await runSmoke(page);
         console.log('SIDEBAR_GROUP_VISIBILITY_BROWSER_SMOKE_OK');

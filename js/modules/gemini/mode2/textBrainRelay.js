@@ -197,7 +197,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     }
 
     function appendEveUpdate(text) {
-        const update = String(text || '').trim();
+        const update = compactText(String(text || '').trim(), EVE_UPDATE_MAX_CHARS);
         if (!update) return { count: eveUpdates.length };
         eveUpdates.push(update);
         while (eveUpdates.length > EVE_UPDATE_MAX_COUNT

@@ -45,6 +45,67 @@ def assert_port_contract():
     assert server_config.STATUS_PORT == 9084
 
 
+def assert_backend_lifecycle_contract():
+    interactions_root = ROOT / "server" / "gemini-backend" / "interactions"
+    sys.path.insert(0, str(interactions_root))
+
+    from main_server_files.server_initialization.server_initializer import parse_server_port, validate_server_port
+    from main_server_files.status_monitoring.status_handler import start_status_server
+    from main_server_files.websocket_server.websocket_server_handler import (
+        ALLOWED_BROWSER_ORIGINS,
+        MAX_CLIENT_MESSAGE_BYTES,
+    )
+
+    assert parse_server_port(["--port", "9191"]) == 9191
+    for invalid_port in (1023, 65535):
+        try:
+            validate_server_port(invalid_port)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"Invalid paired Gemini port was accepted: {invalid_port}")
+    status_server = start_status_server(0, websocket_port=9191)
+    try:
+        assert status_server.websocket_port == 9191
+        assert status_server.server_address[0] == "127.0.0.1"
+    finally:
+        status_server.server_close()
+
+    main_entry = (interactions_root / "main_server_files" / "server_initialization" / "main_entry.py").read_text(encoding="utf-8")
+    websocket_handler = (interactions_root / "main_server_files" / "websocket_server" / "websocket_server_handler.py").read_text(encoding="utf-8")
+    assert "periodic_cleanup(" not in main_entry
+    assert websocket_handler.count("periodic_cleanup(") == 1
+    assert "start_status_server(" not in websocket_handler
+    assert MAX_CLIENT_MESSAGE_BYTES == 16 * 1024 * 1024
+    assert None in ALLOWED_BROWSER_ORIGINS
+    assert "null" in ALLOWED_BROWSER_ORIGINS
+    origin_patterns = [item for item in ALLOWED_BROWSER_ORIGINS if hasattr(item, "fullmatch")]
+    assert any(pattern.fullmatch("http://127.0.0.1:8765") for pattern in origin_patterns)
+    assert any(pattern.fullmatch("https://localhost:3000") for pattern in origin_patterns)
+    assert not any(pattern.fullmatch("https://example.com") for pattern in origin_patterns)
+
+
+def assert_legacy_http_safety_contract():
+    environment_root = ROOT / "server" / "gemini-backend" / "environment_setup"
+    sys.path.insert(0, str(environment_root))
+    from http_server_request_handler import CORSRequestHandler
+
+    handler = object.__new__(CORSRequestHandler)
+    safe_path = handler.resolve_static_path("/gemini_chat_interface.html")
+    assert safe_path.name == "gemini_chat_interface.html"
+    try:
+        handler.resolve_static_path("/../../requirements.txt")
+    except PermissionError:
+        pass
+    else:
+        raise AssertionError("Legacy Gemini HTTP surface allowed parent path traversal")
+
+    http_server_source = (environment_root / "http_server.py").read_text(encoding="utf-8")
+    assert "server_address = ('127.0.0.1', port)" in http_server_source
+    controller_source = (ROOT / "server" / "gemini-backend" / "scripts" / "server_controller.py").read_text(encoding="utf-8")
+    assert "tools' / 'batch' / 'server-menu.bat" in controller_source
+
+
 def assert_start_contract():
     fake_process = FakeProcess()
     stopped = {
@@ -86,7 +147,7 @@ def assert_stop_contract():
         mock.patch.object(
             gemini_control,
             "_listener_pids",
-            side_effect=lambda port: [111] if port == 9083 else [222],
+            side_effect=lambda port, fresh=False: [111] if port == 9083 else [222],
         ),
         mock.patch.object(gemini_control, "_terminate_pid", return_value=True) as terminate,
         mock.patch.object(gemini_control, "_port_open", return_value=False),
@@ -111,6 +172,8 @@ def assert_origin_guard():
 
 if __name__ == "__main__":
     assert_port_contract()
+    assert_backend_lifecycle_contract()
+    assert_legacy_http_safety_contract()
     assert_start_contract()
     assert_stop_contract()
     assert_origin_guard()

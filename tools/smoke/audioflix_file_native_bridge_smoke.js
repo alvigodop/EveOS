@@ -1,20 +1,30 @@
 const path = require('path');
+const net = require('net');
 const { spawn } = require('child_process');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 18765;
-const BASE_URL = `http://127.0.0.1:${PORT}`;
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
 
 function wait(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForServer(server, logs) {
+async function reserveFreePort() {
+    const probe = net.createServer();
+    await new Promise((resolve, reject) => {
+        probe.once('error', reject);
+        probe.listen(0, '127.0.0.1', resolve);
+    });
+    const port = probe.address().port;
+    await new Promise((resolve) => probe.close(resolve));
+    return port;
+}
+
+async function waitForServer(server, logs, baseUrl) {
     for (let i = 0; i < 120; i += 1) {
         try {
-            const response = await fetch(`${BASE_URL}/api/audioflix/devices`);
+            const response = await fetch(`${baseUrl}/api/audioflix/devices`);
             if (response.ok) return await response.json();
         } catch { }
         if (server.exitCode != null) {
@@ -26,7 +36,9 @@ async function waitForServer(server, logs) {
 }
 
 async function main() {
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser'], {
+    const port = await reserveFreePort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser'], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true
@@ -37,7 +49,7 @@ async function main() {
 
     let browser = null;
     try {
-        const apiPayload = await waitForServer(server, logs);
+        const apiPayload = await waitForServer(server, logs, baseUrl);
         if (!apiPayload.bridge) throw new Error('Audioflix API did not report bridge=true.');
 
         browser = await chromium.launch({ headless: true });
@@ -73,7 +85,7 @@ async function main() {
                 nativeBridgeEnabled: snapshot.nativeBridgeEnabled,
                 suppress: window.EveAudioflixNative.shouldSuppressBrowserPlayback()
             };
-        }, BASE_URL);
+        }, baseUrl);
 
         const failures = [];
         if (!result.href.startsWith('file:///')) failures.push(`not a file:// page: ${result.href}`);

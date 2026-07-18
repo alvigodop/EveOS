@@ -20,7 +20,7 @@
 
         if (!canFetchRemoteFavicons()) return getPlaceholderFavicon(key, 32);
 
-        // Miss â€” schedule background fetch (non-blocking)
+        // Schedule a non-blocking background fetch on a cache miss.
         queueFetch(key, 32, 'get-miss');
 
         return ''; // Caller should use fallback
@@ -29,7 +29,7 @@
     /**
      * Get the favicon URL to use in an <img> src attribute.
      * Returns cached data URI if available, otherwise returns a local placeholder.
-     * This is the primary integration point â€” call this instead of building Google URLs.
+     * This is the primary integration point; call it instead of building Google URLs.
      */
     function getSrc(domain, size) {
         const key = normalizeDomain(domain);
@@ -50,7 +50,7 @@
 
     /**
      * Fetch, cache, and store a favicon for a domain.
-     * Safe to call multiple times â€” deduplicates in-flight requests.
+     * Safe to call multiple times because it deduplicates in-flight requests.
      */
     const _inFlight = new Map();
     core.inFlight = _inFlight;

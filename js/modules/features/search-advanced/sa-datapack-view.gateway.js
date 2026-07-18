@@ -130,8 +130,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + childTabRefs.map(function (tab) {
                 const shortcutHtml = tab.isShortcut
                     ? '<small>Shortcut source: ' + escapeHtml(tab.linkedTargetPath || tab.linkedTargetName || tab.linkedTo)
-                        + ' Â· source ' + tab.sourceCards + ' cards / ' + tab.sourceBookmarks + ' bookmarks'
-                        + ' Â· local ' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks</small>'
+                        + ' \u00b7 source ' + tab.sourceCards + ' cards / ' + tab.sourceBookmarks + ' bookmarks'
+                        + ' \u00b7 local ' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks</small>'
                     : '<small>' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks / ' + tab.childTabs + ' child tabs</small>';
                 return '<button type="button" class="nx-dv-ref" data-nx-dv-action="open-tab" data-workspace-id="' + escapeHtml(tab.id) + '">'
                     + '<strong>' + escapeHtml(tab.name) + '</strong>'
@@ -152,7 +152,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     + '<span>' + escapeHtml(tab.path) + '</span>'
                     + '<small title="' + escapeHtml(tab.entityLink) + '">JSON Link: ' + escapeHtml(tab.entityLink) + '</small>'
                     + '<small>Source ' + tab.cards + ' cards / ' + tab.bookmarks + ' bookmarks / ' + tab.childTabs + ' child tabs</small>'
-                    + '<small>Viewed through shortcut: ' + escapeHtml(tab.viaShortcutPath || tab.viaShortcutName) + ' Â· local shortcut ' + tab.localCards + ' cards / ' + tab.localBookmarks + ' bookmarks</small>'
+                    + '<small>Viewed through shortcut: ' + escapeHtml(tab.viaShortcutPath || tab.viaShortcutName) + ' \u00b7 local shortcut ' + tab.localCards + ' cards / ' + tab.localBookmarks + ' bookmarks</small>'
                     + '</button>';
             }).join('')
             + '</div></div>';

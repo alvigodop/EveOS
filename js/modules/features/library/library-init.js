@@ -8,10 +8,12 @@ window.EveLibrary = window.EveLibrary || {};
     function init() {
         // Load library data from localStorage
         if (window.EveLibrary.Storage) {
-            window.EveLibrary.Storage.loadLibrary();
+            window.EveLibrary.Storage.loadLibrary({ initialOnly: true });
         }
         if (window.EveLibrary.ConnectionsAPI?.loadConnections) {
-            window.EveLibrary.ConnectionsAPI.loadConnections();
+            // Deferred loading can finish after a restore or remote state apply.
+            // Startup hydration must not overwrite newer in-memory connections.
+            window.EveLibrary.ConnectionsAPI.loadConnections({ initialOnly: true });
         }
         console.log('EveLibrary initialized');
     }

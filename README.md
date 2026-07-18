@@ -257,10 +257,13 @@ Use console output as signal, but classify logs by severity:
 
 ## Running
 
-1. Install dependencies:
+1. Install the Python and browser-test dependencies (Python 3.10-3.11 and Node.js 20+):
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+npm ci
+npx playwright install chromium
 ```
 
 2. Start backend:
@@ -270,6 +273,16 @@ python server/python-server.py
 ```
 
 3. Open `EveOS.html` in a browser.
+
+4. Run the repository preflight before broad changes:
+
+```bash
+npm run verify
+```
+
+This preflight checks first-party line limits, JavaScript and Python syntax,
+manifest/load-order assets, launcher contracts, secrets, and the core Gemini
+context-routing paths.
 
 ## Agent Validation And Smoke-Test Protocol
 

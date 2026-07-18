@@ -6,7 +6,8 @@ from .server_initializer import initialize_main_server
 
 async def initialize_and_run_server(
     handler: Callable,
-    cleanup_interval_sec: int
+    cleanup_interval_sec: int,
+    port: int
 ) -> Tuple[WebSocketServer, asyncio.Task]:
     """
     Initialize and run the main server with the provided handler and cleanup interval.
@@ -21,7 +22,8 @@ async def initialize_and_run_server(
     try:
         server, cleanup_task = await initialize_main_server(
             handler,
-            cleanup_interval_sec=cleanup_interval_sec
+            cleanup_interval_sec=cleanup_interval_sec,
+            port=port
         )
         if not server:
             raise RuntimeError("Failed to initialize server")
@@ -41,4 +43,4 @@ async def shutdown_server(server: WebSocketServer) -> None:
         print("\nClosing server...")
         server.close()
         await server.wait_closed()
-        print("\nServer shutdown complete") 
+        print("\nServer shutdown complete")

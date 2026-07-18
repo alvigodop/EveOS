@@ -364,12 +364,18 @@ async function main() {
       windowLinksFallback: await runWindowLinksFallbackPhase(page)
     };
 
-    console.log(JSON.stringify({
-      ok: true,
-      smoke,
-      consoleErrors,
-      pageErrors
-    }, null, 2));
+    const output = process.env.EVE_SMOKE_VERBOSE === '1'
+      ? { ok: true, smoke, consoleErrors, pageErrors }
+      : {
+          ok: true,
+          categoryRemovals: smoke.categoryCleanup?.removeCalls?.length || 0,
+          folderRemovals: smoke.folderCleanup?.removeCalls?.length || 0,
+          movedToFolder: !!smoke.windowLinksFallback?.movedToFolder,
+          transferredFolder: !!smoke.windowLinksFallback?.transferredFolder,
+          consoleErrorCount: consoleErrors.length,
+          pageErrorCount: pageErrors.length
+        };
+    console.log(`BOOKMARK_FOLDER_MUTATION_CLEANUP_SMOKE_OK ${JSON.stringify(output)}`);
   } catch (error) {
     console.error(JSON.stringify({
       ok: false,

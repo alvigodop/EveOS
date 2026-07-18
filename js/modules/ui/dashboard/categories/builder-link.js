@@ -157,13 +157,13 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                 }
 
                 if (isFromLinkedMain) {
-                    subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main tab: ${subTabName}">âš“ Main Link</span>`;
+                    subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main tab: ${subTabName}">\u2693 Main Link</span>`;
                 } else if (isFromLinkedSub) {
-                    subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main sub-tab: ${subTabName}">âš“ Main Sub-Tab</span>`;
+                    subTabBadge = `<span class="subtab-origin-badge" style="background:var(--accent, #0088ff);color:#fff;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="From main sub-tab: ${subTabName}">\u2693 Main Sub-Tab</span>`;
                 } else if (isFromNestedLink) {
-                    subTabBadge = `<span class="subtab-origin-badge" style="background:rgba(0,200,180,0.2);color:#40e8d0;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;border:1px dashed rgba(0,200,180,0.4);" title="Via linked tab â†’ ${subTabName}">ðŸ”— ${subTabName}</span>`;
+                    subTabBadge = `<span class="subtab-origin-badge" style="background:rgba(0,200,180,0.2);color:#40e8d0;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;border:1px dashed rgba(0,200,180,0.4);" title="Via linked tab \u2192 ${subTabName}">\u{1f517} ${subTabName}</span>`;
                 } else {
-                    subTabBadge = `<span class="subtab-origin-badge" title="From sub-tab: ${subTabName}">${subWs.icon || 'ðŸ“'} ${subTabName}</span>`;
+                    subTabBadge = `<span class="subtab-origin-badge" title="From sub-tab: ${subTabName}">${subWs.icon || '\u{1f4c1}'} ${subTabName}</span>`;
                 }
             }
         } else {
@@ -171,7 +171,7 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
                 ? renderContext.getWorkspaceById(badgeWorkspaceId)
                 : (helpers ? helpers.findById(config.workspaces, badgeWorkspaceId) : null);
             if (activeWsObj && activeWsObj.linkedTo) {
-                subTabBadge = `<span class="subtab-origin-badge" style="background:#ff8c00;color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="Added specifically to this shortcut tab">ðŸ”— Shortcut Local</span>`;
+                subTabBadge = `<span class="subtab-origin-badge" style="background:#ff8c00;color:#fff;font-weight:bold;margin-right:6px;border-radius:4px;padding:2px 6px;font-size:0.75em;" title="Added specifically to this shortcut tab">\u{1f517} Shortcut Local</span>`;
             }
         }
     }
@@ -245,9 +245,9 @@ window.DashboardCategories.buildLinkHtml = function (l, searchStr, activeWorkspa
         if (tvData) {
             const displayText = window.EveTrueValue.formatTrueValue(tvData, extraOptions.trueValueData);
             const badgeClass = tvData.locked ? 'true-value-badge locked' : 'true-value-badge approx';
-            const direction = tvData.influence > 0 ? 'â†‘' : tvData.influence < 0 ? 'â†“' : '=';
+            const direction = tvData.influence > 0 ? '\u2191' : tvData.influence < 0 ? '\u2193' : '=';
             const titleText = tvData.locked
-                ? (tvData.rating === null ? 'Locked â€” no library link' : 'Locked â€” no rating data')
+                ? (tvData.rating === null ? 'Locked - no library link' : 'Locked - no rating data')
                 : 'Base #' + tvData.basePos + ' ' + direction + ' #' + tvData.truePos + ' (rating: ' + (tvData.rating || '?') + ', ' + tvData.percent + '%)';
             trueValueBadge = `<span class="${badgeClass}" title="${titleText}">${displayText}</span>`;
             customOrderBadge = ''; // true value replaces custom order badge

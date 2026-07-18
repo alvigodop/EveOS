@@ -274,12 +274,17 @@ async function main() {
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
     const smoke = await runSmoke(page);
-    console.log(JSON.stringify({
-      ok: true,
-      smoke,
-      consoleErrors,
-      pageErrors
-    }, null, 2));
+    const output = process.env.EVE_SMOKE_VERBOSE === '1'
+      ? { ok: true, smoke, consoleErrors, pageErrors }
+      : {
+          ok: true,
+          allProjection: smoke.allScope?.projectionStats?.projection,
+          folderProjection: smoke.folderScope?.projectionStats?.projection,
+          derivedProjection: smoke.derivedScope?.projectionStats?.projection,
+          consoleErrorCount: consoleErrors.length,
+          pageErrorCount: pageErrors.length
+        };
+    console.log(`CONSTELLATION_NEXUS_PROJECTION_SMOKE_OK ${JSON.stringify(output)}`);
   } finally {
     await browser.close();
   }

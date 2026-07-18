@@ -26,7 +26,7 @@
 
     function _getScopeIndex() {
         const currentLinks = getLinks();
-        // Simple generation check â€” rebuild if links array reference changed
+        // Rebuild when the links array reference changes.
         if (_scopeIndex && _scopeIndex._ref === currentLinks && _scopeIndex._len === currentLinks.length) {
             return _scopeIndex;
         }
@@ -194,7 +194,7 @@
         return getSelectedSet();
     }
 
-    // â”€â”€ Debounced bulk UI update â”€â”€
+    // Debounced bulk UI update.
     // Coalesce rapid-fire selection changes into a single rAF
     let _bulkUIRafId = 0;
 

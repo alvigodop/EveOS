@@ -1,26 +1,13 @@
-# Python requirements for Fandom Discovery Toolkit Server
-# These are the standard libraries used by the server
+# EveOS Python runtime (tested with Python 3.10-3.11).
+# Keep this file aligned with imports under server/ and server_modules/.
 
-# No external dependencies required - using standard library modules:
-# - http.server
-# - socketserver
-# - os
-# - sys
-# - logging
-# - socket
-# - urllib.parse
+# Gemini Live, text-brain, and transcription paths.
+google-genai==1.46.0
+google-generativeai==0.8.5
+websockets==14.2
+pydub==0.25.1
+vosk==0.3.45
 
-# The server is designed to run with Python 3.6+ without additional packages
-
-# Python server dependencies
-# Nothing special needed for basic HTTP server
-
-# If you want to add more advanced features:
-# requests>=2.25.1
-# beautifulsoup4>=4.9.3
-
-# Optional Audioflix native output bridge:
-# enables EveOS-owned PCM playback to a selected Windows output endpoint
-# without changing the whole Edge app route in Windows Mixer.
-sounddevice>=0.4.7
-numpy>=1.24
+# Audioflix native output bridge and waveform/device utilities.
+numpy==1.24.4
+sounddevice==0.5.5

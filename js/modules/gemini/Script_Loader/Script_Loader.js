@@ -64,8 +64,8 @@ const masterScriptList = [
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/popout_chat_feature/popoutChatHandler.js?v=0.1.2`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_message_operations/textMessageSender.js`,
     // Mode 2: Text Brain -> Live Voice relay (loads after sendTextMessage/socket/waitForConnection)
-    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.config.js?v=0.1.0',
-    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.2.0',
+    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.config.js?v=0.1.1',
+    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.2.1',
     `${BASE_PATHS.COMM_PANEL}/input_attachments/imageAttachmentHandler.js?v=0.1.0`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_input_handling/textInputHandler.js?v=0.2.0`,
 

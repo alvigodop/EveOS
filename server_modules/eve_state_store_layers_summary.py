@@ -31,7 +31,7 @@ def empty_unified_state(format_version=FORMAT_VERSION):
         "bookmarks": {
             "links": [],
             "config": {
-                "workspaces": [{"id": "main", "name": "Main", "icon": "ðŸ "}],
+                "workspaces": [{"id": "main", "name": "Main", "icon": "\U0001f3e0"}],
                 "activeWorkspace": "main",
             },
             "folders": {},

@@ -54,12 +54,12 @@ async function waitForApp(page) {
         && typeof window.openUnidexView === 'function'
         && !!window.EveConstellationMap?.openCurrentViewMap
         && !!window.EveConstellationMap?.__debugGetGraphStats
-        && !!document.querySelector('.topbar-map-btn')
+        && !!document.querySelector('.topbar-constellation-btn')
     ), undefined, { timeout: 180000 });
 }
 
 async function seedState(page, payload) {
-    await page.evaluate((seed) => {
+    await page.evaluate(async (seed) => {
         const clonedConfig = JSON.parse(JSON.stringify(seed.config));
         const clonedLinks = JSON.parse(JSON.stringify(seed.links));
         const clonedFolders = JSON.parse(JSON.stringify(seed.bookmarkFolders || {}));
@@ -87,6 +87,14 @@ async function seedState(page, payload) {
 
         if (typeof window.renderSidebar === 'function') window.renderSidebar();
         if (typeof window.renderDashboard === 'function') window.renderDashboard();
+        window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+            detail: { source: 'constellation-scope-smoke-seed' }
+        }));
+        const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index;
+        if (indexApi?.markDirty) indexApi.markDirty('constellation-scope-smoke-seed');
+        if (indexApi?.ensureFresh) {
+            await indexApi.ensureFresh({ force: true, reason: 'constellation-scope-smoke-seed' });
+        }
     }, payload);
 }
 
@@ -170,7 +178,7 @@ async function clickToolbarControl(page, selector) {
 async function prepareSeededPage(page, payload) {
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 240000 });
     await waitForApp(page);
-    await page.waitForTimeout(2500);
+    await page.evaluate(() => window.__eveWaitForCoreData?.(120000) || true);
     await seedState(page, payload);
     await page.waitForTimeout(500);
 }

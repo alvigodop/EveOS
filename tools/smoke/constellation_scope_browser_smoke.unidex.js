@@ -137,7 +137,7 @@ async function runConstellationUnidex(page, { anchoredStats, canvasBox, category
     await page.waitForTimeout(700);
 
     const topbarHiddenInUnidex = await page.evaluate(() => {
-        const mapButton = document.querySelector('.topbar-map-btn');
+        const mapButton = document.querySelector('.topbar-constellation-btn');
         return mapButton ? window.getComputedStyle(mapButton).display === 'none' : false;
     });
     if (!topbarHiddenInUnidex) {

@@ -45,7 +45,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/utils/browser-emulator/be-render-orchestrator.js?v=0.1.0",
     "js/modules/features/scraper/utils/browser-emulator/be-init.js?v=0.1.0",
     "js/modules/features/scraper/utils/browser-emulator/proxy-strategy.js?v=0.1.0",
-    "js/modules/features/scraper/utils/browser-emulator/iframe-strategy.js?v=0.1.0",
+    "js/modules/features/scraper/utils/browser-emulator/iframe-strategy.js?v=0.2.1",
     "js/modules/features/scraper/utils/browser-emulator/local-strategy.js?v=0.1.0",
     "js/modules/features/scraper/search/google-cse/cse-recovery.js?v=0.1.0",
     "js/modules/features/scraper/core/module-fix-components/registry-shim.js?v=0.1.0",

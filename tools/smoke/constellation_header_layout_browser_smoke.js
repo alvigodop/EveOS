@@ -12,7 +12,7 @@ async function main() {
         const page = await browser.newPage({ viewport: { width: 725, height: 520 } });
         await prepareSeededPage(page, buildSeedPayload());
         await clickAndWaitForMap(page, () => (
-            page.locator('.topbar-map-btn:not(.topbar-matrix-btn)').click()
+            page.locator('.topbar-constellation-btn').click()
         ));
 
         const layout = await page.evaluate(() => {

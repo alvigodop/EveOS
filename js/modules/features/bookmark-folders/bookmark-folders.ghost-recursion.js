@@ -272,7 +272,7 @@ if (hasChain && task.depth > 0) {
     // Only expand if this branch is on or adjacent to the user's current path
     if (chainScore < task.depth) continue;
 } else if (!hasChain && task.depth > 1) {
-    // No navigation chain â€” user is at root. Only expand depth 0 and 1.
+    // No navigation chain: the user is at root. Only expand depth 0 and 1.
     continue;
 }
 

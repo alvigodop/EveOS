@@ -143,6 +143,8 @@ __pycache__/
 *.py[cod]
 *.pyo
 *.env
+.venv/
+venv/
 
 # IDE/editor
 .vscode/

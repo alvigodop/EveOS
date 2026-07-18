@@ -188,12 +188,21 @@ async function main() {
     await seedState(page, buildSeedPayload());
     await injectRawFolderDrift(page);
     const smoke = await runSmoke(page);
-    console.log(JSON.stringify({
-      ok: true,
-      smoke,
-      consoleErrors,
-      pageErrors
-    }, null, 2));
+    const snapshot = smoke.rootSnapshot || {};
+    const output = process.env.EVE_SMOKE_VERBOSE === '1'
+      ? { ok: true, smoke, consoleErrors, pageErrors }
+      : {
+          ok: true,
+          renderedTitleCount: snapshot.renderedTitles?.length || 0,
+          uniqueRenderedTitleCount: new Set(snapshot.renderedTitles || []).size,
+          folderTitleCount: snapshot.folderTitles?.length || 0,
+          cachedNodeCount: snapshot.cachedNodeIds?.length || 0,
+          indexedIds: snapshot.indexedIds || [],
+          folderScopedIds: snapshot.folderScopedIds || [],
+          consoleErrorCount: consoleErrors.length,
+          pageErrorCount: pageErrors.length
+        };
+    console.log(`FOLDER_SCOPE_DATAPACK_INDEX_SMOKE_OK ${JSON.stringify(output)}`);
   } catch (error) {
     console.error(JSON.stringify({
       ok: false,

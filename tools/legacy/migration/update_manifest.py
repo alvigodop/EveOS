@@ -1,69 +1,69 @@
-import os
-import json
+"""Legacy Gemini manifest migration with explicit paths and dry-run safety."""
 
-manifest_path = r"C:\Users\alvin\Documents\Unidex File\Personal Projects Workstation\Tests-Unidex\Tests and Experiments\NewPageObservation\Workshop\js\config\manifest.js"
-css_root = r"C:\Users\alvin\Documents\Unidex File\Personal Projects Workstation\Tests-Unidex\Tests and Experiments\NewPageObservation\Workshop\css\modules\gemini"
+from __future__ import annotations
 
-# 1. Gather CSS files
-css_files = []
-for root, dirs, files in os.walk(css_root):
-    for file in files:
-        if file.endswith(".css"):
-            # absolute path
-            abs_path = os.path.join(root, file)
-            # relative path from project root
-            # project root is 3 levels up from css\modules\gemini ? No, css\modules\gemini is in root\css\modules\gemini
-            # Root is C:\Users\alvin\Documents\Unidex File\Personal Projects Workstation\Tests-Unidex\Tests and Experiments\NewPageObservation\Workshop
-            project_root = r"C:\Users\alvin\Documents\Unidex File\Personal Projects Workstation\Tests-Unidex\Tests and Experiments\NewPageObservation\Workshop"
-            rel_path = os.path.relpath(abs_path, project_root).replace("\\", "/")
-            css_files.append(rel_path)
+import argparse
+from pathlib import Path
 
-print(f"Found {len(css_files)} CSS files.")
 
-# 2. Read manifest.js
-with open(manifest_path, 'r', encoding='utf-8') as f:
-    content = f.read()
-
-# 3. Inject Scripts
-# We look for "scripts: ["
-# We will insert our new scripts at the end of the array, before "],"
-scripts_to_add = [
+SCRIPTS = (
     "js/modules/gemini/gemini-init.js",
-    "js/modules/gemini/Script_Loader/Script_Loader.js"
-]
+    "js/modules/gemini/Script_Loader/Script_Loader.js",
+)
 
-# Find the end of scripts array
-# This is a bit fragile with text processing, but manifest.js structure is known.
-# Look for "styles: [" which comes after scripts.
-if "styles: [" in content:
-    parts = content.split("styles: [")
-    scripts_part = parts[0]
-    styles_part = "styles: [" + parts[1]
-    
-    # In scripts_part, find the last "]"
-    last_bracket_scripts = scripts_part.rfind("]")
-    
-    scripts_insert = ",\n        // Gemini Integration\n"
-    for s in scripts_to_add:
-        scripts_insert += f"        '{s}',\n"
-    
-    new_scripts_part = scripts_part[:last_bracket_scripts] + scripts_insert + scripts_part[last_bracket_scripts:]
-    
-    # Now Styles
-    # existing styles end with "]" before "};"
-    last_bracket_styles = styles_part.rfind("]")
-    
-    styles_insert = ",\n        // Gemini Integration Styles\n"
-    for s in css_files:
-        styles_insert += f"        '{s}',\n"
-        
-    new_styles_part = styles_part[:last_bracket_styles] + styles_insert + styles_part[last_bracket_styles:]
-    
-    new_content = new_scripts_part + new_styles_part
-    
-    with open(manifest_path, 'w', encoding='utf-8') as f:
-        f.write(new_content)
-    print("Updated manifest.js")
 
-else:
-    print("Could not find 'styles: [' marker in manifest.js")
+def relative_css(project_root: Path, css_root: Path) -> list[str]:
+    return sorted(
+        path.relative_to(project_root).as_posix()
+        for path in css_root.rglob("*.css")
+        if path.is_file()
+    )
+
+
+def insert_missing(content: str, marker: str, values: list[str], label: str) -> str:
+    missing = [value for value in values if value not in content]
+    if not missing:
+        return content
+    marker_at = content.find(marker)
+    if marker_at < 0:
+        raise ValueError(f"Manifest marker was not found: {marker}")
+    bracket_at = content.find("[", marker_at)
+    closing_at = content.find("]", bracket_at)
+    if bracket_at < 0 or closing_at < 0:
+        raise ValueError(f"Manifest array is malformed near: {marker}")
+    lines = [f"        // {label}"] + [f"        '{value}'," for value in missing]
+    insertion = "\n" + "\n".join(lines) + "\n"
+    return content[:closing_at] + insertion + content[closing_at:]
+
+
+def migrate(project_root: Path, manifest: Path, css_root: Path) -> str:
+    if not manifest.is_file():
+        raise FileNotFoundError(f"Manifest does not exist: {manifest}")
+    if not css_root.is_dir():
+        raise FileNotFoundError(f"CSS directory does not exist: {css_root}")
+    content = manifest.read_text(encoding="utf-8")
+    content = insert_missing(content, "scripts:", list(SCRIPTS), "Gemini integration")
+    return insert_missing(content, "styles:", relative_css(project_root, css_root), "Gemini styles")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("project_root", type=Path, help="Legacy project root")
+    parser.add_argument("--manifest", type=Path, help="Manifest path; defaults under project_root")
+    parser.add_argument("--css-root", type=Path, help="Gemini CSS root; defaults under project_root")
+    parser.add_argument("--apply", action="store_true", help="Write changes; otherwise only report")
+    args = parser.parse_args()
+
+    project_root = args.project_root.expanduser().resolve()
+    manifest = (args.manifest or project_root / "js" / "config" / "manifest.js").resolve()
+    css_root = (args.css_root or project_root / "css" / "modules" / "gemini").resolve()
+    before = manifest.read_text(encoding="utf-8") if manifest.is_file() else ""
+    after = migrate(project_root, manifest, css_root)
+    changed = before != after
+    if changed and args.apply:
+        manifest.write_text(after, encoding="utf-8")
+    print(("Updated" if args.apply else "Would update") if changed else "No changes needed", manifest)
+
+
+if __name__ == "__main__":
+    main()

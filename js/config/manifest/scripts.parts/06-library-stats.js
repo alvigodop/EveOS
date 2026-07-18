@@ -32,5 +32,5 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/library/library-ui.panels.backups.js?v=0.2.1",
     "js/modules/features/library/library-ui.panels.js?v=0.2.1",
     "js/modules/features/library/library-ui.js?v=0.2.48",
-    "js/modules/features/library/library-init.js?v=0.1.0"
+    "js/modules/features/library/library-init.js?v=0.1.1"
 ]);

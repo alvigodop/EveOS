@@ -209,7 +209,7 @@ window.bulkLastToggledId = bulkLastToggledId;
         return normalized.length > 0 && normalized.every((id) => selectedIds.has(id));
     }
 
-    // â”€â”€ Indexed link lookup for fast scope queries â”€â”€
+    // Indexed link lookup for fast scope queries.
     // Pre-index links by workspace::category to avoid O(n) scans on every button update.
     let _scopeIndex = null;
     let _scopeIndexGen = 0;

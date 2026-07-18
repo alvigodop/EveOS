@@ -6,7 +6,8 @@ from websockets.server import WebSocketServer
 
 async def manage_server_lifecycle(
     handler: Callable,
-    cleanup_interval_sec: int
+    cleanup_interval_sec: int,
+    port: int
 ) -> Tuple[WebSocketServer, asyncio.Task]:
     """
     Manages the complete server lifecycle including initialization and cleanup.
@@ -22,7 +23,8 @@ async def manage_server_lifecycle(
         # Initialize and run server
         server, cleanup_task = await initialize_and_run_server(
             handler,
-            cleanup_interval_sec=cleanup_interval_sec
+            cleanup_interval_sec=cleanup_interval_sec,
+            port=port
         )
         
         return server, cleanup_task
@@ -39,4 +41,4 @@ async def cleanup_server(server: WebSocketServer) -> None:
         server: The server instance to shut down
     """
     if server:
-        await shutdown_server(server) 
+        await shutdown_server(server)

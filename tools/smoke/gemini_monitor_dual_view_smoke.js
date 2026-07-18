@@ -66,6 +66,8 @@ async function main() {
                 const rect = el.getBoundingClientRect();
                 const style = window.getComputedStyle(el);
                 return {
+                    x: rect.x,
+                    right: rect.right,
                     width: rect.width,
                     height: rect.height,
                     display: style.display,
@@ -77,6 +79,7 @@ async function main() {
             const summaryPane = box('#gemini-monitor-summary-pane');
             const workspace = box('#gemini-ui-root .mdl-layout__container');
             const liveLinkCard = box('#gemini-live-link-card');
+            const liveLinkSettings = document.getElementById('geminiLiveLinkSettingsButton');
             const selfTalkActions = box('.gemini-agentic-card--self-talk .gemini-agentic-card-actions');
             const selfTalkToggle = box('.gemini-agentic-card--self-talk .gemini-agentic-switch');
             const audioToggle = box('.gemini-agentic-card--audio .gemini-agentic-switch');
@@ -89,6 +92,8 @@ async function main() {
                 summaryPane,
                 workspace,
                 liveLinkCard,
+                liveLinkCollapsed: document.getElementById('gemini-live-link-card')?.classList.contains('is-settings-collapsed') || false,
+                liveLinkSettingsExpanded: liveLinkSettings?.getAttribute('aria-expanded') || '',
                 selfTalkActions,
                 selfTalkToggle,
                 audioToggle
@@ -107,8 +112,8 @@ async function main() {
         if (!result.workspace || result.workspace.display === 'none' || result.workspace.height < 220) {
             throw new Error(`Full Gemini workspace did not render in monitor: ${JSON.stringify(result)}`);
         }
-        if (!result.liveLinkCard || result.liveLinkCard.height < 180) {
-            throw new Error(`Full Gemini Live Link card did not render: ${JSON.stringify(result)}`);
+        if (!result.liveLinkCard || result.liveLinkCard.height < 64 || !result.liveLinkCollapsed) {
+            throw new Error(`Collapsed Gemini Live Link card did not render: ${JSON.stringify(result)}`);
         }
         if (!result.selfTalkToggle || result.selfTalkToggle.width < 48 || result.selfTalkToggle.height < 28) {
             throw new Error(`Self-talk toggle did not render inside its card bounds: ${JSON.stringify(result)}`);
@@ -118,9 +123,28 @@ async function main() {
         }
         if (!result.selfTalkActions
             || result.selfTalkToggle.x < result.selfTalkActions.x
-            || (result.selfTalkToggle.x + result.selfTalkToggle.width) > (result.selfTalkActions.x + result.selfTalkActions.width + 1)) {
+            || result.selfTalkToggle.right > (result.selfTalkActions.right + 1)) {
             throw new Error(`Self-talk toggle overflowed its action row: ${JSON.stringify(result)}`);
         }
+
+        await page.evaluate(() => document.getElementById('geminiLiveLinkSettingsButton')?.click());
+        await page.waitForFunction(() => document.getElementById('geminiLiveLinkSettingsDialog')?.open, undefined, { timeout: 10000 });
+        const liveLinkDialog = await page.evaluate(() => {
+            const dialog = document.getElementById('geminiLiveLinkSettingsDialog');
+            const rect = dialog?.getBoundingClientRect();
+            return {
+                open: !!dialog?.open,
+                height: rect?.height || 0,
+                ariaExpanded: document.getElementById('geminiLiveLinkSettingsButton')?.getAttribute('aria-expanded') || '',
+                modeOptions: document.getElementById('geminiLiveLinkMode')?.options.length || 0,
+                scopeOptions: document.getElementById('geminiLiveLinkScopeMode')?.options.length || 0
+            };
+        });
+        if (!liveLinkDialog.open || liveLinkDialog.ariaExpanded !== 'true'
+            || liveLinkDialog.height < 300 || liveLinkDialog.modeOptions < 4 || liveLinkDialog.scopeOptions < 4) {
+            throw new Error(`Gemini Live Link settings dialog did not render: ${JSON.stringify(liveLinkDialog)}`);
+        }
+        result.liveLinkDialog = liveLinkDialog;
 
         const criticalConsoleErrors = consoleErrors.filter((entry) => !isBenignConsoleError(entry));
         if (pageErrors.length) {

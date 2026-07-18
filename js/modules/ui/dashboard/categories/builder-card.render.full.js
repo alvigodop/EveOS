@@ -167,7 +167,7 @@ function renderCardFull(catInput, catLinks, gridContainer, configOptions) {
             });
             if (ratingCount >= 1) {
                 var average = ratingSum / ratingCount;
-                smartWeightBadgeHtml = '<div class="card-smart-weight-badge" title="Average smart rating based on ' + ratingCount + ' weighted bookmarks.">[ âœ¨ ' + average.toFixed(1) + ' ]</div>';
+                smartWeightBadgeHtml = '<div class="card-smart-weight-badge" title="Average smart rating based on ' + ratingCount + ' weighted bookmarks.">[ \u2728 ' + average.toFixed(1) + ' ]</div>';
             }
         }
 

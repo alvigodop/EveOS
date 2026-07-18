@@ -13,6 +13,10 @@ window.EveLibrary = window.EveLibrary || {};
     const maxBackups = 5;
 
     let backups = [];
+    let libraryStateRevision = 0;
+    let libraryLoadGeneration = 0;
+    let libraryHydrated = false;
+    let libraryLoadPromise = null;
 
     function getCoreStorage() {
         return window.EveCoreStorage || window.EveStorageRuntime?.coreStorage || null;
@@ -98,7 +102,15 @@ window.EveLibrary = window.EveLibrary || {};
         return data;
     }
 
-    function loadLibrary() {
+    function loadLibrary(options = {}) {
+        const opts = options && typeof options === 'object' ? options : {};
+        if (opts.initialOnly && (libraryHydrated || libraryStateRevision > 0)) {
+            return Promise.resolve(State.getAllLibraries());
+        }
+        if (!opts.force && libraryLoadPromise) return libraryLoadPromise;
+
+        const loadGeneration = ++libraryLoadGeneration;
+        const revisionAtStart = libraryStateRevision;
         const legacyData = readLegacyJson(STORAGE_KEY, {});
         if (legacyData && typeof legacyData === 'object') {
             try {
@@ -107,14 +119,21 @@ window.EveLibrary = window.EveLibrary || {};
                 console.error('Failed to load legacy library data:', e);
             }
         }
-        void hydrateJson(STORAGE_KEY, legacyData, (persistedData) => {
+        const loadPromise = hydrateJson(STORAGE_KEY, legacyData, (persistedData) => {
+            if (loadGeneration !== libraryLoadGeneration || revisionAtStart !== libraryStateRevision) return;
             if (!persistedData || typeof persistedData !== 'object') return;
             applyLibraryData(persistedData);
+        }).then(() => State.getAllLibraries()).finally(() => {
+            libraryHydrated = true;
+            if (libraryLoadPromise === loadPromise) libraryLoadPromise = null;
         });
+        libraryLoadPromise = loadPromise;
         void loadBackups();
+        return loadPromise;
     }
 
-    function saveLibrary() {
+    function saveLibrary(options = {}) {
+        libraryStateRevision += 1;
         if (typeof State.pruneEmptyTransientLibraries === 'function') {
             State.pruneEmptyTransientLibraries();
         }
@@ -125,9 +144,9 @@ window.EveLibrary = window.EveLibrary || {};
             window.EveLibrary.ConnectionsCore.invalidateEntryIndex();
         }
         window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-save' } }));
-        void persistJson(STORAGE_KEY, data);
-        createBackup(data);
-        return true;
+        const persisted = persistJson(STORAGE_KEY, data);
+        if (!options.skipBackup) createBackup(data);
+        return persisted;
     }
 
     function loadBackups() {

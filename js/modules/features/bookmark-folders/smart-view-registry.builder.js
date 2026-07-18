@@ -80,7 +80,7 @@ window.EveSmartViewRegistry = window.EveSmartViewRegistry || {};
             + '<form class="smart-view-builder-modal">'
             + '<div class="smart-view-builder-header">'
             + '<div><div class="smart-view-builder-kicker">Smart View Builder</div><h3>New Smart View</h3></div>'
-            + '<button type="button" class="smart-view-builder-close" data-sv-close aria-label="Close">Ã—</button>'
+            + '<button type="button" class="smart-view-builder-close" data-sv-close aria-label="Close">\u00d7</button>'
             + '</div>'
             + '<div class="smart-view-builder-scope">' + escapeHtml(text(workspaceId, 'main')) + ' / ' + escapeHtml(text(categoryName, 'Unsorted')) + '</div>'
             + '<label class="smart-view-builder-field"><span>Name</span><input data-sv-field="label" required maxlength="80" placeholder="Reading + MangaDex + Covers"></label>'

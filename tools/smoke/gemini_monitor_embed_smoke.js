@@ -43,6 +43,12 @@ async function main() {
             const indicator = document.getElementById('loadingIndicator');
             return !!indicator && !indicator.classList.contains('compact');
         }, undefined, { timeout: 10000 });
+        // Expansion animates from the 40px compact launcher. Wait for the panel
+        // to become usable instead of sampling an arbitrary transition frame.
+        await page.waitForFunction(() => {
+            const indicator = document.getElementById('loadingIndicator');
+            return !!indicator && indicator.getBoundingClientRect().width >= 320;
+        }, undefined, { timeout: 10000 });
 
         await page.evaluate(() => {
             document.getElementById('gemini-ui-root')
@@ -56,15 +62,25 @@ async function main() {
                 const rect = el.getBoundingClientRect();
                 const style = window.getComputedStyle(el);
                 return {
+                    className: el.className,
+                    inlineStyle: el.getAttribute('style') || '',
+                    left: rect.left,
+                    right: rect.right,
                     width: rect.width,
                     height: rect.height,
+                    cssWidth: style.width,
+                    minWidth: style.minWidth,
+                    maxWidth: style.maxWidth,
                     display: style.display,
                     position: style.position,
-                    overflow: style.overflow
+                    overflow: style.overflow,
+                    transform: style.transform,
+                    zoom: style.zoom
                 };
             }
 
             const root = box('#gemini-ui-root');
+            const indicator = box('#loadingIndicator');
             const summaryPane = box('#gemini-monitor-summary-pane');
             const serverControl = box('[data-gemini-server-control]');
             const container = box('#gemini-ui-root .mdl-layout__container');
@@ -77,9 +93,9 @@ async function main() {
             const hiddenHeader = document.querySelector('#gemini-ui-root .mdl-layout__header')
                 ? window.getComputedStyle(document.querySelector('#gemini-ui-root .mdl-layout__header')).display
                 : 'none';
-
             return {
                 root,
+                indicator,
                 summaryPane,
                 serverControl,
                 serverStatus: document.querySelector('[data-gemini-server-status]')?.textContent || '',
@@ -94,13 +110,17 @@ async function main() {
             };
         });
 
-        if (!result.root || result.root.height < 150) {
+        if (!result.indicator || result.indicator.width < 320) {
+            throw new Error(`Expanded Search Monitor is horizontally clipped: ${JSON.stringify(result)}`);
+        }
+        if (!result.root || result.root.width < 280 || result.root.height < 150) {
             throw new Error(`Gemini monitor root did not maintain visible height: ${JSON.stringify(result)}`);
         }
         if (result.viewMode !== 'summary') {
             throw new Error(`Search Monitor should default to compact summary mode: ${JSON.stringify(result)}`);
         }
-        if (!result.summaryPane || result.summaryPane.display === 'none' || result.summaryPane.height < 180) {
+        if (!result.summaryPane || result.summaryPane.display === 'none'
+            || result.summaryPane.width < 260 || result.summaryPane.height < 180) {
             throw new Error(`Gemini summary pane did not render stably: ${JSON.stringify(result)}`);
         }
         if (!result.serverControl || result.serverControl.display === 'none' || result.serverControl.height < 28) {

@@ -4,6 +4,29 @@ import sys
 import websockets
 from ..websocket_server import initialize_websocket_server
 from ..port_management.port_handler import is_port_in_use
+from .server_config import DEFAULT_PORT
+
+
+def validate_server_port(value):
+    """Return a WebSocket port that leaves room for the paired status port."""
+    port = int(value)
+    if port < 1024 or port > 65534:
+        raise ValueError("Port must be between 1024 and 65534 (status uses port + 1).")
+    return port
+
+
+def _parse_port_argument(value):
+    try:
+        return validate_server_port(value)
+    except (TypeError, ValueError) as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def parse_server_port(argv=None):
+    parser = argparse.ArgumentParser(description='Start Main server on specified port')
+    parser.add_argument('--port', type=_parse_port_argument, default=DEFAULT_PORT,
+                        help='WebSocket port (1024-65534); status uses the following port')
+    return parser.parse_args(argv).port
 
 async def _cleanup_server_tasks(cleanup_task):
     """Helper function to cleanup server tasks."""
@@ -14,7 +37,7 @@ async def _cleanup_server_tasks(cleanup_task):
         except Exception as e:
             print(f"Error during cleanup task cancellation: {e}")
 
-async def initialize_main_server(gemini_session_handler, cleanup_interval_sec=60):
+async def initialize_main_server(gemini_session_handler, cleanup_interval_sec=60, port=None):
     """
     Initialize the main server with command line arguments and proper setup.
     
@@ -28,18 +51,9 @@ async def initialize_main_server(gemini_session_handler, cleanup_interval_sec=60
     try:
         print("\nStarting WebSocket server...")
         
-        # Parse command line arguments
-        parser = argparse.ArgumentParser(description='Start Main server on specified port')
-        parser.add_argument('--port', type=int, default=9083, help='Port to run server on')
-        args = parser.parse_args()
-        
-        port = args.port
+        port = parse_server_port() if port is None else validate_server_port(port)
         
         # Validate port before proceeding
-        if port < 1024 or port > 65535:
-            print(f"Invalid port number: {port}. Port must be between 1024 and 65535.")
-            return None, None
-            
         if is_port_in_use(port):
             print(f"Port {port} is already in use. Please choose a different port.")
             return None, None
@@ -72,4 +86,4 @@ async def initialize_main_server(gemini_session_handler, cleanup_interval_sec=60
         raise
     except Exception as e:
         print(f"\nServer initialization error: {str(e)}")
-        return None, None 
+        return None, None

@@ -47,6 +47,22 @@ window.EveDataTransfer = window.EveDataTransfer || {};
             await Promise.resolve(window.saveConfig({ immediate: true }));
         }
 
+        // Library data and bookmark-to-library connections use their own
+        // persistence queues. Flush both before modular sync or reload so a
+        // restore cannot be overwritten by a stale pre-restore snapshot.
+        const librarySaved = await Promise.resolve(
+            window.EveLibrary?.Storage?.saveLibrary?.({ skipBackup: true })
+        );
+        if (librarySaved === false) {
+            return { ok: false, error: 'Failed to persist restored library data.' };
+        }
+        const connectionsSaved = await Promise.resolve(
+            window.EveLibrary?.ConnectionsAPI?.saveConnections?.({ immediate: true })
+        );
+        if (connectionsSaved === false) {
+            return { ok: false, error: 'Failed to persist restored library connections.' };
+        }
+
         const config = getAppConfig();
         const shouldSyncModular = options.syncModular !== false
             && isHttpContext()

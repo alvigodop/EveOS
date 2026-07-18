@@ -36,7 +36,7 @@ def run_server(port=8000, use_https=True):
             return False
 
     try:
-        server_address = ('', port)
+        server_address = ('127.0.0.1', port)
         httpd = HTTPServer(server_address, CORSRequestHandler)
 
         if use_https:

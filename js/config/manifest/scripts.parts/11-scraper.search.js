@@ -21,7 +21,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/ui/popup-manager/components/popup-history.js?v=0.1.0",
     "js/modules/features/scraper/ui/popup-manager/components/popup-confirmation.js?v=0.1.0",
     "js/modules/features/scraper/ui/popup-manager/components/viewer/pv-ui.js?v=1.0.1",
-    "js/modules/features/scraper/ui/popup-manager/components/viewer/pv-loader.js?v=1.0.1",
+    "js/modules/features/scraper/ui/popup-manager/components/viewer/pv-loader.js?v=1.0.2",
     "js/modules/features/scraper/ui/popup-manager/components/viewer/pv-state.js?v=0.1.0",
     "js/modules/features/scraper/ui/popup-manager/components/popup-viewer.js?v=1.0.1",
     "js/modules/features/scraper/ui/popup-manager/popup-manager.js?v=1.0.2",

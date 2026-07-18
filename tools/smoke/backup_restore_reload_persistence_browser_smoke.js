@@ -124,8 +124,14 @@ async function applyRestoreAndPersist(page) {
         }
 
         const inMemoryLinks = (window.eveState?.links || []).map((link) => String(link.id)).sort();
+        const appliedConnections = (window.EveLibrary?.ConnectionsAPI?.getAll?.() || [])
+            .map((connection) => String(connection.linkId))
+            .sort();
         if (inMemoryLinks.join('|') !== ['restored-link'].join('|')) {
             throw new Error(`Restored state not applied in memory: ${inMemoryLinks.join('|')}`);
+        }
+        if (appliedConnections.join('|') !== ['restored-link'].join('|')) {
+            throw new Error(`Restored connections not applied in memory: ${appliedConnections.join('|')}`);
         }
 
         const persisted = await Transfer.persistRestoredState({
@@ -136,8 +142,26 @@ async function applyRestoreAndPersist(page) {
             throw new Error(`persistRestoredState failed: ${JSON.stringify(persisted || {})}`);
         }
 
+        const storedConnections = await window.EveCoreStorage?.loadJson?.(
+            'eveLibraryConnections',
+            [],
+            { legacyKeys: ['eveLibraryConnections'] }
+        );
         return {
-            inMemoryLinks
+            inMemoryLinks,
+            appliedConnections,
+            currentConnections: (window.EveLibrary?.ConnectionsAPI?.getAll?.() || [])
+                .map((connection) => String(connection.linkId))
+                .sort(),
+            storedConnections: (Array.isArray(storedConnections) ? storedConnections : [])
+                .map((connection) => String(connection.linkId))
+                .sort(),
+            localFallbackConnections: JSON.parse(localStorage.getItem('eveLibraryConnections') || '[]')
+                .map((connection) => String(connection.linkId))
+                .sort(),
+            capturedConnections: (Store.captureState()?.library?.connections || [])
+                .map((connection) => String(connection.linkId))
+                .sort()
         };
     });
 }
@@ -170,6 +194,7 @@ async function main() {
     fs.writeFileSync(LOG_FILE, '');
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-backup-restore-reload-store-'));
     let browser = null;
+    let beforeReload = null;
     const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
@@ -208,7 +233,7 @@ async function main() {
         await waitForAppReady(page);
         await page.waitForTimeout(1500);
 
-        const beforeReload = await applyRestoreAndPersist(page);
+        beforeReload = await applyRestoreAndPersist(page);
         await page.reload({ waitUntil: 'domcontentloaded', timeout: 120000 });
         await waitForAppReady(page);
         await page.waitForTimeout(1500);
@@ -230,6 +255,9 @@ async function main() {
         })}`);
     } catch (error) {
         console.error(error && error.stack ? error.stack : String(error));
+        if (beforeReload) {
+            console.error(`--- BEFORE RELOAD ---\n${JSON.stringify(beforeReload, null, 2)}`);
+        }
         console.error('--- SERVER STDOUT ---');
         console.error(serverStdout);
         console.error('--- SERVER STDERR ---');

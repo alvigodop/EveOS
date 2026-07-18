@@ -1,11 +1,16 @@
 import asyncio
+import re
 import websockets
-import sys
 import traceback
-from ..port_management.port_handler import is_port_in_use, free_port
-from ..status_monitoring.status_handler import start_status_server
 from ..session_management.session_manager import periodic_cleanup
 from ..api_configuration.gemini_config import TimeoutConfig
+
+MAX_CLIENT_MESSAGE_BYTES = 16 * 1024 * 1024
+ALLOWED_BROWSER_ORIGINS = [
+    None,
+    "null",
+    re.compile(r"^https?://(?:127\.0\.0\.1|localhost)(?::\d{1,5})?$", re.IGNORECASE),
+]
 
 async def initialize_websocket_server(port, gemini_session_handler, cleanup_interval_sec):
     """
@@ -23,17 +28,6 @@ async def initialize_websocket_server(port, gemini_session_handler, cleanup_inte
     try:
         print(f"\nAttempting to start WebSocket server on port {port}")
 
-        # Check if port is already in use and kill the process if needed
-        if is_port_in_use(port):
-            print(f"\nPort {port} is already in use. Attempting to free it...")
-            if free_port(port):
-                print(f"Successfully freed port {port}")
-                # Increased delay to ensure the port is fully released
-                await asyncio.sleep(3)
-            else:
-                print(f"Failed to free port {port}. Please close the application using it manually.")
-                sys.exit(1)
-        
         # Try to start the server with retries
         max_retries = 3
         retry_count = 0
@@ -48,11 +42,13 @@ async def initialize_websocket_server(port, gemini_session_handler, cleanup_inte
                     port,
                     ping_interval=30,  # More frequent pings to keep connection alive (was 20)
                     ping_timeout=TimeoutConfig.WEBSOCKET_PING_TIMEOUT,   # Use configurable timeout for backend delays
-                    max_size=None,     # No limit on message size
+                    max_size=MAX_CLIENT_MESSAGE_BYTES,
                     max_queue=128,     # Increased queue size for better handling of bursts (was 64)
                     close_timeout=TimeoutConfig.WEBSOCKET_CLOSE_TIMEOUT,  # Use configurable close timeout
                     open_timeout=TimeoutConfig.WEBSOCKET_OPEN_TIMEOUT,   # Use configurable open timeout
                     compression=None,  # Disable compression to reduce complexity
+                    origins=ALLOWED_BROWSER_ORIGINS,
+                    server_header=None,
                 )
                 
                 if server:
@@ -72,23 +68,6 @@ async def initialize_websocket_server(port, gemini_session_handler, cleanup_inte
                     print("Waiting for connections...")
                     print("\nPress Ctrl+C to stop the server")
                     
-                    # Add status endpoint for health check
-                    try:
-                        # Start a simple HTTP server for status checks on a different port
-                        status_port = port + 1
-                        if not is_port_in_use(status_port):
-                            # Start HTTP server in a separate thread
-                            import threading
-                            
-                            def start_http_server():
-                                server = start_status_server(status_port)
-                                server.serve_forever()
-                            
-                            threading.Thread(target=start_http_server, daemon=True).start()
-                            print(f"Status HTTP server started on port {status_port}")
-                    except Exception as e:
-                        print(f"Error starting status HTTP server: {e}")
-                    
                     # Start the cleanup task
                     cleanup_task = asyncio.create_task(periodic_cleanup(cleanup_interval_sec))
                     
@@ -102,8 +81,6 @@ async def initialize_websocket_server(port, gemini_session_handler, cleanup_inte
                     retry_count += 1
                     print(f"\nPort {port} is still in use. Retrying ({retry_count}/{max_retries})...")
                     
-                    # Try to free the port again
-                    free_port(port)
                     await asyncio.sleep(3 * retry_count)  # Increased backoff
                 else:
                     print(f"Failed to start server after {retry_count + 1} attempts: {e}")
@@ -121,4 +98,4 @@ async def initialize_websocket_server(port, gemini_session_handler, cleanup_inte
     except Exception as e:
         print(f"\nServer initialization error: {e}")
         traceback.print_exc()
-        return None, None 
+        return None, None

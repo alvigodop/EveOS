@@ -15,6 +15,7 @@ window.EveLibrary = window.EveLibrary || {};
     window.EveLibrary.ConnectionsAPI = {
         loadConnections: Core.loadConnections,
         setAll: Core.setAll,
+        saveConnections: Core.saveConnections,
         getAll: Core.getAll,
         findConnectionByLinkId: Core.findConnectionByLinkId,
         promoteLink: Core.promoteLink,

@@ -23,6 +23,23 @@ except Exception:  # pragma: no cover - optional runtime dependency
 _PLAYERS: dict[str, "_PcmPlayer"] = {}
 _LOCK = threading.Lock()
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def refresh_portaudio_devices() -> None:
+    """Reinitialize PortAudio without racing active Audioflix players."""
+    if sd is None:
+        return
+    with _LOCK:
+        for player in list(_PLAYERS.values()):
+            try:
+                player.close()
+            except Exception:
+                pass
+        _PLAYERS.clear()
+        sd._terminate()
+        sd._initialize()
+
+
 def _resample_mono(samples, src_rate: int, dst_rate: int):
     if np is None or not src_rate or not dst_rate or int(src_rate) == int(dst_rate):
         return samples

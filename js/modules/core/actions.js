@@ -11,6 +11,10 @@ function setLiveLinks(nextLinks) {
     if (window.eveState) window.eveState.links = nextLinks;
     window.links = nextLinks;
     if (typeof links !== 'undefined') links = nextLinks;
+    const indexApi = window.EveOS?.SearchAdvanced?.Index;
+    if (typeof indexApi?.markDirty === 'function') {
+        indexApi.markDirty('live-links-replaced');
+    }
     return nextLinks;
 }
 

@@ -66,7 +66,16 @@ ${errors.join('\n\n')}`);
 ${criticalConsoleErrors.join('\n')}`);
         }
 
-        console.log(`CONSTELLATION_SCOPE_BROWSER_SMOKE_OK ${JSON.stringify(result)}`);
+        const output = process.env.EVE_SMOKE_VERBOSE === '1'
+            ? result
+            : {
+                workspaceNodes: result.workspaceStats?.nodeCount,
+                cardNodes: result.cardStats?.nodeCount,
+                allNodes: result.allStats?.nodeCount,
+                entriesStageNodes: result.entriesStageStats?.nodeCount,
+                topbarHiddenInUnidex: result.topbarHiddenInUnidex
+            };
+        console.log(`CONSTELLATION_SCOPE_BROWSER_SMOKE_OK ${JSON.stringify(output)}`);
     } finally {
         if (browser) await browser.close();
     }

@@ -232,23 +232,31 @@ async function initializeGeminiLiveLinkCard() {
         // Bind close events
         const closeBtn = document.getElementById('geminiLiveLinkSettingsClose');
         const saveBtn = document.getElementById('geminiLiveLinkSettingsSave');
+        const setDialogOpenState = (open) => {
+            document.getElementById('geminiLiveLinkSettingsButton')
+                ?.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
                 if (typeof dialog.close === 'function') dialog.close();
                 else dialog.style.display = 'none';
+                setDialogOpenState(false);
             });
         }
         if (saveBtn) {
             saveBtn.addEventListener('click', () => {
                 if (typeof dialog.close === 'function') dialog.close();
                 else dialog.style.display = 'none';
+                setDialogOpenState(false);
             });
         }
         dialog.addEventListener('cancel', (e) => {
             e.preventDefault();
             if (typeof dialog.close === 'function') dialog.close();
             else dialog.style.display = 'none';
+            setDialogOpenState(false);
         });
+        dialog.addEventListener('close', () => setDialogOpenState(false));
     }
 
     const settingsButton = document.getElementById('geminiLiveLinkSettingsButton');
@@ -267,6 +275,7 @@ async function initializeGeminiLiveLinkCard() {
                 } else {
                     dialog.style.display = 'grid';
                 }
+                settingsButton.setAttribute('aria-expanded', 'true');
             }
         });
     }
@@ -383,7 +392,7 @@ async function loadGeminiLiveLinkCard() {
             <span class="gemini-live-link-title">EveOS Context Relay</span>
         </div>
         <div class="gemini-live-link-head-actions">
-            <button type="button" id="geminiLiveLinkSettingsButton" class="gemini-live-link-settings-btn" aria-expanded="false" title="Show EveOS relay settings">
+            <button type="button" id="geminiLiveLinkSettingsButton" class="gemini-live-link-settings-btn" aria-expanded="false" aria-haspopup="dialog" aria-controls="geminiLiveLinkSettingsDialog" title="Show EveOS relay settings">
                 <span class="material-icons">settings</span>
             </button>
             <label class="mdl-switch mdl-js-switch mdl-js-ripple-effect gemini-agentic-switch gemini-live-link-toggle" for="geminiLiveLinkToggle" style="width:52px;height:32px;min-height:32px;flex:0 0 52px;">

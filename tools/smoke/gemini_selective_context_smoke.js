@@ -95,6 +95,7 @@ const context = {
           if (workspaceId === 'child-shortcut') return 'sub-tab "Child Shortcut" under root tab "Main"';
           return 'root tab "Main"';
         },
+        getDataStreamInsightLog() { return insights; },
         recordDataStreamEvent(entry) { insights.push(entry); }
       }
     }
@@ -163,9 +164,16 @@ function assert(condition, message) {
   assert(linkedDetails.includes('LibTag'), 'linked library tags missing');
   delete context.window.EveLibrary;
 
+  for (let index = 0; index < 3; index += 1) {
+    insights.push({ relayMode: 'selective: bookmarks', payload: { preview: String(index).repeat(7000) } });
+  }
   const sent = api.sendSelectiveContext('bookmark-contents');
   assert(sent.sent && sent.route === 'websocket' && socketFrames.length === 1, 'selective context did not use live socket');
   assert(insights.some((entry) => entry.outcome === 'sent' && entry.relayMode === 'selective: bookmark-contents'), 'send insight missing');
+  assert(insights[0].payload.previewCompacted === true && insights[0].payload.preview.length < 6200,
+    'older complete insight previews should be compacted');
+  assert(insights[1].payload.preview.length === 7000 && insights[2].payload.preview.length === 7000,
+    'the two newest prior previews should remain complete');
 
   context.window.EveAudioflixState.isTextBrainMode = () => true;
   const brainSent = api.sendSelectiveContext('bookmarks');

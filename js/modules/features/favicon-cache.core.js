@@ -14,7 +14,7 @@
     const MAX_DOM_ICON_UPDATES_PER_FLUSH = 160;
     const placeholderCache = new Map();
 
-    // â”€â”€ In-memory fast-path cache â”€â”€
+    // In-memory fast-path cache.
     // Populated from IDB on boot, used synchronously during render
     const memoryCache = new Map();
     const failureCache = new Map();
@@ -31,7 +31,7 @@
     const pendingDomIconUpdates = new Map();
     let domIconUpdateTimer = 0;
 
-    // â”€â”€ Core: load disk cache from IDB â”€â”€
+    // Core: load disk cache from IDB.
     async function loadDiskCache() {
         if (diskLoaded) return diskCache;
         if (diskLoadPromise) return diskLoadPromise;
@@ -87,7 +87,7 @@
         return diskLoadPromise;
     }
 
-    // â”€â”€ Core: save disk cache to IDB (debounced) â”€â”€
+    // Core: save disk cache to IDB (debounced).
     let _saveTimer = 0;
     function saveDiskCache() {
         if (_saveTimer) clearTimeout(_saveTimer);
@@ -104,7 +104,7 @@
         }, 2000);
     }
 
-    // â”€â”€ Fetch a favicon and convert to data URI â”€â”€
+    // Fetch a favicon and convert it to a data URI.
     function normalizeDomain(domain) {
         return String(domain || '').toLowerCase().replace(/^www\./, '');
     }
@@ -365,7 +365,7 @@
                     const dataUri = canvas.toDataURL('image/png');
                     resolve(dataUri);
                 } catch (e) {
-                    // CORS taint â€” can't canvas, store the URL directly
+                    // CORS taint prevents canvas conversion, so store the URL directly.
                     resolve(url);
                 }
             };

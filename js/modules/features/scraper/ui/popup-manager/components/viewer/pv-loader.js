@@ -61,6 +61,11 @@
                 return;
             }
 
+            // Never leave the popup blank while optional bridge/fallback HTML is
+            // being fetched. Direct navigation can paint immediately; a later
+            // successful fetch replaces it with the more compatible srcdoc view.
+            popupFrame.src = resolvedUrl || targetUrl;
+
             if (window.EveOS?.API?.Core?.fetchTextWithFallback) {
                 try {
                     const popupHtml = await window.EveOS.API.Core.fetchTextWithFallback(targetUrl, {}, 'Popup HTML fetch failed');
@@ -75,7 +80,7 @@
                 }
             }
 
-            popupFrame.src = resolvedUrl || targetUrl;
+            // Direct navigation was already started above and remains the fallback.
         },
 
         clearWikiUrl: function () {

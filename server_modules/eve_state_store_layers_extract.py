@@ -204,7 +204,7 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
         folder_config["workspaces"] = [
             ws for ws in _build_workspaces(folder_config)
             if str(ws.get("id")) == ws_id
-        ] or [{"id": ws_id, "name": ws_id, "icon": "ðŸ“"}]
+        ] or [{"id": ws_id, "name": ws_id, "icon": "\U0001f4c1"}]
         folder_config["workspaces"] = _workspace_config_entries(folder_config, ws_id)
         return _build_layer_state(
             scoped_links,

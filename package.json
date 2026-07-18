@@ -1,0 +1,21 @@
+{
+  "name": "eveos",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Local-first browser workspace and knowledge system",
+  "scripts": {
+    "test": "npm run verify",
+    "audit": "node tools/audit/eveos-repo-audit.js",
+    "audit:python": "python -m compileall -q server server_modules tools",
+    "smoke:file-size": "node tools/smoke/first_party_file_size_smoke.js",
+    "smoke:launcher": "node tools/smoke/launcher_contract_smoke.js",
+    "smoke:gemini-context": "node tools/smoke/gemini_selective_context_smoke.js && node tools/smoke/gemini_deep_nesting_payload_smoke.js && node tools/smoke/gemini_context_detail_tiers_smoke.js && node tools/smoke/gemini_context_chunked_transport_smoke.js && node tools/smoke/gemini_mode2_context_routing_smoke.js",
+    "verify": "npm run audit && npm run audit:python && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:gemini-context"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  }
+}

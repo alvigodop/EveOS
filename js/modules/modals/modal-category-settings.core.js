@@ -66,12 +66,12 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         return !!getFolderActionExpansionStore()[folderActionExpansionKey(workspaceId, categoryName, folderId)];
     }
     const HEADER_BUTTON_OPTIONS = [
-        { id: 'add', label: 'âž• Add Bookmark' },
-        { id: 'folders', label: 'ðŸ“ Folders' },
-        { id: 'library', label: 'ðŸ“š Library' },
-        { id: 'focus', label: 'ðŸŽ¯ Focus' },
-        { id: 'launch', label: 'ðŸš€ Launch' },
-        { id: 'constellation', label: 'ðŸŒŒ Constellation Map' }
+        { id: 'add', label: '\u2795 Add Bookmark' },
+        { id: 'folders', label: '\u{1f4c1} Folders' },
+        { id: 'library', label: '\u{1f4da} Library' },
+        { id: 'focus', label: '\u{1f3af} Focus' },
+        { id: 'launch', label: '\u{1f680} Launch' },
+        { id: 'constellation', label: '\u{1f30c} Constellation Map' }
     ];
     function getFolderDraft() {
         if (!window.categoryFolderCreateDraft || typeof window.categoryFolderCreateDraft !== 'object') {
@@ -160,7 +160,7 @@ window.categoryFolderActionExpansion = window.categoryFolderActionExpansion || {
         const categoryName = String(window.currentCategoryCtx || '').trim() || 'Unsorted';
         const workspaceId = getCategorySettingsWorkspaceId();
         const isPinned = !!pinApi.isCardPinned(workspaceId, categoryName);
-        pinBtn.innerText = isPinned ? 'ðŸ“Œ Unpin Card' : 'ðŸ“Œ Pin Card';
+        pinBtn.innerText = isPinned ? '\u{1f4cc} Unpin Card' : '\u{1f4cc} Pin Card';
         if (!scopeWrap || !scopeSelect) return;
         if (!isPinned) {
             scopeWrap.style.display = 'none';

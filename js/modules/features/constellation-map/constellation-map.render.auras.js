@@ -363,7 +363,7 @@
             // ALL nodes only render when actively overlapping
             if (!(overlap > 0.005)) return;
             const radius = node._peerTerritoryRadius || (node.kind === 'link' ? 32 : 120);
-            // Viewport frustum cull â€” use correct transform property names
+            // Viewport frustum cull using the correct transform property names.
             const pad = radius + 200;
             const left = -state.transform.tx / state.transform.scale - pad;
             const top = -state.transform.ty / state.transform.scale - pad;

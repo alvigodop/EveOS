@@ -5,6 +5,8 @@
  */
 
 (function () {
+    const MAX_RENDERED_CONTENT_LENGTH = 5_000_000;
+
     // Determine if BrowserEmulator is loaded
     if (!window.BrowserEmulator) {
         console.error('BrowserEmulator core must be loaded before iframe strategy');
@@ -18,13 +20,24 @@
          * @private
          */
         _setupIframeListeners: function () {
+            if (this._iframeListenersReady) return;
+            this._iframeListenersReady = true;
+
             // Listen for iframe rendering messages
             window.addEventListener('message', (event) => {
-                // Check if the message is from our renderer
-                if (event.data && event.data.type === 'browser-emulator-render-complete') {
+                const data = event.data;
+                const sourceFrame = Array.from(document.querySelectorAll('iframe[data-browser-emulator-frame="1"]'))
+                    .find((frame) => frame.contentWindow === event.source);
+                const expectedKey = sourceFrame?.dataset?.renderKey || '';
+                const content = typeof data?.content === 'string' ? data.content : '';
+                if (data?.type === 'browser-emulator-render-complete'
+                    && sourceFrame
+                    && expectedKey
+                    && String(data.renderKey || '') === expectedKey
+                    && content.length <= MAX_RENDERED_CONTENT_LENGTH) {
                     // Handle the rendered content
-                    const renderKey = event.data.renderKey;
-                    const renderedContent = event.data.content;
+                    const renderKey = data.renderKey;
+                    const renderedContent = content;
 
                     // Dispatch event for pending renders
                     const customEvent = new CustomEvent('browser-emulator-render-complete', {
@@ -66,7 +79,8 @@
                 const iframe = document.createElement('iframe');
                 iframe.style.width = '100%';
                 iframe.style.height = '100%';
-                // iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts'); // Removed to fix "escapable sandbox" warning
+                iframe.setAttribute('sandbox', 'allow-scripts');
+                iframe.dataset.browserEmulatorFrame = '1';
                 iframe.setAttribute('data-render-key', renderKey);
 
                 // Set up timeout for iframe loading
@@ -100,6 +114,13 @@
                 document.body.appendChild(container);
 
                 // Set up a script to capture the rendered content
+                const parentOrigin = window.location.protocol === 'file:'
+                    ? '*'
+                    : window.location.origin;
+                const escapedUrl = String(url || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/</g, '&lt;');
                 const capturingScript = `
                     <script>
                         // Wait for page to fully load
@@ -111,9 +132,9 @@
                                 // Send message to parent window
                                 window.parent.postMessage({
                                     type: 'browser-emulator-render-complete',
-                                    renderKey: '${renderKey}',
+                                    renderKey: ${JSON.stringify(String(renderKey))},
                                     content: renderedContent
-                                }, '*');
+                                }, ${JSON.stringify(parentOrigin)});
                             }, 1000); // Wait an additional second for dynamic content
                         });
                     </script>
@@ -124,7 +145,7 @@
                     <!DOCTYPE html>
                     <html>
                     <head>
-                        <base href="${url}" />
+                        <base href="${escapedUrl}" />
                         <script>
                             // Set up to capture errors
                             window.addEventListener('error', function(event) {
@@ -134,8 +155,7 @@
                         ${capturingScript}
                     </head>
                     <body>
-                        <iframe src="${url}" style="width:100%;height:100%;border:none;" 
-                            onload="this.contentWindow.document.documentElement.outerHTML"></iframe>
+                        <iframe src="${escapedUrl}" style="width:100%;height:100%;border:none;"></iframe>
                     </body>
                     </html>
                 `;

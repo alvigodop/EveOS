@@ -73,7 +73,7 @@ async function waitForStatus(url, timeoutMs = 30000) {
         await matrixButton.waitFor({ state: 'visible', timeout: 180000 });
 
         const placement = await page.evaluate(() => {
-            const mapButton = document.querySelector('.top-right .topbar-map-btn:not(.topbar-matrix-btn)');
+            const mapButton = document.querySelector('.top-right .topbar-constellation-btn');
             const matrixButton = document.querySelector('.top-right .topbar-matrix-btn');
             const matrixStyle = matrixButton ? getComputedStyle(matrixButton) : null;
             return {

@@ -31,7 +31,17 @@ async function main() {
                     if (predicate()) return;
                     await wait(50);
                 }
-                throw new Error(`Timed out waiting for ${label}`);
+                const cards = Array.from(document.querySelectorAll('.category-card')).map((card) => ({
+                    category: card.dataset.cardCategory || '',
+                    workspace: card.dataset.cardWorkspace || '',
+                    text: String(card.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300)
+                }));
+                throw new Error(`Timed out waiting for ${label}: ${JSON.stringify({
+                    activeWorkspace: window.eveState?.config?.activeWorkspace || '',
+                    linkCount: Array.isArray(window.eveState?.links) ? window.eveState.links.length : -1,
+                    folderKeys: Object.keys(window.eveState?.bookmarkFolders || {}),
+                    cards
+                })}`);
             };
 
             function hasText(selector, text) {

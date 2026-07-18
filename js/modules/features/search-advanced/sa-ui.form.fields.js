@@ -12,7 +12,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             const results = byId('esResults');
             if (runBtn) {
                 runBtn.disabled = !!isLoading;
-                runBtn.textContent = isLoading ? 'â³ Searching...' : 'âš” Search';
+                runBtn.textContent = isLoading ? '\u23f3 Searching...' : '\u2694 Search';
             }
             if (isLoading && results) {
                 results.innerHTML = '<div class="nx-loader"></div>';
@@ -120,7 +120,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (!sidebar || !sidebar.classList.contains('nx-collapsed')) return;
             sidebar.classList.remove('nx-collapsed');
             if (toggleBtn) {
-                toggleBtn.textContent = 'Ã¢â€”â‚¬';
+                toggleBtn.textContent = '\u25c0';
                 toggleBtn.title = 'Collapse sidebar';
             }
         }
@@ -202,7 +202,7 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (toggleBtn && sidebar) {
                 toggleBtn.addEventListener('click', function () {
                     const isCollapsed = sidebar.classList.toggle('nx-collapsed');
-                    toggleBtn.textContent = isCollapsed ? 'â–¶' : 'â—€';
+                    toggleBtn.textContent = isCollapsed ? '\u25b6' : '\u25c0';
                     toggleBtn.title = isCollapsed ? 'Expand sidebar' : 'Collapse sidebar';
                     // Sync query value to inline input when collapsing
                     const mainQuery = byId('esQuery');
@@ -370,13 +370,13 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             report.totalOrphaned = totalOrphaned;
             report.ghostWorkspaces = ghostWorkspaces;
             report.orphanedByWorkspace = report.orphanedByWorkspace || {};
-            let html = '<div class="nx-results-stats">âš  ' + report.totalOrphaned + ' orphaned bookmarks from ' + report.ghostWorkspaces.length + ' ghost workspace(s)</div>';
+            let html = '<div class="nx-results-stats">\u26a0 ' + report.totalOrphaned + ' orphaned bookmarks from ' + report.ghostWorkspaces.length + ' ghost workspace(s)</div>';
             report.ghostWorkspaces.forEach(function (wsId) {
                 const items = report.orphanedByWorkspace[wsId] || [];
                 html += '<div class="nx-result-group">';
                 html += '<div class="nx-group-header nx-group-toggle" data-nx-collapse-group>'
-                    + '<span class="nx-group-arrow">â–¾</span>'
-                    + '<span class="nx-group-title">ðŸ‘» Ghost Workspace: "' + wsId + '"</span>'
+                    + '<span class="nx-group-arrow">\u25be</span>'
+                    + '<span class="nx-group-title">\u{1f47b} Ghost Workspace: "' + wsId + '"</span>'
                     + '<span class="nx-group-count">' + items.length + '</span>'
                     + '</div>';
                 html += '<div class="nx-group-body">';
@@ -386,8 +386,8 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     const category = link.category || 'Unsorted';
                     html += '<article class="nx-result-item nx-result-bookmark">'
                         + '<div class="nx-result-header">'
-                        + '<span class="nx-badge nx-badge-bookmark">ðŸ‘» Orphan</span>'
-                        + '<span class="nx-card-tag">ðŸ“‹ ' + category + '</span>'
+                        + '<span class="nx-badge nx-badge-bookmark">\u{1f47b} Orphan</span>'
+                        + '<span class="nx-card-tag">\u{1f4cb} ' + category + '</span>'
                         + '<span class="nx-provider-tag">ws: ' + wsId + '</span>'
                         + '</div>'
                         + '<h4 class="nx-result-title">'

@@ -107,7 +107,7 @@ links.forEach((link) => {
 return [
 { key: 'tv_locked', label: '[ Locked (100%) ]', links: locked },
 { key: 'tv_above', label: '[ Above True (>100%) ]', links: above },
-{ key: 'tv_near', label: '[ Near True (95â€“100%) ]', links: near },
+{ key: 'tv_near', label: '[ Near True (95\u2013100%) ]', links: near },
 { key: 'tv_below', label: '[ Below True (<95%) ]', links: below }
 ];
 }

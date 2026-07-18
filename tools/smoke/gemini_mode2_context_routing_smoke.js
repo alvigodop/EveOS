@@ -199,6 +199,15 @@ function makeRelayVm({ textBrainMode }) {
         const req2 = brainRequests[1];
         assert(String(req2.context || '').includes('[EVEOS DATA STREAM UPDATES'), 'delta log missing from next brain turn');
         assert(String(req2.context || '').includes('eveos.gemini-data-stream.v2'), 'delta payload missing from next brain turn');
+
+        const oversizedUpdate = '[OVERSIZED SELECTIVE UPDATE]\n' + 'x'.repeat(90000);
+        const oversizedResult = mode2.appendEveUpdate(oversizedUpdate);
+        assert(oversizedResult.count === 1, 'one oversized update must remain queued after bounded trimming');
+        mode2.resetBrainGate();
+        await mode2.relayUserUtterance('check the latest selective update');
+        const req3 = brainRequests[2];
+        assert(String(req3.context || '').includes('[OVERSIZED SELECTIVE UPDATE]'), 'oversized selective update vanished from the next brain turn');
+        assert(String(req3.context || '').includes('[trimmed]'), 'oversized selective update should be visibly bounded');
         mode2.setEveContext('fresh snapshot', null);
         assert(mode2.getEveContextStatus().updateCount === 0, 'a fresh snapshot should clear the delta log');
         console.log('mode 2 data stream OK: delta -> brain update log -> carried on next turn; cleared by fresh snapshot');

@@ -7,6 +7,10 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
 (function () {
     const Core = window.EveLibrary.ConnectionsCore;
     let _saveConnectionsTimer = 0;
+    let _connectionStateRevision = 0;
+    let _loadConnectionsGeneration = 0;
+    let _connectionsHydrated = false;
+    let _connectionsLoadPromise = null;
 
     function getCoreStorage() {
         return window.EveCoreStorage || window.EveStorageRuntime?.coreStorage || null;
@@ -113,13 +117,14 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
     function flushConnectionsSave() {
         invalidateConnectionIndex();
         window.EveLibrary.Connections = Core.connections.map(item => ({ ...item }));
-        void persistConnections(window.EveLibrary.Connections);
+        const persisted = persistConnections(window.EveLibrary.Connections);
         window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'library-connections-save' } }));
-        return true;
+        return persisted;
     }
 
     function saveConnections(options = {}) {
         const opts = options && typeof options === 'object' ? options : {};
+        _connectionStateRevision += 1;
         if (_saveConnectionsTimer) {
             clearTimeout(_saveConnectionsTimer);
             _saveConnectionsTimer = 0;
@@ -146,25 +151,49 @@ window.EveLibrary.ConnectionsCore = window.EveLibrary.ConnectionsCore || {
         }));
     }
 
-    function loadConnections() {
+    function loadConnections(options = {}) {
+        const opts = options && typeof options === 'object' ? options : {};
+        if (opts.initialOnly && (_connectionsHydrated || _connectionStateRevision > 0)) {
+            return Promise.resolve(getAll());
+        }
+        if (!opts.force && _connectionsLoadPromise) return _connectionsLoadPromise;
+
+        const loadGeneration = ++_loadConnectionsGeneration;
+        const revisionAtStart = _connectionStateRevision;
         const legacyConnections = readLegacyConnections();
         applyConnections(legacyConnections);
 
         const storage = getCoreStorage();
         if (storage && typeof storage.loadJson === 'function') {
-            void storage.loadJson(Core.STORAGE_KEY, legacyConnections, { legacyKeys: [Core.STORAGE_KEY] })
+            const loadPromise = storage.loadJson(Core.STORAGE_KEY, legacyConnections, { legacyKeys: [Core.STORAGE_KEY] })
                 .then((persistedConnections) => {
+                    if (loadGeneration !== _loadConnectionsGeneration
+                        || revisionAtStart !== _connectionStateRevision) {
+                        return getAll();
+                    }
                     applyConnections(Array.isArray(persistedConnections) ? persistedConnections : []);
+                    return getAll();
                 })
                 .catch((error) => {
                     console.error('Failed to hydrate library connections:', error);
+                    return getAll();
+                })
+                .finally(() => {
+                    _connectionsHydrated = true;
+                    if (_connectionsLoadPromise === loadPromise) {
+                        _connectionsLoadPromise = null;
+                    }
                 });
+            _connectionsLoadPromise = loadPromise;
+            return loadPromise;
         }
+        _connectionsHydrated = true;
+        return Promise.resolve(getAll());
     }
 
-    function setAll(nextConnections) {
+    function setAll(nextConnections, options = {}) {
         applyConnections(Array.isArray(nextConnections) ? nextConnections.map(item => ({ ...item })) : []);
-        saveConnections();
+        return saveConnections(options);
     }
 
     function getAll() {

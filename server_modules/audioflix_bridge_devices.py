@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import time
 from pathlib import Path
+
+from server_modules.audioflix_bridge_playback import refresh_portaudio_devices
 
 try:
     import numpy as np
@@ -224,15 +227,7 @@ def _refresh_portaudio() -> None:
     if sd is None:
         return
     try:
-        with _LOCK:
-            for player in list(_PLAYERS.values()):
-                try:
-                    player.close()
-                except Exception:
-                    pass
-            _PLAYERS.clear()
-            sd._terminate()
-            sd._initialize()
+        refresh_portaudio_devices()
     except Exception as exc:
         print(f"[Audioflix] PortAudio device refresh failed: {exc}", flush=True)
 

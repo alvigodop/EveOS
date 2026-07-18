@@ -46,7 +46,7 @@ function isNodeMain(node) {
         if (!node) return false;
 
         if (node.kind === 'workspace') {
-            // Only ROOT workspace nodes are main â€” sub-tab workspaces have hierarchy edges to a parent workspace
+            // Only root workspace nodes are main; sub-tab workspaces have hierarchy edges to a parent workspace.
             const hasParentWorkspace = state.edges.some((edge) => edge.source.id === node.id && edge.type === 'hierarchy' && edge.target?.kind === 'workspace');
             return !hasParentWorkspace;
         }
@@ -81,7 +81,7 @@ function applyFolderAura(node, folder, orientX, orientY, distToParent, isRootFol
         // SINGULARITY FUSION: Immediate children of NON-ROOT folders are EXEMPT from repulsion 
         // to allow them to dock deep into the parent's core.
         // ROOT folders (direct children of card/workspace) must repel their children
-        // to maintain aura boundary integrity Ã¢â‚¬â€ same pattern as the card itself.
+        // to maintain aura boundary integrity, using the same pattern as the card itself.
         const isImmediateChild = (node.parentId === folder.id || (node.data && node.data.anchorNodeId === folder.id));
         if (isImmediateChild && !isRootFolder) return;
 

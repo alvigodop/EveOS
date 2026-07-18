@@ -242,7 +242,7 @@ if (!window.__dashboardScrollCaptureBound) {
     }, true);
 }
 
-// Monotonically increasing render generation â€” all deferred work checks this
+// All deferred work checks this monotonically increasing render generation.
 var _eveDashRenderGen = 0;
 window._eveDashRenderGen = 0;
 

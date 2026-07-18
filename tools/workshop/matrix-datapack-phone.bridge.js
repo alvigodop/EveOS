@@ -37,6 +37,10 @@ window.EveMatrixDatapackPhoneBridge = (function () {
         return candidates;
     }
 
+    function getTargetOrigin() {
+        return window.location.protocol === 'file:' ? '*' : window.location.origin;
+    }
+
     function getDirectHost() {
         var candidates = getCandidates();
         for (var index = 0; index < candidates.length; index += 1) {
@@ -57,7 +61,7 @@ window.EveMatrixDatapackPhoneBridge = (function () {
                 candidate.postMessage({
                     type: REQUEST_TYPE,
                     requestId: requestId
-                }, '*');
+                }, getTargetOrigin());
             } catch (error) {
                 // Continue to any remaining parent/opener candidate.
             }
@@ -126,7 +130,7 @@ window.EveMatrixDatapackPhoneBridge = (function () {
                         requestId: requestId,
                         sourceId: sourceId,
                         patch: patch
-                    }, '*');
+                    }, getTargetOrigin());
                 } catch (error) {
                     // Continue to any remaining parent/opener candidate.
                 }

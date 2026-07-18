@@ -34,7 +34,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-bulk.process.helpers.js?v=0.1.0",
     "js/modules/modals/modal-bulk.process.js?v=0.1.2",
     "js/modules/modals/modal-bulk.js?v=0.3.2",
-    "js/modules/modals/modal-category-settings.core.js?v=0.2.3",
+    "js/modules/modals/modal-category-settings.core.js?v=0.2.4",
     "js/modules/modals/modal-category-settings.folders.render-state.js?v=0.2.2",
     "js/modules/modals/modal-category-settings.folders.rows.js?v=0.2.2",
     "js/modules/modals/modal-category-settings.folders.panel.js?v=0.2.1",

@@ -16,8 +16,16 @@ window.EveFolderViewV2 = window.EveFolderViewV2 || {};
         if (tile) tile.classList.toggle('hatch-collapsed', nextCollapsed);
         if (!nextCollapsed && tile && !tile.querySelector('.folder-tile-hatch-panel')) {
             // Collapsed hatches intentionally do not keep nested previews in the DOM.
-            // Re-render only when the user expands one.
-            if (typeof window.renderDashboard === 'function') {
+            // Preserve nested navigation by rebuilding only the active folder.
+            // A full dashboard pass can replace the card before folder restore runs.
+            const scopedKey = `${workspaceId}::${categoryName}`;
+            const activeFolderId = String(window.eveState?.config?.activeManhwaFolders?.[scopedKey] || '').trim();
+            if (activeFolderId && typeof window.EveFolderViewV2.enterFolder === 'function') {
+                window.EveFolderViewV2.enterFolder(null, categoryName, activeFolderId, workspaceId, {
+                    preservePageScroll: true,
+                    source: 'folder-hatch-expand'
+                });
+            } else if (typeof window.renderDashboard === 'function') {
                 window.__eveDashboardRenderHint = { immediate: true, source: 'folder-hatch-expand' };
                 window.renderDashboard();
             }

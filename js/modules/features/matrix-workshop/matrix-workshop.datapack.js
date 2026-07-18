@@ -372,7 +372,12 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     function postToClient(client, payload) {
         if (!client || client.closed) return;
         try {
-            client.postMessage(payload, '*');
+            // file:// documents have the opaque "null" origin and require '*'.
+            // Hosted EveOS instances can and should pin messages to their origin.
+            const targetOrigin = window.location.protocol === 'file:'
+                ? '*'
+                : window.location.origin;
+            client.postMessage(payload, targetOrigin);
         } catch (error) {
             console.warn('[MatrixWorkshop] Could not send datapack snapshot.', error);
         }

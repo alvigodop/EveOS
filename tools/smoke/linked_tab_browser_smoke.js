@@ -174,7 +174,7 @@ async function runSmoke(page) {
   // TEST 5: Adding a card to the linked tab gets 🔗 Shortcut Local badge
   // ──────────────────────────────────────────────
   console.log('  [5] Adding a local card to the shortcut tab...');
-  await page.evaluate((tabId) => {
+  await page.evaluate(async (tabId) => {
     const newLink = {
       id: 'local-shortcut-1',
       title: 'Shortcut Local Card',
@@ -185,6 +185,14 @@ async function runSmoke(page) {
     };
     links.push(newLink);
     if (window.eveState) window.eveState.links = links;
+    window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+      detail: { source: 'linked-tab-smoke-local-card' }
+    }));
+    const indexApi = window.EveOS?.DatapackIndex || window.EveOS?.SearchAdvanced?.Index;
+    indexApi?.markDirty?.('linked-tab-smoke-local-card');
+    if (indexApi?.ensureFresh) {
+      await indexApi.ensureFresh({ force: true, reason: 'linked-tab-smoke-local-card' });
+    }
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   }, linkedTab.id);
 
@@ -280,6 +288,7 @@ async function runSmoke(page) {
     console.log('  URL: ' + FILE_URL);
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await waitForApp(page);
+    await page.evaluate(() => window.__eveWaitForCoreData?.(120000) || true);
     await seedState(page, buildSeedPayload());
     await runSmoke(page);
     console.log('LINKED_TAB_BROWSER_SMOKE_OK');
