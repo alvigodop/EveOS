@@ -138,16 +138,27 @@ function bindResultActions(container) {
             const header = event.target.closest('[data-nx-collapse-group]');
             if (header && container.contains(header)) {
                 const group = header.closest('.nx-result-group');
-                if (group) group.classList.toggle('collapsed');
+                if (group) {
+                    const collapsed = group.classList.toggle('collapsed');
+                    header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                }
             }
         };
 
         container.addEventListener('click', container._nxVectorHandler);
     }
 
+    function renderGroupHeader(label, count) {
+        return '<button type="button" class="nx-group-header nx-group-toggle" data-nx-collapse-group aria-expanded="false">'
+            + '<span class="nx-group-arrow" aria-hidden="true">▾</span>'
+            + '<span class="nx-group-title">' + escapeHtml(label) + '</span>'
+            + '<span class="nx-group-count">' + count + '</span>'
+            + '</button>';
+    }
+
     function renderMergedResults(results, resultMap) {
-        return '<div class="nx-result-group nx-result-group-merged">'
-            + '<div class="nx-group-header"><span class="nx-group-title">Merged Results</span><span class="nx-group-count">' + results.length + '</span></div>'
+        return '<div class="nx-result-group nx-result-group-merged collapsed">'
+            + renderGroupHeader('Merged Results', results.length)
             + '<div class="nx-group-body">'
             + results.map(function (item, index) {
                 const resultId = 'merged_' + index + '_' + Math.random().toString(36).slice(2, 8);
@@ -182,12 +193,8 @@ function bindResultActions(container) {
             const items = groups[group.key];
             if (!items?.length) return;
 
-            html += '<div class="nx-result-group">';
-            html += '<div class="nx-group-header nx-group-toggle" data-nx-collapse-group>'
-                + '<span class="nx-group-arrow">▾</span>'
-                + '<span class="nx-group-title">' + escapeHtml(group.label) + '</span>'
-                + '<span class="nx-group-count">' + items.length + '</span>'
-                + '</div>';
+            html += '<div class="nx-result-group collapsed">';
+            html += renderGroupHeader(group.label, items.length);
             html += '<div class="nx-group-body">';
 
             items.forEach(function (item, index) {

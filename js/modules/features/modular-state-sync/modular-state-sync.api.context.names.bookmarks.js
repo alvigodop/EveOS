@@ -12,7 +12,6 @@
             branchIds,
             isNodeActive,
             tabName,
-            tabContextLabel,
             shortcutTargetName
         } = deps;
 
@@ -191,14 +190,16 @@
                 });
             }
 
-            function visit(node, parentPath, depth) {
+            function visit(node, depth) {
                 if (!isNodeActive(node)) return;
                 const name = tabName(node);
+                const indent = '  '.repeat(depth);
+                const nodeLabel = (depth ? '[sub-tab] ' : '[tab] ') + name;
                 if (text(node?.linkedTo, '')) {
-                    lines.push(tabContextLabel(node, parentPath) + ' is a shortcut to tab "'
-                        + shortcutTargetName(node) + '" - its bookmarks are listed under that tab.');
+                    lines.push(indent + nodeLabel + ' [shortcut -> tab "' + shortcutTargetName(node) + '"]');
                     return;
                 }
+                lines.push(indent + nodeLabel + ':');
                 const workspaceId = text(node?.id, '');
                 let names = Array.from(cards.get(workspaceId) || []).sort();
                 if (scope.scope === 'card'
@@ -211,7 +212,8 @@
                     const cardLinks = linksByCard.get(key) || [];
                     const maps = folderMaps(folderTrees[key] || {});
                     if (!cardLinks.length && !maps.byId.size) return;
-                    lines.push(tabContextLabel(node, parentPath) + ' > card "' + cardName + '":');
+                    const cardIndent = indent + '  ';
+                    lines.push(cardIndent + '[card] ' + cardName + ':');
                     const byFolder = new Map();
                     cardLinks.forEach((link) => {
                         const folderId = text(link?.folderId, '');
@@ -220,17 +222,16 @@
                         byFolder.get(target).push(link);
                     });
                     (byFolder.get('') || []).forEach((link) => {
-                        lines.push('  - ' + renderLine(link));
+                        lines.push(cardIndent + '  - ' + renderLine(link));
                         bookmarkCount += 1;
                     });
-                    emitFolder('', maps, byFolder, '  ');
+                    emitFolder('', maps, byFolder, cardIndent + '  ');
                 });
                 if (depth >= depthLimit) return;
-                const childPath = parentPath ? parentPath + ' > ' + name : name;
-                (Array.isArray(node.subTabs) ? node.subTabs : []).forEach((child) => visit(child, childPath, depth + 1));
+                (Array.isArray(node.subTabs) ? node.subTabs : []).forEach((child) => visit(child, depth + 1));
             }
 
-            roots.forEach((root) => visit(root, '', 0));
+            roots.forEach((root) => visit(root, 0));
             return { body: lines.join('\n'), count: bookmarkCount, folderCount };
         }
 

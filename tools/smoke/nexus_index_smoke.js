@@ -186,6 +186,31 @@ async function runSmoke(page) {
       && String(document.getElementById('esScopeIndicator')?.textContent || '').includes('All Tabs');
   }, undefined, { timeout: 10000 });
 
+  await page.fill('#esQuery', 'Alpha T');
+  await page.waitForFunction(() => {
+    const panel = document.getElementById('nxTypeahead');
+    return !!panel && !panel.hidden && !!panel.querySelector('.nx-typeahead-item');
+  }, undefined, { timeout: 10000 });
+  if (await page.locator('#nxTypeahead .nx-typeahead-item-active').count()) {
+    throw new Error('Record typeahead should not preselect a completion.');
+  }
+  await page.press('#esQuery', 'Enter');
+  await waitForText(page, '#esResults .nx-result-item', 'Alpha Test Bookmark');
+  if (await page.inputValue('#esQuery') !== 'Alpha T') {
+    throw new Error('Enter replaced the typed query with an autocomplete result.');
+  }
+
+  await page.fill('#esQuery', 'Alpha T');
+  await page.waitForFunction(() => {
+    const panel = document.getElementById('nxTypeahead');
+    return !!panel && !panel.hidden && !!panel.querySelector('.nx-typeahead-item');
+  }, undefined, { timeout: 10000 });
+  const suggestionTitle = String(await page.locator('#nxTypeahead .nx-typeahead-title').first().textContent() || '').trim();
+  await page.locator('#nxTypeahead .nx-typeahead-item').first().dispatchEvent('mousedown');
+  if (!suggestionTitle || await page.inputValue('#esQuery') !== suggestionTitle) {
+    throw new Error('Clicking a typeahead result did not intentionally fill the query.');
+  }
+
   await runSearch(page, 'Alpha');
   await waitForText(page, '#esResults .nx-result-item', 'Alpha Test Bookmark');
   await waitForText(page, '#esResults .nx-result-item', 'Alpha Library Entry');
@@ -196,6 +221,8 @@ async function runSmoke(page) {
     const bookmarkItem = Array.from(document.querySelectorAll('#esResults .nx-result-item')).find((node) => String(node.textContent || '').includes('Alpha Folder Bookmark'));
     return {
       groups,
+      allCollapsed: Array.from(document.querySelectorAll('#esResults .nx-result-group')).every((node) => node.classList.contains('collapsed')),
+      allAriaCollapsed: Array.from(document.querySelectorAll('#esResults [data-nx-collapse-group]')).every((node) => node.getAttribute('aria-expanded') === 'false'),
       hasTraceButton: !!document.querySelector('#esResults [data-nx-action="trace"]'),
       hasVisibilityButton: !!bookmarkItem?.querySelector('[data-nx-action="visibility"]'),
       hasProvenanceButton: !!bookmarkItem?.querySelector('[data-nx-action="provenance"]'),
@@ -211,10 +238,17 @@ async function runSmoke(page) {
   if (!alphaSummary.hasTraceButton || !alphaSummary.hasVisibilityButton || !alphaSummary.hasProvenanceButton) {
     throw new Error('Expected result trace/debug actions are missing');
   }
+  if (!alphaSummary.allCollapsed || !alphaSummary.allAriaCollapsed) {
+    throw new Error('Nexus result groups should start collapsed: ' + JSON.stringify(alphaSummary));
+  }
   if (!String(alphaSummary.trace).includes('NX-')) {
     throw new Error('Search Monitor trace did not update for Nexus search: ' + alphaSummary.trace);
   }
 
+  await page.evaluate(() => {
+    document.querySelectorAll('#esResults [data-nx-collapse-group]').forEach((header) => header.click());
+  });
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('#esResults .nx-result-group')).every((node) => !node.classList.contains('collapsed')));
   await page.locator('#esResults [data-nx-action="trace"]').first().click();
   await page.waitForFunction(() => {
     const details = document.querySelector('#loadingIndicator #nexusTraceDetails');
@@ -230,6 +264,8 @@ async function runSmoke(page) {
     const titles = Array.from(document.querySelectorAll('#esResults .nx-group-title')).map((node) => String(node.textContent || '').trim());
     return titles.length === 1
       && titles[0] === 'Merged Results'
+      && !!document.querySelector('#esResults .nx-result-group-merged.collapsed')
+      && document.querySelector('#esResults .nx-result-group-merged [data-nx-collapse-group]')?.getAttribute('aria-expanded') === 'false'
       && !!document.querySelector('.nx-mode-btn[data-results-mode="merged"]')?.classList.contains('nx-mode-btn-active');
   }, undefined, { timeout: 10000 });
 
@@ -241,6 +277,11 @@ async function runSmoke(page) {
 
   await runSearch(page, 'Beta');
   await waitForText(page, '#esResults .nx-result-item', 'Beta Hidden Bookmark');
+  await page.evaluate(() => {
+    const header = Array.from(document.querySelectorAll('#esResults [data-nx-collapse-group]'))
+      .find((node) => String(node.textContent || '').includes('Bookmarks'));
+    if (header) header.click();
+  });
   const betaResult = page.locator('#esResults .nx-result-item', { hasText: 'Beta Hidden Bookmark' }).first();
   const visibilityButtonText = await betaResult.locator('[data-nx-action="visibility"]').textContent();
   if (!String(visibilityButtonText || '').includes('Why Not Visible')) {

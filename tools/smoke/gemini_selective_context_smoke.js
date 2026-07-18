@@ -121,10 +121,11 @@ function assert(condition, message) {
   const api = context.window.EveDataStore._modularSync;
 
   const cards = api.buildSelectiveContext('cards').message;
-  assert(cards.includes('Tab "Main" has cards: Main Card'), 'root card ownership missing');
-  assert(cards.includes('Sub-tab "Child" (under "Main") has cards: Child Card'), 'child card ownership missing');
-  assert(!cards.includes('Tab "Main" has cards: Child Card'), 'child card leaked into root tab');
-  assert(cards.includes('Child Shortcut') && cards.includes('shortcut to tab "Child"'), 'shortcut pointer missing');
+  assert(cards.includes('[tab] Main:\n  [card] Main Card'), 'root card ownership missing');
+  assert(cards.includes('  [sub-tab] Child:\n    [card] Child Card'), 'child card ownership missing');
+  assert(!cards.includes('[tab] Main:\n  [card] Child Card'), 'child card leaked into root tab');
+  assert(cards.includes('[sub-tab] Child Shortcut [shortcut -> tab "Child"]'), 'shortcut pointer missing');
+  assert(!cards.includes('(under "'), 'card tree repeated full ancestor paths');
 
   const details = api.buildSelectiveContext('bookmark-contents');
   assert(details.count === 2 && details.folderCount === 2, 'bookmark/folder counts should reflect exact branch');
@@ -136,6 +137,8 @@ function assert(condition, message) {
   assert(details.message.includes('notes: "Track this exact child bookmark."'), 'personal notes missing');
   assert(details.message.includes('related: https://mirror.example/polo?source=kept'), 'related URL missing or noisy');
   assert(details.message.indexOf('Polo |') === details.message.lastIndexOf('Polo |'), 'shortcut duplicated target content');
+  assert(details.message.indexOf('[tab] Main:') === details.message.lastIndexOf('[tab] Main:'), 'root tab was repeated instead of emitted as one tree node');
+  assert(!details.message.includes('(under "'), 'bookmark tree repeated full ancestor paths');
 
   // "This Tab" variants stop at the scope tab; the chain variants include every sub^N level.
   const cardsCurrent = api.buildSelectiveContext('cards-current');

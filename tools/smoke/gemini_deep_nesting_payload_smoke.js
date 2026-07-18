@@ -170,6 +170,8 @@ assert(ids.length > 20, 'needle branch should span many tabs');
     assert(chain.message.includes('chapter: 318'), 'needle chapter progress missing from contents chain');
     assert(chain.message.includes('library-linked') && chain.message.includes('author: A. Deep'), 'needle library data missing from contents chain');
     assert(chain.message.includes('[folder] Inner Arc:'), 'needle nested folder tree missing from contents chain');
+    assert(!chain.message.includes('(under "'), 'deep selective payload repeated complete ancestor paths');
+    assert((chain.message.match(/\[tab\] /g) || []).length === 1, 'deep branch should emit its root tab once');
 
     const current = api.buildSelectiveContext('bookmark-contents-current');
     assert(!current.message.includes(NEEDLE_TITLE), 'needle leaked into the This-Tab-only contents variant');

@@ -25,6 +25,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         } = runtimeIntegrity;
         function looseFuzzyMatch(haystack, needle) {
             if (!haystack || !needle || needle.length < 3) return false;
+            // Bound subsequence matching so short queries cannot match arbitrary large blobs.
+            if (haystack.length > Math.max(needle.length * 4, needle.length + 24)) return false;
             let h = 0;
             let n = 0;
             while (h < haystack.length && n < needle.length) {
@@ -88,8 +90,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                 let best = 0;
                 fieldTokens.forEach(function (fieldToken) {
                     if (fieldToken === queryToken) best = Math.max(best, 42);
-                    else if (fieldToken.startsWith(queryToken)) best = Math.max(best, 34);
-                    else if (fieldToken.includes(queryToken) && queryToken.length >= 3) best = Math.max(best, 24);
+                    else if (queryToken.length >= 3 && fieldToken.startsWith(queryToken)) best = Math.max(best, 34);
+                    else if (queryToken.length >= 4 && fieldToken.includes(queryToken)) best = Math.max(best, 24);
                     else {
                         const typoLimit = getTypoDistanceLimit(queryToken);
                         if (typoLimit > 0 && boundedEditDistance(fieldToken, queryToken, typoLimit) <= typoLimit) {
@@ -108,10 +110,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         function scoreField(value, query, options) {
             if (!value || !query) return 0;
             if (value === query) return 140;
-            if (value.startsWith(query)) return 110;
-            if (value.includes(query)) return 75;
             const tokens = tokenizeSearchText(value);
             const queryTokens = tokenizeSearchText(query);
+            // One- and two-character queries must match a complete token. Prefix/substring
+            // matching at that length floods Nexus with unrelated "un", "in", and "a" hits.
+            if (query.length < 3) return tokens.includes(query) ? 70 : 0;
+            if (value.startsWith(query)) return 110;
+            if (value.includes(query)) return 75;
             const tokenScore = tokenMatchScore(tokens, queryTokens);
             if (tokenScore) return Math.min(96, tokenScore);
             if (options?.acronym) {
@@ -122,9 +127,28 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (looseFuzzyMatch(value, query)) return 18;
             return 0;
         }
+        function queryTokenMatchesFieldToken(queryToken, fieldToken, allowShortPrefix) {
+            if (fieldToken === queryToken) return true;
+            if ((allowShortPrefix || queryToken.length >= 3) && fieldToken.startsWith(queryToken)) return true;
+            if (queryToken.length >= 4 && fieldToken.includes(queryToken)) return true;
+            const typoLimit = getTypoDistanceLimit(queryToken);
+            return typoLimit > 0 && boundedEditDistance(fieldToken, queryToken, typoLimit) <= typoLimit;
+        }
+        function hasFullTokenCoverage(record, query) {
+            const queryTokens = Array.from(new Set(tokenizeSearchText(query)));
+            if (queryTokens.length <= 1) return true;
+            const fieldTokens = tokenizeSearchText(recordSearchHaystack(record));
+            return queryTokens.every(function (queryToken, index) {
+                return fieldTokens.some(function (fieldToken) {
+                    return queryTokenMatchesFieldToken(queryToken, fieldToken, index === queryTokens.length - 1);
+                });
+            });
+        }
         function computeScore(record, query, scope) {
             const q = normalizeText(query);
             if (!q) return 0;
+            // Require every plain term across the record while preserving typo tolerance.
+            if (!hasFullTokenCoverage(record, q)) return 0;
             let score = 0;
             const title = normalizeText(record?.title);
             const description = normalizeText(record?.description);
@@ -141,7 +165,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             score += Math.floor(scoreField(provider, q) * 0.2);
             if (!score && searchText.includes(q)) score += 26;
             if (!score && looseFuzzyMatch(searchText.replace(/\s+/g, ''), q.replace(/\s+/g, ''))) score += 12;
-            if (score <= 0) return 0;
+            if (score < 18) return 0;
             if (titleScore >= 140) score += 70;
             if (pathScore >= 140) score += 48;
             if (titleScore >= 96 && record?.type !== 'cached') score += 24;

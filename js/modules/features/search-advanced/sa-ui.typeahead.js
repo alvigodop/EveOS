@@ -113,7 +113,9 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
 
         function render(nextItems) {
             items = Array.isArray(nextItems) ? nextItems : [];
-            activeIndex = items.length ? 0 : -1;
+            // Record suggestions are opt-in: only a pointer click replaces the query. Command
+            // suggestions retain their keyboard-first behavior.
+            activeIndex = items.length && items[0]?.kind === 'command' ? 0 : -1;
             if (!panel || !input || !items.length) {
                 hide();
                 return;
@@ -235,7 +237,11 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                     setTimeout(function () {
                         input.__nexusTypeaheadHandledEnter = false;
                     }, 0);
-                    selectItem(activeIndex);
+                    if (items[activeIndex]?.kind === 'command') selectItem(activeIndex);
+                    else {
+                        hide();
+                        onRunSearch();
+                    }
                 } else if (event.key === 'Escape') {
                     event.preventDefault();
                     hide();

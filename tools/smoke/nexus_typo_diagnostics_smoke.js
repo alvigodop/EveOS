@@ -86,6 +86,15 @@ async function main() {
             searchableText: 'spirited chihiro archive bookmark'
         }),
         makeRecord({
+            id: 'bookmark::partial-only',
+            type: 'bookmark',
+            title: 'Chihiro Cooking Notes',
+            url: 'https://example.test/chihiro-cooking',
+            workspaceId: 'main',
+            categoryName: 'Studio',
+            searchableText: 'chihiro cooking notes'
+        }),
+        makeRecord({
             id: 'cached::spirited',
             type: 'cached',
             title: 'Spirited Chihiro Web Result',
@@ -164,7 +173,18 @@ async function main() {
     const rankedIds = searchResult.records.map(record => record.id);
     assert(rankedIds[0] === 'card::spirited' || rankedIds[0] === 'bookmark::spirited', 'Expected a local typo match to rank first: ' + rankedIds.join(', '));
     assert(rankedIds.indexOf('cached::spirited') > rankedIds.indexOf('bookmark::spirited'), 'Expected cached/web-like evidence below local path truth: ' + rankedIds.join(', '));
+    assert(!rankedIds.includes('bookmark::partial-only'), 'A record matching only one query token leaked into results: ' + rankedIds.join(', '));
     assert(searchResult.records.every(record => record.diagnostic), 'Expected every result to carry a diagnostic object.');
+
+    const shortResult = await indexApi.search('un', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
+    });
+    assert(shortResult.records.length === 0, 'A two-character substring query returned unrelated results: ' + shortResult.records.map(record => record.id).join(', '));
+
+    const partialResult = await indexApi.search('spirited ch', { workspaceId: 'main' }, {
+        activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }
+    });
+    assert(partialResult.records.some(record => record.id === 'bookmark::spirited'), 'A short final prefix failed to match a longer title token.');
 
     const operatorResult = await indexApi.search('type:bookmark sprited chihro', { workspaceId: 'main' }, {
         activeVectors: { bookmarks: true, knowledge: false, cachedResults: true }

@@ -198,29 +198,31 @@ window.EveDataStore = window.EveDataStore || {};
         const cards = cardsByWorkspace(idSet);
         const lines = [];
         let count = 0;
-        function visit(node, parentPath, depth) {
+        function visit(node, depth) {
             if (!isNodeActive(node)) return;
             const name = tabName(node);
+            const indent = '  '.repeat(depth);
+            const nodeLabel = (depth ? '[sub-tab] ' : '[tab] ') + name;
             // Shortcuts own no content — emit a pointer so the model never attributes the
             // TARGET tab's cards to the shortcut (or vice versa).
             if (text(node?.linkedTo, '')) {
-                lines.push(tabContextLabel(node, parentPath) + ' is a shortcut to tab "' + shortcutTargetName(node) + '" — its cards are listed under that tab.');
+                lines.push(indent + nodeLabel + ' [shortcut -> tab "' + shortcutTargetName(node) + '"]');
                 return;
             }
+            lines.push(indent + nodeLabel + ':');
             const wsId = text(node?.id, '');
             let names = Array.from(cards.get(wsId) || []).sort();
             if (scope.scope === 'card' && text(scope.categoryName, '') && wsId === text(scope.workspaceId, '')) {
                 names = names.filter(function (cardName) { return cardName === scope.categoryName; });
             }
-            if (names.length) {
-                lines.push(tabContextLabel(node, parentPath) + ' has cards: ' + names.join(', '));
-                count += names.length;
-            }
+            names.forEach(function (cardName) {
+                lines.push(indent + '  [card] ' + cardName);
+                count += 1;
+            });
             if (depth >= depthLimit) return;
-            const childPath = parentPath ? parentPath + ' > ' + name : name;
-            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, childPath, depth + 1); });
+            (Array.isArray(node.subTabs) ? node.subTabs : []).forEach(function (child) { visit(child, depth + 1); });
         }
-        roots.forEach(function (root) { visit(root, '', 0); });
+        roots.forEach(function (root) { visit(root, 0); });
         return { body: lines.join('\n'), count: count };
     }
 

@@ -116,10 +116,15 @@
         const clearBtn = document.createElement('button');
         clearBtn.type = 'button';
         clearBtn.textContent = 'Clear';
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.textContent = 'Copy';
+        copyBtn.title = 'Copy every captured Data Stream event';
         const backBtn = document.createElement('button');
         backBtn.type = 'button';
         backBtn.textContent = 'Back';
         viewerActions.appendChild(clearBtn);
+        viewerActions.appendChild(copyBtn);
         viewerActions.appendChild(backBtn);
         viewerHead.appendChild(viewerTitle);
         viewerHead.appendChild(viewerActions);
@@ -340,13 +345,45 @@
         function closeInsightViewer() {
             body.classList.remove('is-insight-open');
         }
-
+        function insightExportText() {
+            const seen = new WeakSet();
+            const payload = JSON.stringify(getInsightLog(), function (key, value) {
+                if (!value || typeof value !== 'object') return value;
+                if (seen.has(value)) return '[Circular]';
+                seen.add(value);
+                return value;
+            }, 2);
+            return 'EveOS Data Stream Insights\nGenerated: ' + new Date().toISOString()
+                + '\nRoute: ' + routeStatusText() + '\nEvents: ' + getInsightLog().length + '\n\n' + (payload || '[]');
+        }
+        async function copyInsightLog() {
+            const previous = copyBtn.textContent;
+            try {
+                if (window.GeminiLogCopyRuntime?.copyText) {
+                    await window.GeminiLogCopyRuntime.copyText(insightExportText());
+                } else if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(insightExportText());
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = insightExportText();
+                    textarea.readOnly = true;
+                    textarea.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+                    document.body.appendChild(textarea); textarea.select();
+                    document.execCommand('copy');
+                    textarea.remove();
+                }
+                copyBtn.textContent = 'Copied';
+            } catch (error) {
+                console.warn('[GeminiAskInsights] Copy failed:', error);
+                copyBtn.textContent = 'Failed';
+            }
+            window.setTimeout(function () { copyBtn.textContent = previous; }, 1400);
+        }
         function openInsightViewer() {
             body.classList.add('is-insight-open');
             renderInsightFeed();
             refreshInsightStatus();
         }
-
         function refreshStreamPanelState() {
             const cfg = getConfig();
             // The Context Relay master toggle governs the whole agentic function — with it off
@@ -372,6 +409,10 @@
             log.length = 0;
             renderInsightFeed();
             refreshInsightStatus();
+        });
+        copyBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            copyInsightLog();
         });
 
         window.addEventListener('eve:datastream-toggled', refreshStreamPanelState);

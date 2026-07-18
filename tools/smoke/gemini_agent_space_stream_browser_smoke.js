@@ -18,7 +18,16 @@ async function main() {
         await page.goto(fileUrl, { waitUntil: 'load', timeout: 240000 });
         await page.waitForFunction(() => !!window.EveGeminiAskBar?.ready, undefined, { timeout: 120000 });
 
-        const result = await page.evaluate(() => {
+        const result = await page.evaluate(async () => {
+            Object.defineProperty(navigator, 'clipboard', {
+                configurable: true,
+                value: {
+                    writeText(value) {
+                        window.__agentSpaceCopied = String(value);
+                        return Promise.resolve();
+                    }
+                }
+            });
             const cfg = window.eveState?.config || window.config;
             cfg.geminiLiveLinkEnabled = false;
             cfg.geminiContextDataStreamEnabled = true;
@@ -38,8 +47,17 @@ async function main() {
             window.dispatchEvent(new CustomEvent('eve:gemini-live-link-toggled', { detail: { enabled: true } }));
             const streamWithRelay = body?.classList.contains('is-streaming');
             window.EveGeminiAskBar.openInsightViewer();
-            window.dispatchEvent(new CustomEvent('eve:datastream-insight', {
-                detail: {
+            const streamApi = window.EveDataStore?.ModularSync || window.EveDataStore?._modularSync;
+            const recordInsight = (detail) => {
+                if (typeof streamApi?.recordDataStreamEvent === 'function') {
+                    streamApi.recordDataStreamEvent(detail);
+                    return;
+                }
+                const log = window.__eveDataStreamInsightLog = window.__eveDataStreamInsightLog || [];
+                log.push(detail);
+                window.dispatchEvent(new CustomEvent('eve:datastream-insight', { detail }));
+            };
+            recordInsight({
                     id: 'smoke-live-entry',
                     at: Date.now(),
                     type: 'send',
@@ -47,8 +65,7 @@ async function main() {
                     route: 'text-brain',
                     scope: { label: 'Main' },
                     payload: { schema: 'eveos.gemini-data-stream.v2' }
-                }
-            }));
+            });
             [
                 {
                     id: 'smoke-prompt-entry',
@@ -77,7 +94,7 @@ async function main() {
                 }
             ].forEach((detail) => {
                 detail.at = Date.now();
-                window.dispatchEvent(new CustomEvent('eve:datastream-insight', { detail }));
+                recordInsight(detail);
             });
             const liveEntryVisible = !!body?.querySelector('.gemini-ask-insight-entry');
             const insightText = body?.querySelector('.gemini-ask-insight-feed')?.textContent || '';
@@ -88,6 +105,11 @@ async function main() {
             const relayVisible = !!body?.querySelector('.gemini-ask-insight-entry.is-relay')
                 && insightText.includes('selective: bookmark-contents');
             const viewerOpen = body?.classList.contains('is-insight-open');
+            const copyButton = Array.from(body?.querySelectorAll('.gemini-ask-insight-actions button') || [])
+                .find((button) => button.textContent === 'Copy');
+            copyButton?.click();
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            const copiedText = window.__agentSpaceCopied || '';
 
             cfg.geminiLiveLinkEnabled = false;
             window.dispatchEvent(new CustomEvent('eve:gemini-live-link-toggled', { detail: { enabled: false } }));
@@ -99,6 +121,8 @@ async function main() {
                 promptVisible,
                 brainVisible,
                 relayVisible,
+                copyButtonVisible: !!copyButton,
+                copiedText,
                 viewerOpen,
                 finalStreaming: body?.classList.contains('is-streaming'),
                 finalViewerOpen: body?.classList.contains('is-insight-open')
@@ -113,6 +137,9 @@ async function main() {
         assert(result.promptVisible, 'user prompt insight did not render');
         assert(result.brainVisible, 'text-brain curation insight did not render');
         assert(result.relayVisible, 'scoped relay packet insight did not render');
+        assert(result.copyButtonVisible, 'Agent Space copy action is missing');
+        ['smoke-live-entry', 'smoke-prompt-entry', 'smoke-brain-entry', 'smoke-relay-entry', 'eveos.gemini-data-stream.v2']
+            .forEach((needle) => assert(result.copiedText.includes(needle), `copied insight export is missing ${needle}`));
         assert(!result.finalStreaming && !result.finalViewerOpen, 'master-off did not restore the idle panel');
         assert(pageErrors.length === 0, `page errors:\n${pageErrors.join('\n')}`);
 
