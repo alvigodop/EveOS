@@ -97,11 +97,11 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (matched === queryTokens.length && queryTokens.length > 1) score += 24;
             return score;
         }
-        function scoreField(value, query, options) {
+        function scoreField(value, query, options, preparedTokens) {
             if (!value || !query) return 0;
             if (value === query) return 140;
             const tokens = tokenizeSearchText(value);
-            const queryTokens = tokenizeSearchText(query);
+            const queryTokens = preparedTokens || tokenizeSearchText(query);
             // One- and two-character queries must match a complete token. Prefix/substring
             // matching at that length floods Nexus with unrelated "un", "in", and "a" hits.
             if (query.length < 3) return tokens.includes(query) ? 70 : 0;
@@ -125,22 +125,24 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const typoLimit = getTypoDistanceLimit(queryToken);
             return typoLimit > 0 && boundedEditDistance(fieldToken, queryToken, typoLimit) <= typoLimit;
         }
-        function hasFullTokenCoverage(record, query, allowTypos) {
-            const queryTokens = Array.from(new Set(tokenizeSearchText(query)));
+        function hasFullTokenCoverage(record, query, allowTypos, prepared) {
+            const queryTokens = prepared?.tokens || Array.from(new Set(tokenizeSearchText(query)));
             if (!queryTokens.length) return true;
-            const fieldTokens = tokenizeSearchText(recordSearchHaystack(record));
+            const fieldTokens = compactSearch.getCoverageTokens?.(record) || tokenizeSearchText(recordSearchHaystack(record));
             return queryTokens.every(function (queryToken, index) {
                 return fieldTokens.some(function (fieldToken) {
                     return queryTokenMatchesFieldToken(queryToken, fieldToken, index === queryTokens.length - 1, allowTypos);
                 });
             });
         }
-        function computeScore(record, query, scope) {
+        function computeScore(record, query, scope, prepared) {
             const q = normalizeText(query);
             if (!q) return 0;
-            const compactLiteral = compactSearch.matchesRecord?.(record, q) === true;
+            const compactLiteral = prepared && compactSearch.matchesPrepared
+                ? compactSearch.matchesPrepared(record, prepared)
+                : compactSearch.matchesRecord?.(record, q) === true;
             // Require every plain term across the record while preserving typo tolerance.
-            if (!compactLiteral && !hasFullTokenCoverage(record, q)) return 0;
+            if (!compactLiteral && !hasFullTokenCoverage(record, q, true, prepared)) return 0;
             let score = 0;
             const title = normalizeText(record?.title);
             const description = normalizeText(record?.description);
@@ -148,13 +150,13 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const pathLabel = normalizeText(record?.path?.pathLabel);
             const provider = normalizeText(record?.provider);
             const searchText = normalizeText(record?.searchableText);
-            const titleScore = scoreField(title, q, { acronym: true });
-            const pathScore = scoreField(pathLabel, q);
+            const titleScore = scoreField(title, q, { acronym: true }, prepared?.tokens);
+            const pathScore = scoreField(pathLabel, q, null, prepared?.tokens);
             score += titleScore;
             score += Math.floor(pathScore * 0.75);
-            score += Math.floor(scoreField(displayUrl, q) * 0.45);
-            score += Math.floor(scoreField(description, q) * 0.35);
-            score += Math.floor(scoreField(provider, q) * 0.2);
+            score += Math.floor(scoreField(displayUrl, q, null, prepared?.tokens) * 0.45);
+            score += Math.floor(scoreField(description, q, null, prepared?.tokens) * 0.35);
+            score += Math.floor(scoreField(provider, q, null, prepared?.tokens) * 0.2);
             if (compactLiteral) score += 70;
             if (!score && searchText.includes(q)) score += 26;
             if (score < 18) return 0;
@@ -330,17 +332,18 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             const intent = parseQueryIntent(query);
             const q = normalizeText(intent.searchText);
             if (!q && !intent.hasFilters) return { records: [], facets: {}, stats: {}, snapshot: snapshot };
+            const prepared = compactSearch.prepare?.(q) || { tokens: Array.from(new Set(tokenizeSearchText(q))) };
             const allowedTypes = buildAllowedTypes(settings);
             const records = [];
             const literalRecords = [];
             snapshot.records.forEach(function (record) {
                 if (!record || !allowedTypes.has(record.type) || !matchesScope(record, scope)) return;
+                const score = q ? computeScore(record, q, scope, prepared) : 1;
+                if (score <= 0) return;
                 const visibility = computeVisibility(record);
                 const freshness = computeFreshness(record.updatedAt);
                 const health = computeHealth(record);
                 if (!matchesQueryIntent(record, intent, visibility, health, freshness)) return;
-                const score = q ? computeScore(record, q, scope) : 1;
-                if (score <= 0) return;
                 const diagnostic = typeof diagnoseRecord === 'function'
                     ? diagnoseRecord(record)
                     : {
@@ -361,7 +364,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
                     diagnostic: diagnostic
                 });
                 records.push(rankedRecord);
-                if (!q || compactSearch.matchesRecord?.(record, q) === true || hasFullTokenCoverage(record, q, false)) literalRecords.push(rankedRecord);
+                if (!q || compactSearch.matchesPrepared?.(record, prepared) === true || hasFullTokenCoverage(record, q, false, prepared)) literalRecords.push(rankedRecord);
             });
             const resolvedRecords = q && literalRecords.length ? literalRecords : records;
             resolvedRecords.sort(compareRankedRecords);
@@ -414,15 +417,16 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             }
             const allowedTypes = buildAllowedTypes(settings);
             const maxSuggestions = Math.max(1, Math.min(20, Number(settings?.maxSuggestions || 8)));
+            const prepared = compactSearch.prepare?.(q) || { tokens: Array.from(new Set(tokenizeSearchText(q))) };
             const suggestions = [];
             const literalSuggestions = [];
             toArray(snapshot?.records).forEach(function (record) {
                 if (!record || !allowedTypes.has(record.type) || !matchesScope(record, scope)) return;
-                const score = computeScore(record, q, scope);
+                const score = computeScore(record, q, scope, prepared);
                 if (score <= 0) return;
                 const suggestion = buildSuggestionRecord(record, score);
                 suggestions.push(suggestion);
-                if (compactSearch.matchesRecord?.(record, q) === true || hasFullTokenCoverage(record, q, false)) literalSuggestions.push(suggestion);
+                if (compactSearch.matchesPrepared?.(record, prepared) === true || hasFullTokenCoverage(record, q, false, prepared)) literalSuggestions.push(suggestion);
             });
             const resolvedSuggestions = literalSuggestions.length ? literalSuggestions : suggestions;
             resolvedSuggestions.sort(compareRankedRecords);

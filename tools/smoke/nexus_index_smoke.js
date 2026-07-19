@@ -72,6 +72,8 @@ async function waitForApp(page) {
     && typeof window.renderSidebar === 'function'
     && typeof window.openExpandedSearchModal === 'function'
     && typeof window.SearchMonitorBoot?.expand === 'function'
+    && window.__eveCoreDataLoaded === true
+    && window.__eveCoreDataLoading !== true
     && !!window.EveOS?.SearchAdvanced?.SearchVectors
     && !!window.EveOS?.SearchAdvanced?.Navigation
     && !!window.EveOS?.SearchAdvanced?.Index
@@ -151,6 +153,15 @@ async function collectGroupTitles(page) {
   return page.evaluate(() => Array.from(document.querySelectorAll('#esResults .nx-group-title')).map((node) => String(node.textContent || '').trim()));
 }
 
+async function expandAllResultGroups(page) {
+  await page.evaluate(() => {
+    document.querySelectorAll('#esResults .nx-result-group.collapsed [data-nx-collapse-group]').forEach((header) => header.click());
+  });
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('#esResults .nx-result-group')).every((group) => {
+    return !group.classList.contains('collapsed') && group.dataset.nxHydrated === 'true';
+  }));
+}
+
 async function runSmoke(page) {
   await page.evaluate(() => window.SearchMonitorBoot.expand());
   await page.waitForSelector('#loadingIndicator:not(.compact) .monitor-nexus-toggle', { timeout: 10000 });
@@ -195,6 +206,8 @@ async function runSmoke(page) {
     throw new Error('Record typeahead should not preselect a completion.');
   }
   await page.press('#esQuery', 'Enter');
+  await waitForText(page, '#esResults .nx-group-title', 'Bookmarks');
+  await expandAllResultGroups(page);
   await waitForText(page, '#esResults .nx-result-item', 'Alpha Test Bookmark');
   if (await page.inputValue('#esQuery') !== 'Alpha T') {
     throw new Error('Enter replaced the typed query with an autocomplete result.');
@@ -212,20 +225,18 @@ async function runSmoke(page) {
   }
 
   await runSearch(page, 'Alpha');
-  await waitForText(page, '#esResults .nx-result-item', 'Alpha Test Bookmark');
-  await waitForText(page, '#esResults .nx-result-item', 'Alpha Library Entry');
+  await waitForText(page, '#esResults .nx-group-title', 'Bookmarks');
+  await waitForText(page, '#esResults .nx-group-title', 'Library Entries');
 
   const alphaSummary = await page.evaluate(() => {
     const trace = document.querySelector('#loadingIndicator #nexusTrace')?.textContent || '';
     const groups = Array.from(document.querySelectorAll('#esResults .nx-group-title')).map((node) => String(node.textContent || '').trim());
-    const bookmarkItem = Array.from(document.querySelectorAll('#esResults .nx-result-item')).find((node) => String(node.textContent || '').includes('Alpha Folder Bookmark'));
     return {
       groups,
       allCollapsed: Array.from(document.querySelectorAll('#esResults .nx-result-group')).every((node) => node.classList.contains('collapsed')),
       allAriaCollapsed: Array.from(document.querySelectorAll('#esResults [data-nx-collapse-group]')).every((node) => node.getAttribute('aria-expanded') === 'false'),
+      initialResultItems: document.querySelectorAll('#esResults .nx-result-item').length,
       hasTraceButton: !!document.querySelector('#esResults [data-nx-action="trace"]'),
-      hasVisibilityButton: !!bookmarkItem?.querySelector('[data-nx-action="visibility"]'),
-      hasProvenanceButton: !!bookmarkItem?.querySelector('[data-nx-action="provenance"]'),
       trace
     };
   });
@@ -235,20 +246,28 @@ async function runSmoke(page) {
       throw new Error('Expected result group missing: ' + group + ' | got ' + JSON.stringify(alphaSummary.groups));
     }
   });
-  if (!alphaSummary.hasTraceButton || !alphaSummary.hasVisibilityButton || !alphaSummary.hasProvenanceButton) {
-    throw new Error('Expected result trace/debug actions are missing');
-  }
+  if (!alphaSummary.hasTraceButton) throw new Error('Expected result trace action is missing');
   if (!alphaSummary.allCollapsed || !alphaSummary.allAriaCollapsed) {
     throw new Error('Nexus result groups should start collapsed: ' + JSON.stringify(alphaSummary));
+  }
+  if (alphaSummary.initialResultItems !== 0) {
+    throw new Error('Collapsed Nexus groups rendered hidden result cards eagerly: ' + JSON.stringify(alphaSummary));
   }
   if (!String(alphaSummary.trace).includes('NX-')) {
     throw new Error('Search Monitor trace did not update for Nexus search: ' + alphaSummary.trace);
   }
 
-  await page.evaluate(() => {
-    document.querySelectorAll('#esResults [data-nx-collapse-group]').forEach((header) => header.click());
+  await expandAllResultGroups(page);
+  await waitForText(page, '#esResults .nx-result-item', 'Alpha Test Bookmark');
+  await waitForText(page, '#esResults .nx-result-item', 'Alpha Library Entry');
+  const alphaActions = await page.evaluate(() => {
+    const item = Array.from(document.querySelectorAll('#esResults .nx-result-item')).find((node) => String(node.textContent || '').includes('Alpha Folder Bookmark'));
+    return {
+      visibility: !!item?.querySelector('[data-nx-action="visibility"]'),
+      provenance: !!item?.querySelector('[data-nx-action="provenance"]')
+    };
   });
-  await page.waitForFunction(() => Array.from(document.querySelectorAll('#esResults .nx-result-group')).every((node) => !node.classList.contains('collapsed')));
+  if (!alphaActions.visibility || !alphaActions.provenance) throw new Error('Expected result debug actions are missing');
   await page.locator('#esResults [data-nx-action="trace"]').first().click();
   await page.waitForFunction(() => {
     const details = document.querySelector('#loadingIndicator #nexusTraceDetails');
@@ -276,12 +295,9 @@ async function runSmoke(page) {
   }, undefined, { timeout: 10000 });
 
   await runSearch(page, 'Beta');
+  await waitForText(page, '#esResults .nx-group-title', 'Bookmarks');
+  await expandAllResultGroups(page);
   await waitForText(page, '#esResults .nx-result-item', 'Beta Hidden Bookmark');
-  await page.evaluate(() => {
-    const header = Array.from(document.querySelectorAll('#esResults [data-nx-collapse-group]'))
-      .find((node) => String(node.textContent || '').includes('Bookmarks'));
-    if (header) header.click();
-  });
   const betaResult = page.locator('#esResults .nx-result-item', { hasText: 'Beta Hidden Bookmark' }).first();
   const visibilityButtonText = await betaResult.locator('[data-nx-action="visibility"]').textContent();
   if (!String(visibilityButtonText || '').includes('Why Not Visible')) {
@@ -311,6 +327,8 @@ async function runSmoke(page) {
     ], 'Alpha');
   });
   await runSearch(page, 'Deep Delta');
+  await waitForText(page, '#esResults .nx-group-title', 'Knowledge & Source Graph');
+  await expandAllResultGroups(page);
   await waitForText(page, '#esResults .nx-result-item', 'Deep Delta Alpha Reference');
 
   await page.evaluate(async () => {
@@ -323,9 +341,13 @@ async function runSmoke(page) {
     }, 'Alpha');
   });
   await runSearch(page, 'Omega Cached');
+  await waitForText(page, '#esResults .nx-group-title', 'Cached API Results');
+  await expandAllResultGroups(page);
   await waitForText(page, '#esResults .nx-result-item', 'Omega Cached Result');
 
   await runSearch(page, 'Gamma');
+  await waitForText(page, '#esResults .nx-group-title', 'Library Entries');
+  await expandAllResultGroups(page);
   await waitForText(page, '#esResults .nx-result-item', 'Gamma Library Entry');
   const gammaGroups = await collectGroupTitles(page);
   if (!gammaGroups.includes('Cards') || !gammaGroups.includes('Library Entries')) {

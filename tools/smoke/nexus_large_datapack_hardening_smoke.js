@@ -5,6 +5,7 @@ const repoRoot = path.resolve(__dirname, '..', '..');
 const sharedPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.shared.js');
 const integrityPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.runtime.integrity.js');
 const summaryPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.runtime.summary.js');
+const compactSearchPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.search.compact.js');
 const searchPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.search.js');
 const graphPath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.graph.js');
 const exactScopePath = path.join(repoRoot, 'js/modules/features/search-advanced/sa-index.exact-scope.js');
@@ -120,7 +121,8 @@ function buildStats(records) {
 function setupWindow() {
     global.localStorage = {
         getItem() { return null; },
-        setItem() {}
+        setItem() {},
+        removeItem() {}
     };
     global.window = {
         EveOS: { SearchAdvanced: {} },
@@ -153,6 +155,7 @@ async function main() {
     eval(fs.readFileSync(sharedPath, 'utf8'));
     eval(fs.readFileSync(integrityPath, 'utf8'));
     eval(fs.readFileSync(summaryPath, 'utf8'));
+    eval(fs.readFileSync(compactSearchPath, 'utf8'));
     eval(fs.readFileSync(searchPath, 'utf8'));
     eval(fs.readFileSync(graphPath, 'utf8'));
     eval(fs.readFileSync(exactScopePath, 'utf8'));
@@ -160,6 +163,7 @@ async function main() {
     eval(fs.readFileSync(persistencePath, 'utf8'));
 
     const shared = window.EveOS.SearchAdvanced.IndexShared;
+    const bookmarksPerCard = Math.max(20, Number(process.env.NEXUS_BOOKMARKS_PER_CARD || 20));
     let records = [];
     let fullBuilds = 0;
     let scopedBuilds = 0;
@@ -169,7 +173,7 @@ async function main() {
         for (let categoryIndex = 0; categoryIndex < 40; categoryIndex += 1) {
             const categoryName = `Card ${workspaceIndex}-${categoryIndex}`;
             records.push(makeCardRecord(workspaceId, categoryName));
-            for (let bookmarkIndex = 0; bookmarkIndex < 20; bookmarkIndex += 1) {
+            for (let bookmarkIndex = 0; bookmarkIndex < bookmarksPerCard; bookmarkIndex += 1) {
                 const linkId = `link-${workspaceIndex}-${categoryIndex}-${bookmarkIndex}`;
                 const title = linkId === 'link-3-17-9'
                     ? 'Target Alpha Exact Bookmark'
@@ -225,9 +229,11 @@ async function main() {
 
     const search = await measure('large search', () => indexApi.search('target alpha exact', { workspaceId: 'ws3' }, {}), 2500);
     assert(search.value.records[0]?.id === 'bookmark::link-3-17-9', 'Expected exact local bookmark to rank first.');
+    const repeatSearch = await measure('large cached search', () => indexApi.search('target alpha exact', { workspaceId: 'ws3' }, {}), 500);
+    assert(repeatSearch.value.records[0]?.id === 'bookmark::link-3-17-9', 'Expected cached search to preserve ranking.');
 
     const summary = await measure('large structure summary', () => Promise.resolve(indexApi.getStructureSummary()), 1500);
-    assert(summary.value.totals.bookmarkCount === 4800, 'Expected structure summary to count all bookmarks.');
+    assert(summary.value.totals.bookmarkCount === 240 * bookmarksPerCard, 'Expected structure summary to count all bookmarks.');
 
     const graph = await measure('large graph projection', () => indexApi.buildGraphProjection({ scope: { workspaceId: 'ws3' } }), 5000);
     assert(graph.value.nodes.length > 0 && graph.value.edges.length > 0, 'Expected graph projection to include nodes and edges.');
@@ -259,6 +265,7 @@ async function main() {
         timings: {
             rebuildMs: rebuild.elapsedMs,
             searchMs: search.elapsedMs,
+            repeatSearchMs: repeatSearch.elapsedMs,
             summaryMs: summary.elapsedMs,
             graphMs: graph.elapsedMs,
             patchMs: patched.elapsedMs

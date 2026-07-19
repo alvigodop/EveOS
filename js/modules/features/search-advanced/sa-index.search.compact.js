@@ -4,6 +4,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 (function () {
     const ns = window.EveOS.SearchAdvanced;
     if (ns.IndexSearchCompact) return;
+    const recordCache = new WeakMap();
 
     function normalizeSource(value) {
         let source = String(value == null ? '' : value).trim().toLowerCase();
@@ -16,8 +17,12 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         return normalizeSource(value).replace(/[^a-z0-9]+/g, '');
     }
 
+    function tokenizeNormalized(value) {
+        return value.split(/[^a-z0-9]+/g).filter(Boolean);
+    }
+
     function tokenize(value) {
-        return normalizeSource(value).split(/[^a-z0-9]+/g).filter(Boolean);
+        return tokenizeNormalized(normalizeSource(value));
     }
 
     function recordFields(record) {
@@ -33,27 +38,51 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         ];
     }
 
-    function matchesField(field, needle) {
-        const tokens = tokenize(field);
-        if (tokens.some(token => token.includes(needle))) return true;
+    function getRecordCache(record) {
+        if (!record || typeof record !== 'object') return { fields: [], coverageTokens: [] };
+        const cached = recordCache.get(record);
+        if (cached) return cached;
+        const fields = recordFields(record);
+        const parts = normalizeSource(fields.concat(record?.searchableText).join('\u0000')).split('\u0000');
+        const analysis = {
+            fields: parts.slice(0, fields.length),
+            coverageTokens: Array.from(new Set(parts.reduce(function (all, part) {
+                return all.concat(tokenizeNormalized(part));
+            }, [])))
+        };
+        recordCache.set(record, analysis);
+        return analysis;
+    }
 
-        return tokens.some(function (token, index) {
-            if (token.length >= needle.length) return false;
-            let joined = token;
-            for (let next = index + 1; next < tokens.length && joined.length < needle.length; next += 1) {
-                joined += tokens[next];
-            }
-            // Cross-separator matches must begin at a real token boundary. This keeps
-            // Astro Boy -> astrob while rejecting Last Round -> lastround for astro.
-            return joined.length >= needle.length && joined.startsWith(needle);
+    function prepare(query) {
+        const needle = compact(query);
+        return {
+            needle,
+            tokens: Array.from(new Set(tokenize(query))),
+            bridgePattern: needle.length >= 3
+                ? new RegExp('(?:^|[^a-z0-9])' + needle.split('').join('[^a-z0-9]*'))
+                : null
+        };
+    }
+
+    function matchesPrepared(record, prepared) {
+        const needle = prepared?.needle || '';
+        if (needle.length < 3) return false;
+        return getRecordCache(record).fields.some(function (field) {
+            return field.includes(needle) || prepared.bridgePattern?.test(field);
         });
     }
 
     function matchesRecord(record, query) {
-        const needle = compact(query);
-        if (needle.length < 3) return false;
-        return recordFields(record).some(field => matchesField(field, needle));
+        return matchesPrepared(record, prepare(query));
     }
 
-    ns.IndexSearchCompact = { matchesRecord };
+    ns.IndexSearchCompact = {
+        prepare,
+        matchesPrepared,
+        matchesRecord,
+        getCoverageTokens(record) {
+            return getRecordCache(record).coverageTokens;
+        }
+    };
 })();

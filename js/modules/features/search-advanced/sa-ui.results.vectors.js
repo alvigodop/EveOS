@@ -6,7 +6,23 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
     const VectorResultParts = window.EveOS.SearchAdvanced.Modules.VectorResultParts || {};
     const { escapeHtml, renderStats, normalizeFacetFilters, matchesFacetFilters, renderFacetSummary, renderResultCard } = VectorResultParts;
 
-function bindResultActions(container) {
+    function hydrateResultGroup(container, group) {
+        if (!group || group.dataset.nxHydrated === 'true') return;
+        const key = String(group.dataset.nxGroupKey || '');
+        const items = container._nxLazyResultGroups?.[key] || [];
+        const body = group.querySelector('.nx-group-body');
+        const resultMap = container._nxResultMap || new Map();
+        if (!body) return;
+        body.innerHTML = items.map(function (item, index) {
+            const resultId = key + '_' + index + '_' + Math.random().toString(36).slice(2, 8);
+            resultMap.set(resultId, item);
+            return renderResultCard(item, resultId);
+        }).join('');
+        container._nxResultMap = resultMap;
+        group.dataset.nxHydrated = 'true';
+    }
+
+    function bindResultActions(container) {
         if (!container) return;
         if (container._nxVectorHandler) {
             container.removeEventListener('click', container._nxVectorHandler);
@@ -140,6 +156,7 @@ function bindResultActions(container) {
                 const group = header.closest('.nx-result-group');
                 if (group) {
                     const collapsed = group.classList.toggle('collapsed');
+                    if (!collapsed) hydrateResultGroup(container, group);
                     header.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
                 }
             }
@@ -156,19 +173,14 @@ function bindResultActions(container) {
             + '</button>';
     }
 
-    function renderMergedResults(results, resultMap) {
-        return '<div class="nx-result-group nx-result-group-merged collapsed">'
+    function renderMergedResults(results, lazyGroups) {
+        lazyGroups.merged = results;
+        return '<div class="nx-result-group nx-result-group-merged collapsed" data-nx-group-key="merged">'
             + renderGroupHeader('Merged Results', results.length)
-            + '<div class="nx-group-body">'
-            + results.map(function (item, index) {
-                const resultId = 'merged_' + index + '_' + Math.random().toString(36).slice(2, 8);
-                resultMap.set(resultId, item);
-                return renderResultCard(item, resultId);
-            }).join('')
-            + '</div></div>';
+            + '<div class="nx-group-body"></div></div>';
     }
 
-    function renderSegmentedResults(searchResult, resultMap) {
+    function renderSegmentedResults(searchResult, lazyGroups) {
         const groups = { card: [], smartView: [], folder: [], bookmark: [], library: [], knowledge: [], cached: [], google: [], diagnostic: [] };
         searchResult.results.forEach(function (result) {
             const key = String(result?.type || 'cached').trim() || 'cached';
@@ -193,17 +205,10 @@ function bindResultActions(container) {
             const items = groups[group.key];
             if (!items?.length) return;
 
-            html += '<div class="nx-result-group collapsed">';
+            lazyGroups[group.key] = items;
+            html += '<div class="nx-result-group collapsed" data-nx-group-key="' + escapeHtml(group.key) + '">';
             html += renderGroupHeader(group.label, items.length);
-            html += '<div class="nx-group-body">';
-
-            items.forEach(function (item, index) {
-                const resultId = group.key + '_' + index + '_' + Math.random().toString(36).slice(2, 8);
-                resultMap.set(resultId, item);
-                html += renderResultCard(item, resultId);
-            });
-
-            html += '</div></div>';
+            html += '<div class="nx-group-body"></div></div>';
         });
 
         return html;
@@ -226,11 +231,13 @@ function bindResultActions(container) {
         if (!results.length) {
             container.innerHTML = '<div class="nx-empty">No results found across any vector.</div>';
             container._nxResultMap = new Map();
+            container._nxLazyResultGroups = {};
             bindResultActions(container);
             return;
         }
 
         const resultMap = new Map();
+        const lazyGroups = {};
         let html = renderStats(searchResult, filteredResults.length);
         html += renderFacetSummary(searchResult, facetFilters);
         if (!filteredResults.length) {
@@ -238,12 +245,13 @@ function bindResultActions(container) {
         } else {
             const renderResult = Object.assign({}, searchResult, { results: filteredResults });
             html += searchResult?.mode === 'merged'
-                ? renderMergedResults(filteredResults, resultMap)
-                : renderSegmentedResults(renderResult, resultMap);
+                ? renderMergedResults(filteredResults, lazyGroups)
+                : renderSegmentedResults(renderResult, lazyGroups);
         }
 
         container.innerHTML = html;
         container._nxResultMap = resultMap;
+        container._nxLazyResultGroups = lazyGroups;
         bindResultActions(container);
     }
 

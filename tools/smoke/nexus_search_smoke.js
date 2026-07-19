@@ -37,6 +37,8 @@ async function waitForApp(page) {
     && typeof window.renderSidebar === 'function'
     && typeof window.openExpandedSearchModal === 'function'
     && typeof window.SearchMonitorBoot?.expand === 'function'
+    && window.__eveCoreDataLoaded === true
+    && window.__eveCoreDataLoading !== true
     && !!window.EveOS?.SearchAdvanced?.SearchVectors
     && !!window.EveOS?.SearchAdvanced?.Navigation
     && !!window.EveOS?.SearchAdvanced?.Locators
@@ -113,6 +115,10 @@ async function runSmoke(page) {
 
   await page.fill('#esQuery', 'Alpha');
   await page.locator('#esRunBtn').click();
+  await page.waitForFunction(() => document.querySelectorAll('#esResults .nx-group-title').length > 0, undefined, { timeout: 15000 });
+  await page.evaluate(() => {
+    document.querySelectorAll('#esResults .nx-result-group.collapsed [data-nx-collapse-group]').forEach((header) => header.click());
+  });
   await page.waitForFunction(() => {
     return document.querySelectorAll('#esResults .nx-result-item').length >= 3;
   }, undefined, { timeout: 15000 });
@@ -147,13 +153,39 @@ async function runSmoke(page) {
   }
 
   const folderResult = page.locator('#esResults .nx-result-item', { hasText: 'Alpha Folder Bookmark' }).first();
+  const pathActionState = await folderResult.evaluate((item) => {
+    const action = item.querySelector('[data-nx-action="path"]');
+    const id = String(action?.getAttribute('data-nx-id') || '');
+    const container = document.getElementById('esResults');
+    const result = container?._nxResultMap?.get(id);
+    return {
+      id,
+      mapped: !!result,
+      type: result?.type || '',
+      workspaceId: result?.workspaceId || '',
+      categoryName: result?.categoryName || '',
+      navigationReady: typeof window.EveOS?.SearchAdvanced?.Navigation?.goToPath === 'function'
+    };
+  });
+  if (!pathActionState.mapped || !pathActionState.navigationReady) {
+    throw new Error('Lazy Nexus result action was not wired: ' + JSON.stringify(pathActionState));
+  }
   await folderResult.locator('[data-nx-action="path"]').click();
-  await page.waitForFunction(() => {
-    return window.config?.viewMode === 'grid'
-      && window.config?.activeWorkspace === 'main'
-      && typeof focusCategory !== 'undefined'
-      && String(focusCategory || '').trim() === 'Alpha';
-  }, undefined, { timeout: 10000 });
+  try {
+    await page.waitForFunction(() => {
+      return window.config?.viewMode === 'grid'
+        && window.config?.activeWorkspace === 'main'
+        && typeof focusCategory !== 'undefined'
+        && String(focusCategory || '').trim() === 'Alpha';
+    }, undefined, { timeout: 10000 });
+  } catch (error) {
+    const currentState = await page.evaluate(() => ({
+      viewMode: window.config?.viewMode || '',
+      activeWorkspace: window.config?.activeWorkspace || '',
+      focusCategory: typeof focusCategory === 'undefined' ? '' : String(focusCategory || '')
+    }));
+    throw new Error('Nexus path action timed out: ' + JSON.stringify({ pathActionState, currentState }));
+  }
 
   await folderResult.locator('[data-nx-action="unidex"]').click();
   await page.waitForFunction(() => {
