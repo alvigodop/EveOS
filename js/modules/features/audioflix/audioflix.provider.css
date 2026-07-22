@@ -1,0 +1,115 @@
+.audioflix-provider-stage {
+    position: fixed;
+    right: clamp(14px, 3vw, 34px);
+    bottom: clamp(14px, 3vw, 34px);
+    z-index: 10070;
+    width: min(480px, calc(100vw - 28px));
+    overflow: hidden;
+    border: 1px solid rgba(255, 202, 95, 0.55);
+    border-radius: 18px;
+    background: rgba(7, 14, 18, 0.97);
+    color: var(--text-main, #f4f8fa);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.68), inset 0 0 0 1px rgba(0, 212, 255, 0.08);
+}
+
+.audioflix-provider-stage[hidden] {
+    display: none !important;
+}
+
+.audioflix-provider-stage header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.audioflix-provider-stage header > div:first-child {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.audioflix-provider-stage header span {
+    color: #00d4ff;
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.audioflix-provider-stage header strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.audioflix-provider-stage header > div:last-child {
+    display: flex;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.audioflix-provider-stage button,
+.audioflix-provider-stage a {
+    border: 1px solid rgba(255, 202, 95, 0.32);
+    border-radius: 999px;
+    padding: 6px 9px;
+    background: rgba(255, 202, 95, 0.08);
+    color: #ffe6a0;
+    font: inherit;
+    font-size: 0.72rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.audioflix-provider-status {
+    margin: 0;
+    padding: 8px 12px;
+    color: rgba(234, 242, 246, 0.72);
+    font-size: 0.75rem;
+}
+
+.audioflix-provider-stage.has-error .audioflix-provider-status {
+    color: #ffc1c1;
+}
+
+.audioflix-provider-stage.has-error .audioflix-provider-frame {
+    display: none;
+}
+
+.audioflix-provider-frame {
+    min-width: 200px;
+    min-height: 200px;
+    aspect-ratio: 16 / 9;
+    background: #000;
+}
+
+.audioflix-provider-frame iframe {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.audioflix-provider-stage.is-collapsed {
+    width: min(390px, calc(100vw - 28px));
+}
+
+.audioflix-provider-stage.is-collapsed .audioflix-provider-frame,
+.audioflix-provider-stage.is-collapsed .audioflix-provider-status {
+    display: none;
+}
+
+@media (max-width: 560px) {
+    .audioflix-provider-stage {
+        right: 8px;
+        bottom: 8px;
+        width: calc(100vw - 16px);
+    }
+
+    .audioflix-provider-stage header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

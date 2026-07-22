@@ -17,8 +17,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     // One-time console notice for the normal "bridge off -> browser playback" mode; reset when a
     // native send succeeds again so a mid-session server restart re-announces cleanly.
     let nativeFallbackNoticeShown = false;
-    const activeLayers = new Map();
     let activeStreamVolume = 1.0;
+    let urlPlayback = null;
 
     async function getDecodedBuffer(url) {
         return window.EveAudioflixAudioCodec.getDecodedBuffer(
@@ -39,6 +39,15 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         window.dispatchEvent(new CustomEvent(name, { detail }));
     }
 
+    urlPlayback = window.EveAudioflixUrlPlayback?.createController?.({
+        onPlayback(detail) {
+            currentItem = detail.item || currentItem;
+            lastStatus = detail.status || lastStatus;
+            dispatch('eve:audioflix-playback', detail);
+        },
+        onProgress(detail) { dispatch('eve:audioflix-progress', detail); }
+    }) || null;
+
     function nativeProgress(currentTime, duration, paused = false) {
         dispatch('eve:audioflix-progress', {
             item: currentItem,
@@ -50,6 +59,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     function getPlaybackState() {
+        if (urlPlayback?.isActive?.()) return urlPlayback.getPlaybackState();
         if (activeNativeMode) {
             const duration = Number(activeNativeBuffer?.duration || currentItem?.resolvedDuration || 0) || 0;
             const currentTime = activeNativeController?.currentTime?.() ?? nativePausedAt;
@@ -207,9 +217,29 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         tryNativePlayback,
         browserOutputStatus
     } = outputController;
+
+    async function playUrlItem(item) {
+        if (!urlPlayback?.canHandle?.(item)) throw new Error('This linked track needs the EveOS resolver server.');
+        if (audio) audio.pause();
+        await stopNativePlayback(false);
+        currentItem = item;
+        await urlPlayback.play(item);
+        window.EveAudioflixState?.recordPlay?.(item);
+        return true;
+    }
+
     async function playItem(item) {
         const requestedItem = item && typeof item === 'object' ? { ...item } : {};
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
+
+        if (urlPlayback?.shouldPreferBrowser?.(requestedItem)) {
+            try { return await playUrlItem(requestedItem); }
+            catch (error) {
+                if (window.EveAudioflixNative?.getStatus?.()?.ok !== true) throw error;
+            }
+        } else if (urlPlayback?.isActive?.() && !urlPlayback.matches(requestedItem)) {
+            await urlPlayback.stop();
+        }
 
         if (activeNativeMode && activeNativeBuffer && nativePausedAt > 0
             && currentItem?.id === requestedItem.id
@@ -229,9 +259,12 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             try {
                 safeItem = await window.EveAudioflixAudioSource.resolveItem(safeItem);
             } catch (error) {
-                lastStatus = `Could not resolve ${safeItem.title || 'audio link'}: ${error.message}`;
-                dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, error: true });
-                throw error;
+                try { return await playUrlItem(safeItem); }
+                catch (fallbackError) {
+                    lastStatus = `Could not play ${safeItem.title || 'audio link'}: ${fallbackError.message || error.message}`;
+                    dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, error: true });
+                    throw fallbackError;
+                }
             }
         }
 
@@ -271,7 +304,15 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             try { await applySink(preferredSinkId); } catch { }
         }
         if (player.src !== safeItem.url) player.src = safeItem.url;
-        await player.play();
+        try {
+            await player.play();
+        } catch (error) {
+            if (!/^https?:\/\//i.test(safeItem.url || '')) throw error;
+            player.pause();
+            player.removeAttribute('src');
+            player.load();
+            return await playUrlItem(safeItem);
+        }
         window.EveAudioflixState?.recordPlay?.(safeItem);
         return true;
     }
@@ -282,70 +323,17 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         dispatch,
         setStatus(value) { lastStatus = value; }
     }) || (async () => false);
-
-    async function layerPlay(item) {
-        if (!item?.url) return;
-        let safeItem = typeof item === 'object' ? { ...item } : { url: item };
-
-        if (window.EveAudioflixAudioSource?.needsResolution?.(safeItem.url)) {
-            try {
-                safeItem = await window.EveAudioflixAudioSource.resolveItem(safeItem);
-            } catch (resErr) {
-                console.warn('[Audioflix] Failed to resolve stream URL for layer:', resErr);
-                return;
-            }
-        }
-
-        if (await tryNativePlayback(safeItem)) return;
-
-        if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
-            try {
-                const audioBuffer = await getDecodedBuffer(safeItem.url);
-                const id = safeItem.id || safeItem.url;
-                // One POST of the whole clip -> the bridge mixes it as a voice. Overlapping
-                // presses sum cleanly (no chunk interleave) and start with low latency.
-                const ok = await window.EveAudioflixNative.playVoice(encodeBufferToBase64(audioBuffer), {
-                    sampleRate: audioBuffer.sampleRate, channels: 1, volume: safeItem.volume ?? 1, voiceId: id
-                });
-                if (ok) {
-                    // One stop-control per item; clearVoices(id) flushes all its layers.
-                    activeLayers.set(id, [{ stop: () => window.EveAudioflixNative?.clearVoices?.(id) }]);
-                    return;
-                }
-            } catch (err) {
-                console.warn('[Audioflix] native voice failed for layer, falling back:', err);
-            }
-        }
-
-        const a = new Audio(safeItem.url);
-        a.loop = false;
-        a.volume = window.EveAudioflixState.normalizeVolume(safeItem.volume, 1);
-        const preferredSinkId = state().preferredSinkId;
-        if (preferredSinkId && typeof a.setSinkId === 'function') {
-            try { await a.setSinkId(preferredSinkId); } catch {}
-        }
-        const id = safeItem.id || safeItem.url;
-        if (!activeLayers.has(id)) activeLayers.set(id, []);
-        activeLayers.get(id).push(a);
-        a.addEventListener('ended', () => {
-            const arr = activeLayers.get(id);
-            if (arr) { const idx = arr.indexOf(a); if (idx > -1) arr.splice(idx, 1); if (!arr.length) activeLayers.delete(id); }
-        });
-        a.play().catch(() => {});
-    }
+    const layerController = window.EveAudioflixAudioLayers.createController({
+        state, tryNativePlayback, getDecodedBuffer, encodeBufferToBase64, playUrlItem,
+        canPlayUrl: (item) => urlPlayback?.canHandle?.(item),
+        shouldPreferUrl: (item) => urlPlayback?.shouldPreferBrowser?.(item)
+    });
+    const layerPlay = layerController.layerPlay;
 
     function stopItemLayers(itemId) {
-        const arr = activeLayers.get(itemId);
-        if (arr) { 
-            arr.forEach(a => { 
-                try { 
-                    if (typeof a.stop === 'function') a.stop();
-                    else { a.pause(); a.currentTime = 0; }
-                } catch {} 
-            }); 
-            activeLayers.delete(itemId); 
-        }
+        layerController.stopItemLayers(itemId);
         if (currentItem?.id === itemId) {
+            urlPlayback?.stop?.().catch?.(() => {});
             stopNativePlayback(false).catch(() => {});
             const player = ensureAudio();
             player.pause();
@@ -358,23 +346,12 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     async function stopAll() {
         const stoppedItem = currentItem;
-        const pending = [];
-        activeLayers.forEach((layers) => layers.forEach((layer) => {
-            try {
-                if (typeof layer?.stop === 'function') {
-                    const result = layer.stop();
-                    if (result?.then) pending.push(result);
-                } else if (layer) {
-                    layer.pause?.();
-                    layer.currentTime = 0;
-                }
-            } catch {}
-        }));
-        activeLayers.clear();
+        const pending = layerController.stopAll();
         if (audio) {
             audio.pause();
             try { audio.currentTime = 0; audio.removeAttribute('src'); audio.load(); } catch {}
         }
+        await urlPlayback?.stop?.().catch?.(() => {});
         await stopNativePlayback(false).catch(() => {});
         await Promise.allSettled(pending);
         currentItem = null;
@@ -384,6 +361,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function pause() {
+        if (urlPlayback?.isActive?.()) return urlPlayback.pause();
         if (activeNativeMode) {
             await stopNativePlayback(true);
             lastStatus = 'Paused';
@@ -396,6 +374,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     async function seek(seconds) {
         const target = Math.max(0, Number(seconds || 0) || 0);
+        if (urlPlayback?.isActive?.()) return urlPlayback.seek(target);
         if (activeNativeMode && activeNativeBuffer) {
             const duration = activeNativeBuffer.duration || 0;
             const next = Math.min(target, duration);
@@ -417,19 +396,14 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     function updateItemVolume(itemId, vol) {
         if (currentItem?.id === itemId) {
+            if (urlPlayback?.matches?.(itemId)) urlPlayback.setVolume(vol);
             ensureAudio().volume = Math.max(0, Math.min(1, vol));
             window.EveAudioflixNative?.setVoiceVolume?.('singleton-main', vol);
             activeStreamVolume = vol;
             activeNativeController?.setVolume?.(vol);
             currentItem.volume = vol;
         }
-        const arr = activeLayers.get(itemId);
-        if (arr) {
-            arr.forEach(a => {
-                if (a && typeof a.volume !== 'undefined') a.volume = Math.max(0, Math.min(1, vol));
-            });
-            window.EveAudioflixNative?.setVoiceVolume?.(itemId, vol);
-        }
+        layerController.updateVolume(itemId, vol);
     }
 
     function attachWaveform(targetCanvas) {
