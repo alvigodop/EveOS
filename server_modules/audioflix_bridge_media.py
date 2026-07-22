@@ -14,7 +14,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 
-LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "::ffff:127.0.0.1"}
 
 
 def _mono_wav_samples(path: Path, np_module):

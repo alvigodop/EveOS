@@ -315,11 +315,31 @@ def get_local_ip():
         return "127.0.0.1"
 
 class EveOSThreadingServer(socketserver.ThreadingTCPServer):
-    """Thread-per-request server that exits cleanly after Ctrl+C."""
+    """Thread-per-request server that supports dual-stack IPv4/IPv6 and exits cleanly after Ctrl+C."""
 
     allow_reuse_address = True
     daemon_threads = True
     block_on_close = False
+
+    def __init__(self, server_address, RequestHandlerClass, bind_and_activate=True):
+        self.address_family = socket.AF_INET6
+        try:
+            super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+        except Exception:
+            self.address_family = socket.AF_INET
+            super().__init__(server_address, RequestHandlerClass, bind_and_activate)
+
+    def server_bind(self):
+        if self.address_family == socket.AF_INET6:
+            if hasattr(socket, 'has_dualstack_ipv6') and socket.has_dualstack_ipv6():
+                self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            else:
+                try:
+                    self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+                except (OSError, socket.error):
+                    pass
+        super().server_bind()
+
 
 
 def run_server(port=DEFAULT_PORT, open_browser=True):

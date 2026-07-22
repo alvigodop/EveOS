@@ -8,7 +8,7 @@ async function main() {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
     const pageErrors = [];
-    page.on('pageerror', (error) => pageErrors.push(error?.stack || String(error)));
+    page.on('pageerror', (error) => { console.error('[BROWSER ERROR]', error); pageErrors.push(error?.stack || String(error)); }); page.on('console', (msg) => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
 
     await page.addInitScript(() => {
         try {
@@ -44,20 +44,26 @@ async function main() {
         window.__audioflixNativePlayCount = 0;
         window.fetch = async (url, options = {}) => {
             const text = String(url || '');
-            if (text.includes('/api/audioflix/devices')) {
-                return new Response(JSON.stringify({
-                    ok: true,
-                    playbackAvailable: true,
-                    message: 'Native playback ready.',
-                    devices: [
-                        { id: 'sd:1', label: 'CABLE Input (VB-Audio Virtual Cable)', kind: 'output', playable: true },
-                        { id: 'win:1', label: 'Speakers (Discovery)', kind: 'output', playable: false }
-                    ]
-                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-            }
-            if (text.includes('/api/audioflix/play-pcm')) {
-                window.__audioflixNativePlayCount += 1;
-                return new Response(JSON.stringify({ ok: true, queued: 32 }), {
+            if (text.includes('/api/audioflix/')) {
+                if (text.includes('/api/audioflix/devices')) {
+                    return new Response(JSON.stringify({
+                        ok: true,
+                        playbackAvailable: true,
+                        message: 'Native playback ready.',
+                        devices: [
+                            { id: 'sd:1', label: 'CABLE Input (VB-Audio Virtual Cable)', kind: 'output', playable: true },
+                            { id: 'win:1', label: 'Speakers (Discovery)', kind: 'output', playable: false }
+                        ]
+                    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }
+                if (text.includes('/api/audioflix/play-pcm')) {
+                    window.__audioflixNativePlayCount += 1;
+                    return new Response(JSON.stringify({ ok: true, queued: 32 }), {
+                        status: 200,
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                }
+                return new Response(JSON.stringify({ ok: true }), {
                     status: 200,
                     headers: { 'Content-Type': 'application/json' }
                 });
@@ -77,7 +83,7 @@ async function main() {
     });
 
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
-    await page.waitForFunction(() => !!window.EveAudioflix?.open && !!window.EveAudioflixState, undefined, {
+    await page.waitForFunction(() => !!window.EveAudioflix?.open && !!window.EveAudioflixState && !!window.__EVE_DEFERRED_SCRIPT_STATE?.completedAt, undefined, {
         timeout: 60000
     });
 

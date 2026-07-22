@@ -18,7 +18,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     const setButtonExpanded = (exp) => document.querySelectorAll('.topbar-audioflix-btn').forEach(b => b.setAttribute('aria-expanded', exp ? 'true' : 'false'));
     const itemMeta = (item) => [item.artist, item.card, item.folder, item.category].filter(Boolean).join(' / ') || 'No extra metadata yet';
     const groupKey = (item, type) => String((type === 'music' ? (item.folder || item.card) : item.category) || '').trim() || 'Ungrouped';
-    const formatDuration = (sec) => (sec == null || isNaN(sec)) ? 'Loading...' : (sec === Infinity ? 'Stream' : (sec / 60 >= 1 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}` : `${Math.floor(sec)}.${String(Math.floor((sec % 1) * 100)).padStart(2, '0')}s`));
+    const formatDuration = (sec) => sec === undefined ? 'Loading...' : (sec === null || isNaN(sec) ? 'Unavailable' : (sec === Infinity ? 'Stream' : (sec / 60 >= 1 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}` : `${Math.floor(sec)}.${String(Math.floor((sec % 1) * 100)).padStart(2, '0')}s`)));
     const HOTKEY_MODS = ['ctrl', 'control', 'alt', 'shift', 'win', 'meta', 'cmd', 'super'];
     // Validate a hotkey combo for the safe RegisterHotKey API: modifiers + exactly one key.
     // Returns { invalid, msg } — invalid blocks registration; non-invalid msg is just a heads-up.

@@ -39,6 +39,8 @@ def _read_json(handler) -> dict:
 
 def _can_control(handler) -> bool:
     host = str(handler.client_address[0] if handler.client_address else "")
+    if host.startswith("::ffff:"):
+        host = host[7:]
     if host not in {"127.0.0.1", "::1"}:
         return False
     origin = str(handler.headers.get("Origin", "")).strip().lower()
@@ -60,6 +62,12 @@ def handle_get_request(handler, path: str, query) -> bool:
             return True
         from server_modules import audioflix_hotkeys
         _send_json(handler, audioflix_hotkeys.status())
+    elif path == "/api/audioflix/resolve-url":
+        if not _can_control(handler):
+            _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return True
+        from server_modules import audioflix_ytdl
+        audioflix_ytdl.handle_resolve_request(handler, query)
     elif path.startswith("/api/audioflix/port/"):
         if not _can_control(handler):
             _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)

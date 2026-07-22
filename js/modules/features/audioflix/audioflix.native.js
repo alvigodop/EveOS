@@ -330,6 +330,20 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload?.ok === true;
     }
 
+    async function resolveUrl(targetUrl) {
+        if (!targetUrl) return { ok: false, message: 'Missing target URL' };
+        return fetchJson(`/api/audioflix/resolve-url?url=${encodeURIComponent(targetUrl)}`, {
+            method: 'GET',
+            timeout: 15000
+        });
+    }
+
+    function getProxyUrl(targetUrl) {
+        if (!targetUrl) return '';
+        const base = state().nativeBridgeBase || (window.location.origin.startsWith('http') ? window.location.origin : 'http://127.0.0.1:8765');
+        return `${base}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+    }
+
     async function setHotkeys(payload) {
         return fetchJson('/api/audioflix/hotkeys/set', {
             method: 'POST',
@@ -365,6 +379,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         stopStream,
         sendTone,
         playMediaItem,
+        resolveUrl,
+        getProxyUrl,
         shouldSuppressBrowserPlayback,
         setHotkeys,
         clearHotkeys,

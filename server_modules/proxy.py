@@ -140,6 +140,11 @@ def handle_proxy_request(handler, query):
             headers['Sec-Fetch-Site'] = 'none'
             headers['Sec-Fetch-User'] = '?1'
         
+        # Forward Range header for audio/media streaming if provided by client
+        range_header = handler.headers.get('Range')
+        if range_header:
+            headers['Range'] = range_header
+        
         req = urllib.request.Request(target_url, data=None, headers=headers)
         
         # Create SSL context that doesn't verify certificates
@@ -148,7 +153,7 @@ def handle_proxy_request(handler, query):
         ssl_context.verify_mode = ssl.CERT_NONE
         
         content = b''
-        content_type = 'text/html'
+        response_headers = {}
         last_http_error = None
 
         for attempt in range(2 if is_wikimedia else 1):
@@ -162,14 +167,18 @@ def handle_proxy_request(handler, query):
                     try:
                         response = urllib.request.urlopen(req, timeout=30, context=ssl_context)
                         content = _read_response_body(response)
-                        content_type = response.getheader('Content-Type', 'text/html')
+                        for h_key in ('Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges'):
+                            if response.getheader(h_key):
+                                response_headers[h_key] = response.getheader(h_key)
                         response.close()
                     finally:
                         urllib.request.install_opener(None)
                 else:
                     with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
                         content = _read_response_body(response)
-                        content_type = response.getheader('Content-Type', 'text/html')
+                        for h_key in ('Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges'):
+                            if response.getheader(h_key):
+                                response_headers[h_key] = response.getheader(h_key)
 
                 last_http_error = None
                 break
@@ -188,8 +197,12 @@ def handle_proxy_request(handler, query):
 
         logger.info(f"Proxy success: {len(content)} bytes from {target_url}")
         
-        handler.send_response(HTTPStatus.OK)
-        handler.send_header('Content-Type', content_type)
+        status_code = getattr(last_http_error, 'code', HTTPStatus.PARTIAL_CONTENT if 'Content-Range' in response_headers else HTTPStatus.OK)
+        handler.send_response(status_code)
+        for h_key, h_val in response_headers.items():
+            handler.send_header(h_key, h_val)
+        if 'Content-Type' not in response_headers:
+            handler.send_header('Content-Type', 'application/octet-stream')
         handler.end_headers()
         handler.wfile.write(content)
             

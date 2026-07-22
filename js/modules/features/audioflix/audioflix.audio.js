@@ -259,8 +259,25 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     } = outputController;
     async function playItem(item) {
         stopActiveStream();
-        const safeItem = item && typeof item === 'object' ? item : {};
+        let safeItem = item && typeof item === 'object' ? { ...item } : {};
         if (!safeItem.url) throw new Error('Audioflix item is missing a URL.');
+
+        const PLATFORM_URL_RE = /^https?:\/\/(www\.|music\.)?(youtube\.com|youtu\.be|soundcloud\.com|bandcamp\.com|vimeo\.com)/i;
+        if (PLATFORM_URL_RE.test(safeItem.url) || (!safeItem.url.match(/\.(mp3|wav|ogg|flac|aac|m4a|webm)($|\?|\#)/i) && /^https?:\/\//i.test(safeItem.url))) {
+            try {
+                lastStatus = `Resolving audio stream for ${safeItem.title || 'link'}...`;
+                dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem });
+                const resolved = await window.EveAudioflixNative?.resolveUrl?.(safeItem.url);
+                if (resolved && resolved.ok && resolved.audioUrl) {
+                    safeItem.url = window.EveAudioflixNative?.getProxyUrl?.(resolved.audioUrl) || resolved.audioUrl;
+                } else if (resolved && resolved.reason) {
+                    console.warn('[Audioflix] URL resolution warning:', resolved.reason);
+                }
+            } catch (resErr) {
+                console.warn('[Audioflix] Failed to resolve stream URL:', resErr);
+            }
+        }
+
         if (await tryNativePlayback(safeItem)) return true;
 
         if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
@@ -347,7 +364,19 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     async function layerPlay(item) {
         if (!item?.url) return;
-        const safeItem = typeof item === 'object' ? item : { url: item };
+        let safeItem = typeof item === 'object' ? { ...item } : { url: item };
+
+        const PLATFORM_URL_RE = /^https?:\/\/(www\.|music\.)?(youtube\.com|youtu\.be|soundcloud\.com|bandcamp\.com|vimeo\.com)/i;
+        if (PLATFORM_URL_RE.test(safeItem.url) || (!safeItem.url.match(/\.(mp3|wav|ogg|flac|aac|m4a|webm)($|\?|\#)/i) && /^https?:\/\//i.test(safeItem.url))) {
+            try {
+                const resolved = await window.EveAudioflixNative?.resolveUrl?.(safeItem.url);
+                if (resolved && resolved.ok && resolved.audioUrl) {
+                    safeItem.url = window.EveAudioflixNative?.getProxyUrl?.(resolved.audioUrl) || resolved.audioUrl;
+                }
+            } catch (resErr) {
+                console.warn('[Audioflix] Failed to resolve stream URL for layer:', resErr);
+            }
+        }
 
         if (await tryNativePlayback(safeItem)) return;
 

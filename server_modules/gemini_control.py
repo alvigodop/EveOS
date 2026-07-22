@@ -250,6 +250,8 @@ def stop_server() -> dict:
 
 def request_can_control(handler) -> bool:
     client_host = str(handler.client_address[0] if handler.client_address else "")
+    if client_host.startswith("::ffff:"):
+        client_host = client_host[7:]
     if client_host not in {"127.0.0.1", "::1"}:
         return False
     origin = str(handler.headers.get("Origin", "")).strip().lower()
