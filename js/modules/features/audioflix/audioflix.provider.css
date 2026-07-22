@@ -4,7 +4,8 @@
     bottom: clamp(14px, 3vw, 34px);
     z-index: 10070;
     width: min(480px, calc(100vw - 28px));
-    overflow: hidden;
+    max-height: calc(100vh - 28px);
+    overflow: auto;
     border: 1px solid rgba(255, 202, 95, 0.55);
     border-radius: 18px;
     background: rgba(7, 14, 18, 0.97);
@@ -78,6 +79,10 @@
     display: none;
 }
 
+.audioflix-provider-stage.is-audio-only .audioflix-provider-frame {
+    display: none;
+}
+
 .audioflix-provider-frame {
     min-width: 200px;
     min-height: 200px;
@@ -92,12 +97,56 @@
     border: 0;
 }
 
+.audioflix-provider-stage.is-internal-view {
+    width: min(860px, calc(100vw - 32px));
+}
+
+.audioflix-provider-stage.is-internal-view .audioflix-provider-frame {
+    min-height: 270px;
+}
+
+.audioflix-provider-transport {
+    display: grid;
+    grid-template-columns: auto auto minmax(100px, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(2, 7, 10, 0.82);
+}
+
+.audioflix-provider-transport output {
+    color: rgba(234, 242, 246, 0.78);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.audioflix-provider-transport input[type="range"] {
+    min-width: 0;
+    width: 100%;
+    accent-color: #00d4ff;
+}
+
+.audioflix-provider-transport label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(234, 242, 246, 0.66);
+    font-size: 0.68rem;
+}
+
+.audioflix-provider-transport label input {
+    width: 88px;
+}
+
 .audioflix-provider-stage.is-collapsed {
     width: min(390px, calc(100vw - 28px));
 }
 
 .audioflix-provider-stage.is-collapsed .audioflix-provider-frame,
-.audioflix-provider-stage.is-collapsed .audioflix-provider-status {
+.audioflix-provider-stage.is-collapsed .audioflix-provider-status,
+.audioflix-provider-stage.is-collapsed .audioflix-provider-transport {
     display: none;
 }
 
@@ -111,5 +160,18 @@
     .audioflix-provider-stage header {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .audioflix-provider-transport {
+        grid-template-columns: auto 1fr;
+    }
+
+    .audioflix-provider-transport > .audioflix-provider-seek {
+        grid-column: 1 / -1;
+        grid-row: 2;
+    }
+
+    .audioflix-provider-transport label {
+        grid-column: 1 / -1;
     }
 }

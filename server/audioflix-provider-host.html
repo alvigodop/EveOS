@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en" data-eve-audioflix-provider-host="1">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="eve-audioflix-provider-host" content="1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <title>EveOS Audioflix Provider Host</title>
+    <style>
+        :root { color-scheme: dark; background: #020507; color: #dff7ff; font-family: "Trebuchet MS", sans-serif; }
+        * { box-sizing: border-box; }
+        html, body, #player { width: 100%; height: 100%; margin: 0; }
+        body { display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 30%, #102331, #020507 70%); }
+        #player { min-width: 200px; min-height: 200px; }
+        #status { position: fixed; inset: auto 12px 12px; margin: 0; padding: 8px 10px; border: 1px solid #24576a; border-radius: 10px; background: #071118e6; font-size: 12px; }
+        body.ready #status { display: none; }
+        body.error #status { color: #ffc1c1; border-color: #9b3f4d; }
+    </style>
+</head>
+<body>
+    <div id="player"></div>
+    <p id="status">Connecting to YouTube...</p>
+    <script>
+        (function () {
+            'use strict';
+            window.__EVE_AUDIOFLIX_PROVIDER_HOST__ = true;
+            const params = new URLSearchParams(location.search);
+            if (params.get('probe') === '1') return;
+            const token = params.get('token') || '';
+            const videoId = params.get('id') || '';
+            const volume = Math.max(0, Math.min(1, Number(params.get('volume') || 1)));
+            const status = document.getElementById('status');
+            let player = null;
+            let progressTimer = 0;
+
+            const send = (event, detail) => parent.postMessage(Object.assign({
+                type: 'eve-audioflix-provider', token, event
+            }, detail || {}), '*');
+            const snapshot = () => ({
+                currentTime: Number(player && player.getCurrentTime ? player.getCurrentTime() : 0) || 0,
+                duration: Number(player && player.getDuration ? player.getDuration() : 0) || 0
+            });
+            const fail = (message) => {
+                document.body.className = 'error';
+                status.textContent = message;
+                send('error', { message });
+            };
+            const stateName = (value) => ({ '-1': 'unstarted', 0: 'ended', 1: 'playing', 2: 'paused', 3: 'buffering', 5: 'cued' }[value] || 'unknown');
+
+            window.addEventListener('message', (event) => {
+                const command = event.data;
+                if (event.source !== parent || command?.type !== 'eve-audioflix-provider-command' || command.token !== token || !player) return;
+                if (command.action === 'play') player.playVideo();
+                else if (command.action === 'pause') player.pauseVideo();
+                else if (command.action === 'seek') player.seekTo(Math.max(0, Number(command.value) || 0), true);
+                else if (command.action === 'volume') player.setVolume(Math.round(Math.max(0, Math.min(100, Number(command.value) || 0))));
+                else if (command.action === 'stop') player.stopVideo();
+            });
+
+            if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+                fail('This YouTube URL does not contain a playable video ID.');
+                return;
+            }
+
+            window.onYouTubeIframeAPIReady = function () {
+                player = new YT.Player('player', {
+                    width: '100%',
+                    height: '100%',
+                    videoId,
+                    playerVars: { autoplay: 1, controls: 1, playsinline: 1, rel: 0, origin: location.origin },
+                    events: {
+                        onReady(event) {
+                            event.target.setVolume(Math.round(volume * 100));
+                            document.body.className = 'ready';
+                            send('ready', snapshot());
+                            event.target.playVideo();
+                            progressTimer = setInterval(() => send('progress', snapshot()), 250);
+                        },
+                        onStateChange(event) {
+                            send('state', Object.assign({ state: stateName(event.data) }, snapshot()));
+                        },
+                        onError(event) {
+                            fail(`YouTube could not play this link (error ${event.data}).`);
+                        }
+                    }
+                });
+            };
+
+            const script = document.createElement('script');
+            script.src = 'https://www.youtube.com/iframe_api';
+            script.async = true;
+            script.onerror = () => fail('YouTube player resources could not be loaded.');
+            document.head.appendChild(script);
+            window.addEventListener('beforeunload', () => clearInterval(progressTimer));
+        })();
+    </script>
+</body>
+</html>

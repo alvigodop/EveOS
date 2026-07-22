@@ -218,14 +218,26 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         browserOutputStatus
     } = outputController;
 
-    async function playUrlItem(item) {
+    async function playUrlItem(item, playOptions = {}) {
         if (!urlPlayback?.canHandle?.(item)) throw new Error('This linked track needs the EveOS resolver server.');
         if (audio) audio.pause();
         await stopNativePlayback(false);
         currentItem = item;
-        await urlPlayback.play(item);
+        await urlPlayback.play(item, playOptions);
         window.EveAudioflixState?.recordPlay?.(item);
         return true;
+    }
+
+    async function openInternalView(item) {
+        const requestedItem = item && typeof item === 'object' ? { ...item } : {};
+        if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
+        let playableItem = requestedItem;
+        const provider = window.EveAudioflixUrlPlayback?.providerFor?.(requestedItem.url);
+        if (provider === 'direct' && window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url)) {
+            try { playableItem = await window.EveAudioflixAudioSource.resolveItem(requestedItem); }
+            catch { /* The internal player will show the direct-link fallback when no resolver is available. */ }
+        }
+        return playUrlItem(playableItem, { internalView: true });
     }
 
     async function playItem(item) {
@@ -411,7 +423,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     Object.assign(ns, {
-        ready: true, playItem, pause, seek, selectOutput, listOutputs, setOutputById,
+        ready: true, playItem, openInternalView, pause, seek, selectOutput, listOutputs, setOutputById,
         unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus,
         layerPlay, stopItemLayers, stopAll, updateItemVolume, getDecodedBuffer, encodeBufferToBase64,
         getAudioElement: ensureAudio, getPlaybackState,

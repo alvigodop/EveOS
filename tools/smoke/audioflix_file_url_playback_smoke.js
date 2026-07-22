@@ -4,6 +4,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const INTERNAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.internal.js');
 const MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.js');
 const STYLE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.provider.css');
 
@@ -13,13 +14,28 @@ function assert(condition, message) {
 
 async function main() {
     const fixture = path.join(os.tmpdir(), `eveos-audioflix-url-${process.pid}.html`);
+    const internalModuleUrl = 'file:///' + INTERNAL_MODULE_PATH.replace(/\\/g, '/');
     const moduleUrl = 'file:///' + MODULE_PATH.replace(/\\/g, '/');
     const styleUrl = 'file:///' + STYLE_PATH.replace(/\\/g, '/');
-    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${moduleUrl}"></script></body></html>`);
+    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${internalModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
+    await page.route('http://127.0.0.1:8765/server/audioflix-provider-host.html*', (route) => route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<!doctype html><title>Mock EveOS provider host</title>'
+    }));
     await page.addInitScript(() => {
+        window.__providerHostOnline = false;
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = async (url, options) => {
+            if (String(url).includes('/server/audioflix-provider-host.html')) {
+                if (!window.__providerHostOnline) throw new TypeError('Provider host offline');
+                return new Response('<meta name="eve-audioflix-provider-host" content="1">', { status: 200 });
+            }
+            return nativeFetch(url, options);
+        };
         window.__fakeAudioInstances = [];
         class FakeAudio extends EventTarget {
             constructor() {
@@ -86,6 +102,41 @@ async function main() {
             const blockedFrameDisplay = getComputedStyle(blockedStageElement.querySelector('.audioflix-provider-frame')).display;
             const blockedStageHeight = blockedStageElement.getBoundingClientRect().height;
             await youtube.stop();
+
+            window.__providerHostOnline = true;
+            const internalYouTube = makeController();
+            const internalPending = internalYouTube.openInternalView(ytItem);
+            let internalFrame = null;
+            for (let attempt = 0; attempt < 40 && !internalFrame; attempt += 1) {
+                await new Promise((resolve) => setTimeout(resolve, 10));
+                internalFrame = document.querySelector('.audioflix-provider-stage iframe[src*="audioflix-provider-host.html"]');
+            }
+            if (!internalFrame) throw new Error('localhost provider iframe was not created');
+            const bridgeUrl = new URL(internalFrame.src);
+            const bridgeToken = bridgeUrl.searchParams.get('token');
+            window.dispatchEvent(new MessageEvent('message', {
+                origin: bridgeUrl.origin,
+                source: internalFrame.contentWindow,
+                data: { type: 'eve-audioflix-provider', token: bridgeToken, event: 'ready', currentTime: 0, duration: 212 }
+            }));
+            await internalPending;
+            window.dispatchEvent(new MessageEvent('message', {
+                origin: bridgeUrl.origin,
+                source: internalFrame.contentWindow,
+                data: { type: 'eve-audioflix-provider', token: bridgeToken, event: 'state', state: 'playing' }
+            }));
+            window.dispatchEvent(new MessageEvent('message', {
+                origin: bridgeUrl.origin,
+                source: internalFrame.contentWindow,
+                data: { type: 'eve-audioflix-provider', token: bridgeToken, event: 'progress', currentTime: 37, duration: 212 }
+            }));
+            const internalState = internalYouTube.getPlaybackState();
+            const internalStage = internalFrame.closest('.audioflix-provider-stage');
+            const internalExpanded = internalStage.classList.contains('is-internal-view');
+            const internalStatus = internalStage.querySelector('.audioflix-provider-status').textContent;
+            const internalSource = internalStage.querySelector('header a').href;
+            const internalFrameUrl = internalFrame.src;
+            await internalYouTube.stop();
 
             const soundCloudPlayers = [];
             const SoundCloudWidget = function () {
@@ -157,7 +208,12 @@ async function main() {
                 blockedActive,
                 blockedStage,
                 blockedFrameDisplay,
-                blockedStageHeight
+                blockedStageHeight,
+                internalState,
+                internalExpanded,
+                internalStatus,
+                internalSource,
+                internalFrameUrl
             };
         });
 
@@ -181,6 +237,11 @@ async function main() {
         assert(/direct media URL/.test(result.blockedStage), 'provider error UI did not offer a usable fallback');
         assert(result.blockedFrameDisplay === 'none', 'blocked provider frame should collapse instead of leaving a black box');
         assert(result.blockedStageHeight < 180, `blocked provider fallback is too tall: ${result.blockedStageHeight}px`);
+        assert(result.internalExpanded, 'explicit Internal View did not expand the provider surface');
+        assert(result.internalState.currentTime === 37 && result.internalState.duration === 212 && result.internalState.paused === false, 'localhost provider bridge did not relay playback state');
+        assert(/inside EveOS/.test(result.internalStatus), `internal player status missing: ${result.internalStatus}`);
+        assert(result.internalSource === 'https://youtu.be/M7lc1UVf-VE', `internal player source fallback changed: ${result.internalSource}`);
+        assert(/^http:\/\/127\.0\.0\.1:8765\/server\/audioflix-provider-host\.html\?/.test(result.internalFrameUrl), `wrong provider host URL: ${result.internalFrameUrl}`);
         console.log('AUDIOFLIX_FILE_URL_PLAYBACK_SMOKE_OK');
     } finally {
         await browser.close();

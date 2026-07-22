@@ -99,49 +99,34 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
 
     function createController(options = {}) {
         let active = null;
-        let stage = null;
         let timer = 0;
+        let requestedInternalView = false;
         const playback = { item: null, currentTime: 0, duration: 0, paused: true, provider: '' };
+        const view = window.EveAudioflixInternalPlayer?.createController?.({
+            onStop: () => stop(),
+            onToggle: () => playback.paused ? resume() : pause(),
+            onSeek: (value) => seek(value),
+            onVolume: (value) => setVolume(value)
+        });
 
         const emitPlayback = (status, error = false) => options.onPlayback?.({
             status, item: playback.item, provider: playback.provider, browserOnly: true, error
         });
-        const emitProgress = () => options.onProgress?.({ ...playback, browserOnly: true });
+        const emitProgress = () => {
+            view?.sync?.(playback);
+            options.onProgress?.({ ...playback, browserOnly: true });
+        };
 
-        function ensureStage(item, provider) {
-            if (!stage) {
-                stage = document.createElement('section');
-                stage.className = 'audioflix-provider-stage';
-                stage.hidden = true;
-                stage.innerHTML = '<header><div><span>Browser provider</span><strong></strong></div><div><button type="button" data-url-player-action="collapse">Hide</button><a target="_blank" rel="noopener noreferrer">Open source</a><button type="button" data-url-player-action="stop">Stop</button></div></header><p class="audioflix-provider-status"></p><div class="audioflix-provider-frame"></div>';
-                stage.addEventListener('click', (event) => {
-                    const action = event.target.closest('[data-url-player-action]')?.dataset.urlPlayerAction;
-                    if (action === 'stop') stop();
-                    if (action === 'collapse') {
-                        stage.classList.toggle('is-collapsed');
-                        event.target.textContent = stage.classList.contains('is-collapsed') ? 'Show' : 'Hide';
-                    }
-                });
-                document.body.appendChild(stage);
-            }
-            stage.hidden = false;
-            stage.classList.remove('has-error');
-            stage.dataset.provider = provider;
-            stage.querySelector('strong').textContent = item.title || 'Linked audio';
-            stage.querySelector('header span').textContent = `${provider} provider`;
-            const sourceLink = stage.querySelector('a');
-            sourceLink.href = item.sourceUrl || item.url;
-            sourceLink.textContent = provider === 'YouTube' ? 'Play on YouTube' : 'Open source';
-            stage.querySelector('.audioflix-provider-status').textContent = 'Connecting directly in the browser...';
-            const host = stage.querySelector('.audioflix-provider-frame');
+        function ensureStage(item, provider, visual = true) {
+            if (!view) throw new Error('Audioflix internal player is unavailable. Reload EveOS and try again.');
+            const host = view.open(item, provider, { expanded: requestedInternalView });
+            view.setVisualVisible(visual);
             host.replaceChildren();
             return host;
         }
 
         function setStageStatus(message, isError = false) {
-            if (!stage) return;
-            stage.classList.toggle('has-error', isError);
-            stage.querySelector('.audioflix-provider-status').textContent = message;
+            view?.setStatus?.(message, isError);
         }
 
         function clearTimer() {
@@ -168,10 +153,14 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             } catch { }
             playback.paused = true;
             emitProgress();
-            if (stage) stage.hidden = true;
+            view?.hide?.();
         }
 
         async function playDirect(item) {
+            if (requestedInternalView) {
+                ensureStage(item, 'Direct audio', false);
+                setStageStatus('Playing this linked audio inside EveOS.');
+            }
             const player = new Audio();
             player.preload = 'auto';
             player.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
@@ -194,16 +183,48 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
         async function playYouTube(item) {
             const id = youtubeId(item.url);
             if (!id) throw new Error('This YouTube URL does not contain a playable video ID.');
-            const host = ensureStage(item, 'YouTube');
             if (location.protocol === 'file:') {
-                playback.paused = true;
-                setStageStatus(YOUTUBE_FILE_MESSAGE, true);
-                emitPlayback(YOUTUBE_FILE_MESSAGE, true);
-                emitProgress();
-                const error = new Error(YOUTUBE_FILE_MESSAGE);
-                error.eveReported = true;
-                throw error;
+                ensureStage(item, 'YouTube');
+                setStageStatus('Connecting through the EveOS localhost provider host...');
+                const bridge = await view.connectYouTubeBridge(item, id, {
+                    expanded: requestedInternalView,
+                    onReady(detail) {
+                        playback.duration = Number(detail.duration) || 0;
+                        setStageStatus('Playing with YouTube inside EveOS.');
+                        emitProgress();
+                    },
+                    onProgress(detail) {
+                        playback.currentTime = Number(detail.currentTime) || 0;
+                        playback.duration = Number(detail.duration || playback.duration) || 0;
+                        emitProgress();
+                    },
+                    onState(state) {
+                        playback.paused = state !== 'playing';
+                        if (state === 'playing') emitPlayback(`Playing ${item.title || 'YouTube audio'} with YouTube`);
+                        else if (state === 'paused') emitPlayback('Paused');
+                        else if (state === 'ended') emitPlayback('Ended');
+                        emitProgress();
+                    },
+                    onError(error) {
+                        playback.paused = true;
+                        setStageStatus(error.message, true);
+                        emitPlayback(error.message, true);
+                        emitProgress();
+                    }
+                });
+                if (!bridge) {
+                    playback.paused = true;
+                    setStageStatus(YOUTUBE_FILE_MESSAGE, true);
+                    emitPlayback(YOUTUBE_FILE_MESSAGE, true);
+                    emitProgress();
+                    const error = new Error(YOUTUBE_FILE_MESSAGE);
+                    error.eveReported = true;
+                    throw error;
+                }
+                active = { kind: 'youtube', player: bridge };
+                return;
             }
+            const host = ensureStage(item, 'YouTube');
             await loadYouTubeApi();
             await new Promise((resolve, reject) => {
                 let settled = false;
@@ -307,11 +328,16 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             setStageStatus('Playing with Vimeo\'s browser player.');
         }
 
-        async function play(item) {
+        async function play(item, playOptions = {}) {
             const provider = providerFor(item?.url);
             if (!provider) throw new Error('This URL cannot be played directly by the browser.');
-            if (active && itemKey(playback.item) === itemKey(item) && playback.paused) {
-                await resume();
+            requestedInternalView = playOptions.internalView === true;
+            if (active && itemKey(playback.item) === itemKey(item)) {
+                if (requestedInternalView && provider === 'direct') {
+                    ensureStage(item, 'Direct audio', false);
+                    setStageStatus('Playing this linked audio inside EveOS.');
+                } else if (requestedInternalView) view?.setExpanded?.(true);
+                if (playback.paused) await resume();
                 return true;
             }
             await stop();
@@ -341,7 +367,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 }
                 if (!error?.eveReported) {
                     const message = error?.message || 'The linked track could not be played in this browser.';
-                    if (provider !== 'direct') setStageStatus(message, true);
+                    if (provider !== 'direct' || requestedInternalView) setStageStatus(message, true);
                     emitPlayback(message, true);
                 }
                 throw error;
@@ -394,7 +420,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
         }
 
         return {
-            play, pause, seek, stop, setVolume,
+            play, openInternalView: (item) => play(item, { internalView: true }), pause, seek, stop, setVolume,
             canHandle: (item) => !!providerFor(item?.url),
             shouldPreferBrowser: (item) => location.protocol === 'file:'
                 && /^https?:\/\//i.test(String(item?.url || ''))

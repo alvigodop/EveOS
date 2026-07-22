@@ -199,6 +199,19 @@ async function main() {
     await page.click('form[data-af-form="music"] button[type="submit"]');
     await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().music.length === 1, undefined, { timeout: 5000 });
 
+    const internalViewUiOk = await page.evaluate(async () => {
+        const item = window.EveAudioflixState.getSnapshot().music[0];
+        const button = document.querySelector(`[data-af-action="internal-view"][data-af-id="${item.id}"]`);
+        if (!button) return false;
+        const original = window.EveAudioflixAudio.openInternalView;
+        window.__audioflixInternalViewItem = '';
+        window.EveAudioflixAudio.openInternalView = async (selected) => { window.__audioflixInternalViewItem = selected?.id || ''; };
+        button.click();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        window.EveAudioflixAudio.openInternalView = original;
+        return window.__audioflixInternalViewItem === item.id;
+    });
+
     const musicTransportOk = await page.evaluate(async () => {
         const item = window.EveAudioflixState.getSnapshot().music[0];
         const card = document.querySelector(`[data-af-action="play"][data-af-id="${item.id}"]`)?.closest('.audioflix-item-card');
@@ -347,6 +360,7 @@ async function main() {
     if (!selectiveRouteApplied) failures.push('Auto CABLE did not create selective browser route');
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);
     if (result.musicCount !== 1) failures.push(`expected 1 track, got ${result.musicCount}`);
+    if (!internalViewUiOk) failures.push('music Internal View action was missing or not wired');
     if (!musicTransportOk) failures.push('music volume/seek transport did not persist or dispatch');
     if (!result.voicePortEnabled) failures.push('Gemini voice port did not persist');
     if (!result.voiceMonitorEnabled) failures.push('Gemini voice monitor did not persist');
