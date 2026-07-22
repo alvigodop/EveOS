@@ -4,6 +4,25 @@ const { chromium } = require('playwright');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
 
+function silentWavDataUrl() {
+    const sampleRate = 8000;
+    const sampleCount = 800;
+    const wav = Buffer.alloc(44 + sampleCount * 2);
+    wav.write('RIFF', 0);
+    wav.writeUInt32LE(wav.length - 8, 4);
+    wav.write('WAVEfmt ', 8);
+    wav.writeUInt32LE(16, 16);
+    wav.writeUInt16LE(1, 20);
+    wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(sampleRate, 24);
+    wav.writeUInt32LE(sampleRate * 2, 28);
+    wav.writeUInt16LE(2, 32);
+    wav.writeUInt16LE(16, 34);
+    wav.write('data', 36);
+    wav.writeUInt32LE(sampleCount * 2, 40);
+    return `data:audio/wav;base64,${wav.toString('base64')}`;
+}
+
 async function main() {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
@@ -17,6 +36,7 @@ async function main() {
         window.__eveSmokeNoAutoGemini = true;
         window.__audioflixLabelsUnlocked = false;
         window.__audioflixTrackStopped = false;
+        window.__audioflixContextSink = '';
         Object.defineProperty(navigator, 'mediaDevices', {
             configurable: true,
             value: {
@@ -80,6 +100,16 @@ async function main() {
                 Object.defineProperty(this, 'sinkId', { configurable: true, value: deviceId });
             }
         });
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextCtor) {
+            Object.defineProperty(AudioContextCtor.prototype, 'setSinkId', {
+                configurable: true,
+                value: async function (deviceId) {
+                    window.__audioflixContextSink = deviceId;
+                    Object.defineProperty(this, 'sinkId', { configurable: true, value: deviceId });
+                }
+            });
+        }
     });
 
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
@@ -98,7 +128,7 @@ async function main() {
     await page.click('[data-af-action="toggle-add"][data-af-type="sound"]');
     await page.waitForSelector('form[data-af-form="sound"]', { timeout: 5000 });
     await page.fill('form[data-af-form="sound"] input[name="title"]', 'Smoke Chime');
-    await page.fill('form[data-af-form="sound"] input[name="url"]', 'https://example.com/smoke-chime.mp3');
+    await page.fill('form[data-af-form="sound"] input[name="url"]', silentWavDataUrl());
     await page.fill('form[data-af-form="sound"] input[name="category"]', 'Smoke');
     await page.fill('form[data-af-form="sound"] input[name="volume"]', '0.5');
     await page.click('form[data-af-form="sound"] button[type="submit"]');
@@ -167,6 +197,35 @@ async function main() {
     await page.fill('form[data-af-form="music"] input[name="artist"]', 'EveOS');
     await page.fill('form[data-af-form="music"] input[name="folder"]', 'Audioflix');
     await page.click('form[data-af-form="music"] button[type="submit"]');
+    await page.waitForFunction(() => window.EveAudioflixState.getSnapshot().music.length === 1, undefined, { timeout: 5000 });
+
+    const musicTransportOk = await page.evaluate(async () => {
+        const item = window.EveAudioflixState.getSnapshot().music[0];
+        const card = document.querySelector(`[data-af-action="play"][data-af-id="${item.id}"]`)?.closest('.audioflix-item-card');
+        const volume = card?.querySelector('.audioflix-volume-slider');
+        if (!card || !volume) return false;
+        volume.value = '0.42';
+        volume.dispatchEvent(new Event('input', { bubbles: true }));
+        window.dispatchEvent(new CustomEvent('eve:audioflix-progress', {
+            detail: { item, currentTime: 30, duration: 120, paused: false }
+        }));
+        const seek = card.querySelector('.audioflix-seek-slider');
+        const progressRendered = card.classList.contains('is-current')
+            && seek.disabled === false
+            && Number(seek.max) === 120;
+        window.__audioflixSeekValue = -1;
+        const originalSeek = window.EveAudioflixAudio.seek;
+        window.EveAudioflixAudio.seek = async (value) => { window.__audioflixSeekValue = value; return true; };
+        seek.value = '45';
+        seek.dispatchEvent(new Event('input', { bubbles: true }));
+        seek.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        window.EveAudioflixAudio.seek = originalSeek;
+        const saved = window.EveAudioflixState.getSnapshot().music[0];
+        return saved.volume === 0.42
+            && progressRendered
+            && window.__audioflixSeekValue === 45;
+    });
 
     await page.click('[data-af-action="tab"][data-af-tab="router"]');
     await page.click('[data-af-action="toggle-routing-drawer"]');
@@ -265,6 +324,7 @@ async function main() {
             hasBananaPreset: !!document.querySelector('.audioflix-vbcable-preset [data-af-action="arm-cable"]'),
             presetApplied: /CABLE Input/.test(updated.preferredSinkLabel || ''),
             copiedRouteStatus: /Browser Core/.test(window.__audioflixCopiedText || '') && /Windows mixer route/.test(window.__audioflixCopiedText || ''),
+            webAudioSink: window.__audioflixContextSink,
             buttonExpanded: document.querySelector('.topbar-audioflix-btn')?.getAttribute('aria-expanded')
         };
     });
@@ -287,6 +347,7 @@ async function main() {
     if (!selectiveRouteApplied) failures.push('Auto CABLE did not create selective browser route');
     if (result.soundCount !== 1) failures.push(`expected 1 sound, got ${result.soundCount}`);
     if (result.musicCount !== 1) failures.push(`expected 1 track, got ${result.musicCount}`);
+    if (!musicTransportOk) failures.push('music volume/seek transport did not persist or dispatch');
     if (!result.voicePortEnabled) failures.push('Gemini voice port did not persist');
     if (!result.voiceMonitorEnabled) failures.push('Gemini voice monitor did not persist');
     if (result.voiceMonitorLabel !== 'Smoke Monitor Speakers') failures.push(`wrong monitor label: ${result.voiceMonitorLabel}`);
@@ -313,6 +374,7 @@ async function main() {
     if (clearResult.routedEvents !== 0 || !/0 Gemini events/.test(clearResult.headerText)) failures.push('Gemini event counter did not clear through UI');
     if (!result.hasBananaPreset) failures.push('Banana preset button missing');
     if (!result.presetApplied) failures.push('Banana preset did not select CABLE Input');
+    if (result.webAudioSink !== 'cable-output') failures.push(`Web Audio sink did not follow the selected output: ${result.webAudioSink}`);
     if (result.buttonExpanded !== 'true') failures.push('topbar aria-expanded not updated');
     if (pageErrors.length) failures.push(`page errors: ${pageErrors.join('\n')}`);
 

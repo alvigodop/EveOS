@@ -3,12 +3,25 @@ window.EveAudioflixAudioOutput = window.EveAudioflixAudioOutput || {};
 (function () {
     const ns = window.EveAudioflixAudioOutput;
     ns.createController = function createController(deps) {
-        const { ensureAudio, state, dispatch, runtime } = deps;
+        const { ensureAudio, getAudioContext, state, dispatch, runtime } = deps;
     async function applySink(deviceId) {
         const player = ensureAudio();
-        if (!deviceId || typeof player.setSinkId !== 'function') return false;
-        await player.setSinkId(deviceId);
-        return true;
+        if (!deviceId) return false;
+        let applied = false;
+        if (typeof player.setSinkId === 'function') {
+            await player.setSinkId(deviceId);
+            applied = true;
+        }
+        const context = getAudioContext?.();
+        if (typeof context?.setSinkId === 'function') {
+            try {
+                await context.setSinkId(deviceId);
+                applied = true;
+            } catch (error) {
+                console.warn('[Audioflix] Web Audio output did not accept the selected sink:', error);
+            }
+        }
+        return applied;
     }
 
     async function selectOutput() {

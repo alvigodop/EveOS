@@ -50,7 +50,11 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
 
         function cloneConfig() {
             const current = getConfig();
-            return { ...current };
+            const cloned = { ...current };
+            // Audioflix is captured once as a first-class top-level section below. Keeping a
+            // second copy here bloats every backup and can make precedence ambiguous on restore.
+            delete cloned.audioflix;
+            return cloned;
         }
 
         // Audioflix (soundboard ports, groups, hotkeys, exposure, volumes) lives at

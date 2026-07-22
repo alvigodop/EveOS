@@ -77,7 +77,9 @@ window.EveAudioflix = window.EveAudioflix || {};
         overlay.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-af-form]'); if (f) handleForm(f); });
         overlay.addEventListener('input', e => {
             const t = e.target;
-            if (t.classList.contains('audioflix-volume-slider')) {
+            if (t.classList.contains('audioflix-seek-slider')) {
+                window.EveAudioflixTransport?.preview?.(t);
+            } else if (t.classList.contains('audioflix-volume-slider')) {
                 const vol = parseFloat(t.value), id = t.dataset.afId, lbl = t.nextElementSibling;
                 t.style.setProperty('--vol', `${vol * 100}%`); if (lbl) lbl.textContent = `${Math.round(vol * 100)}%`;
                 window.EveAudioflixAudio?.updateItemVolume?.(id, vol);
@@ -87,7 +89,11 @@ window.EveAudioflix = window.EveAudioflix || {};
         });
         overlay.addEventListener('change', async e => {
             const t = e.target, id = t.dataset.afId;
-            if (t.classList.contains('audioflix-expose-cb')) {
+            if (t.classList.contains('audioflix-seek-slider')) {
+                await window.EveAudioflixAudio?.seek?.(Number(t.value || 0));
+                window.EveAudioflixTransport?.finishSeek?.(t);
+                window.EveAudioflixTransport?.sync?.(overlay);
+            } else if (t.classList.contains('audioflix-expose-cb')) {
                 window.EveAudioflixState?.setItemExposed?.(t.dataset.afType, id, t.checked);
                 if (activeInfoItem?.id === id) activeInfoItem.exposed = t.checked;
                 const ps = portedSounds.find(s => s.id === id); if (ps) ps.exposed = t.checked;
@@ -148,11 +154,12 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     function renderItemCard(item, type) {
-        const isF = type === 'sound' && (state().soundboardViewMode || 'backend') === 'frontend', volSlider = `<div class="audioflix-item-volume-wrapper" title="Volume"><input type="range" class="audioflix-volume-slider" min="0" max="1" step="0.01" value="${item.volume ?? 1}" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" style="--vol: ${(item.volume ?? 1) * 100}%"><span class="audioflix-volume-label">${Math.round((item.volume ?? 1) * 100)}%</span></div>`;
+        const isF = type === 'sound' && (state().soundboardViewMode || 'backend') === 'frontend';
+        const transport = window.EveAudioflixTransport?.render?.(item, type, esc) || '';
         const rep = activeRepeaters[item.id], repBadge = rep ? `<span class="audioflix-repeater-badge" title="Repeater active">🔁 Rep</span>` : '';
         const keyBadge = (isF && item.hotkey) ? `<span class="audioflix-hotkey-badge" title="Hotkey: press ${esc(item.hotkey)}">${esc(item.hotkey)}</span>` : '';
         const delBtn = (!isF && !item.isPorted) ? `<button type="button" class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}">${closeSvg}</button>` : '';
-        return `<article class="audioflix-item-card"><div class="audioflix-playback-controls"><button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div><button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play">${layerPlaySvg}</button><div class="audioflix-item-body"><div class="audioflix-item-title-row">${repBadge}${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(itemMeta(item))}</span>${type === 'sound' ? groupTags(item) : ''}</div><div class="audioflix-item-actions"><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="${isF ? 'Settings' : ''}">${cogSvg}</button>${delBtn}</div>${type === 'sound' ? volSlider : ''}</article>`;
+        return `<article class="audioflix-item-card"><div class="audioflix-playback-controls"><button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div><button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play">${layerPlaySvg}</button><div class="audioflix-item-body"><div class="audioflix-item-title-row">${repBadge}${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(itemMeta(item))}</span>${type === 'sound' ? groupTags(item) : ''}</div><div class="audioflix-item-actions"><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="${isF ? 'Settings' : ''}">${cogSvg}</button>${delBtn}</div>${transport}</article>`;
     }
 
     function renderItems(items, type) {
@@ -190,6 +197,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const newPanel = overlay.querySelector('.audioflix-panel');
         if (newPanel) { newPanel.scrollTop = scrollTop; newPanel.scrollLeft = scrollLeft; }
         window.EveAudioflixAudio?.attachWaveform?.(overlay.querySelector('#audioflix-waveform'));
+        window.EveAudioflixTransport?.sync?.(overlay);
         window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
     }
 
@@ -390,7 +398,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     const open = () => { ensureOverlay(); overlay.hidden = false; overlay.classList.toggle('is-fullscreen', fullscreenOn); setButtonExpanded(true); loadPortedSounds(); startHotkeyFeedbackPoll(); };
-    const close = () => { if (overlay) overlay.hidden = true; setButtonExpanded(false); stopHotkeyFeedbackPoll(); pushHotkeysToBridge(); };
+    const close = () => { if (overlay) overlay.hidden = true; window.EveAudioflixAudio?.attachWaveform?.(null); setButtonExpanded(false); stopHotkeyFeedbackPoll(); pushHotkeysToBridge(); };
 
     function updateStatusDOM() {
         if (!overlay || overlay.hidden) return;
@@ -407,7 +415,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
     }
 
-    window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); });
+    window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); window.EveAudioflixTransport?.sync?.(overlay); });
+    window.addEventListener('eve:audioflix-progress', e => window.EveAudioflixTransport?.sync?.(overlay, e.detail));
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reason = e.detail?.reason;
         if (reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed' || reason === 'audioflix-groups' || reason === 'audioflix-active-group') return;

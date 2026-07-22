@@ -82,6 +82,12 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return value === true;
     }
 
+    function normalizeVolume(value, fallback = 1) {
+        if (value === '' || value == null) return fallback;
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? Math.max(0, Math.min(1, numeric)) : fallback;
+    }
+
     function id(prefix) {
         return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     }
@@ -97,7 +103,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             card: text(source.card, ''),
             folder: text(source.folder, ''),
             category: text(source.category, ''),
-            volume: Math.max(0, Math.min(1, Number(source.volume ?? 1) || 1)),
+            volume: normalizeVolume(source.volume, 1),
             exposed: source.exposed === true,
             hotkey: text(source.hotkey, ''),
             createdAt: Number(source.createdAt || 0) || Date.now(),
@@ -140,7 +146,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             geminiVoiceMonitorEnabled: source.geminiVoiceMonitorEnabled !== false,
             geminiVoiceMonitorSinkId: text(source.geminiVoiceMonitorSinkId, ''),
             geminiVoiceMonitorSinkLabel: text(source.geminiVoiceMonitorSinkLabel, ''),
-            geminiVoiceMonitorVolume: Math.max(0, Math.min(1, Number(source.geminiVoiceMonitorVolume ?? 0.75) || 0.75)),
+            geminiVoiceMonitorVolume: normalizeVolume(source.geminiVoiceMonitorVolume, 0.75),
             // Mode 2 (Text Brain -> Live Voice) is the DEFAULT conversation mode: the 1M-token
             // text brain does the thinking and holds the relayed EveOS context; the live model
             // just voices its reply. One-time migration: states saved BEFORE this default carried
@@ -180,26 +186,30 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         if (!root) {
             return normalize(fallbackRead());
         }
-        root.audioflix = normalize(Object.assign({}, fallbackRead(), root.audioflix));
+        const hasDatapackState = Object.prototype.hasOwnProperty.call(root, 'audioflix');
+        root.audioflix = normalize(hasDatapackState ? root.audioflix : fallbackRead());
         return root.audioflix;
     }
 
-    function scheduleSave(reason) {
+    function persistNow(reason) {
         const state = ensure();
-        if (saveTimer) clearTimeout(saveTimer);
-        saveTimer = window.setTimeout(function () {
-            saveTimer = 0;
-            const root = getConfigRoot();
-            if (root) root.audioflix = normalize(state);
-            fallbackWrite(state);
-            if (typeof window.saveConfig === 'function') {
-                window.saveConfig({
-                    source: reason || 'audioflix',
-                    meta: { skipEditHistory: true }
-                });
-            }
-            window.dispatchEvent(new CustomEvent('eve:audioflix-state-changed', { detail: { reason } }));
-        }, SAVE_DELAY_MS);
+        if (saveTimer) window.clearTimeout(saveTimer);
+        saveTimer = 0;
+        const root = getConfigRoot();
+        if (root) root.audioflix = normalize(state);
+        fallbackWrite(state);
+        if (typeof window.saveConfig === 'function') {
+            window.saveConfig({
+                source: reason || 'audioflix',
+                meta: { skipEditHistory: true }
+            });
+        }
+        window.dispatchEvent(new CustomEvent('eve:audioflix-state-changed', { detail: { reason } }));
+    }
+
+    function scheduleSave(reason) {
+        if (saveTimer) window.clearTimeout(saveTimer);
+        saveTimer = window.setTimeout(() => persistNow(reason), SAVE_DELAY_MS);
     }
 
     function update(patch, reason) {
@@ -209,6 +219,36 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         if (root) root.audioflix = normalize(state);
         scheduleSave(reason);
         return ensure();
+    }
+
+    function replaceState(rawState, reason) {
+        const next = normalize(rawState);
+        const root = getConfigRoot();
+        if (root) root.audioflix = next;
+        if (window.config && typeof window.config === 'object' && window.config !== root) {
+            window.config.audioflix = next;
+        }
+        fallbackWrite(next);
+        scheduleSave(reason || 'audioflix-replace');
+        return next;
+    }
+
+    function replaceDatapackState(rawState, reason) {
+        if (rawState && typeof rawState === 'object') return replaceState(rawState, reason);
+        const current = ensure();
+        return replaceState(Object.assign({}, current, {
+            soundboard: [],
+            music: [],
+            recentPlays: [],
+            ports: [],
+            portVolumes: {},
+            exposedPortedSounds: {},
+            portHotkeys: {},
+            soundboardGroups: [],
+            soundGroupMap: {},
+            activeFrontendGroup: '',
+            counters: Object.assign({}, current.counters, { plays: 0 })
+        }), reason);
     }
 
     function addItem(type, item) {
@@ -276,11 +316,12 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     function setItemVolume(type, itemId, volume) {
         const state = ensure();
         const key = type === 'music' ? 'music' : 'soundboard';
+        const safeVolume = normalizeVolume(volume, 1);
         if (state[key]) {
-            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { volume }) : entry);
+            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { volume: safeVolume }) : entry);
         }
         state.portVolumes = state.portVolumes || {};
-        state.portVolumes[itemId] = volume;
+        state.portVolumes[itemId] = safeVolume;
         scheduleSave('audioflix-volume');
         return ensure();
     }
@@ -350,10 +391,16 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    window.addEventListener('pagehide', () => {
+        if (saveTimer) persistNow('audioflix-pagehide');
+    });
+
     Object.assign(ns, {
         ready: true,
         ensure,
         update,
+        replaceState,
+        replaceDatapackState,
         addItem,
         removeItem,
         addPort,
@@ -361,6 +408,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         recordPlay,
         recordGeminiAudioEvent,
         clearGeminiAudioEvents,
+        normalizeVolume,
         setItemVolume,
         setItemExposed,
         setItemHotkey,

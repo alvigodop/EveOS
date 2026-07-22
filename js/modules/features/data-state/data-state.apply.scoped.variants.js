@@ -80,14 +80,24 @@ window.EveDataStore = window.EveDataStore || {};
         const restoredAudioflix = (state.audioflix && typeof state.audioflix === 'object')
             ? state.audioflix
             : (state.bookmarks && state.bookmarks.config && state.bookmarks.config.audioflix);
-        if (restoredAudioflix && typeof restoredAudioflix === 'object') {
-            try {
-                if (window.eveState && window.eveState.config) window.eveState.config.audioflix = restoredAudioflix;
-                if (window.config && typeof window.config === 'object') window.config.audioflix = restoredAudioflix;
+        try {
+            const stopPromise = window.EveAudioflixAudio?.stopAll?.();
+            stopPromise?.catch?.((error) => {
+                console.warn('[DataState] Previous Audioflix playback did not stop cleanly:', error);
+            });
+            window.EveAudioflixAudioCodec?.clearCache?.();
+            if (window.EveAudioflixState?.replaceDatapackState) {
+                window.EveAudioflixState.replaceDatapackState(restoredAudioflix, 'audioflix-restore');
+            } else if (window.EveAudioflixState?.replaceState) {
+                window.EveAudioflixState.replaceState(restoredAudioflix || {}, 'audioflix-restore');
+            } else {
+                const fallbackAudioflix = restoredAudioflix || {};
+                if (window.eveState && window.eveState.config) window.eveState.config.audioflix = fallbackAudioflix;
+                if (window.config && typeof window.config === 'object') window.config.audioflix = fallbackAudioflix;
                 window.EveAudioflixState?.update?.({}, 'audioflix-restore');
-            } catch (error) {
-                console.warn('[DataState] Audioflix restore failed:', error);
             }
+        } catch (error) {
+            console.warn('[DataState] Audioflix restore failed:', error);
         }
 
         return true;

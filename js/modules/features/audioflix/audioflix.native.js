@@ -21,6 +21,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     let bridgeDownUntil = 0;
     let bridgeMissStreak = 0;
     let bridgeOfflineNoticeShown = false;
+    let deviceProbePromise = null;
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -148,13 +149,20 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     async function listSystemDevices(force = false) {
         if (deviceCache && !force && Date.now() - deviceCache.at < 5000) return deviceCache.payload;
-        const path = force ? '/api/audioflix/devices?refresh=1' : '/api/audioflix/devices';
-        // A forced refresh is an explicit user probe — bypass the bridge-down cache so starting
-        // the server and clicking "Refresh System Outputs" reconnects immediately.
-        const payload = await fetchJson(path, { timeout: DEVICE_SCAN_TIMEOUT_MS, probe: force === true });
-        lastStatus = Object.assign({}, payload, { devices: payload.devices || [] });
-        deviceCache = { at: Date.now(), payload: lastStatus };
-        return lastStatus;
+        if (deviceProbePromise) return deviceProbePromise;
+        deviceProbePromise = (async () => {
+            const path = force ? '/api/audioflix/devices?refresh=1' : '/api/audioflix/devices';
+            // Explicit refresh bypasses the bridge-down cooldown.
+            const payload = await fetchJson(path, { timeout: DEVICE_SCAN_TIMEOUT_MS, probe: force === true });
+            lastStatus = Object.assign({}, payload, { devices: payload.devices || [] });
+            deviceCache = { at: Date.now(), payload: lastStatus };
+            return lastStatus;
+        })();
+        try {
+            return await deviceProbePromise;
+        } finally {
+            deviceProbePromise = null;
+        }
     }
 
     async function warm(sampleRate) {
@@ -341,7 +349,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     function getProxyUrl(targetUrl) {
         if (!targetUrl) return '';
         const base = state().nativeBridgeBase || (window.location.origin.startsWith('http') ? window.location.origin : 'http://127.0.0.1:8765');
-        return `${base}/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+        return `${base}/api/proxy?media=1&url=${encodeURIComponent(targetUrl)}`;
     }
 
     async function setHotkeys(payload) {
