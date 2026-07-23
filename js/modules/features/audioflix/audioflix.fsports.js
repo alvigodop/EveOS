@@ -112,20 +112,27 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
     async function reconcile() {
         const api = stateApi();
         if (!supported() || !api?.ensure) return;
-        const mirror = Array.isArray(api.ensure().browserFolders) ? api.ensure().browserFolders : [];
+        const st = api.ensure();
+        const current = Array.isArray(st.browserFolders) ? st.browserFolders : [];
+        // A folder promoted to a path-based server Port (see "Save path") keeps its id in
+        // state.ports — never re-stub it as a browser folder or leave it in the mirror.
+        const portIds = new Set((st.ports || []).map((port) => port.id));
+        const mirror = current.filter((folder) => folder && folder.id && !portIds.has(folder.id));
         const db = await openDb();
         try {
             const records = (await tx(db, 'readonly', (store) => store.getAll())) || [];
             const byId = new Map(records.map((rec) => [rec.id, rec]));
             for (const folder of mirror) {
-                if (!folder || !folder.id || byId.has(folder.id)) continue;
+                if (byId.has(folder.id)) continue;
                 const stub = { id: folder.id, nickname: folder.nickname || 'Sound folder', handle: null, addedAt: folder.addedAt || Date.now() };
                 await tx(db, 'readwrite', (store) => store.put(stub));
                 byId.set(stub.id, stub);
             }
-            const registry = [...byId.values()].map((rec) => ({ id: rec.id, nickname: rec.nickname, addedAt: rec.addedAt || 0 }));
-            const inSync = registry.length === mirror.length
-                && registry.every((rec) => mirror.some((folder) => folder.id === rec.id && folder.nickname === rec.nickname));
+            const registry = [...byId.values()]
+                .filter((rec) => !portIds.has(rec.id))
+                .map((rec) => ({ id: rec.id, nickname: rec.nickname, addedAt: rec.addedAt || 0 }));
+            const inSync = registry.length === current.length
+                && registry.every((rec) => current.some((folder) => folder.id === rec.id && folder.nickname === rec.nickname));
             if (!inSync) api.update({ browserFolders: registry }, 'audioflix-browser-folders');
         } finally {
             db.close();
@@ -218,10 +225,13 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         // gets a per-folder Re-grant that re-selects the folder under the same id, so its per-item
         // settings return once reconnected.
         const fsRows = standalone.map(f => {
-            const regrant = f.permission !== 'granted' && fsSupported
-                ? `<button type="button" class="audioflix-add-toggle" data-af-action="regrant-fsport" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" style="margin-right: 6px; flex: 0 0 auto;">Re-grant</button>`
+            // Re-grant = re-pick the folder (serverless, but the browser hides the path so it must
+            // be re-picked on every fresh-browser restore). Save path = type the path once so it
+            // becomes a server Port whose path DOES ride in the backup (no re-picking after that).
+            const actions = f.permission !== 'granted' && fsSupported
+                ? `<button type="button" class="audioflix-add-toggle" data-af-action="portify-fsport" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" style="margin-right: 6px; flex: 0 0 auto;">Save path</button><button type="button" class="audioflix-add-toggle" data-af-action="regrant-fsport" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" style="margin-right: 6px; flex: 0 0 auto;">Re-grant</button>`
                 : '';
-            return `<div class="audioflix-port-item"><div><strong>${esc(f.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: ${f.permission === 'granted' ? '#7ee2a8' : '#f2b96b'};">${f.permission === 'granted' ? 'Connected (browser access)' : 'Needs reconnect'}</code></div>${regrant}<button type="button" class="audioflix-icon-btn danger" data-af-action="remove-fsport" data-af-id="${esc(f.id)}">${closeSvg}</button></div>`;
+            return `<div class="audioflix-port-item"><div><strong>${esc(f.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: ${f.permission === 'granted' ? '#7ee2a8' : '#f2b96b'};">${f.permission === 'granted' ? 'Connected (browser access)' : 'Needs reconnect'}</code></div>${actions}<button type="button" class="audioflix-icon-btn danger" data-af-action="remove-fsport" data-af-id="${esc(f.id)}">${closeSvg}</button></div>`;
         }).join('') || '<div class="audioflix-empty">No standalone browser folders. Use a port row\'s Grant Folder to link it, or grant a new folder here.</div>';
         const fsSection = fsSupported
             ? `<h4 style="margin-top: 14px;">Browser Folders <span style="font-weight: normal; font-size: 0.78rem; color: #9aa8bd;">(no server needed — works on file://)</span></h4>${fsRows}<div style="display: flex; gap: 8px; margin-top: 8px;"><button type="button" class="audioflix-add-toggle" data-af-action="add-fsport">Grant Folder</button>${pendingCount ? `<button type="button" class="audioflix-add-toggle" data-af-action="reconnect-fsports">Reconnect ${pendingCount} folder${pendingCount === 1 ? '' : 's'}</button>` : ''}</div>`

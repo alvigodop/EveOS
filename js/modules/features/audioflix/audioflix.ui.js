@@ -252,8 +252,23 @@ window.EveAudioflix = window.EveAudioflix || {};
             const next = (state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
             window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode'); pushHotkeysToBridge(); rerender(); return;
         }
+        if (action === 'portify-fsport') {
+            const nickname = actionTarget.dataset.afNickname || 'Sound folder';
+            let folderPath = '';
+            try { folderPath = String((await window.showPrompt?.(`Enter the folder path for "${nickname}" so it saves with your datapack (localhost loads it directly — no re-picking on restore):`, '')) || '').trim(); } catch {}
+            if (folderPath) {
+                window.EveAudioflixState?.addPort?.({ id, nickname, path: folderPath });
+                // Drop it from the browser-folder mirror + IDB stub so it lives only as a path Port.
+                const rest = (window.EveAudioflixState?.ensure?.().browserFolders || []).filter((f) => f.id !== id);
+                window.EveAudioflixState?.update?.({ browserFolders: rest }, 'audioflix-browser-folders');
+                try { await window.EveAudioflixFsPorts?.removeFolder?.(id); } catch {}
+                playbackStatus = `Saved "${nickname}" as a path Port — its path now travels with backups.`;
+            }
+            loadPortedSounds();
+            return;
+        }
         if (action === 'remove-port') { window.EveAudioflixState?.removePort?.(id); }
-        if (['remove-port', 'link-fsport', 'add-fsport', 'remove-fsport', 'reconnect-fsports'].includes(action)) {
+        if (['remove-port', 'link-fsport', 'regrant-fsport', 'add-fsport', 'remove-fsport', 'reconnect-fsports'].includes(action)) {
             const status = await window.EveAudioflixFsPorts?.handleAction?.(action, id, actionTarget);
             if (status) playbackStatus = status;
             loadPortedSounds();
