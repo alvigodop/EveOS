@@ -17,15 +17,94 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
     const ns = window.EveAudioflixAudioCapture;
     if (ns.ready) return;
 
+    // The bridge plays from a bounded queue drained by a device callback: an EMPTY queue emits
+    // silence (audible cut-outs) and a FULL one drops its oldest chunk. Capture runs at exactly
+    // 1x realtime, so sending each chunk the instant it appears leaves the queue hovering at empty
+    // and any jitter/GC starves it. So: build a cushion before the first send, then pump chunks
+    // strictly in order (never overlapping POSTs, which could also arrive out of sequence).
+    const PREBUFFER_MS = 400;
+    const MAX_BACKLOG_MS = 2000;
+
     ns.createController = function createController(deps) {
         const getWaveform = deps.getWaveform;
         const getPlayer = deps.getPlayer;
         const getVolume = deps.getVolume;
         let active = false;
+        let pending = [];
+        let pendingMs = 0;
+        let rate = 0;
+        let priming = true;
+        let pumping = false;
+        let dropped = 0;
+
+        function reset() {
+            pending = [];
+            pendingMs = 0;
+            priming = true;
+        }
+
+        function enqueue(mono) {
+            pending.push(mono);
+            pendingMs += (mono.length / rate) * 1000;
+            // Bridge lagging realtime: bound the drift instead of growing delay without limit.
+            while (pendingMs > MAX_BACKLOG_MS && pending.length > 1) {
+                pendingMs -= (pending.shift().length / rate) * 1000;
+                dropped += 1;
+            }
+        }
+
+        async function send(chunk) {
+            const payload = window.EveAudioflixAudioBridge?.encodePcm?.(chunk, 0, chunk.length, getVolume());
+            if (!payload) return true;
+            const detail = { sampleRate: rate, channels: 1 };
+            let ok = await window.EveAudioflixNative?.sendGeminiChunk?.(payload, detail);
+            // One retry: a single transient failure would otherwise punch a hole in the audio.
+            if (ok !== true) ok = await window.EveAudioflixNative?.sendGeminiChunk?.(payload, detail);
+            return ok === true;
+        }
+
+        async function pump() {
+            if (pumping) return;
+            pumping = true;
+            try {
+                while (active && pending.length) {
+                    const chunk = pending.shift();
+                    pendingMs -= (chunk.length / rate) * 1000;
+                    if (!(await send(chunk))) dropped += 1;
+                }
+            } finally {
+                pumping = false;
+            }
+        }
+
+        function onFrames(inputBuffer, sampleRate) {
+            if (!active) return;
+            rate = sampleRate;
+            // Paused: drop the stale backlog and re-prime, so resuming rebuilds the cushion
+            // instead of firing a burst of old audio at the device.
+            if (getPlayer()?.paused) {
+                if (!priming) reset();
+                return;
+            }
+            const left = inputBuffer.getChannelData(0);
+            let mono = left;
+            if (inputBuffer.numberOfChannels > 1) {
+                const right = inputBuffer.getChannelData(1);
+                mono = new Float32Array(left.length);
+                for (let index = 0; index < left.length; index += 1) mono[index] = (left[index] + right[index]) / 2;
+            } else {
+                mono = new Float32Array(left); // copy: the graph reuses its input buffer
+            }
+            enqueue(mono);
+            if (priming && pendingMs < PREBUFFER_MS) return;
+            priming = false;
+            pump();
+        }
 
         function stop() {
             if (!active) return false;
             active = false;
+            reset();
             const waveform = getWaveform();
             waveform?.setFrameTap?.(null);
             waveform?.setSpeakerMuted?.(false);
@@ -36,25 +115,20 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
         function start() {
             const waveform = getWaveform();
             if (!waveform?.setFrameTap) return false;
-            const rate = waveform.setFrameTap((inputBuffer, sampleRate) => {
-                if (!active || getPlayer()?.paused) return;
-                const left = inputBuffer.getChannelData(0);
-                let mono = left;
-                if (inputBuffer.numberOfChannels > 1) {
-                    const right = inputBuffer.getChannelData(1);
-                    mono = new Float32Array(left.length);
-                    for (let index = 0; index < left.length; index += 1) mono[index] = (left[index] + right[index]) / 2;
-                }
-                const payload = window.EveAudioflixAudioBridge?.encodePcm?.(mono, 0, mono.length, getVolume());
-                if (payload) window.EveAudioflixNative?.sendGeminiChunk?.(payload, { sampleRate, channels: 1 });
-            });
-            if (!rate) return false;
+            reset();
+            dropped = 0;
+            const tapRate = waveform.setFrameTap(onFrames);
+            if (!tapRate) return false;
+            rate = tapRate;
             active = true;
+            // Pre-open the device stream at this rate so the first chunks aren't clipped by a
+            // cold WASAPI open (the same cause as the old first-reply cutout).
+            window.EveAudioflixNative?.warm?.(rate)?.catch?.(() => {});
             waveform.setSpeakerMuted?.(true);
             return true;
         }
 
-        return { start, stop, isActive: () => active };
+        return { start, stop, isActive: () => active, getStats: () => ({ rate, pendingMs, dropped, priming }) };
     };
 
     ns.ready = true;

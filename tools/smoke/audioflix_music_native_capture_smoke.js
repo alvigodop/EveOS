@@ -1,13 +1,15 @@
-// Music -> native EveOS bridge, WITHOUT the play->sound lag.
+// Music -> native EveOS bridge: no play->sound lag, and a STABLE stream (no cut-outs).
 //
-// Routing music through the native bridge by decoding the whole track first put seconds between
-// pressing play and hearing audio. Music now plays through the media element (instant, seekable)
-// while its LIVE signal is tapped and streamed to the bridge, with local speakers silenced.
+// The bridge plays from a bounded queue drained by a device callback: an empty queue emits
+// silence (audible cut-outs), a full one drops its oldest chunk. Capture runs at exactly 1x
+// realtime, so this controller builds a cushion before its first send and then pumps chunks
+// strictly in order.
 //
-// Asserts: (a) starting music on the native route does NOT pre-decode the track,
-// (b) local speakers are silenced while the tap is active, (c) live frames are encoded and sent
-// to the bridge as PCM, (d) stopping tears the tap down and restores local output,
-// (e) with the bridge disarmed, music keeps the plain browser route (no tap, no muting).
+// Asserts: (a) the native music route never pre-decodes the track (that was the lag),
+// (b) local speakers are silenced while the route owns the audio, (c) nothing is sent until the
+// prebuffer cushion is built, (d) once streaming, chunks are sent strictly sequentially (never
+// overlapping/out of order), (e) the device stream is pre-warmed so the first chunks aren't
+// clipped by a cold open, (f) stop tears the tap down and restores local output.
 const path = require('path');
 const { chromium } = require('playwright');
 const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'EveOS.html').replace(/\\/g, '/');
@@ -25,75 +27,86 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         && window.EveAudioflixState?.ready), undefined, { timeout: 60000 });
 
     const result = await page.evaluate(async () => {
-        const out = { decodes: 0, chunks: 0, muted: null, unmutedAfterStop: null, tapTornDown: null };
+        const RATE = 48000;
+        const FRAME = 4096;                       // ~85ms per tap callback
+        const settle = () => new Promise((r) => setTimeout(r, 120));
+        const out = { decodes: 0, chunks: 0, overlaps: 0, warmed: 0 };
 
         // Spy the decode path — the native music route must NOT touch it (that was the lag).
         window.EveAudioflixAudioCodec.getDecodedBuffer = async () => {
             out.decodes += 1;
-            return { duration: 1, sampleRate: 48000, numberOfChannels: 1, length: 48000, getChannelData: () => new Float32Array(48000) };
+            return { duration: 1, sampleRate: RATE, numberOfChannels: 1, length: RATE, getChannelData: () => new Float32Array(RATE) };
         };
-        // Arm the native bridge and capture what it receives.
-        window.EveAudioflixState.update({ nativeBridgeEnabled: true, nativeOutputId: 'sd:0', nativeOutputLabel: 'CABLE Input (VB-Audio)', nativeSuppressBrowserPlayback: true }, 'capture-smoke');
-        window.EveAudioflixNative.shouldSuppressBrowserPlayback = () => true;
-        window.EveAudioflixNative.getStatus = () => ({ ok: true });
+
+        let inFlight = 0;
+        window.EveAudioflixNative.warm = async () => { out.warmed += 1; return true; };
+        window.EveAudioflixNative.stopStream = async () => true;
         window.EveAudioflixNative.sendGeminiChunk = async (payload, detail) => {
+            // Two concurrent sends would mean chunks can hit the device out of order.
+            inFlight += 1;
+            if (inFlight > 1) out.overlaps += 1;
+            await new Promise((r) => setTimeout(r, 5));
             if (payload && detail?.channels === 1) out.chunks += 1;
+            inFlight -= 1;
             return true;
         };
-        window.EveAudioflixNative.stopStream = async () => true;
 
-        // Stub the Web Audio graph so the tap is exercised without real device output.
-        let tapHandler = null;
-        let mutedState = null;
-        const waveform = { setFrameTap: null };
-        window.EveAudioflixAudioWaveform.createController = () => ({
-            attach() {}, start() {}, stop() {}, getContext: () => null,
-            setSpeakerMuted(muted) { mutedState = muted; return true; },
-            setFrameTap(handler) { tapHandler = handler; return handler ? 48000 : 0; }
-        });
-        // Rebuild the capture controller against the stubbed graph.
+        let tap = null;
+        let muted = null;
+        let paused = false;
         const capture = window.EveAudioflixAudioCapture.createController({
             getWaveform: () => ({
-                setSpeakerMuted: (m) => { mutedState = m; return true; },
-                setFrameTap: (h) => { tapHandler = h; return h ? 48000 : 0; }
+                setSpeakerMuted: (value) => { muted = value; return true; },
+                setFrameTap: (handler) => { tap = handler; return handler ? RATE : 0; }
             }),
-            getPlayer: () => ({ paused: false }),
+            getPlayer: () => ({ paused }),
             getVolume: () => 1
         });
 
-        // (a)+(b) Start the native music route: no decode, speakers silenced, tap installed.
-        const started = capture.start();
-        out.started = started;
-        out.muted = mutedState;
-        out.decodesAfterStart = out.decodes;
-
-        // (c) Feed live frames through the tap -> encoded PCM reaches the bridge.
-        const frames = {
-            numberOfChannels: 2,
-            getChannelData: (i) => {
-                const data = new Float32Array(4096);
-                for (let n = 0; n < data.length; n += 1) data[n] = (i === 0 ? 0.5 : -0.5);
+        const frames = (channels) => ({
+            numberOfChannels: channels,
+            getChannelData: (index) => {
+                const data = new Float32Array(FRAME);
+                for (let n = 0; n < FRAME; n += 1) data[n] = index === 0 ? 0.5 : -0.25;
                 return data;
             }
-        };
-        tapHandler?.(frames, 48000);
-        await new Promise((r) => setTimeout(r, 50));
+        });
 
-        // (d) Stop tears down and restores local output.
+        // (a)+(b)+(e) Start: no decode, speakers silenced, device pre-warmed.
+        out.started = capture.start();
+        out.muted = muted;
+        out.decodesAfterStart = out.decodes;
+
+        // (c) Below the cushion (~400ms) nothing should be sent yet.
+        tap(frames(2), RATE);
+        tap(frames(2), RATE);          // ~170ms buffered
+        await settle();
+        out.chunksWhilePriming = out.chunks;
+
+        // Cross the cushion, then keep feeding — now it streams.
+        for (let i = 0; i < 8; i += 1) tap(frames(2), RATE);
+        await settle();
+        await settle();
+        out.chunksAfterPriming = out.chunks;
+
+        // (f) Stop restores local output and removes the tap.
         capture.stop();
-        out.unmutedAfterStop = mutedState === false;
-        out.tapTornDown = tapHandler === null;
+        out.unmutedAfterStop = muted === false;
+        out.tapTornDown = tap === null;
         return out;
     });
 
     await browser.close();
     const fails = [];
     if (!result.started) fails.push('native music capture did not start');
-    if (result.decodesAfterStart !== 0) fails.push(`native music route pre-decoded the track (${result.decodesAfterStart} decode calls) — that is the play->sound lag`);
+    if (result.decodesAfterStart !== 0) fails.push(`native music route pre-decoded the track (${result.decodesAfterStart} decodes) — that is the play->sound lag`);
     if (result.muted !== true) fails.push('local speakers were not silenced while the native route owns the audio');
-    if (!result.chunks) fails.push('no live PCM frames were streamed to the native bridge');
+    if (!result.warmed) fails.push('device stream was not pre-warmed (first chunks can be clipped by a cold open)');
+    if (result.chunksWhilePriming !== 0) fails.push(`streamed before the cushion was built (${result.chunksWhilePriming} chunks) — the device queue would run dry`);
+    if (!result.chunksAfterPriming) fails.push('no PCM reached the bridge after the cushion was built');
+    if (result.overlaps) fails.push(`${result.overlaps} overlapping sends — chunks can reach the device out of order (choppy audio)`);
     if (!result.unmutedAfterStop) fails.push('local output was not restored after stopping the native route');
     if (!result.tapTornDown) fails.push('live PCM tap was not torn down on stop');
     if (fails.length) { console.error('FAIL: ' + fails.join('; ')); process.exit(1); }
-    console.log(`AUDIOFLIX_MUSIC_NATIVE_CAPTURE_OK (decodes=${result.decodesAfterStart}, chunks=${result.chunks})`);
+    console.log(`AUDIOFLIX_MUSIC_NATIVE_CAPTURE_OK (decodes=0, priming=0, chunks=${result.chunksAfterPriming}, overlaps=0)`);
 })().catch((e) => { console.error(e); process.exit(1); });
