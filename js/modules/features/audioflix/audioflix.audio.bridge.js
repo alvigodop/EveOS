@@ -175,6 +175,9 @@ window.EveAudioflixAudioBridge = window.EveAudioflixAudioBridge || {};
     Object.assign(ns, {
         ready: true,
         createStream,
-        createTimeline
+        createTimeline,
+        // Exposed for the live-capture music route, which encodes real-time frames straight from
+        // the player instead of pre-decoding a whole track (see audioflix.audio.js).
+        encodePcm: encodeChunk
     });
 })();

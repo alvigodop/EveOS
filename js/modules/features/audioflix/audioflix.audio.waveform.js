@@ -10,6 +10,10 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         let context = null;
         let source = null;
         let analyser = null;
+        let outputGain = null;
+        let captureNode = null;
+        let captureSink = null;
+        let onFrames = null;
         let canvas = null;
         let canvasContext = null;
         let animationFrame = 0;
@@ -25,10 +29,73 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
                 source = context.createMediaElementSource(player);
                 analyser = context.createAnalyser();
                 analyser.fftSize = 1024;
+                // A gain stage before the speakers lets the native EveOS route silence local
+                // output ("bypasser") while the same live signal is tapped for the bridge.
+                outputGain = context.createGain();
                 source.connect(analyser);
-                analyser.connect(context.destination);
+                analyser.connect(outputGain);
+                outputGain.connect(context.destination);
             }
             return context;
+        }
+
+        // The graph can legitimately fail to build (no AudioContext, a non-media element, a source
+        // already claimed elsewhere). Never let that throw into playback — callers fall back.
+        function safeGraph() {
+            try { return ensureGraph(); } catch (error) {
+                console.warn('[Audioflix] audio graph unavailable:', error);
+                return null;
+            }
+        }
+
+        // Silence the browser speakers without pausing playback (native route owns the sound).
+        function setSpeakerMuted(muted) {
+            const ctx = safeGraph();
+            if (!ctx || !outputGain) return false;
+            outputGain.gain.value = muted ? 0 : 1;
+            return true;
+        }
+
+        function teardownTap() {
+            if (captureNode) {
+                captureNode.onaudioprocess = null;
+                try { captureNode.disconnect(); } catch (error) { /* already detached */ }
+                captureNode = null;
+            }
+            if (captureSink) {
+                try { captureSink.disconnect(); } catch (error) { /* already detached */ }
+                captureSink = null;
+            }
+        }
+
+        // Real-time PCM tap on the live player. Lets the native bridge play a track WITHOUT
+        // pre-decoding it, which is what made music lag between pressing play and hearing it.
+        // Pass null to tear the tap down. Returns the context sample rate, or 0 if unavailable.
+        function setFrameTap(handler) {
+            const ctx = safeGraph();
+            if (!ctx) return 0;
+            onFrames = typeof handler === 'function' ? handler : null;
+            if (!onFrames) {
+                teardownTap();
+                return ctx.sampleRate;
+            }
+            if (!captureNode && typeof ctx.createScriptProcessor === 'function') {
+                try {
+                    captureNode = ctx.createScriptProcessor(4096, 2, 2);
+                    captureSink = ctx.createGain();
+                    captureSink.gain.value = 0;
+                    captureNode.onaudioprocess = (event) => onFrames?.(event.inputBuffer, ctx.sampleRate);
+                    analyser.connect(captureNode);
+                    captureNode.connect(captureSink);
+                    captureSink.connect(ctx.destination);
+                } catch (error) {
+                    console.warn('[Audioflix] live PCM tap unavailable:', error);
+                    teardownTap();
+                    onFrames = null;
+                    return 0;
+                }
+            }
+            return ctx.sampleRate;
         }
 
         function fitCanvas() {
@@ -106,7 +173,7 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             if (canvas && !animationFrame && !player.paused) start();
         }
 
-        return { attach, start, stop, getContext: ensureGraph };
+        return { attach, start, stop, getContext: ensureGraph, setSpeakerMuted, setFrameTap };
     }
 
     Object.assign(ns, { ready: true, createController });

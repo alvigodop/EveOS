@@ -225,11 +225,15 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         // gets a per-folder Re-grant that re-selects the folder under the same id, so its per-item
         // settings return once reconnected.
         const fsRows = standalone.map(f => {
-            // Re-grant = re-pick the folder (serverless, but the browser hides the path so it must
-            // be re-picked on every fresh-browser restore). Save path = type the path once so it
-            // becomes a server Port whose path DOES ride in the backup (no re-picking after that).
-            const actions = f.permission !== 'granted' && fsSupported
-                ? `<button type="button" class="audioflix-add-toggle" data-af-action="portify-fsport" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" style="margin-right: 6px; flex: 0 0 auto;">Save path</button><button type="button" class="audioflix-add-toggle" data-af-action="regrant-fsport" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" style="margin-right: 6px; flex: 0 0 auto;">Re-grant</button>`
+            // Save path is offered ALWAYS (including on file:// where the folder is happily
+            // granted): typing the path once makes it a Port whose path rides in the backup, so a
+            // restore on localhost is ready to go. A granted folder KEEPS its handle, so the same
+            // entry still loads serverless here — server-dependent on localhost, file:// adaptable.
+            // Re-grant only appears when the handle is missing/downgraded and must be re-picked.
+            const granted = f.permission === 'granted';
+            const btn = (act, label) => `<button type="button" class="audioflix-add-toggle" data-af-action="${act}" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" data-af-granted="${granted ? '1' : '0'}" style="margin-right: 6px; flex: 0 0 auto;">${label}</button>`;
+            const actions = fsSupported
+                ? `${btn('portify-fsport', 'Save path')}${granted ? '' : btn('regrant-fsport', 'Re-grant')}`
                 : '';
             return `<div class="audioflix-port-item"><div><strong>${esc(f.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: ${f.permission === 'granted' ? '#7ee2a8' : '#f2b96b'};">${f.permission === 'granted' ? 'Connected (browser access)' : 'Needs reconnect'}</code></div>${actions}<button type="button" class="audioflix-icon-btn danger" data-af-action="remove-fsport" data-af-id="${esc(f.id)}">${closeSvg}</button></div>`;
         }).join('') || '<div class="audioflix-empty">No standalone browser folders. Use a port row\'s Grant Folder to link it, or grant a new folder here.</div>';

@@ -222,6 +222,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     // Label of the endpoint the continuous browser music stream was routed to (for status text).
     let activeBrowserRouteLabel = '';
+    const musicCapture = window.EveAudioflixAudioCapture?.createController?.(
+        { getWaveform: () => waveformController, getPlayer: () => audio, getVolume: () => activeStreamVolume }) || null;
 
     async function playUrlItem(item, playOptions = {}) {
         if (!urlPlayback?.canHandle?.(item)) throw new Error('This linked track needs the EveOS resolver server.');
@@ -285,9 +287,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             }
         }
 
-        // Long music tracks need one continuous browser media stream. The native PCM
-        // bridge remains ideal for short soundboard clips, but packetizing a full song
-        // into many HTTP requests creates startup delay and audible queue gaps.
+        // Soundboard clips take the BUFFERED native route (short to decode, and buffering is what
+        // makes them mixable voices). Music must not decode here — a whole track costs seconds
+        // before the first sample (the play->sound lag); it is tapped live below instead.
         if (safeItem.type === 'sound' && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
             try {
                 lastStatus = `Decoding ${safeItem.title || 'audio'}...`;
@@ -308,7 +310,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 if (String(err?.message || '').includes('Native bridge unreachable')) {
                     if (!nativeFallbackNoticeShown) {
                         nativeFallbackNoticeShown = true;
-                        console.info('[Audioflix] Native bridge offline — playing soundboard through the browser route instead.');
+                        console.info('[Audioflix] Native bridge offline — playing through the browser route instead.');
                     }
                 } else {
                     console.warn('[Audioflix] native stream failed, falling back:', err);
@@ -318,8 +320,13 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
         const player = ensureAudio();
         currentItem = safeItem;
-        player.volume = window.EveAudioflixState.normalizeVolume(safeItem.volume, 1);
-        activeBrowserRouteLabel = await routeBrowserStream(safeItem) || '';
+        player.volume = activeStreamVolume = window.EveAudioflixState.normalizeVolume(safeItem.volume, 1);
+        // Music on the native EveOS route plays through the element (instant, seekable, no
+        // whole-track decode) with local output silenced and its live PCM streamed to the bridge.
+        const nativeMusic = safeItem.type === 'music'
+            && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() && musicCapture?.start();
+        if (!nativeMusic) musicCapture?.stop();
+        activeBrowserRouteLabel = nativeMusic ? (state().nativeOutputLabel || 'native route') : (await routeBrowserStream(safeItem) || '');
         if (player.src !== safeItem.url) player.src = safeItem.url;
         try {
             await player.play();
@@ -350,6 +357,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     function stopItemLayers(itemId) {
         layerController.stopItemLayers(itemId);
         if (currentItem?.id === itemId) {
+            musicCapture?.stop();
             urlPlayback?.stop?.().catch?.(() => {});
             stopNativePlayback(false).catch(() => {});
             const player = ensureAudio();
@@ -364,6 +372,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     async function stopAll() {
         const stoppedItem = currentItem;
         const pending = layerController.stopAll();
+        musicCapture?.stop();
         if (audio) {
             audio.pause();
             try { audio.currentTime = 0; audio.removeAttribute('src'); audio.load(); } catch {}

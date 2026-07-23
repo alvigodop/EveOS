@@ -258,10 +258,10 @@ window.EveAudioflix = window.EveAudioflix || {};
             try { folderPath = String((await window.showPrompt?.(`Enter the folder path for "${nickname}" so it saves with your datapack (localhost loads it directly — no re-picking on restore):`, '')) || '').trim(); } catch {}
             if (folderPath) {
                 window.EveAudioflixState?.addPort?.({ id, nickname, path: folderPath });
-                // Drop it from the browser-folder mirror + IDB stub so it lives only as a path Port.
+                // A GRANTED folder keeps its handle (still serverless on file://); a dead stub goes.
                 const rest = (window.EveAudioflixState?.ensure?.().browserFolders || []).filter((f) => f.id !== id);
                 window.EveAudioflixState?.update?.({ browserFolders: rest }, 'audioflix-browser-folders');
-                try { await window.EveAudioflixFsPorts?.removeFolder?.(id); } catch {}
+                if (actionTarget.dataset.afGranted !== '1') try { await window.EveAudioflixFsPorts?.removeFolder?.(id); } catch {}
                 playbackStatus = `Saved "${nickname}" as a path Port — its path now travels with backups.`;
             }
             loadPortedSounds();
