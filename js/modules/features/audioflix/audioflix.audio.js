@@ -298,6 +298,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 currentItem = safeItem;
                 lastStatus = `Native route playing ${safeItem.title || 'audio'} -> ${state().nativeOutputLabel || 'selected output'}`;
                 dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, native: true });
+                waveformController?.playBufferWaveform?.(audioBuffer);
                 await startNativeBuffer(audioBuffer, safeItem, 0);
                 nativeFallbackNoticeShown = false;
                 window.EveAudioflixState?.recordPlay?.(safeItem);
@@ -319,6 +320,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         }
 
         const player = ensureAudio();
+        waveformController?.attachPlayer?.(player);
         currentItem = safeItem;
         player.volume = activeStreamVolume = window.EveAudioflixState.normalizeVolume(safeItem.volume, 1);
         // Music on the native EveOS route plays through the element (instant, seekable, no

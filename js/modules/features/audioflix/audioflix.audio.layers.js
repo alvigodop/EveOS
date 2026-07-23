@@ -36,6 +36,7 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                         voiceId: id
                     });
                     if (ok) {
+                        window.EveAudioflixAudio?.getWaveformController?.()?.playBufferWaveform?.(buffer);
                         activeLayers.set(id, [{ stop: () => window.EveAudioflixNative?.clearVoices?.(id) }]);
                         return true;
                     }
@@ -44,9 +45,12 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 }
             }
 
-            const player = new Audio(safeItem.url);
+            const player = new Audio();
+            player.crossOrigin = 'anonymous';
+            player.src = safeItem.url;
             player.loop = false;
             player.volume = window.EveAudioflixState.normalizeVolume(safeItem.volume, 1);
+            window.EveAudioflixAudio?.getWaveformController?.()?.attachPlayer?.(player);
             const sinkId = deps.state().preferredSinkId;
             if (sinkId && typeof player.setSinkId === 'function') {
                 try { await player.setSinkId(sinkId); } catch { }

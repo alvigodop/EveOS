@@ -209,6 +209,44 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             }
         }
 
+        function playBufferWaveform(audioBuffer) {
+            if (!audioBuffer) return;
+            const ctx = safeGraph();
+            if (!ctx || !analyser) return;
+            try {
+                if (ctx.state === 'suspended') ctx.resume();
+                const bufferSource = ctx.createBufferSource();
+                bufferSource.buffer = audioBuffer;
+                bufferSource.connect(analyser);
+                bufferSource.onended = () => {
+                    try { bufferSource.disconnect(); } catch (e) {}
+                    if (!activePlayer || activePlayer.paused) stop();
+                };
+                bufferSource.start(0);
+                start();
+            } catch (e) {
+                console.warn('[Audioflix] could not play buffer waveform:', e);
+            }
+        }
+
+        function attachPlayer(player) {
+            if (!player) return;
+            try {
+                if (player.crossOrigin !== 'anonymous' && player.src && !player.src.startsWith('data:')) {
+                    player.crossOrigin = 'anonymous';
+                }
+            } catch (e) {}
+            ensureGraph(player);
+            if (!player.dataset.audioflixWaveformEvents) {
+                player.dataset.audioflixWaveformEvents = 'true';
+                player.addEventListener('play', start);
+                player.addEventListener('pause', stop);
+                player.addEventListener('ended', stop);
+                player.addEventListener('error', stop);
+            }
+            if (canvas && !animationFrame && !player.paused) start();
+        }
+
         function attach(targetCanvas) {
             canvas = targetCanvas || null;
             if (!canvas) {
@@ -217,16 +255,10 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             }
             fitCanvas();
             const player = ensureAudio();
-            if (!player.dataset.audioflixWaveformEvents) {
-                player.dataset.audioflixWaveformEvents = 'true';
-                player.addEventListener('pause', stop);
-                player.addEventListener('ended', stop);
-                player.addEventListener('error', stop);
-            }
-            if (canvas && !animationFrame && !player.paused) start();
+            attachPlayer(player);
         }
 
-        return { attach, start, stop, getContext: ensureGraph, ensureGraph, setSpeakerMuted, setFrameTap };
+        return { attach, attachPlayer, playBufferWaveform, start, stop, getContext: ensureGraph, ensureGraph, setSpeakerMuted, setFrameTap };
     }
 
     Object.assign(ns, { ready: true, createController });
