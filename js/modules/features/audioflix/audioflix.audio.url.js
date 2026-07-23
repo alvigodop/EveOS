@@ -15,6 +15,14 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
         return String(item?.id || item?.url || '');
     }
 
+    // Provider iframes own their audio element; setSinkId can't reach them, so flag a routed
+    // output as bypassed instead of silently ignoring it.
+    function routedOutputNote() {
+        const s = window.EveAudioflixState?.ensure?.() || {};
+        return (s.preferredSinkId || (s.nativeBridgeEnabled === true && s.nativeOutputId))
+            ? ' Note: provider players cannot follow the routed output, so this audio uses the system default device.' : '';
+    }
+
     function providerFor(rawUrl) {
         let parsed;
         try { parsed = new URL(String(rawUrl || '').trim()); } catch { return ''; }
@@ -143,11 +151,8 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             const session = active;
             active = null;
             try {
-                if (session?.kind === 'direct') {
-                    session.player.pause();
-                    session.player.removeAttribute('src');
-                    session.player.load();
-                } else if (session?.kind === 'youtube') session.player.destroy?.();
+                if (session?.kind === 'direct') { session.player.pause(); session.player.removeAttribute('src'); session.player.load(); }
+                else if (session?.kind === 'youtube') session.player.destroy?.();
                 else if (session?.kind === 'soundcloud') session.player.pause?.();
                 else if (session?.kind === 'vimeo') await session.player.destroy?.();
             } catch { }
@@ -165,10 +170,13 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             player.preload = 'auto';
             player.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
             player.src = item.url;
-            const sinkId = window.EveAudioflixState?.ensure?.()?.preferredSinkId;
-            if (sinkId && typeof player.setSinkId === 'function') {
-                try { await player.setSinkId(sinkId); } catch { }
-            }
+            // Follow the routed output (picked sink or matched native endpoint) so linked music
+            // shares the soundboard's control layer; resolvePlaybackSink covers both cases.
+            let routedLabel = '';
+            try {
+                const routed = typeof player.setSinkId === 'function' && await window.EveAudioflixAudio?.resolvePlaybackSink?.();
+                if (routed?.deviceId) { await player.setSinkId(routed.deviceId); routedLabel = routed.label || ''; }
+            } catch { }
             active = { kind: 'direct', player };
             const update = () => {
                 playback.currentTime = Number(player.currentTime || 0) || 0;
@@ -178,7 +186,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             };
             player.addEventListener('timeupdate', update);
             player.addEventListener('durationchange', update);
-            player.addEventListener('play', () => { update(); emitPlayback(`Playing ${item.title || 'linked audio'} directly from the browser`); });
+            player.addEventListener('play', () => { update(); emitPlayback(`Playing ${item.title || 'linked audio'} directly from the browser${routedLabel ? ` -> ${routedLabel}` : ''}`); });
             player.addEventListener('pause', () => { update(); emitPlayback('Paused'); });
             player.addEventListener('ended', () => { update(); emitPlayback('Ended'); });
             await player.play();
@@ -194,7 +202,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                     expanded: requestedInternalView,
                     onReady(detail) {
                         playback.duration = Number(detail.duration) || 0;
-                        setStageStatus('Playing with YouTube inside EveOS.');
+                        setStageStatus('Playing with YouTube inside EveOS.' + routedOutputNote());
                         emitProgress();
                     },
                     onProgress(detail) {
@@ -250,7 +258,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                             event.target.setVolume(Math.round(Math.max(0, Math.min(1, Number(item.volume ?? 1))) * 100));
                             event.target.playVideo();
                             playback.duration = Number(event.target.getDuration?.() || 0) || 0;
-                            setStageStatus('Playing with YouTube\'s browser player.');
+                            setStageStatus('Playing with YouTube\'s browser player.' + routedOutputNote());
                             finish();
                         },
                         onStateChange(event) {

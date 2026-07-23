@@ -166,7 +166,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             activeNativeMode = '';
             activeNativeBuffer = null;
             nativePausedAt = 0;
-            lastStatus = `Playing ${currentItem?.title || 'audio'}`;
+            lastStatus = `Playing ${currentItem?.title || 'audio'}${activeBrowserRouteLabel ? ` -> ${activeBrowserRouteLabel}` : ''}`;
             dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
             dispatch('eve:audioflix-progress', getPlaybackState());
             waveformController?.start?.();
@@ -215,8 +215,13 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         setOutputById,
         unlockDeviceLabels,
         tryNativePlayback,
-        browserOutputStatus
+        browserOutputStatus,
+        resolvePlaybackSink,
+        routeBrowserStream
     } = outputController;
+
+    // Label of the endpoint the continuous browser music stream was routed to (for status text).
+    let activeBrowserRouteLabel = '';
 
     async function playUrlItem(item, playOptions = {}) {
         if (!urlPlayback?.canHandle?.(item)) throw new Error('This linked track needs the EveOS resolver server.');
@@ -314,10 +319,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         const player = ensureAudio();
         currentItem = safeItem;
         player.volume = window.EveAudioflixState.normalizeVolume(safeItem.volume, 1);
-        const preferredSinkId = state().preferredSinkId;
-        if (preferredSinkId) {
-            try { await applySink(preferredSinkId); } catch { }
-        }
+        activeBrowserRouteLabel = await routeBrowserStream(safeItem) || '';
         if (player.src !== safeItem.url) player.src = safeItem.url;
         try {
             await player.play();
@@ -427,7 +429,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     Object.assign(ns, {
         ready: true, playItem, openInternalView, pause, seek, selectOutput, listOutputs, setOutputById,
-        unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus,
+        unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus, resolvePlaybackSink,
         layerPlay, stopItemLayers, stopAll, updateItemVolume, getDecodedBuffer, encodeBufferToBase64,
         getAudioElement: ensureAudio, getPlaybackState,
         getStatus() {

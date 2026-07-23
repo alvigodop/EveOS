@@ -36,6 +36,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         music: [],
         recentPlays: [],
         ports: [],
+        // Metadata mirror of the browser-granted folders (FileSystemDirectoryHandle records live
+        // in a separate IndexedDB that cannot be serialized). Carrying id/nickname here lets a
+        // backup remember the folder so restore can surface it for a one-click re-grant.
+        browserFolders: [],
         portVolumes: {},
         exposedPortedSounds: {},
         portHotkeys: {},
@@ -160,6 +164,13 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             music: boundedItems(source.music, 'music', MAX_MUSIC),
             recentPlays: (Array.isArray(source.recentPlays) ? source.recentPlays : []).slice(-MAX_RECENT),
             ports: (Array.isArray(source.ports) ? source.ports : []).map(cleanPort),
+            browserFolders: (Array.isArray(source.browserFolders) ? source.browserFolders : [])
+                .map((folder) => ({
+                    id: text(folder?.id, ''),
+                    nickname: text(folder?.nickname, 'Sound folder'),
+                    addedAt: Number(folder?.addedAt || 0) || 0
+                }))
+                .filter((folder) => !!folder.id),
             portVolumes: source.portVolumes && typeof source.portVolumes === 'object' ? source.portVolumes : {},
             exposedPortedSounds: source.exposedPortedSounds && typeof source.exposedPortedSounds === 'object' ? source.exposedPortedSounds : {},
             portHotkeys: source.portHotkeys && typeof source.portHotkeys === 'object' ? source.portHotkeys : {},
@@ -241,6 +252,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             music: [],
             recentPlays: [],
             ports: [],
+            browserFolders: [],
             portVolumes: {},
             exposedPortedSounds: {},
             portHotkeys: {},

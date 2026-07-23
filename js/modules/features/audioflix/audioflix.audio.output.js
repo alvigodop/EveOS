@@ -136,6 +136,76 @@ window.EveAudioflixAudioOutput = window.EveAudioflixAudioOutput || {};
         return await commitOutput(deviceId, label || 'Selected output device');
     }
 
+    // Music plays as ONE continuous browser stream (the native PCM lane stays for short
+    // soundboard clips), so the control layer routes it by resolving which BROWSER sink lands
+    // on the routed endpoint: the explicitly picked browser output when set, otherwise the
+    // browser device whose name matches the armed Native Bridge output — both surfaces list
+    // the same Windows endpoint (e.g. "CABLE Input (VB-Audio Virtual Cable)"), the native side
+    // just carries a host-API suffix and MME name truncation.
+    const HOST_API_SUFFIX_RE = /\((mme|windows directsound|windows wasapi|windows wdm-ks|asio|core audio|alsa)\)/gi;
+    let nativeSinkMatch = { key: '', deviceId: '', label: '', at: 0 };
+
+    function normalizeDeviceLabel(value) {
+        return String(value || '')
+            .replace(HOST_API_SUFFIX_RE, ' ')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+    }
+
+    function deviceLabelsMatch(a, b) {
+        const left = normalizeDeviceLabel(a);
+        const right = normalizeDeviceLabel(b);
+        if (!left || !right) return false;
+        const shorter = left.length <= right.length ? left : right;
+        const longer = left.length <= right.length ? right : left;
+        return shorter.length >= 6 && longer.startsWith(shorter);
+    }
+
+    async function resolvePlaybackSink() {
+        const current = state();
+        if (current.preferredSinkId) {
+            return {
+                deviceId: current.preferredSinkId,
+                label: current.preferredSinkLabel || 'selected output',
+                source: 'browser-selective'
+            };
+        }
+        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId || !current.nativeOutputLabel) return null;
+        if (nativeSinkMatch.key !== current.nativeOutputLabel || Date.now() - nativeSinkMatch.at >= 15000) {
+            const outputs = await listOutputs();
+            const match = (outputs || []).find(
+                (device) => device && !device.anonymous && deviceLabelsMatch(device.label, current.nativeOutputLabel)
+            );
+            nativeSinkMatch = {
+                key: current.nativeOutputLabel,
+                deviceId: match?.deviceId || '',
+                label: match?.label || '',
+                at: Date.now()
+            };
+        }
+        return nativeSinkMatch.deviceId
+            ? { deviceId: nativeSinkMatch.deviceId, label: nativeSinkMatch.label, source: 'native-label-match' }
+            : { deviceId: '', label: current.nativeOutputLabel, source: 'native-unmatched' };
+    }
+
+    // Route the browser <audio> player (used for continuous music) onto the resolved sink and
+    // return the human label; when a native endpoint is armed but has no browser twin here, say
+    // so once instead of silently playing on the default device. Returns '' when unrouted.
+    let nativeSinkNoticeShown = false;
+    async function routeBrowserStream(item) {
+        let routed = null;
+        try { routed = await resolvePlaybackSink(); } catch { routed = null; }
+        if (routed?.deviceId) {
+            try { await applySink(routed.deviceId); nativeSinkNoticeShown = false; return routed.label || ''; }
+            catch (error) { console.warn('[Audioflix] Routed output sink rejected the browser stream:', error); }
+        } else if (routed?.source === 'native-unmatched' && !nativeSinkNoticeShown) {
+            nativeSinkNoticeShown = true;
+            runtime.lastStatus = `No browser output matches the native "${routed.label}" route; this stream uses the default device. Click "Grant Output Access" so music can follow the native output.`;
+            dispatch('eve:audioflix-playback', { status: runtime.lastStatus, item });
+        }
+        return '';
+    }
+
     async function tryNativePlayback(safeItem) {
         if (safeItem.type === 'sound') return false; // Force soundboard sounds to use voice playback path for layering/volume support!
         if (!window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) return false;
@@ -173,7 +243,9 @@ window.EveAudioflixAudioOutput = window.EveAudioflixAudioOutput || {};
             setOutputById,
             unlockDeviceLabels,
             tryNativePlayback,
-            browserOutputStatus
+            browserOutputStatus,
+            resolvePlaybackSink,
+            routeBrowserStream
         };
     };
 })();

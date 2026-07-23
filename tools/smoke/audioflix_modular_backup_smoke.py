@@ -15,12 +15,25 @@ from server_modules.eve_state_store_layers_merge import merge_layer_state
 
 
 def make_state(*, legacy=False):
+    # Seed the FULL soundboard parameter set (not just music/ports) so the modular backup
+    # path is proven to preserve per-port volumes/hotkeys/exposure, group membership, the
+    # view mode, active frontend group, and the hotkey-bypass combo verbatim.
     audioflix = {
         "schemaVersion": 1,
-        "soundboard": [{"id": "sound-1", "type": "sound", "title": "Clip", "url": "media/clip.wav"}],
+        "soundboard": [
+            {"id": "sound-1", "type": "sound", "title": "Clip", "url": "media/clip.wav",
+             "volume": 0.33, "exposed": True, "hotkey": "ctrl+shift+1"},
+        ],
         "music": [{"id": "music-1", "type": "music", "title": "Track", "url": "https://example.test/track"}],
         "ports": [{"id": "port-1", "nickname": "Local", "path": "C:/Audio"}],
-        "soundboardGroups": ["Tests"],
+        "portVolumes": {"sound-1": 0.33},
+        "portHotkeys": {"sound-1": "ctrl+shift+1"},
+        "exposedPortedSounds": {"sound-1": True},
+        "soundboardGroups": ["Tests", "Stingers"],
+        "soundGroupMap": {"sound-1": ["Tests", "Stingers"]},
+        "soundboardViewMode": "frontend",
+        "activeFrontendGroup": "Tests",
+        "hotkeyBypassCombo": "ctrl+alt+b",
     }
     config = {
         "activeWorkspace": "main",

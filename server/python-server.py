@@ -137,6 +137,8 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 
             # Handle normal file requests
             super().do_GET()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, TimeoutError) as e:
+            logger.debug(f"Client disconnected during GET request: {e}")
         except Exception as e:
             logger.error(f"Error handling GET request: {str(e)}")
             # If headers haven't been sent, send error
@@ -152,6 +154,8 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.handle_api_post_request()
                 return
             self.send_error(HTTPStatus.METHOD_NOT_ALLOWED, "POST not supported for this endpoint")
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, TimeoutError) as e:
+            logger.debug(f"Client disconnected during POST request: {e}")
         except Exception as e:
             logger.error(f"Error handling POST request: {str(e)}")
             try:

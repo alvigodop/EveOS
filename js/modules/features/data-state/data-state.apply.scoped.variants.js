@@ -96,6 +96,9 @@ window.EveDataStore = window.EveDataStore || {};
                 if (window.config && typeof window.config === 'object') window.config.audioflix = fallbackAudioflix;
                 window.EveAudioflixState?.update?.({}, 'audioflix-restore');
             }
+            // Recreate stub records for any backed-up Browser Folder so it appears as
+            // "Needs reconnect" (its granted handle can't cross into a fresh browser/incognito).
+            window.EveAudioflixFsPorts?.reconcile?.().catch(() => {});
         } catch (error) {
             console.warn('[DataState] Audioflix restore failed:', error);
         }

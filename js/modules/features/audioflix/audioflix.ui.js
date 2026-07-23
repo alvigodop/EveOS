@@ -421,7 +421,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     window.addEventListener('eve:audioflix-progress', e => window.EveAudioflixTransport?.sync?.(overlay, e.detail));
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reason = e.detail?.reason;
-        if (reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed' || reason === 'audioflix-groups' || reason === 'audioflix-active-group') return;
+        if (reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed' || reason === 'audioflix-groups' || reason === 'audioflix-active-group' || reason === 'audioflix-browser-folders') return;
         if (reason === 'audioflix-gemini-audio') { updateStatusDOM(); return; }
         rerender();
     });

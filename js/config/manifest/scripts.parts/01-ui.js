@@ -18,7 +18,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/data-state/data-state.apply.shared.js?v=0.2.4",
     "js/modules/features/data-state/data-state.apply.scoped.helpers.js?v=0.2.3",
     "js/modules/features/data-state/data-state.apply.scoped.folder.js?v=0.1.0",
-    "js/modules/features/data-state/data-state.apply.scoped.variants.js?v=0.3.4",
+    "js/modules/features/data-state/data-state.apply.scoped.variants.js?v=0.3.5",
     "js/modules/features/data-state/data-state.apply.scoped.js?v=0.3.0",
     "js/modules/features/data-state/data-state.apply.js?v=0.2.1",
     "js/modules/features/data-state/data-state.core.js?v=0.1.0",

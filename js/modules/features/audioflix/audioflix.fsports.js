@@ -90,10 +90,45 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
     }
 
     async function permissionOf(handle) {
+        // A restored stub (backed-up folder not yet re-granted in this browser) has no handle;
+        // treat it exactly like a permission the browser downgraded to 'prompt' — needs reconnect.
+        if (!handle) return 'prompt';
         try {
             return await handle.queryPermission({ mode: 'read' });
         } catch (e) {
             return 'error';
+        }
+    }
+
+    function stateApi() {
+        return window.EveAudioflixState;
+    }
+
+    // Keep config.audioflix.browserFolders (a JSON-serializable metadata mirror) in step with the
+    // IndexedDB registry AND materialize restored stubs. A backup carries the mirror; on a fresh
+    // browser (incognito reload / new machine) the handles are gone, so we recreate stub records
+    // from the mirror — they list as "Needs reconnect" and re-grant under the SAME id, keeping
+    // every per-item setting (volume/expose/hotkey/groups) intact.
+    async function reconcile() {
+        const api = stateApi();
+        if (!supported() || !api?.ensure) return;
+        const mirror = Array.isArray(api.ensure().browserFolders) ? api.ensure().browserFolders : [];
+        const db = await openDb();
+        try {
+            const records = (await tx(db, 'readonly', (store) => store.getAll())) || [];
+            const byId = new Map(records.map((rec) => [rec.id, rec]));
+            for (const folder of mirror) {
+                if (!folder || !folder.id || byId.has(folder.id)) continue;
+                const stub = { id: folder.id, nickname: folder.nickname || 'Sound folder', handle: null, addedAt: folder.addedAt || Date.now() };
+                await tx(db, 'readwrite', (store) => store.put(stub));
+                byId.set(stub.id, stub);
+            }
+            const registry = [...byId.values()].map((rec) => ({ id: rec.id, nickname: rec.nickname, addedAt: rec.addedAt || 0 }));
+            const inSync = registry.length === mirror.length
+                && registry.every((rec) => mirror.some((folder) => folder.id === rec.id && folder.nickname === rec.nickname));
+            if (!inSync) api.update({ browserFolders: registry }, 'audioflix-browser-folders');
+        } finally {
+            db.close();
         }
     }
 
@@ -179,7 +214,15 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         // shows a Reconnect action (one click re-grants all — requestPermission needs a gesture).
         const standalone = fsPortFolders.filter(f => !ports.some(p => p.id === f.id));
         const pendingCount = fsPortFolders.filter(f => f.permission !== 'granted').length;
-        const fsRows = standalone.map(f => `<div class="audioflix-port-item"><div><strong>${esc(f.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: ${f.permission === 'granted' ? '#7ee2a8' : '#f2b96b'};">${f.permission === 'granted' ? 'Connected (browser access)' : 'Needs reconnect'}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-action="remove-fsport" data-af-id="${esc(f.id)}">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No standalone browser folders. Use a port row\'s Grant Folder to link it, or grant a new folder here.</div>';
+        // A non-granted standalone folder (browser-downgraded permission OR a restored backup stub)
+        // gets a per-folder Re-grant that re-selects the folder under the same id, so its per-item
+        // settings return once reconnected.
+        const fsRows = standalone.map(f => {
+            const regrant = f.permission !== 'granted' && fsSupported
+                ? `<button type="button" class="audioflix-add-toggle" data-af-action="regrant-fsport" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" style="margin-right: 6px; flex: 0 0 auto;">Re-grant</button>`
+                : '';
+            return `<div class="audioflix-port-item"><div><strong>${esc(f.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: ${f.permission === 'granted' ? '#7ee2a8' : '#f2b96b'};">${f.permission === 'granted' ? 'Connected (browser access)' : 'Needs reconnect'}</code></div>${regrant}<button type="button" class="audioflix-icon-btn danger" data-af-action="remove-fsport" data-af-id="${esc(f.id)}">${closeSvg}</button></div>`;
+        }).join('') || '<div class="audioflix-empty">No standalone browser folders. Use a port row\'s Grant Folder to link it, or grant a new folder here.</div>';
         const fsSection = fsSupported
             ? `<h4 style="margin-top: 14px;">Browser Folders <span style="font-weight: normal; font-size: 0.78rem; color: #9aa8bd;">(no server needed — works on file://)</span></h4>${fsRows}<div style="display: flex; gap: 8px; margin-top: 8px;"><button type="button" class="audioflix-add-toggle" data-af-action="add-fsport">Grant Folder</button>${pendingCount ? `<button type="button" class="audioflix-add-toggle" data-af-action="reconnect-fsports">Reconnect ${pendingCount} folder${pendingCount === 1 ? '' : 's'}</button>` : ''}</div>`
             : '';
@@ -188,13 +231,24 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
 
     async function handleAction(action, id, actionTarget) {
         if (action === 'remove-port') {
-            try { await removeFolder(id); } catch (e) { }
+            try { await removeFolder(id); await reconcile(); } catch (e) { }
             return null;
         }
         if (action === 'link-fsport') {
             try {
                 await addFolder({ id, nickname: actionTarget.dataset.afNickname });
+                await reconcile();
                 return 'Port granted browser access — it now loads without the server';
+            } catch (err) {
+                if (err?.name !== 'AbortError') return err.message || 'Folder access failed';
+            }
+            return null;
+        }
+        if (action === 'regrant-fsport') {
+            try {
+                await addFolder({ id, nickname: actionTarget.dataset.afNickname });
+                await reconcile();
+                return 'Browser folder reconnected — per-item settings restored';
             } catch (err) {
                 if (err?.name !== 'AbortError') return err.message || 'Folder access failed';
             }
@@ -203,14 +257,14 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         if (action === 'add-fsport') {
             try {
                 const rec = await addFolder();
-                if (rec) return `Browser folder "${rec.nickname}" connected`;
+                if (rec) { await reconcile(); return `Browser folder "${rec.nickname}" connected`; }
             } catch (err) {
                 if (err?.name !== 'AbortError') return err.message || 'Folder access failed';
             }
             return null;
         }
         if (action === 'remove-fsport') {
-            try { await removeFolder(id); } catch (e) { }
+            try { await removeFolder(id); await reconcile(); } catch (e) { }
             return null;
         }
         if (action === 'reconnect-fsports') {
@@ -229,6 +283,8 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         let fsPortFolders = [];
         try {
             if (supported()) {
+                // Surface restored-backup folders (and keep the mirror current) before listing.
+                await reconcile().catch(() => {});
                 fsPortFolders = await folderStates();
                 if (fsPortFolders.some(f => f.permission === 'prompt')) {
                     try { await reconnectAll(); fsPortFolders = await folderStates(); } catch (e) { }
@@ -265,6 +321,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         listSounds,
         renderPortsManager,
         handleAction,
-        loadPortedSounds
+        loadPortedSounds,
+        reconcile
     });
 })();
