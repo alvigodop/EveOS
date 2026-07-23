@@ -191,7 +191,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             </div>
         </section>
         <section class="audioflix-status-grid">
-            <article class="audioflix-status-card is-core" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}>
+            <article class="audioflix-status-card is-core">
                 <span>Browser Output Core</span>
                 <strong>${esc(browserCore.title)}</strong>
                 <p>${esc(browserCore.detail)}</p>
@@ -255,7 +255,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
                         : 'Mode 2 is staged, but the Gemini text-brain relay is not loaded yet.')}</p>
                 <button type="button" data-af-action="toggle-gemini-mode">${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Use Direct Live' : 'Use Mode 2'}</button>
             </article>
-            <article class="audioflix-status-card" ${window.location.protocol === 'file:' ? 'style="display: none;"' : ''}>
+            <article class="audioflix-status-card">
                 <span>Signal</span>
                 <strong class="audioflix-status-signal-value">${esc(playbackStatus)}</strong>
                 <p>${esc(geminiStatus.lastEvent ? `Gemini audio seen: ${new Date(geminiStatus.lastEvent.at).toLocaleTimeString()}` : 'Waiting for local or Gemini playback.')}</p>
