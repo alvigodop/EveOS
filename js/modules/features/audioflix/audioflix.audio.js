@@ -232,10 +232,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         const requestedItem = item && typeof item === 'object' ? { ...item } : {};
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
         let playableItem = requestedItem;
-        const provider = window.EveAudioflixUrlPlayback?.providerFor?.(requestedItem.url);
-        if (provider === 'direct' && window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url)) {
+        if (window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url)) {
             try { playableItem = await window.EveAudioflixAudioSource.resolveItem(requestedItem); }
-            catch { /* The internal player will show the direct-link fallback when no resolver is available. */ }
+            catch { /* Provider playback remains available when the resolver is offline. */ }
         }
         return playUrlItem(playableItem, { internalView: true });
     }
@@ -244,7 +243,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         const requestedItem = item && typeof item === 'object' ? { ...item } : {};
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
 
-        if (urlPlayback?.shouldPreferBrowser?.(requestedItem)) {
+        const needsResolution = window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url);
+        if (urlPlayback?.shouldPreferBrowser?.(requestedItem) && !needsResolution) {
             try { return await playUrlItem(requestedItem); }
             catch (error) {
                 if (window.EveAudioflixNative?.getStatus?.()?.ok !== true) throw error;
@@ -265,7 +265,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
         await stopNativePlayback(false);
         let safeItem = requestedItem;
-        if (window.EveAudioflixAudioSource?.needsResolution?.(safeItem.url)) {
+        if (needsResolution) {
             lastStatus = `Resolving audio stream for ${safeItem.title || 'link'}...`;
             dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem });
             try {
@@ -280,7 +280,10 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             }
         }
 
-        if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
+        // Long music tracks need one continuous browser media stream. The native PCM
+        // bridge remains ideal for short soundboard clips, but packetizing a full song
+        // into many HTTP requests creates startup delay and audible queue gaps.
+        if (safeItem.type === 'sound' && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
             try {
                 lastStatus = `Decoding ${safeItem.title || 'audio'}...`;
                 dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem });

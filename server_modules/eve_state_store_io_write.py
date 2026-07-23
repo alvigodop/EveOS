@@ -26,6 +26,7 @@ from server_modules.eve_state_store_io_shared import (
     normalize_bookmark_folders_map,
     normalize_workspace_meta_record,
 )
+from server_modules.eve_state_store_io_audioflix import write_audioflix_state
 
 
 def _write_bookmark_payload(bookmark_folder, link, category_name, conn, linked_entry):
@@ -139,7 +140,8 @@ def write_modular_state_full(
 
     bookmarks = state.get("bookmarks") or {}
     library = state.get("library") or {}
-    config = bookmarks.get("config") or {}
+    config = dict(bookmarks.get("config") or {})
+    config.pop("audioflix", None)
     links = list(bookmarks.get("links") or [])
     bookmark_folders = normalize_bookmark_folders_map(bookmarks.get("folders") or {})
     quick_pins = normalize_quick_pins(bookmarks.get("pins"), links=links)
@@ -148,6 +150,7 @@ def write_modular_state_full(
     knowledge = state.get("knowledge") if isinstance(state.get("knowledge"), dict) else {"scopedStorage": {}}
 
     ensure_clean_store()
+    write_audioflix_state(meta_dir, state)
 
     workspaces = build_workspaces(config)
     workspace_map = prepare_workspace_map(links, workspaces, categories=categories, folder_trees=bookmark_folders)

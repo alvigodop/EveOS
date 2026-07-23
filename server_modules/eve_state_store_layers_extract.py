@@ -60,7 +60,10 @@ def extract_layer_state(state, layer, workspace_id="", category_name="", folder_
     if scope not in VALID_LAYER_SCOPES:
         raise ValueError(f"Unsupported layer scope: {scope}")
     if scope == "store":
-        return _build_layer_state(links, config, folders, pins, categories, connections, knowledge, "store", format_version=format_version)
+        result = _build_layer_state(links, config, folders, pins, categories, connections, knowledge, "store", format_version=format_version)
+        if "audioflix" in normalized:
+            result["audioflix"] = dict(normalized["audioflix"])
+        return result
 
     ws_id = str(workspace_id or "").strip() or str(config.get("activeWorkspace") or "").strip()
     if scope in {"tab", "card", "folder", "bookmark"} and not ws_id:

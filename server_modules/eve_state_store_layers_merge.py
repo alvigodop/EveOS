@@ -54,7 +54,7 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
         raise ValueError(f"Unsupported layer scope: {scope}")
 
     if scope == "store":
-        return _build_layer_state(
+        result = _build_layer_state(
             incoming["bookmarks"]["links"],
             incoming["bookmarks"]["config"],
             incoming["bookmarks"].get("folders") or {},
@@ -65,6 +65,9 @@ def merge_layer_state(base_state, incoming_state, layer, workspace_id="", catego
             "store",
             format_version=format_version
         )
+        if "audioflix" in incoming:
+            result["audioflix"] = dict(incoming["audioflix"])
+        return result
 
     base_links = list(base["bookmarks"]["links"])
     base_categories = dict(base["library"]["categories"])

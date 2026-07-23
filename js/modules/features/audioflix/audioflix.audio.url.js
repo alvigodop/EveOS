@@ -165,6 +165,10 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             player.preload = 'auto';
             player.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
             player.src = item.url;
+            const sinkId = window.EveAudioflixState?.ensure?.()?.preferredSinkId;
+            if (sinkId && typeof player.setSinkId === 'function') {
+                try { await player.setSinkId(sinkId); } catch { }
+            }
             active = { kind: 'direct', player };
             const update = () => {
                 playback.currentTime = Number(player.currentTime || 0) || 0;

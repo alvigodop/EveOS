@@ -17,6 +17,7 @@ from server_modules.eve_state_store_files_workspaces import (
     iter_workspace_nodes,
 )
 from server_modules.eve_state_store_io_read_ingest import ingest_cards_root
+from server_modules.eve_state_store_io_audioflix import read_audioflix_state
 from server_modules.eve_state_store_io_shared import normalize_workspace_meta_record
 from server_modules.eve_state_store_io_write import _write_bookmark_payload  # noqa: F401
 from server_modules.eve_state_store_paths import infer_workspace_from_cards_root
@@ -36,6 +37,8 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
         store_meta = json.loads(store_file.read_text(encoding="utf-8"))
     if config_file.exists():
         config = json.loads(config_file.read_text(encoding="utf-8"))
+    audioflix = read_audioflix_state(meta_dir, config=config)
+    config.pop("audioflix", None)
     quick_pins = []
     if pins_file.exists():
         pins_payload = load_json_file(pins_file, fallback={})
@@ -273,7 +276,7 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
         or workspaces[0]["id"]
     )
 
-    return {
+    state = {
         "metadata": {
             "version": format_version,
             "date": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -292,3 +295,6 @@ def read_modular_state_raw(*, store_root, meta_dir, tabs_dir, format_version):
         },
         "knowledge": knowledge,
     }
+    if audioflix is not None:
+        state["audioflix"] = audioflix
+    return state

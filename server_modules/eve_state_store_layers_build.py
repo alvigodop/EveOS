@@ -59,7 +59,7 @@ def _normalize_state_payload(state):
     pins = _normalize_quick_pins((source.get("bookmarks") or {}).get("pins"), links=links)
     knowledge = _normalize_knowledge_state(source.get("knowledge") or {})
 
-    return {
+    normalized = {
         "metadata": dict(source.get("metadata") or {}),
         "bookmarks": {
             "links": links,
@@ -73,6 +73,9 @@ def _normalize_state_payload(state):
         },
         "knowledge": knowledge
     }
+    if isinstance(source.get("audioflix"), dict):
+        normalized["audioflix"] = dict(source.get("audioflix") or {})
+    return normalized
 
 def _ensure_workspace_config_entry(config, workspace_id, incoming_config=None):
     ws_id = str(workspace_id or "").strip() or "main"
