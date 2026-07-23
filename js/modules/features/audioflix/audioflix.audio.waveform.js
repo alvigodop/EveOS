@@ -19,31 +19,38 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         let canvasContext = null;
         let animationFrame = 0;
 
-        function ensureGraph() {
-            const player = ensureAudio();
+        let activePlayer = null;
+        const connectedSources = new WeakMap();
+
+        function ensureGraph(overridePlayer) {
+            const player = overridePlayer || activePlayer || ensureAudio();
             if (!context) {
                 const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContextCtor) return null;
                 context = new AudioContextCtor();
-            }
-            if (!source) {
-                source = context.createMediaElementSource(player);
                 analyser = context.createAnalyser();
                 analyser.fftSize = 1024;
-                // A gain stage before the speakers lets the native EveOS route silence local
-                // output ("bypasser") while the same live signal is tapped for the bridge.
                 outputGain = context.createGain();
-                source.connect(analyser);
                 analyser.connect(outputGain);
                 outputGain.connect(context.destination);
+            }
+            if (player && !connectedSources.has(player)) {
+                try {
+                    const srcNode = context.createMediaElementSource(player);
+                    srcNode.connect(analyser);
+                    connectedSources.set(player, srcNode);
+                    if (!source) source = srcNode;
+                } catch (e) {
+                    console.warn('[Audioflix] could not connect media element source:', e);
+                }
             }
             return context;
         }
 
         // The graph can legitimately fail to build (no AudioContext, a non-media element, a source
         // already claimed elsewhere). Never let that throw into playback — callers fall back.
-        function safeGraph() {
-            try { return ensureGraph(); } catch (error) {
+        function safeGraph(overridePlayer) {
+            try { return ensureGraph(overridePlayer); } catch (error) {
                 console.warn('[Audioflix] audio graph unavailable:', error);
                 return null;
             }
@@ -219,7 +226,7 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             if (canvas && !animationFrame && !player.paused) start();
         }
 
-        return { attach, start, stop, getContext: ensureGraph, setSpeakerMuted, setFrameTap };
+        return { attach, start, stop, getContext: ensureGraph, ensureGraph, setSpeakerMuted, setFrameTap };
     }
 
     Object.assign(ns, { ready: true, createController });

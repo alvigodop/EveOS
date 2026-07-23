@@ -74,7 +74,7 @@ def eveos_cors_origin(origin):
         return "*"            # no Origin = same-origin or non-browser tool; no cross-origin risk
     lo = o.lower()
     if lo == "null" or lo.startswith("file://"):
-        return o
+        return "*"
     for host in ("http://localhost", "http://127.0.0.1", "https://localhost", "https://127.0.0.1"):
         if lo == host or lo.startswith(host + ":"):
             return o
@@ -92,9 +92,11 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
     
     def end_headers(self):
         # Add CORS headers to all responses (Origin allow-listed; see eveos_cors_origin).
-        _acao = eveos_cors_origin(self.headers.get("Origin"))
-        if _acao is not None:
-            self.send_header("Access-Control-Allow-Origin", _acao)
+        has_acao = any(b'access-control-allow-origin:' in h.lower() for h in self._headers_buffer)
+        if not has_acao:
+            _acao = eveos_cors_origin(self.headers.get("Origin"))
+            if _acao is not None:
+                self.send_header("Access-Control-Allow-Origin", _acao)
         self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")

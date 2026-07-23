@@ -77,12 +77,15 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             }
         }
 
+        let activePlayer = null;
+
         function onFrames(inputBuffer, sampleRate) {
             if (!active) return;
             rate = sampleRate;
             // Paused: drop the stale backlog and re-prime, so resuming rebuilds the cushion
             // instead of firing a burst of old audio at the device.
-            if (getPlayer()?.paused) {
+            const p = activePlayer || getPlayer();
+            if (p?.paused) {
                 if (!priming) reset();
                 return;
             }
@@ -104,6 +107,7 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
         function stop() {
             if (!active) return false;
             active = false;
+            activePlayer = null;
             reset();
             const waveform = getWaveform();
             waveform?.setFrameTap?.(null);
@@ -114,11 +118,15 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
 
         // Async: the preferred tap is an AudioWorklet, whose module must be fetched once. Awaiting
         // it here means even the FIRST track gets the jank-immune audio-thread tap.
-        async function start() {
+        async function start(player) {
             const waveform = getWaveform();
             if (!waveform?.setFrameTap) return false;
             reset();
             dropped = 0;
+            activePlayer = player || null;
+            if (player && typeof waveform.ensureGraph === 'function') {
+                waveform.ensureGraph(player);
+            }
             const tapRate = await waveform.setFrameTap(onFrames);
             if (!tapRate) return false;
             rate = tapRate;

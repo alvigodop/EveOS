@@ -441,6 +441,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus, resolvePlaybackSink,
         layerPlay, stopItemLayers, stopAll, updateItemVolume, getDecodedBuffer, encodeBufferToBase64,
         getAudioElement: ensureAudio, getPlaybackState,
+        getMusicCapture: () => musicCapture,
+        getWaveformController: () => waveformController,
         getStatus() {
             const o = browserOutputStatus();
             return { status: lastStatus, item: currentItem, playback: getPlaybackState(), sinkId: o.activeSinkId, hasSetSinkId: o.hasSetSinkId, hasAudioContextSink: o.hasAudioContextSink, hasOutputPicker: o.hasOutputPicker, hasEnumerate: o.hasEnumerate, secureContext: o.secureContext };

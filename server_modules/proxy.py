@@ -106,6 +106,9 @@ def _stream_response(handler, response, response_headers):
         handler.send_header(key, value)
     if 'Content-Type' not in response_headers:
         handler.send_header('Content-Type', 'application/octet-stream')
+    handler.send_header('Access-Control-Allow-Origin', '*')
+    handler.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    handler.send_header('Access-Control-Allow-Headers', '*')
     handler.end_headers()
 
     sent = 0

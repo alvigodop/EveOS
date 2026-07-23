@@ -150,6 +150,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             clearTimer();
             const session = active;
             active = null;
+            window.EveAudioflixAudio?.getMusicCapture?.()?.stop?.();
             try {
                 if (session?.kind === 'direct') { session.player.pause(); session.player.removeAttribute('src'); session.player.load(); }
                 else if (session?.kind === 'youtube') session.player.destroy?.();
@@ -167,16 +168,26 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 setStageStatus('Playing this linked audio inside EveOS.');
             }
             const player = new Audio();
+            player.crossOrigin = 'anonymous';
             player.preload = 'auto';
             player.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
             player.src = item.url;
             // Follow the routed output (picked sink or matched native endpoint) so linked music
             // shares the soundboard's control layer; resolvePlaybackSink covers both cases.
             let routedLabel = '';
-            try {
-                const routed = typeof player.setSinkId === 'function' && await window.EveAudioflixAudio?.resolvePlaybackSink?.();
-                if (routed?.deviceId) { await player.setSinkId(routed.deviceId); routedLabel = routed.label || ''; }
-            } catch { }
+            const nativeMusic = window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.();
+            if (nativeMusic) {
+                const capture = window.EveAudioflixAudio?.getMusicCapture?.();
+                if (capture) {
+                    await capture.start(player);
+                    routedLabel = window.EveAudioflixState?.ensure?.()?.nativeOutputLabel || 'native route';
+                }
+            } else {
+                try {
+                    const routed = typeof player.setSinkId === 'function' && await window.EveAudioflixAudio?.resolvePlaybackSink?.();
+                    if (routed?.deviceId) { await player.setSinkId(routed.deviceId); routedLabel = routed.label || ''; }
+                } catch { }
+            }
             active = { kind: 'direct', player };
             const update = () => {
                 playback.currentTime = Number(player.currentTime || 0) || 0;
@@ -188,7 +199,11 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             player.addEventListener('durationchange', update);
             player.addEventListener('play', () => { update(); emitPlayback(`Playing ${item.title || 'linked audio'} directly from the browser${routedLabel ? ` -> ${routedLabel}` : ''}`); });
             player.addEventListener('pause', () => { update(); emitPlayback('Paused'); });
-            player.addEventListener('ended', () => { update(); emitPlayback('Ended'); });
+            player.addEventListener('ended', () => {
+                update();
+                if (nativeMusic) window.EveAudioflixAudio?.getMusicCapture?.()?.stop?.();
+                emitPlayback('Ended');
+            });
             await player.play();
         }
 
