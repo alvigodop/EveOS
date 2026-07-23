@@ -73,7 +73,7 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         });
 
         // (a)+(b)+(e) Start: no decode, speakers silenced, device pre-warmed.
-        out.started = capture.start();
+        out.started = await capture.start();
         out.muted = muted;
         out.decodesAfterStart = out.decodes;
 

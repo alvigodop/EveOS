@@ -324,7 +324,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         // Music on the native EveOS route plays through the element (instant, seekable, no
         // whole-track decode) with local output silenced and its live PCM streamed to the bridge.
         const nativeMusic = safeItem.type === 'music'
-            && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() && musicCapture?.start();
+            && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() && await musicCapture?.start();
         if (!nativeMusic) musicCapture?.stop();
         activeBrowserRouteLabel = nativeMusic ? (state().nativeOutputLabel || 'native route') : (await routeBrowserStream(safeItem) || '');
         if (player.src !== safeItem.url) player.src = safeItem.url;

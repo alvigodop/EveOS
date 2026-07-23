@@ -14,6 +14,7 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         let captureNode = null;
         let captureSink = null;
         let onFrames = null;
+        let workletModule = null;
         let canvas = null;
         let canvasContext = null;
         let animationFrame = 0;
@@ -59,6 +60,10 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         function teardownTap() {
             if (captureNode) {
                 captureNode.onaudioprocess = null;
+                if (captureNode.port) {
+                    try { captureNode.port.postMessage({ command: 'stop' }); } catch (error) { /* gone */ }
+                    captureNode.port.onmessage = null;
+                }
                 try { captureNode.disconnect(); } catch (error) { /* already detached */ }
                 captureNode = null;
             }
@@ -68,10 +73,55 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             }
         }
 
+        // Prefer an AudioWorklet tap: it runs on the audio thread, so main-thread jank cannot make
+        // it deliver late/short frames (the ScriptProcessor weakness heard as blips). Cached so the
+        // module is only fetched once.
+        function ensureWorkletModule(ctx) {
+            if (!ctx?.audioWorklet?.addModule) return null;
+            if (!workletModule) {
+                workletModule = ctx.audioWorklet
+                    .addModule('js/modules/features/audioflix/audioflix-capture-processor.js')
+                    .then(() => true)
+                    .catch((error) => {
+                        console.warn('[Audioflix] capture worklet unavailable, using fallback tap:', error);
+                        return false;
+                    });
+            }
+            return workletModule;
+        }
+
+        function attachWorkletTap(ctx) {
+            captureNode = new AudioWorkletNode(ctx, 'audioflix-capture-processor', {
+                numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1],
+                processorOptions: { blockSize: 4096 }
+            });
+            captureNode.port.onmessage = (event) => {
+                const block = event.data;
+                if (!block || !block.length) return;
+                // Shaped like an AudioBuffer input so both tap kinds share one handler.
+                onFrames?.({ numberOfChannels: 1, getChannelData: () => block }, ctx.sampleRate);
+            };
+            captureSink = ctx.createGain();
+            captureSink.gain.value = 0;
+            analyser.connect(captureNode);
+            captureNode.connect(captureSink);
+            captureSink.connect(ctx.destination);
+        }
+
+        function attachScriptTap(ctx) {
+            captureNode = ctx.createScriptProcessor(4096, 2, 2);
+            captureSink = ctx.createGain();
+            captureSink.gain.value = 0;
+            captureNode.onaudioprocess = (event) => onFrames?.(event.inputBuffer, ctx.sampleRate);
+            analyser.connect(captureNode);
+            captureNode.connect(captureSink);
+            captureSink.connect(ctx.destination);
+        }
+
         // Real-time PCM tap on the live player. Lets the native bridge play a track WITHOUT
         // pre-decoding it, which is what made music lag between pressing play and hearing it.
-        // Pass null to tear the tap down. Returns the context sample rate, or 0 if unavailable.
-        function setFrameTap(handler) {
+        // Pass null to tear the tap down. Resolves to the context sample rate, or 0 if unavailable.
+        async function setFrameTap(handler) {
             const ctx = safeGraph();
             if (!ctx) return 0;
             onFrames = typeof handler === 'function' ? handler : null;
@@ -79,21 +129,17 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
                 teardownTap();
                 return ctx.sampleRate;
             }
-            if (!captureNode && typeof ctx.createScriptProcessor === 'function') {
-                try {
-                    captureNode = ctx.createScriptProcessor(4096, 2, 2);
-                    captureSink = ctx.createGain();
-                    captureSink.gain.value = 0;
-                    captureNode.onaudioprocess = (event) => onFrames?.(event.inputBuffer, ctx.sampleRate);
-                    analyser.connect(captureNode);
-                    captureNode.connect(captureSink);
-                    captureSink.connect(ctx.destination);
-                } catch (error) {
-                    console.warn('[Audioflix] live PCM tap unavailable:', error);
-                    teardownTap();
-                    onFrames = null;
-                    return 0;
-                }
+            if (captureNode) return ctx.sampleRate;
+            const worklet = await ensureWorkletModule(ctx);
+            try {
+                if (worklet) attachWorkletTap(ctx);
+                else if (typeof ctx.createScriptProcessor === 'function') attachScriptTap(ctx);
+                else return 0;
+            } catch (error) {
+                console.warn('[Audioflix] live PCM tap unavailable:', error);
+                teardownTap();
+                onFrames = null;
+                return 0;
             }
             return ctx.sampleRate;
         }

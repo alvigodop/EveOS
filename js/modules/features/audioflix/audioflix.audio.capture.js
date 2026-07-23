@@ -112,12 +112,14 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             return true;
         }
 
-        function start() {
+        // Async: the preferred tap is an AudioWorklet, whose module must be fetched once. Awaiting
+        // it here means even the FIRST track gets the jank-immune audio-thread tap.
+        async function start() {
             const waveform = getWaveform();
             if (!waveform?.setFrameTap) return false;
             reset();
             dropped = 0;
-            const tapRate = waveform.setFrameTap(onFrames);
+            const tapRate = await waveform.setFrameTap(onFrames);
             if (!tapRate) return false;
             rate = tapRate;
             active = true;
