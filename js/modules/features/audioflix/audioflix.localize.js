@@ -99,6 +99,44 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return { ok: true, matched, scanned: (scan.files || []).length, dir: scan.dir };
     }
 
+    // Music port: scan a folder and extract all audio files into EveOS as music tracks tagged with a FOLDER (not group).
+    async function importMusicPort(folderPath, folderName) {
+        const N = window.EveAudioflixNative;
+        if (!N?.scanLocalized) return { ok: false, reason: 'Music Port needs the EveOS localhost server running.' };
+        const cleanPath = text(folderPath);
+        if (!cleanPath) return { ok: false, reason: 'Please specify a valid folder path.' };
+        
+        const scan = await N.scanLocalized(cleanPath);
+        if (!scan?.ok) return { ok: false, reason: scan?.message || 'Could not scan that folder.' };
+        
+        const pathParts = cleanPath.replace(/\\/g, '/').split('/').filter(Boolean);
+        const defaultFolderName = pathParts[pathParts.length - 1] || 'Ported Music';
+        const targetFolder = text(folderName, defaultFolderName);
+        
+        const files = scan.files || [];
+        if (!files.length) return { ok: false, reason: 'No supported audio files found in that folder.' };
+        
+        rememberDir(cleanPath);
+        let addedCount = 0;
+        files.forEach((f) => {
+            const rawTitle = f.name.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || f.name;
+            const added = S()?.addItem?.('music', {
+                title: rawTitle,
+                url: f.path,
+                folder: targetFolder,
+                card: targetFolder
+            });
+            if (added?.id) {
+                S()?.updateItem?.('music', added.id, {
+                    localPath: f.path
+                });
+                addedCount += 1;
+            }
+        });
+        
+        return { ok: true, added: addedCount, total: files.length, folder: targetFolder, path: cleanPath };
+    }
+
     async function handlePortAction(target, uiCtx) {
         const setStatus = (s) => { if (uiCtx) { uiCtx.playbackStatus = s; uiCtx.rerender(); } };
         let dir = '';
@@ -109,5 +147,15 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         setStatus(res.ok ? `Re-attached ${res.matched} of ${res.scanned} file(s) to matching tracks.` : (res.reason || 'Reimport failed.'));
     }
 
-    Object.assign(ns, { ready: true, collectScope, localizeCandidates, localizeScope, handleScopeAction, reimportMerge, handlePortAction });
+    Object.assign(ns, {
+        ready: true,
+        lastDir,
+        collectScope,
+        localizeCandidates,
+        localizeScope,
+        handleScopeAction,
+        reimportMerge,
+        importMusicPort,
+        handlePortAction
+    });
 })();

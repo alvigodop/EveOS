@@ -251,7 +251,39 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 const next = ctx.state().geminiConversationMode === 'text-brain-live-voice' ? 'direct-live' : 'text-brain-live-voice'; window.EveAudioflixGemini?.setConversationMode?.(next);
                 ctx.playbackStatus = next === 'text-brain-live-voice' ? 'Mode 2 enabled.' : 'Direct Live mode enabled.'; ctx.rerender(); return;
             }
-            if (action === 'clear-gemini-events') { window.EveAudioflixState?.clearGeminiAudioEvents?.(); ctx.playbackStatus = 'Gemini event counter cleared'; ctx.rerender(); }
+            if (action === 'clear-gemini-events') { window.EveAudioflixState?.clearGeminiAudioEvents?.(); ctx.playbackStatus = 'Gemini event counter cleared'; ctx.rerender(); return; }
+            if (action === 'toggle-import-form') {
+                ctx.importFormOpen = !ctx.importFormOpen;
+                if (ctx.importFormOpen) {
+                    ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
+                    ctx.musicPortFormOpen = false;
+                }
+                ctx.rerender();
+                return;
+            }
+            if (action === 'toggle-localize-form') {
+                const scope = actionTarget.dataset.afScope || 'library';
+                const key = actionTarget.dataset.afKey || '';
+                const curr = ctx.localizeFormOpen || {};
+                if (curr.open && curr.scope === scope && curr.key === key) {
+                    ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
+                } else {
+                    ctx.localizeFormOpen = { open: true, scope, key };
+                    ctx.musicPortFormOpen = false;
+                    ctx.importFormOpen = false;
+                }
+                ctx.rerender();
+                return;
+            }
+            if (action === 'toggle-music-port-form') {
+                ctx.musicPortFormOpen = !ctx.musicPortFormOpen;
+                if (ctx.musicPortFormOpen) {
+                    ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
+                    ctx.importFormOpen = false;
+                }
+                ctx.rerender();
+                return;
+            }
         }
 
         function handleForm(form) {
@@ -281,11 +313,46 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                     });
                 }
             }
+            else if (fName === 'localize-form') {
+                const scope = form.dataset.afScope || 'library';
+                const key = form.dataset.afKey || '';
+                const targetDir = data.get('targetDir');
+                const L = window.EveAudioflixLocalize;
+                if (L && targetDir) {
+                    ctx.playbackStatus = 'Localizing candidate tracks...'; ctx.rerender();
+                    L.localizeScope(scope, key, targetDir, (p) => {
+                        ctx.playbackStatus = `Localizing ${p.index}/${p.total}: ${p.title}`;
+                    }).then(res => {
+                        ctx.playbackStatus = res.ok
+                            ? `Localized ${res.done}/${res.total} to ${res.targetDir}${res.failed ? ` (${res.failed} failed — ${res.lastError})` : ''}.`
+                            : (res.reason || 'Localization failed.');
+                        ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
+                        ctx.rerender();
+                    });
+                }
+            }
+            else if (fName === 'music-port-form') {
+                const path = data.get('path');
+                const folder = data.get('folder');
+                const L = window.EveAudioflixLocalize;
+                if (L && path) {
+                    ctx.playbackStatus = 'Scanning local folder for music extraction...'; ctx.rerender();
+                    L.importMusicPort(path, folder).then(res => {
+                        ctx.playbackStatus = res.ok
+                            ? `Extracted ${res.added} track(s) into folder tag "${res.folder}".`
+                            : (res.reason || 'Music Port failed.');
+                        ctx.musicPortFormOpen = false;
+                        ctx.rerender();
+                    });
+                }
+            }
             else if (fName === 'edit-track') {
-                const title = data.get('title'), url = data.get('url'), artist = data.get('artist'), folder = data.get('folder');
-                window.EveAudioflixState?.updateItem?.('music', id, { title, url, artist, folder, card: folder });
+                const title = data.get('title'), url = data.get('url'), artist = data.get('artist'), folder = data.get('folder'), localPath = data.get('localPath');
+                const patch = { title, url, artist, folder, card: folder };
+                if (localPath !== null && localPath !== undefined) patch.localPath = String(localPath).trim();
+                window.EveAudioflixState?.updateItem?.('music', id, patch);
                 if (ctx.activeInfoItem?.id === id) {
-                    Object.assign(ctx.activeInfoItem, { title, url, artist, folder, card: folder });
+                    Object.assign(ctx.activeInfoItem, patch);
                 }
                 ctx.rerender();
             }
