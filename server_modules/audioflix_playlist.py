@@ -74,6 +74,10 @@ def _entry_url(entry: dict) -> str:
     return ""
 
 
+def _safe_str(v) -> str:
+    return str(v or "").encode("ascii", "backslashreplace").decode("ascii")
+
+
 def list_playlist(url: str, force: bool = False) -> dict:
     """Return ``{ok, playlistId, title, entries:[{sourceId,title,url,artist,duration}]}``."""
     clean = str(url or "").strip()
@@ -102,7 +106,7 @@ def list_playlist(url: str, force: bool = False) -> dict:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(clean, download=False)
     except Exception as exc:  # noqa: BLE001 - surface any extractor error as a reason
-        logger.warning("Playlist listing failed for %s: %s", clean, exc)
+        logger.warning("Playlist listing failed for %s: %s", _safe_str(clean), _safe_str(exc))
         return {"ok": False, "reason": f"Could not read that playlist: {exc}"}
 
     if not isinstance(info, dict):
@@ -141,15 +145,19 @@ def list_playlist(url: str, force: bool = False) -> dict:
 
 def handle_playlist_request(handler, query) -> None:
     """Handle GET /api/audioflix/playlist?url=...[&refresh=1]"""
-    url_list = query.get("url") or []
-    force = bool(query.get("refresh") or query.get("force"))
-    if not url_list:
-        payload = {"ok": False, "reason": "Missing 'url' query parameter."}
-        status = HTTPStatus.BAD_REQUEST
-    else:
-        payload = list_playlist(url_list[0], force=force)
-        status = HTTPStatus.OK if payload.get("ok") else HTTPStatus.OK
-    body = json.dumps(payload).encode("utf-8")
+    try:
+        url_list = query.get("url") or []
+        force = bool(query.get("refresh") or query.get("force"))
+        if not url_list:
+            payload = {"ok": False, "reason": "Missing 'url' query parameter."}
+            status = HTTPStatus.BAD_REQUEST
+        else:
+            payload = list_playlist(url_list[0], force=force)
+            status = HTTPStatus.OK if payload.get("ok") else HTTPStatus.OK
+    except Exception as exc:
+        payload = {"ok": False, "reason": f"Playlist request failed: {exc}"}
+        status = HTTPStatus.INTERNAL_SERVER_ERROR
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     handler.send_response(status)
     handler.send_header("Content-Type", "application/json; charset=utf-8")
     handler.send_header("Content-Length", str(len(body)))

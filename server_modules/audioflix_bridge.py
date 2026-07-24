@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from http import HTTPStatus
+
+logger = logging.getLogger("EveOSAudioflixBridge")
 
 from server_modules.audioflix_bridge_devices import list_devices
 from server_modules.audioflix_bridge_playback import (
