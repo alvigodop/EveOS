@@ -39,10 +39,9 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return all;
     }
 
-    // The subset worth downloading: online tracks lacking a local file. `force` also re-includes
-    // tracks that already have a localPath — the relocalize path for when the local copy was deleted
-    // or you want a fresh download (the server overwrites).
-    // The subset worth downloading: online tracks lacking a local file, or marked missing on disk.
+    // The subset worth downloading: online tracks lacking a local file (or marked missing on disk).
+    // `force` also re-includes tracks that already have a localPath — the relocalize path for when
+    // the local copy was deleted or you want a fresh download (the server overwrites).
     function localizeCandidates(scope, key, force = false) {
         return collectScope(scope, key).filter((it) => (isHttp(it.url) || Boolean(it.localPath)) && (force || !text(it.localPath) || it.missingLocal === true));
     }

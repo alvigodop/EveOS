@@ -231,6 +231,11 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             // "Keep both" duplicate acknowledgements: sorted "idA|idB" pair keys left as separate items.
             dupDismissedPairs: Array.isArray(source.dupDismissedPairs) ? [...new Set(source.dupDismissedPairs.map((p) => text(p, '')).filter(Boolean))].slice(-2000) : [],
             localizeDir: text(source.localizeDir, ''), // last folder used to save localized mp3s (reused as the prompt default)
+            // Per-scope remembered localization folders, keyed "scope:key" (e.g. "folder:Chill").
+            // Without this in normalize the per-scope path memory was stripped on every ensure().
+            localizeScopeDirs: (source.localizeScopeDirs && typeof source.localizeScopeDirs === 'object' && !Array.isArray(source.localizeScopeDirs))
+                ? Object.fromEntries(Object.entries(source.localizeScopeDirs).map(([k, v]) => [text(k), text(v)]).filter(([k, v]) => k && v))
+                : {},
             hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
