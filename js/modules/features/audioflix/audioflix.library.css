@@ -315,3 +315,15 @@
     }
 }
 
+
+/* A track removed from its upstream playlist: greyed, never auto-deleted. The user decides
+   whether to drop it or keep it (the save action moves it out of the playlist). */
+.audioflix-item-card.is-upstream-missing {
+    opacity: 0.5;
+    filter: grayscale(1);
+    border-style: dashed;
+}
+.audioflix-item-card.is-upstream-missing:hover {
+    opacity: 0.85;
+    filter: grayscale(0.4);
+}

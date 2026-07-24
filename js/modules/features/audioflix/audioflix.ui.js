@@ -225,7 +225,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             queueBadge = `<span class="audioflix-queue-badge${activeClass}" title="Queue position #${pos} (${statusText})">#${pos} ${statusText}</span>`;
         }
 
-        return `<article class="audioflix-item-card"><div class="audioflix-playback-controls"><button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div><button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play">${layerPlaySvg}</button><div class="audioflix-item-body"><div class="audioflix-item-title-row">${queueBadge}${repBadge}${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(itemMeta(item))}</span>${groupTags(item, groupsOf(item.id, type))}</div><div class="audioflix-item-actions">${internalViewButton(item, type)}<button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="${isF ? 'Settings' : ''}">${cogSvg}</button>${delBtn}</div>${transport}</article>`;
+        return `<article class="audioflix-item-card${item.upstreamMissing ? ' is-upstream-missing' : ''}"><div class="audioflix-playback-controls"><button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div><button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play">${layerPlaySvg}</button><div class="audioflix-item-body"><div class="audioflix-item-title-row">${queueBadge}${repBadge}${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(itemMeta(item))}</span>${groupTags(item, groupsOf(item.id, type))}</div><div class="audioflix-item-actions">${internalViewButton(item, type)}${item.upstreamMissing && item.playlistId ? `<button type="button" class="audioflix-icon-btn" data-af-action="keep-playlist-track" data-af-id="${esc(item.id)}" title="Removed from the upstream playlist — keep it in EveOS">&#128190;</button>` : ''}<button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="${isF ? 'Settings' : ''}">${cogSvg}</button>${delBtn}</div>${transport}</article>`;
     }
 
     function renderItems(items, type) {
@@ -289,10 +289,13 @@ window.EveAudioflix = window.EveAudioflix || {};
         const vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" data-af-type="${esc(type)}" style="margin-left: auto;">${isF ? 'Backend' : 'Frontend'}</button>`;
         const gBtn = `<button type="button" class="audioflix-add-toggle${groupsOpen[type] ? ' is-active' : ''}" data-af-action="toggle-groups" data-af-type="${esc(type)}" style="margin-left: 8px;">Groups</button>`;
         const fBtn = isM ? `<button type="button" class="audioflix-add-toggle${foldersOpen.music ? ' is-active' : ''}" data-af-action="toggle-folders" data-af-type="music" style="margin-left: 8px;">Edit Folders</button>` : '';
+        // Live playlist connections (YouTube etc.). Sync only appears once something is imported.
+        const plCount = (state().musicPlaylists || []).length;
+        const pBtn = isM ? `<button type="button" class="audioflix-add-toggle" data-af-action="import-playlist" style="margin-left: 8px;">Import Playlist</button>${plCount ? `<button type="button" class="audioflix-add-toggle" data-af-action="sync-playlists" style="margin-left: 8px;" title="Re-read the upstream playlists">Sync ${plCount}</button>` : ''}` : '';
         if (isM) {
             return isF
                 ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen.music ? renderGroupsManager('music') : ''}`
-                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${open ? '− Hide add track' : '+ Add Track'}</button></div>${fBtn}${gBtn}${vBtn}</div>${open ? renderForm('music') : ''}${foldersOpen.music ? renderFoldersManager() : ''}${groupsOpen.music ? renderGroupsManager('music') : ''}`;
+                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${open ? '− Hide add track' : '+ Add Track'}</button></div>${fBtn}${pBtn}${gBtn}${vBtn}</div>${open ? renderForm('music') : ''}${foldersOpen.music ? renderFoldersManager() : ''}${groupsOpen.music ? renderGroupsManager('music') : ''}`;
         }
         return isF
             ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen.sound ? renderGroupsManager('sound') : ''}`
@@ -425,6 +428,46 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'delete-folder') {
             const folderName = actionTarget.dataset.afFolder;
             window.EveAudioflixState?.deleteMusicFolder?.(folderName);
+            rerender();
+            return;
+        }
+        if (action === 'import-playlist') {
+            const PL = window.EveAudioflixPlaylists;
+            if (!PL) return;
+            let url = '';
+            try { url = String((await window.showPrompt?.('Paste a public or unlisted playlist URL (it imports as a group):', '')) || '').trim(); } catch {}
+            if (!url) return;
+            let folder = '';
+            try { folder = String((await window.showPrompt?.(`Folder to store it in (blank = "${PL.DEFAULT_FOLDER}"):`, '')) || '').trim(); } catch {}
+            playbackStatus = 'Reading playlist...'; rerender();
+            const res = await PL.importPlaylist(url, folder ? { folder } : {});
+            playbackStatus = res.ok
+                ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
+                : (res.reason || 'Playlist import failed.');
+            rerender();
+            return;
+        }
+        if (action === 'sync-playlists') {
+            const PL = window.EveAudioflixPlaylists;
+            if (!PL) return;
+            playbackStatus = 'Syncing playlists...'; rerender();
+            let added = 0, missing = 0, restored = 0, failure = '';
+            for (const connection of PL.connections()) {
+                const res = await PL.syncPlaylist(connection.id, true);
+                if (res.ok) { added += res.added || 0; missing += res.missing || 0; restored += res.restored || 0; }
+                else failure = res.reason || 'Sync failed.';
+            }
+            playbackStatus = failure || `Playlists synced — ${added} added, ${restored} back, ${missing} greyed (removed upstream).`;
+            rerender();
+            return;
+        }
+        if (action === 'keep-playlist-track') {
+            const PL = window.EveAudioflixPlaylists;
+            if (!PL) return;
+            let folder = '';
+            try { folder = String((await window.showPrompt?.('This track left the upstream playlist. Folder to keep it in (blank = leave where it is):', '')) || '').trim(); } catch {}
+            PL.detachTrack(id, folder ? { folder } : {});
+            playbackStatus = 'Kept in EveOS — it no longer follows that playlist.';
             rerender();
             return;
         }

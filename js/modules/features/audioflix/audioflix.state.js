@@ -48,6 +48,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         soundGroupMap: {},
         activeFrontendGroup: '',
         musicViewMode: 'backend',
+        // Live connections to external playlists (YouTube etc.). Each imported playlist becomes
+        // a music group; tracks keep a sourceId so a re-sync can tell which upstream entries are
+        // gone (greyed, never auto-deleted).
+        musicPlaylists: [],
         musicGroups: [],
         musicGroupMap: {},
         activeFrontendMusicGroup: '',
@@ -115,6 +119,12 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             volume: normalizeVolume(source.volume, 1),
             exposed: source.exposed === true,
             hotkey: text(source.hotkey, ''),
+            // Live-playlist link: which imported connection a track came from, its upstream id,
+            // and whether it has since disappeared upstream (greyed, never auto-deleted).
+            // These must survive normalize(), or a re-sync would lose every track's identity.
+            playlistId: text(source.playlistId, ''),
+            sourceId: text(source.sourceId, ''),
+            upstreamMissing: source.upstreamMissing === true,
             createdAt: Number(source.createdAt || 0) || Date.now(),
             lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
         };
@@ -190,6 +200,19 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                 : {},
             activeFrontendGroup: text(source.activeFrontendGroup, ''),
             musicViewMode: ['backend', 'frontend'].includes(source.musicViewMode) ? source.musicViewMode : 'backend',
+            musicPlaylists: (Array.isArray(source.musicPlaylists) ? source.musicPlaylists : [])
+                .map((entry) => ({
+                    id: text(entry?.id, ''),
+                    url: text(entry?.url, ''),
+                    playlistId: text(entry?.playlistId, ''),
+                    title: text(entry?.title, 'Playlist'),
+                    provider: text(entry?.provider, 'youtube'),
+                    group: text(entry?.group, ''),
+                    folder: text(entry?.folder, ''),
+                    lastSyncedAt: Number(entry?.lastSyncedAt || 0) || 0,
+                    trackCount: Number(entry?.trackCount || 0) || 0
+                }))
+                .filter((entry) => !!entry.id && !!entry.url),
             musicGroups: Array.isArray(source.musicGroups)
                 ? [...new Set(source.musicGroups.map((g) => text(g, '')).filter(Boolean))]
                 : [],
@@ -275,6 +298,14 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             soundboardGroups: [],
             soundGroupMap: {},
             activeFrontendGroup: '',
+            // Music groups/scopes are datapack content too — omitting them let a previously
+            // loaded pack's groups leak into a pack that has none (the same leak the soundboard
+            // fields above are cleared to prevent).
+            musicGroups: [],
+            musicGroupMap: {},
+            musicPlaylists: [],
+            activeFrontendMusicGroup: '',
+            activeMusicFolderScope: '',
             counters: Object.assign({}, current.counters, { plays: 0 })
         }), reason);
     }

@@ -346,6 +346,19 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         });
     }
 
+    // Enumerate a playlist's entries (flat — no per-video stream resolve). Needs the EveOS
+    // server; a file:// page cannot read youtube.com directly (CORS), so callers keep the last
+    // synced state there and surface that syncing needs localhost.
+    async function listPlaylist(playlistUrl, force = false) {
+        if (!playlistUrl) return { ok: false, reason: 'Missing playlist URL' };
+        const refresh = force ? '&refresh=1' : '';
+        return fetchJson(`/api/audioflix/playlist?url=${encodeURIComponent(playlistUrl)}${refresh}`, {
+            method: 'GET',
+            timeout: 30000,
+            probe: force === true
+        });
+    }
+
     function getProxyUrl(targetUrl) {
         if (!targetUrl) return '';
         const base = state().nativeBridgeBase || (window.location.origin.startsWith('http') ? window.location.origin : 'http://127.0.0.1:8765');
@@ -388,6 +401,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         sendTone,
         playMediaItem,
         resolveUrl,
+        listPlaylist,
         getProxyUrl,
         shouldSuppressBrowserPlayback,
         setHotkeys,

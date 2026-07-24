@@ -68,6 +68,12 @@ def handle_get_request(handler, path: str, query) -> bool:
             return True
         from server_modules import audioflix_ytdl
         audioflix_ytdl.handle_resolve_request(handler, query)
+    elif path == "/api/audioflix/playlist":
+        if not _can_control(handler):
+            _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return True
+        from server_modules import audioflix_playlist
+        audioflix_playlist.handle_playlist_request(handler, query)
     elif path.startswith("/api/audioflix/port/"):
         if not _can_control(handler):
             _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
