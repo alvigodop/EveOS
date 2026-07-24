@@ -183,7 +183,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const items = [...(state().soundboard || []), ...portedSounds].filter(it => isItemExposed(it, 'sound')), entries = [];
         allGroups('sound').forEach(g => { const m = items.filter(it => groupsOf(it.id, 'sound').includes(g)); if (m.length) entries.push([g, m]); });
         const un = items.filter(it => !groupsOf(it.id, 'sound').length);
-        if (un.length) entries.push(['Ungrouped', un]);
+        entries.push(['Ungrouped', un]);
         return entries;
     }
     function frontendActiveGroup(type = 'sound') {
