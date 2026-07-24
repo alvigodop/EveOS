@@ -42,16 +42,58 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     // The subset worth downloading: online tracks lacking a local file. `force` also re-includes
     // tracks that already have a localPath — the relocalize path for when the local copy was deleted
     // or you want a fresh download (the server overwrites).
+    // The subset worth downloading: online tracks lacking a local file, or marked missing on disk.
     function localizeCandidates(scope, key, force = false) {
-        return collectScope(scope, key).filter((it) => isHttp(it.url) && (force || !text(it.localPath)));
+        return collectScope(scope, key).filter((it) => isHttp(it.url) && (force || !text(it.localPath) || it.missingLocal === true));
     }
 
-    // Counts the localize form needs: online tracks in scope, how many are not-yet-local, and how
-    // many already have a localPath (candidates for a forced re-localize).
+    // Counts the localize form needs: online tracks in scope, how many are not-yet-local or missing on disk.
     function scopeStats(scope, key) {
-        const online = collectScope(scope, key).filter((it) => isHttp(it.url));
-        const notLocal = online.filter((it) => !text(it.localPath)).length;
-        return { online: online.length, notLocal, alreadyLocal: online.length - notLocal };
+        const items = collectScope(scope, key);
+        const online = items.filter((it) => isHttp(it.url));
+        const missingLocalCount = online.filter((it) => it.missingLocal === true).length;
+        const notLocal = online.filter((it) => !text(it.localPath) || it.missingLocal === true).length;
+        const alreadyLocal = online.length - notLocal;
+        return { online: online.length, notLocal, alreadyLocal, missingLocal: missingLocalCount };
+    }
+
+    // Audit local PC disk status for a scope using scanLocalized.
+    async function auditScopeDiskStatus(scope, key) {
+        const targetDir = getScopeDir(scope, key);
+        const items = collectScope(scope, key);
+        if (!targetDir || !items.length) return { ok: true, checked: 0, missing: 0 };
+
+        const N = window.EveAudioflixNative;
+        let existingFiles = new Set();
+        if (N?.scanLocalized) {
+            try {
+                const scan = await N.scanLocalized(targetDir);
+                if (scan?.ok && Array.isArray(scan.files)) {
+                    scan.files.forEach((f) => {
+                        if (f.name) existingFiles.add(f.name.toLowerCase());
+                        if (f.path) existingFiles.add(f.path.toLowerCase().replace(/\\/g, '/'));
+                    });
+                }
+            } catch {}
+        }
+
+        let checked = 0, missing = 0;
+        items.forEach((it) => {
+            if (text(it.localPath)) {
+                checked += 1;
+                const filename = text(it.localPath).replace(/.*[/\\]/, '').toLowerCase();
+                const normPath = text(it.localPath).toLowerCase().replace(/\\/g, '/');
+                const exists = existingFiles.has(filename) || existingFiles.has(normPath);
+                if (!exists) {
+                    S()?.updateItem?.('music', it.id, { missingLocal: true });
+                    missing += 1;
+                } else {
+                    if (it.missingLocal) S()?.updateItem?.('music', it.id, { missingLocal: false });
+                }
+            }
+        });
+
+        return { ok: true, checked, missing, targetDir };
     }
 
     function extractDir(filePath) {
@@ -84,6 +126,89 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return lastDir();
     }
 
+    // Batch-update target directory for a scope (e.g. folder or group) and migrate localPaths for all member tracks.
+    function updateScopeDir(scope, key, newTargetDir) {
+        const dir = text(newTargetDir).replace(/[/\\]+$/, '');
+        if (!dir) return { ok: false, reason: 'Invalid directory path' };
+        
+        rememberDir(dir, scope, key);
+        const items = collectScope(scope, key);
+        let updatedCount = 0;
+
+        items.forEach((it) => {
+            let hasChange = false;
+            const patch = {};
+            if (text(it.localPath)) {
+                const filename = text(it.localPath).replace(/.*[/\\]/, '');
+                if (filename) {
+                    const newPath = `${dir}\\${filename}`;
+                    if (text(it.localPath) !== newPath) {
+                        patch.localPath = newPath;
+                        hasChange = true;
+                    }
+                }
+            }
+            if (text(it.url) && !isHttp(it.url)) {
+                const filename = text(it.url).replace(/.*[/\\]/, '');
+                if (filename) {
+                    const newUrl = `${dir}\\${filename}`;
+                    if (text(it.url) !== newUrl) {
+                        patch.url = newUrl;
+                        hasChange = true;
+                    }
+                }
+            }
+            if (hasChange) {
+                S()?.updateItem?.('music', it.id, patch);
+                updatedCount += 1;
+            }
+        });
+
+        return { ok: true, updatedCount, total: items.length, targetDir: dir };
+    }
+
+    // Recalibrate/re-link local file paths for a scope to targetDir without downloading from online URLs.
+    async function recalibrateScopePath(scope, key, targetDir) {
+        const dir = text(targetDir).replace(/[/\\]+$/, '');
+        if (!dir) return { ok: false, reason: 'No target folder path provided.' };
+
+        const migration = updateScopeDir(scope, key, dir);
+        let scannedMatches = 0;
+
+        const N = window.EveAudioflixNative;
+        if (N?.scanLocalized) {
+            try {
+                const scan = await N.scanLocalized(dir);
+                if (scan?.ok && Array.isArray(scan.files)) {
+                    const byName = new Map();
+                    scan.files.forEach((f) => {
+                        if (f.name && f.path) byName.set(f.name.toLowerCase(), f.path);
+                    });
+                    const items = collectScope(scope, key);
+                    items.forEach((it) => {
+                        let filename = text(it.localPath).replace(/.*[/\\]/, '');
+                        if (!filename && text(it.url)) filename = text(it.url).replace(/.*[/\\]/, '');
+                        if (filename && byName.has(filename.toLowerCase())) {
+                            const matchPath = byName.get(filename.toLowerCase());
+                            S()?.updateItem?.('music', it.id, {
+                                localPath: matchPath,
+                                ...(isHttp(it.url) ? {} : { url: matchPath })
+                            });
+                            scannedMatches += 1;
+                        }
+                    });
+                }
+            } catch {}
+        }
+
+        return {
+            ok: true,
+            recalibrated: Math.max(migration.updatedCount, scannedMatches),
+            total: migration.total,
+            targetDir: dir
+        };
+    }
+
     // Download every candidate in the scope to targetDir, tagging each with its resulting localPath.
     // `force` re-downloads tracks that already have a localPath (relocalize).
     async function localizeScope(scope, key, targetDir, onProgress, force = false) {
@@ -92,8 +217,8 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         const dir = text(targetDir);
         if (!dir) return { ok: false, reason: 'No target folder was chosen.' };
         const items = localizeCandidates(scope, key, force);
+        updateScopeDir(scope, key, dir);
         if (!items.length) return { ok: true, done: 0, failed: 0, total: 0, targetDir: dir, note: 'Nothing to localize.' };
-        rememberDir(dir, scope, key);
         let done = 0, failed = 0, lastError = '';
         for (let i = 0; i < items.length; i += 1) {
             const it = items[i];
@@ -163,6 +288,9 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         ready: true,
         lastDir,
         getScopeDir,
+        updateScopeDir,
+        recalibrateScopePath,
+        auditScopeDiskStatus,
         collectScope,
         localizeCandidates,
         scopeStats,

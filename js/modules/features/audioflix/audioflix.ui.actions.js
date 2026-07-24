@@ -57,13 +57,23 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'select-folder-scope') { window.EveAudioflixState?.update?.({ activeMusicFolderScope: actionTarget.dataset.afScope || '' }, 'audioflix-folder-scope'); ctx.rerender(); return; }
             if (action === 'rename-group-prompt') {
                 const oldGroup = actionTarget.dataset.afGroup;
+                const isM = type === 'music';
                 let newGroup = '';
                 try { newGroup = String((await window.showPrompt?.(`Rename group "${oldGroup}":`, oldGroup)) || '').trim(); } catch {}
+                if (isM) {
+                    const currentDir = window.EveAudioflixLocalize?.getScopeDir?.('group', oldGroup) || '';
+                    let newDir = '';
+                    try { newDir = String((await window.showPrompt?.(`Local folder path on PC for group "${newGroup || oldGroup}" (migrates all member tracks' local paths):`, currentDir)) || '').trim(); } catch {}
+                    if (newDir) {
+                        const res = window.EveAudioflixLocalize?.updateScopeDir?.('group', oldGroup, newDir);
+                        if (res?.ok) ctx.playbackStatus = `Migrated ${res.updatedCount} track path(s) to ${res.targetDir}`;
+                    }
+                }
                 if (newGroup && newGroup !== oldGroup) {
                     window.EveAudioflixState?.renameGroup?.(type, oldGroup, newGroup);
                     ctx.pushHotkeysToBridge();
-                    ctx.rerender();
                 }
+                ctx.rerender();
                 return;
             }
             if (action === 'remove-group') { if (type === 'music') window.EveAudioflixState?.removeMusicGroup?.(actionTarget.dataset.afGroup); else window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); ctx.rerender(); return; }
@@ -102,11 +112,18 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'rename-folder-prompt') {
                 const oldFolder = actionTarget.dataset.afFolder;
                 let newFolder = '';
-                try { newFolder = String((await window.showPrompt?.(`Rename folder "${oldFolder}":`, oldFolder)) || '').trim(); } catch {}
+                try { newFolder = String((await window.showPrompt?.(`Rename folder tag "${oldFolder}":`, oldFolder)) || '').trim(); } catch {}
+                const currentDir = window.EveAudioflixLocalize?.getScopeDir?.('folder', oldFolder) || '';
+                let newDir = '';
+                try { newDir = String((await window.showPrompt?.(`Local folder path on PC for folder "${newFolder || oldFolder}" (migrates all member tracks' local paths):`, currentDir)) || '').trim(); } catch {}
+                if (newDir) {
+                    const res = window.EveAudioflixLocalize?.updateScopeDir?.('folder', oldFolder, newDir);
+                    if (res?.ok) ctx.playbackStatus = `Migrated ${res.updatedCount} track path(s) to ${res.targetDir}`;
+                }
                 if (newFolder && newFolder !== oldFolder) {
                     window.EveAudioflixState?.renameMusicFolder?.(oldFolder, newFolder);
-                    ctx.rerender();
                 }
+                ctx.rerender();
                 return;
             }
             if (action === 'delete-folder') {
@@ -269,8 +286,43 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                     ctx.localizeFormOpen = { open: true, scope, key };
                     ctx.musicPortFormOpen = false;
                     ctx.importFormOpen = false;
+                    window.EveAudioflixLocalize?.auditScopeDiskStatus?.(scope, key).then(() => ctx.rerender());
                 }
                 ctx.rerender();
+                return;
+            }
+            if (action === 'audit-scope-disk') {
+                const scope = actionTarget.dataset.afScope || 'library';
+                const key = actionTarget.dataset.afKey || '';
+                const L = window.EveAudioflixLocalize;
+                if (L) {
+                    ctx.playbackStatus = 'Auditing local disk files...'; ctx.rerender();
+                    L.auditScopeDiskStatus(scope, key).then(res => {
+                        ctx.playbackStatus = res.ok
+                            ? `Disk Audit Complete: ${res.missing} file(s) missing on disk out of ${res.checked} local track(s).`
+                            : 'Disk Audit failed.';
+                        ctx.rerender();
+                    });
+                }
+                return;
+            }
+            if (action === 'recalibrate-scope-path') {
+                const scope = actionTarget.dataset.afScope || 'library';
+                const key = actionTarget.dataset.afKey || '';
+                const form = actionTarget.closest('form');
+                const input = form ? form.querySelector('input[name="targetDir"]') : null;
+                const targetDir = input ? input.value : window.EveAudioflixLocalize?.getScopeDir?.(scope, key);
+                const L = window.EveAudioflixLocalize;
+                if (L && targetDir) {
+                    ctx.playbackStatus = 'Recalibrating local track paths...'; ctx.rerender();
+                    L.recalibrateScopePath(scope, key, targetDir).then(res => {
+                        ctx.playbackStatus = res.ok
+                            ? `Recalibrated ${res.recalibrated}/${res.total} track path(s) to ${res.targetDir} (0 web downloads).`
+                            : (res.reason || 'Recalibration failed.');
+                        ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
+                        ctx.rerender();
+                    });
+                }
                 return;
             }
             if (action === 'toggle-music-port-form') {

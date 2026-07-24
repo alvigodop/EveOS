@@ -129,6 +129,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             playlistId: text(source.playlistId, ''),
             sourceId: text(source.sourceId, ''),
             upstreamMissing: source.upstreamMissing === true,
+            missingLocal: source.missingLocal === true,
             createdAt: Number(source.createdAt || 0) || Date.now(),
             lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
         };
