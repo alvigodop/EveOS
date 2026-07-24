@@ -426,9 +426,13 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (!overlay || overlay.hidden) return;
         if (activeInfoItem) activeInfoItem = findItem(activeInfoType, activeInfoItem.id) || activeInfoItem;
         const panel = overlay.querySelector('.audioflix-panel'), scrollTop = (panel && lastTab === activeTab) ? panel.scrollTop : 0, scrollLeft = (panel && lastTab === activeTab) ? panel.scrollLeft : 0;
+        const infoBody = overlay.querySelector('.audioflix-info-body');
+        const infoScrollTop = infoBody ? infoBody.scrollTop : 0;
         lastTab = activeTab; overlay.innerHTML = renderPanel();
         const newPanel = overlay.querySelector('.audioflix-panel');
         if (newPanel) { newPanel.scrollTop = scrollTop; newPanel.scrollLeft = scrollLeft; }
+        const newInfoBody = overlay.querySelector('.audioflix-info-body');
+        if (newInfoBody) { newInfoBody.scrollTop = infoScrollTop; }
         window.EveAudioflixAudio?.attachWaveform?.(overlay.querySelector('#audioflix-waveform'));
         window.EveAudioflixTransport?.sync?.(overlay);
         window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
