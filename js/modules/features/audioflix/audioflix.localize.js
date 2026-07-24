@@ -54,8 +54,35 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return { online: online.length, notLocal, alreadyLocal: online.length - notLocal };
     }
 
+    function extractDir(filePath) {
+        const p = text(filePath).replace(/\\/g, '/');
+        const idx = p.lastIndexOf('/');
+        if (idx <= 0) return '';
+        return p.substring(0, idx).replace(/\//g, '\\');
+    }
+
     const lastDir = () => text(state().localizeDir);
-    const rememberDir = (dir) => S()?.update?.({ localizeDir: text(dir) }, 'audioflix-localize-dir');
+    const rememberDir = (dir, scope = 'library', key = '') => {
+        const clean = text(dir);
+        if (!clean) return;
+        const scopeKey = `${scope}:${key || ''}`;
+        const scopeDirs = { ...(state().localizeScopeDirs || {}), [scopeKey]: clean };
+        S()?.update?.({ localizeDir: clean, localizeScopeDirs: scopeDirs }, 'audioflix-localize-dir');
+    };
+
+    function getScopeDir(scope = 'library', key = '') {
+        const scopeKey = `${scope}:${key || ''}`;
+        const savedScopeDir = text(state().localizeScopeDirs?.[scopeKey]);
+        if (savedScopeDir) return savedScopeDir;
+
+        const items = collectScope(scope, key);
+        const withLocal = items.find((it) => text(it.localPath));
+        if (withLocal) {
+            const derived = extractDir(withLocal.localPath);
+            if (derived) return derived;
+        }
+        return lastDir();
+    }
 
     // Download every candidate in the scope to targetDir, tagging each with its resulting localPath.
     // `force` re-downloads tracks that already have a localPath (relocalize).
@@ -66,7 +93,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         if (!dir) return { ok: false, reason: 'No target folder was chosen.' };
         const items = localizeCandidates(scope, key, force);
         if (!items.length) return { ok: true, done: 0, failed: 0, total: 0, targetDir: dir, note: 'Nothing to localize.' };
-        rememberDir(dir);
+        rememberDir(dir, scope, key);
         let done = 0, failed = 0, lastError = '';
         for (let i = 0; i < items.length; i += 1) {
             const it = items[i];
@@ -135,6 +162,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     Object.assign(ns, {
         ready: true,
         lastDir,
+        getScopeDir,
         collectScope,
         localizeCandidates,
         scopeStats,

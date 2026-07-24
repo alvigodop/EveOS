@@ -304,7 +304,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const key = localizeFormOpen.key || '';
         const L = window.EveAudioflixLocalize;
         const stats = L?.scopeStats?.(scope, key) || { online: 0, notLocal: 0, alreadyLocal: 0 };
-        const lastDir = L?.lastDir?.() || '';
+        const lastDir = L?.getScopeDir?.(scope, key) || L?.lastDir?.() || '';
         const scopeLabel = scope === 'library' ? 'Entire Music Library'
             : scope === 'group' ? `Group "${key}"`
             : scope === 'folder' ? `Folder "${key}"`
