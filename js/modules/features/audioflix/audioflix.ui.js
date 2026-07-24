@@ -60,7 +60,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const localSourceRow = (type === 'music' && item.localPath) ? `<div class="audioflix-info-url-container"><span>Local file (offline copy)</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.localPath)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.localPath)}">Copy</button></div></div>` : '';
         // Collapsible localize control for this single track (relocalize stays available even after
         // the local copy is deleted). Lives here in the settings panel, not a popup.
-        const canLocalizeSong = type === 'music' && /^https?:\/\//i.test(String(item.url || ''));
+        const canLocalizeSong = type === 'music' && (Boolean(item.url) || Boolean(item.localPath));
         const songLocOpen = localizeFormOpen.open && localizeFormOpen.scope === 'song' && localizeFormOpen.key === item.id;
         const songLocalizeSection = canLocalizeSong ? `<div class="audioflix-info-groups" style="margin-top:10px;"><button type="button" class="audioflix-add-toggle${songLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="song" data-af-key="${esc(item.id)}">${item.localPath ? '⬇️ Re-localize this track' : '⬇️ Localize this track'}</button>${songLocOpen ? renderLocalizeForm() : ''}</div>` : '';
 
@@ -322,20 +322,21 @@ window.EveAudioflix = window.EveAudioflix || {};
             ? `${scopeLabel} — ${stats.notLocal} new${stats.alreadyLocal ? `, ${stats.alreadyLocal} already local` : ''}`
             : `${scopeLabel} — nothing to localize (no online tracks).`;
         const missingWarning = stats.missingLocal > 0
-            ? `<div style="margin-top:6px; color:#f87171; font-size:0.8rem; font-weight:600;">⚠️ ${stats.missingLocal} track file${stats.missingLocal === 1 ? '' : 's'} missing on disk (deleted). Ready to re-download.</div>`
+            ? `<div style="margin-top:4px; color:#f87171; font-size:0.8rem; font-weight:600;">⚠️ ${stats.missingLocal} track file${stats.missingLocal === 1 ? '' : 's'} missing on disk (deleted). Ready to re-download.</div>`
             : '';
-        const auditBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="audit-scope-disk" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.35); font-size:0.8rem; padding:4px 10px; white-space:nowrap;" title="Scan local folder on PC to check if files were deleted outside of EveOS">🔍 Verify Files</button>`;
-        const recalibrateBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="recalibrate-scope-path" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35); font-size:0.8rem; padding:4px 10px; white-space:nowrap;" title="Re-link local files to this path without re-downloading from online">🔄 Recalibrate Path</button>`;
-        return `<form class="audioflix-form" data-af-form="localize-form" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}">
-            <label class="audioflix-wide-field"><span>Target Local Folder Path (on PC)</span><input name="targetDir" required value="${esc(lastDir)}" placeholder="e.g. C:\\Music\\EveOS or /home/you/Music"></label>
+        const submitBtnStyle = `font-size:0.8rem; padding:5px 12px; height:32px; white-space:nowrap; border-radius:16px; min-width:max-content; align-self:center;`;
+        const auditBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="audit-scope-disk" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.35); font-size:0.8rem; padding:5px 12px; height:32px; white-space:nowrap; border-radius:16px;" title="Scan local folder on PC to check if files were deleted outside of EveOS">🔍 Verify Files</button>`;
+        const recalibrateBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="recalibrate-scope-path" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35); font-size:0.8rem; padding:5px 12px; height:32px; white-space:nowrap; border-radius:16px;" title="Re-link local files to this path without re-downloading from online">🔄 Recalibrate Path</button>`;
+        return `<form class="audioflix-form audioflix-localize-panel-form" data-af-form="localize-form" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:12px; background:rgba(0,0,0,0.25);">
+            <label class="audioflix-wide-field" style="width:100%;"><span>Target Local Folder Path (on PC)</span><input name="targetDir" required value="${esc(lastDir)}" placeholder="e.g. C:\\Music\\EveOS or /home/you/Music" style="width:100%; box-sizing:border-box;"></label>
             ${forceField}
             ${missingWarning}
-            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top: 8px;">
-                <button type="submit" data-af-action="submit-form" ${canRun ? '' : 'disabled'}>${btnLabel}</button>
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                <button type="submit" data-af-action="submit-form" ${canRun ? '' : 'disabled'} style="${submitBtnStyle}">${btnLabel}</button>
                 ${recalibrateBtn}
                 ${auditBtn}
-                <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">${esc(note)}</span>
             </div>
+            <div style="font-size:0.78rem; color:#94a3b8; font-weight:500; margin-top:2px;">${esc(note)}</div>
         </form>`;
     };
     const renderMusicPortForm = () => {
@@ -416,6 +417,7 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     function rerender() {
         if (!overlay || overlay.hidden) return;
+        if (activeInfoItem) activeInfoItem = findItem(activeInfoType, activeInfoItem.id) || activeInfoItem;
         const panel = overlay.querySelector('.audioflix-panel'), scrollTop = (panel && lastTab === activeTab) ? panel.scrollTop : 0, scrollLeft = (panel && lastTab === activeTab) ? panel.scrollLeft : 0;
         lastTab = activeTab; overlay.innerHTML = renderPanel();
         const newPanel = overlay.querySelector('.audioflix-panel');

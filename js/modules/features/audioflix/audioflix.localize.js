@@ -44,13 +44,13 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     // or you want a fresh download (the server overwrites).
     // The subset worth downloading: online tracks lacking a local file, or marked missing on disk.
     function localizeCandidates(scope, key, force = false) {
-        return collectScope(scope, key).filter((it) => isHttp(it.url) && (force || !text(it.localPath) || it.missingLocal === true));
+        return collectScope(scope, key).filter((it) => (isHttp(it.url) || Boolean(it.localPath)) && (force || !text(it.localPath) || it.missingLocal === true));
     }
 
     // Counts the localize form needs: online tracks in scope, how many are not-yet-local or missing on disk.
     function scopeStats(scope, key) {
         const items = collectScope(scope, key);
-        const online = items.filter((it) => isHttp(it.url));
+        const online = items.filter((it) => isHttp(it.url) || Boolean(it.localPath));
         const missingLocalCount = online.filter((it) => it.missingLocal === true).length;
         const notLocal = online.filter((it) => !text(it.localPath) || it.missingLocal === true).length;
         const alreadyLocal = online.length - notLocal;
