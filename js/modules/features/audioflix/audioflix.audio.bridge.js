@@ -6,9 +6,9 @@ window.EveAudioflixAudioBridge = window.EveAudioflixAudioBridge || {};
     const ns = window.EveAudioflixAudioBridge;
     if (ns.ready) return;
 
-    const CHUNK_SECONDS = 0.25;
-    const LEAD_SECONDS = 1.5;
-    const PUMP_DELAY_MS = 70;
+    const CHUNK_SECONDS = 0.5;
+    const LEAD_SECONDS = 3.0;
+    const PUMP_DELAY_MS = 50;
     const PROGRESS_INTERVAL_MS = 120;
 
     const now = () => (window.performance?.now?.() ?? Date.now());

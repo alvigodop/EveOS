@@ -221,12 +221,39 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         return true;
     }
 
+    // Get connection matching a specific group name
+    function getPlaylistForGroup(groupName) {
+        const clean = text(groupName);
+        if (!clean) return null;
+        return connections().find((entry) => text(entry.group) === clean || text(entry.title) === clean) || null;
+    }
+
+    // Sync a single playlist by its group name
+    async function syncPlaylistByGroup(groupName, force = true) {
+        const conn = getPlaylistForGroup(groupName);
+        if (!conn) return { ok: false, reason: `No live playlist connection found for group "${groupName}".` };
+        return syncPlaylist(conn.id, force);
+    }
+
+    // Check if a track in an imported group was added locally (not from the upstream playlist source)
+    function isLocalTrackInImportedGroup(item) {
+        if (!item || !item.id) return false;
+        const groups = window.EveAudioflixState?.ensure?.()?.musicGroupMap?.[item.id] || [];
+        if (!groups.length) return false;
+        const importedConn = connections().find(c => groups.includes(c.group));
+        if (!importedConn) return false;
+        return !item.sourceId || item.playlistId !== importedConn.id;
+    }
+
     Object.assign(ns, {
         ready: true,
         DEFAULT_FOLDER,
         diffPlaylist,
         connections,
         getConnection,
+        getPlaylistForGroup,
+        syncPlaylistByGroup,
+        isLocalTrackInImportedGroup,
         tracksFor,
         importPlaylist,
         syncPlaylist,
