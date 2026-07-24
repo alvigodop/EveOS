@@ -58,8 +58,13 @@ window.EveAudioflix = window.EveAudioflix || {};
 
         // Dual-source tracks (from a duplicate merge) carry a local file alongside the online url.
         const localSourceRow = (type === 'music' && item.localPath) ? `<div class="audioflix-info-url-container"><span>Local file (offline copy)</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.localPath)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.localPath)}">Copy</button></div></div>` : '';
+        // Collapsible localize control for this single track (relocalize stays available even after
+        // the local copy is deleted). Lives here in the settings panel, not a popup.
+        const canLocalizeSong = type === 'music' && /^https?:\/\//i.test(String(item.url || ''));
+        const songLocOpen = localizeFormOpen.open && localizeFormOpen.scope === 'song' && localizeFormOpen.key === item.id;
+        const songLocalizeSection = canLocalizeSong ? `<div class="audioflix-info-groups" style="margin-top:10px;"><button type="button" class="audioflix-add-toggle${songLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="song" data-af-key="${esc(item.id)}">${item.localPath ? '⬇️ Re-localize this track' : '⬇️ Localize this track'}</button>${songLocOpen ? renderLocalizeForm() : ''}</div>` : '';
 
-        return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card"><div class="audioflix-info-header"><div><span class="audioflix-kicker">${type === 'music' ? 'Track Details' : 'Sound Details'}</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div><div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}${hotkeyRow}${repeaterBlock}${dupSection}${renderGroupAssign(item, type)}${trackEditBlock}<div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div>${localSourceRow}</div><div class="audioflix-info-footer">${internalViewButton(item, type, true)}${type === 'music' && /^https?:\/\//i.test(String(item.url || '')) && !item.localPath ? `<button type="button" class="audioflix-info-close-action" data-af-action="localize-scope" data-af-scope="song" data-af-key="${esc(item.id)}" title="Download this track to a local file">Localize</button>` : ''}<button type="button" class="audioflix-info-close-action" data-af-action="close-info">Close</button></div></div></div>`;
+        return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card"><div class="audioflix-info-header"><div><span class="audioflix-kicker">${type === 'music' ? 'Track Details' : 'Sound Details'}</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div><div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}${hotkeyRow}${repeaterBlock}${dupSection}${renderGroupAssign(item, type)}${trackEditBlock}<div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div>${localSourceRow}${songLocalizeSection}</div><div class="audioflix-info-footer">${internalViewButton(item, type, true)}<button type="button" class="audioflix-info-close-action" data-af-action="close-info">Close</button></div></div></div>`;
     };
     const renderGroupAssign = (item, type = 'sound', mine = new Set(groupsOf(item.id, type))) => `<div class="audioflix-info-groups"><span class="audioflix-info-groups-label">Frontend Groups</span><div class="audioflix-group-checklist">${allGroups(type).map(g => `<label class="audioflix-group-check"><input type="checkbox" class="audioflix-group-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" data-af-group="${esc(g)}" ${mine.has(g) ? 'checked' : ''}><span>${esc(g)}</span></label>`).join('') || '<span class="audioflix-group-empty">No groups yet — create one below.</span>'}</div><form class="audioflix-group-quick" data-af-form="assign-new-group" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}"><input name="name" placeholder="New group" autocomplete="off" maxlength="40"><button type="submit" data-af-action="submit-form">Add</button></form></div>`;
 
@@ -290,23 +295,38 @@ window.EveAudioflix = window.EveAudioflix || {};
         const syncAllBtn = plCount ? `<button type="button" class="audioflix-add-toggle" data-af-action="sync-all-playlists" style="margin-left: 8px;" title="Re-read all upstream playlists">Sync All Playlists</button>` : '';
         return `<form class="audioflix-form" data-af-form="import-playlist"><label class="audioflix-wide-field"><span>Playlist URL</span><input name="url" required placeholder="https://youtube.com/playlist?list=..."></label><label><span>Target Folder</span><input name="folder" placeholder="Youtube Playlists"></label><button type="submit" data-af-action="submit-form">Import Playlist</button>${syncAllBtn}</form>`;
     };
+    // Collapsible localize form, rendered wherever the scope lives: library -> music toolbar,
+    // group/folder -> their manager rows, song -> the track settings panel. The target folder is an
+    // editable input (defaults to the last-used path). notLocal = fresh downloads; alreadyLocal are
+    // existing local copies that can be re-downloaded (relocalize) — e.g. when the file was deleted.
     const renderLocalizeForm = () => {
         const scope = localizeFormOpen.scope || 'library';
         const key = localizeFormOpen.key || '';
         const L = window.EveAudioflixLocalize;
-        const candidates = L?.localizeCandidates?.(scope, key) || [];
-        const lastDir = L?.lastDir?.() || 'C:\\Users\\alvin\\Downloads';
-        const labelText = scope === 'library'
-            ? `Localize Entire Music Library (${candidates.length} online candidate${candidates.length === 1 ? '' : 's'})`
-            : (scope === 'group'
-                ? `Localize Group "${key}" (${candidates.length} online candidate${candidates.length === 1 ? '' : 's'})`
-                : `Localize Folder "${key}" (${candidates.length} online candidate${candidates.length === 1 ? '' : 's'})`);
-
+        const stats = L?.scopeStats?.(scope, key) || { online: 0, notLocal: 0, alreadyLocal: 0 };
+        const lastDir = L?.lastDir?.() || '';
+        const scopeLabel = scope === 'library' ? 'Entire Music Library'
+            : scope === 'group' ? `Group "${key}"`
+            : scope === 'folder' ? `Folder "${key}"`
+            : `Track "${(findItem('music', key) || {}).title || ''}"`;
+        const forceOnly = stats.notLocal === 0 && stats.alreadyLocal > 0;
+        const canRun = stats.notLocal > 0 || stats.alreadyLocal > 0;
+        const count = forceOnly ? stats.alreadyLocal : stats.notLocal;
+        const forceField = forceOnly
+            ? `<input type="hidden" name="force" value="1">`
+            : (stats.alreadyLocal > 0
+                ? `<label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; color:#cbd5e1; margin-top:6px;"><input type="checkbox" name="force" value="1"> Also re-download ${stats.alreadyLocal} already-local (refresh deleted copies)</label>`
+                : '');
+        const btnLabel = forceOnly ? `Re-localize (${count})` : `Start Localizing (${count})`;
+        const note = canRun
+            ? `${scopeLabel} — ${stats.notLocal} new${stats.alreadyLocal ? `, ${stats.alreadyLocal} already local` : ''}`
+            : `${scopeLabel} — nothing to localize (no online tracks).`;
         return `<form class="audioflix-form" data-af-form="localize-form" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}">
-            <label class="audioflix-wide-field"><span>Target Local Folder Path (on PC)</span><input name="targetDir" required value="${esc(lastDir)}" placeholder="C:\\Users\\alvin\\Downloads"></label>
-            <div style="display:flex; align-items:center; gap:10px; margin-top: auto;">
-                <button type="submit" data-af-action="submit-form" ${candidates.length === 0 ? 'disabled' : ''}>Start Localizing (${candidates.length})</button>
-                <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">${esc(labelText)}</span>
+            <label class="audioflix-wide-field"><span>Target Local Folder Path (on PC)</span><input name="targetDir" required value="${esc(lastDir)}" placeholder="e.g. C:\\Music\\EveOS or /home/you/Music"></label>
+            ${forceField}
+            <div style="display:flex; align-items:center; gap:10px; margin-top: 8px;">
+                <button type="submit" data-af-action="submit-form" ${canRun ? '' : 'disabled'}>${btnLabel}</button>
+                <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">${esc(note)}</span>
             </div>
         </form>`;
     };
@@ -329,8 +349,9 @@ window.EveAudioflix = window.EveAudioflix || {};
             const conn = isM ? window.EveAudioflixPlaylists?.getPlaylistForGroup?.(g) : null;
             const urlLine = conn?.url ? `<a href="${esc(conn.url)}" target="_blank" rel="noopener" style="display:block; font-size:0.75rem; color:#8ab4f8; text-decoration:none; margin-top:2px; word-break:break-all;">${esc(conn.url)}</a>` : '';
             const syncBtn = conn ? `<button type="button" class="audioflix-icon-btn" data-af-group="${esc(g)}" data-af-action="sync-single-playlist" title="Sync this playlist">🔄</button>` : '';
-            const dlBtn = isM ? `<button type="button" class="audioflix-icon-btn" data-af-action="toggle-localize-form" data-af-scope="group" data-af-key="${esc(g)}" title="Localize this group's online tracks to local files">⬇️</button>` : '';
-            return `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong>${urlLine}<code style="display: block; font-size: 0.8rem; color: #94a3b8; margin-top:2px;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;">${dlBtn}${syncBtn}<button type="button" class="audioflix-icon-btn" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="rename-group-prompt" title="Rename group">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group" title="Delete group">${closeSvg}</button></div></div>`;
+            const dlBtn = isM ? `<button type="button" class="audioflix-icon-btn${localizeFormOpen.open && localizeFormOpen.scope === 'group' && localizeFormOpen.key === g ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="group" data-af-key="${esc(g)}" title="Localize this group's online tracks to local files">⬇️</button>` : '';
+            const locForm = (isM && localizeFormOpen.open && localizeFormOpen.scope === 'group' && localizeFormOpen.key === g) ? renderLocalizeForm() : '';
+            return `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong>${urlLine}<code style="display: block; font-size: 0.8rem; color: #94a3b8; margin-top:2px;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;">${dlBtn}${syncBtn}<button type="button" class="audioflix-icon-btn" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="rename-group-prompt" title="Rename group">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group" title="Delete group">${closeSvg}</button></div></div>${locForm}`;
         }).join('') || '<div class="audioflix-empty">No groups yet.</div>';
         return `<div class="audioflix-ports-mgr"><h4>${isM ? 'Music Frontend Groups' : 'Soundboard Frontend Groups'}</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group" data-af-type="${esc(type)}"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`;
     };
@@ -343,7 +364,9 @@ window.EveAudioflix = window.EveAudioflix || {};
         });
         const list = Object.entries(folderCounts).map(([f, count]) => {
             if (f === 'Ungrouped') return '';
-            return `<div class="audioflix-port-item"><div><strong>${esc(f)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${count} track${count === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;"><button type="button" class="audioflix-icon-btn" data-af-action="toggle-localize-form" data-af-scope="folder" data-af-key="${esc(f)}" title="Localize this folder's online tracks to local files">⬇️</button><button type="button" class="audioflix-icon-btn" data-af-folder="${esc(f)}" data-af-action="rename-folder-prompt" title="Rename folder">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-folder="${esc(f)}" data-af-action="delete-folder" title="Delete folder tag">${closeSvg}</button></div></div>`;
+            const isLoc = localizeFormOpen.open && localizeFormOpen.scope === 'folder' && localizeFormOpen.key === f;
+            const locForm = isLoc ? renderLocalizeForm() : '';
+            return `<div class="audioflix-port-item"><div><strong>${esc(f)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${count} track${count === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;"><button type="button" class="audioflix-icon-btn${isLoc ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="folder" data-af-key="${esc(f)}" title="Localize this folder's online tracks to local files">⬇️</button><button type="button" class="audioflix-icon-btn" data-af-folder="${esc(f)}" data-af-action="rename-folder-prompt" title="Rename folder">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-folder="${esc(f)}" data-af-action="delete-folder" title="Delete folder tag">${closeSvg}</button></div></div>${locForm}`;
         }).filter(Boolean).join('') || '<div class="audioflix-empty">No custom folders yet.</div>';
         return `<div class="audioflix-ports-mgr"><h4>Music Folders Manager</h4>${list}</div>`;
     };
@@ -356,11 +379,12 @@ window.EveAudioflix = window.EveAudioflix || {};
         const gBtn = `<button type="button" class="audioflix-add-toggle${groupsOpen[type] ? ' is-active' : ''}" data-af-action="toggle-groups" data-af-type="${esc(type)}" style="margin-left: 8px;">Groups</button>`;
         const fBtn = isM ? `<button type="button" class="audioflix-add-toggle${foldersOpen.music ? ' is-active' : ''}" data-af-action="toggle-folders" data-af-type="music" style="margin-left: 8px;">Edit Folders</button>` : '';
         const pBtn = isM ? `<button type="button" class="audioflix-add-toggle${importFormOpen ? ' is-active' : ''}" data-af-action="toggle-import-form" style="margin-left: 8px;">Import Playlist</button>` : '';
-        const lBtn = isM ? `<button type="button" class="audioflix-add-toggle${isLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="library" style="margin-left: 8px;" title="Download online tracks to local files (needs localhost)">Localize</button><button type="button" class="audioflix-add-toggle${musicPortFormOpen ? ' is-active' : ''}" data-af-action="toggle-music-port-form" style="margin-left: 8px;" title="Extract local folder music into a Folder tag">Music Port</button>` : '';
+        const isLibLocOpen = isLocOpen && localizeFormOpen.scope === 'library';
+        const lBtn = isM ? `<button type="button" class="audioflix-add-toggle${isLibLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="library" style="margin-left: 8px;" title="Download online tracks to local files (needs localhost)">Localize</button><button type="button" class="audioflix-add-toggle${musicPortFormOpen ? ' is-active' : ''}" data-af-action="toggle-music-port-form" style="margin-left: 8px;" title="Extract local folder music into a Folder tag">Music Port</button>` : '';
         if (isM) {
             return isF
                 ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen.music ? renderGroupsManager('music') : ''}`
-                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${open ? '− Hide add track' : '+ Add Track'}</button></div>${fBtn}${pBtn}${lBtn}${gBtn}${vBtn}</div>${open ? renderForm('music') : ''}${importFormOpen ? renderImportPlaylistForm() : ''}${isLocOpen ? renderLocalizeForm() : ''}${musicPortFormOpen ? renderMusicPortForm() : ''}${foldersOpen.music ? renderFoldersManager() : ''}${groupsOpen.music ? renderGroupsManager('music') : ''}`;
+                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${open ? '− Hide add track' : '+ Add Track'}</button></div>${fBtn}${pBtn}${lBtn}${gBtn}${vBtn}</div>${open ? renderForm('music') : ''}${importFormOpen ? renderImportPlaylistForm() : ''}${isLibLocOpen ? renderLocalizeForm() : ''}${musicPortFormOpen ? renderMusicPortForm() : ''}${foldersOpen.music ? renderFoldersManager() : ''}${groupsOpen.music ? renderGroupsManager('music') : ''}`;
         }
         return isF
             ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen.sound ? renderGroupsManager('sound') : ''}`
@@ -401,8 +425,6 @@ window.EveAudioflix = window.EveAudioflix || {};
     // the same closure variables unchanged — only the moved handler code goes through uiCtx.
     const uiCtx = {
         state, rerender, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup,
-        localizeScope: (target) => window.EveAudioflixLocalize?.handleScopeAction?.(target, uiCtx),
-        localizePort: (target) => window.EveAudioflixLocalize?.handlePortAction?.(target, uiCtx),
         get overlay() { return overlay; },
         get portedSounds() { return portedSounds; },
         get activeRepeaters() { return activeRepeaters; },

@@ -6,9 +6,10 @@
 // the stream. Scopes: the whole library, one folder, one group, or a single song. Downloads run
 // one at a time server-side; the client loops the scope so the user sees N/total progress.
 //
-// The reimport "music port" (handlePortAction) scans a chosen folder and matches files to tracks by
-// a normalized title — the workflow for restoring localPaths after a datapack move or on a fresh
-// machine, where the mp3s exist on disk but the state only has online urls.
+// The "music port" (importMusicPort) scans a chosen folder and extracts its audio files into EveOS
+// as new tracks under a FOLDER tag — the same way the soundboard ports a folder (not a group like an
+// imported playlist). reimportMerge is the lighter variant: re-attach files to existing tracks by
+// title (restoring localPaths after a datapack move) rather than adding new ones.
 window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
 
 (function () {
@@ -38,21 +39,32 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return all;
     }
 
-    // The subset worth downloading: online tracks that don't already have a local file.
-    function localizeCandidates(scope, key) {
-        return collectScope(scope, key).filter((it) => isHttp(it.url) && !text(it.localPath));
+    // The subset worth downloading: online tracks lacking a local file. `force` also re-includes
+    // tracks that already have a localPath — the relocalize path for when the local copy was deleted
+    // or you want a fresh download (the server overwrites).
+    function localizeCandidates(scope, key, force = false) {
+        return collectScope(scope, key).filter((it) => isHttp(it.url) && (force || !text(it.localPath)));
+    }
+
+    // Counts the localize form needs: online tracks in scope, how many are not-yet-local, and how
+    // many already have a localPath (candidates for a forced re-localize).
+    function scopeStats(scope, key) {
+        const online = collectScope(scope, key).filter((it) => isHttp(it.url));
+        const notLocal = online.filter((it) => !text(it.localPath)).length;
+        return { online: online.length, notLocal, alreadyLocal: online.length - notLocal };
     }
 
     const lastDir = () => text(state().localizeDir);
     const rememberDir = (dir) => S()?.update?.({ localizeDir: text(dir) }, 'audioflix-localize-dir');
 
     // Download every candidate in the scope to targetDir, tagging each with its resulting localPath.
-    async function localizeScope(scope, key, targetDir, onProgress) {
+    // `force` re-downloads tracks that already have a localPath (relocalize).
+    async function localizeScope(scope, key, targetDir, onProgress, force = false) {
         const N = window.EveAudioflixNative;
         if (!N?.localizeTrack) return { ok: false, reason: 'Localization needs the EveOS localhost server running.' };
         const dir = text(targetDir);
         if (!dir) return { ok: false, reason: 'No target folder was chosen.' };
-        const items = localizeCandidates(scope, key);
+        const items = localizeCandidates(scope, key, force);
         if (!items.length) return { ok: true, done: 0, failed: 0, total: 0, targetDir: dir, note: 'Nothing to localize.' };
         rememberDir(dir);
         let done = 0, failed = 0, lastError = '';
@@ -64,23 +76,6 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
             else { failed += 1; lastError = res?.error || res?.message || 'download failed'; }
         }
         return { ok: done > 0 || failed === 0, done, failed, total: items.length, targetDir: dir, lastError };
-    }
-
-    // Scope button (data-af-scope / data-af-key): prompt for a folder, then localize with progress.
-    async function handleScopeAction(target, uiCtx) {
-        const scope = target?.dataset?.afScope || 'library';
-        const key = target?.dataset?.afKey || '';
-        const setStatus = (s) => { if (uiCtx) { uiCtx.playbackStatus = s; uiCtx.rerender(); } };
-        const candidates = localizeCandidates(scope, key);
-        if (!candidates.length) { setStatus('Nothing to localize here (already local, or no online URLs).'); return; }
-        let dir = '';
-        try { dir = String((await window.showPrompt?.(`Folder on this PC to save ${candidates.length} localized file${candidates.length === 1 ? '' : 's'}:`, lastDir())) || '').trim(); } catch { }
-        if (!dir) return;
-        setStatus(`Localizing 0/${candidates.length}...`);
-        const res = await localizeScope(scope, key, dir, (p) => setStatus(`Localizing ${p.index}/${p.total}: ${p.title}`));
-        setStatus(res.ok
-            ? `Localized ${res.done}/${res.total} to ${res.targetDir}${res.failed ? ` (${res.failed} failed — ${res.lastError})` : ''}.`
-            : (res.reason || 'Localization failed.'));
     }
 
     // Music port: scan a folder and re-attach files to tracks by title, restoring localPath.
@@ -137,25 +132,14 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return { ok: true, added: addedCount, total: files.length, folder: targetFolder, path: cleanPath };
     }
 
-    async function handlePortAction(target, uiCtx) {
-        const setStatus = (s) => { if (uiCtx) { uiCtx.playbackStatus = s; uiCtx.rerender(); } };
-        let dir = '';
-        try { dir = String((await window.showPrompt?.('Folder of localized music files to re-attach by title:', lastDir())) || '').trim(); } catch { }
-        if (!dir) return;
-        setStatus('Scanning localized folder...');
-        const res = await reimportMerge(dir);
-        setStatus(res.ok ? `Re-attached ${res.matched} of ${res.scanned} file(s) to matching tracks.` : (res.reason || 'Reimport failed.'));
-    }
-
     Object.assign(ns, {
         ready: true,
         lastDir,
         collectScope,
         localizeCandidates,
+        scopeStats,
         localizeScope,
-        handleScopeAction,
         reimportMerge,
-        importMusicPort,
-        handlePortAction
+        importMusicPort
     });
 })();

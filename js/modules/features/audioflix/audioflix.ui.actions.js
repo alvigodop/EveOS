@@ -171,8 +171,6 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
-            if (action === 'localize-scope') { await ctx.localizeScope?.(actionTarget); return; }
-            if (action === 'localize-port') { await ctx.localizePort?.(actionTarget); return; }
             if (action === 'keep-playlist-track') {
                 const PL = window.EveAudioflixPlaylists;
                 if (!PL) return;
@@ -317,12 +315,13 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 const scope = form.dataset.afScope || 'library';
                 const key = form.dataset.afKey || '';
                 const targetDir = data.get('targetDir');
+                const force = data.get('force') === '1' || data.get('force') === 'on';
                 const L = window.EveAudioflixLocalize;
                 if (L && targetDir) {
                     ctx.playbackStatus = 'Localizing candidate tracks...'; ctx.rerender();
                     L.localizeScope(scope, key, targetDir, (p) => {
                         ctx.playbackStatus = `Localizing ${p.index}/${p.total}: ${p.title}`;
-                    }).then(res => {
+                    }, force).then(res => {
                         ctx.playbackStatus = res.ok
                             ? `Localized ${res.done}/${res.total} to ${res.targetDir}${res.failed ? ` (${res.failed} failed — ${res.lastError})` : ''}.`
                             : (res.reason || 'Localization failed.');
