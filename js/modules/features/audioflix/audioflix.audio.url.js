@@ -184,6 +184,16 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                     }
                 });
                 if (!bridge) {
+                    if (window.EveAudioflixNative?.resolveUrl) {
+                        try {
+                            setStageStatus('Resolving direct YouTube audio stream via EveOS bridge...');
+                            const resolved = await window.EveAudioflixNative.resolveUrl(item.url);
+                            if (resolved && resolved.ok && resolved.audioUrl) {
+                                setStageStatus(`Playing stream — "${resolved.title || item.title}"`);
+                                return await playDirect({ ...item, url: resolved.audioUrl, resolvedDuration: resolved.duration });
+                            }
+                        } catch {}
+                    }
                     playback.paused = true;
                     setStageStatus(YOUTUBE_FILE_MESSAGE, true);
                     emitPlayback(YOUTUBE_FILE_MESSAGE, true);

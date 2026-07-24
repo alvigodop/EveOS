@@ -12,12 +12,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     let deviceCache = null;
     let lastStatus = { ok: false, message: 'Native bridge not checked yet.', devices: [], attempts: [] };
-    // After a probe where NO base even answered (nothing listening), remember the bridge is down
-    // so every native call doesn't re-pay the multi-base probe cost. This is what makes Test
-    // Route / soundboard fall back to browser playback instantly on file:// with the server off.
-    // The hold time escalates (10s -> 20s -> 40s -> 80s -> 120s cap) so a session that's clearly
-    // serverless stops spraying ERR_CONNECTION_REFUSED into the console, while a server that
-    // comes up is still noticed within a couple of minutes (or instantly via a forced refresh).
+    // After a probe where NO base answered, remember the bridge is down so every native call doesn't
+    // re-pay the multi-base probe cost (instant browser fallback on file:// with no server). The hold
+    // escalates 10s->20s->40s->80s->120s, so a server coming up is still noticed within minutes.
     let bridgeDownUntil = 0;
     let bridgeMissStreak = 0;
     let bridgeOfflineNoticeShown = false;
@@ -84,7 +81,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     async function fetchJson(path, options = {}) {
-        if (Date.now() < bridgeDownUntil && options.probe !== true) {
+        // realtime = live PCM stream lane: never honor the bridge-down cooldown (one transient chunk
+        // failure would otherwise mute the router 10-120s mid-song); each chunk has its own timeout.
+        if (Date.now() < bridgeDownUntil && options.probe !== true && options.realtime !== true) {
             return { ok: false, cachedDown: true, message: 'Native bridge offline (recent probe failed; will retry shortly).' };
         }
         const attempts = [];
@@ -116,9 +115,10 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 });
             }
         }
-        // Only cache "down" when nothing answered at all (pure network failures). A base that
-        // returned an HTTP error means a server IS there — don't suppress retries against it.
-        if (!attempts.some((item) => item.status)) {
+        // Only cache "down" when nothing answered at all (pure network failures); an HTTP error
+        // means a server IS there. A realtime chunk failure never arms the cooldown — chunks fire
+        // every ~85ms, so a lone hiccup must not blacklist the bridge for device scans/warm.
+        if (options.realtime !== true && !attempts.some((item) => item.status)) {
             bridgeMissStreak = Math.min(bridgeMissStreak + 1, 5);
             bridgeDownUntil = Date.now() + Math.min(120000, 10000 * Math.pow(2, bridgeMissStreak - 1));
             if (!bridgeOfflineNoticeShown) {
@@ -233,7 +233,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 sampleRate: detail.sampleRate || 24000,
                 channels: detail.channels || 1
             }),
-            timeout: PCM_SEND_TIMEOUT_MS
+            timeout: PCM_SEND_TIMEOUT_MS,
+            realtime: true
         });
         lastStatus = payload;
         return payload?.ok === true;
@@ -365,6 +366,15 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return `${base}/api/proxy?media=1&url=${encodeURIComponent(targetUrl)}`;
     }
 
+    // Served URL for a localized file, via /api/audioflix/port/file (only serves audio inside a
+    // folder the localize/scan step registered). Empty with no bridge base so playback falls back.
+    function getLocalFileUrl(localPath) {
+        if (!localPath) return '';
+        const base = state().nativeBridgeBase || (window.location.origin.startsWith('http') ? window.location.origin : '');
+        if (!base) return '';
+        return `${base}/api/audioflix/port/file?path=${encodeURIComponent(localPath)}`;
+    }
+
     async function setHotkeys(payload) {
         return fetchJson('/api/audioflix/hotkeys/set', {
             method: 'POST',
@@ -385,6 +395,29 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return fetchJson('/api/audioflix/hotkeys/status', { method: 'GET', timeout: DEFAULT_TIMEOUT_MS });
     }
 
+    // Download one online track to a local folder (yt-dlp -> mp3, needs the server). Long timeout:
+    // a full download + ffmpeg convert can take a while.
+    async function localizeTrack(track, targetDir) {
+        if (!track?.url || !targetDir) return { ok: false, error: 'Missing track URL or target folder.' };
+        return fetchJson('/api/audioflix/localize', {
+            method: 'POST',
+            body: JSON.stringify({ track, targetDir }),
+            timeout: 180000,
+            probe: true
+        });
+    }
+
+    // List audio files in a folder, so localized files can be re-attached to tracks by title.
+    async function scanLocalized(dir) {
+        if (!dir) return { ok: false, message: 'Missing folder.' };
+        return fetchJson('/api/audioflix/localize-scan', {
+            method: 'POST',
+            body: JSON.stringify({ dir }),
+            timeout: DEVICE_SCAN_TIMEOUT_MS,
+            probe: true
+        });
+    }
+
     Object.assign(ns, {
         ready: true,
         listSystemDevices,
@@ -402,6 +435,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         playMediaItem,
         resolveUrl,
         listPlaylist,
+        localizeTrack,
+        scanLocalized,
+        getLocalFileUrl,
         getProxyUrl,
         shouldSuppressBrowserPlayback,
         setHotkeys,

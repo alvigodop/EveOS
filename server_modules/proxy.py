@@ -167,8 +167,12 @@ def handle_proxy_request(handler, query):
             'Cache-Control': 'max-age=0',
         }
         
-        # Add search engine-specific headers
-        if is_yahoo:
+        # Add search engine / media-specific headers
+        is_googlevideo = 'googlevideo.com' in target_url.lower() or 'youtube.com' in target_url.lower() or 'youtu.be' in target_url.lower()
+        if is_googlevideo:
+            headers['Referer'] = 'https://www.youtube.com/'
+            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        elif is_yahoo:
             headers['Referer'] = 'https://search.yahoo.com/'
             headers['Host'] = 'search.yahoo.com'
         elif is_bing:

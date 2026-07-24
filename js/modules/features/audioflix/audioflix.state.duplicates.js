@@ -17,9 +17,35 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return window.EveAudioflixState?.ensure?.() || {};
     }
 
+    // Stable key for a pair of item ids, order-independent, for "keep both" dismissals.
+    function pairKey(a, b) {
+        return [text(a), text(b)].sort().join('|');
+    }
+
+    function dismissedSet() {
+        return new Set(state().dupDismissedPairs || []);
+    }
+
+    // findDuplicates is called once per rendered card (via isDuplicate), and each call re-derives
+    // the whole item list. ensure() re-normalizes state on every read, so it hands back a FRESH
+    // array each time — an identity cache would never hit. Instead cache per type for the current
+    // synchronous render pass and drop it on the next microtask: every card in one pass shares a
+    // single computation, while the next render recomputes against fresh state. Mutations
+    // (merge/dismiss) also clear it explicitly so a change is never shown stale.
+    const memo = { music: null, sound: null };
+    let memoClearScheduled = false;
+    function scheduleMemoClear() {
+        if (memoClearScheduled) return;
+        memoClearScheduled = true;
+        const clear = () => { memo.music = null; memo.sound = null; memoClearScheduled = false; };
+        (typeof queueMicrotask === 'function') ? queueMicrotask(clear) : setTimeout(clear, 0);
+    }
+
     // Find all duplicate groups for a given item type ('music' or 'sound')
     function findDuplicates(type = 'sound') {
         const key = type === 'music' ? 'music' : 'soundboard';
+        const memoKey = type === 'music' ? 'music' : 'sound';
+        if (memo[memoKey]) return memo[memoKey];
         const items = state()[key] || [];
         const titleMap = new Map();
         const urlMap = new Map();
@@ -55,16 +81,33 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         titleMap.forEach((cluster) => addCluster(cluster, 'matching title'));
         urlMap.forEach((cluster) => addCluster(cluster, 'matching URL / path'));
 
+        memo[memoKey] = duplicateClusters;
+        scheduleMemoClear();
         return duplicateClusters;
     }
 
-    // Get duplicate matches specifically for a single item ID
+    // Get duplicate matches specifically for a single item ID. Pairs the user chose to "keep both"
+    // are filtered out so an acknowledged pair stops flagging as a duplicate.
     function duplicatesFor(type, itemId) {
         if (!itemId) return [];
         const clusters = findDuplicates(type);
         const match = clusters.find(c => c.items.some(it => it.id === itemId));
         if (!match) return [];
-        return match.items.filter(it => it.id !== itemId);
+        const dismissed = dismissedSet();
+        return match.items.filter(it => it.id !== itemId && !dismissed.has(pairKey(itemId, it.id)));
+    }
+
+    // "Keep both": record that this pair is intentionally separate, then drop the memo so the badge
+    // recomputes immediately. Returns the updated dismissed-pair count.
+    function dismissDuplicate(aId, bId) {
+        if (!aId || !bId || aId === bId) return { ok: false };
+        const current = state().dupDismissedPairs || [];
+        const key = pairKey(aId, bId);
+        if (!current.includes(key)) {
+            window.EveAudioflixState?.update?.({ dupDismissedPairs: [...current, key] }, 'audioflix-dup-keep-both');
+        }
+        memo.music = memo.sound = null;
+        return { ok: true, dismissed: key };
     }
 
     // Check if a specific item is part of any duplicate cluster
@@ -100,13 +143,40 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
             else window.EveAudioflixState?.toggleSoundGroup?.(primaryId, g, true);
         });
 
-        // Update target folder if provided
+        // Build ONE patch (folder + combined sources) so the item array is rebuilt just once.
+        const patch = {};
+
+        // Target folder (optional).
         if (targetFolder !== undefined && targetFolder !== null && targetFolder !== '') {
             const cleanFolder = text(targetFolder);
-            window.EveAudioflixState?.updateItem?.(type, primaryId, {
-                folder: cleanFolder,
-                card: cleanFolder
+            patch.folder = cleanFolder;
+            patch.card = cleanFolder;
+        }
+
+        // Combine playback sources: a file-path track and an online-url track for the same song
+        // survive as ONE item carrying BOTH. `url` holds the streamable/online source; `localPath`
+        // holds the local file. Whichever side the user kept as primary, the survivor ends up with
+        // both whenever the merged pair supplied both.
+        const isLocalSource = (value) => {
+            const s = normalize(value);
+            return !!s && !/^https?:\/\//.test(s); // drive letter, file://, ported/relative path
+        };
+        let onlineUrl = '';
+        let localPath = '';
+        [primary, ...dupes].forEach((it) => {
+            [it.url, it.localPath].forEach((candidate) => {
+                const clean = text(candidate);
+                if (!clean) return;
+                if (isLocalSource(clean)) { if (!localPath) localPath = clean; }
+                else if (!onlineUrl) { onlineUrl = clean; }
             });
+        });
+        const newUrl = onlineUrl || localPath || primary.url;
+        if (newUrl && newUrl !== primary.url) patch.url = newUrl;
+        if (localPath && localPath !== text(primary.localPath)) patch.localPath = localPath;
+
+        if (Object.keys(patch).length) {
+            window.EveAudioflixState?.updateItem?.(type, primaryId, patch);
         }
 
         // Remove the duplicate items
@@ -114,7 +184,8 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
             window.EveAudioflixState?.removeItem?.(type, d.id);
         });
 
-        return { ok: true, mergedCount: dupes.length, primaryId };
+        memo.music = memo.sound = null;
+        return { ok: true, mergedCount: dupes.length, primaryId, dualSource: !!(onlineUrl && localPath) };
     }
 
     Object.assign(ns, {
@@ -122,6 +193,7 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         findDuplicates,
         duplicatesFor,
         isDuplicate,
-        mergeDuplicates
+        mergeDuplicates,
+        dismissDuplicate
     });
 })();

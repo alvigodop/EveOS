@@ -172,6 +172,14 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     async function playItem(item) {
         const requestedItem = item && typeof item === 'object' ? { ...item } : {};
+        // Prefer a localized copy: a dual-source track (from a merge or localization) plays from its
+        // local file via the bridge's file server when one is reachable, falling back to the online
+        // url when it isn't (pure file:// with no server). This is what makes localized music play
+        // offline and route natively without the stream lag.
+        if (requestedItem.localPath) {
+            const localUrl = window.EveAudioflixNative?.getLocalFileUrl?.(requestedItem.localPath);
+            if (localUrl) requestedItem.url = localUrl;
+        }
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
 
         const needsResolution = window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url);

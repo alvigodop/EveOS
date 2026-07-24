@@ -80,21 +80,40 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             }
         }
 
+        // Candidate URLs for the capture worklet module. The relative path works when the page is
+        // served over http(s). On file:// the local origin is opaque and addModule() is blocked —
+        // but the native bridge route always has a reachable EveOS server, which serves this same
+        // file with permissive CORS, so we fall back to loading the module from that origin. That's
+        // what lets file:// still get the jank-immune audio-thread tap instead of the blip-prone
+        // ScriptProcessor.
+        function workletModuleUrls() {
+            const rel = 'js/modules/features/audioflix/audioflix-capture-processor.js';
+            const urls = [rel];
+            try {
+                const base = window.EveAudioflixState?.ensure?.()?.nativeBridgeBase;
+                if (base && /^https?:/i.test(base)) urls.push(`${base.replace(/\/+$/, '')}/${rel}`);
+            } catch (error) { /* state not ready — relative path only */ }
+            return urls;
+        }
+
         // Prefer an AudioWorklet tap: it runs on the audio thread, so main-thread jank cannot make
-        // it deliver late/short frames (the ScriptProcessor weakness heard as blips). Cached so the
-        // module is only fetched once.
+        // it deliver late/short frames (the ScriptProcessor weakness heard as blips). Only a
+        // SUCCESSFUL load is cached — a failure before the bridge base is known must not permanently
+        // pin us to the fallback tap once the server origin becomes available.
         function ensureWorkletModule(ctx) {
             if (!ctx?.audioWorklet?.addModule) return null;
-            if (!workletModule) {
-                workletModule = ctx.audioWorklet
-                    .addModule('js/modules/features/audioflix/audioflix-capture-processor.js')
-                    .then(() => true)
-                    .catch((error) => {
-                        console.warn('[Audioflix] capture worklet unavailable, using fallback tap:', error);
-                        return false;
-                    });
-            }
-            return workletModule;
+            if (workletModule) return workletModule;
+            let lastError = null;
+            const attempt = (async () => {
+                for (const url of workletModuleUrls()) {
+                    try { await ctx.audioWorklet.addModule(url); return true; }
+                    catch (error) { lastError = error; }
+                }
+                console.warn('[Audioflix] capture worklet unavailable, using fallback tap:', lastError);
+                return false;
+            })();
+            attempt.then((ok) => { workletModule = ok ? Promise.resolve(true) : null; });
+            return attempt;
         }
 
         function attachWorkletTap(ctx) {

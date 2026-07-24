@@ -73,6 +73,7 @@ def handle_get_request(handler, path: str, query) -> bool:
             return True
         from server_modules import audioflix_ytdl
         audioflix_ytdl.handle_resolve_request(handler, query)
+        return True
     elif path == "/api/audioflix/playlist":
         if not _can_control(handler):
             _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
@@ -101,8 +102,18 @@ def hotkeys_clear(payload: dict) -> dict:
     return audioflix_hotkeys.clear_all()
 
 
+def localize_track(payload: dict) -> dict:
+    from server_modules import audioflix_localize
+    return audioflix_localize.localize_one(payload)
+
+
+def localize_scan(payload: dict) -> dict:
+    from server_modules import audioflix_localize
+    return audioflix_localize.scan_dir(payload)
+
+
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/stop-stream": stop_stream, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/stop-stream": stop_stream, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear, "/api/audioflix/localize": localize_track, "/api/audioflix/localize-scan": localize_scan}.get(path)
     if not action:
         return False
     if not _can_control(handler):

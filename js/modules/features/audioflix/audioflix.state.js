@@ -112,6 +112,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             type,
             title: text(source.title, type === 'music' ? 'Untitled Track' : 'Sound Clip'),
             url: text(source.url, ''),
+            // Optional second source for the SAME track: a merged duplicate can carry both an
+            // online stream (`url`) and a local file (`localPath`), so localization/offline play
+            // can prefer the file while the online url stays as a fallback. Empty for normal items.
+            localPath: text(source.localPath, ''),
             artist: text(source.artist, ''),
             card: text(source.card, ''),
             folder: text(source.folder, ''),
@@ -223,6 +227,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                 : {},
             activeFrontendMusicGroup: text(source.activeFrontendMusicGroup, ''),
             activeMusicFolderScope: text(source.activeMusicFolderScope, ''),
+            // "Keep both" duplicate acknowledgements: sorted "idA|idB" pair keys left as separate items.
+            dupDismissedPairs: Array.isArray(source.dupDismissedPairs) ? [...new Set(source.dupDismissedPairs.map((p) => text(p, '')).filter(Boolean))].slice(-2000) : [],
+            localizeDir: text(source.localizeDir, ''), // last folder used to save localized mp3s (reused as the prompt default)
             hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,

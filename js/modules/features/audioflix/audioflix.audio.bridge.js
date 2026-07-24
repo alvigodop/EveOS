@@ -113,7 +113,8 @@ window.EveAudioflixAudioBridge = window.EveAudioflixAudioBridge || {};
 
         const scheduleFinish = () => {
             if (endTimer || stopped) return;
-            endTimer = window.setTimeout(finish, Math.max(0, duration - currentTime()) * 1000);
+            const remainingPlayMs = Math.max(500, ((duration - currentTime()) + 0.6) * 1000);
+            endTimer = window.setTimeout(finish, remainingPlayMs);
         };
 
         const pump = async () => {

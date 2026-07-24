@@ -1,0 +1,304 @@
+// Click-action + form-submit dispatchers for the Audioflix panel. Split out of audioflix.ui.js
+// to keep that view under the project line cap. The panel's mutable UI state (open flags, status
+// text, the active info item, the music queue) still lives in ui.js as the single source of
+// truth; this module reaches it through a `ctx` accessor facade (getters/setters over those
+// closure locals) so the renderers in ui.js keep reading the same variables unchanged. Only the
+// moved handler code goes through ctx — nothing else in ui.js had to change.
+window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
+
+(function () {
+    'use strict';
+
+    const ns = window.EveAudioflixUiActions;
+    if (ns.ready) return;
+
+    ns.create = function create(ctx) {
+
+        async function handleAction(actionTarget, e) {
+            const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
+            const item = id ? (ctx.findItem(type, id) || ctx.portedSounds.find(s => s.id === id)) : null;
+            if (action === 'stop-item') return ctx.stopRepeater(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id), window.EveAudioflixAudio?.stopItemLayers?.(id);
+            if (action === 'toggle-repeater') {
+                if (ctx.activeRepeaters[id]) ctx.stopRepeater(id);
+                else ctx.startRepeater(item, Math.max(100, parseFloat(document.getElementById('audioflix-rep-interval')?.value || 1.0) * 1000), parseInt(document.getElementById('audioflix-rep-count')?.value || 0, 10));
+                return;
+            }
+            if (action === 'layer-play') return item && window.EveAudioflixAudio?.layerPlay?.(item);
+            if (action === 'internal-view') { if (item) try { await window.EveAudioflixAudio?.openInternalView?.(item); } catch (err) { ctx.playbackStatus = err.message || 'Internal player failed'; ctx.rerender(); } return; }
+            if (action === 'item-info') {
+                if (!item) return; ctx.activeInfoItem = item; ctx.activeInfoType = type; ctx.rerender();
+                if (item.duration === undefined) {
+                    const a = new Audio(item.url);
+                    a.onloadedmetadata = () => { item.duration = a.duration; ctx.activeInfoItem?.id === item.id && ctx.rerender(); };
+                    a.onerror = () => { item.duration = null; ctx.activeInfoItem?.id === item.id && ctx.rerender(); };
+                }
+                return;
+            }
+            if (action === 'close-info') { ctx.activeInfoItem = ctx.activeInfoType = null; ctx.rerender(); return; }
+            if (action === 'copy-url') {
+                try {
+                    await navigator.clipboard.writeText(actionTarget.dataset.afUrl || '');
+                    const orig = actionTarget.textContent; actionTarget.textContent = 'Copied!'; actionTarget.style.borderColor = actionTarget.style.color = '#00d4ff';
+                    setTimeout(() => { actionTarget.textContent = orig; actionTarget.style.borderColor = actionTarget.style.color = ''; }, 1500);
+                } catch {}
+                return;
+            }
+            if (action === 'submit-form') { const f = actionTarget.closest('form'); if (f?.reportValidity()) handleForm(f); return; }
+            if (action === 'tab') { ctx.activeTab = actionTarget.dataset.afTab || 'soundboard'; ctx.pushHotkeysToBridge(); ctx.rerender(); return; }
+            if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); ctx.playbackStatus = 'Opening Localhost EveOS in a new tab...'; ctx.rerender(); return; }
+            if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; ctx.rerender(); return; }
+            if (action === 'toggle-settings') { ctx.settingsOpen = !ctx.settingsOpen; ctx.rerender(); return; }
+            if (action === 'toggle-group') { ctx.collapsedGroups[actionTarget.dataset.afGroup] = !ctx.collapsedGroups[actionTarget.dataset.afGroup]; ctx.rerender(); return; }
+            if (action === 'toggle-fullscreen') { ctx.fullscreenOn = !ctx.fullscreenOn; ctx.overlay?.classList.toggle('is-fullscreen', ctx.fullscreenOn); ctx.rerender(); return; }
+            if (action === 'toggle-add') { const key = type === 'music' ? 'music' : 'sound'; ctx.addFormOpen[key] = !ctx.addFormOpen[key]; ctx.rerender(); return; }
+            if (action === 'toggle-ports') { ctx.portsOpen = !ctx.portsOpen; ctx.rerender(); return; }
+            if (action === 'toggle-groups') { const key = type === 'music' ? 'music' : 'sound'; ctx.groupsOpen[key] = !ctx.groupsOpen[key]; ctx.rerender(); return; }
+            if (action === 'toggle-folders') { ctx.foldersOpen.music = !ctx.foldersOpen.music; ctx.rerender(); return; }
+            if (action === 'select-folder-scope') { window.EveAudioflixState?.update?.({ activeMusicFolderScope: actionTarget.dataset.afScope || '' }, 'audioflix-folder-scope'); ctx.rerender(); return; }
+            if (action === 'rename-group-prompt') {
+                const oldGroup = actionTarget.dataset.afGroup;
+                let newGroup = '';
+                try { newGroup = String((await window.showPrompt?.(`Rename group "${oldGroup}":`, oldGroup)) || '').trim(); } catch {}
+                if (newGroup && newGroup !== oldGroup) {
+                    window.EveAudioflixState?.renameGroup?.(type, oldGroup, newGroup);
+                    ctx.pushHotkeysToBridge();
+                    ctx.rerender();
+                }
+                return;
+            }
+            if (action === 'remove-group') { if (type === 'music') window.EveAudioflixState?.removeMusicGroup?.(actionTarget.dataset.afGroup); else window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); ctx.rerender(); return; }
+            if (action === 'select-frontend-group') { if (type === 'music') window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: actionTarget.dataset.afGroup }, 'audioflix-active-music-group'); else window.EveAudioflixState?.update?.({ activeFrontendGroup: actionTarget.dataset.afGroup }, 'audioflix-active-group'); ctx.pushHotkeysToBridge(); ctx.rerender(); return; }
+            if (action === 'toggle-view-mode') {
+                if (type === 'music') {
+                    const next = (ctx.state().musicViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
+                    window.EveAudioflixState?.update?.({ musicViewMode: next }, 'audioflix-music-view-mode');
+                } else {
+                    const next = (ctx.state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
+                    window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode');
+                    ctx.pushHotkeysToBridge();
+                }
+                ctx.rerender(); return;
+            }
+            if (action === 'play-music-group') {
+                const { name, items } = ctx.frontendActiveGroup('music');
+                if (items && items.length) {
+                    ctx.activeMusicQueue = {
+                        groupName: name,
+                        items: items.map(it => it.id),
+                        currentIndex: 0,
+                        isPlaying: true
+                    };
+                    try { await window.EveAudioflixAudio?.playItem?.(items[0]); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; }
+                    ctx.rerender();
+                }
+                return;
+            }
+            if (action === 'stop-music-group') {
+                ctx.activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false };
+                window.EveAudioflixAudio?.pause?.();
+                ctx.rerender();
+                return;
+            }
+            if (action === 'rename-folder-prompt') {
+                const oldFolder = actionTarget.dataset.afFolder;
+                let newFolder = '';
+                try { newFolder = String((await window.showPrompt?.(`Rename folder "${oldFolder}":`, oldFolder)) || '').trim(); } catch {}
+                if (newFolder && newFolder !== oldFolder) {
+                    window.EveAudioflixState?.renameMusicFolder?.(oldFolder, newFolder);
+                    ctx.rerender();
+                }
+                return;
+            }
+            if (action === 'delete-folder') {
+                const folderName = actionTarget.dataset.afFolder;
+                window.EveAudioflixState?.deleteMusicFolder?.(folderName);
+                ctx.rerender();
+                return;
+            }
+            if (action === 'toggle-import-form') {
+                ctx.importFormOpen = !ctx.importFormOpen;
+                ctx.rerender();
+                return;
+            }
+            if (action === 'sync-single-playlist') {
+                const groupName = actionTarget.dataset.afGroup;
+                const PL = window.EveAudioflixPlaylists;
+                if (!PL || !groupName) return;
+                ctx.playbackStatus = `Syncing playlist "${groupName}"...`; ctx.rerender();
+                const res = await PL.syncPlaylistByGroup(groupName, true);
+                ctx.playbackStatus = res.ok
+                    ? `Synced "${groupName}" — ${res.added} added, ${res.restored || 0} restored, ${res.missing || 0} missing.`
+                    : (res.reason || 'Playlist sync failed.');
+                ctx.rerender();
+                return;
+            }
+            if (action === 'sync-all-playlists' || action === 'sync-playlists') {
+                const PL = window.EveAudioflixPlaylists;
+                if (!PL) return;
+                ctx.playbackStatus = 'Syncing playlists...'; ctx.rerender();
+                let added = 0, missing = 0, restored = 0, failure = '';
+                for (const connection of PL.connections()) {
+                    const res = await PL.syncPlaylist(connection.id, true);
+                    if (res.ok) { added += res.added || 0; missing += res.missing || 0; restored += res.restored || 0; }
+                    else failure = res.reason || 'Sync failed.';
+                }
+                ctx.playbackStatus = failure || `Playlists synced — ${added} added, ${restored} back, ${missing} greyed (removed upstream).`;
+                ctx.rerender();
+                return;
+            }
+            if (action === 'merge-duplicate') {
+                const primaryId = actionTarget.dataset.afId;
+                const dupId = actionTarget.dataset.afDupid;
+                const itemType = actionTarget.dataset.afType || 'sound';
+                const targetFolder = actionTarget.closest('.audioflix-info-body')?.querySelector('input[name="folder"]')?.value || '';
+                const res = window.EveAudioflixDuplicates?.mergeDuplicates?.(itemType, primaryId, [dupId], targetFolder);
+                if (res?.ok) {
+                    ctx.playbackStatus = res.dualSource
+                        ? `Merged — this track now carries both a local file and an online URL.`
+                        : `Merged duplicate into this item (groups combined, duplicate removed).`;
+                    ctx.activeInfoItem = ctx.state()[itemType === 'music' ? 'music' : 'soundboard']?.find(it => it.id === primaryId) || null;
+                } else {
+                    ctx.playbackStatus = res?.reason || 'Merge failed';
+                }
+                ctx.rerender();
+                return;
+            }
+            if (action === 'keep-both-duplicate') {
+                const aId = actionTarget.dataset.afId;
+                const bId = actionTarget.dataset.afDupid;
+                const res = window.EveAudioflixDuplicates?.dismissDuplicate?.(aId, bId);
+                ctx.playbackStatus = res?.ok ? 'Keeping both — duplicate notice dismissed for this pair.' : 'Could not dismiss the duplicate.';
+                ctx.rerender();
+                return;
+            }
+            if (action === 'localize-scope') { await ctx.localizeScope?.(actionTarget); return; }
+            if (action === 'localize-port') { await ctx.localizePort?.(actionTarget); return; }
+            if (action === 'keep-playlist-track') {
+                const PL = window.EveAudioflixPlaylists;
+                if (!PL) return;
+                let folder = '';
+                try { folder = String((await window.showPrompt?.('This track left the upstream playlist. Folder to keep it in (blank = leave where it is):', '')) || '').trim(); } catch {}
+                PL.detachTrack(id, folder ? { folder } : {});
+                ctx.playbackStatus = 'Kept in EveOS — it no longer follows that playlist.';
+                ctx.rerender();
+                return;
+            }
+            if (action === 'portify-fsport') {
+                const nickname = actionTarget.dataset.afNickname || 'Sound folder';
+                let folderPath = '';
+                try { folderPath = String((await window.showPrompt?.(`Enter the folder path for "${nickname}" so it saves with your datapack (localhost loads it directly — no re-picking on restore):`, '')) || '').trim(); } catch {}
+                if (folderPath) {
+                    window.EveAudioflixState?.addPort?.({ id, nickname, path: folderPath });
+                    // A GRANTED folder keeps its handle (still serverless on file://); a dead stub goes.
+                    const rest = (window.EveAudioflixState?.ensure?.().browserFolders || []).filter((f) => f.id !== id);
+                    window.EveAudioflixState?.update?.({ browserFolders: rest }, 'audioflix-browser-folders');
+                    if (actionTarget.dataset.afGranted !== '1') try { await window.EveAudioflixFsPorts?.removeFolder?.(id); } catch {}
+                    ctx.playbackStatus = `Saved "${nickname}" as a path Port — its path now travels with backups.`;
+                }
+                ctx.loadPortedSounds();
+                return;
+            }
+            if (action === 'remove-port') { window.EveAudioflixState?.removePort?.(id); }
+            if (['remove-port', 'link-fsport', 'regrant-fsport', 'add-fsport', 'remove-fsport', 'reconnect-fsports'].includes(action)) {
+                const status = await window.EveAudioflixFsPorts?.handleAction?.(action, id, actionTarget);
+                if (status) ctx.playbackStatus = status;
+                ctx.loadPortedSounds();
+                return;
+            }
+            if (action === 'pause') { window.EveAudioflixAudio?.pause?.(); return; }
+            if (action === 'play') { if (item) try { await window.EveAudioflixAudio?.playItem?.(item); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; ctx.rerender(); } return; }
+            if (action === 'remove') { window.EveAudioflixState?.removeItem?.(type, id); ctx.rerender(); return; }
+            if (action === 'select-output') { try { await window.EveAudioflixAudio?.selectOutput?.(); } catch (err) { ctx.playbackStatus = err.message || 'Output selection failed'; } ctx.rerender(); return; }
+            if (action === 'unlock-output-names') {
+                try { const ok = await window.EveAudioflixAudio?.unlockDeviceLabels?.(); ctx.playbackStatus = ok ? 'Output access granted.' : 'Output access still blocked here.'; }
+                catch (err) { ctx.playbackStatus = err.message || 'Device name unlock failed'; } ctx.rerender(); return;
+            }
+            if (action === 'local-only') {
+                window.EveAudioflixGemini?.setVoicePortEnabled?.(false); window.EveAudioflixGemini?.setMonitorEnabled?.(true); window.EveAudioflixState?.update?.({ routeMode: 'browser' }, 'audioflix-local-playback');
+                ctx.playbackStatus = 'Local only mode active'; ctx.rerender(); return;
+            }
+            if (action === 'open-windows-mixer') { try { window.open('ms-settings:apps-volume', '_blank', 'noopener'); } catch(e){} ctx.playbackStatus = 'Open Windows Volume mixer...'; ctx.rerender(); return; }
+            if (action === 'mark-windows-route') { window.EveAudioflixState?.update?.({ routeMode: 'manual', geminiVoicePortEnabled: true }, 'audioflix-windows-mixer-route'); ctx.playbackStatus = 'Windows mixer route marked'; ctx.rerender(); return; }
+            if (action === 'refresh-native-devices') {
+                try { const p = await window.EveAudioflixNative?.listSystemOutputs?.(true); ctx.playbackStatus = p?.message || 'Native outputs refreshed'; } catch (err) { ctx.playbackStatus = err.message || 'Native output refresh failed'; } ctx.rerender(); return;
+            }
+            if (action === 'toggle-native-bridge') {
+                const next = ctx.state().nativeBridgeEnabled !== true; window.EveAudioflixNative?.setNativeBridgeEnabled?.(next);
+                const u = ctx.state(); ctx.playbackStatus = next && u.nativeBridgeEnabled ? `Native route enabled: ${u.nativeOutputLabel}` : 'Native route disabled';
+                ctx.pushHotkeysToBridge(); ctx.rerender(); return;
+            }
+            if (action === 'arm-cable') {
+                try {
+                    let dev = await window.EveAudioflixAudio?.listOutputs?.() || [], c = await window.EveAudioflixRouting?.findCableDevice?.() || dev.find(d => /(?:cable input|vb-audio virtual cable|vb-cable)/i.test(d.label || ''));
+                    if (!c && window.EveAudioflixRouting?.hasAnonymousOutputs?.(dev) && await window.EveAudioflixAudio?.unlockDeviceLabels?.()) {
+                        dev = await window.EveAudioflixAudio?.listOutputs?.() || [];
+                        c = await window.EveAudioflixRouting?.findCableDevice?.() || dev.find(d => /(?:cable input|vb-audio virtual cable|vb-cable)/i.test(d.label || ''));
+                    }
+                    if (!c) { ctx.playbackStatus = 'CABLE Input not visible yet'; ctx.rerender(); return; }
+                    await window.EveAudioflixAudio?.setOutputById?.(c.deviceId, c.label || 'CABLE Input'); window.EveAudioflixGemini?.setVoicePortEnabled?.(true); ctx.playbackStatus = `Gemini voice port armed through ${c.label || 'CABLE Input'}`;
+                } catch (err) { ctx.playbackStatus = err.message || 'CABLE Input preset failed'; } ctx.rerender(); return;
+            }
+            if (action === 'test-signal') {
+                try {
+                    if (window.EveAudioflixGemini?.playVoiceRouteTest) ctx.playbackStatus = (await window.EveAudioflixGemini.playVoiceRouteTest())?.native ? 'Playing native bridge route test' : 'Playing Gemini WebAudio route test';
+                    else { await window.EveAudioflixAudio?.playTestSignal?.(); ctx.playbackStatus = 'Playing Audioflix test signal'; }
+                } catch (err) { ctx.playbackStatus = err.message || 'Test signal failed'; } ctx.rerender(); return;
+            }
+            if (action === 'copy-route-status') { try { await window.EveAudioflixRouting?.copyRouteStatus?.(ctx.playbackStatus); ctx.playbackStatus = 'Routing status copied'; } catch (err) { ctx.playbackStatus = err.message || 'Copy status failed'; } ctx.rerender(); return; }
+            if (action === 'toggle-gemini-port') { const en = window.EveAudioflixGemini?.setVoicePortEnabled?.(!ctx.state().geminiVoicePortEnabled); ctx.playbackStatus = en ? 'Selective route armed' : 'Selective route disabled'; ctx.rerender(); return; }
+            if (action === 'toggle-gemini-monitor') { window.EveAudioflixGemini?.setMonitorEnabled?.(ctx.state().geminiVoiceMonitorEnabled === false); ctx.rerender(); return; }
+            if (action === 'toggle-gemini-mode') {
+                const next = ctx.state().geminiConversationMode === 'text-brain-live-voice' ? 'direct-live' : 'text-brain-live-voice'; window.EveAudioflixGemini?.setConversationMode?.(next);
+                ctx.playbackStatus = next === 'text-brain-live-voice' ? 'Mode 2 enabled.' : 'Direct Live mode enabled.'; ctx.rerender(); return;
+            }
+            if (action === 'clear-gemini-events') { window.EveAudioflixState?.clearGeminiAudioEvents?.(); ctx.playbackStatus = 'Gemini event counter cleared'; ctx.rerender(); }
+        }
+
+        function handleForm(form) {
+            const data = new FormData(form), fName = form.dataset.afForm, id = form.dataset.afId, type = form.dataset.afType;
+            if (fName === 'add-port') { window.EveAudioflixState?.addPort?.({ nickname: data.get('nickname'), path: data.get('path') }); ctx.loadPortedSounds(); }
+            else if (fName === 'add-group') {
+                if (type === 'music') window.EveAudioflixState?.addMusicGroup?.(data.get('name'));
+                else window.EveAudioflixState?.addSoundboardGroup?.(data.get('name'));
+                ctx.rerender();
+            }
+            else if (fName === 'assign-new-group') {
+                if (type === 'music') window.EveAudioflixState?.toggleMusicGroup?.(id, data.get('name'), true);
+                else window.EveAudioflixState?.toggleSoundGroup?.(id, data.get('name'), true);
+                ctx.pushHotkeysToBridge(); ctx.rerender();
+            }
+            else if (fName === 'import-playlist') {
+                const PL = window.EveAudioflixPlaylists;
+                const url = data.get('url'), folder = data.get('folder');
+                if (PL && url) {
+                    ctx.playbackStatus = 'Reading playlist...'; ctx.rerender();
+                    PL.importPlaylist(url, folder ? { folder } : {}).then(res => {
+                        ctx.playbackStatus = res.ok
+                            ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
+                            : (res.reason || 'Playlist import failed.');
+                        ctx.importFormOpen = false;
+                        ctx.rerender();
+                    });
+                }
+            }
+            else if (fName === 'edit-track') {
+                const title = data.get('title'), url = data.get('url'), artist = data.get('artist'), folder = data.get('folder');
+                window.EveAudioflixState?.updateItem?.('music', id, { title, url, artist, folder, card: folder });
+                if (ctx.activeInfoItem?.id === id) {
+                    Object.assign(ctx.activeInfoItem, { title, url, artist, folder, card: folder });
+                }
+                ctx.rerender();
+            }
+            else {
+                const itemType = fName === 'music' ? 'music' : 'sound';
+                window.EveAudioflixState?.addItem?.(itemType, { type: itemType, title: data.get('title'), url: data.get('url'), artist: data.get('artist'), folder: data.get('folder'), category: data.get('category'), volume: data.get('volume') });
+                ctx.pushHotkeysToBridge(); ctx.rerender();
+            }
+            form.reset();
+        }
+
+        return { handleAction, handleForm };
+    };
+
+    ns.ready = true;
+})();
