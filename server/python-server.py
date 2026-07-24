@@ -18,6 +18,11 @@ PROJECT_ROOT = os.path.dirname(SERVER_DIR)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # These handlers back advertised API routes. Starting without one leaves the
 # process listening while requests fail later with NameError, so imports are a
 # hard startup contract rather than an optional best-effort step.

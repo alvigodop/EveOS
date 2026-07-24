@@ -41,12 +41,14 @@ def _can_control(handler) -> bool:
     host = str(handler.client_address[0] if handler.client_address else "")
     if host.startswith("::ffff:"):
         host = host[7:]
+    logger.info(f"[Bridge] _can_control: host='{host}' (allowed: {host in {'127.0.0.1', '::1'}})")
     if host not in {"127.0.0.1", "::1"}:
         return False
     origin = str(handler.headers.get("Origin", "")).strip().lower()
     return not origin or origin == "null" or origin.startswith("file://") or origin.startswith("http://127.0.0.1:") or origin.startswith("http://localhost:")
 
 def handle_get_request(handler, path: str, query) -> bool:
+    logger.info(f"[Bridge] handle_get_request: path={path}")
     if path == "/api/audioflix/status":
         _send_json(handler, {**list_devices(), "devices": []})
     elif path == "/api/audioflix/devices":
@@ -74,6 +76,7 @@ def handle_get_request(handler, path: str, query) -> bool:
             return True
         from server_modules import audioflix_playlist
         audioflix_playlist.handle_playlist_request(handler, query)
+        return True
     elif path.startswith("/api/audioflix/port/"):
         if not _can_control(handler):
             _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
