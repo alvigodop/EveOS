@@ -17,7 +17,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     const state = () => window.EveAudioflixState?.ensure?.() || {};
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const setButtonExpanded = (exp) => document.querySelectorAll('.topbar-audioflix-btn').forEach(b => b.setAttribute('aria-expanded', exp ? 'true' : 'false'));
-    const itemMeta = (item) => [item.artist, item.card, item.folder, item.category].filter(Boolean).join(' / ') || 'No extra metadata yet';
+    const itemMeta = (item) => [...new Set([item.artist, item.card, item.folder, item.category].filter(Boolean))].join(' / ') || 'No extra metadata yet';
     const internalViewButton = (item, type, wide = false) => type === 'music' && /^https?:\/\//i.test(String(item?.url || '')) ? `<button type="button" class="${wide ? 'audioflix-info-close-action' : 'audioflix-icon-btn'}" data-af-action="internal-view" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Open inside EveOS">${wide ? 'Internal View' : viewSvg}</button>` : '';
     const groupKey = (item, type) => String((type === 'music' ? (item.folder || item.card) : item.category) || '').trim() || 'Ungrouped';
     const formatDuration = (sec) => sec === undefined ? 'Loading...' : (sec === null || isNaN(sec) ? 'Unavailable' : (sec === Infinity ? 'Stream' : (sec / 60 >= 1 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}` : `${Math.floor(sec)}.${String(Math.floor((sec % 1) * 100)).padStart(2, '0')}s`)));
@@ -266,7 +266,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const groups = allGroups(type);
         const map = isM ? (state().musicGroupMap || {}) : (state().soundGroupMap || {});
         const countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length;
-        const list = groups.map((g) => `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No groups yet.</div>';
+        const list = groups.map((g) => `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;"><button type="button" class="audioflix-icon-btn" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="rename-group-prompt" title="Rename group">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group" title="Delete group">${closeSvg}</button></div></div>`).join('') || '<div class="audioflix-empty">No groups yet.</div>';
         return `<div class="audioflix-ports-mgr"><h4>${isM ? 'Music Frontend Groups' : 'Soundboard Frontend Groups'}</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group" data-af-type="${esc(type)}"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`;
     };
     const renderFoldersManager = () => {
@@ -368,6 +368,17 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'toggle-groups') { const key = type === 'music' ? 'music' : 'sound'; groupsOpen[key] = !groupsOpen[key]; rerender(); return; }
         if (action === 'toggle-folders') { foldersOpen.music = !foldersOpen.music; rerender(); return; }
         if (action === 'select-folder-scope') { window.EveAudioflixState?.update?.({ activeMusicFolderScope: actionTarget.dataset.afScope || '' }, 'audioflix-folder-scope'); rerender(); return; }
+        if (action === 'rename-group-prompt') {
+            const oldGroup = actionTarget.dataset.afGroup;
+            let newGroup = '';
+            try { newGroup = String((await window.showPrompt?.(`Rename group "${oldGroup}":`, oldGroup)) || '').trim(); } catch {}
+            if (newGroup && newGroup !== oldGroup) {
+                window.EveAudioflixState?.renameGroup?.(type, oldGroup, newGroup);
+                pushHotkeysToBridge();
+                rerender();
+            }
+            return;
+        }
         if (action === 'remove-group') { if (type === 'music') window.EveAudioflixState?.removeMusicGroup?.(actionTarget.dataset.afGroup); else window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); rerender(); return; }
         if (action === 'select-frontend-group') { if (type === 'music') window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: actionTarget.dataset.afGroup }, 'audioflix-active-music-group'); else window.EveAudioflixState?.update?.({ activeFrontendGroup: actionTarget.dataset.afGroup }, 'audioflix-active-group'); pushHotkeysToBridge(); rerender(); return; }
         if (action === 'toggle-view-mode') {

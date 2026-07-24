@@ -504,6 +504,39 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    function renameGroup(type, oldName, newName) {
+        const state = ensure();
+        const oldClean = text(oldName, '').trim();
+        const newClean = text(newName, '').trim();
+        if (!oldClean || !newClean || oldClean === newClean) return ensure();
+
+        const isM = type === 'music';
+        const groupsKey = isM ? 'musicGroups' : 'soundboardGroups';
+        const mapKey = isM ? 'musicGroupMap' : 'soundGroupMap';
+        const activeKey = isM ? 'activeFrontendMusicGroup' : 'activeFrontendGroup';
+
+        if (Array.isArray(state[groupsKey])) {
+            state[groupsKey] = state[groupsKey].map(g => g === oldClean ? newClean : g);
+            state[groupsKey] = [...new Set(state[groupsKey])];
+        }
+
+        if (state[mapKey] && typeof state[mapKey] === 'object') {
+            Object.keys(state[mapKey]).forEach(itemId => {
+                if (Array.isArray(state[mapKey][itemId])) {
+                    state[mapKey][itemId] = state[mapKey][itemId].map(g => g === oldClean ? newClean : g);
+                    state[mapKey][itemId] = [...new Set(state[mapKey][itemId])];
+                }
+            });
+        }
+
+        if (state[activeKey] === oldClean) {
+            state[activeKey] = newClean;
+        }
+
+        scheduleSave(`audioflix-rename-group-${type}`);
+        return ensure();
+    }
+
     window.addEventListener('pagehide', () => {
         if (saveTimer) persistNow('audioflix-pagehide');
     });
@@ -531,6 +564,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         addMusicGroup,
         removeMusicGroup,
         toggleMusicGroup,
+        renameGroup,
         updateItem,
         renameMusicFolder,
         deleteMusicFolder,
