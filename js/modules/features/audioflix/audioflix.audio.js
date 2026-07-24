@@ -48,15 +48,21 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         onProgress(detail) { dispatch('eve:audioflix-progress', detail); }
     }) || null;
 
-    function nativeProgress(currentTime, duration, paused = false) {
-        dispatch('eve:audioflix-progress', {
-            item: currentItem,
-            currentTime: Math.max(0, Number(currentTime || 0)),
-            duration: Math.max(0, Number(duration || 0)),
-            paused,
-            native: true
+    // Native buffered playback (voice + stream lanes) lives in its own module. The native state
+    // stays here (getPlaybackState/pause/seek read it directly), reached via this accessor bag.
+    const nativeRuntime = {
+        get controller() { return activeNativeController; }, set controller(v) { activeNativeController = v; },
+        get buffer() { return activeNativeBuffer; }, set buffer(v) { activeNativeBuffer = v; },
+        get mode() { return activeNativeMode; }, set mode(v) { activeNativeMode = v; },
+        get pausedAt() { return nativePausedAt; }, set pausedAt(v) { nativePausedAt = v; },
+        get generation() { return nativeGeneration; }, set generation(v) { nativeGeneration = v; },
+        get streamVolume() { return activeStreamVolume; }, set streamVolume(v) { activeStreamVolume = v; },
+        get lastStatus() { return lastStatus; }, set lastStatus(v) { lastStatus = v; }
+    };
+    const { nativeProgress, finishNative, startNativeBuffer, stopNativePlayback } =
+        window.EveAudioflixAudioNative.createController({
+            runtime: nativeRuntime, dispatch, getCurrentItem: () => currentItem, encodeBufferToBase64
         });
-    }
 
     function getPlaybackState() {
         if (urlPlayback?.isActive?.()) return urlPlayback.getPlaybackState();
@@ -73,88 +79,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             paused: player?.paused !== false,
             native: false
         };
-    }
-
-    function finishNative(generation) {
-        if (generation !== nativeGeneration) return;
-        const duration = Number(activeNativeBuffer?.duration || 0) || 0;
-        activeNativeController = null;
-        activeNativeMode = '';
-        activeNativeBuffer = null;
-        nativePausedAt = 0;
-        lastStatus = 'Ended';
-        dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem, native: true });
-        nativeProgress(duration, duration, true);
-    }
-
-    async function startNativeBuffer(buffer, item, startAt = 0, requestedMode = '') {
-        const mode = requestedMode || (item.type === 'sound' ? 'voice' : 'stream');
-        const generation = ++nativeGeneration;
-        activeNativeBuffer = buffer;
-        activeNativeMode = mode;
-        nativePausedAt = 0;
-        activeStreamVolume = window.EveAudioflixState.normalizeVolume(item.volume, 1);
-
-        const timelineOptions = {
-            duration: buffer.duration,
-            startAt,
-            onProgress: (current, duration) => generation === nativeGeneration && nativeProgress(current, duration),
-            onEnded: () => finishNative(generation)
-        };
-
-        if (mode === 'voice') {
-            const accepted = await window.EveAudioflixNative?.playVoice?.(encodeBufferToBase64(buffer, startAt), {
-                sampleRate: buffer.sampleRate,
-                channels: 1,
-                volume: activeStreamVolume,
-                voiceId: 'singleton-main',
-                replace: true
-            });
-            if (accepted !== true) throw new Error('Native bridge unreachable for voice playback');
-            activeNativeController = window.EveAudioflixAudioBridge?.createTimeline?.(timelineOptions) || null;
-            return true;
-        }
-
-        const controller = window.EveAudioflixAudioBridge?.createStream?.({
-            buffer,
-            startAt,
-            volume: activeStreamVolume,
-            sendChunk: (payload, detail) => window.EveAudioflixNative?.sendGeminiChunk?.(payload, detail),
-            stopRemote: () => window.EveAudioflixNative?.stopStream?.(),
-            onProgress: timelineOptions.onProgress,
-            onEnded: timelineOptions.onEnded,
-            onError(error) {
-                if (generation !== nativeGeneration) return;
-                activeNativeController = null;
-                activeNativeMode = '';
-                activeNativeBuffer = null;
-                lastStatus = error?.message || 'Native stream failed';
-                dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem, native: true, error: true });
-            }
-        });
-        activeNativeController = controller;
-        if (!controller || await controller.ready !== true) throw new Error('Native stream did not start.');
-        return true;
-    }
-
-    async function stopNativePlayback(keepPosition = false) {
-        if (!activeNativeMode) return;
-        const mode = activeNativeMode;
-        const controller = activeNativeController;
-        const position = controller?.currentTime?.() ?? nativePausedAt;
-        nativeGeneration += 1;
-        activeNativeController = null;
-        if (mode === 'stream') await controller?.stop?.({ clearRemote: true });
-        else {
-            controller?.stop?.();
-            await window.EveAudioflixNative?.clearVoices?.('singleton-main');
-        }
-        if (keepPosition) nativePausedAt = position;
-        else {
-            nativePausedAt = 0;
-            activeNativeMode = '';
-            activeNativeBuffer = null;
-        }
     }
 
     function ensureAudio() {

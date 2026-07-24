@@ -19,6 +19,11 @@ const root = path.resolve(__dirname, '..', '..');
 function runScript(context, relativePath) {
     vm.runInNewContext(fs.readFileSync(path.join(root, relativePath), 'utf8'), context, { filename: relativePath });
 }
+// state.js installs its group/folder editors from a sibling module at load, so preload it first.
+function loadState(context) {
+    runScript(context, 'js/modules/features/audioflix/audioflix.state.groups.js');
+    runScript(context, 'js/modules/features/audioflix/audioflix.state.js');
+}
 function assert(condition, message) { if (!condition) throw new Error('ASSERT FAILED: ' + message); }
 
 // Big dummy pack (Nova pattern): full tier builds ~478k chars -> must ladder under the 200k budget.
@@ -125,18 +130,18 @@ function makeRelayVm({ textBrainMode }) {
     // --- 1. State default + one-time migration ---
     {
         const oldSave = makeStateVm({ geminiConversationMode: 'direct-live' });   // pre-default save, no flag
-        runScript(oldSave, 'js/modules/features/audioflix/audioflix.state.js');
+        loadState(oldSave);
         const migrated = oldSave.window.EveAudioflixState.ensure();
         assert(migrated.geminiConversationMode === 'text-brain-live-voice', 'old direct-live save should migrate to Mode 2');
         assert(migrated.geminiModeDefaultV2Applied === true, 'migration flag should be set');
 
         const explicit = makeStateVm({ geminiConversationMode: 'direct-live', geminiModeDefaultV2Applied: true });
-        runScript(explicit, 'js/modules/features/audioflix/audioflix.state.js');
+        loadState(explicit);
         assert(explicit.window.EveAudioflixState.ensure().geminiConversationMode === 'direct-live',
             'explicit post-migration direct-live choice must be respected');
 
         const fresh = makeStateVm(null);
-        runScript(fresh, 'js/modules/features/audioflix/audioflix.state.js');
+        loadState(fresh);
         assert(fresh.window.EveAudioflixState.ensure().geminiConversationMode === 'text-brain-live-voice',
             'fresh state should default to Mode 2');
         console.log('state default + migration OK');

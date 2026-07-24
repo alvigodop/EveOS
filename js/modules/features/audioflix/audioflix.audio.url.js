@@ -9,7 +9,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
     const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
     const SCRIPT_TIMEOUT_MS = 12000;
     const YOUTUBE_FILE_MESSAGE = 'YouTube requires an HTTPS/app identity that a plain file:// page cannot send. Use Play on YouTube, replace this track URL with a direct media URL, cache a local copy, or start EveOS localhost to play it inside Audioflix.';
-    const scriptLoads = new Map();
+    const { loadScript, loadYouTubeApi } = window.EveAudioflixUrlLoaders;
 
     function itemKey(item) {
         return String(item?.id || item?.url || '');
@@ -47,62 +47,6 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             }
             return YOUTUBE_ID_RE.test(id || '') ? id : '';
         } catch { return ''; }
-    }
-
-    function loadScript(src, readyCheck) {
-        if (readyCheck()) return Promise.resolve();
-        if (scriptLoads.has(src)) return scriptLoads.get(src);
-        const promise = new Promise((resolve, reject) => {
-            const existing = [...document.scripts].find((script) => script.src === src);
-            const script = existing || Object.assign(document.createElement('script'), { src, async: true });
-            let poll = 0;
-            const cleanup = () => { clearTimeout(timer); if (poll) clearInterval(poll); };
-            const timer = setTimeout(() => {
-                cleanup();
-                reject(new Error('Provider player timed out while loading.'));
-            }, SCRIPT_TIMEOUT_MS);
-            const finish = () => {
-                if (!readyCheck()) return;
-                cleanup();
-                resolve();
-            };
-            script.addEventListener('load', finish, { once: true });
-            script.addEventListener('error', () => {
-                cleanup();
-                reject(new Error('Provider player script could not load.'));
-            }, { once: true });
-            if (!existing) document.head.appendChild(script);
-            poll = setInterval(finish, 50);
-        });
-        scriptLoads.set(src, promise);
-        promise.catch(() => scriptLoads.delete(src));
-        return promise;
-    }
-
-    function loadYouTubeApi() {
-        if (window.YT?.Player) return Promise.resolve();
-        const src = 'https://www.youtube.com/iframe_api';
-        if (scriptLoads.has(src)) return scriptLoads.get(src);
-        const promise = new Promise((resolve, reject) => {
-            const previous = window.onYouTubeIframeAPIReady;
-            const timer = setTimeout(() => reject(new Error('YouTube player timed out while loading.')), SCRIPT_TIMEOUT_MS);
-            window.onYouTubeIframeAPIReady = function () {
-                try { previous?.(); } catch { }
-                clearTimeout(timer);
-                resolve();
-            };
-            const existing = [...document.scripts].find((script) => script.src === src);
-            if (existing) return;
-            const script = Object.assign(document.createElement('script'), { src, async: true });
-            script.onerror = () => {
-                clearTimeout(timer);
-                reject(new Error('YouTube player script could not load.'));
-            };
-            document.head.appendChild(script);
-        });
-        scriptLoads.set(src, promise);
-        promise.catch(() => scriptLoads.delete(src));
-        return promise;
     }
 
     function createController(options = {}) {

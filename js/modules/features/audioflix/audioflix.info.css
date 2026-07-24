@@ -1,0 +1,129 @@
+/* Audioflix — track/sound info modal (details, URL copy, actions). Split out of
+   audioflix.editor.css to keep each module under the project line cap. */
+.audioflix-info-modal {
+    position: absolute;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(8px);
+    padding: 24px;
+    border-radius: 24px;
+}
+
+.audioflix-overlay.is-fullscreen .audioflix-info-modal {
+    border-radius: 0;
+}
+
+.audioflix-info-card {
+    width: min(480px, 100%);
+    background: #121816;
+    border: 1px solid rgba(255, 202, 95, 0.35);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+}
+
+.audioflix-info-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding-bottom: 6px;
+}
+
+.audioflix-info-row span {
+    color: rgba(255,255,255,0.5);
+}
+
+.audioflix-info-row strong {
+    color: #fff;
+}
+
+.audioflix-info-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+}
+
+.audioflix-info-title {
+    margin: 4px 0 0 0;
+    font-size: 1.25rem;
+    color: #fff;
+}
+
+.audioflix-info-close-btn {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.audioflix-info-body {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+}
+
+.audioflix-info-url-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.audioflix-info-url-container span {
+    color: rgba(255,255,255,0.5);
+}
+
+.audioflix-info-url-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.audioflix-info-url-input {
+    flex: 1;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #8ab4f8;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.8rem;
+}
+
+.audioflix-info-copy-btn {
+    padding: 6px 12px;
+    background: rgba(255,202,95,0.15);
+    border: 1px solid rgba(255,202,95,0.3);
+    color: #ffca5f;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.audioflix-info-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.audioflix-info-close-action {
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    font-weight: bold;
+}

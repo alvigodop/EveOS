@@ -30,6 +30,7 @@ try:
     from server_modules import gemini_control
     from server_modules import gemini_credentials
     from server_modules import audioflix_bridge
+    from server_modules.eveos_http_cors import eveos_cors_origin
 except ImportError as exc:
     raise SystemExit(f"[FATAL] EveOS server dependency import failed: {exc}") from exc
 
@@ -64,21 +65,6 @@ def configure_modular_store(modular_root=None, persist_modular_root=False):
     except Exception as exc:
         print(f"[ERROR] Failed to apply modular store path '{modular_root}': {exc}")
         sys.exit(1)
-
-def eveos_cors_origin(origin):
-    """Reflect the request Origin only if it's a trusted local context, else None (omit ACAO).
-    Blocks a random website you visit from reading these local endpoints' responses, while
-    keeping file://, localhost, 127.0.0.1, and same-origin/non-browser requests working."""
-    o = (origin or "").strip()
-    if not o:
-        return "*"            # no Origin = same-origin or non-browser tool; no cross-origin risk
-    lo = o.lower()
-    if lo == "null" or lo.startswith("file://"):
-        return "*"
-    for host in ("http://localhost", "http://127.0.0.1", "https://localhost", "https://127.0.0.1"):
-        if lo == host or lo.startswith(host + ":"):
-            return o
-    return None              # untrusted cross-origin -> omit header, browser blocks the read
 
 
 class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):

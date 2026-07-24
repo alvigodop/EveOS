@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const INTERNAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.internal.js');
+const LOADERS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.loaders.js');
 const MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.js');
 const STYLE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.provider.css');
 
@@ -15,9 +16,10 @@ function assert(condition, message) {
 async function main() {
     const fixture = path.join(os.tmpdir(), `eveos-audioflix-url-${process.pid}.html`);
     const internalModuleUrl = 'file:///' + INTERNAL_MODULE_PATH.replace(/\\/g, '/');
+    const loadersModuleUrl = 'file:///' + LOADERS_MODULE_PATH.replace(/\\/g, '/');
     const moduleUrl = 'file:///' + MODULE_PATH.replace(/\\/g, '/');
     const styleUrl = 'file:///' + STYLE_PATH.replace(/\\/g, '/');
-    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${internalModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
+    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${internalModuleUrl}"></script><script src="${loadersModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
