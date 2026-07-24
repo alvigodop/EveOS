@@ -47,6 +47,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         soundboardGroups: [],
         soundGroupMap: {},
         activeFrontendGroup: '',
+        musicViewMode: 'backend',
+        musicGroups: [],
+        musicGroupMap: {},
+        activeFrontendMusicGroup: '',
         hotkeyBypassCombo: '',
         counters: {
             plays: 0,
@@ -184,6 +188,16 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                     .filter(([, v]) => v.length))
                 : {},
             activeFrontendGroup: text(source.activeFrontendGroup, ''),
+            musicViewMode: ['backend', 'frontend'].includes(source.musicViewMode) ? source.musicViewMode : 'backend',
+            musicGroups: Array.isArray(source.musicGroups)
+                ? [...new Set(source.musicGroups.map((g) => text(g, '')).filter(Boolean))]
+                : [],
+            musicGroupMap: source.musicGroupMap && typeof source.musicGroupMap === 'object'
+                ? Object.fromEntries(Object.entries(source.musicGroupMap)
+                    .map(([k, v]) => [k, Array.isArray(v) ? [...new Set(v.map((g) => text(g, '')).filter(Boolean))] : []])
+                    .filter(([, v]) => v.length))
+                : {},
+            activeFrontendMusicGroup: text(source.activeFrontendMusicGroup, ''),
             hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
@@ -403,6 +417,46 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    // --- Custom music groups ---
+    function addMusicGroup(name) {
+        const state = ensure();
+        const clean = text(name, '').trim();
+        if (!clean) return ensure();
+        state.musicGroups = state.musicGroups || [];
+        if (!state.musicGroups.includes(clean)) state.musicGroups.push(clean);
+        scheduleSave('audioflix-music-groups');
+        return ensure();
+    }
+
+    function removeMusicGroup(name) {
+        const state = ensure();
+        const clean = text(name, '').trim();
+        state.musicGroups = (state.musicGroups || []).filter((g) => g !== clean);
+        state.musicGroupMap = state.musicGroupMap || {};
+        for (const id of Object.keys(state.musicGroupMap)) {
+            const next = (state.musicGroupMap[id] || []).filter((g) => g !== clean);
+            if (next.length) state.musicGroupMap[id] = next; else delete state.musicGroupMap[id];
+        }
+        scheduleSave('audioflix-music-groups');
+        return ensure();
+    }
+
+    function toggleMusicGroup(musicId, name, on) {
+        const state = ensure();
+        const clean = text(name, '').trim();
+        if (!musicId || !clean) return ensure();
+        state.musicGroups = state.musicGroups || [];
+        if (!state.musicGroups.includes(clean)) state.musicGroups.push(clean);
+        state.musicGroupMap = state.musicGroupMap || {};
+        const current = new Set(state.musicGroupMap[musicId] || []);
+        const shouldHave = (on === undefined) ? !current.has(clean) : !!on;
+        if (shouldHave) current.add(clean); else current.delete(clean);
+        const next = [...current];
+        if (next.length) state.musicGroupMap[musicId] = next; else delete state.musicGroupMap[musicId];
+        scheduleSave('audioflix-music-groups');
+        return ensure();
+    }
+
     window.addEventListener('pagehide', () => {
         if (saveTimer) persistNow('audioflix-pagehide');
     });
@@ -427,6 +481,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         addSoundboardGroup,
         removeSoundboardGroup,
         toggleSoundGroup,
+        addMusicGroup,
+        removeMusicGroup,
+        toggleMusicGroup,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });

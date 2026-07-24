@@ -380,3 +380,67 @@
     background: rgba(0, 0, 0, 0.18);
 }
 
+/* --- Queue Order Badges & Group Play Button --- */
+.audioflix-play-group-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 212, 255, 0.4);
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(0, 150, 255, 0.15));
+    color: #00d4ff;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.15);
+}
+
+.audioflix-play-group-btn:hover {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.35), rgba(0, 150, 255, 0.25));
+    border-color: #00d4ff;
+    color: #ffffff;
+    box-shadow: 0 0 14px rgba(0, 212, 255, 0.35);
+}
+
+.audioflix-play-group-btn.is-active {
+    background: linear-gradient(135deg, #00d4ff, #0088ff);
+    color: #04101d;
+    border-color: #00d4ff;
+    box-shadow: 0 0 16px rgba(0, 212, 255, 0.5);
+}
+
+.audioflix-queue-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #94a3b8;
+    margin-right: 6px;
+}
+
+.audioflix-queue-badge.is-active {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.25), rgba(156, 255, 173, 0.2));
+    border-color: #00d4ff;
+    color: #00d4ff;
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.3);
+    animation: af-pulse-glow 1.5s infinite alternate;
+}
+
+.audioflix-queue-badge.is-past {
+    opacity: 0.5;
+    text-decoration: line-through;
+}
+
+@keyframes af-pulse-glow {
+    from { box-shadow: 0 0 4px rgba(0, 212, 255, 0.2); }
+    to { box-shadow: 0 0 12px rgba(0, 212, 255, 0.5); }
+}
+

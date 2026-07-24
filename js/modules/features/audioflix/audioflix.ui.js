@@ -4,7 +4,8 @@ window.EveAudioflix = window.EveAudioflix || {};
     const ns = window.EveAudioflix;
     if (ns.ready) return;
 
-    let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = false, portedSounds = [], fsPortFolders = [], deadServerPorts = new Set(), collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
+    let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = { sound: false, music: false }, portedSounds = [], fsPortFolders = [], deadServerPorts = new Set(), collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
+    let activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false };
     // True only when the Python bridge ACCEPTED the current hotkey bindings (system-wide
     // RegisterHotKey is live). The in-app keydown matcher stands down only then — standing down on
     // mere configuration left ZERO hotkeys on file:// with the server off (bridge armed in state,
@@ -32,8 +33,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         return parts.length === 1 ? { invalid: false, msg: 'Heads up: a lone key is grabbed globally (you won’t be able to type it). A modifier combo (ctrl+y) is safer.' } : null;
     }
 
-    const renderInfoModal = (item, type) => { const dur = formatDuration(item.duration), src = item.isPorted ? `${item.category} (Ported)` : (type === 'music' ? 'Music Library' : 'Local Soundboard'), row = (lbl, val) => `<div class="audioflix-info-row"><span>${lbl}</span><strong>${val}</strong></div>`, exposeRow = type === 'sound' ? row('Expose to Frontend', `<input type="checkbox" class="audioflix-expose-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" ${isItemExposed(item) ? 'checked' : ''}>`) : '', hotkeyRow = type === 'sound' ? row('Global Hotkey', `<input type="text" class="audioflix-hotkey-input" placeholder="e.g. ctrl+y, f5" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" value="${esc(item.hotkey || '')}">`) : '', rep = activeRepeaters[item.id], repeaterBlock = type === 'sound' ? `<div class="audioflix-repeater"><span class="audioflix-repeater-title">Sound Repeater</span><div class="audioflix-repeater-row"><label class="audioflix-repeater-field"><span>Interval (sec)</span><input type="number" step="0.1" min="0.1" value="${rep ? rep.intervalMs / 1000 : 1.0}" id="audioflix-rep-interval" ${rep ? 'disabled' : ''}></label><label class="audioflix-repeater-field"><span>Count (0 = inf)</span><input type="number" min="0" value="${rep ? rep.count : 0}" id="audioflix-rep-count" ${rep ? 'disabled' : ''}></label><button type="button" class="audioflix-repeater-btn${rep ? ' is-active' : ''}" data-af-action="toggle-repeater" data-af-id="${esc(item.id)}">${rep ? 'Stop' : 'Start'}</button></div></div>` : ''; return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card"><div class="audioflix-info-header"><div><span class="audioflix-kicker">Sound Details</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div><div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}${hotkeyRow}${repeaterBlock}${type === 'sound' ? renderGroupAssign(item) : ''}<div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div></div><div class="audioflix-info-footer">${internalViewButton(item, type, true)}<button type="button" class="audioflix-info-close-action" data-af-action="close-info">Close</button></div></div></div>`; };
-    const renderGroupAssign = (item, mine = new Set(groupsOf(item.id))) => `<div class="audioflix-info-groups"><span class="audioflix-info-groups-label">Frontend Groups</span><div class="audioflix-group-checklist">${allGroups().map(g => `<label class="audioflix-group-check"><input type="checkbox" class="audioflix-group-cb" data-af-id="${esc(item.id)}" data-af-group="${esc(g)}" ${mine.has(g) ? 'checked' : ''}><span>${esc(g)}</span></label>`).join('') || '<span class="audioflix-group-empty">No groups yet — create one below.</span>'}</div><form class="audioflix-group-quick" data-af-form="assign-new-group" data-af-id="${esc(item.id)}"><input name="name" placeholder="New group" autocomplete="off" maxlength="40"><button type="submit" data-af-action="submit-form">Add</button></form></div>`;
+    const renderInfoModal = (item, type) => { const dur = formatDuration(item.duration), src = item.isPorted ? `${item.category} (Ported)` : (type === 'music' ? 'Music Library' : 'Local Soundboard'), row = (lbl, val) => `<div class="audioflix-info-row"><span>${lbl}</span><strong>${val}</strong></div>`, exposeRow = type === 'sound' ? row('Expose to Frontend', `<input type="checkbox" class="audioflix-expose-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" ${isItemExposed(item, type) ? 'checked' : ''}>`) : '', hotkeyRow = type === 'sound' ? row('Global Hotkey', `<input type="text" class="audioflix-hotkey-input" placeholder="e.g. ctrl+y, f5" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" value="${esc(item.hotkey || '')}">`) : '', rep = activeRepeaters[item.id], repeaterBlock = type === 'sound' ? `<div class="audioflix-repeater"><span class="audioflix-repeater-title">Sound Repeater</span><div class="audioflix-repeater-row"><label class="audioflix-repeater-field"><span>Interval (sec)</span><input type="number" step="0.1" min="0.1" value="${rep ? rep.intervalMs / 1000 : 1.0}" id="audioflix-rep-interval" ${rep ? 'disabled' : ''}></label><label class="audioflix-repeater-field"><span>Count (0 = inf)</span><input type="number" min="0" value="${rep ? rep.count : 0}" id="audioflix-rep-count" ${rep ? 'disabled' : ''}></label><button type="button" class="audioflix-repeater-btn${rep ? ' is-active' : ''}" data-af-action="toggle-repeater" data-af-id="${esc(item.id)}">${rep ? 'Stop' : 'Start'}</button></div></div>` : ''; return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card"><div class="audioflix-info-header"><div><span class="audioflix-kicker">Sound Details</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div><div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}${hotkeyRow}${repeaterBlock}${renderGroupAssign(item, type)}<div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div></div><div class="audioflix-info-footer">${internalViewButton(item, type, true)}<button type="button" class="audioflix-info-close-action" data-af-action="close-info">Close</button></div></div></div>`; };
+    const renderGroupAssign = (item, type = 'sound', mine = new Set(groupsOf(item.id, type))) => `<div class="audioflix-info-groups"><span class="audioflix-info-groups-label">Frontend Groups</span><div class="audioflix-group-checklist">${allGroups(type).map(g => `<label class="audioflix-group-check"><input type="checkbox" class="audioflix-group-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" data-af-group="${esc(g)}" ${mine.has(g) ? 'checked' : ''}><span>${esc(g)}</span></label>`).join('') || '<span class="audioflix-group-empty">No groups yet — create one below.</span>'}</div><form class="audioflix-group-quick" data-af-form="assign-new-group" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}"><input name="name" placeholder="New group" autocomplete="off" maxlength="40"><button type="submit" data-af-action="submit-form">Add</button></form></div>`;
 
     async function loadPortedSounds() {
         const snapshot = state(), base = (window.location.origin && !window.location.origin.startsWith('file:')) ? window.location.origin.replace('localhost', '127.0.0.1') : 'http://127.0.0.1:8765';
@@ -46,7 +47,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     async function pushHotkeysToBridge() {
-        const u = state(), { items } = frontendActiveGroup(), hotkeyItems = items.filter(it => it.hotkey);
+        const u = state(), { items } = frontendActiveGroup('sound'), hotkeyItems = items.filter(it => it.hotkey);
         const isActive = overlay && !overlay.hidden && activeTab === 'soundboard' && (u.soundboardViewMode || 'backend') === 'frontend';
         if (!isActive || !hotkeyItems.length) { nativeHotkeysLive = false; return window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); }
         let sampleRate = 48000; const bindings = [];
@@ -89,23 +90,25 @@ window.EveAudioflix = window.EveAudioflix || {};
             }
         });
         overlay.addEventListener('change', async e => {
-            const t = e.target, id = t.dataset.afId;
+            const t = e.target, id = t.dataset.afId, type = t.dataset.afType || 'sound';
             if (t.classList.contains('audioflix-seek-slider')) {
                 await window.EveAudioflixAudio?.seek?.(Number(t.value || 0));
                 window.EveAudioflixTransport?.finishSeek?.(t);
                 window.EveAudioflixTransport?.sync?.(overlay);
             } else if (t.classList.contains('audioflix-expose-cb')) {
-                window.EveAudioflixState?.setItemExposed?.(t.dataset.afType, id, t.checked);
+                window.EveAudioflixState?.setItemExposed?.(type, id, t.checked);
                 if (activeInfoItem?.id === id) activeInfoItem.exposed = t.checked;
                 const ps = portedSounds.find(s => s.id === id); if (ps) ps.exposed = t.checked;
                 pushHotkeysToBridge();
             } else if (t.classList.contains('audioflix-group-cb')) {
-                window.EveAudioflixState?.toggleSoundGroup?.(id, t.dataset.afGroup, t.checked); pushHotkeysToBridge();
+                if (type === 'music') window.EveAudioflixState?.toggleMusicGroup?.(id, t.dataset.afGroup, t.checked);
+                else window.EveAudioflixState?.toggleSoundGroup?.(id, t.dataset.afGroup, t.checked);
+                pushHotkeysToBridge();
             } else if (t.classList.contains('audioflix-hotkey-input')) {
                 const val = t.value.trim().toLowerCase(), issue = hotkeyComboIssue(val);
                 t.title = issue ? issue.msg : 'Global hotkey (e.g. ctrl+y)'; t.classList.toggle('audioflix-input-invalid', !!(issue && issue.invalid));
                 if (issue) playbackStatus = issue.msg;
-                window.EveAudioflixState?.setItemHotkey?.(t.dataset.afType, id, val);
+                window.EveAudioflixState?.setItemHotkey?.(type, id, val);
                 if (activeInfoItem?.id === id) activeInfoItem.hotkey = val;
                 const ps = portedSounds.find(s => s.id === id); if (ps) ps.hotkey = val;
                 pushHotkeysToBridge();
@@ -134,50 +137,129 @@ window.EveAudioflix = window.EveAudioflix || {};
             }
         });
         document.addEventListener('keydown', handleHotkey);
+
+        window.addEventListener('eve:audioflix-playback', async (e) => {
+            const detail = e.detail || {};
+            if ((detail.status === 'Ended' || detail.status === 'Stopped') && activeMusicQueue.isPlaying && activeMusicQueue.items.length) {
+                const currentPlayingId = activeMusicQueue.items[activeMusicQueue.currentIndex];
+                if (detail.item && detail.item.id === currentPlayingId && detail.status === 'Ended') {
+                    activeMusicQueue.currentIndex += 1;
+                    if (activeMusicQueue.currentIndex < activeMusicQueue.items.length) {
+                        const nextId = activeMusicQueue.items[activeMusicQueue.currentIndex];
+                        const nextTrack = (state().music || []).find(m => m.id === nextId);
+                        if (nextTrack) {
+                            try { await window.EveAudioflixAudio?.playItem?.(nextTrack); } catch (err) { console.warn('[Audioflix] queue sequential play error:', err); }
+                        }
+                    } else {
+                        activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false };
+                    }
+                    rerender();
+                }
+            }
+        });
+
         return overlay;
     }
 
-    const allGroups = () => state().soundboardGroups || [];
-    const groupsOf = (id) => (state().soundGroupMap?.[id] || []).filter((g) => allGroups().includes(g));
-    const isItemExposed = (item) => groupsOf(item.id).length > 0 || (item.isPorted ? state().exposedPortedSounds?.[item.id] === true : item.exposed === true);
-    const groupTags = (item, gs = groupsOf(item.id)) => gs.length ? `<div class="audioflix-group-tags">${gs.map(g => `<span class="audioflix-group-tag">${esc(g)}</span>`).join('')}</div>` : '';
+    const allGroups = (type = 'sound') => (type === 'music' ? state().musicGroups : state().soundboardGroups) || [];
+    const groupsOf = (id, type = 'sound') => {
+        const map = type === 'music' ? state().musicGroupMap : state().soundGroupMap;
+        return (map?.[id] || []).filter((g) => allGroups(type).includes(g));
+    };
+    const isItemExposed = (item, type = 'sound') => {
+        if (type === 'music') return groupsOf(item.id, 'music').length > 0 || item.exposed !== false;
+        return groupsOf(item.id, 'sound').length > 0 || (item.isPorted ? state().exposedPortedSounds?.[item.id] === true : item.exposed === true);
+    };
+    const groupTags = (item, gs = groupsOf(item.id, item?.type || 'sound')) => gs.length ? `<div class="audioflix-group-tags">${gs.map(g => `<span class="audioflix-group-tag">${esc(g)}</span>`).join('')}</div>` : '';
 
-    function frontendGroupEntries() {
-        const items = [...(state().soundboard || []), ...portedSounds].filter(isItemExposed), entries = [];
-        allGroups().forEach(g => { const m = items.filter(it => groupsOf(it.id).includes(g)); if (m.length) entries.push([g, m]); });
-        const un = items.filter(it => !groupsOf(it.id).length); if (un.length) entries.push(['Ungrouped', un]);
+    function frontendGroupEntries(type = 'sound') {
+        if (type === 'music') {
+            const items = state().music || [], entries = [];
+            allGroups('music').forEach(g => { const m = items.filter(it => groupsOf(it.id, 'music').includes(g)); if (m.length) entries.push([g, m]); });
+            const un = items.filter(it => !groupsOf(it.id, 'music').length);
+            entries.push(['Ungrouped', un]);
+            return entries;
+        }
+        const items = [...(state().soundboard || []), ...portedSounds].filter(it => isItemExposed(it, 'sound')), entries = [];
+        allGroups('sound').forEach(g => { const m = items.filter(it => groupsOf(it.id, 'sound').includes(g)); if (m.length) entries.push([g, m]); });
+        const un = items.filter(it => !groupsOf(it.id, 'sound').length);
+        if (un.length) entries.push(['Ungrouped', un]);
         return entries;
     }
-    function frontendActiveGroup() {
-        const entries = frontendGroupEntries(); if (!entries.length) return { name: '', items: [], entries };
-        const chosen = entries.find(([n]) => n === state().activeFrontendGroup) || entries[0];
+    function frontendActiveGroup(type = 'sound') {
+        const entries = frontendGroupEntries(type);
+        if (!entries.length) return { name: '', items: [], entries };
+        const activeKey = type === 'music' ? state().activeFrontendMusicGroup : state().activeFrontendGroup;
+        const chosen = entries.find(([n]) => n === activeKey) || entries[0];
         return { name: chosen[0], items: chosen[1], entries };
     }
 
     function renderItemCard(item, type) {
-        const isF = type === 'sound' && (state().soundboardViewMode || 'backend') === 'frontend';
+        const isF = (type === 'music' ? (state().musicViewMode || 'backend') : (state().soundboardViewMode || 'backend')) === 'frontend';
         const transport = window.EveAudioflixTransport?.render?.(item, type, esc) || '';
         const rep = activeRepeaters[item.id], repBadge = rep ? `<span class="audioflix-repeater-badge" title="Repeater active">🔁 Rep</span>` : '';
-        const keyBadge = (isF && item.hotkey) ? `<span class="audioflix-hotkey-badge" title="Hotkey: press ${esc(item.hotkey)}">${esc(item.hotkey)}</span>` : '';
+        const keyBadge = (isF && type === 'sound' && item.hotkey) ? `<span class="audioflix-hotkey-badge" title="Hotkey: press ${esc(item.hotkey)}">${esc(item.hotkey)}</span>` : '';
         const delBtn = (!isF && !item.isPorted) ? `<button type="button" class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}">${closeSvg}</button>` : '';
-        return `<article class="audioflix-item-card"><div class="audioflix-playback-controls"><button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div><button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play">${layerPlaySvg}</button><div class="audioflix-item-body"><div class="audioflix-item-title-row">${repBadge}${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(itemMeta(item))}</span>${type === 'sound' ? groupTags(item) : ''}</div><div class="audioflix-item-actions">${internalViewButton(item, type)}<button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="${isF ? 'Settings' : ''}">${cogSvg}</button>${delBtn}</div>${transport}</article>`;
+        
+        let queueBadge = '';
+        if (type === 'music' && activeMusicQueue.isPlaying && activeMusicQueue.items.includes(item.id)) {
+            const qIdx = activeMusicQueue.items.indexOf(item.id);
+            const pos = qIdx + 1;
+            const isCurrent = qIdx === activeMusicQueue.currentIndex;
+            const isPast = qIdx < activeMusicQueue.currentIndex;
+            const statusText = isCurrent ? 'Playing' : (isPast ? 'Played' : 'Queued');
+            const activeClass = isCurrent ? ' is-active' : (isPast ? ' is-past' : '');
+            queueBadge = `<span class="audioflix-queue-badge${activeClass}" title="Queue position #${pos} (${statusText})">#${pos} ${statusText}</span>`;
+        }
+
+        return `<article class="audioflix-item-card"><div class="audioflix-playback-controls"><button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${stopSvg}</button><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${playSvg}</button></div><button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play">${layerPlaySvg}</button><div class="audioflix-item-body"><div class="audioflix-item-title-row">${queueBadge}${repBadge}${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(itemMeta(item))}</span>${groupTags(item, groupsOf(item.id, type))}</div><div class="audioflix-item-actions">${internalViewButton(item, type)}<button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="${isF ? 'Settings' : ''}">${cogSvg}</button>${delBtn}</div>${transport}</article>`;
     }
 
     function renderItems(items, type) {
         if (!items.length) return `<div class="audioflix-empty">No ${type === 'music' ? 'tracks' : 'sounds'} yet.</div>`;
-        const isF = (state().soundboardViewMode || 'backend') === 'frontend', fil = type === 'sound' && isF ? items.filter(isItemExposed) : items;
-        if (!fil.length) return `<div class="audioflix-empty">No exposed sounds yet. Switch to Backend view to expose sounds.</div>`;
-        if (type === 'sound' && isF) return renderFrontendActive();
+        const isF = (type === 'music' ? (state().musicViewMode || 'backend') : (state().soundboardViewMode || 'backend')) === 'frontend';
+        const fil = type === 'sound' && isF ? items.filter(it => isItemExposed(it, 'sound')) : items;
+        if (!fil.length) return `<div class="audioflix-empty">No ${type === 'music' ? 'tracks' : 'exposed sounds'} yet.</div>`;
+        if (isF) return type === 'music' ? renderFrontendMusicActive() : renderFrontendActive();
         const groups = new Map(); fil.forEach(it => { const k = groupKey(it, type); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); });
         return [...groups.entries()].map(([n, gi]) => `<section class="audioflix-group ${collapsedGroups[n] ? 'is-collapsed' : ''}" data-af-group="${esc(n)}"><button type="button" class="audioflix-group-title" data-af-action="toggle-group" data-af-group="${esc(n)}" aria-expanded="${collapsedGroups[n] ? 'false' : 'true'}">${esc(n)}<span class="audioflix-group-count">${gi.length} item${gi.length === 1 ? '' : 's'}</span></button><div class="audioflix-item-grid">${gi.map(it => renderItemCard(it, type)).join('')}</div></section>`).join('');
     }
 
-    const renderFrontendActive = () => { const { name, items, entries } = frontendActiveGroup(), selector = `<div class="audioflix-group-selector">${entries.map(([g, members]) => `<button type="button" class="audioflix-group-pill${g === name ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-group="${esc(g)}">${esc(g)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('')}</div>`; return `${selector}<div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map(it => renderItemCard(it, 'sound')).join('')}</div>${items.some(it => it.hotkey) ? '<div class="audioflix-hotkey-hint">Custom hotkeys are active system-wide.</div>' : ''}`; };
+    const renderFrontendActive = () => { const { name, items, entries } = frontendActiveGroup('sound'), selector = `<div class="audioflix-group-selector">${entries.map(([g, members]) => `<button type="button" class="audioflix-group-pill${g === name ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-type="sound" data-af-group="${esc(g)}">${esc(g)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('')}</div>`; return `${selector}<div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map(it => renderItemCard(it, 'sound')).join('')}</div>${items.some(it => it.hotkey) ? '<div class="audioflix-hotkey-hint">Custom hotkeys are active system-wide.</div>' : ''}`; };
+
+    const renderFrontendMusicActive = () => {
+        const { name, items, entries } = frontendActiveGroup('music');
+        const isQueuePlaying = activeMusicQueue.isPlaying && activeMusicQueue.groupName === name;
+        const selector = `<div class="audioflix-group-selector">${entries.map(([g, members]) => `<button type="button" class="audioflix-group-pill${g === name ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-type="music" data-af-group="${esc(g)}">${esc(g)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('')}</div>`;
+        const playGroupBtn = items.length ? `<button type="button" class="audioflix-play-group-btn${isQueuePlaying ? ' is-active' : ''}" data-af-action="play-music-group">${isQueuePlaying ? '▶ Playing Group...' : '▶ Play Group'}</button>` : '';
+        return `${selector}<div class="audioflix-frontend-subhead" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:0 4px;"><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:1.05rem; color:#f8fafc;">${esc(name)}</strong> <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">(${items.length} track${items.length === 1 ? '' : 's'})</span></div>${playGroupBtn}</div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map(it => renderItemCard(it, 'music')).join('')}</div>`;
+    };
 
     const renderForm = (type, m = type === 'music') => `<form class="audioflix-form" data-af-form="${m ? 'music' : 'sound'}"><label><span>${m ? 'Track Title' : 'Sound Name'}</span><input name="title" required></label><label class="audioflix-wide-field"><span>URL / Path</span><input name="url" required></label><label><span>${m ? 'Artist' : 'Category'}</span><input name="${m ? 'artist' : 'category'}"></label><label><span>${m ? 'Folder' : 'Volume'}</span><input name="${m ? 'folder' : 'volume'}"></label><button type="submit" data-af-action="submit-form">${m ? 'Add Track' : 'Add Sound'}</button></form>`;
     const renderPortsManager = () => window.EveAudioflixFsPorts?.renderPortsManager?.(state(), fsPortFolders, deadServerPorts, esc, closeSvg) || '';
-    const renderGroupsManager = () => { const groups = allGroups(), map = state().soundGroupMap || {}, countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length, list = groups.map((g) => `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${countFor(g)} sound${countFor(g) === 1 ? '' : 's'}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-group="${esc(g)}" data-af-action="remove-group">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No groups yet.</div>'; return `<div class="audioflix-ports-mgr"><h4>Frontend Groups</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`; };
-    const renderAddSection = (type) => { if (type === 'music') return `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${addFormOpen.music ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${addFormOpen.music ? '− Hide add track' : '+ Add Track'}</button></div></div>${addFormOpen.music ? renderForm('music') : ''}`; const isF = (state().soundboardViewMode || 'backend') === 'frontend', open = addFormOpen.sound === true, vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" style="margin-left: auto;">${isF ? 'Backend' : 'Frontend'}</button>`, gBtn = `<button type="button" class="audioflix-add-toggle${groupsOpen ? ' is-active' : ''}" data-af-action="toggle-groups" style="margin-left: 8px;">Groups</button>`; return isF ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen ? renderGroupsManager() : ''}` : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound">${open ? '− Hide add sound' : '+ Add Sound'}</button></div><button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" style="margin-left: 8px;">Ports</button>${gBtn}${vBtn}</div>${open ? renderForm('sound') : ''}${portsOpen ? renderPortsManager() : ''}${groupsOpen ? renderGroupsManager() : ''}`; };
+    const renderGroupsManager = (type = 'sound') => {
+        const isM = type === 'music';
+        const groups = allGroups(type);
+        const map = isM ? (state().musicGroupMap || {}) : (state().soundGroupMap || {});
+        const countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length;
+        const list = groups.map((g) => `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group">${closeSvg}</button></div>`).join('') || '<div class="audioflix-empty">No groups yet.</div>';
+        return `<div class="audioflix-ports-mgr"><h4>${isM ? 'Music Frontend Groups' : 'Soundboard Frontend Groups'}</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group" data-af-type="${esc(type)}"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`;
+    };
+    const renderAddSection = (type) => {
+        const isM = type === 'music';
+        const isF = (isM ? (state().musicViewMode || 'backend') : (state().soundboardViewMode || 'backend')) === 'frontend';
+        const open = addFormOpen[type] === true;
+        const vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" data-af-type="${esc(type)}" style="margin-left: auto;">${isF ? 'Backend' : 'Frontend'}</button>`;
+        const gBtn = `<button type="button" class="audioflix-add-toggle${groupsOpen[type] ? ' is-active' : ''}" data-af-action="toggle-groups" data-af-type="${esc(type)}" style="margin-left: 8px;">Groups</button>`;
+        if (isM) {
+            return isF
+                ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen.music ? renderGroupsManager('music') : ''}`
+                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${open ? '− Hide add track' : '+ Add Track'}</button></div>${gBtn}${vBtn}</div>${open ? renderForm('music') : ''}${groupsOpen.music ? renderGroupsManager('music') : ''}`;
+        }
+        return isF
+            ? `<div class="audioflix-add-section-row">${gBtn}${vBtn}</div>${groupsOpen.sound ? renderGroupsManager('sound') : ''}`
+            : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound">${open ? '− Hide add sound' : '+ Add Sound'}</button></div><button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" style="margin-left: 8px;">Ports</button>${gBtn}${vBtn}</div>${open ? renderForm('sound') : ''}${portsOpen ? renderPortsManager() : ''}${groupsOpen.sound ? renderGroupsManager('sound') : ''}`;
+    };
 
     function renderPanel() {
         const snapshot = state(), musicCount = snapshot.music?.length || 0, soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length, routedCount = snapshot.counters?.routedGeminiEvents || 0;
@@ -245,12 +327,33 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (action === 'toggle-fullscreen') { fullscreenOn = !fullscreenOn; overlay?.classList.toggle('is-fullscreen', fullscreenOn); rerender(); return; }
         if (action === 'toggle-add') { const key = type === 'music' ? 'music' : 'sound'; addFormOpen[key] = !addFormOpen[key]; rerender(); return; }
         if (action === 'toggle-ports') { portsOpen = !portsOpen; rerender(); return; }
-        if (action === 'toggle-groups') { groupsOpen = !groupsOpen; rerender(); return; }
-        if (action === 'remove-group') { window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); rerender(); return; }
-        if (action === 'select-frontend-group') { window.EveAudioflixState?.update?.({ activeFrontendGroup: actionTarget.dataset.afGroup }, 'audioflix-active-group'); pushHotkeysToBridge(); rerender(); return; }
+        if (action === 'toggle-groups') { const key = type === 'music' ? 'music' : 'sound'; groupsOpen[key] = !groupsOpen[key]; rerender(); return; }
+        if (action === 'remove-group') { if (type === 'music') window.EveAudioflixState?.removeMusicGroup?.(actionTarget.dataset.afGroup); else window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); rerender(); return; }
+        if (action === 'select-frontend-group') { if (type === 'music') window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: actionTarget.dataset.afGroup }, 'audioflix-active-music-group'); else window.EveAudioflixState?.update?.({ activeFrontendGroup: actionTarget.dataset.afGroup }, 'audioflix-active-group'); pushHotkeysToBridge(); rerender(); return; }
         if (action === 'toggle-view-mode') {
-            const next = (state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
-            window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode'); pushHotkeysToBridge(); rerender(); return;
+            if (type === 'music') {
+                const next = (state().musicViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
+                window.EveAudioflixState?.update?.({ musicViewMode: next }, 'audioflix-music-view-mode');
+            } else {
+                const next = (state().soundboardViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
+                window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode');
+                pushHotkeysToBridge();
+            }
+            rerender(); return;
+        }
+        if (action === 'play-music-group') {
+            const { name, items } = frontendActiveGroup('music');
+            if (items && items.length) {
+                activeMusicQueue = {
+                    groupName: name,
+                    items: items.map(it => it.id),
+                    currentIndex: 0,
+                    isPlaying: true
+                };
+                try { await window.EveAudioflixAudio?.playItem?.(items[0]); } catch (err) { playbackStatus = err.message || 'Playback failed'; }
+                rerender();
+            }
+            return;
         }
         if (action === 'portify-fsport') {
             const nickname = actionTarget.dataset.afNickname || 'Sound folder';
@@ -402,13 +505,21 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     function handleForm(form) {
-        const data = new FormData(form), fName = form.dataset.afForm, id = form.dataset.afId;
+        const data = new FormData(form), fName = form.dataset.afForm, id = form.dataset.afId, type = form.dataset.afType;
         if (fName === 'add-port') { window.EveAudioflixState?.addPort?.({ nickname: data.get('nickname'), path: data.get('path') }); loadPortedSounds(); }
-        else if (fName === 'add-group') { window.EveAudioflixState?.addSoundboardGroup?.(data.get('name')); rerender(); }
-        else if (fName === 'assign-new-group') { window.EveAudioflixState?.toggleSoundGroup?.(id, data.get('name'), true); pushHotkeysToBridge(); rerender(); }
+        else if (fName === 'add-group') {
+            if (type === 'music') window.EveAudioflixState?.addMusicGroup?.(data.get('name'));
+            else window.EveAudioflixState?.addSoundboardGroup?.(data.get('name'));
+            rerender();
+        }
+        else if (fName === 'assign-new-group') {
+            if (type === 'music') window.EveAudioflixState?.toggleMusicGroup?.(id, data.get('name'), true);
+            else window.EveAudioflixState?.toggleSoundGroup?.(id, data.get('name'), true);
+            pushHotkeysToBridge(); rerender();
+        }
         else {
-            const type = fName === 'music' ? 'music' : 'sound';
-            window.EveAudioflixState?.addItem?.(type, { type, title: data.get('title'), url: data.get('url'), artist: data.get('artist'), folder: data.get('folder'), category: data.get('category'), volume: data.get('volume') });
+            const itemType = fName === 'music' ? 'music' : 'sound';
+            window.EveAudioflixState?.addItem?.(itemType, { type: itemType, title: data.get('title'), url: data.get('url'), artist: data.get('artist'), folder: data.get('folder'), category: data.get('category'), volume: data.get('volume') });
             pushHotkeysToBridge(); rerender();
         }
         form.reset();
