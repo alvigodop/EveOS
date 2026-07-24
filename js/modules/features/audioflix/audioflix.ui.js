@@ -35,6 +35,7 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     let importFormOpen = false;
     let localizeFormOpen = { open: false, scope: 'library', key: '' };
+    let missingListOpen = { open: false, scope: '', key: '' };
     let musicPortFormOpen = false;
 
     const renderInfoModal = (item, type) => {
@@ -321,8 +322,14 @@ window.EveAudioflix = window.EveAudioflix || {};
         const note = canRun
             ? `${scopeLabel} — ${stats.notLocal} new${stats.alreadyLocal ? `, ${stats.alreadyLocal} already local` : ''}`
             : `${scopeLabel} — nothing to localize (no online tracks).`;
+        const isMissingOpen = missingListOpen.open && missingListOpen.scope === scope && missingListOpen.key === key;
+        const missingTracks = (L?.collectScope?.(scope, key) || []).filter(it => it.missingLocal === true);
+        const missingListBlock = (isMissingOpen && missingTracks.length > 0) ? `<div class="audioflix-missing-tracks-box" style="margin-top:6px; padding:8px 10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:8px; font-size:0.78rem; max-height:140px; overflow-y:auto;">
+            <div style="font-weight:700; margin-bottom:4px; color:#f87171;">Missing Files (${missingTracks.length}):</div>
+            ${missingTracks.map(it => `<div style="padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; justify-content:space-between; gap:10px;"><strong style="color:#f8fafc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(it.title)}</strong><span style="color:#cbd5e1; font-family:monospace; font-size:0.72rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;" title="${esc(it.localPath || '')}">${esc(it.localPath || '')}</span></div>`).join('')}
+        </div>` : '';
         const missingWarning = stats.missingLocal > 0
-            ? `<div style="margin-top:4px; color:#f87171; font-size:0.8rem; font-weight:600;">⚠️ ${stats.missingLocal} track file${stats.missingLocal === 1 ? '' : 's'} missing on disk (deleted). Ready to re-download.</div>`
+            ? `<div style="margin-top:4px; color:#f87171; font-size:0.8rem; font-weight:600; display:flex; align-items:center; gap:8px;"><span>⚠️ ${stats.missingLocal} track file${stats.missingLocal === 1 ? '' : 's'} missing on disk (deleted). Ready to re-download.</span><button type="button" class="audioflix-add-toggle${isMissingOpen ? ' is-active' : ''}" data-af-action="toggle-missing-list" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="background:rgba(248,113,113,0.18); color:#f87171; border:1px solid rgba(248,113,113,0.4); font-size:0.75rem; padding:2px 8px; border-radius:12px; white-space:nowrap; cursor:pointer;" title="View list of missing track names">📋 ${isMissingOpen ? 'Hide Missing' : 'View Missing'}</button></div>${missingListBlock}`
             : '';
         const submitBtnStyle = `font-size:0.8rem; padding:5px 12px; height:32px; white-space:nowrap; border-radius:16px; min-width:max-content; align-self:center;`;
         const auditBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="audit-scope-disk" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.35); font-size:0.8rem; padding:5px 12px; height:32px; white-space:nowrap; border-radius:16px;" title="Scan local folder on PC to check if files were deleted outside of EveOS">🔍 Verify Files</button>`;
@@ -455,6 +462,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         get portsOpen() { return portsOpen; }, set portsOpen(v) { portsOpen = v; },
         get importFormOpen() { return importFormOpen; }, set importFormOpen(v) { importFormOpen = v; },
         get localizeFormOpen() { return localizeFormOpen; }, set localizeFormOpen(v) { localizeFormOpen = v; },
+        get missingListOpen() { return missingListOpen; }, set missingListOpen(v) { missingListOpen = v; },
         get musicPortFormOpen() { return musicPortFormOpen; }, set musicPortFormOpen(v) { musicPortFormOpen = v; },
         get activeMusicQueue() { return activeMusicQueue; }, set activeMusicQueue(v) { activeMusicQueue = v; },
         get nativeHotkeysLive() { return nativeHotkeysLive; }, set nativeHotkeysLive(v) { nativeHotkeysLive = v; }

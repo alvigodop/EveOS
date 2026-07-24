@@ -18,11 +18,14 @@
 }
 
 .audioflix-info-card {
-    width: min(480px, 100%);
+    width: min(520px, 100%);
+    max-height: min(88vh, calc(100vh - 40px));
+    display: flex;
+    flex-direction: column;
     background: #121816;
     border: 1px solid rgba(255, 202, 95, 0.35);
     border-radius: 16px;
-    padding: 24px;
+    padding: 20px 24px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
 }
 
@@ -42,10 +45,11 @@
 }
 
 .audioflix-info-header {
+    flex: 0 0 auto;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .audioflix-info-title {
@@ -67,10 +71,33 @@
 }
 
 .audioflix-info-body {
-    display: grid;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
     gap: 12px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     font-size: 0.9rem;
+    overflow-y: auto;
+    max-height: min(65vh, 600px);
+    padding-right: 6px;
+}
+
+.audioflix-info-body::-webkit-scrollbar {
+    width: 6px;
+}
+
+.audioflix-info-body::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.audioflix-info-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 202, 95, 0.35);
+    border-radius: 4px;
+}
+
+.audioflix-info-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 202, 95, 0.6);
 }
 
 .audioflix-info-url-container {
@@ -112,9 +139,12 @@
 }
 
 .audioflix-info-footer {
+    flex: 0 0 auto;
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .audioflix-info-close-action {

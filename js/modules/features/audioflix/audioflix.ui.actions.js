@@ -291,6 +291,18 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
+            if (action === 'toggle-missing-list') {
+                const scope = actionTarget.dataset.afScope || 'library';
+                const key = actionTarget.dataset.afKey || '';
+                const curr = ctx.missingListOpen || {};
+                if (curr.open && curr.scope === scope && curr.key === key) {
+                    ctx.missingListOpen = { open: false, scope: '', key: '' };
+                } else {
+                    ctx.missingListOpen = { open: true, scope, key };
+                }
+                ctx.rerender();
+                return;
+            }
             if (action === 'audit-scope-disk') {
                 const scope = actionTarget.dataset.afScope || 'library';
                 const key = actionTarget.dataset.afKey || '';
