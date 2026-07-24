@@ -51,6 +51,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         musicGroups: [],
         musicGroupMap: {},
         activeFrontendMusicGroup: '',
+        activeMusicFolderScope: '',
         hotkeyBypassCombo: '',
         counters: {
             plays: 0,
@@ -198,6 +199,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                     .filter(([, v]) => v.length))
                 : {},
             activeFrontendMusicGroup: text(source.activeFrontendMusicGroup, ''),
+            activeMusicFolderScope: text(source.activeMusicFolderScope, ''),
             hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
@@ -457,6 +459,51 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
+    function updateItem(type, itemId, patch) {
+        const state = ensure();
+        const key = type === 'music' ? 'music' : 'soundboard';
+        if (state[key]) {
+            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, patch || {}) : entry);
+        }
+        scheduleSave(`audioflix-update-${type}`);
+        return ensure();
+    }
+
+    function renameMusicFolder(oldFolder, newFolder) {
+        const state = ensure();
+        const oldClean = text(oldFolder, '').trim();
+        const newClean = text(newFolder, '').trim();
+        if (!oldClean || !newClean || oldClean === newClean) return ensure();
+        if (state.music) {
+            state.music = state.music.map(entry => {
+                const currentFolder = text(entry.folder || entry.card, '');
+                if (currentFolder === oldClean) {
+                    return Object.assign({}, entry, { folder: newClean, card: newClean });
+                }
+                return entry;
+            });
+        }
+        scheduleSave('audioflix-rename-folder');
+        return ensure();
+    }
+
+    function deleteMusicFolder(folderName) {
+        const state = ensure();
+        const clean = text(folderName, '').trim();
+        if (!clean) return ensure();
+        if (state.music) {
+            state.music = state.music.map(entry => {
+                const currentFolder = text(entry.folder || entry.card, '');
+                if (currentFolder === clean) {
+                    return Object.assign({}, entry, { folder: '', card: '' });
+                }
+                return entry;
+            });
+        }
+        scheduleSave('audioflix-delete-folder');
+        return ensure();
+    }
+
     window.addEventListener('pagehide', () => {
         if (saveTimer) persistNow('audioflix-pagehide');
     });
@@ -484,6 +531,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         addMusicGroup,
         removeMusicGroup,
         toggleMusicGroup,
+        updateItem,
+        renameMusicFolder,
+        deleteMusicFolder,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });

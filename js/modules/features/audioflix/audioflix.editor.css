@@ -444,3 +444,103 @@
     to { box-shadow: 0 0 12px rgba(0, 212, 255, 0.5); }
 }
 
+/* --- Track / Folder Scope Selector & Modal Editing --- */
+.audioflix-folder-scope-selector {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+}
+
+.audioflix-scope-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #00d4ff;
+    margin-right: 4px;
+}
+
+.audioflix-scope-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(0, 212, 255, 0.25);
+    background: rgba(0, 212, 255, 0.05);
+    color: #94a3b8;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.audioflix-scope-pill:hover {
+    border-color: rgba(0, 212, 255, 0.5);
+    color: #ffffff;
+    background: rgba(0, 212, 255, 0.15);
+}
+
+.audioflix-scope-pill.is-active {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.3), rgba(0, 150, 255, 0.25));
+    border-color: #00d4ff;
+    color: #00d4ff;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(0, 212, 255, 0.25);
+}
+
+.audioflix-track-edit-form {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
+.audioflix-track-edit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.audioflix-track-edit-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.audioflix-track-edit-grid input {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: #f8fafc;
+    font-size: 0.82rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.audioflix-save-track-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid #ffca5f;
+    background: rgba(255, 202, 95, 0.15);
+    color: #ffca5f;
+    font-weight: 700;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.audioflix-save-track-btn:hover {
+    background: #ffca5f;
+    color: #1a1205;
+}
+
