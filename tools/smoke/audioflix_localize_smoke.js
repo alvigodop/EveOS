@@ -43,9 +43,11 @@ function loadAll(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.classifiers.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.audit.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.js');
-    return { S: ctx.window.EveAudioflixState, L: ctx.window.EveAudioflixLocalize };
+    return { S: ctx.window.EveAudioflixState, L: ctx.window.EveAudioflixLocalize, C: ctx.window.EveAudioflixClassifiers };
 }
 
 const SEED = {
@@ -255,6 +257,40 @@ function stub() {
         assert(t.localizations.find((l) => l.source === 'group:Vibes').path === 'E:\\NewVibes\\Both Song.mp3', 'group entry not dragged along by the folder recalibrate');
         assert(L.effectiveLocalPath(t) === 'E:\\NewChill\\Both Song.mp3', 'effective path follows the folder (1st class)');
         console.log('scoped recalibrate OK (physical vs shortcut paths kept apart)');
+    }
+
+    // --- 11. importMusicPort: subfolder tracks get targetFolder and subfolder manual classifiers ---
+    {
+        const rootDir = 'C:/Users/alvin/Downloads/Temp-Music-Index-Holder/Old Song Relocation';
+        const nat = {
+            scanLocalized: async (dir) => ({
+                ok: true,
+                dir,
+                files: [
+                    { name: 'Anime Song', fileName: 'Anime Song.mp3', path: `${dir}/Anime/Anime Song.mp3`, ext: 'mp3' },
+                    { name: 'Piano Track', fileName: 'Piano Track.mp3', path: `${dir}/Instrumental/Piano/Piano Track.mp3`, ext: 'mp3' },
+                    { name: 'Root Track', fileName: 'Root Track.mp3', path: `${dir}/Root Track.mp3`, ext: 'mp3' }
+                ]
+            })
+        };
+        const { S, L, C } = loadAll(makeCtx({}, nat));
+        const res = await L.importMusicPort(rootDir, 'Old-Song-Relocation');
+        assert(res.ok && res.added === 3, `imported 3 tracks (got ${res.added})`);
+        
+        const music = S.ensure().music;
+        assert(music.every((m) => m.folder === 'Old-Song-Relocation'), 'all imported tracks carry target folder tag "Old-Song-Relocation"');
+        assert(music.every((m) => m.isPorted === true), 'all imported tracks carry isPorted=true flag');
+
+        const animeSong = music.find((m) => m.title === 'Anime Song');
+        const pianoTrack = music.find((m) => m.title === 'Piano Track');
+        const rootTrack = music.find((m) => m.title === 'Root Track');
+
+        assert(animeSong.classifiers.includes('Anime'), 'subfolder "Anime" attached as manual classifier');
+        assert(pianoTrack.classifiers.includes('Instrumental') && pianoTrack.classifiers.includes('Piano'), 'nested subfolders "Instrumental" and "Piano" attached as manual classifiers');
+        assert(rootTrack.classifiers.length === 0, 'root track gets no subfolder classifiers');
+
+        assert(C.manualNames().includes('Anime') && C.manualNames().includes('Instrumental') && C.manualNames().includes('Piano'), 'subfolder names registered in state.musicClassifiers');
+        console.log('importMusicPort subfolder classifier extraction OK');
     }
 
     console.log('AUDIOFLIX_LOCALIZE_SMOKE_OK');

@@ -331,6 +331,35 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return { ok: true, matched, scanned: (scan.files || []).length, dir: scan.dir };
     }
 
+    function extractSubfolders(filePath, rootPath) {
+        if (!filePath) return [];
+        const normFile = String(filePath).replace(/\\/g, '/');
+        const normRoot = String(rootPath || '').replace(/\\/g, '/').replace(/\/+$/, '');
+
+        const fileLower = normFile.toLowerCase();
+        const rootLower = normRoot.toLowerCase();
+
+        let relPath = '';
+        if (rootLower && fileLower.startsWith(rootLower + '/')) {
+            relPath = normFile.slice(normRoot.length + 1);
+        } else {
+            const parts = normFile.split('/').filter(Boolean);
+            if (parts.length > 1) {
+                const dirParts = parts.slice(0, -1);
+                const rootName = normRoot.split('/').filter(Boolean).pop()?.toLowerCase();
+                const rootIdx = rootName ? dirParts.findIndex(p => p.toLowerCase() === rootName) : -1;
+                if (rootIdx !== -1 && rootIdx < dirParts.length - 1) {
+                    return dirParts.slice(rootIdx + 1).map(text).filter(Boolean);
+                }
+                return [dirParts[dirParts.length - 1]].map(text).filter(Boolean);
+            }
+            return [];
+        }
+
+        const parts = relPath.split('/').filter(Boolean);
+        return parts.slice(0, -1).map(text).filter(Boolean);
+    }
+
     // Music port: scan a folder and extract all audio files into EveOS as music tracks tagged with a FOLDER (not group).
     // Physical subfolders inside the main folder path automatically become manual classifiers attached to the imported songs.
     async function importMusicPort(folderPath, folderName) {
@@ -342,8 +371,8 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         const scan = await N.scanLocalized(cleanPath);
         if (!scan?.ok) return { ok: false, reason: scan?.message || 'Could not scan that folder.' };
         
-        const normRoot = cleanPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-        const pathParts = cleanPath.replace(/\\/g, '/').split('/').filter(Boolean);
+        const rootDir = scan.dir || cleanPath;
+        const pathParts = rootDir.replace(/\\/g, '/').split('/').filter(Boolean);
         const defaultFolderName = pathParts[pathParts.length - 1] || 'Ported Music';
         const targetFolder = text(folderName, defaultFolderName);
         
@@ -351,51 +380,77 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         if (!files.length) return { ok: false, reason: 'No supported audio files found in that folder.' };
         
         rememberDir(cleanPath);
-        let addedCount = 0;
         const C = window.EveAudioflixClassifiers;
+        const allItems = musicItems();
+        let addedCount = 0;
+        let updatedCount = 0;
+
+        // 1. Extract subfolder names for each file and collect unique classifiers
+        const fileClassifiersMap = new Map();
+        const allNewClassifiers = new Set();
 
         files.forEach((f) => {
+            const subFolders = extractSubfolders(f.path, rootDir);
+            fileClassifiersMap.set(f.path, subFolders);
+            subFolders.forEach((cls) => allNewClassifiers.add(cls));
+        });
+
+        // 2. Register all new subfolder classifiers in state
+        allNewClassifiers.forEach((clsName) => {
+            C?.addManual?.(clsName);
+        });
+
+        // 3. Add new tracks or update existing matching tracks
+        files.forEach((f) => {
             const rawTitle = f.name.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || f.name;
-            const normFile = f.path.replace(/\\/g, '/');
+            const subClassifiers = fileClassifiersMap.get(f.path) || [];
+            const normFilePath = String(f.path).trim();
 
-            // Extract physical subfolder names relative to the main ported root folder
-            const subClassifiers = [];
-            if (normFile.toLowerCase().startsWith(normRoot + '/')) {
-                const relPath = normFile.slice(normRoot.length + 1);
-                const parts = relPath.split('/').filter(Boolean);
-                // Intermediate folder names (excluding the file itself)
-                const folderParts = parts.slice(0, -1);
-                folderParts.forEach((dirName) => {
-                    const cleanLabel = text(dirName);
-                    if (cleanLabel) {
-                        C?.addManual?.(cleanLabel);
-                        if (!subClassifiers.includes(cleanLabel)) subClassifiers.push(cleanLabel);
-                    }
-                });
-            }
+            const existing = allItems.find((it) => 
+                (it.localPath && String(it.localPath).trim().toLowerCase() === normFilePath.toLowerCase()) ||
+                (it.url && String(it.url).trim().toLowerCase() === normFilePath.toLowerCase())
+            );
 
-            const added = S()?.addItem?.('music', {
-                title: rawTitle,
-                url: f.path,
-                folder: targetFolder,
-                card: targetFolder,
-                isPorted: true,
-                isMusicPort: true,
-                classifiers: subClassifiers
-            });
-
-            if (added?.id) {
-                S()?.updateItem?.('music', added.id, {
+            if (existing) {
+                const mergedClassifiers = [...new Set([...(existing.classifiers || []).map(text), ...subClassifiers])].filter(Boolean);
+                S()?.updateItem?.('music', existing.id, {
+                    folder: targetFolder,
+                    card: targetFolder,
+                    isPorted: true,
+                    isMusicPort: true,
                     localPath: f.path,
+                    classifiers: mergedClassifiers
+                });
+                updatedCount += 1;
+            } else {
+                const added = S()?.addItem?.('music', {
+                    title: rawTitle,
+                    url: f.path,
+                    localPath: f.path,
+                    folder: targetFolder,
+                    card: targetFolder,
                     isPorted: true,
                     isMusicPort: true,
                     classifiers: subClassifiers
                 });
-                addedCount += 1;
+                if (added?.id) {
+                    addedCount += 1;
+                }
             }
         });
         
-        return { ok: true, added: addedCount, total: files.length, folder: targetFolder, path: cleanPath };
+        const totalProcessed = addedCount + updatedCount;
+        const clsCount = allNewClassifiers.size;
+        const clsNote = clsCount ? ` with ${clsCount} subfolder classifier${clsCount === 1 ? '' : 's'} (${[...allNewClassifiers].join(', ')})` : '';
+
+        return { 
+            ok: true, 
+            added: totalProcessed, 
+            total: files.length, 
+            folder: targetFolder, 
+            path: rootDir,
+            reason: `Extracted ${totalProcessed} track(s) into folder tag "${targetFolder}"${clsNote}.`
+        };
     }
 
     // Point one localization entry at a different file (user edit from the track settings panel).
