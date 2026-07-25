@@ -274,9 +274,19 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     const renderForm = (type, m = type === 'music') => `<form class="audioflix-form" data-af-form="${m ? 'music' : 'sound'}"><label><span>${m ? 'Track Title' : 'Sound Name'}</span><input name="title" required></label><label class="audioflix-wide-field"><span>URL / Path</span><input name="url" required></label><label><span>${m ? 'Artist' : 'Category'}</span><input name="${m ? 'artist' : 'category'}"></label><label><span>${m ? 'Folder' : 'Volume'}</span><input name="${m ? 'folder' : 'volume'}"></label><button type="submit" data-af-action="submit-form">${m ? 'Add Track' : 'Add Sound'}</button></form>`;
     const renderImportPlaylistForm = () => {
-        const plCount = (state().musicPlaylists || []).length;
-        const syncAllBtn = plCount ? `<button type="button" class="audioflix-add-toggle" data-af-action="sync-all-playlists" style="margin-left: 8px;" title="Re-read all upstream playlists">Sync All Playlists</button>` : '';
-        return `<form class="audioflix-form" data-af-form="import-playlist"><label class="audioflix-wide-field"><span>Playlist URL</span><input name="url" required placeholder="https://youtube.com/playlist?list=..."></label><label><span>Target Folder</span><input name="folder" placeholder="Youtube Playlists"></label><button type="submit" data-af-action="submit-form">Import Playlist</button>${syncAllBtn}</form>`;
+        const mode = ctx.playlistImportMode || 'youtube';
+        const isYt = mode === 'youtube';
+        const isWpl = mode === 'wpl';
+
+        const modeSelector = `<div style="display:flex; align-items:center; gap:8px; width:100%; margin-bottom:8px;"><span style="font-size:0.8rem; color:#cbd5e1; font-weight:600;">Import Mode:</span><button type="button" class="audioflix-scope-pill${isYt ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="youtube">📺 YouTube Playlist</button><button type="button" class="audioflix-scope-pill${isWpl ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="wpl">🎵 WPL Playlist</button></div>`;
+
+        if (isWpl) {
+            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path</span><input name="url" required placeholder="C:\\path\\to\\playlist.wpl"></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
+        }
+
+        const plCount = (state().musicPlaylists || []).filter(c => c.provider !== 'wpl').length;
+        const syncAllBtn = plCount ? `<button type="button" class="audioflix-add-toggle" data-af-action="sync-all-playlists" style="margin-left: 8px;" title="Re-read all upstream YouTube playlists">Sync All Playlists</button>` : '';
+        return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="youtube">${modeSelector}<label class="audioflix-wide-field"><span>Playlist URL</span><input name="url" required placeholder="https://youtube.com/playlist?list=..."></label><label><span>Target Folder</span><input name="folder" placeholder="Youtube Playlists"></label><button type="submit" data-af-action="submit-form">Import Playlist</button>${syncAllBtn}</form>`;
     };
     const renderSyncPlaylistForm = (g) => {
         const conn = window.EveAudioflixPlaylists?.getPlaylistForGroup?.(g);

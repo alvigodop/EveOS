@@ -47,11 +47,14 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
             });
             const list = Object.entries(folderCounts).map(([f, count]) => {
                 if (f === 'Ungrouped') return '';
-                const dir = window.EveAudioflixLocalize?.getScopeDir?.('folder', f) || '';
+                const conns = state().musicPortConnections || [];
+                const conn = conns.find(c => c.folder === f);
+                const dir = conn?.path || window.EveAudioflixLocalize?.getScopeDir?.('folder', f) || '';
                 const dirLine = dir ? `<div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">📁 ${esc(dir)}</div>` : '';
                 const isLoc = localizeFormOpen().open && localizeFormOpen().scope === 'folder' && localizeFormOpen().key === f;
                 const locForm = isLoc ? renderLocalizeForm() : '';
-                return `<div class="audioflix-port-item"><div><strong>${esc(f)}</strong>${dirLine}<code style="display: block; font-size: 0.8rem; color: #8ab4f8; margin-top:2px;">${count} track${count === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;"><button type="button" class="audioflix-icon-btn${isLoc ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="folder" data-af-key="${esc(f)}" title="Localize this folder's online tracks to local files">⬇️</button><button type="button" class="audioflix-icon-btn" data-af-folder="${esc(f)}" data-af-action="rename-folder-prompt" title="Edit folder name or local path">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-folder="${esc(f)}" data-af-action="delete-folder" title="Delete folder tag">${closeSvg}</button></div></div>${locForm}`;
+                const syncBtn = dir ? `<button type="button" class="audioflix-icon-btn" data-af-folder="${esc(f)}" data-af-action="sync-music-port-folder" title="Re-scan folder on disk for new or missing tracks">🔄</button>` : '';
+                return `<div class="audioflix-port-item"><div><strong>${esc(f)}</strong>${dirLine}<code style="display: block; font-size: 0.8rem; color: #8ab4f8; margin-top:2px;">${count} track${count === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;">${syncBtn}<button type="button" class="audioflix-icon-btn${isLoc ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="folder" data-af-key="${esc(f)}" title="Localize this folder's online tracks to local files">⬇️</button><button type="button" class="audioflix-icon-btn" data-af-folder="${esc(f)}" data-af-action="rename-folder-prompt" title="Edit folder name or local path">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-folder="${esc(f)}" data-af-action="delete-folder" title="Delete folder tag">${closeSvg}</button></div></div>${locForm}`;
             }).filter(Boolean).join('') || '<div class="audioflix-empty">No custom folders yet.</div>';
             return `<div class="audioflix-ports-mgr"><h4>Music Folders Manager</h4>${list}</div>`;
         };

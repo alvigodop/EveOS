@@ -195,6 +195,25 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
+            if (action === 'select-playlist-mode') {
+                const mode = actionTarget.dataset.afMode || 'youtube';
+                ctx.playlistImportMode = mode;
+                ctx.rerender();
+                return;
+            }
+            if (action === 'sync-music-port-folder') {
+                const folder = actionTarget.dataset.afFolder;
+                if (folder && window.EveAudioflixLocalize?.syncMusicPortFolder) {
+                    ctx.playbackStatus = `Syncing folder "${folder}"...`; ctx.rerender();
+                    window.EveAudioflixLocalize.syncMusicPortFolder(folder).then(res => {
+                        ctx.playbackStatus = res.ok
+                            ? (res.reason || `Synced folder "${res.folder}".`)
+                            : (res.reason || 'Folder sync failed.');
+                        ctx.rerender();
+                    });
+                }
+                return;
+            }
             if (action === 'toggle-import-form') {
                 ctx.importFormOpen = !ctx.importFormOpen;
                 ctx.rerender();

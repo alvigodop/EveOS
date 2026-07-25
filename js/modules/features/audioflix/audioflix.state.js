@@ -176,6 +176,15 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                     trackCount: Number(entry?.trackCount || 0) || 0
                 }))
                 .filter((entry) => !!entry.id && !!entry.url),
+            musicPortConnections: (Array.isArray(source.musicPortConnections) ? source.musicPortConnections : [])
+                .map((entry) => ({
+                    id: text(entry?.id, ''),
+                    path: text(entry?.path, ''),
+                    folder: text(entry?.folder, ''),
+                    lastSyncedAt: Number(entry?.lastSyncedAt || 0) || 0,
+                    trackCount: Number(entry?.trackCount || 0) || 0
+                }))
+                .filter((entry) => !!entry.id && !!entry.path),
             musicGroups: Array.isArray(source.musicGroups)
                 ? [...new Set(source.musicGroups.map((g) => text(g, '')).filter(Boolean))]
                 : [],
@@ -237,11 +246,16 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         saveTimer = window.setTimeout(() => persistNow(reason), SAVE_DELAY_MS);
     }
 
+    function syncRootOrFallback(state) {
+        const root = getConfigRoot();
+        if (root) root.audioflix = normalize(state);
+        else fallbackWrite(state);
+    }
+
     function update(patch, reason) {
         const state = ensure();
         Object.assign(state, patch || {});
-        const root = getConfigRoot();
-        if (root) root.audioflix = normalize(state);
+        syncRootOrFallback(state);
         scheduleSave(reason);
         return ensure();
     }
@@ -273,9 +287,6 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             soundboardGroups: [],
             soundGroupMap: {},
             activeFrontendGroup: '',
-            // Music groups/scopes are datapack content too — omitting them let a previously
-            // loaded pack's groups leak into a pack that has none (the same leak the soundboard
-            // fields above are cleared to prevent).
             musicGroups: [],
             musicGroupMap: {},
             musicPlaylists: [],
@@ -290,6 +301,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         const key = type === 'music' ? 'music' : 'soundboard';
         const max = type === 'music' ? MAX_MUSIC : MAX_SOUNDBOARD;
         state[key] = boundedItems([...(state[key] || []), item], type === 'music' ? 'music' : 'sound', max);
+        syncRootOrFallback(state);
         scheduleSave(`audioflix-add-${type}`);
         return state[key][state[key].length - 1];
     }
@@ -298,6 +310,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         const state = ensure();
         const key = type === 'music' ? 'music' : 'soundboard';
         state[key] = (state[key] || []).filter((item) => item.id !== itemId);
+        syncRootOrFallback(state);
         scheduleSave(`audioflix-remove-${type}`);
         return ensure();
     }
@@ -386,7 +399,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     // Group + folder organization editors live in a sibling module (audioflix.state.groups.js)
     // so this store stays under the line cap; they run against the same live-state primitives.
-    const groupOps = window.EveAudioflixStateGroups.create({ ensure, text, scheduleSave });
+    const groupOps = window.EveAudioflixStateGroups.create({ ensure, text, scheduleSave, syncRootOrFallback });
 
     window.addEventListener('pagehide', () => {
         if (saveTimer) persistNow('audioflix-pagehide');

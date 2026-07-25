@@ -123,6 +123,8 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         return payload;
     }
 
+    const DEFAULT_WPL_FOLDER = 'WPL Playlists';
+
     // Import a playlist URL as a group of tracks. options: { folder, group }
     async function importPlaylist(url, options = {}) {
         const clean = text(url);
@@ -148,6 +150,82 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         saveConnections(connections().concat(connection), 'audioflix-playlist-import');
         applyDiff(connection, diffPlaylist([], upstream.entries || []), options.folder);
         return { ok: true, connection, added: (upstream.entries || []).length, missing: 0 };
+    }
+
+    // Import a WPL (Windows Media Player) playlist XML file or path. options: { folder, group }
+    async function importWplPlaylist(wplInput, options = {}) {
+        const parser = window.EveAudioflixWpl;
+        const N = window.EveAudioflixNative;
+        let parsed = null;
+
+        if (typeof wplInput === 'object' && wplInput.tracks) {
+            parsed = wplInput;
+        } else if (typeof wplInput === 'string') {
+            const clean = text(wplInput);
+            if (!clean) return { ok: false, reason: 'Please specify a WPL playlist file path or content.' };
+
+            if (clean.includes('<smil>') || clean.includes('<seq>') || clean.includes('<?wpl')) {
+                parsed = parser?.parseWplXml?.(clean, options.wplPath || '');
+            } else if (N?.readWplFile) {
+                const readRes = await N.readWplFile(clean);
+                if (!readRes?.ok) return { ok: false, reason: readRes?.message || 'Could not read WPL file.' };
+                parsed = parser?.parseWplXml?.(readRes.content, readRes.path || clean);
+            } else if (parser) {
+                parsed = parser.parseWplXml(clean, clean);
+            }
+        }
+
+        if (!parsed || !parsed.ok) {
+            return { ok: false, reason: parsed?.reason || 'Could not parse that WPL file.' };
+        }
+
+        const targetFolder = text(options.folder, DEFAULT_WPL_FOLDER);
+        const groupTitle = text(options.group, text(parsed.title, 'WPL Playlist'));
+
+        const connection = {
+            id: newId(),
+            url: parsed.wplPath || 'wpl://local',
+            playlistId: `wpl_${Date.now()}`,
+            title: groupTitle,
+            provider: 'wpl',
+            group: groupTitle,
+            folder: targetFolder,
+            lastSyncedAt: Date.now(),
+            trackCount: (parsed.tracks || []).length
+        };
+
+        if (connection.group) window.EveAudioflixState?.addMusicGroup?.(connection.group);
+
+        let addedCount = 0;
+        (parsed.tracks || []).forEach((t) => {
+            const rawTitle = text(t.title, 'Untitled Track');
+            const trackPath = text(t.path);
+
+            const added = window.EveAudioflixState?.addItem?.('music', {
+                title: rawTitle,
+                url: trackPath,
+                localPath: trackPath,
+                folder: targetFolder,
+                card: targetFolder,
+                isPorted: true
+            });
+
+            if (added?.id) {
+                window.EveAudioflixState?.updateItem?.('music', added.id, {
+                    sourceId: trackPath,
+                    playlistId: connection.id,
+                    localPath: trackPath,
+                    isPorted: true
+                });
+                if (connection.group) {
+                    window.EveAudioflixState?.toggleMusicGroup?.(added.id, connection.group, true);
+                }
+                addedCount += 1;
+            }
+        });
+
+        saveConnections(connections().concat(connection), 'audioflix-wpl-import');
+        return { ok: true, connection, added: addedCount, folder: targetFolder, group: groupTitle };
     }
 
     // Re-read the upstream playlist and reconcile against what EveOS holds.
@@ -253,6 +331,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     Object.assign(ns, {
         ready: true,
         DEFAULT_FOLDER,
+        DEFAULT_WPL_FOLDER,
         diffPlaylist,
         connections,
         getConnection,
@@ -261,6 +340,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         isLocalTrackInImportedGroup,
         tracksFor,
         importPlaylist,
+        importWplPlaylist,
         syncPlaylist,
         detachTrack,
         removeTrack,

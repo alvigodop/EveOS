@@ -26,15 +26,27 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                 else if (fName === 'import-playlist') {
                     const PL = window.EveAudioflixPlaylists;
                     const url = data.get('url'), folder = data.get('folder');
+                    const mode = form.dataset.afMode || ctx.playlistImportMode || 'youtube';
                     if (PL && url) {
-                        ctx.playbackStatus = 'Reading playlist...'; ctx.rerender();
-                        PL.importPlaylist(url, folder ? { folder } : {}).then(res => {
-                            ctx.playbackStatus = res.ok
-                                ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
-                                : (res.reason || 'Playlist import failed.');
-                            ctx.importFormOpen = false;
-                            ctx.rerender();
-                        });
+                        if (mode === 'wpl') {
+                            ctx.playbackStatus = 'Reading WPL playlist...'; ctx.rerender();
+                            PL.importWplPlaylist(url, folder ? { folder } : {}).then(res => {
+                                ctx.playbackStatus = res.ok
+                                    ? `Imported WPL Playlist "${res.group}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.folder}.`
+                                    : (res.reason || 'WPL import failed.');
+                                if (res.ok) ctx.importFormOpen = false;
+                                ctx.rerender();
+                            });
+                        } else {
+                            ctx.playbackStatus = 'Reading YouTube playlist...'; ctx.rerender();
+                            PL.importPlaylist(url, folder ? { folder } : {}).then(res => {
+                                ctx.playbackStatus = res.ok
+                                    ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
+                                    : (res.reason || 'Playlist import failed.');
+                                if (res.ok) ctx.importFormOpen = false;
+                                ctx.rerender();
+                            });
+                        }
                     }
                 }
                 else if (fName === 'sync-playlist-form') {

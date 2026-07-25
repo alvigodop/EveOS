@@ -16,6 +16,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
         const ensure = deps.ensure;
         const text = deps.text;
         const scheduleSave = deps.scheduleSave;
+        const syncRootOrFallback = deps.syncRootOrFallback || (() => {});
 
         // --- Custom soundboard groups (many-to-many: a sound can sit in several groups) ---
         function addSoundboardGroup(name) {
@@ -24,6 +25,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             if (!clean) return ensure();
             state.soundboardGroups = state.soundboardGroups || [];
             if (!state.soundboardGroups.includes(clean)) state.soundboardGroups.push(clean);
+            syncRootOrFallback(state);
             scheduleSave('audioflix-groups');
             return ensure();
         }
@@ -38,6 +40,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 const next = (state.soundGroupMap[id] || []).filter((g) => g !== clean);
                 if (next.length) state.soundGroupMap[id] = next; else delete state.soundGroupMap[id];
             }
+            syncRootOrFallback(state);
             scheduleSave('audioflix-groups');
             return ensure();
         }
@@ -49,11 +52,14 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             state.soundboardGroups = state.soundboardGroups || [];
             if (!state.soundboardGroups.includes(clean)) state.soundboardGroups.push(clean);
             state.soundGroupMap = state.soundGroupMap || {};
-            const current = new Set(state.soundGroupMap[soundId] || []);
-            const shouldHave = (on === undefined) ? !current.has(clean) : !!on;
-            if (shouldHave) current.add(clean); else current.delete(clean);
-            const next = [...current];
-            if (next.length) state.soundGroupMap[soundId] = next; else delete state.soundGroupMap[soundId];
+            const list = state.soundGroupMap[soundId] || [];
+            const has = list.includes(clean);
+            if (on && !has) state.soundGroupMap[soundId] = [...list, clean];
+            else if (!on && has) {
+                const next = list.filter((g) => g !== clean);
+                if (next.length) state.soundGroupMap[soundId] = next; else delete state.soundGroupMap[soundId];
+            }
+            syncRootOrFallback(state);
             scheduleSave('audioflix-groups');
             return ensure();
         }
@@ -65,6 +71,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             if (!clean) return ensure();
             state.musicGroups = state.musicGroups || [];
             if (!state.musicGroups.includes(clean)) state.musicGroups.push(clean);
+            syncRootOrFallback(state);
             scheduleSave('audioflix-music-groups');
             return ensure();
         }
@@ -78,6 +85,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 const next = (state.musicGroupMap[id] || []).filter((g) => g !== clean);
                 if (next.length) state.musicGroupMap[id] = next; else delete state.musicGroupMap[id];
             }
+            syncRootOrFallback(state);
             scheduleSave('audioflix-music-groups');
             return ensure();
         }
@@ -89,11 +97,14 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             state.musicGroups = state.musicGroups || [];
             if (!state.musicGroups.includes(clean)) state.musicGroups.push(clean);
             state.musicGroupMap = state.musicGroupMap || {};
-            const current = new Set(state.musicGroupMap[musicId] || []);
-            const shouldHave = (on === undefined) ? !current.has(clean) : !!on;
-            if (shouldHave) current.add(clean); else current.delete(clean);
-            const next = [...current];
-            if (next.length) state.musicGroupMap[musicId] = next; else delete state.musicGroupMap[musicId];
+            const list = state.musicGroupMap[musicId] || [];
+            const has = list.includes(clean);
+            if (on && !has) state.musicGroupMap[musicId] = [...list, clean];
+            else if (!on && has) {
+                const next = list.filter((g) => g !== clean);
+                if (next.length) state.musicGroupMap[musicId] = next; else delete state.musicGroupMap[musicId];
+            }
+            syncRootOrFallback(state);
             scheduleSave('audioflix-music-groups');
             return ensure();
         }
@@ -104,6 +115,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             if (state[key]) {
                 state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, patch || {}) : entry);
             }
+            syncRootOrFallback(state);
             scheduleSave(`audioflix-update-${type}`);
             return ensure();
         }

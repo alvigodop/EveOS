@@ -445,6 +445,17 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         const clsCount = allNewClassifiers.size;
         const clsNote = clsCount ? ` with ${clsCount} subfolder classifier${clsCount === 1 ? '' : 's'} (${[...allNewClassifiers].join(', ')})` : '';
 
+        // Save / update connection tracking in state.musicPortConnections
+        const currentConns = (state().musicPortConnections || []).slice();
+        const nextConns = currentConns.filter(c => c.folder !== targetFolder).concat({
+            id: `port_${Date.now()}`,
+            path: rootDir,
+            folder: targetFolder,
+            lastSyncedAt: Date.now(),
+            trackCount: totalProcessed
+        });
+        S()?.update?.({ musicPortConnections: nextConns }, 'audioflix-music-port-connections');
+
         return { 
             ok: true, 
             added: totalProcessed, 
@@ -452,6 +463,116 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
             folder: targetFolder, 
             path: rootDir,
             reason: `Extracted ${totalProcessed} track(s) into folder tag "${targetFolder}"${clsNote}.`
+        };
+    }
+
+    // Re-scan a Music Ported folder path on disk, adding new tracks & flagging missing ones
+    async function syncMusicPortFolder(folderName) {
+        const N = window.EveAudioflixNative;
+        if (!N?.scanLocalized) return { ok: false, reason: 'Folder sync needs the EveOS localhost server running.' };
+
+        const targetFolder = text(folderName);
+        if (!targetFolder) return { ok: false, reason: 'Specify a folder tag to sync.' };
+
+        const conns = state().musicPortConnections || [];
+        const conn = conns.find(c => c.folder === targetFolder);
+        
+        const folderTracks = musicItems().filter(it => text(it.folder || it.card) === targetFolder);
+        const diskPath = conn?.path || getScopeDir('folder', targetFolder) || folderTracks.find(it => it.localPath)?.localPath;
+
+        if (!diskPath) return { ok: false, reason: `No disk path registered for folder "${targetFolder}".` };
+
+        const scan = await N.scanLocalized(diskPath);
+        if (!scan?.ok) return { ok: false, reason: scan?.message || 'Could not scan folder path.' };
+
+        const rootDir = scan.dir || diskPath;
+        const files = scan.files || [];
+
+        const fileClassifiersMap = new Map();
+        const allNewClassifiers = new Set();
+
+        files.forEach((f) => {
+            const subFolders = extractSubfolders(f.path, rootDir);
+            fileClassifiersMap.set(f.path, subFolders);
+            subFolders.forEach((cls) => allNewClassifiers.add(cls));
+        });
+
+        const C = window.EveAudioflixClassifiers;
+        allNewClassifiers.forEach((clsName) => C?.addManual?.(clsName));
+
+        const scannedPathSet = new Set(files.map(f => String(f.path).trim().toLowerCase()));
+
+        let addedCount = 0;
+        let restoredCount = 0;
+        let missingCount = 0;
+
+        files.forEach((f) => {
+            const rawTitle = f.name.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || f.name;
+            const subClassifiers = fileClassifiersMap.get(f.path) || [];
+            const normFilePath = String(f.path).trim().toLowerCase();
+
+            const existing = folderTracks.find((it) => 
+                (it.localPath && String(it.localPath).trim().toLowerCase() === normFilePath) ||
+                (it.url && String(it.url).trim().toLowerCase() === normFilePath)
+            );
+
+            if (existing) {
+                const mergedClassifiers = [...new Set([...(existing.classifiers || []).map(text), ...subClassifiers])].filter(Boolean);
+                const patch = {
+                    folder: targetFolder,
+                    card: targetFolder,
+                    isPorted: true,
+                    localPath: f.path,
+                    classifiers: mergedClassifiers
+                };
+                if (existing.missingLocal) {
+                    patch.missingLocal = false;
+                    restoredCount += 1;
+                }
+                S()?.updateItem?.('music', existing.id, patch);
+            } else {
+                const added = S()?.addItem?.('music', {
+                    title: rawTitle,
+                    url: f.path,
+                    localPath: f.path,
+                    folder: targetFolder,
+                    card: targetFolder,
+                    isPorted: true,
+                    isMusicPort: true,
+                    classifiers: subClassifiers
+                });
+                if (added?.id) addedCount += 1;
+            }
+        });
+
+        folderTracks.forEach((it) => {
+            const localP = String(it.localPath || it.url || '').trim().toLowerCase();
+            if (localP && !scannedPathSet.has(localP)) {
+                if (!it.missingLocal) {
+                    S()?.updateItem?.('music', it.id, { missingLocal: true });
+                    missingCount += 1;
+                }
+            }
+        });
+
+        const nextConns = (state().musicPortConnections || []).filter(c => c.folder !== targetFolder).concat({
+            id: conn?.id || `port_${Date.now()}`,
+            path: rootDir,
+            folder: targetFolder,
+            lastSyncedAt: Date.now(),
+            trackCount: files.length
+        });
+        S()?.update?.({ musicPortConnections: nextConns }, 'audioflix-music-port-sync');
+
+        return {
+            ok: true,
+            folder: targetFolder,
+            path: rootDir,
+            added: addedCount,
+            restored: restoredCount,
+            missing: missingCount,
+            totalOnDisk: files.length,
+            reason: `Synced "${targetFolder}": +${addedCount} new, ${restoredCount} restored, ${missingCount} missing on disk.`
         };
     }
 
@@ -484,6 +605,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         groupLocalizationPaths,
         songLocalizationList,
         reimportMerge,
-        importMusicPort
+        importMusicPort,
+        syncMusicPortFolder
     });
 })();

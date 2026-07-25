@@ -397,7 +397,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     // Localization transport (probe / download / link / scan) lives in a sibling module.
-    const { probeLocalFile, localizeTrack, linkLocalFile, scanLocalized } =
+    const { probeLocalFile, localizeTrack, linkLocalFile, scanLocalized, readWplFile } =
         window.EveAudioflixNativeLocalize.create({ fetchJson, DEVICE_SCAN_TIMEOUT_MS });
 
     Object.assign(ns, {
@@ -419,6 +419,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         listPlaylist,
         localizeTrack,
         scanLocalized,
+        readWplFile,
         probeLocalFile,
         linkLocalFile,
         getLocalFileUrl,
