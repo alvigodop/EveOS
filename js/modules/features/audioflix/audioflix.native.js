@@ -339,9 +339,10 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload?.ok === true;
     }
 
-    async function resolveUrl(targetUrl) {
+    async function resolveUrl(targetUrl, force = false) {
         if (!targetUrl) return { ok: false, message: 'Missing target URL' };
-        return fetchJson(`/api/audioflix/resolve-url?url=${encodeURIComponent(targetUrl)}`, {
+        const refresh = force ? '&force=1' : '';
+        return fetchJson(`/api/audioflix/resolve-url?url=${encodeURIComponent(targetUrl)}${refresh}`, {
             method: 'GET',
             timeout: 15000
         });

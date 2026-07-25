@@ -148,6 +148,35 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 if (nativeMusic) window.EveAudioflixAudio?.getMusicCapture?.()?.stop?.();
                 emitPlayback('Ended');
             });
+            player.addEventListener('error', async () => {
+                if (!item._retriedDirect && item.rawAudioUrl) {
+                    try {
+                        item._retriedDirect = true;
+                        if (requestedInternalView) setStageStatus('Proxy blocked — attempting direct stream playback...');
+                        player.src = item.rawAudioUrl;
+                        player.load();
+                        await player.play();
+                        return;
+                    } catch {}
+                }
+                if (!item._retried && window.EveAudioflixNative?.resolveUrl && item.originalUrl) {
+                    try {
+                        item._retried = true;
+                        if (requestedInternalView) setStageStatus('Stream expired — re-resolving fresh YouTube audio link...');
+                        const resolved = await window.EveAudioflixNative.resolveUrl(item.originalUrl, true);
+                        if (resolved && resolved.ok && resolved.audioUrl) {
+                            const freshProxy = 'http://localhost:8765/api/proxy?media=1&url=' + encodeURIComponent(resolved.audioUrl);
+                            item.rawAudioUrl = resolved.audioUrl;
+                            player.src = freshProxy;
+                            player.load();
+                            await player.play();
+                            return;
+                        }
+                    } catch {}
+                }
+                update();
+                emitPlayback('Linked audio failed to load', true);
+            });
             await player.play();
         }
 
@@ -187,10 +216,11 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                     if (window.EveAudioflixNative?.resolveUrl) {
                         try {
                             setStageStatus('Resolving direct YouTube audio stream via EveOS bridge...');
-                            const resolved = await window.EveAudioflixNative.resolveUrl(item.url);
+                            const resolved = await window.EveAudioflixNative.resolveUrl(item.url, true);
                             if (resolved && resolved.ok && resolved.audioUrl) {
+                                const proxyUrl = /^https?:\/\//i.test(resolved.audioUrl) ? ('http://localhost:8765/api/proxy?media=1&url=' + encodeURIComponent(resolved.audioUrl)) : resolved.audioUrl;
                                 setStageStatus(`Playing stream — "${resolved.title || item.title}"`);
-                                return await playDirect({ ...item, url: resolved.audioUrl, resolvedDuration: resolved.duration });
+                                return await playDirect({ ...item, url: proxyUrl, rawAudioUrl: resolved.audioUrl, originalUrl: item.url, resolvedDuration: resolved.duration });
                             }
                         } catch {}
                     }

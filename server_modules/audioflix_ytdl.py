@@ -23,7 +23,7 @@ logger = logging.getLogger("EveOSAudioflixYTDL")
 # In-memory cache: url → {result_dict, expires_at}
 # ---------------------------------------------------------------------------
 _cache: dict[str, dict] = {}
-_CACHE_TTL_S = 4 * 3600  # 4 hours
+_CACHE_TTL_S = 15 * 60  # 15 minutes
 _MAX_CACHE = 200
 _cache_lock = threading.Lock()
 
@@ -75,15 +75,16 @@ def _get_yt_dlp():
             return None
 
 
-def resolve(url: str) -> dict:
+def resolve(url: str, force: bool = False) -> dict:
     """Extract the best audio stream URL from a platform link.
 
     Returns ``{"ok": True, "audioUrl": "...", "title": "...", ...}`` on success
     or ``{"ok": False, "reason": "..."}`` on failure.
     """
-    cached = _cache_get(url)
-    if cached is not None:
-        return cached
+    if not force:
+        cached = _cache_get(url)
+        if cached is not None:
+            return cached
 
     yt_dlp = _get_yt_dlp()
     if yt_dlp is None:
@@ -96,6 +97,8 @@ def resolve(url: str) -> dict:
         # Prefer audio-only formats; fall back to best available
         "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
         "noplaylist": True,
+        "source_address": "0.0.0.0",
+        "extractor_args": {"youtube": {"player_client": ["web", "mweb", "android"]}}
     }
 
     try:
@@ -138,7 +141,7 @@ def resolve(url: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def handle_resolve_request(handler, query) -> None:
-    """Handle GET /api/audioflix/resolve-url?url=..."""
+    """Handle GET /api/audioflix/resolve-url?url=...&force=1"""
     import json
 
     url_list = query.get("url")
@@ -152,7 +155,8 @@ def handle_resolve_request(handler, query) -> None:
         return
 
     target_url = url_list[0]
-    result = resolve(target_url)
+    force_val = str((query.get("force") or [""])[0]).lower() in {"1", "true", "yes"}
+    result = resolve(target_url, force=force_val)
 
     status = HTTPStatus.OK if result.get("ok") else HTTPStatus.UNPROCESSABLE_ENTITY
     body = json.dumps(result).encode("utf-8")

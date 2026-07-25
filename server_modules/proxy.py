@@ -171,7 +171,14 @@ def handle_proxy_request(handler, query):
         is_googlevideo = 'googlevideo.com' in target_url.lower() or 'youtube.com' in target_url.lower() or 'youtu.be' in target_url.lower()
         if is_googlevideo:
             headers['Referer'] = 'https://www.youtube.com/'
-            headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            if 'c=ANDROID_VR' in target_url:
+                headers['User-Agent'] = 'com.google.android.apps.youtube.vr.oculus/1.57.19 (Linux; U; Android 12; en_US)'
+            elif 'c=IOS' in target_url:
+                headers['User-Agent'] = 'com.google.ios.youtube/19.29.1 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X; en_US)'
+            elif 'c=ANDROID' in target_url:
+                headers['User-Agent'] = 'com.google.android.youtube/19.29.37 (Linux; U; Android 14; en_US)'
+            else:
+                headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
         elif is_yahoo:
             headers['Referer'] = 'https://search.yahoo.com/'
             headers['Host'] = 'search.yahoo.com'
