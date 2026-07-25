@@ -43,6 +43,7 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     let importFormOpen = false;
     let playlistImportMode = 'youtube';
+    let importFormValues = { wplUrl: '', wplFolder: '', wplFileContent: '' };
     let localizeFormOpen = { open: false, scope: 'library', key: '' };
     let syncPlaylistFormOpen = { open: false, group: '' };
     let missingListOpen = { open: false, scope: '', key: '' };
@@ -144,13 +145,13 @@ window.EveAudioflix = window.EveAudioflix || {};
             if (t.classList?.contains('audioflix-wpl-file-picker') && t.files?.[0]) {
                 const file = t.files[0];
                 const form = t.closest('form');
-                const urlInput = form?.querySelector('input[name="url"]');
                 const pathString = file.path || file.name || '';
-                if (urlInput) urlInput.value = pathString;
+                importFormValues.wplUrl = pathString;
 
                 const reader = new FileReader();
                 reader.onload = (evt) => {
-                    if (form) form._wplFileContent = evt.target?.result || '';
+                    importFormValues.wplFileContent = evt.target?.result || '';
+                    if (form) form._wplFileContent = importFormValues.wplFileContent;
                     playbackStatus = `Selected WPL file "${file.name}". Specify target folder and click Import.`;
                     rerender();
                 };
@@ -300,7 +301,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         const modeSelector = `<div style="display:flex; align-items:center; gap:8px; width:100%; margin-bottom:8px;"><span style="font-size:0.8rem; color:#cbd5e1; font-weight:600;">Import Mode:</span><button type="button" class="audioflix-scope-pill${isYt ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="youtube">📺 YouTube Playlist</button><button type="button" class="audioflix-scope-pill${isWpl ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="wpl">🎵 WPL Playlist</button></div>`;
 
         if (isWpl) {
-            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path or Browse</span><div style="display:flex; gap:6px; align-items:center; width:100%;"><input name="url" required placeholder="C:\\path\\to\\playlist.wpl" style="flex:1;"><button type="button" class="audioflix-add-toggle" data-af-action="trigger-wpl-file-picker" style="cursor:pointer; white-space:nowrap; padding:0 10px; margin:0;" title="Select .wpl file from your computer">📂 Browse File</button><input type="file" accept=".wpl,.xml" class="audioflix-wpl-file-picker" style="display:none;"></div></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
+            const urlVal = esc(importFormValues.wplUrl || '');
+            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path or Browse</span><div style="display:flex; gap:6px; align-items:center; width:100%;"><input name="url" required placeholder="C:\\path\\to\\playlist.wpl" value="${urlVal}" style="flex:1;"><button type="button" class="audioflix-add-toggle" data-af-action="trigger-wpl-file-picker" style="cursor:pointer; white-space:nowrap; padding:0 10px; margin:0;" title="Select .wpl file from your computer">📂 Browse File</button><input type="file" accept=".wpl,.xml" class="audioflix-wpl-file-picker" style="display:none;"></div></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
         }
 
         const plCount = (state().musicPlaylists || []).filter(c => c.provider !== 'wpl').length;
@@ -394,6 +396,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         get portsOpen() { return portsOpen; }, set portsOpen(v) { portsOpen = v; },
         get importFormOpen() { return importFormOpen; }, set importFormOpen(v) { importFormOpen = v; },
         get playlistImportMode() { return playlistImportMode; }, set playlistImportMode(v) { playlistImportMode = v; },
+        get importFormValues() { return importFormValues; }, set importFormValues(v) { importFormValues = v; },
         get localizeFormOpen() { return localizeFormOpen; }, set localizeFormOpen(v) { localizeFormOpen = v; },
         get syncPlaylistFormOpen() { return syncPlaylistFormOpen; }, set syncPlaylistFormOpen(v) { syncPlaylistFormOpen = v; },
         get missingListOpen() { return missingListOpen; }, set missingListOpen(v) { missingListOpen = v; },

@@ -30,12 +30,12 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                     if (PL && url) {
                         if (mode === 'wpl') {
                             ctx.playbackStatus = 'Reading WPL playlist...'; ctx.rerender();
-                            const wplSource = form._wplFileContent || url;
+                            const wplSource = ctx.importFormValues?.wplFileContent || form._wplFileContent || url;
                             PL.importWplPlaylist(wplSource, { folder: folder || '', wplPath: url }).then(res => {
                                 ctx.playbackStatus = res.ok
                                     ? `Imported WPL Playlist "${res.group}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.folder}.`
                                     : (res.reason || 'WPL import failed.');
-                                if (res.ok) { ctx.importFormOpen = false; delete form._wplFileContent; }
+                                if (res.ok) { ctx.importFormOpen = false; ctx.importFormValues = {}; delete form._wplFileContent; }
                                 ctx.rerender();
                             });
                         } else {
