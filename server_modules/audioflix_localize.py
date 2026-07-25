@@ -200,15 +200,38 @@ def scan_dir(payload: dict) -> dict:
 
 def read_wpl(payload: dict) -> dict:
     """Read and parse a WPL XML playlist file on disk. Input: {path}."""
-    wpl_file = str(payload.get("path") or "").strip()
+    wpl_file = str(payload.get("path") or "").strip().strip('"').strip("'")
     if not wpl_file:
         return {"ok": False, "message": "No WPL file path was provided."}
+
     path = Path(wpl_file).expanduser()
     if not path.is_file():
-        return {"ok": False, "message": f"WPL file not found: '{wpl_file}'"}
+        fname = Path(wpl_file).name
+        candidates = []
+        user_home = Path.home()
+        search_dirs = [
+            user_home / "Downloads",
+            user_home / "Downloads" / "Temp-Music-Index-Holder",
+            user_home / "Music",
+            user_home / "Documents"
+        ]
+        for sdir in search_dirs:
+            if sdir.is_dir():
+                try:
+                    found = list(sdir.rglob(fname))
+                    if found:
+                        candidates.extend(found)
+                        break
+                except Exception:
+                    pass
+        if candidates:
+            path = candidates[0]
+        else:
+            return {"ok": False, "message": f"WPL file not found: '{wpl_file}'"}
+
     try:
         content = path.read_text(encoding="utf-8", errors="replace")
-        return {"ok": True, "path": str(path), "content": content}
+        return {"ok": True, "path": str(path.resolve()), "content": content}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "message": f"Cannot read WPL file: {exc}"}
 

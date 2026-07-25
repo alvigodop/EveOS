@@ -147,15 +147,35 @@ window.EveAudioflix = window.EveAudioflix || {};
                 const form = t.closest('form');
                 const pathString = file.path || file.name || '';
                 importFormValues.wplUrl = pathString;
+                rerender();
 
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    importFormValues.wplFileContent = evt.target?.result || '';
-                    if (form) form._wplFileContent = importFormValues.wplFileContent;
-                    playbackStatus = `Selected WPL file "${file.name}". Specify target folder and click Import.`;
-                    rerender();
+                const N = window.EveAudioflixNative;
+                const readLocalFallback = () => {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        importFormValues.wplFileContent = evt.target?.result || '';
+                        if (form) form._wplFileContent = importFormValues.wplFileContent;
+                        playbackStatus = `Selected WPL file "${file.name}". Specify target folder and click Import.`;
+                        rerender();
+                    };
+                    reader.readAsText(file);
                 };
-                reader.readAsText(file);
+
+                if (N?.readWplFile) {
+                    N.readWplFile(pathString).then(readRes => {
+                        if (readRes?.ok && readRes.path) {
+                            importFormValues.wplUrl = readRes.path;
+                            importFormValues.wplFileContent = readRes.content || '';
+                            if (form) form._wplFileContent = readRes.content || '';
+                            playbackStatus = `Selected WPL file "${readRes.path}". Specify target folder and click Import.`;
+                            rerender();
+                        } else {
+                            readLocalFallback();
+                        }
+                    }).catch(readLocalFallback);
+                } else {
+                    readLocalFallback();
+                }
             }
         });
         overlay.addEventListener('input', e => {
