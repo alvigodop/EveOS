@@ -145,26 +145,17 @@ window.EveAudioflix = window.EveAudioflix || {};
                 const file = t.files[0];
                 const form = t.closest('form');
                 const urlInput = form?.querySelector('input[name="url"]');
-                if (urlInput) urlInput.value = file.name || file.webkitRelativePath || '';
-
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const xml = evt.target?.result;
-                    const PL = window.EveAudioflixPlaylists;
-                    const folderInput = form?.querySelector('input[name="folder"]');
-                    const folder = folderInput?.value || 'WPL Playlists';
-                    if (PL && xml) {
-                        playbackStatus = `Reading WPL file "${file.name}"...`; rerender();
-                        PL.importWplPlaylist(xml, { wplPath: file.name, folder }).then(res => {
-                            playbackStatus = res.ok
-                                ? `Imported WPL Playlist "${res.group}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.folder}.`
-                                : (res.reason || 'WPL import failed.');
-                            if (res.ok) importFormOpen = false;
-                            rerender();
-                        });
-                    }
-                };
-                reader.readAsText(file);
+                if (file.path) {
+                    if (urlInput) urlInput.value = file.path;
+                    playbackStatus = `Selected WPL file "${file.name}". Specify target folder and click Import.`;
+                } else {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        if (urlInput) urlInput.value = evt.target?.result || '';
+                        playbackStatus = `Loaded WPL file "${file.name}". Specify target folder and click Import.`;
+                    };
+                    reader.readAsText(file);
+                }
             }
         });
         overlay.addEventListener('input', e => {
