@@ -1,13 +1,27 @@
-// AudioWorklet capture processor for the Audioflix native route.
+// AudioWorklet capture processor for the Audioflix native route — carried as SOURCE TEXT.
 //
-// Loaded via audioContext.audioWorklet.addModule() (same pattern as the Gemini
-// js/modules/gemini/client/pcm-processor.js), so it runs on the dedicated AUDIO thread. That is
-// the whole point: a ScriptProcessorNode runs on the main thread, so any EveOS jank (render,
-// GC, a fetch settling) makes it deliver late or short frames — heard as blips in an otherwise
-// clean stream. A worklet is immune to that.
+// Why a string instead of a plain .js file: addModule() has to fetch the module, and on a file://
+// page Chrome refuses every URL we can offer it. Measured on file:// (tools/smoke/
+// audioflix_capture_worklet_smoke.js pins this):
 //
-// Downmixes to mono (the native bridge mixes mono server-side) and posts fixed-size blocks,
-// transferring the buffer so no copy happens on the audio thread.
+//     addModule('file:///.../processor.js')   -> AbortError
+//     addModule(blob:  from that source)      -> AbortError   (the usual workaround; it does NOT
+//                                                              help here, blob inherits a null origin)
+//     addModule('data:application/javascript,...')  -> OK
+//
+// A data: URL is the only one that loads, and it needs the source in hand — which a file:// page
+// cannot fetch. So the source lives here, in a classic script (those load fine from file://), and
+// the loader builds a data: URL from it. That works identically on http, so there is no
+// protocol-specific path at all.
+//
+// This matters well beyond tidiness: without it the capture tap falls back to a
+// ScriptProcessorNode, which runs on the MAIN thread, so any UI work (a rerender, GC, a fetch
+// settling) makes it deliver late or short frames — heard as the song hitching. A worklet runs on
+// the audio thread and is immune.
+//
+// Downmixes to mono (the bridge mixes mono server-side) and posts fixed-size blocks, transferring
+// the buffer so no copy happens on the audio thread.
+window.EveAudioflixCaptureProcessorSrc = String.raw`
 class AudioflixCaptureProcessor extends AudioWorkletProcessor {
     constructor(options) {
         super();
@@ -44,3 +58,4 @@ class AudioflixCaptureProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('audioflix-capture-processor', AudioflixCaptureProcessor);
+`;

@@ -76,6 +76,8 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
                 <label class="audioflix-wide-field"><span>Local Folder Path (Extract Music)</span><input name="path" required value="${esc(lastDir)}" placeholder="C:\\path\\to\\music\\folder"></label>
                 <label><span>Target Folder Tag Name</span><input name="folder" placeholder="Ported Music"></label>
                 <button type="submit" data-af-action="submit-form">Extract to Folder Tag</button>
+                <button type="button" class="audioflix-add-toggle" data-af-action="grant-music-folder" style="margin-left:8px;" title="Grant this folder to EveOS once so its tracks play with the server off">🔓 Grant Offline Access</button>
+                <p class="audioflix-settings-hint" style="flex-basis:100%; margin:6px 0 0;">Importing records the paths; granting the folder lets the browser actually read those files, so the tracks play on <code>file://</code> and with the EveOS server stopped.</p>
             </form>`;
         }
 

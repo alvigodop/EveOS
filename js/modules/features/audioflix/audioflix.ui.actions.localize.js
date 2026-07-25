@@ -12,6 +12,27 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
 
     ns.create = function create(ctx) {
         return async function handleLocalizeAction(actionTarget, action) {
+        // Grant the music folder right here, while the user is already choosing it. A browser can
+        // only read a directory it has been handed a handle for, so without this the tracks import
+        // fine but will not play unless the SAME folder is granted again over in Ports. One picker,
+        // at the moment it makes sense, and the grant persists in IndexedDB.
+        if (action === 'grant-music-folder') {
+            const FS = window.EveAudioflixFsPorts;
+            if (!FS?.supported?.()) {
+                ctx.playbackStatus = 'This browser cannot grant folder access (needs Edge/Chrome).';
+                ctx.rerender();
+                return true;
+            }
+            try {
+                const granted = await FS.addFolder({ nickname: actionTarget.dataset.afNickname || '' });
+                FS.clearPathCache?.();
+                ctx.playbackStatus = `Granted "${granted.nickname}" — its tracks now play without the EveOS server.`;
+            } catch (err) {
+                ctx.playbackStatus = err?.name === 'AbortError' ? 'Folder access cancelled.' : (err?.message || 'Could not grant that folder.');
+            }
+            ctx.rerender();
+            return true;
+        }
         if (action === 'toggle-localize-form') {
             const scope = actionTarget.dataset.afScope || 'library';
             const key = actionTarget.dataset.afKey || '';

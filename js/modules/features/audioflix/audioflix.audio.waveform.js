@@ -84,31 +84,12 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             }
         }
 
-        // Candidate URLs for the capture worklet module. The relative path works when the page is
-        // served over http(s). On file:// the local origin is opaque and addModule() is blocked —
-        // but the native bridge route always has a reachable EveOS server, which serves this same
-        // file with permissive CORS, so we fall back to loading the module from that origin. That's
-        // what lets file:// still get the jank-immune audio-thread tap instead of the blip-prone
-        // ScriptProcessor.
+        // A data: URL built from the inlined source is the only form addModule accepts on a
+        // file:// page (a file:// URL and a blob: URL both AbortError there), and it works
+        // identically on http — so there is no protocol branching left.
         function workletModuleUrls() {
-            const rel = 'js/modules/features/audioflix/audioflix-capture-processor.js';
-            const urls = [];
-            const isFileProtocol = window.location.protocol === 'file:';
-            const base = window.EveAudioflixState?.ensure?.()?.nativeBridgeBase || 'http://127.0.0.1:8765';
-
-            if (isFileProtocol) {
-                // On file:// protocol, Chrome blocks addModule('file://...') with red CORS errors.
-                // Try the HTTP server endpoint first.
-                if (base && /^https?:/i.test(base)) {
-                    urls.push(`${base.replace(/\/+$/, '')}/${rel}`);
-                }
-            } else {
-                urls.push(rel);
-                if (base && /^https?:/i.test(base)) {
-                    urls.push(`${base.replace(/\/+$/, '')}/${rel}`);
-                }
-            }
-            return urls;
+            const src = window.EveAudioflixCaptureProcessorSrc;
+            return src ? ['data:application/javascript,' + encodeURIComponent(src)] : [];
         }
 
         // Prefer an AudioWorklet tap: it runs on the audio thread, so main-thread jank cannot make
