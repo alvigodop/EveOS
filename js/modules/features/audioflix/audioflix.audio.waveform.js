@@ -88,11 +88,22 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         // ScriptProcessor.
         function workletModuleUrls() {
             const rel = 'js/modules/features/audioflix/audioflix-capture-processor.js';
-            const urls = [rel];
-            try {
-                const base = window.EveAudioflixState?.ensure?.()?.nativeBridgeBase;
-                if (base && /^https?:/i.test(base)) urls.push(`${base.replace(/\/+$/, '')}/${rel}`);
-            } catch (error) { /* state not ready — relative path only */ }
+            const urls = [];
+            const isFileProtocol = window.location.protocol === 'file:';
+            const base = window.EveAudioflixState?.ensure?.()?.nativeBridgeBase || 'http://127.0.0.1:8765';
+
+            if (isFileProtocol) {
+                // On file:// protocol, Chrome blocks addModule('file://...') with red CORS errors.
+                // Try the HTTP server endpoint first.
+                if (base && /^https?:/i.test(base)) {
+                    urls.push(`${base.replace(/\/+$/, '')}/${rel}`);
+                }
+            } else {
+                urls.push(rel);
+                if (base && /^https?:/i.test(base)) {
+                    urls.push(`${base.replace(/\/+$/, '')}/${rel}`);
+                }
+            }
             return urls;
         }
 

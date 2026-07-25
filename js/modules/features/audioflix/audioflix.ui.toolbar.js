@@ -24,12 +24,12 @@ window.EveAudioflixUiToolbar = window.EveAudioflixUiToolbar || {};
             const isF = (isM ? (state().musicViewMode || 'backend') : (state().soundboardViewMode || 'backend')) === 'frontend';
             const open = F().addFormOpen[type] === true;
             const isLocOpen = F().localizeFormOpen.open === true;
-            const vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" data-af-type="${esc(type)}" style="margin-left: auto;">${isF ? 'Backend' : 'Frontend'}</button>`;
-            const gBtn = `<button type="button" class="audioflix-add-toggle${F().groupsOpen[type] ? ' is-active' : ''}" data-af-action="toggle-groups" data-af-type="${esc(type)}" style="margin-left: 8px;">Groups</button>`;
-            const fBtn = isM ? `<button type="button" class="audioflix-add-toggle${F().foldersOpen.music ? ' is-active' : ''}" data-af-action="toggle-folders" data-af-type="music" style="margin-left: 8px;">Edit Folders</button>` : '';
-            const pBtn = isM ? `<button type="button" class="audioflix-add-toggle${F().importFormOpen ? ' is-active' : ''}" data-af-action="toggle-import-form" style="margin-left: 8px;">Import Playlist</button>` : '';
+            const vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" data-af-type="${esc(type)}">${isF ? 'Backend' : 'Frontend'}</button>`;
+            const gBtn = `<button type="button" class="audioflix-add-toggle${F().groupsOpen[type] ? ' is-active' : ''}" data-af-action="toggle-groups" data-af-type="${esc(type)}">Groups</button>`;
+            const fBtn = isM ? `<button type="button" class="audioflix-add-toggle${F().foldersOpen.music ? ' is-active' : ''}" data-af-action="toggle-folders" data-af-type="music">Edit Folders</button>` : '';
+            const pBtn = isM ? `<button type="button" class="audioflix-add-toggle${F().importFormOpen ? ' is-active' : ''}" data-af-action="toggle-import-form">Import Playlist</button>` : '';
             const isLibLocOpen = isLocOpen && F().localizeFormOpen.scope === 'library';
-            const lBtn = isM ? `<button type="button" class="audioflix-add-toggle${isLibLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="library" style="margin-left: 8px;" title="Download online tracks to local files (needs localhost)">Localize</button><button type="button" class="audioflix-add-toggle${F().musicPortFormOpen ? ' is-active' : ''}" data-af-action="toggle-music-port-form" style="margin-left: 8px;" title="Extract local folder music into a Folder tag">Music Port</button>` : '';
+            const lBtn = isM ? `<button type="button" class="audioflix-add-toggle${isLibLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="library" title="Download online tracks to local files (needs localhost)">Localize</button><button type="button" class="audioflix-add-toggle${F().musicPortFormOpen ? ' is-active' : ''}" data-af-action="toggle-music-port-form" title="Extract local folder music into a Folder tag">Music Port</button>` : '';
             const nBtn = uiNexus.renderButton(type);
             const cBtn = isM ? uiClass.renderButton() : '';
             const cPanel = (isM && F().classifierManagerOpen) ? uiClass.renderManager() : '';
@@ -41,7 +41,7 @@ window.EveAudioflixUiToolbar = window.EveAudioflixUiToolbar || {};
             }
             return isF
                 ? `<div class="audioflix-add-section-row">${nBtn}${gBtn}${vBtn}</div>${nPanel}${F().groupsOpen.sound ? renderGroupsManager('sound') : ''}`
-                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound">${open ? '− Hide add sound' : '+ Add Sound'}</button></div><button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" style="margin-left: 8px;">Ports</button>${nBtn}${gBtn}${vBtn}</div>${nPanel}${open ? renderForm('sound') : ''}${F().portsOpen ? renderPortsManager() : ''}${F().groupsOpen.sound ? renderGroupsManager('sound') : ''}`;
+                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound">${open ? '− Hide add sound' : '+ Add Sound'}</button></div><button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports">Ports</button>${nBtn}${gBtn}${vBtn}</div>${nPanel}${open ? renderForm('sound') : ''}${F().portsOpen ? renderPortsManager() : ''}${F().groupsOpen.sound ? renderGroupsManager('sound') : ''}`;
         };
 
         return renderAddSection;

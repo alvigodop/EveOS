@@ -73,13 +73,33 @@
 
 .audioflix-add-section-row {
     display: flex;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 8px 10px;
     margin-bottom: 14px;
     align-items: center;
+    max-width: 100%;
+}
+
+.audioflix-add-section-row .audioflix-view-toggle {
+    margin-left: auto;
 }
 
 .audioflix-add-section-row .audioflix-add-section {
     margin-bottom: 0;
+}
+
+@media (max-width: 820px) {
+    .audioflix-add-section-row {
+        gap: 6px 8px;
+    }
+    .audioflix-add-section-row .audioflix-view-toggle {
+        margin-left: 0;
+    }
+    .audioflix-add-toggle,
+    .audioflix-view-toggle {
+        font-size: 0.78rem;
+        padding: 5px 12px;
+    }
 }
 
 .audioflix-add-toggle[data-af-action="toggle-ports"][aria-expanded="true"] {
