@@ -57,12 +57,12 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); ctx.playbackStatus = 'Opening Localhost EveOS in a new tab...'; ctx.rerender(); return; }
             if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; ctx.rerender(); return; }
             if (action === 'toggle-settings') { ctx.settingsOpen = !ctx.settingsOpen; ctx.rerender(); return; }
-            if (action === 'toggle-group') { ctx.collapsedGroups[actionTarget.dataset.afGroup] = !ctx.collapsedGroups[actionTarget.dataset.afGroup]; ctx.rerender(); return; }
+            if (action === 'toggle-group') { const gName = actionTarget.dataset.afGroup; if (gName) { ctx.collapsedGroups = { ...ctx.collapsedGroups, [gName]: !ctx.collapsedGroups[gName] }; ctx.rerender(); } return; }
             if (action === 'toggle-fullscreen') { ctx.fullscreenOn = !ctx.fullscreenOn; ctx.overlay?.classList.toggle('is-fullscreen', ctx.fullscreenOn); ctx.rerender(); return; }
-            if (action === 'toggle-add') { const key = type === 'music' ? 'music' : 'sound'; ctx.addFormOpen[key] = !ctx.addFormOpen[key]; ctx.rerender(); return; }
+            if (action === 'toggle-add') { const key = (type === 'music' || ctx.activeTab === 'music') ? 'music' : 'sound'; ctx.addFormOpen = { ...ctx.addFormOpen, [key]: !ctx.addFormOpen[key] }; ctx.rerender(); return; }
             if (action === 'toggle-ports') { ctx.portsOpen = !ctx.portsOpen; ctx.rerender(); return; }
-            if (action === 'toggle-groups') { const key = type === 'music' ? 'music' : 'sound'; ctx.groupsOpen[key] = !ctx.groupsOpen[key]; ctx.rerender(); return; }
-            if (action === 'toggle-folders') { ctx.foldersOpen.music = !ctx.foldersOpen.music; ctx.rerender(); return; }
+            if (action === 'toggle-groups') { const key = (type === 'music' || ctx.activeTab === 'music') ? 'music' : 'sound'; ctx.groupsOpen = { ...ctx.groupsOpen, [key]: !ctx.groupsOpen[key] }; ctx.rerender(); return; }
+            if (action === 'toggle-folders') { ctx.foldersOpen = { ...ctx.foldersOpen, music: !ctx.foldersOpen.music }; ctx.rerender(); return; }
             if (action === 'select-folder-scope') { window.EveAudioflixState?.update?.({ activeMusicFolderScope: actionTarget.dataset.afScope || '' }, 'audioflix-folder-scope'); ctx.rerender(); return; }
             if (action === 'rename-group-prompt') {
                 const oldGroup = actionTarget.dataset.afGroup;
@@ -93,18 +93,19 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             }
             if (action === 'select-frontend-group') {
                 const targetGroup = actionTarget.dataset.afGroup || '';
-                if (type === 'music') {
+                const isMusic = type === 'music' || ctx.activeTab === 'music';
+                if (isMusic) {
                     const cur = ctx.state().activeFrontendMusicGroup || '';
                     const entries = ctx.frontendGroupEntries ? ctx.frontendGroupEntries('music') : [];
                     const defaultGroup = (entries[0] || [''])[0];
                     const next = cur === targetGroup ? defaultGroup : targetGroup;
-                    window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: next }, 'audioflix-active-music-group');
+                    window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: next, musicViewMode: 'frontend' }, 'audioflix-active-music-group');
                 } else {
                     const cur = ctx.state().activeFrontendGroup || '';
                     const entries = ctx.frontendGroupEntries ? ctx.frontendGroupEntries('sound') : [];
                     const defaultGroup = (entries[0] || [''])[0];
                     const next = cur === targetGroup ? defaultGroup : targetGroup;
-                    window.EveAudioflixState?.update?.({ activeFrontendGroup: next }, 'audioflix-active-group');
+                    window.EveAudioflixState?.update?.({ activeFrontendGroup: next, soundboardViewMode: 'frontend' }, 'audioflix-active-group');
                 }
                 ctx.pushHotkeysToBridge();
                 ctx.rerender();
@@ -169,15 +170,19 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
-            if (action === 'sync-single-playlist') {
-                const groupName = actionTarget.dataset.afGroup;
-                const PL = window.EveAudioflixPlaylists;
-                if (!PL || !groupName) return;
-                ctx.playbackStatus = `Syncing playlist "${groupName}"...`; ctx.rerender();
-                const res = await PL.syncPlaylistByGroup(groupName, true);
-                ctx.playbackStatus = res.ok
-                    ? `Synced "${groupName}" — ${res.added} added, ${res.restored || 0} restored, ${res.missing || 0} missing.`
-                    : (res.reason || 'Playlist sync failed.');
+            if (action === 'toggle-sync-playlist-form') {
+                const group = actionTarget.dataset.afGroup || '';
+                const curr = ctx.syncPlaylistFormOpen || {};
+                if (curr.open && curr.group === group) {
+                    ctx.syncPlaylistFormOpen = { open: false, group: '' };
+                } else {
+                    ctx.syncPlaylistFormOpen = { open: true, group };
+                }
+                ctx.rerender();
+                return;
+            }
+            if (action === 'cancel-sync-form') {
+                ctx.syncPlaylistFormOpen = { open: false, group: '' };
                 ctx.rerender();
                 return;
             }
@@ -450,6 +455,26 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                             ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
                             : (res.reason || 'Playlist import failed.');
                         ctx.importFormOpen = false;
+                        ctx.rerender();
+                    });
+                }
+            }
+            else if (fName === 'sync-playlist-form') {
+                const groupName = form.dataset.afGroup;
+                const folder = data.get('folder');
+                const PL = window.EveAudioflixPlaylists;
+                if (PL && groupName) {
+                    const conn = PL.getPlaylistForGroup(groupName);
+                    const currentFolder = conn?.folder || 'Music';
+                    const targetFolder = folder !== null ? String(folder).trim() : '';
+                    ctx.playbackStatus = `Syncing playlist "${groupName}"...`;
+                    ctx.syncPlaylistFormOpen = { open: false, group: '' };
+                    ctx.rerender();
+                    PL.syncPlaylistByGroup(groupName, true, targetFolder).then(res => {
+                        const destFolder = targetFolder || currentFolder;
+                        ctx.playbackStatus = res.ok
+                            ? `Synced "${groupName}" — ${res.added} added to folder "${destFolder}", ${res.restored || 0} restored, ${res.missing || 0} missing.`
+                            : (res.reason || 'Playlist sync failed.');
                         ctx.rerender();
                     });
                 }

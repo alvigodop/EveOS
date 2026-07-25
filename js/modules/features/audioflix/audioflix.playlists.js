@@ -85,13 +85,14 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     }
 
     // Add one upstream entry as a music track bound to this connection.
-    function addTrack(connection, entry) {
+    function addTrack(connection, entry, targetFolder = '') {
         const dur = Number(entry?.duration || 0);
+        const folderName = text(targetFolder) || text(connection.folder, DEFAULT_FOLDER);
         const added = window.EveAudioflixState?.addItem?.('music', {
             title: text(entry?.title, 'Untitled Track'),
             url: text(entry?.url),
             artist: text(entry?.artist),
-            folder: text(connection.folder, DEFAULT_FOLDER),
+            folder: folderName,
             duration: dur
         });
         if (!added) return null;
@@ -105,8 +106,8 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         return added;
     }
 
-    function applyDiff(connection, diff) {
-        diff.add.forEach((entry) => addTrack(connection, entry));
+    function applyDiff(connection, diff, targetFolder = '') {
+        diff.add.forEach((entry) => addTrack(connection, entry, targetFolder));
         diff.restore.forEach((track) => window.EveAudioflixState?.updateItem?.('music', track.id, { upstreamMissing: false }));
         // Greyed, not gone: the user decides whether to drop it or move it somewhere to keep.
         diff.missing.forEach((track) => window.EveAudioflixState?.updateItem?.('music', track.id, { upstreamMissing: true }));
@@ -127,7 +128,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         const clean = text(url);
         if (!clean) return { ok: false, reason: 'Enter a playlist URL.' };
         const existing = connections().find((entry) => entry.url === clean);
-        if (existing) return syncPlaylist(existing.id, true);
+        if (existing) return syncPlaylist(existing.id, true, options.folder);
 
         const upstream = await fetchUpstream(clean, true);
         if (!upstream.ok) return upstream;
@@ -145,29 +146,31 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         };
         if (connection.group) window.EveAudioflixState?.addMusicGroup?.(connection.group);
         saveConnections(connections().concat(connection), 'audioflix-playlist-import');
-        applyDiff(connection, diffPlaylist([], upstream.entries || []));
+        applyDiff(connection, diffPlaylist([], upstream.entries || []), options.folder);
         return { ok: true, connection, added: (upstream.entries || []).length, missing: 0 };
     }
 
     // Re-read the upstream playlist and reconcile against what EveOS holds.
-    async function syncPlaylist(connectionId, force = true) {
+    async function syncPlaylist(connectionId, force = true, targetFolder = '') {
         const connection = getConnection(connectionId);
         if (!connection) return { ok: false, reason: 'That playlist connection no longer exists.' };
         const upstream = await fetchUpstream(connection.url, force);
         if (!upstream.ok) return upstream;
 
+        const folderToUse = text(targetFolder) || connection.folder;
         const diff = diffPlaylist(tracksFor(connection.id), upstream.entries || []);
-        applyDiff(connection, diff);
+        applyDiff(connection, diff, folderToUse);
         const next = connections().map((entry) => entry.id === connection.id
             ? Object.assign({}, entry, {
                 title: text(upstream.title, entry.title),
                 playlistId: text(upstream.playlistId, entry.playlistId),
+                folder: text(targetFolder) ? text(targetFolder) : entry.folder,
                 lastSyncedAt: Date.now(),
                 trackCount: (upstream.entries || []).length
             })
             : entry);
         saveConnections(next, 'audioflix-playlist-sync');
-        return { ok: true, connection, added: diff.add.length, restored: diff.restore.length, missing: diff.missing.length };
+        return { ok: true, connection: { ...connection, folder: folderToUse }, added: diff.add.length, restored: diff.restore.length, missing: diff.missing.length };
     }
 
     // Move a track OUT of the playlist connection but keep it in EveOS (its own folder/group).
@@ -231,10 +234,10 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     }
 
     // Sync a single playlist by its group name
-    async function syncPlaylistByGroup(groupName, force = true) {
+    async function syncPlaylistByGroup(groupName, force = true, targetFolder = '') {
         const conn = getPlaylistForGroup(groupName);
         if (!conn) return { ok: false, reason: `No live playlist connection found for group "${groupName}".` };
-        return syncPlaylist(conn.id, force);
+        return syncPlaylist(conn.id, force, targetFolder);
     }
 
     // Check if a track in an imported group was added locally (not from the upstream playlist source)
