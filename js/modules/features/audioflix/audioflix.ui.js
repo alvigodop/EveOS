@@ -419,8 +419,38 @@ window.EveAudioflix = window.EveAudioflix || {};
     });
     window.addEventListener('eve:audioflix-gemini-audio-seen', updateStatusDOM);
     window.addEventListener('eve:mode2-tokens', updateStatusDOM);
-    document.addEventListener('DOMContentLoaded', () => { if (window.__eveAudioflixOpenPending) { window.__eveAudioflixOpenPending = false; open(); } });
+    function probeMissingDurations() {
+        const all = [...(state().music || []), ...(state().soundboard || [])];
+        const missing = all.filter(it => !it.duration || Number(it.duration) <= 0);
+        if (!missing.length) return;
+        let idx = 0;
+        function next() {
+            if (idx >= missing.length) return;
+            const item = missing[idx++];
+            const local = item.localPath || (!/^https?:\/\//i.test(item.url || '') ? item.url : '');
+            const probeUrl = local ? ('http://localhost:8765/api/audioflix/port/file?path=' + encodeURIComponent(local)) : (item.url && !/(?:youtube\.com|youtu\.be)/i.test(item.url) ? item.url : '');
+            if (probeUrl) {
+                const a = new Audio(probeUrl);
+                a.onloadedmetadata = () => {
+                    if (a.duration && isFinite(a.duration) && a.duration > 0) {
+                        item.duration = a.duration;
+                        window.EveAudioflixState?.updateItem?.(item.type || 'music', item.id, { duration: a.duration });
+                    }
+                    setTimeout(next, 50);
+                };
+                a.onerror = () => setTimeout(next, 50);
+            } else {
+                setTimeout(next, 10);
+            }
+        }
+        setTimeout(next, 1000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        probeMissingDurations();
+        if (window.__eveAudioflixOpenPending) { window.__eveAudioflixOpenPending = false; open(); }
+    });
     window.addEventListener('beforeunload', () => { window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); });
 
-    Object.assign(ns, { ready: true, open, close, render: rerender });
+    Object.assign(ns, { ready: true, open, close, render: rerender, probeMissingDurations });
 })();

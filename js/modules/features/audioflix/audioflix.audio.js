@@ -108,6 +108,10 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         });
         ['loadedmetadata', 'durationchange', 'timeupdate', 'seeked'].forEach((eventName) => {
             audio.addEventListener(eventName, () => {
+                if (currentItem && audio.duration && isFinite(audio.duration) && audio.duration > 0 && (!currentItem.duration || currentItem.duration <= 0)) {
+                    currentItem.duration = audio.duration;
+                    window.EveAudioflixState?.updateItem?.(currentItem.type || 'music', currentItem.id, { duration: audio.duration });
+                }
                 if (!activeNativeMode) dispatch('eve:audioflix-progress', getPlaybackState());
             });
         });

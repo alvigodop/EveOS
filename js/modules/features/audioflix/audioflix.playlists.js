@@ -86,17 +86,19 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
 
     // Add one upstream entry as a music track bound to this connection.
     function addTrack(connection, entry) {
+        const dur = Number(entry?.duration || 0);
         const added = window.EveAudioflixState?.addItem?.('music', {
             title: text(entry?.title, 'Untitled Track'),
             url: text(entry?.url),
             artist: text(entry?.artist),
-            folder: text(connection.folder, DEFAULT_FOLDER)
+            folder: text(connection.folder, DEFAULT_FOLDER),
+            duration: dur
         });
         if (!added) return null;
-        // addItem normalizes to the known schema, so the playlist link fields are applied after.
         window.EveAudioflixState?.updateItem?.('music', added.id, {
             sourceId: text(entry?.sourceId),
             playlistId: connection.id,
+            duration: dur,
             upstreamMissing: false
         });
         if (connection.group) window.EveAudioflixState?.toggleMusicGroup?.(added.id, connection.group, true);

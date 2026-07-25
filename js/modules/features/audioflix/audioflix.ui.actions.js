@@ -27,10 +27,19 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'internal-view') { if (item) try { await window.EveAudioflixAudio?.openInternalView?.(item); } catch (err) { ctx.playbackStatus = err.message || 'Internal player failed'; ctx.rerender(); } return; }
             if (action === 'item-info') {
                 if (!item) return; ctx.activeInfoItem = item; ctx.activeInfoType = type; ctx.rerender();
-                if (item.duration === undefined) {
-                    const a = new Audio(item.url);
-                    a.onloadedmetadata = () => { item.duration = a.duration; ctx.activeInfoItem?.id === item.id && ctx.rerender(); };
-                    a.onerror = () => { item.duration = null; ctx.activeInfoItem?.id === item.id && ctx.rerender(); };
+                if (!item.duration || Number(item.duration) <= 0) {
+                    const local = item.localPath || (!/^https?:\/\//i.test(item.url || '') ? item.url : '');
+                    let probeUrl = local ? ('http://localhost:8765/api/audioflix/port/file?path=' + encodeURIComponent(local)) : (item.url && !/(?:youtube\.com|youtu\.be)/i.test(item.url) ? item.url : '');
+                    if (probeUrl) {
+                        const a = new Audio(probeUrl);
+                        a.onloadedmetadata = () => {
+                            if (a.duration && isFinite(a.duration) && a.duration > 0) {
+                                item.duration = a.duration;
+                                window.EveAudioflixState?.updateItem?.(type || 'music', item.id, { duration: a.duration });
+                                if (ctx.activeInfoItem?.id === item.id) ctx.rerender();
+                            }
+                        };
+                    }
                 }
                 return;
             }
