@@ -18,7 +18,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
 
     const DEFAULT_FOLDER = 'Youtube Playlists';
 
-    const text = (value, fallback = '') => String(value ?? '').trim() || fallback;
+    const text = (value, fallback = '') => String(value ?? '').trim().replace(/^["']+|["']+$/g, '').trim() || fallback;
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -164,19 +164,25 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
             const clean = text(wplInput);
             if (!clean) return { ok: false, reason: 'Please specify a WPL playlist file path or content.' };
 
-            if (clean.includes('<smil>') || clean.includes('<seq>') || clean.includes('<?wpl')) {
+            if (clean.includes('<smil') || clean.includes('<seq') || clean.includes('<?wpl') || clean.includes('<media')) {
                 parsed = parser?.parseWplXml?.(clean, options.wplPath || '');
             } else if (N?.readWplFile) {
                 const readRes = await N.readWplFile(clean);
-                if (!readRes?.ok) return { ok: false, reason: readRes?.message || 'Could not read WPL file.' };
-                parsed = parser?.parseWplXml?.(readRes.content, readRes.path || clean);
+                if (readRes?.ok && readRes.content) {
+                    parsed = parser?.parseWplXml?.(readRes.content, readRes.path || clean);
+                } else {
+                    return {
+                        ok: false,
+                        reason: `Could not read WPL file from disk (${readRes?.message || 'EveOS server offline'}). Start an EveOS server (start-server.bat) or use "📂 Browse File" to pick your .wpl file directly!`
+                    };
+                }
             } else if (parser) {
                 parsed = parser.parseWplXml(clean, clean);
             }
         }
 
         if (!parsed || !parsed.ok) {
-            return { ok: false, reason: parsed?.reason || 'Could not parse that WPL file.' };
+            return { ok: false, reason: parsed?.reason || 'Could not parse that WPL file. Use "📂 Browse File" to select your .wpl file directly.' };
         }
 
         const targetFolder = text(options.folder, DEFAULT_WPL_FOLDER);
@@ -197,30 +203,56 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         if (connection.group) window.EveAudioflixState?.addMusicGroup?.(connection.group);
 
         let addedCount = 0;
+        const existingMusic = (window.EveAudioflixState?.ensure?.()?.music || []).slice();
+
         (parsed.tracks || []).forEach((t) => {
             const rawTitle = text(t.title, 'Untitled Track');
             const trackPath = text(t.path);
+            const normPath = trackPath.toLowerCase().replace(/\\/g, '/');
+            const normTitle = rawTitle.toLowerCase();
 
-            const added = window.EveAudioflixState?.addItem?.('music', {
-                title: rawTitle,
-                url: trackPath,
-                localPath: trackPath,
-                folder: targetFolder,
-                card: targetFolder,
-                isPorted: true
+            // Match existing track in EveOS library by path or title
+            let targetTrack = existingMusic.find((m) => {
+                const mPath = String(m.localPath || m.url || '').toLowerCase().replace(/\\/g, '/');
+                const mTitle = String(m.title || '').toLowerCase();
+                if (normPath && mPath && (mPath === normPath || mPath.endsWith(normPath) || normPath.endsWith(mPath))) return true;
+                if (normTitle && mTitle && mTitle === normTitle) return true;
+                return false;
             });
 
-            if (added?.id) {
-                window.EveAudioflixState?.updateItem?.('music', added.id, {
-                    sourceId: trackPath,
+            if (targetTrack) {
+                // Existing track found: link to WPL connection and attach to WPL Group
+                window.EveAudioflixState?.updateItem?.('music', targetTrack.id, {
                     playlistId: connection.id,
-                    localPath: trackPath,
-                    isPorted: true
+                    sourceId: trackPath || targetTrack.sourceId || targetTrack.id
                 });
                 if (connection.group) {
-                    window.EveAudioflixState?.toggleMusicGroup?.(added.id, connection.group, true);
+                    window.EveAudioflixState?.toggleMusicGroup?.(targetTrack.id, connection.group, true);
                 }
                 addedCount += 1;
+            } else {
+                // New track: add under targetFolder and attach to WPL Group
+                const added = window.EveAudioflixState?.addItem?.('music', {
+                    title: rawTitle,
+                    url: trackPath,
+                    localPath: trackPath,
+                    folder: targetFolder,
+                    card: targetFolder,
+                    isPorted: true
+                });
+
+                if (added?.id) {
+                    window.EveAudioflixState?.updateItem?.('music', added.id, {
+                        sourceId: trackPath,
+                        playlistId: connection.id,
+                        localPath: trackPath,
+                        isPorted: true
+                    });
+                    if (connection.group) {
+                        window.EveAudioflixState?.toggleMusicGroup?.(added.id, connection.group, true);
+                    }
+                    addedCount += 1;
+                }
             }
         });
 

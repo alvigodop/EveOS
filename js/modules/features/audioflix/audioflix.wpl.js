@@ -8,7 +8,7 @@ window.EveAudioflixWpl = window.EveAudioflixWpl || {};
     const ns = window.EveAudioflixWpl;
     if (ns.ready) return;
 
-    const text = (v, fallback = '') => String(v ?? '').trim() || fallback;
+    const text = (v, fallback = '') => String(v ?? '').trim().replace(/^["']+|["']+$/g, '').trim() || fallback;
 
     function resolveRelativePath(srcPath, wplPath) {
         let cleanSrc = String(srcPath || '').trim();
@@ -77,9 +77,18 @@ window.EveAudioflixWpl = window.EveAudioflixWpl || {};
         return { ok: true, title, tracks, count: tracks.length, wplPath };
     }
 
+    function unescapeXml(str) {
+        return String(str || '')
+            .replace(/&apos;/g, "'")
+            .replace(/&quot;/g, '"')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
+    }
+
     function parseWplRegex(xmlText, wplPath = '') {
         const titleMatch = xmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
-        let title = text(titleMatch?.[1]);
+        let title = unescapeXml(text(titleMatch?.[1]));
 
         if (!title && wplPath) {
             const parts = wplPath.replace(/\\/g, '/').split('/').filter(Boolean);
@@ -92,7 +101,7 @@ window.EveAudioflixWpl = window.EveAudioflixWpl || {};
         let match;
 
         while ((match = mediaRegex.exec(xmlText)) !== null) {
-            const src = match[1];
+            const src = unescapeXml(match[1]);
             if (!src) continue;
             const fullPath = resolveRelativePath(src, wplPath);
             const fileName = fullPath.split('/').pop() || src;

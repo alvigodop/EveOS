@@ -164,5 +164,46 @@ function loadAll(ctx) {
         console.log('Music Port Folder Sync OK');
     }
 
+    // 4. WPL Import when tracks already exist in EveOS
+    {
+        const ctx = makeCtx();
+        const { S, PL } = loadAll(ctx);
+
+        // Pre-add an existing track under OLD-SONG-RELOCATION
+        S.addItem('music', {
+            title: 'Anxiety Freestyle',
+            url: 'C:/Music/Anxiety.mp3',
+            localPath: 'C:/Music/Anxiety.mp3',
+            folder: 'OLD-SONG-RELOCATION',
+            card: 'OLD-SONG-RELOCATION'
+        });
+
+        const wplSample = `<?wpl version="1.0"?>
+<smil>
+    <head><title>Rap Songs Only</title></head>
+    <body>
+        <seq>
+            <media src="C:/Music/Anxiety.mp3"/>
+            <media src="C:/Music/NewSong.mp3"/>
+        </seq>
+    </body>
+</smil>`;
+
+        const res = await PL.importWplPlaylist(wplSample);
+        assert(res.ok === true && res.added === 2, 'reconciled 2 WPL tracks');
+
+        const music = S.ensure().music;
+        const groupMap = S.ensure().musicGroupMap || {};
+        const anxiety = music.find(m => m.title === 'Anxiety Freestyle');
+        assert(anxiety.folder === 'OLD-SONG-RELOCATION', 'existing track kept original folder');
+        assert((groupMap[anxiety.id] || []).includes('Rap Songs Only'), 'existing track assigned to Rap Songs Only group');
+
+        const newSong = music.find(m => m.title === 'NewSong');
+        assert(newSong.folder === 'WPL Playlists', 'new track assigned to WPL Playlists folder');
+        assert((groupMap[newSong.id] || []).includes('Rap Songs Only'), 'new track assigned to Rap Songs Only group');
+        assert(music.length === 2, 'no duplicate tracks created');
+        console.log('WPL Import with pre-existing tracks OK');
+    }
+
     console.log('AUDIOFLIX_WPL_SMOKE_OK');
 })().catch(err => { console.error(err); process.exit(1); });

@@ -42,6 +42,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     let importFormOpen = false;
+    let playlistImportMode = 'youtube';
     let localizeFormOpen = { open: false, scope: 'library', key: '' };
     let syncPlaylistFormOpen = { open: false, group: '' };
     let missingListOpen = { open: false, scope: '', key: '' };
@@ -138,6 +139,34 @@ window.EveAudioflix = window.EveAudioflix || {};
             } else if (t === overlay) close();
         });
         overlay.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-af-form]'); if (f) handleForm(f); });
+        overlay.addEventListener('change', e => {
+            const t = e.target;
+            if (t.classList?.contains('audioflix-wpl-file-picker') && t.files?.[0]) {
+                const file = t.files[0];
+                const form = t.closest('form');
+                const urlInput = form?.querySelector('input[name="url"]');
+                if (urlInput) urlInput.value = file.name || file.webkitRelativePath || '';
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const xml = evt.target?.result;
+                    const PL = window.EveAudioflixPlaylists;
+                    const folderInput = form?.querySelector('input[name="folder"]');
+                    const folder = folderInput?.value || 'WPL Playlists';
+                    if (PL && xml) {
+                        playbackStatus = `Reading WPL file "${file.name}"...`; rerender();
+                        PL.importWplPlaylist(xml, { wplPath: file.name, folder }).then(res => {
+                            playbackStatus = res.ok
+                                ? `Imported WPL Playlist "${res.group}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.folder}.`
+                                : (res.reason || 'WPL import failed.');
+                            if (res.ok) importFormOpen = false;
+                            rerender();
+                        });
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
         overlay.addEventListener('input', e => {
             const t = e.target;
             if (t.hasAttribute && t.hasAttribute('data-af-nexus-search')) {
@@ -274,14 +303,14 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     const renderForm = (type, m = type === 'music') => `<form class="audioflix-form" data-af-form="${m ? 'music' : 'sound'}"><label><span>${m ? 'Track Title' : 'Sound Name'}</span><input name="title" required></label><label class="audioflix-wide-field"><span>URL / Path</span><input name="url" required></label><label><span>${m ? 'Artist' : 'Category'}</span><input name="${m ? 'artist' : 'category'}"></label><label><span>${m ? 'Folder' : 'Volume'}</span><input name="${m ? 'folder' : 'volume'}"></label><button type="submit" data-af-action="submit-form">${m ? 'Add Track' : 'Add Sound'}</button></form>`;
     const renderImportPlaylistForm = () => {
-        const mode = ctx.playlistImportMode || 'youtube';
+        const mode = playlistImportMode || 'youtube';
         const isYt = mode === 'youtube';
         const isWpl = mode === 'wpl';
 
         const modeSelector = `<div style="display:flex; align-items:center; gap:8px; width:100%; margin-bottom:8px;"><span style="font-size:0.8rem; color:#cbd5e1; font-weight:600;">Import Mode:</span><button type="button" class="audioflix-scope-pill${isYt ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="youtube">📺 YouTube Playlist</button><button type="button" class="audioflix-scope-pill${isWpl ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="wpl">🎵 WPL Playlist</button></div>`;
 
         if (isWpl) {
-            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path</span><input name="url" required placeholder="C:\\path\\to\\playlist.wpl"></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
+            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path or Browse</span><div style="display:flex; gap:6px; align-items:center; width:100%;"><input name="url" required placeholder="C:\\path\\to\\playlist.wpl" style="flex:1;"><label class="audioflix-add-toggle" style="cursor:pointer; display:inline-flex; align-items:center; white-space:nowrap; padding:0 10px; margin:0;" title="Select .wpl file from your computer">📂 Browse File<input type="file" accept=".wpl,.xml" data-af-action="wpl-file-chosen" class="audioflix-wpl-file-picker" style="display:none;"></label></div></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
         }
 
         const plCount = (state().musicPlaylists || []).filter(c => c.provider !== 'wpl').length;
@@ -374,6 +403,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         get fullscreenOn() { return fullscreenOn; }, set fullscreenOn(v) { fullscreenOn = v; },
         get portsOpen() { return portsOpen; }, set portsOpen(v) { portsOpen = v; },
         get importFormOpen() { return importFormOpen; }, set importFormOpen(v) { importFormOpen = v; },
+        get playlistImportMode() { return playlistImportMode; }, set playlistImportMode(v) { playlistImportMode = v; },
         get localizeFormOpen() { return localizeFormOpen; }, set localizeFormOpen(v) { localizeFormOpen = v; },
         get syncPlaylistFormOpen() { return syncPlaylistFormOpen; }, set syncPlaylistFormOpen(v) { syncPlaylistFormOpen = v; },
         get missingListOpen() { return missingListOpen; }, set missingListOpen(v) { missingListOpen = v; },

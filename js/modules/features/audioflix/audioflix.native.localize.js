@@ -65,10 +65,11 @@ window.EveAudioflixNativeLocalize = window.EveAudioflixNativeLocalize || {};
 
         // Read WPL XML file content from disk on server
         async function readWplFile(path) {
-            if (!path) return { ok: false, message: 'Missing WPL path.' };
+            const cleanPath = String(path || '').trim().replace(/^["']+|["']+$/g, '').trim();
+            if (!cleanPath) return { ok: false, message: 'Missing WPL path.' };
             return fetchJson('/api/audioflix/wpl-read', {
                 method: 'POST',
-                body: JSON.stringify({ path }),
+                body: JSON.stringify({ path: cleanPath }),
                 timeout: DEVICE_SCAN_TIMEOUT_MS,
                 probe: true
             });
