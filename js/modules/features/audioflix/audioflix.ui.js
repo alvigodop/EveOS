@@ -145,17 +145,16 @@ window.EveAudioflix = window.EveAudioflix || {};
                 const file = t.files[0];
                 const form = t.closest('form');
                 const urlInput = form?.querySelector('input[name="url"]');
-                if (file.path) {
-                    if (urlInput) urlInput.value = file.path;
+                const pathString = file.path || file.name || '';
+                if (urlInput) urlInput.value = pathString;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    if (form) form._wplFileContent = evt.target?.result || '';
                     playbackStatus = `Selected WPL file "${file.name}". Specify target folder and click Import.`;
-                } else {
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                        if (urlInput) urlInput.value = evt.target?.result || '';
-                        playbackStatus = `Loaded WPL file "${file.name}". Specify target folder and click Import.`;
-                    };
-                    reader.readAsText(file);
-                }
+                    rerender();
+                };
+                reader.readAsText(file);
             }
         });
         overlay.addEventListener('input', e => {
