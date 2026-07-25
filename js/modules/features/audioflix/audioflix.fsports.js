@@ -168,7 +168,62 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
     // into soundboard-shaped raw items. The id embeds the persisted record id + filename so the
     // existing per-item maps (portVolumes / exposedPortedSounds / portHotkeys) keep working
     // unchanged across sessions and across server/browser modes.
+    // Resolve an absolute disk path to a playable blob: URL through the granted folder handles.
+    //
+    // A localized music track stores a real path (C:\...\All Songs\track.mp3). A browser cannot
+    // open that path — fetch('file://') is blocked, and even a file:// page treats other file URLs
+    // as separate origins — so playback used to go through the localhost port server and simply
+    // fell silent whenever that server was not running. The handles the user already granted for
+    // Browser Folders can serve the same bytes with no server at all, which is why the soundboard
+    // works offline and the music library did not.
+    //
+    // Handles expose only their folder NAME, never an absolute path, so match on the parent folder
+    // name and confirm by actually opening the file; failing that, accept any granted folder that
+    // directly holds a file of that name.
+    const pathBlobCache = new Map();
+
+    function splitPath(localPath) {
+        const parts = String(localPath || '').replace(/\\/g, '/').split('/').filter(Boolean);
+        return { file: parts.pop() || '', dir: parts.pop() || '' };
+    }
+
+    async function fileUrlForPath(localPath) {
+        if (!supported() || !localPath) return '';
+        const cached = pathBlobCache.get(localPath);
+        if (cached) return cached;
+        const { file, dir } = splitPath(localPath);
+        if (!file) return '';
+
+        const records = await allRecords();
+        const granted = [];
+        for (const rec of records) {
+            if (!rec.handle) continue;
+            if ((await permissionOf(rec.handle)) !== 'granted') continue;
+            granted.push(rec);
+        }
+        // Same-named parent folder first, then any granted folder holding that filename.
+        const ordered = [
+            ...granted.filter((r) => String(r.handle.name || '').toLowerCase() === dir.toLowerCase()),
+            ...granted.filter((r) => String(r.handle.name || '').toLowerCase() !== dir.toLowerCase())
+        ];
+        for (const rec of ordered) {
+            try {
+                const handle = await rec.handle.getFileHandle(file);
+                const url = URL.createObjectURL(await handle.getFile());
+                liveObjectUrls.push(url);
+                pathBlobCache.set(localPath, url);
+                return url;
+            } catch { /* not in this folder — keep looking */ }
+        }
+        return '';
+    }
+
+    // Blob URLs are revoked when the ported list is rebuilt; drop the path cache with them so a
+    // later lookup mints a fresh one instead of handing back a dead URL.
+    function clearPathCache() { pathBlobCache.clear(); }
+
     async function listSounds() {
+        clearPathCache();
         if (!supported()) return [];
         liveObjectUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) { } });
         liveObjectUrls = [];
@@ -328,6 +383,8 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
     Object.assign(ns, {
         ready: true,
         supported,
+        fileUrlForPath,
+        clearPathCache,
         addFolder,
         removeFolder,
         folderStates,

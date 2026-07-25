@@ -107,7 +107,10 @@
 
 .audioflix-provider-transport {
     display: grid;
-    grid-template-columns: auto auto minmax(100px, 1fr) auto;
+    /* play | time | seek | speed | volume. The speed picker is a 5th cell — with only four
+       columns it wrapped to a second row and made the compact error stage taller. Hidden
+       prev/next steppers take no cell, so single-track mode stays one row. */
+    grid-template-columns: auto auto minmax(80px, 1fr) auto auto;
     align-items: center;
     gap: 10px;
     padding: 10px 12px 12px;
@@ -174,4 +177,68 @@
     .audioflix-provider-transport label {
         grid-column: 1 / -1;
     }
+}
+
+/* Queue View: the stage follows a whole group, so it lists what is coming next and the
+   transport grows prev/next steppers alongside the speed picker. */
+.audioflix-provider-queue {
+    max-height: 190px;
+    overflow-y: auto;
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.35);
+}
+
+.audioflix-provider-queue > strong {
+    display: block;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+
+.audioflix-provider-queue-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.audioflix-provider-queue-list li button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 4px 6px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: #cbd5e1;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+
+.audioflix-provider-queue-list li button:hover {
+    background: rgba(148, 163, 184, 0.16);
+    color: #f8fafc;
+}
+
+.audioflix-provider-queue-list li.is-current button {
+    color: #7ee2a8;
+    font-weight: 600;
+}
+
+.audioflix-provider-transport select.audioflix-provider-rate {
+    background: rgba(15, 23, 42, 0.6);
+    color: #e2e8f0;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 6px;
+    padding: 2px 4px;
+    font-size: 0.8rem;
+}
+
+.audioflix-provider-step:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
 }

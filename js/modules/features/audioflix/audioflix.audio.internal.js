@@ -92,10 +92,19 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
                 </header>
                 <p class="audioflix-provider-status"></p>
                 <div class="audioflix-provider-frame"></div>
+                <div class="audioflix-provider-queue" hidden>
+                    <strong>Up next</strong>
+                    <ol class="audioflix-provider-queue-list"></ol>
+                </div>
                 <footer class="audioflix-provider-transport">
+                    <button type="button" class="audioflix-provider-step" data-url-player-action="prev" hidden title="Previous track in the queue">⏮</button>
                     <button type="button" data-url-player-action="toggle">Play</button>
+                    <button type="button" class="audioflix-provider-step" data-url-player-action="next" hidden title="Next track in the queue">⏭</button>
                     <output class="audioflix-provider-time">0:00 / 0:00</output>
                     <input class="audioflix-provider-seek" type="range" min="0" max="0" step="0.1" value="0" aria-label="Playback position">
+                    <label><span>Speed</span><select class="audioflix-provider-rate" aria-label="Playback speed">
+                        ${[0.5, 0.75, 1, 1.25, 1.5, 2, 3].map((r) => `<option value="${r}"${r === 1 ? ' selected' : ''}>${r}x</option>`).join('')}
+                    </select></label>
                     <label><span>Volume</span><input class="audioflix-provider-volume" type="range" min="0" max="1" step="0.01" value="1"></label>
                 </footer>`;
             stage.addEventListener('click', (event) => {
@@ -103,6 +112,9 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
                 const action = button?.dataset.urlPlayerAction;
                 if (action === 'stop') options.onStop?.();
                 else if (action === 'toggle') options.onToggle?.();
+                else if (action === 'prev') options.onStep?.(-1);
+                else if (action === 'next') options.onStep?.(1);
+                else if (action === 'queue-jump') options.onJump?.(Number(button.dataset.queueIndex || 0));
                 else if (action === 'collapse') {
                     stage.classList.toggle('is-collapsed');
                     button.textContent = stage.classList.contains('is-collapsed') ? 'Expand' : 'Minimize';
@@ -110,6 +122,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             });
             stage.addEventListener('change', (event) => {
                 if (event.target.matches('.audioflix-provider-seek')) options.onSeek?.(Number(event.target.value || 0));
+                else if (event.target.matches('.audioflix-provider-rate')) options.onRate?.(Number(event.target.value || 1));
             });
             stage.addEventListener('input', (event) => {
                 if (event.target.matches('.audioflix-provider-volume')) options.onVolume?.(Number(event.target.value || 0));
@@ -145,6 +158,33 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
 
         function setVisualVisible(visible) {
             ensureStage().classList.toggle('is-audio-only', visible === false);
+        }
+
+        // Queue mode: the stage follows a whole group instead of one locked-in track, so it lists
+        // what is coming and exposes prev/next. Passing an empty list returns it to single-track
+        // mode (queue block hidden, step buttons gone).
+        function setQueue(entries, currentIndex) {
+            const element = ensureStage();
+            const list = Array.isArray(entries) ? entries : [];
+            const box = element.querySelector('.audioflix-provider-queue');
+            const steps = element.querySelectorAll('.audioflix-provider-step');
+            box.hidden = list.length === 0;
+            steps.forEach((button) => { button.hidden = list.length === 0; });
+            if (!list.length) return;
+            const at = Number(currentIndex) || 0;
+            element.querySelector('[data-url-player-action="prev"]').disabled = at <= 0;
+            element.querySelector('[data-url-player-action="next"]').disabled = at >= list.length - 1;
+            element.querySelector('.audioflix-provider-queue-list').innerHTML = list.map((entry, index) => {
+                const title = String(entry?.title || 'Untitled');
+                const safe = title.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+                const state = index === at ? ' class="is-current"' : '';
+                return `<li${state}><button type="button" data-url-player-action="queue-jump" data-queue-index="${index}">${index === at ? '▶ ' : ''}${safe}</button></li>`;
+            }).join('');
+        }
+
+        function setRate(rate) {
+            const select = ensureStage().querySelector('.audioflix-provider-rate');
+            if (select) select.value = String(Number(rate) || 1);
         }
 
         function setExpanded(expanded = true) {
@@ -257,6 +297,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
 
         return {
             open, hide, setStatus, setVisualVisible, setExpanded, sync, connectYouTubeBridge,
+            setQueue, setRate,
             getFrame: () => ensureStage().querySelector('.audioflix-provider-frame'),
             getStage: () => stage,
             getItem: () => currentItem

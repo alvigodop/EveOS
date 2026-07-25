@@ -24,8 +24,14 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
     }
 
     function providerFor(rawUrl) {
+        const raw = String(rawUrl || '').trim();
+        // Locally-sourced audio — a granted Browser Folder blob, or an embedded data: URL — has no
+        // hostname to classify but the direct <audio> path plays it fine. Without this the internal
+        // player (and Queue View) rejected every local track, so a localized library could not use
+        // the in-EveOS player at all.
+        if (/^blob:/i.test(raw) || /^data:audio\//i.test(raw)) return 'direct';
         let parsed;
-        try { parsed = new URL(String(rawUrl || '').trim()); } catch { return ''; }
+        try { parsed = new URL(raw); } catch { return ''; }
         const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
         if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube';
         if (host === 'soundcloud.com' || host.endsWith('.soundcloud.com')) return 'soundcloud';
@@ -53,12 +59,16 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
         let active = null;
         let timer = 0;
         let requestedInternalView = false;
+        let playbackRate = 1;
         const playback = { item: null, currentTime: 0, duration: 0, paused: true, provider: '' };
         const view = window.EveAudioflixInternalPlayer?.createController?.({
             onStop: () => stop(),
             onToggle: () => playback.paused ? resume() : pause(),
             onSeek: (value) => seek(value),
-            onVolume: (value) => setVolume(value)
+            onVolume: (value) => setVolume(value),
+            onRate: (value) => setRate(value),
+            onStep: (delta) => options.onStep?.(delta),
+            onJump: (index) => options.onJump?.(index)
         });
 
         const emitPlayback = (status, error = false) => options.onPlayback?.({
@@ -122,6 +132,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (nativeMusic) player.crossOrigin = 'anonymous';
             player.preload = 'auto';
             player.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
+            player.playbackRate = playbackRate;   // carry the chosen speed across queue tracks
             player.src = item.url;
             // Follow the routed output (picked sink or matched native endpoint) so linked music
             // shares the soundboard's control layer; resolvePlaybackSink covers both cases.
@@ -406,8 +417,22 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (playback.item) playback.item.volume = safe;
         }
 
+        // Playback speed. Every provider that exposes a rate control gets it; SoundCloud's widget
+        // API has none, so it is left alone rather than silently pretending.
+        function setRate(rate) {
+            const safe = Math.max(0.25, Math.min(4, Number(rate) || 1));
+            playbackRate = safe;
+            view?.setRate?.(safe);
+            if (!active) return;
+            if (active.kind === 'direct') active.player.playbackRate = safe;
+            else if (active.kind === 'youtube') active.player.setPlaybackRate?.(safe);
+            else if (active.kind === 'vimeo') active.player.setPlaybackRate?.(safe)?.catch?.(() => {});
+        }
+
         return {
             play, openInternalView: (item) => play(item, { internalView: true }), pause, seek, stop, setVolume,
+            setRate, getRate: () => playbackRate,
+            setQueue: (entries, index) => view?.setQueue?.(entries, index),
             canHandle: (item) => !!providerFor(item?.url),
             shouldPreferBrowser: (item) => location.protocol === 'file:'
                 && /^https?:\/\//i.test(String(item?.url || ''))

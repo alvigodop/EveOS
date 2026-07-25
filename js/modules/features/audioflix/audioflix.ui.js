@@ -147,6 +147,28 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
     });
     const ensureOverlay = () => uiOverlay();
+    // Queue View asks the audio layer for prev/next/jump; the queue itself (order, shuffle, loop)
+    // lives here, so hand the audio layer a bridge back into it rather than duplicating the rules.
+    const queueTrackAt = (index) => (state().music || []).find((m) => m.id === activeMusicQueue.items[index]);
+    const playQueueIndex = async (index) => {
+        if (index < 0 || index >= activeMusicQueue.items.length) return;
+        activeMusicQueue.currentIndex = index;
+        const track = queueTrackAt(index);
+        if (!track) return;
+        try { await window.EveAudioflixAudio?.openInternalView?.(track); }
+        catch (err) { playbackStatus = err?.message || 'Playback failed'; }
+        window.EveAudioflixAudio?.syncQueueView?.();
+        rerender();
+    };
+    window.EveAudioflixAudio?.setQueueBridge?.({
+        list: () => activeMusicQueue.items.map((id) => {
+            const track = (state().music || []).find((m) => m.id === id);
+            return { id, title: track?.title || 'Untitled' };
+        }),
+        index: () => activeMusicQueue.currentIndex,
+        step: (delta) => playQueueIndex(activeMusicQueue.currentIndex + (Number(delta) || 0)),
+        jump: (index) => playQueueIndex(Number(index) || 0)
+    });
     // Long-lived WPL file input, parked on document.body so rerenders can't destroy it mid-dialog.
     window.EveAudioflixUiPicker.instance = window.EveAudioflixUiPicker.create({
         rerender: () => rerender(),

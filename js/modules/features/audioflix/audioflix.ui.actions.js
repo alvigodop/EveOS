@@ -143,6 +143,31 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 }
                 return;
             }
+            if (action === 'open-queue-view') {
+                // Queue-wide internal view. Reuses whatever queue is already running so opening it
+                // mid-group does not restart anything; otherwise it seeds one from this group.
+                const { name, items } = ctx.frontendActiveGroup('music');
+                if (!items?.length) return;
+                const prev = ctx.activeMusicQueue || {};
+                const running = prev.isPlaying && prev.items?.length && prev.groupName === name;
+                if (!running) {
+                    let ids = items.map((it) => it.id);
+                    if (prev.shuffle) ids = ctx.shuffleQueue(ids);
+                    ctx.activeMusicQueue = {
+                        groupName: name, items: ids, currentIndex: 0, isPlaying: true,
+                        shuffle: prev.shuffle === true, loop: prev.loop === true
+                    };
+                }
+                const q = ctx.activeMusicQueue;
+                const track = ctx.findItem('music', q.items[q.currentIndex]);
+                if (track) {
+                    try { await window.EveAudioflixAudio?.openInternalView?.(track); }
+                    catch (err) { ctx.playbackStatus = err.message || 'Could not open the queue view.'; }
+                }
+                window.EveAudioflixAudio?.syncQueueView?.();
+                ctx.rerender();
+                return;
+            }
             if (action === 'stop-music-group') {
                 const prev = ctx.activeMusicQueue || {};
                 // Keep the shuffle/loop preferences armed for the next Play Group.

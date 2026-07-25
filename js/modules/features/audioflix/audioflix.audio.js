@@ -45,8 +45,25 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             lastStatus = detail.status || lastStatus;
             dispatch('eve:audioflix-playback', detail);
         },
-        onProgress(detail) { dispatch('eve:audioflix-progress', detail); }
+        onProgress(detail) { dispatch('eve:audioflix-progress', detail); },
+        // Queue View's prev/next/jump. The queue itself belongs to the UI, so it registers a
+        // bridge rather than this layer duplicating the ordering, shuffle and loop rules.
+        onStep: (delta) => queueBridge?.step?.(delta),
+        onJump: (index) => queueBridge?.jump?.(index)
     }) || null;
+    let queueBridge = null;
+    function setQueueBridge(bridge) { queueBridge = bridge || null; }
+    function syncQueueView() {
+        urlPlayback?.setQueue?.(queueBridge?.list?.() || [], queueBridge?.index?.() ?? 0);
+    }
+    // Speed applies to the library element AND whatever the URL controller is driving, so a rate
+    // picked in either internal view survives a switch between them.
+    function setPlaybackRate(rate) {
+        const safe = Math.max(0.25, Math.min(4, Number(rate) || 1));
+        try { ensureAudio().playbackRate = safe; } catch { /* element not built yet */ }
+        urlPlayback?.setRate?.(safe);
+        return safe;
+    }
 
     // Native buffered playback (voice + stream lanes) lives in its own module. The native state
     // stays here (getPlaybackState/pause/seek read it directly), reached via this accessor bag.
@@ -184,16 +201,27 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         // url when it isn't (pure file:// with no server). This is what makes localized music play
         // offline and route natively without the stream lag.
         if (requestedItem.localPath) {
-            const localUrl = window.EveAudioflixNative?.getLocalFileUrl?.(requestedItem.localPath);
+            // A folder the user already granted as a Browser Folder can hand us the real bytes as a
+            // blob: URL with no server involved — the same route that makes the soundboard work on
+            // file://. Try it before the port server so localized music plays in every mode.
+            let blobUrl = '';
+            try { blobUrl = await window.EveAudioflixFsPorts?.fileUrlForPath?.(requestedItem.localPath) || ''; }
+            catch { /* fall through to the served route */ }
+            if (blobUrl) requestedItem.url = blobUrl;
+            const localUrl = blobUrl ? '' : window.EveAudioflixNative?.getLocalFileUrl?.(requestedItem.localPath);
             // A stale/unauthorized local file surfaces as an async media 'error' event, not a throw,
             // so a bad path used to mean silence with nothing to catch. Probe one byte first (a
             // loopback Range request costs ~nothing) and keep the online url when the file can't be
             // served, so a moved or de-authorized copy degrades to streaming instead of failing.
             if (localUrl) {
                 const onlineFallback = /^https?:\/\//i.test(String(requestedItem.url || '')) ? requestedItem.url : '';
-                const localOk = !onlineFallback || await window.EveAudioflixNative?.probeLocalFile?.(localUrl) !== false;
+                // Probe ALWAYS, not just when there is something to fall back to. Skipping it for
+                // local-only tracks meant a dead port server still got handed to <audio>, which
+                // fails as an async 'error' event — silence with nothing to catch.
+                const localOk = await window.EveAudioflixNative?.probeLocalFile?.(localUrl) !== false;
                 if (localOk) requestedItem.url = localUrl;
-                else lastStatus = `Local copy unavailable for ${requestedItem.title || 'track'} — streaming instead.`;
+                else if (onlineFallback) lastStatus = `Local copy unavailable for ${requestedItem.title || 'track'} — streaming instead.`;
+                else lastStatus = `Cannot reach the local copy of ${requestedItem.title || 'this track'}. Add its folder under Ports → Browser Folder to play it without the EveOS server.`;
             }
         }
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
@@ -391,6 +419,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         unlockDeviceLabels, playTestSignal, applySink, attachWaveform, browserOutputStatus, resolvePlaybackSink,
         layerPlay, stopItemLayers, stopAll, updateItemVolume, getDecodedBuffer, encodeBufferToBase64,
         getAudioElement: ensureAudio, getPlaybackState,
+        setQueueBridge, syncQueueView, setPlaybackRate,
+        getPlaybackRate: () => urlPlayback?.getRate?.() ?? 1,
         getMusicCapture: () => musicCapture,
         getWaveformController: () => waveformController,
         getStatus() {

@@ -24,7 +24,10 @@ window.EveAudioflixNativeLocalize = window.EveAudioflixNativeLocalize || {};
                 const response = await fetch(servedUrl, { method: 'GET', headers: { Range: 'bytes=0-0' } });
                 return response.status !== 403 && response.status !== 404;
             } catch {
-                return true;
+                // The probe URL points at the local port server. If the request cannot complete at
+                // all the server is down, so it CANNOT serve this file — reporting "fine" here is
+                // what handed <audio> a dead 127.0.0.1 URL and made localized tracks play silently.
+                return false;
             }
         }
 
