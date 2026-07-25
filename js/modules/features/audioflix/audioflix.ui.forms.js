@@ -87,9 +87,11 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                         ctx.playbackStatus = 'Scanning local folder for music extraction...'; ctx.rerender();
                         L.importMusicPort(path, folder).then(res => {
                             ctx.playbackStatus = res.ok
-                                ? `Extracted ${res.added} track(s) into folder tag "${res.folder}".`
+                                ? (res.reason || `Extracted ${res.added} track(s) into folder tag "${res.folder}".`)
                                 : (res.reason || 'Music Port failed.');
-                            ctx.musicPortFormOpen = false;
+                            if (res.ok) {
+                                ctx.musicPortFormOpen = false;
+                            }
                             ctx.rerender();
                         });
                     }
