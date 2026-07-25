@@ -102,6 +102,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             dispatch('eve:audioflix-progress', getPlaybackState());
         });
         audio.addEventListener('ended', function () {
+            // Natural end: let the routed device play out its remaining cushion instead of having
+            // the tail cleared (that truncation is what sounded like a freeze at the end).
+            musicCapture?.stop({ drain: true });
             lastStatus = 'Ended';
             dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
             dispatch('eve:audioflix-progress', getPlaybackState());

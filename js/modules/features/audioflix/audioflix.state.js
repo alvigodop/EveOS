@@ -201,6 +201,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             musicClassifiers: Array.isArray(source.musicClassifiers)
                 ? [...new Set(source.musicClassifiers.map((c) => text(c, '')).filter(Boolean))].slice(0, 200)
                 : [],
+            // Playlist provenance markers (⚡ Local / removed-upstream) live in the track settings
+            // panel by default; flip this on to also show them on the song card.
+            showPlaylistMarkersOnCard: source.showPlaylistMarkersOnCard === true,
             localizeDir: text(source.localizeDir, ''), // last folder used to save localized mp3s (reused as the prompt default)
             // Per-scope remembered localization folders, keyed "scope:key" (e.g. "folder:Chill").
             // Without this in normalize the per-scope path memory was stripped on every ensure().

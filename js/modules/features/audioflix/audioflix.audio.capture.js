@@ -24,6 +24,8 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
     // strictly in order (never overlapping POSTs, which could also arrive out of sequence).
     const PREBUFFER_MS = 400;
     const MAX_BACKLOG_MS = 2000;
+    // Upper bound on waiting for the device pre-open so a slow server can't stall playback.
+    const WARM_TIMEOUT_MS = 700;
 
     ns.createController = function createController(deps) {
         const getWaveform = deps.getWaveform;
@@ -104,15 +106,29 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             pump();
         }
 
-        function stop() {
+        // `drain` = the track finished on its own. The cushion we deliberately build up means the
+        // server still holds ~PREBUFFER_MS of unplayed audio; clearing the remote stream then would
+        // chop the tail off (heard as a freeze/cut right at the end). So on a natural end we flush
+        // whatever is still pending and leave the device to play its queue out. A user-initiated
+        // stop still clears immediately — silence should be instant when you press stop.
+        function stop(options) {
             if (!active) return false;
+            const drain = options?.drain === true;
             active = false;
             activePlayer = null;
-            reset();
             const waveform = getWaveform();
             waveform?.setFrameTap?.(null);
             waveform?.setSpeakerMuted?.(false);
-            window.EveAudioflixNative?.stopStream?.().catch(() => {});
+            if (drain) {
+                const tail = pending.slice();
+                reset();
+                (async () => {
+                    for (const chunk of tail) await send(chunk);
+                })().catch(() => {});
+            } else {
+                reset();
+                window.EveAudioflixNative?.stopStream?.().catch(() => {});
+            }
             return true;
         }
 
@@ -130,10 +146,17 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             const tapRate = await waveform.setFrameTap(onFrames);
             if (!tapRate) return false;
             rate = tapRate;
+            // AWAIT the device pre-open. Firing this off without waiting meant the first chunks
+            // could reach the bridge while WASAPI was still cold-opening (100-300ms), starving the
+            // callback and stuttering the opening seconds. Bounded so a slow or missing server
+            // delays the start by at most WARM_TIMEOUT_MS instead of hanging playback.
+            try {
+                await Promise.race([
+                    Promise.resolve(window.EveAudioflixNative?.warm?.(rate)).catch(() => {}),
+                    new Promise((resolve) => setTimeout(resolve, WARM_TIMEOUT_MS))
+                ]);
+            } catch { /* warming is best-effort */ }
             active = true;
-            // Pre-open the device stream at this rate so the first chunks aren't clipped by a
-            // cold WASAPI open (the same cause as the old first-reply cutout).
-            window.EveAudioflixNative?.warm?.(rate)?.catch?.(() => {});
             waveform.setSpeakerMuted?.(true);
             return true;
         }

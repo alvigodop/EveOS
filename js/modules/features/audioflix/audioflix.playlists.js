@@ -125,6 +125,11 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
 
     const DEFAULT_WPL_FOLDER = 'WPL Playlists';
 
+    // WPL connections read a local file instead of a web playlist — that half lives next door.
+    const { importWplPlaylist, syncWplPlaylist } = window.EveAudioflixPlaylistsWpl.create({
+        text, newId, connections, saveConnections, tracksFor, DEFAULT_WPL_FOLDER
+    });
+
     // Import a playlist URL as a group of tracks. options: { folder, group }
     async function importPlaylist(url, options = {}) {
         const clean = text(url);
@@ -152,118 +157,13 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         return { ok: true, connection, added: (upstream.entries || []).length, missing: 0 };
     }
 
-    // Import a WPL (Windows Media Player) playlist XML file or path. options: { folder, group }
-    async function importWplPlaylist(wplInput, options = {}) {
-        const parser = window.EveAudioflixWpl;
-        const N = window.EveAudioflixNative;
-        let parsed = null;
-
-        if (typeof wplInput === 'object' && wplInput.tracks) {
-            parsed = wplInput;
-        } else if (typeof wplInput === 'string') {
-            const clean = text(wplInput);
-            if (!clean) return { ok: false, reason: 'Please specify a WPL playlist file path or content.' };
-
-            if (clean.includes('<smil') || clean.includes('<seq') || clean.includes('<?wpl') || clean.includes('<media')) {
-                parsed = parser?.parseWplXml?.(clean, options.wplPath || '');
-            } else if (N?.readWplFile) {
-                const readRes = await N.readWplFile(clean);
-                if (readRes?.ok && readRes.content) {
-                    parsed = parser?.parseWplXml?.(readRes.content, readRes.path || clean);
-                } else {
-                    return {
-                        ok: false,
-                        reason: `Could not read WPL file from disk (${readRes?.message || 'EveOS server offline'}). Start an EveOS server (start-server.bat) or use "📂 Browse File" to pick your .wpl file directly!`
-                    };
-                }
-            } else if (parser) {
-                parsed = parser.parseWplXml(clean, clean);
-            }
-        }
-
-        if (!parsed || !parsed.ok) {
-            return { ok: false, reason: parsed?.reason || 'Could not parse that WPL file. Use "📂 Browse File" to select your .wpl file directly.' };
-        }
-
-        const targetFolder = text(options.folder, DEFAULT_WPL_FOLDER);
-        const groupTitle = text(options.group, text(parsed.title, 'WPL Playlist'));
-
-        const connection = {
-            id: newId(),
-            url: parsed.wplPath || 'wpl://local',
-            playlistId: `wpl_${Date.now()}`,
-            title: groupTitle,
-            provider: 'wpl',
-            group: groupTitle,
-            folder: targetFolder,
-            lastSyncedAt: Date.now(),
-            trackCount: (parsed.tracks || []).length
-        };
-
-        if (connection.group) window.EveAudioflixState?.addMusicGroup?.(connection.group);
-
-        let addedCount = 0;
-        const existingMusic = (window.EveAudioflixState?.ensure?.()?.music || []).slice();
-
-        (parsed.tracks || []).forEach((t) => {
-            const rawTitle = text(t.title, 'Untitled Track');
-            const trackPath = text(t.path);
-            const normPath = trackPath.toLowerCase().replace(/\\/g, '/');
-            const normTitle = rawTitle.toLowerCase();
-
-            // Match existing track in EveOS library by path or title
-            let targetTrack = existingMusic.find((m) => {
-                const mPath = String(m.localPath || m.url || '').toLowerCase().replace(/\\/g, '/');
-                const mTitle = String(m.title || '').toLowerCase();
-                if (normPath && mPath && (mPath === normPath || mPath.endsWith(normPath) || normPath.endsWith(mPath))) return true;
-                if (normTitle && mTitle && mTitle === normTitle) return true;
-                return false;
-            });
-
-            if (targetTrack) {
-                // Existing track found: link to WPL connection and attach to WPL Group
-                window.EveAudioflixState?.updateItem?.('music', targetTrack.id, {
-                    playlistId: connection.id,
-                    sourceId: trackPath || targetTrack.sourceId || targetTrack.id
-                });
-                if (connection.group) {
-                    window.EveAudioflixState?.toggleMusicGroup?.(targetTrack.id, connection.group, true);
-                }
-                addedCount += 1;
-            } else {
-                // New track: add under targetFolder and attach to WPL Group
-                const added = window.EveAudioflixState?.addItem?.('music', {
-                    title: rawTitle,
-                    url: trackPath,
-                    localPath: trackPath,
-                    folder: targetFolder,
-                    card: targetFolder,
-                    isPorted: true
-                });
-
-                if (added?.id) {
-                    window.EveAudioflixState?.updateItem?.('music', added.id, {
-                        sourceId: trackPath,
-                        playlistId: connection.id,
-                        localPath: trackPath,
-                        isPorted: true
-                    });
-                    if (connection.group) {
-                        window.EveAudioflixState?.toggleMusicGroup?.(added.id, connection.group, true);
-                    }
-                    addedCount += 1;
-                }
-            }
-        });
-
-        saveConnections(connections().concat(connection), 'audioflix-wpl-import');
-        return { ok: true, connection, added: addedCount, folder: targetFolder, group: groupTitle };
-    }
-
     // Re-read the upstream playlist and reconcile against what EveOS holds.
     async function syncPlaylist(connectionId, force = true, targetFolder = '') {
         const connection = getConnection(connectionId);
         if (!connection) return { ok: false, reason: 'That playlist connection no longer exists.' };
+        // A .wpl is a file on disk, not a web playlist — sending its path to the URL lister only
+        // ever failed, so route it back through the WPL reader.
+        if (connection.provider === 'wpl') return syncWplPlaylist(connection, targetFolder);
         const upstream = await fetchUpstream(connection.url, force);
         if (!upstream.ok) return upstream;
 
@@ -343,6 +243,21 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         return connections().find((entry) => text(entry.group) === clean || text(entry.title) === clean) || null;
     }
 
+    // Repoint an imported playlist at a corrected source. Browsers never hand out a directory
+    // when you pick a file, and a .wpl or playlist URL can move, so the saved link has to be
+    // fixable by hand — otherwise a stale link leaves the connection permanently unsyncable.
+    function setPlaylistLink(groupName, link) {
+        const conn = getPlaylistForGroup(groupName);
+        if (!conn) return { ok: false, reason: `No live playlist connection found for group "${groupName}".` };
+        const clean = text(link);
+        if (!clean) return { ok: false, reason: 'Enter a playlist URL or .wpl file path.' };
+        if (clean === text(conn.url)) return { ok: true, connection: conn, unchanged: true };
+        saveConnections(connections().map((entry) => entry.id === conn.id
+            ? Object.assign({}, entry, { url: clean })
+            : entry), 'audioflix-playlist-link');
+        return { ok: true, connection: { ...conn, url: clean } };
+    }
+
     // Sync a single playlist by its group name
     async function syncPlaylistByGroup(groupName, force = true, targetFolder = '') {
         const conn = getPlaylistForGroup(groupName);
@@ -368,6 +283,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         connections,
         getConnection,
         getPlaylistForGroup,
+        setPlaylistLink,
         syncPlaylistByGroup,
         isLocalTrackInImportedGroup,
         tracksFor,

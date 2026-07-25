@@ -33,6 +33,17 @@ window.EveAudioflixWpl = window.EveAudioflixWpl || {};
         return wplParts.join('/');
     }
 
+    // The playlist name comes from the FILE NAME whenever the path is known. Windows Media Player
+    // keeps the original name inside the XML's <title>, so renaming the .wpl on disk left EveOS
+    // showing the stale old name — which looked like a cached or "locked" path but was really just
+    // the embedded title winning. That title is now only the fallback for pasted XML with no path.
+    function playlistTitle(embeddedTitle, wplPath) {
+        const fromPath = text(wplPath)
+            ? text(String(wplPath).replace(/\\/g, '/').split('/').filter(Boolean).pop()).replace(/\.wpl$/i, '').trim()
+            : '';
+        return fromPath || text(embeddedTitle) || 'WPL Playlist';
+    }
+
     function parseWplXml(xmlText, wplPath = '') {
         const cleanXml = String(xmlText || '').trim();
         if (!cleanXml) return { ok: false, reason: 'Empty WPL file.' };
@@ -49,13 +60,7 @@ window.EveAudioflixWpl = window.EveAudioflixWpl || {};
         }
 
         const titleEl = doc.querySelector('head > title') || doc.querySelector('title');
-        let title = text(titleEl?.textContent);
-
-        if (!title && wplPath) {
-            const parts = wplPath.replace(/\\/g, '/').split('/').filter(Boolean);
-            title = parts[parts.length - 1]?.replace(/\.wpl$/i, '').trim();
-        }
-        if (!title) title = 'WPL Playlist';
+        const title = playlistTitle(titleEl?.textContent, wplPath);
 
         const mediaEls = doc.querySelectorAll('seq > media, body media');
         const tracks = [];
@@ -88,13 +93,7 @@ window.EveAudioflixWpl = window.EveAudioflixWpl || {};
 
     function parseWplRegex(xmlText, wplPath = '') {
         const titleMatch = xmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
-        let title = unescapeXml(text(titleMatch?.[1]));
-
-        if (!title && wplPath) {
-            const parts = wplPath.replace(/\\/g, '/').split('/').filter(Boolean);
-            title = parts[parts.length - 1]?.replace(/\.wpl$/i, '').trim();
-        }
-        if (!title) title = 'WPL Playlist';
+        const title = playlistTitle(unescapeXml(text(titleMatch?.[1])), wplPath);
 
         const tracks = [];
         const mediaRegex = /<media\s+[^>]*src=["']([^"']+)["']/gi;

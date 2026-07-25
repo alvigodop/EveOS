@@ -16,6 +16,15 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
         const localizeFormOpen = ctx.getLocalizeFormOpen;
         const syncPlaylistFormOpen = ctx.getSyncPlaylistFormOpen;
         const groupPathsOpen = ctx.getGroupPathsOpen;
+        const playlistLinkOpen = ctx.getPlaylistLinkOpen;
+
+        // A saved playlist link goes stale (file renamed/moved, browser pick that only yielded a
+        // bare filename), and a stale link is an unsyncable connection — so it is editable here.
+        const renderPlaylistLinkForm = (g, conn) => {
+            const isWpl = conn.provider === 'wpl';
+            const current = conn.url === 'wpl://local' ? '' : (conn.url || '');
+            return `<form class="audioflix-form" data-af-form="playlist-link-form" data-af-group="${esc(g)}" style="margin-top:6px;"><label class="audioflix-wide-field"><span>${isWpl ? 'Linked .wpl file path' : 'Linked playlist URL'}</span><input name="link" value="${esc(current)}" placeholder="${isWpl ? 'C:\\path\\to\\playlist.wpl' : 'https://youtube.com/playlist?list=...'}" required></label><button type="submit" data-af-action="submit-form">Save Link</button><button type="button" class="audioflix-add-toggle" data-af-action="toggle-playlist-link-form" data-af-group="${esc(g)}" style="margin-left:8px;">Cancel</button></form>`;
+        };
 
         const renderGroupsManager = (type = 'sound') => {
             const isM = type === 'music';
@@ -26,7 +35,18 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
                 const conn = isM ? window.EveAudioflixPlaylists?.getPlaylistForGroup?.(g) : null;
                 const dir = isM ? (window.EveAudioflixLocalize?.getScopeDir?.('group', g) || '') : '';
                 // Imported-playlist groups show BOTH the source URL and (if localized) the folder path.
-                const urlLine = `${conn?.url ? `<a href="${esc(conn.url)}" target="_blank" rel="noopener" style="display:block; font-size:0.75rem; color:#8ab4f8; text-decoration:none; margin-top:2px; word-break:break-all;">${esc(conn.url)}</a>` : ''}${dir ? `<div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">📁 ${esc(dir)}</div>` : ''}`;
+                // A .wpl link is a disk path, not something an <a href> can open — show it as text.
+                const isWebLink = /^https?:\/\//i.test(conn?.url || '');
+                const linkText = conn?.url && conn.url !== 'wpl://local' ? conn.url : '';
+                const linkLine = linkText
+                    ? (isWebLink
+                        ? `<a href="${esc(linkText)}" target="_blank" rel="noopener" style="display:block; font-size:0.75rem; color:#8ab4f8; text-decoration:none; margin-top:2px; word-break:break-all;">${esc(linkText)}</a>`
+                        : `<div style="font-size:0.75rem; color:#8ab4f8; margin-top:2px; word-break:break-all;">🔗 ${esc(linkText)}</div>`)
+                    : (conn ? `<div style="font-size:0.75rem; color:#f59e0b; margin-top:2px;">🔗 No source link saved — sync needs one.</div>` : '');
+                const urlLine = `${linkLine}${dir ? `<div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">📁 ${esc(dir)}</div>` : ''}`;
+                const isLinkOpen = !!conn && playlistLinkOpen().open && playlistLinkOpen().group === g;
+                const linkBtn = conn ? `<button type="button" class="audioflix-icon-btn${isLinkOpen ? ' is-active' : ''}" data-af-group="${esc(g)}" data-af-action="toggle-playlist-link-form" title="Edit the linked playlist URL / .wpl file path">🔗</button>` : '';
+                const linkForm = isLinkOpen ? renderPlaylistLinkForm(g, conn) : '';
                 const isSyncOpen = syncPlaylistFormOpen().open && syncPlaylistFormOpen().group === g;
                 const syncBtn = conn ? `<button type="button" class="audioflix-icon-btn${isSyncOpen ? ' is-active' : ''}" data-af-group="${esc(g)}" data-af-action="toggle-sync-playlist-form" title="Sync this playlist">🔄</button>` : '';
                 const dlBtn = isM ? `<button type="button" class="audioflix-icon-btn${localizeFormOpen().open && localizeFormOpen().scope === 'group' && localizeFormOpen().key === g ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="group" data-af-key="${esc(g)}" title="Localize this group's online tracks to local files">⬇️</button>` : '';
@@ -34,7 +54,7 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
                 const locForm = (isM && localizeFormOpen().open && localizeFormOpen().scope === 'group' && localizeFormOpen().key === g) ? renderLocalizeForm() : '';
                 const syncForm = (isM && isSyncOpen) ? renderSyncPlaylistForm(g) : '';
                 const pathsBox = isM ? uiLoc.renderGroupPaths(g) : '';
-                return `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong>${urlLine}<code style="display: block; font-size: 0.8rem; color: #94a3b8; margin-top:2px;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;">${dlBtn}${pathsBtn}${syncBtn}<button type="button" class="audioflix-icon-btn" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="rename-group-prompt" title="Edit group name or local path">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group" title="Delete group">${closeSvg}</button></div></div>${pathsBox}${locForm}${syncForm}`;
+                return `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong>${urlLine}<code style="display: block; font-size: 0.8rem; color: #94a3b8; margin-top:2px;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;">${dlBtn}${pathsBtn}${linkBtn}${syncBtn}<button type="button" class="audioflix-icon-btn" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="rename-group-prompt" title="Edit group name or local path">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group" title="Delete group">${closeSvg}</button></div></div>${pathsBox}${locForm}${linkForm}${syncForm}`;
             }).join('') || '<div class="audioflix-empty">No groups yet.</div>';
             return `<div class="audioflix-ports-mgr"><h4>${isM ? 'Music Frontend Groups' : 'Soundboard Frontend Groups'}</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group" data-af-type="${esc(type)}"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`;
         };

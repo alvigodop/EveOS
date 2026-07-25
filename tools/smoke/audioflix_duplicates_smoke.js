@@ -114,5 +114,48 @@ const LOCAL = 'C:/Users/drift/Music/night-drive.mp3';
         console.log('keep-both OK (pair dismissed, both items kept)');
     }
 
+    // --- 4. The real-world pair that used to slip through: one title carries a trailing ".wmv"
+    //        and the two copies live in different folders (one with \ separators, one with /).
+    {
+        const ctx = makeCtx({
+            music: [
+                { id: 'ported', title: '[31]Follow Me Seira Kagami - Follow Me with lyrics',
+                  url: 'C:\\Users\\alvin\\Downloads\\Temp-Music-Index-Holder\\All Songs\\[31]Follow Me Seira Kagami - Follow Me with lyrics.wmv.mp3',
+                  classifiers: ['Anime-NoN-English Old Songs'] },
+                { id: 'wpl', title: '[31]Follow Me Seira Kagami - Follow Me with lyrics.wmv',
+                  url: 'C:/Users/alvin/Downloads/All Songs/[31]Follow Me Seira Kagami - Follow Me with lyrics.wmv.mp3',
+                  classifiers: ['Instumental Old Songs'] }
+            ]
+        });
+        const { D } = loadAll(ctx);
+        assert(D.isDuplicate('music', 'ported') && D.isDuplicate('music', 'wpl'),
+            'the ported copy and the WPL copy of the same song must be seen as duplicates');
+        assert(D.duplicatesFor('music', 'ported').map((x) => x.id).join() === 'wpl', 'they pair with each other');
+        console.log('real-world dup detection OK (trailing ext + same file name across folders)');
+    }
+
+    // --- 5. Merging carries the removed copy's classifiers and localizations onto the survivor ---
+    {
+        const ctx = makeCtx({
+            music: [
+                { id: 'keep', title: 'Song', url: 'https://y/1', classifiers: ['English only'],
+                  localizations: [{ source: 'folder:Chill', path: 'D:/Chill/Song.mp3', kind: 'file' }] },
+                { id: 'drop', title: 'Song', url: 'C:/music/Song.mp3', classifiers: ['Anime Only', 'English only'],
+                  localizations: [{ source: 'group:Vibes', path: 'D:/Vibes/Song.mp3', kind: 'shortcut', linkOf: 'D:/Chill/Song.mp3' }] }
+            ]
+        });
+        const { S, D } = loadAll(ctx);
+        const res = D.mergeDuplicates('music', 'keep', ['drop']);
+        assert(res.ok, 'merge succeeds');
+        const survivor = S.ensure().music.find((m) => m.id === 'keep');
+        assert(survivor.classifiers.includes('English only') && survivor.classifiers.includes('Anime Only'),
+            `survivor keeps BOTH copies' classifiers (got ${JSON.stringify(survivor.classifiers)})`);
+        assert(survivor.classifiers.filter((c) => c === 'English only').length === 1, 'shared classifiers are not duplicated');
+        const sources = survivor.localizations.map((l) => l.source).sort();
+        assert(sources.join() === 'folder:Chill,group:Vibes', `survivor keeps both localization scopes (got ${sources})`);
+        assert(S.ensure().music.length === 1, 'the duplicate is gone');
+        console.log('merge carries classifiers + localizations OK');
+    }
+
     console.log('AUDIOFLIX_DUPLICATES_SMOKE_OK');
 })();

@@ -55,10 +55,12 @@ function loadAll(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.wpl.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.playlists.wpl.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.playlists.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.classifiers.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.audit.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.port.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.js');
     return {
         S: ctx.window.EveAudioflixState,
@@ -87,7 +89,12 @@ function loadAll(ctx) {
         const { WPL } = loadAll(ctx);
         const parsed = WPL.parseWplXml(wplSample, 'C:/Users/alvin/Playlists/MyList.wpl');
         assert(parsed.ok === true, 'WPL parse ok');
-        assert(parsed.title === 'Anime High Energy', `title = Anime High Energy (got ${parsed.title})`);
+        // The FILENAME wins when we know the path. Windows Media Player leaves the original name
+        // in <title> forever, so preferring it made a renamed .wpl look permanently stuck on its
+        // old name. The embedded title is only the fallback for pasted XML with no path.
+        assert(parsed.title === 'MyList', `filename beats the stale embedded title (got ${parsed.title})`);
+        const pasted = WPL.parseWplXml(wplSample, '');
+        assert(pasted.title === 'Anime High Energy', `pasted XML with no path falls back to the embedded title (got ${pasted.title})`);
         assert(parsed.tracks.length === 2, '2 tracks found');
         assert(parsed.tracks[0].path === 'C:/Music/Track1.mp3', 'track 1 absolute path');
         assert(parsed.tracks[1].path === 'C:/Users/alvin/Rock/Track2.flac', `track 2 relative path resolved (got ${parsed.tracks[1].path})`);

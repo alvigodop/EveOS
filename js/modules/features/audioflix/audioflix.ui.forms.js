@@ -70,6 +70,16 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                         });
                     }
                 }
+                else if (fName === 'playlist-link-form') {
+                    const groupName = form.dataset.afGroup;
+                    const PL = window.EveAudioflixPlaylists;
+                    const res = PL?.setPlaylistLink?.(groupName, data.get('link'));
+                    if (res?.ok) ctx.playlistLinkFormOpen = { open: false, group: '' };
+                    ctx.playbackStatus = res?.ok
+                        ? `Link for "${groupName}" saved — sync will use it from now on.`
+                        : (res?.reason || 'Could not save that link.');
+                    ctx.rerender();
+                }
                 else if (fName === 'localize-form') {
                     const scope = form.dataset.afScope || 'library';
                     const key = form.dataset.afKey || '';

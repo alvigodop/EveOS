@@ -230,6 +230,13 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
+            if (action === 'toggle-playlist-link-form') {
+                const group = actionTarget.dataset.afGroup || '';
+                const curr = ctx.playlistLinkFormOpen || {};
+                ctx.playlistLinkFormOpen = (curr.open && curr.group === group) ? { open: false, group: '' } : { open: true, group };
+                ctx.rerender();
+                return;
+            }
             if (action === 'cancel-sync-form') {
                 ctx.syncPlaylistFormOpen = { open: false, group: '' };
                 ctx.rerender();
@@ -354,9 +361,9 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             }
             if (action === 'clear-gemini-events') { window.EveAudioflixState?.clearGeminiAudioEvents?.(); ctx.playbackStatus = 'Gemini event counter cleared'; ctx.rerender(); return; }
             if (action === 'trigger-wpl-file-picker') {
-                const form = actionTarget.closest('form');
-                const fileInput = form?.querySelector('.audioflix-wpl-file-picker');
-                fileInput?.click();
+                // The input is owned by ui.picker and lives outside the panel, so a rerender that
+                // lands while the OS dialog is open can't orphan it mid-pick.
+                window.EveAudioflixUiPicker?.instance?.open?.();
                 return;
             }
             if (action === 'toggle-import-form') {

@@ -46,6 +46,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     let importFormValues = { wplUrl: '', wplFolder: '', wplFileContent: '' };
     let localizeFormOpen = { open: false, scope: 'library', key: '' };
     let syncPlaylistFormOpen = { open: false, group: '' };
+    let playlistLinkFormOpen = { open: false, group: '' };
     let missingListOpen = { open: false, scope: '', key: '' };
     let smartArtistExpanded = false;
     let musicPortFormOpen = false;
@@ -81,9 +82,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         getFrontendOpen: () => classifierRowOpen
     });
 
-    // The settings (cog) modal lives in a sibling module; it reads this view via the ctx bag.
-    // Helpers are late-bound arrows: this factory runs before the `const` helpers below exist, so
-    // direct references would hit the temporal dead zone.
+    // Settings (cog) modal lives in a sibling module. Helpers are late-bound arrows: this factory
+    // runs before the `const` helpers below exist (temporal dead zone otherwise).
     const uiModal = window.EveAudioflixUiModal.create({
         esc, closeSvg, state, uiLoc, uiClass,
         formatDuration: (v) => formatDuration(v),
@@ -127,161 +127,34 @@ window.EveAudioflix = window.EveAudioflix || {};
         else { nativeHotkeysLive = false; window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); }
     }
 
-    function ensureOverlay() {
-        if (overlay) return overlay;
-        overlay = Object.assign(document.createElement('div'), { id: 'audioflix-overlay', className: 'audioflix-overlay', hidden: true });
-        document.body.appendChild(overlay);
-        overlay.addEventListener('click', e => {
-            const t = e.target, act = t.closest('[data-af-action]');
-            if (act) {
-                if (act.classList.contains('audioflix-info-modal') && t.closest('.audioflix-info-card')) return;
-                e.preventDefault();
-                if (act.dataset.afAction === 'close') close(); else handleAction(act, e);
-            } else if (t === overlay) close();
-        });
-        overlay.addEventListener('submit', e => { e.preventDefault(); const f = e.target.closest('form[data-af-form]'); if (f) handleForm(f); });
-        overlay.addEventListener('change', e => {
-            const t = e.target;
-            if (t.classList?.contains('audioflix-wpl-file-picker') && t.files?.[0]) {
-                const file = t.files[0];
-                const form = t.closest('form');
-                const pathString = file.path || file.name || '';
-                importFormValues.wplUrl = pathString;
-                rerender();
-
-                const N = window.EveAudioflixNative;
-                const readLocalFallback = () => {
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                        importFormValues.wplFileContent = evt.target?.result || '';
-                        if (form) form._wplFileContent = importFormValues.wplFileContent;
-                        playbackStatus = `Selected WPL file "${file.name}". Specify target folder and click Import.`;
-                        rerender();
-                    };
-                    reader.readAsText(file);
-                };
-
-                if (N?.readWplFile) {
-                    N.readWplFile(pathString).then(readRes => {
-                        if (readRes?.ok && readRes.path) {
-                            importFormValues.wplUrl = readRes.path;
-                            importFormValues.wplFileContent = readRes.content || '';
-                            if (form) form._wplFileContent = readRes.content || '';
-                            playbackStatus = `Selected WPL file "${readRes.path}". Specify target folder and click Import.`;
-                            rerender();
-                        } else {
-                            readLocalFallback();
-                        }
-                    }).catch(readLocalFallback);
-                } else {
-                    readLocalFallback();
-                }
-            }
-        });
-        overlay.addEventListener('input', e => {
-            const t = e.target;
-            if (t.hasAttribute && t.hasAttribute('data-af-nexus-search')) {
-                // Live search: refresh only the results container so the input keeps focus.
-                nexusState = { ...nexusState, query: t.value };
-                const box = overlay.querySelector(`.audioflix-nexus-results[data-af-nexus-results="${t.dataset.afType}"]`);
-                if (box) box.innerHTML = uiNexus.renderResults(t.dataset.afType);
-                return;
-            }
-            if (t.classList.contains('audioflix-seek-slider')) {
-                window.EveAudioflixTransport?.preview?.(t);
-            } else if (t.classList.contains('audioflix-volume-slider')) {
-                const vol = parseFloat(t.value), id = t.dataset.afId, lbl = t.nextElementSibling;
-                t.style.setProperty('--vol', `${vol * 100}%`); if (lbl) lbl.textContent = `${Math.round(vol * 100)}%`;
-                window.EveAudioflixAudio?.updateItemVolume?.(id, vol);
-                window.EveAudioflixState?.setItemVolume?.(t.dataset.afType, id, vol);
-                const ps = portedSounds.find(s => s.id === id); if (ps) ps.volume = vol;
-            }
-        });
-        overlay.addEventListener('change', async e => {
-            const t = e.target, id = t.dataset.afId, type = t.dataset.afType || 'sound';
-            if (t.classList.contains('audioflix-seek-slider')) {
-                await window.EveAudioflixAudio?.seek?.(Number(t.value || 0));
-                window.EveAudioflixTransport?.finishSeek?.(t);
-                window.EveAudioflixTransport?.sync?.(overlay);
-            } else if (t.classList.contains('audioflix-expose-cb')) {
-                window.EveAudioflixState?.setItemExposed?.(type, id, t.checked);
-                if (activeInfoItem?.id === id) activeInfoItem.exposed = t.checked;
-                const ps = portedSounds.find(s => s.id === id); if (ps) ps.exposed = t.checked;
-                pushHotkeysToBridge();
-                rerender();
-            } else if (t.classList.contains('audioflix-localization-path')) {
-                const res = window.EveAudioflixLocalize?.setLocalizationPath?.(t.dataset.afId, t.dataset.afSource, t.value);
-                playbackStatus = res?.ok ? 'Localization path updated.' : (res?.reason || 'Could not update that path.');
-                rerender();
-            } else if (t.classList.contains('audioflix-classifier-cb')) {
-                window.EveAudioflixClassifiers?.toggleOnTrack?.(t.dataset.afId, t.dataset.afClassifier, t.checked);
-                rerender();
-            } else if (t.classList.contains('audioflix-group-cb')) {
-                if (type === 'music') window.EveAudioflixState?.toggleMusicGroup?.(id, t.dataset.afGroup, t.checked);
-                else window.EveAudioflixState?.toggleSoundGroup?.(id, t.dataset.afGroup, t.checked);
-                pushHotkeysToBridge();
-            } else if (t.classList.contains('audioflix-hotkey-input')) {
-                const val = t.value.trim().toLowerCase(), issue = hotkeyComboIssue(val);
-                t.title = issue ? issue.msg : 'Global hotkey (e.g. ctrl+y)'; t.classList.toggle('audioflix-input-invalid', !!(issue && issue.invalid));
-                if (issue) playbackStatus = issue.msg;
-                window.EveAudioflixState?.setItemHotkey?.(type, id, val);
-                if (activeInfoItem?.id === id) activeInfoItem.hotkey = val;
-                const ps = portedSounds.find(s => s.id === id); if (ps) ps.hotkey = val;
-                pushHotkeysToBridge();
-            } else if (t.classList.contains('audioflix-bypass-input')) {
-                const val = t.value.trim().toLowerCase(), issue = hotkeyComboIssue(val);
-                t.title = issue ? issue.msg : 'Press this to suspend/resume all sound hotkeys'; t.classList.toggle('audioflix-input-invalid', !!(issue && issue.invalid));
-                window.EveAudioflixState?.update?.({ hotkeyBypassCombo: val }, 'audioflix-bypass'); pushHotkeysToBridge();
-            } else {
-                const sel = t.closest('[data-af-control]'); if (!sel) return;
-                const lbl = sel.selectedOptions[0]?.textContent || '', val = sel.value || '', ctrl = sel.dataset.afControl; sel.blur();
-                try {
-                    if (ctrl === 'monitor-output-select') {
-                        const isVoicePort = val && state().preferredSinkId === val;
-                        if (val && window.EveAudioflixRouting?.isCableLabel?.(lbl)) {
-                            playbackStatus = 'Monitor can’t use a CABLE Input — that loops Gemini voice back into the mic. Pick real speakers/headphones.';
-                            window.EveAudioflixGemini?.setMonitorSink?.('', 'Default monitor output');
-                        } else window.EveAudioflixGemini?.setMonitorSink?.(isVoicePort ? '' : val, isVoicePort ? 'Default monitor output' : lbl);
-                    }
-                    else if (ctrl === 'output-select') {
-                        await window.EveAudioflixAudio?.setOutputById?.(val, lbl);
-                        if (val && state().geminiVoiceMonitorSinkId === val) window.EveAudioflixGemini?.setMonitorSink?.('', 'Default monitor output');
-                    } else if (ctrl === 'native-output-select') { window.EveAudioflixNative?.selectNativeOutput?.(val, lbl.replace(/\s+\(discovery only\)$/i, '')); pushHotkeysToBridge(); }
-                    else if (ctrl === 'native-input-select') window.EveAudioflixNative?.selectNativeInput?.(val, lbl.replace(/\s+\(reference only\)$/i, ''));
-                } catch (err) { playbackStatus = err.message || 'Output selection failed'; }
-                rerender();
-            }
-        });
-        document.addEventListener('keydown', handleHotkey);
-
-        window.addEventListener('eve:audioflix-playback', async (e) => {
-            const detail = e.detail || {};
-            if ((detail.status === 'Ended' || detail.status === 'Stopped') && activeMusicQueue.isPlaying && activeMusicQueue.items.length) {
-                const currentPlayingId = activeMusicQueue.items[activeMusicQueue.currentIndex];
-                if (detail.item && detail.item.id === currentPlayingId && detail.status === 'Ended') {
-                    activeMusicQueue.currentIndex += 1;
-                    if (activeMusicQueue.currentIndex >= activeMusicQueue.items.length && activeMusicQueue.loop) {
-                        // Loop is on: wrap back to #1. With shuffle also on, reshuffle first so the
-                        // next lap is a fresh random order starting from a random track.
-                        if (activeMusicQueue.shuffle) activeMusicQueue.items = shuffleQueue(activeMusicQueue.items);
-                        activeMusicQueue.currentIndex = 0;
-                    }
-                    if (activeMusicQueue.currentIndex < activeMusicQueue.items.length) {
-                        const nextId = activeMusicQueue.items[activeMusicQueue.currentIndex];
-                        const nextTrack = (state().music || []).find(m => m.id === nextId);
-                        if (nextTrack) {
-                            try { await window.EveAudioflixAudio?.playItem?.(nextTrack); } catch (err) { console.warn('[Audioflix] queue sequential play error:', err); }
-                        }
-                    } else {
-                        activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: false, loop: false };
-                    }
-                    rerender();
-                }
-            }
-        });
-
-        return overlay;
-    }
+    // Overlay construction + delegated event wiring live in a sibling module (late-bound ctx).
+    const uiOverlay = window.EveAudioflixUiOverlay.create({
+        state, rerender: () => rerender(), close: () => close(),
+        handleAction: (t, e) => handleAction(t, e), handleForm: (f) => handleForm(f),
+        handleHotkey: (e) => handleHotkey(e), startHotkeyFeedbackPoll: () => startHotkeyFeedbackPoll(),
+        renderPanel: () => renderPanel(), shuffleQueue: (ids) => shuffleQueue(ids),
+        findItem: (t, id) => findItem(t, id), uiNexus, uiClass,
+        pushHotkeysToBridge: () => pushHotkeysToBridge(), hotkeyComboIssue: (c) => hotkeyComboIssue(c),
+        // Live accessors over this view's mutable state (the overlay module holds none of its own).
+        view: {
+            get overlay() { return overlay; }, set overlay(v) { overlay = v; },
+            get portedSounds() { return portedSounds; },
+            get activeMusicQueue() { return activeMusicQueue; }, set activeMusicQueue(v) { activeMusicQueue = v; },
+            get nexusState() { return nexusState; }, set nexusState(v) { nexusState = v; },
+            get importFormValues() { return importFormValues; }, set importFormValues(v) { importFormValues = v; },
+            get playbackStatus() { return playbackStatus; }, set playbackStatus(v) { playbackStatus = v; },
+            get activeInfoItem() { return activeInfoItem; }, set activeInfoItem(v) { activeInfoItem = v; }
+        }
+    });
+    const ensureOverlay = () => uiOverlay();
+    // Long-lived WPL file input, parked on document.body so rerenders can't destroy it mid-dialog.
+    window.EveAudioflixUiPicker.instance = window.EveAudioflixUiPicker.create({
+        rerender: () => rerender(),
+        view: {
+            get importFormValues() { return importFormValues; }, set importFormValues(v) { importFormValues = v; },
+            get playbackStatus() { return playbackStatus; }, set playbackStatus(v) { playbackStatus = v; }
+        }
+    });
 
     const allGroups = (type = 'sound') => (type === 'music' ? state().musicGroups : state().soundboardGroups) || [];
     const groupsOf = (id, type = 'sound') => {
@@ -322,7 +195,7 @@ window.EveAudioflix = window.EveAudioflix || {};
 
         if (isWpl) {
             const urlVal = esc(importFormValues.wplUrl || '');
-            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path or Browse</span><div style="display:flex; gap:6px; align-items:center; width:100%;"><input name="url" required placeholder="C:\\path\\to\\playlist.wpl" value="${urlVal}" style="flex:1;"><button type="button" class="audioflix-add-toggle" data-af-action="trigger-wpl-file-picker" style="cursor:pointer; white-space:nowrap; padding:0 10px; margin:0;" title="Select .wpl file from your computer">📂 Browse File</button><input type="file" accept=".wpl,.xml" class="audioflix-wpl-file-picker" style="display:none;"></div></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
+            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path or Browse</span><div style="display:flex; gap:6px; align-items:center; width:100%;"><input name="url" required placeholder="C:\\path\\to\\playlist.wpl" value="${urlVal}" style="flex:1;"><button type="button" class="audioflix-add-toggle" data-af-action="trigger-wpl-file-picker" style="cursor:pointer; white-space:nowrap; padding:0 10px; margin:0;" title="Select .wpl file from your computer">📂 Browse File</button></div></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
         }
 
         const plCount = (state().musicPlaylists || []).filter(c => c.provider !== 'wpl').length;
@@ -344,6 +217,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         renderSyncPlaylistForm: (g) => renderSyncPlaylistForm(g),
         getLocalizeFormOpen: () => localizeFormOpen,
         getSyncPlaylistFormOpen: () => syncPlaylistFormOpen,
+        getPlaylistLinkOpen: () => playlistLinkFormOpen,
         getGroupPathsOpen: () => groupPathsOpen
     });
     const renderGroupsManager = (type) => uiManagers.renderGroupsManager(type);
@@ -393,10 +267,8 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     const findItem = (type, itemId) => ((type === 'music' ? state().music : state().soundboard) || []).find(item => item.id === itemId);
 
-    // Click-action + form-submit + hotkey handlers live in sibling modules (audioflix.ui.actions.js
-    // and audioflix.ui.hotkeys.js) to keep this view under the line cap. They reach this view's
-    // mutable state through the `uiCtx` accessor facade below, so the renderers above keep using
-    // the same closure variables unchanged — only the moved handler code goes through uiCtx.
+    // Handlers live in sibling modules and reach this view's mutable state through `uiCtx`, so the
+    // renderers above keep using the same closure variables unchanged.
     const uiCtx = {
         state, rerender, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries,
         get overlay() { return overlay; },
@@ -419,6 +291,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         get importFormValues() { return importFormValues; }, set importFormValues(v) { importFormValues = v; },
         get localizeFormOpen() { return localizeFormOpen; }, set localizeFormOpen(v) { localizeFormOpen = v; },
         get syncPlaylistFormOpen() { return syncPlaylistFormOpen; }, set syncPlaylistFormOpen(v) { syncPlaylistFormOpen = v; },
+        get playlistLinkFormOpen() { return playlistLinkFormOpen; }, set playlistLinkFormOpen(v) { playlistLinkFormOpen = v; },
         get missingListOpen() { return missingListOpen; }, set missingListOpen(v) { missingListOpen = v; },
         get smartArtistExpanded() { return smartArtistExpanded; }, set smartArtistExpanded(v) { smartArtistExpanded = v; },
         get classifierManagerOpen() { return classifierManagerOpen; }, set classifierManagerOpen(v) { classifierManagerOpen = v; },

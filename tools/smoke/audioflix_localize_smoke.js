@@ -46,6 +46,7 @@ function loadAll(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.classifiers.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.audit.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.port.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.js');
     return { S: ctx.window.EveAudioflixState, L: ctx.window.EveAudioflixLocalize, C: ctx.window.EveAudioflixClassifiers };
 }
