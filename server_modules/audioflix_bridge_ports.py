@@ -1,13 +1,60 @@
+import json
 import os
+import threading
 from http import HTTPStatus
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac"}
 
-# Directories the user has explicitly registered as soundboard "ports". The file
-# endpoint will only serve files that live inside one of these (and only audio
-# files), so a crafted ?path= cannot read arbitrary files off the machine. A dir
-# is registered the first time the client lists it (loadPortedSounds on open).
+# Directories the user has explicitly registered as soundboard "ports" or localized music folders.
+# The file endpoint will only serve files that live inside one of these (and only audio files), so a
+# crafted ?path= cannot read arbitrary files off the machine.
+#
+# This registry is PERSISTED. It used to live only in memory, which meant every server restart
+# de-authorized every localized music folder: the tracks still had valid localPaths, but /port/file
+# answered 403 ("not inside a registered port directory") until the user re-ran Localize, so songs
+# silently refused to play. Soundboard path ports were re-registered on panel open (port/list), which
+# is why only music was affected. Persisting the set makes localized playback survive a restart.
 _ALLOWED_DIRS: set[str] = set()
+_REGISTRY_LOCK = threading.Lock()
+_REGISTRY_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audioflix_allowed_dirs.json")
+_MAX_REGISTRY = 500
+
+
+def _load_registry() -> None:
+    """Restore the authorized-directory set, dropping any folder that no longer exists."""
+    try:
+        with open(_REGISTRY_PATH, "r", encoding="utf-8") as handle:
+            saved = json.load(handle)
+    except (OSError, ValueError):
+        return
+    if not isinstance(saved, list):
+        return
+    kept = [e for e in saved if isinstance(e, str) and os.path.isdir(e)]
+    _ALLOWED_DIRS.update(kept)
+    if len(kept) != len(saved):
+        _save_registry()      # write the pruned set back so deleted folders don't linger forever
+
+
+def _save_registry() -> None:
+    try:
+        with open(_REGISTRY_PATH, "w", encoding="utf-8") as handle:
+            json.dump(sorted(_ALLOWED_DIRS), handle, indent=1)
+    except OSError:
+        pass          # a read-only checkout just loses persistence, never breaks playback
+
+
+def authorize_dir(path: str) -> None:
+    """Register a directory as servable and persist it (idempotent, bounded)."""
+    if not path:
+        return
+    with _REGISTRY_LOCK:
+        canon = _canon(path)
+        if canon in _ALLOWED_DIRS:
+            return
+        if len(_ALLOWED_DIRS) >= _MAX_REGISTRY:
+            return
+        _ALLOWED_DIRS.add(canon)
+        _save_registry()
 
 _CONTENT_TYPES = {
     ".mp3": "audio/mpeg",
@@ -98,6 +145,9 @@ def _canon(p: str) -> str:
     return os.path.realpath(os.path.abspath(p))
 
 
+_load_registry()   # restore authorized dirs so localized music plays after a restart
+
+
 def _is_within(child: str, parent: str) -> bool:
     try:
         return os.path.commonpath([child, parent]) == parent
@@ -119,11 +169,14 @@ def handle_port_get_request(handler, path: str, query, send_json_fn) -> bool:
 
         try:
             canon_dir = _canon(dir_path)
-            _ALLOWED_DIRS.add(canon_dir)  # registering a port authorizes serving its files
+            authorize_dir(canon_dir)  # registering a port authorizes serving its files (persisted)
             files = []
-            for filename in os.listdir(canon_dir):
-                filepath = os.path.join(canon_dir, filename)
-                if os.path.isfile(filepath):
+            for dirpath, _dirnames, filenames in os.walk(canon_dir):
+                canon_sub = _canon(dirpath)
+                if canon_sub != canon_dir:
+                    authorize_dir(canon_sub)  # authorize subdirectories too (persisted)
+                for filename in filenames:
+                    filepath = os.path.join(dirpath, filename)
                     _, ext = os.path.splitext(filename.lower())
                     if ext in AUDIO_EXTENSIONS:
                         files.append({"name": filename, "path": filepath})
@@ -143,15 +196,38 @@ def handle_port_get_request(handler, path: str, query, send_json_fn) -> bool:
         if ext not in AUDIO_EXTENSIONS:
             handler.send_error(HTTPStatus.FORBIDDEN, "Only audio files can be served.")
             return True
+        # Only serve from directories the user actually registered (a port listing, a localize run,
+        # or a folder scan). Do NOT auto-authorize an unknown parent just because the file exists:
+        # that would turn this endpoint into an arbitrary audio-file reader for anything that can
+        # reach 127.0.0.1. Restart-survival is handled by persisting the registry, not by trusting
+        # whatever path was asked for.
         if not any(_is_within(real, d) for d in _ALLOWED_DIRS):
-            if os.path.isfile(real):
-                _ALLOWED_DIRS.add(_canon(os.path.dirname(real)))
-            else:
-                handler.send_error(HTTPStatus.FORBIDDEN, "File is not inside a registered port directory.")
-                return True
-        if not os.path.isfile(real):
-            handler.send_error(HTTPStatus.NOT_FOUND, "File not found.")
+            handler.send_error(HTTPStatus.FORBIDDEN, "File is not inside a registered port directory.")
             return True
+        if not os.path.isfile(real):
+            # Fallback: the stored localPath may point to the wrong subdirectory level.
+            # Search registered allowed dirs for a file with the same basename.
+            target_name = os.path.basename(real).lower()
+            found = None
+            for allowed in list(_ALLOWED_DIRS):
+                try:
+                    for dirpath, _dns, fns in os.walk(allowed):
+                        for fn in fns:
+                            if fn.lower() == target_name:
+                                candidate = os.path.join(dirpath, fn)
+                                if os.path.isfile(candidate):
+                                    found = _canon(candidate)
+                                    break
+                        if found:
+                            break
+                except OSError:
+                    continue
+                if found:
+                    break
+            if not found:
+                handler.send_error(HTTPStatus.NOT_FOUND, "File not found.")
+                return True
+            real = found
 
         try:
             _serve_file_ranged(handler, real, _CONTENT_TYPES.get(ext, "application/octet-stream"))

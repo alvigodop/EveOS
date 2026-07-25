@@ -112,8 +112,13 @@ def localize_scan(payload: dict) -> dict:
     return audioflix_localize.scan_dir(payload)
 
 
+def localize_link(payload: dict) -> dict:
+    from server_modules import audioflix_localize
+    return audioflix_localize.link_into(payload)
+
+
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/stop-stream": stop_stream, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear, "/api/audioflix/localize": localize_track, "/api/audioflix/localize-scan": localize_scan}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/stop-stream": stop_stream, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear, "/api/audioflix/localize": localize_track, "/api/audioflix/localize-scan": localize_scan, "/api/audioflix/localize-link": localize_link}.get(path)
     if not action:
         return False
     if not _can_control(handler):

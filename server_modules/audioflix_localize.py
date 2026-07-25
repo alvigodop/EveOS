@@ -41,7 +41,7 @@ def _register_servable(folder) -> None:
     allow-list the soundboard path ports use (only audio files inside a registered dir are served)."""
     try:
         from server_modules import audioflix_bridge_ports as ports
-        ports._ALLOWED_DIRS.add(ports._canon(str(folder)))
+        ports.authorize_dir(str(folder))   # persisted, so it still plays after a server restart
     except Exception:  # noqa: BLE001
         pass
 
@@ -133,6 +133,48 @@ def localize_one(payload: dict) -> dict:
     return {"ok": False, "id": tid, "error": "Download produced no file."}
 
 
+def link_into(payload: dict) -> dict:
+    """Create a real on-disk link to an existing track inside another folder (a group's path).
+
+    This is what makes a 3rd-class "shortcut" localization visible in the file system instead of
+    existing only inside EveOS. Strategy, best first:
+      * hard link  - appears as an ordinary file, plays natively, costs no extra disk space, and on
+                     Windows/NTFS needs no admin rights. Same volume only.
+      * symlink    - cross-volume capable, but on Windows needs Developer Mode or admin.
+    A copy is deliberately NOT used as a fallback: duplicating the bytes is what the shortcut class
+    exists to avoid, so the caller is told link creation failed and keeps the logical reference.
+    Input: {source, targetDir, name?}. Output: {ok, path, method} or {ok: False, error}.
+    """
+    source = str(payload.get("source") or "").strip()
+    target_dir = str(payload.get("targetDir") or "").strip()
+    if not source or not os.path.isfile(source):
+        return {"ok": False, "error": "Source file not found."}
+    path, err = _prepare_dir(target_dir)
+    if err:
+        return {"ok": False, "error": err.get("message") or "Bad target folder."}
+
+    src = Path(source)
+    name = safe_filename(payload.get("name") or src.stem, src.stem) + src.suffix
+    dest = path / name
+    if dest.exists():
+        try:
+            same = os.path.samefile(str(dest), source)
+        except OSError:
+            same = False
+        # Already linked/present -> idempotent success (re-running a group localize must not fail).
+        return {"ok": True, "path": str(dest), "method": "existing" if same else "existing-file"}
+
+    for method, make in (("hardlink", os.link), ("symlink", os.symlink)):
+        try:
+            make(source, str(dest))
+            logger.info("Linked (%s) %s -> %s", method, source, dest)
+            return {"ok": True, "path": str(dest), "method": method}
+        except (OSError, NotImplementedError, AttributeError) as exc:
+            last = str(exc)
+    return {"ok": False, "error": f"Could not link into that folder ({last}). "
+                                 "Hard links need the same drive; symlinks need Developer Mode on Windows."}
+
+
 def scan_dir(payload: dict) -> dict:
     """List audio files in a folder so a music port can re-attach them by title. Input: {dir}."""
     target_dir = str(payload.get("dir") or payload.get("targetDir") or "").strip()
@@ -144,8 +186,11 @@ def scan_dir(payload: dict) -> dict:
     _register_servable(path)  # so localized files here become playable via /port/file
     files = []
     try:
-        for entry in sorted(path.iterdir()):
+        for entry in sorted(path.rglob("*")):
             if entry.is_file() and entry.suffix.lower() in _AUDIO_EXTS:
+                # Register the subdirectory too so /port/file can serve it
+                if entry.parent != path:
+                    _register_servable(entry.parent)
                 files.append({"name": entry.stem, "fileName": entry.name,
                               "path": str(entry), "ext": entry.suffix.lstrip(".").lower()})
     except Exception as exc:  # noqa: BLE001

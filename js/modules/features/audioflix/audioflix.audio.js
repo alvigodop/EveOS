@@ -182,7 +182,16 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         // offline and route natively without the stream lag.
         if (requestedItem.localPath) {
             const localUrl = window.EveAudioflixNative?.getLocalFileUrl?.(requestedItem.localPath);
-            if (localUrl) requestedItem.url = localUrl;
+            // A stale/unauthorized local file surfaces as an async media 'error' event, not a throw,
+            // so a bad path used to mean silence with nothing to catch. Probe one byte first (a
+            // loopback Range request costs ~nothing) and keep the online url when the file can't be
+            // served, so a moved or de-authorized copy degrades to streaming instead of failing.
+            if (localUrl) {
+                const onlineFallback = /^https?:\/\//i.test(String(requestedItem.url || '')) ? requestedItem.url : '';
+                const localOk = !onlineFallback || await window.EveAudioflixNative?.probeLocalFile?.(localUrl) !== false;
+                if (localOk) requestedItem.url = localUrl;
+                else lastStatus = `Local copy unavailable for ${requestedItem.title || 'track'} — streaming instead.`;
+            }
         }
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
 

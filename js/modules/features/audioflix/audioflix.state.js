@@ -188,6 +188,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             activeMusicFolderScope: text(source.activeMusicFolderScope, ''),
             // "Keep both" duplicate acknowledgements: sorted "idA|idB" pair keys left as separate items.
             dupDismissedPairs: Array.isArray(source.dupDismissedPairs) ? [...new Set(source.dupDismissedPairs.map((p) => text(p, '')).filter(Boolean))].slice(-2000) : [],
+            // Manual music classifier definitions (names). Automatic classifiers are derived.
+            musicClassifiers: Array.isArray(source.musicClassifiers)
+                ? [...new Set(source.musicClassifiers.map((c) => text(c, '')).filter(Boolean))].slice(0, 200)
+                : [],
             localizeDir: text(source.localizeDir, ''), // last folder used to save localized mp3s (reused as the prompt default)
             // Per-scope remembered localization folders, keyed "scope:key" (e.g. "folder:Chill").
             // Without this in normalize the per-scope path memory was stripped on every ensure().

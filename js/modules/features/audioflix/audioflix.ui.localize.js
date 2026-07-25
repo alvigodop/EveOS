@@ -98,13 +98,20 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
             return `<div class="audioflix-group-paths-box" style="margin-top:6px; padding:8px 10px; background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.25); border-radius:8px; font-size:0.78rem;"><div style="font-weight:700; margin-bottom:4px; color:#93c5fd;">Connected Paths — group dir: <span style="font-family:monospace; color:#cbd5e1;">${esc(data.groupDir || '(none)')}</span></div>${body}</div>`;
         }
 
-        // The track settings panel's localization list, most-important class first.
+        // The track settings panel's localization list, most-important class first. Each path is an
+        // EDITABLE input (hover shows the full path via title=) so a wrong entry can be corrected in
+        // place; a shortcut also shows the physical file it points at, since that is the real bytes.
         function renderSongLocalizations(track) {
             const list = L()?.songLocalizationList?.(track) || [];
             if (!list.length) return '';
             const color = (kind, label) => label.startsWith('Folder') ? '#38bdf8' : kind === 'shortcut' ? '#c084fc' : '#34d399';
-            const rows = list.map((e, i) => `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:3px 0; ${i ? 'border-top:1px solid rgba(255,255,255,0.06);' : ''}"><span style="color:${color(e.kind, e.label)}; font-weight:600; white-space:nowrap;">${i === 0 ? '★ ' : ''}${esc(e.label)}</span><span style="color:#cbd5e1; font-family:monospace; font-size:0.72rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:60%;" title="${esc(e.path)}">${esc(e.path)}</span></div>`).join('');
-            return `<div class="audioflix-info-url-container"><span>Localizations (★ = plays first)</span><div style="padding:6px 10px; background:rgba(0,0,0,0.25); border-radius:8px;">${rows}</div></div>`;
+            const rows = list.map((e, i) => {
+                const linkNote = e.kind === 'shortcut' && e.linkOf
+                    ? `<div style="font-size:0.68rem; color:#94a3b8; margin-top:2px;" title="${esc(e.linkOf)}">↳ real file: <code style="color:#cbd5e1;">${esc(e.linkOf)}</code></div>`
+                    : '';
+                return `<div style="padding:4px 0; ${i ? 'border-top:1px solid rgba(255,255,255,0.06);' : ''}"><div style="display:flex; align-items:center; gap:8px;"><span style="color:${color(e.kind, e.label)}; font-weight:600; white-space:nowrap; font-size:0.78rem;">${i === 0 ? '★ ' : ''}${esc(e.label)}</span><input type="text" class="audioflix-info-url-input audioflix-localization-path" data-af-id="${esc(track.id)}" data-af-source="${esc(e.source || '')}" value="${esc(e.path)}" title="${esc(e.path)}" style="flex:1; min-width:0; font-family:monospace; font-size:0.72rem;"></div>${linkNote}</div>`;
+            }).join('');
+            return `<div class="audioflix-info-url-container"><span>Localizations (★ = plays first · hover or edit a path)</span><div style="padding:6px 10px; background:rgba(0,0,0,0.25); border-radius:8px;">${rows}</div></div>`;
         }
 
         return { renderLocalizeForm, renderMusicPortForm, renderGroupPaths, renderSongLocalizations };

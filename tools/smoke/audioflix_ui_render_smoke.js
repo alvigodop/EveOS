@@ -34,7 +34,7 @@ ctx.window.localStorage = ctx.localStorage;
 ctx.window.setTimeout = setTimeout; ctx.window.clearTimeout = clearTimeout;
 
 ['audioflix.state.schema.js', 'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.nexus.js',
-    'audioflix.localize.js', 'audioflix.ui.render.js', 'audioflix.ui.localize.js', 'audioflix.nexus.ui.js']
+    'audioflix.localize.audit.js', 'audioflix.localize.js', 'audioflix.ui.render.js', 'audioflix.ui.localize.js', 'audioflix.nexus.ui.js']
     .forEach((f) => runScript(ctx, 'js/modules/features/audioflix/' + f));
 
 const W = ctx.window;
@@ -83,7 +83,20 @@ const nx = W.EveAudioflixNexusUi.create({ esc, getNexusState: () => ({ open: tru
 assert(isStr(nx.renderButton('music')) && nx.renderButton('music').includes('Nexus Audio Link'), 'nexus button');
 const panel = nx.renderPanel('music');
 assert(isStr(panel) && panel.includes('data-af-nexus-search') && panel.includes('Night Drive'), 'nexus panel renders search + a hit');
-assert(panel.includes('around::') && panel.includes('below::'), 'nexus panel offers BOTH soft-around and hard-under duration facets');
+// Facet scopes start COLLAPSED (headers only, no chips) and open on demand — clicking a header is
+// what reveals the options, so the panel isn't a wall of chips.
+['artist', 'group', 'folder', 'duration'].forEach((sec) =>
+    assert(panel.includes(`data-af-section="${sec}"`), `panel offers a collapsible ${sec} scope`));
+assert(!panel.includes('artist::') && !panel.includes('around::'),
+    'collapsed scopes must not render their chips yet');
+W.EveAudioflixNexusUi.toggleSection('artist');
+W.EveAudioflixNexusUi.toggleSection('duration');
+const openPanel = nx.renderPanel('music');
+assert(openPanel.includes('artist::'), 'expanding Artists reveals artist chips');
+assert(openPanel.includes('around::') && openPanel.includes('below::'),
+    'expanding Duration reveals BOTH soft-around and hard-under filters');
+// Artist facets must actually be populated from track metadata (they were reported missing).
+assert(openPanel.includes('Kavinsky'), 'artist chips are populated from track metadata');
 console.log('nexus.ui OK (button, panel, live results)');
 
 console.log('AUDIOFLIX_UI_RENDER_SMOKE_OK');

@@ -396,28 +396,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return fetchJson('/api/audioflix/hotkeys/status', { method: 'GET', timeout: DEFAULT_TIMEOUT_MS });
     }
 
-    // Download one online track to a local folder (yt-dlp -> mp3, needs the server). Long timeout:
-    // a full download + ffmpeg convert can take a while.
-    async function localizeTrack(track, targetDir) {
-        if (!track?.url || !targetDir) return { ok: false, error: 'Missing track URL or target folder.' };
-        return fetchJson('/api/audioflix/localize', {
-            method: 'POST',
-            body: JSON.stringify({ track, targetDir }),
-            timeout: 180000,
-            probe: true
-        });
-    }
-
-    // List audio files in a folder, so localized files can be re-attached to tracks by title.
-    async function scanLocalized(dir) {
-        if (!dir) return { ok: false, message: 'Missing folder.' };
-        return fetchJson('/api/audioflix/localize-scan', {
-            method: 'POST',
-            body: JSON.stringify({ dir }),
-            timeout: DEVICE_SCAN_TIMEOUT_MS,
-            probe: true
-        });
-    }
+    // Localization transport (probe / download / link / scan) lives in a sibling module.
+    const { probeLocalFile, localizeTrack, linkLocalFile, scanLocalized } =
+        window.EveAudioflixNativeLocalize.create({ fetchJson, DEVICE_SCAN_TIMEOUT_MS });
 
     Object.assign(ns, {
         ready: true,
@@ -438,6 +419,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         listPlaylist,
         localizeTrack,
         scanLocalized,
+        probeLocalFile,
+        linkLocalFile,
         getLocalFileUrl,
         getProxyUrl,
         shouldSuppressBrowserPlayback,

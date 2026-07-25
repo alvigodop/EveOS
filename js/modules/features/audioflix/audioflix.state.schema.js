@@ -29,7 +29,12 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 // Multi-scope localizations of the same track: [{source:"folder:X"|"group:Y", path, kind}].
                 // Effective path priority: folder file (1st) > group shortcut (3rd) > group file (2nd/dup).
                 localizations: Array.isArray(source.localizations)
-                    ? source.localizations.map((l) => ({ source: text(l?.source, ''), path: text(l?.path, ''), kind: l?.kind === 'shortcut' ? 'shortcut' : 'file' })).filter((l) => l.source && l.path).slice(0, 40)
+                    ? source.localizations.map((l) => ({ source: text(l?.source, ''), path: text(l?.path, ''), kind: l?.kind === 'shortcut' ? 'shortcut' : 'file', linkOf: text(l?.linkOf, '') })).filter((l) => l.source && l.path).slice(0, 40)
+                    : [],
+                // Manual classifier labels attached to this track (automatic classifiers are
+                // derived, never stored). Registry of valid names lives in state.musicClassifiers.
+                classifiers: Array.isArray(source.classifiers)
+                    ? [...new Set(source.classifiers.map((c) => text(c, '')).filter(Boolean))].slice(0, 40)
                     : [],
                 artist: text(source.artist, ''),
                 card: text(source.card, ''),

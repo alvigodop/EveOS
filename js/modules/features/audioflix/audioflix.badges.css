@@ -1,0 +1,37 @@
+/* Card badges for Audioflix items: duplicate marker and the "added locally" marker on tracks
+ * inside an imported playlist group. Split out of audioflix.editor.css to keep that sheet under
+ * the project line cap. */
+
+.audioflix-dup-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.5);
+    color: #f87171;
+}
+
+.audioflix-local-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: rgba(168, 85, 247, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    color: #c084fc;
+    cursor: pointer;
+    transition: padding 0.15s ease;
+    user-select: none;
+}
+.audioflix-local-badge.is-minimized {
+    padding: 1px 4px;
+}
+.audioflix-local-badge.is-minimized .audioflix-local-badge-text {
+    display: none;
+}
+

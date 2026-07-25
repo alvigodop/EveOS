@@ -5,11 +5,19 @@ window.EveAudioflix = window.EveAudioflix || {};
     if (ns.ready) return;
 
     let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = { sound: false, music: false }, foldersOpen = { music: false }, portedSounds = [], fsPortFolders = [], deadServerPorts = new Set(), collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
-    let activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false };
-    // True only when the Python bridge ACCEPTED the current hotkey bindings (system-wide
-    // RegisterHotKey is live). The in-app keydown matcher stands down only then — standing down on
-    // mere configuration left ZERO hotkeys on file:// with the server off (bridge armed in state,
-    // but no process to register the keys).
+    let activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: false, loop: false };
+    // Fisher-Yates: Shuffle Order pins the playing track at #1, Activate Loop reshuffles each lap.
+    function shuffleQueue(ids) {
+        const out = [...ids];
+        for (let i = out.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [out[i], out[j]] = [out[j], out[i]];
+        }
+        return out;
+    }
+    // True only when the bridge ACCEPTED the hotkey bindings (system-wide RegisterHotKey is live).
+    // The in-app matcher stands down only then: gating on mere configuration left ZERO hotkeys on
+    // file:// with the server off.
     let nativeHotkeysLive = false;
     const playSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`, closeSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`, stopSvg = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>`, layerPlaySvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 4v16l10-8z"/><path d="M12 4v16l10-8z"/></svg>`, viewSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>`;
     const cogSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>`;
@@ -41,8 +49,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     let musicPortFormOpen = false;
     let groupPathsOpen = { open: false, key: '' };
     let groupPathsScopesOpen = {};
-    // Localization UI renderers live in a sibling module (they reach this view's open-flags through
-    // these getters, so the renderers can stay pure while the flags remain the single source here).
+    // Localization UI renderers live in a sibling module, reading this view's flags via getters.
     const uiLoc = window.EveAudioflixUiLocalize.create({
         esc: (v) => esc(v),
         findItem: (t, id) => findItem(t, id),
@@ -56,39 +63,39 @@ window.EveAudioflix = window.EveAudioflix || {};
     const uiNexus = window.EveAudioflixNexusUi.create({
         esc: (v) => esc(v),
         getNexusState: () => nexusState,
-        getPorted: () => portedSounds
+        getPorted: () => portedSounds,
+        // Late-bound: uiClass is created just below, so reach it lazily.
+        renderClassifierChips: (facet) => uiClass.renderNexusChips(facet)
+    });
+    // Classifier system (automatic time-filter / group-rank + manual labels).
+    let classifierManagerOpen = false;
+    let classifierDetailId = '';
+    let classifierRowOpen = false;
+    const uiClass = window.EveAudioflixClassifiersUi.create({
+        esc: (v) => esc(v),
+        closeSvg,
+        getManagerOpen: () => classifierManagerOpen,
+        getManagerDetailId: () => classifierDetailId,
+        getFrontendOpen: () => classifierRowOpen
     });
 
-    const renderInfoModal = (item, type) => {
-        const dur = formatDuration(item.duration), src = item.isPorted ? `${item.category} (Ported)` : (type === 'music' ? 'Music Library' : 'Local Soundboard'), row = (lbl, val) => `<div class="audioflix-info-row"><span>${lbl}</span><strong>${val}</strong></div>`;
-        const exposeRow = row('Expose to Frontend', `<input type="checkbox" class="audioflix-expose-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" ${isItemExposed(item, type) ? 'checked' : ''}>`);
-        const hotkeyRow = type === 'sound' ? row('Global Hotkey', `<input type="text" class="audioflix-hotkey-input" placeholder="e.g. ctrl+y, f5" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" value="${esc(item.hotkey || '')}">`) : '';
-        const rep = activeRepeaters[item.id], repeaterBlock = type === 'sound' ? `<div class="audioflix-repeater"><span class="audioflix-repeater-title">Sound Repeater</span><div class="audioflix-repeater-row"><label class="audioflix-repeater-field"><span>Interval (sec)</span><input type="number" step="0.1" min="0.1" value="${rep ? rep.intervalMs / 1000 : 1.0}" id="audioflix-rep-interval" ${rep ? 'disabled' : ''}></label><label class="audioflix-repeater-field"><span>Count (0 = inf)</span><input type="number" min="0" value="${rep ? rep.count : 0}" id="audioflix-rep-count" ${rep ? 'disabled' : ''}></label><button type="button" class="audioflix-repeater-btn${rep ? ' is-active' : ''}" data-af-action="toggle-repeater" data-af-id="${esc(item.id)}">${rep ? 'Stop' : 'Start'}</button></div></div>` : '';
-        const trackEditBlock = type === 'music' ? `<form class="audioflix-track-edit-form" data-af-form="edit-track" data-af-id="${esc(item.id)}"><span class="audioflix-info-groups-label" style="display:block; margin-bottom:6px;">Edit Track Details</span><div class="audioflix-track-edit-grid"><label><span>Track Title</span><input name="title" value="${esc(item.title)}" required></label><label><span>URL / Path</span><input name="url" value="${esc(item.url)}" required></label><label><span>Artist</span><input name="artist" value="${esc(item.artist || '')}"></label><label><span>Folder / Card</span><input name="folder" value="${esc(item.folder || item.card || '')}"></label><label class="audioflix-wide-field" style="grid-column: span 2; margin-top: 4px;"><span>Local Path (offline copy)</span><input name="localPath" value="${esc(item.localPath || '')}" placeholder="C:\\path\\to\\offline\\file.mp3"></label></div><button type="submit" class="audioflix-save-track-btn" data-af-action="submit-form">Save Track Edits</button></form>` : '';
-        
-        const dupMatches = window.EveAudioflixDuplicates?.duplicatesFor?.(type, item.id) || [];
-        let dupSection = '';
-        if (dupMatches.length) {
-            const srcKind = (u) => (/^https?:\/\//i.test(String(u || '')) ? 'online' : (u ? 'local file' : ''));
-            const matchItems = dupMatches.map(d => {
-                const kind = srcKind(d.url);
-                const kindTag = kind ? ` <em style="color:#94a3b8; font-style:normal;">· ${kind}</em>` : '';
-                return `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:4px; padding:6px 10px; background:rgba(239,68,68,0.15); border-radius:4px; font-size:0.85rem;"><span style="color:#f8fafc; min-width:0; overflow:hidden; text-overflow:ellipsis;">${esc(d.title)} <code style="color:#cbd5e1;">(${esc(d.folder || d.category || 'Ungrouped')})</code>${kindTag}</span><span style="display:flex; gap:6px; flex:none;"><button type="button" class="audioflix-save-track-btn" data-af-action="merge-duplicate" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" data-af-dupid="${esc(d.id)}" style="background:#ef4444; color:#fff; padding:2px 8px; font-size:0.75rem;">Merge Into This</button><button type="button" class="audioflix-save-track-btn" data-af-action="keep-both-duplicate" data-af-id="${esc(item.id)}" data-af-dupid="${esc(d.id)}" style="background:rgba(148,163,184,0.25); color:#e2e8f0; padding:2px 8px; font-size:0.75rem;">Keep Both</button></span></div>`;
-            }).join('');
-            dupSection = `<div class="audioflix-dup-manager-box" style="margin-top:12px; padding:10px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.35); border-radius:6px;"><strong style="color:#f87171; font-size:0.9rem;">⚠️ Duplicate Detected (${dupMatches.length} match${dupMatches.length === 1 ? '' : 'es'})</strong><p style="font-size:0.8rem; color:#cbd5e1; margin:4px 0 8px;">Another item shares this title or URL. <strong>Merge Into This</strong> combines their groups and deletes the other — a file-path copy and an online copy become one track carrying both. <strong>Keep Both</strong> leaves them separate (move one to another folder/group) and stops the notice.</p>${matchItems}</div>`;
-        }
-
-        // Dual-source tracks (from a duplicate merge) carry a local file alongside the online url.
-        const localSourceRow = (type === 'music' && item.localPath) ? `<div class="audioflix-info-url-container"><span>Local file (offline copy)</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.localPath)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.localPath)}">Copy</button></div></div>` : '';
-        // Collapsible localize control for this single track (relocalize stays available even after
-        // the local copy is deleted). Lives here in the settings panel, not a popup.
-        const canLocalizeSong = type === 'music' && (Boolean(item.url) || Boolean(item.localPath));
-        const songLocOpen = localizeFormOpen.open && localizeFormOpen.scope === 'song' && localizeFormOpen.key === item.id;
-        const songLocalizeSection = canLocalizeSong ? `<div class="audioflix-info-groups" style="margin-top:10px;"><button type="button" class="audioflix-add-toggle${songLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="song" data-af-key="${esc(item.id)}">${item.localPath ? '⬇️ Re-localize this track' : '⬇️ Localize this track'}</button>${songLocOpen ? renderLocalizeForm() : ''}</div>` : '';
-
-        return `<div class="audioflix-info-modal" data-af-action="close-info"><div class="audioflix-info-card"><div class="audioflix-info-header"><div><span class="audioflix-kicker">${type === 'music' ? 'Track Details' : 'Sound Details'}</span><h3 class="audioflix-info-title">${esc(item.title)}</h3></div><button type="button" class="audioflix-info-close-btn" data-af-action="close-info">${closeSvg}</button></div><div class="audioflix-info-body">${row('Type', type)}${row('Source', src)}${row('Duration', dur)}${item.artist ? row('Artist', item.artist) : ''}${item.volume !== undefined ? row('Volume modifier', item.volume) : ''}${exposeRow}${hotkeyRow}${repeaterBlock}${dupSection}${renderGroupAssign(item, type)}${trackEditBlock}<div class="audioflix-info-url-container"><span>Audio URL / Path</span><div class="audioflix-info-url-row"><input type="text" readonly value="${esc(item.url)}" class="audioflix-info-url-input" onclick="this.select()"><button type="button" class="audioflix-info-copy-btn" data-af-action="copy-url" data-af-url="${esc(item.url)}">Copy</button></div></div>${(type === 'music' ? uiLoc.renderSongLocalizations(item) : '') || localSourceRow}${songLocalizeSection}</div><div class="audioflix-info-footer">${internalViewButton(item, type, true)}<button type="button" class="audioflix-info-close-action" data-af-action="close-info">Close</button></div></div></div>`;
-    };
-    const renderGroupAssign = (item, type = 'sound', mine = new Set(groupsOf(item.id, type))) => `<div class="audioflix-info-groups"><span class="audioflix-info-groups-label">Frontend Groups</span><div class="audioflix-group-checklist">${allGroups(type).map(g => `<label class="audioflix-group-check"><input type="checkbox" class="audioflix-group-cb" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" data-af-group="${esc(g)}" ${mine.has(g) ? 'checked' : ''}><span>${esc(g)}</span></label>`).join('') || '<span class="audioflix-group-empty">No groups yet — create one below.</span>'}</div><form class="audioflix-group-quick" data-af-form="assign-new-group" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}"><input name="name" placeholder="New group" autocomplete="off" maxlength="40"><button type="submit" data-af-action="submit-form">Add</button></form></div>`;
+    // The settings (cog) modal lives in a sibling module; it reads this view via the ctx bag.
+    // Helpers are late-bound arrows: this factory runs before the `const` helpers below exist, so
+    // direct references would hit the temporal dead zone.
+    const uiModal = window.EveAudioflixUiModal.create({
+        esc, closeSvg, state, uiLoc, uiClass,
+        formatDuration: (v) => formatDuration(v),
+        isItemExposed: (it, t) => isItemExposed(it, t),
+        groupsOf: (id, t) => groupsOf(id, t),
+        allGroups: (t) => allGroups(t),
+        internalViewButton: (it, t, w) => internalViewButton(it, t, w),
+        findItem: (t, id) => findItem(t, id),
+        renderLocalizeForm: () => renderLocalizeForm(),
+        getActiveRepeaters: () => activeRepeaters,
+        getLocalizeFormOpen: () => localizeFormOpen
+    });
+    const renderInfoModal = (item, type) => uiModal.renderInfoModal(item, type);
+    const renderGroupAssign = (item, type) => uiModal.renderGroupAssign(item, type);
 
     async function loadPortedSounds() {
         const snapshot = state(), base = (window.location.origin && !window.location.origin.startsWith('file:')) ? window.location.origin.replace('localhost', '127.0.0.1') : 'http://127.0.0.1:8765';
@@ -162,6 +169,13 @@ window.EveAudioflix = window.EveAudioflix || {};
                 const ps = portedSounds.find(s => s.id === id); if (ps) ps.exposed = t.checked;
                 pushHotkeysToBridge();
                 rerender();
+            } else if (t.classList.contains('audioflix-localization-path')) {
+                const res = window.EveAudioflixLocalize?.setLocalizationPath?.(t.dataset.afId, t.dataset.afSource, t.value);
+                playbackStatus = res?.ok ? 'Localization path updated.' : (res?.reason || 'Could not update that path.');
+                rerender();
+            } else if (t.classList.contains('audioflix-classifier-cb')) {
+                window.EveAudioflixClassifiers?.toggleOnTrack?.(t.dataset.afId, t.dataset.afClassifier, t.checked);
+                rerender();
             } else if (t.classList.contains('audioflix-group-cb')) {
                 if (type === 'music') window.EveAudioflixState?.toggleMusicGroup?.(id, t.dataset.afGroup, t.checked);
                 else window.EveAudioflixState?.toggleSoundGroup?.(id, t.dataset.afGroup, t.checked);
@@ -206,6 +220,12 @@ window.EveAudioflix = window.EveAudioflix || {};
                 const currentPlayingId = activeMusicQueue.items[activeMusicQueue.currentIndex];
                 if (detail.item && detail.item.id === currentPlayingId && detail.status === 'Ended') {
                     activeMusicQueue.currentIndex += 1;
+                    if (activeMusicQueue.currentIndex >= activeMusicQueue.items.length && activeMusicQueue.loop) {
+                        // Loop is on: wrap back to #1. With shuffle also on, reshuffle first so the
+                        // next lap is a fresh random order starting from a random track.
+                        if (activeMusicQueue.shuffle) activeMusicQueue.items = shuffleQueue(activeMusicQueue.items);
+                        activeMusicQueue.currentIndex = 0;
+                    }
                     if (activeMusicQueue.currentIndex < activeMusicQueue.items.length) {
                         const nextId = activeMusicQueue.items[activeMusicQueue.currentIndex];
                         const nextTrack = (state().music || []).find(m => m.id === nextId);
@@ -213,7 +233,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                             try { await window.EveAudioflixAudio?.playItem?.(nextTrack); } catch (err) { console.warn('[Audioflix] queue sequential play error:', err); }
                         }
                     } else {
-                        activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false };
+                        activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: false, loop: false };
                     }
                     rerender();
                 }
@@ -245,6 +265,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         getPorted: () => portedSounds,
         getActiveRepeaters: () => activeRepeaters,
         getActiveMusicQueue: () => activeMusicQueue,
+        renderClassifierRow: (activeKey) => uiClass.renderFrontendRow(activeKey),
+        classifierTracks: (key) => window.EveAudioflixClassifiers?.tracksForKey?.(key) || [],
         getCollapsedGroups: () => collapsedGroups,
         get smartArtistExpanded() { return smartArtistExpanded; }
     });
@@ -264,67 +286,29 @@ window.EveAudioflix = window.EveAudioflix || {};
     const renderLocalizeForm = () => uiLoc.renderLocalizeForm();
     const renderMusicPortForm = () => uiLoc.renderMusicPortForm();
     const renderPortsManager = () => window.EveAudioflixFsPorts?.renderPortsManager?.(state(), fsPortFolders, deadServerPorts, esc, closeSvg) || '';
-    const renderGroupsManager = (type = 'sound') => {
-        const isM = type === 'music';
-        const groups = allGroups(type);
-        const map = isM ? (state().musicGroupMap || {}) : (state().soundGroupMap || {});
-        const countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length;
-        const list = groups.map((g) => {
-            const conn = isM ? window.EveAudioflixPlaylists?.getPlaylistForGroup?.(g) : null;
-            const dir = isM ? (window.EveAudioflixLocalize?.getScopeDir?.('group', g) || '') : '';
-            // Imported-playlist groups show BOTH the source URL and (if localized) the folder path.
-            const urlLine = `${conn?.url ? `<a href="${esc(conn.url)}" target="_blank" rel="noopener" style="display:block; font-size:0.75rem; color:#8ab4f8; text-decoration:none; margin-top:2px; word-break:break-all;">${esc(conn.url)}</a>` : ''}${dir ? `<div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">📁 ${esc(dir)}</div>` : ''}`;
-            const isSyncOpen = syncPlaylistFormOpen.open && syncPlaylistFormOpen.group === g;
-            const syncBtn = conn ? `<button type="button" class="audioflix-icon-btn${isSyncOpen ? ' is-active' : ''}" data-af-group="${esc(g)}" data-af-action="toggle-sync-playlist-form" title="Sync this playlist">🔄</button>` : '';
-            const dlBtn = isM ? `<button type="button" class="audioflix-icon-btn${localizeFormOpen.open && localizeFormOpen.scope === 'group' && localizeFormOpen.key === g ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="group" data-af-key="${esc(g)}" title="Localize this group's online tracks to local files">⬇️</button>` : '';
-            const pathsBtn = isM ? `<button type="button" class="audioflix-icon-btn${groupPathsOpen.open && groupPathsOpen.key === g ? ' is-active' : ''}" data-af-action="toggle-group-paths" data-af-group="${esc(g)}" title="View all localization paths connected to this group">🗺️</button>` : '';
-            const locForm = (isM && localizeFormOpen.open && localizeFormOpen.scope === 'group' && localizeFormOpen.key === g) ? renderLocalizeForm() : '';
-            const syncForm = (isM && isSyncOpen) ? renderSyncPlaylistForm(g) : '';
-            const pathsBox = isM ? uiLoc.renderGroupPaths(g) : '';
-            return `<div class="audioflix-port-item"><div><strong>${esc(g)}</strong>${urlLine}<code style="display: block; font-size: 0.8rem; color: #94a3b8; margin-top:2px;">${countFor(g)} ${isM ? 'track' : 'sound'}${countFor(g) === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;">${dlBtn}${pathsBtn}${syncBtn}<button type="button" class="audioflix-icon-btn" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="rename-group-prompt" title="Edit group name or local path">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-type="${esc(type)}" data-af-group="${esc(g)}" data-af-action="remove-group" title="Delete group">${closeSvg}</button></div></div>${pathsBox}${locForm}${syncForm}`;
-        }).join('') || '<div class="audioflix-empty">No groups yet.</div>';
-        return `<div class="audioflix-ports-mgr"><h4>${isM ? 'Music Frontend Groups' : 'Soundboard Frontend Groups'}</h4>${list}<form class="audioflix-ports-form" data-af-form="add-group" data-af-type="${esc(type)}"><label><span>Group Name</span><input name="name" required maxlength="40"></label><button type="submit" data-af-action="submit-form">Add Group</button></form></div>`;
-    };
-    const renderFoldersManager = () => {
-        const musicItems = state().music || [];
-        const folderCounts = {};
-        musicItems.forEach(it => {
-            const f = String(it.folder || it.card || '').trim() || 'Ungrouped';
-            folderCounts[f] = (folderCounts[f] || 0) + 1;
-        });
-        const list = Object.entries(folderCounts).map(([f, count]) => {
-            if (f === 'Ungrouped') return '';
-            const dir = window.EveAudioflixLocalize?.getScopeDir?.('folder', f) || '';
-            const dirLine = dir ? `<div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">📁 ${esc(dir)}</div>` : '';
-            const isLoc = localizeFormOpen.open && localizeFormOpen.scope === 'folder' && localizeFormOpen.key === f;
-            const locForm = isLoc ? renderLocalizeForm() : '';
-            return `<div class="audioflix-port-item"><div><strong>${esc(f)}</strong>${dirLine}<code style="display: block; font-size: 0.8rem; color: #8ab4f8; margin-top:2px;">${count} track${count === 1 ? '' : 's'}</code></div><div style="display:flex; gap:6px;"><button type="button" class="audioflix-icon-btn${isLoc ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="folder" data-af-key="${esc(f)}" title="Localize this folder's online tracks to local files">⬇️</button><button type="button" class="audioflix-icon-btn" data-af-folder="${esc(f)}" data-af-action="rename-folder-prompt" title="Edit folder name or local path">✏️</button><button type="button" class="audioflix-icon-btn danger" data-af-folder="${esc(f)}" data-af-action="delete-folder" title="Delete folder tag">${closeSvg}</button></div></div>${locForm}`;
-        }).filter(Boolean).join('') || '<div class="audioflix-empty">No custom folders yet.</div>';
-        return `<div class="audioflix-ports-mgr"><h4>Music Folders Manager</h4>${list}</div>`;
-    };
-    const renderAddSection = (type) => {
-        const isM = type === 'music';
-        const isF = (isM ? (state().musicViewMode || 'backend') : (state().soundboardViewMode || 'backend')) === 'frontend';
-        const open = addFormOpen[type] === true;
-        const isLocOpen = localizeFormOpen.open === true;
-        const vBtn = `<button type="button" class="audioflix-view-toggle${isF ? ' is-active' : ''}" data-af-action="toggle-view-mode" data-af-type="${esc(type)}" style="margin-left: auto;">${isF ? 'Backend' : 'Frontend'}</button>`;
-        const gBtn = `<button type="button" class="audioflix-add-toggle${groupsOpen[type] ? ' is-active' : ''}" data-af-action="toggle-groups" data-af-type="${esc(type)}" style="margin-left: 8px;">Groups</button>`;
-        const fBtn = isM ? `<button type="button" class="audioflix-add-toggle${foldersOpen.music ? ' is-active' : ''}" data-af-action="toggle-folders" data-af-type="music" style="margin-left: 8px;">Edit Folders</button>` : '';
-        const pBtn = isM ? `<button type="button" class="audioflix-add-toggle${importFormOpen ? ' is-active' : ''}" data-af-action="toggle-import-form" style="margin-left: 8px;">Import Playlist</button>` : '';
-        const isLibLocOpen = isLocOpen && localizeFormOpen.scope === 'library';
-        const lBtn = isM ? `<button type="button" class="audioflix-add-toggle${isLibLocOpen ? ' is-active' : ''}" data-af-action="toggle-localize-form" data-af-scope="library" style="margin-left: 8px;" title="Download online tracks to local files (needs localhost)">Localize</button><button type="button" class="audioflix-add-toggle${musicPortFormOpen ? ' is-active' : ''}" data-af-action="toggle-music-port-form" style="margin-left: 8px;" title="Extract local folder music into a Folder tag">Music Port</button>` : '';
-        const nBtn = uiNexus.renderButton(type);
-        const nPanel = (nexusState.open && nexusState.type === type) ? uiNexus.renderPanel(type) : '';
-        if (isM) {
-            return isF
-                ? `<div class="audioflix-add-section-row">${nBtn}${gBtn}${vBtn}</div>${nPanel}${groupsOpen.music ? renderGroupsManager('music') : ''}`
-                : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="music">${open ? '− Hide add track' : '+ Add Track'}</button></div>${fBtn}${pBtn}${lBtn}${nBtn}${gBtn}${vBtn}</div>${nPanel}${open ? renderForm('music') : ''}${importFormOpen ? renderImportPlaylistForm() : ''}${isLibLocOpen ? renderLocalizeForm() : ''}${musicPortFormOpen ? renderMusicPortForm() : ''}${foldersOpen.music ? renderFoldersManager() : ''}${groupsOpen.music ? renderGroupsManager('music') : ''}`;
-        }
-        return isF
-            ? `<div class="audioflix-add-section-row">${nBtn}${gBtn}${vBtn}</div>${nPanel}${groupsOpen.sound ? renderGroupsManager('sound') : ''}`
-            : `<div class="audioflix-add-section-row"><div class="audioflix-add-section ${open ? 'is-open' : ''}"><button type="button" class="audioflix-add-toggle" data-af-action="toggle-add" data-af-type="sound">${open ? '− Hide add sound' : '+ Add Sound'}</button></div><button type="button" class="audioflix-add-toggle" data-af-action="toggle-ports" style="margin-left: 8px;">Ports</button>${nBtn}${gBtn}${vBtn}</div>${nPanel}${open ? renderForm('sound') : ''}${portsOpen ? renderPortsManager() : ''}${groupsOpen.sound ? renderGroupsManager('sound') : ''}`;
-    };
-
+    const uiManagers = window.EveAudioflixUiManagers.create({
+        esc, closeSvg, state, uiLoc,
+        allGroups: (t) => allGroups(t),
+        renderLocalizeForm: () => renderLocalizeForm(),
+        renderSyncPlaylistForm: (g) => renderSyncPlaylistForm(g),
+        getLocalizeFormOpen: () => localizeFormOpen,
+        getSyncPlaylistFormOpen: () => syncPlaylistFormOpen,
+        getGroupPathsOpen: () => groupPathsOpen
+    });
+    const renderGroupsManager = (type) => uiManagers.renderGroupsManager(type);
+    const renderFoldersManager = () => uiManagers.renderFoldersManager();
+    // The toolbar row + its expandable panels live in a sibling module (late-bound ctx).
+    const renderAddSection = window.EveAudioflixUiToolbar.create({
+        esc, state, uiNexus, uiClass,
+        renderForm: (t) => renderForm(t),
+        renderImportPlaylistForm: () => renderImportPlaylistForm(),
+        renderLocalizeForm: () => renderLocalizeForm(),
+        renderMusicPortForm: () => renderMusicPortForm(),
+        renderFoldersManager: () => renderFoldersManager(),
+        renderGroupsManager: (t) => renderGroupsManager(t),
+        renderPortsManager: () => renderPortsManager(),
+        getFlags: () => ({ addFormOpen, groupsOpen, foldersOpen, portsOpen, importFormOpen, localizeFormOpen, musicPortFormOpen, classifierManagerOpen, nexusState })
+    });
     function renderPanel() {
         const snapshot = state(), musicCount = snapshot.music?.length || 0, soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length, routedCount = snapshot.counters?.routedGeminiEvents || 0;
         const soundboardItems = [...(snapshot.soundboard || []), ...portedSounds];
@@ -384,6 +368,9 @@ window.EveAudioflix = window.EveAudioflix || {};
         get syncPlaylistFormOpen() { return syncPlaylistFormOpen; }, set syncPlaylistFormOpen(v) { syncPlaylistFormOpen = v; },
         get missingListOpen() { return missingListOpen; }, set missingListOpen(v) { missingListOpen = v; },
         get smartArtistExpanded() { return smartArtistExpanded; }, set smartArtistExpanded(v) { smartArtistExpanded = v; },
+        get classifierManagerOpen() { return classifierManagerOpen; }, set classifierManagerOpen(v) { classifierManagerOpen = v; },
+        get classifierDetailId() { return classifierDetailId; }, set classifierDetailId(v) { classifierDetailId = v; },
+        get classifierRowOpen() { return classifierRowOpen; }, set classifierRowOpen(v) { classifierRowOpen = v; },
         get musicPortFormOpen() { return musicPortFormOpen; }, set musicPortFormOpen(v) { musicPortFormOpen = v; },
         get open() { return open; },
         get close() { return close; },
@@ -391,6 +378,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         get groupPathsOpen() { return groupPathsOpen; }, set groupPathsOpen(v) { groupPathsOpen = v; },
         get nexusState() { return nexusState; }, set nexusState(v) { nexusState = v; },
         get activeMusicQueue() { return activeMusicQueue; }, set activeMusicQueue(v) { activeMusicQueue = v; },
+        shuffleQueue: (ids) => shuffleQueue(ids),
         get nativeHotkeysLive() { return nativeHotkeysLive; }, set nativeHotkeysLive(v) { nativeHotkeysLive = v; }
     };
     const { handleAction, handleForm } = window.EveAudioflixUiActions.create(uiCtx);

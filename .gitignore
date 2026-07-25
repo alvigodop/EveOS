@@ -185,3 +185,6 @@ server/gemini-backend/interactions/chat_history.json
 server/gemini-backend/interactions/debug_received_image.jpg
 chat_history.json
 
+
+# Audioflix: machine-local list of folders authorized for local file serving (absolute paths).
+server_modules/audioflix_allowed_dirs.json

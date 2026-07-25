@@ -1,9 +1,7 @@
-// Click-action + form-submit dispatchers for the Audioflix panel. Split out of audioflix.ui.js
-// to keep that view under the project line cap. The panel's mutable UI state (open flags, status
-// text, the active info item, the music queue) still lives in ui.js as the single source of
-// truth; this module reaches it through a `ctx` accessor facade (getters/setters over those
-// closure locals) so the renderers in ui.js keep reading the same variables unchanged. Only the
-// moved handler code goes through ctx — nothing else in ui.js had to change.
+// Click-action + form-submit dispatchers for the Audioflix panel, split out of audioflix.ui.js to
+// keep that view under the line cap. The panel's mutable UI state still lives in ui.js as the single
+// source of truth; this module reaches it through a `ctx` accessor facade (getters/setters over those
+// closure locals), so the renderers there keep reading the same variables unchanged.
 window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
 
 (function () {
@@ -13,6 +11,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
     if (ns.ready) return;
 
     ns.create = function create(ctx) {
+        const localizeActions = window.EveAudioflixUiActionsLocalize.create(ctx);
 
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
@@ -55,6 +54,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'submit-form') { const f = actionTarget.closest('form'); if (f?.reportValidity()) handleForm(f); return; }
             if (action === 'tab') { ctx.activeTab = actionTarget.dataset.afTab || 'soundboard'; ctx.pushHotkeysToBridge(); ctx.rerender(); return; }
             if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); ctx.playbackStatus = 'Opening Localhost EveOS in a new tab...'; ctx.rerender(); return; }
+            if (action === 'toggle-local-badge') { actionTarget.closest('.audioflix-local-badge')?.classList.toggle('is-minimized'); return; }
             if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; ctx.rerender(); return; }
             if (action === 'toggle-settings') { ctx.settingsOpen = !ctx.settingsOpen; ctx.rerender(); return; }
             if (action === 'toggle-group') { const gName = actionTarget.dataset.afGroup; if (gName) { ctx.collapsedGroups = { ...ctx.collapsedGroups, [gName]: !ctx.collapsedGroups[gName] }; ctx.rerender(); } return; }
@@ -125,20 +125,50 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'play-music-group') {
                 const { name, items } = ctx.frontendActiveGroup('music');
                 if (items && items.length) {
+                    const prev = ctx.activeMusicQueue || {};
+                    let ids = items.map(it => it.id);
+                    // Starting a group with shuffle already armed begins on a random order.
+                    if (prev.shuffle) ids = ctx.shuffleQueue(ids);
                     ctx.activeMusicQueue = {
                         groupName: name,
-                        items: items.map(it => it.id),
+                        items: ids,
                         currentIndex: 0,
-                        isPlaying: true
+                        isPlaying: true,
+                        shuffle: prev.shuffle === true,
+                        loop: prev.loop === true
                     };
-                    try { await window.EveAudioflixAudio?.playItem?.(items[0]); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; }
+                    const first = items.find(it => it.id === ids[0]) || items[0];
+                    try { await window.EveAudioflixAudio?.playItem?.(first); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; }
                     ctx.rerender();
                 }
                 return;
             }
             if (action === 'stop-music-group') {
-                ctx.activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false };
+                const prev = ctx.activeMusicQueue || {};
+                // Keep the shuffle/loop preferences armed for the next Play Group.
+                ctx.activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: prev.shuffle === true, loop: prev.loop === true };
                 window.EveAudioflixAudio?.pause?.();
+                ctx.rerender();
+                return;
+            }
+            if (action === 'shuffle-music-group') {
+                // Shuffle Order: the playing track becomes #1 and the rest is randomized.
+                const q = ctx.activeMusicQueue || {};
+                if (!q.items?.length) { ctx.activeMusicQueue = { ...q, shuffle: !q.shuffle }; ctx.rerender(); return; }
+                const currentId = q.items[q.currentIndex] || q.items[0];
+                const rest = ctx.shuffleQueue(q.items.filter(id => id !== currentId));
+                ctx.activeMusicQueue = { ...q, items: [currentId, ...rest], currentIndex: 0, shuffle: true };
+                ctx.playbackStatus = `Shuffled — now playing #1 of ${rest.length + 1}.`;
+                ctx.rerender();
+                return;
+            }
+            if (action === 'loop-music-group') {
+                const q = ctx.activeMusicQueue || {};
+                const loop = !(q.loop === true);
+                ctx.activeMusicQueue = { ...q, loop };
+                ctx.playbackStatus = loop
+                    ? (q.shuffle ? 'Loop on — a new shuffle order starts each lap.' : 'Loop on — the group restarts from #1.')
+                    : 'Loop off.';
                 ctx.rerender();
                 return;
             }
@@ -313,226 +343,12 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
-            if (action === 'toggle-localize-form') {
-                const scope = actionTarget.dataset.afScope || 'library';
-                const key = actionTarget.dataset.afKey || '';
-                const curr = ctx.localizeFormOpen || {};
-                if (curr.open && curr.scope === scope && curr.key === key) {
-                    ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
-                } else {
-                    ctx.localizeFormOpen = { open: true, scope, key };
-                    ctx.musicPortFormOpen = false;
-                    ctx.importFormOpen = false;
-                    window.EveAudioflixLocalize?.auditScopeDiskStatus?.(scope, key).then(() => ctx.rerender());
-                }
-                ctx.rerender();
-                return;
-            }
-            if (action === 'toggle-missing-list') {
-                const scope = actionTarget.dataset.afScope || 'library';
-                const key = actionTarget.dataset.afKey || '';
-                const curr = ctx.missingListOpen || {};
-                if (curr.open && curr.scope === scope && curr.key === key) {
-                    ctx.missingListOpen = { open: false, scope: '', key: '' };
-                } else {
-                    ctx.missingListOpen = { open: true, scope, key };
-                }
-                ctx.rerender();
-                return;
-            }
-            if (action === 'open-nexus-search') {
-                if (typeof ctx.close === 'function') ctx.close();
-                if (typeof window.openExpandedSearchModal === 'function') {
-                    window.openExpandedSearchModal();
-                } else if (window.EveOS?.SearchAdvanced?.UI?.openExpandedSearchModal) {
-                    window.EveOS.SearchAdvanced.UI.openExpandedSearchModal();
-                } else if (typeof window.openSearchModal === 'function') {
-                    window.openSearchModal();
-                }
-                return;
-            }
-            if (action === 'toggle-group-paths') {
-                const key = actionTarget.dataset.afGroup || '', cur = ctx.groupPathsOpen || {};
-                ctx.groupPathsOpen = (cur.open && cur.key === key) ? { open: false, key: '' } : { open: true, key };
-                ctx.rerender(); return;
-            }
-            if (action === 'toggle-group-paths-scope') {
-                const key = actionTarget.dataset.afGroup || '';
-                const scope = actionTarget.dataset.afScope || 'first';
-                const curAll = ctx.groupPathsScopesOpen || {};
-                const curGroup = curAll[key] || { first: false, group: false };
-                ctx.groupPathsScopesOpen = {
-                    ...curAll,
-                    [key]: { ...curGroup, [scope]: !curGroup[scope] }
-                };
-                ctx.rerender();
-                return;
-            }
-            if (action === 'toggle-nexus') {
-                const nType = actionTarget.dataset.afType || 'music', st = ctx.nexusState || {};
-                ctx.nexusState = (st.open && st.type === nType) ? { open: false, type: nType, query: '', facet: '' } : { open: true, type: nType, query: st.query || '', facet: '' };
-                ctx.rerender(); return;
-            }
-            if (action === 'nexus-facet') {
-                const targetFacet = actionTarget.dataset.afFacet || '';
-                const st = ctx.nexusState || {};
-                const nextFacet = st.facet === targetFacet ? '' : targetFacet;
-                ctx.nexusState = { ...st, facet: nextFacet };
-                ctx.rerender();
-                return;
-            }
-            if (action === 'toggle-nexus-section') {
-                const sec = actionTarget.dataset.afSection;
-                if (sec && window.EveAudioflixNexusUi?.toggleSection) window.EveAudioflixNexusUi.toggleSection(sec);
-                ctx.rerender();
-                return;
-            }
-            if (action === 'audit-scope-disk') {
-                const scope = actionTarget.dataset.afScope || 'library';
-                const key = actionTarget.dataset.afKey || '';
-                const L = window.EveAudioflixLocalize;
-                if (L) {
-                    ctx.playbackStatus = 'Auditing local disk files...'; ctx.rerender();
-                    L.auditScopeDiskStatus(scope, key).then(res => {
-                        ctx.playbackStatus = res.ok
-                            ? `Disk Audit Complete: ${res.missing} file(s) missing on disk out of ${res.checked} local track(s).`
-                            : 'Disk Audit failed.';
-                        ctx.rerender();
-                    });
-                }
-                return;
-            }
-            if (action === 'recalibrate-scope-path') {
-                const scope = actionTarget.dataset.afScope || 'library';
-                const key = actionTarget.dataset.afKey || '';
-                const form = actionTarget.closest('form');
-                const input = form ? form.querySelector('input[name="targetDir"]') : null;
-                const targetDir = input ? input.value : window.EveAudioflixLocalize?.getScopeDir?.(scope, key);
-                const L = window.EveAudioflixLocalize;
-                if (L && targetDir) {
-                    ctx.playbackStatus = 'Recalibrating local track paths...'; ctx.rerender();
-                    L.recalibrateScopePath(scope, key, targetDir).then(res => {
-                        ctx.playbackStatus = res.ok
-                            ? `Recalibrated ${res.recalibrated}/${res.total} track path(s) to ${res.targetDir} (0 web downloads).`
-                            : (res.reason || 'Recalibration failed.');
-                        ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
-                        ctx.rerender();
-                    });
-                }
-                return;
-            }
-            if (action === 'toggle-music-port-form') {
-                ctx.musicPortFormOpen = !ctx.musicPortFormOpen;
-                if (ctx.musicPortFormOpen) {
-                    ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
-                    ctx.importFormOpen = false;
-                }
-                ctx.rerender();
-                return;
-            }
+            // Localization / nexus-panel actions live in a sibling module (shares ctx, returns true).
+            if (await localizeActions(actionTarget, action)) return;
         }
 
-        function handleForm(form) {
-            const data = new FormData(form), fName = form.dataset.afForm, id = form.dataset.afId, type = form.dataset.afType;
-            if (fName === 'add-port') { window.EveAudioflixState?.addPort?.({ nickname: data.get('nickname'), path: data.get('path') }); ctx.loadPortedSounds(); }
-            else if (fName === 'add-group') {
-                if (type === 'music') window.EveAudioflixState?.addMusicGroup?.(data.get('name'));
-                else window.EveAudioflixState?.addSoundboardGroup?.(data.get('name'));
-                ctx.rerender();
-            }
-            else if (fName === 'assign-new-group') {
-                if (type === 'music') window.EveAudioflixState?.toggleMusicGroup?.(id, data.get('name'), true);
-                else window.EveAudioflixState?.toggleSoundGroup?.(id, data.get('name'), true);
-                ctx.pushHotkeysToBridge(); ctx.rerender();
-            }
-            else if (fName === 'import-playlist') {
-                const PL = window.EveAudioflixPlaylists;
-                const url = data.get('url'), folder = data.get('folder');
-                if (PL && url) {
-                    ctx.playbackStatus = 'Reading playlist...'; ctx.rerender();
-                    PL.importPlaylist(url, folder ? { folder } : {}).then(res => {
-                        ctx.playbackStatus = res.ok
-                            ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
-                            : (res.reason || 'Playlist import failed.');
-                        ctx.importFormOpen = false;
-                        ctx.rerender();
-                    });
-                }
-            }
-            else if (fName === 'sync-playlist-form') {
-                const groupName = form.dataset.afGroup;
-                const folder = data.get('folder');
-                const PL = window.EveAudioflixPlaylists;
-                if (PL && groupName) {
-                    const conn = PL.getPlaylistForGroup(groupName);
-                    const currentFolder = conn?.folder || 'Music';
-                    const targetFolder = folder !== null ? String(folder).trim() : '';
-                    ctx.playbackStatus = `Syncing playlist "${groupName}"...`;
-                    ctx.syncPlaylistFormOpen = { open: false, group: '' };
-                    ctx.rerender();
-                    PL.syncPlaylistByGroup(groupName, true, targetFolder).then(res => {
-                        const destFolder = targetFolder || currentFolder;
-                        ctx.playbackStatus = res.ok
-                            ? `Synced "${groupName}" — ${res.added} added to folder "${destFolder}", ${res.restored || 0} restored, ${res.missing || 0} missing.`
-                            : (res.reason || 'Playlist sync failed.');
-                        ctx.rerender();
-                    });
-                }
-            }
-            else if (fName === 'localize-form') {
-                const scope = form.dataset.afScope || 'library';
-                const key = form.dataset.afKey || '';
-                const targetDir = data.get('targetDir');
-                const force = data.get('force') === '1' || data.get('force') === 'on';
-                const mode = ['dup', 'smart', 'link'].includes(String(data.get('mode') || '')) ? String(data.get('mode')) : 'link';
-                const L = window.EveAudioflixLocalize;
-                if (L && targetDir) {
-                    ctx.playbackStatus = 'Localizing candidate tracks...'; ctx.rerender();
-                    L.localizeScope(scope, key, targetDir, (p) => {
-                        ctx.playbackStatus = `Localizing ${p.index}/${p.total}: ${p.title}`;
-                    }, force, mode).then(res => {
-                        ctx.playbackStatus = res.ok
-                            ? (scope === 'group'
-                                ? `Group localized — ${res.done} downloaded, ${res.shortcut || 0} shortcut${res.shortcut === 1 ? '' : 's'}, ${res.skipped || 0} kept${res.failed ? `, ${res.failed} failed` : ''}.`
-                                : `Localized ${res.done}/${res.total} to ${res.targetDir}${res.failed ? ` (${res.failed} failed — ${res.lastError})` : ''}.`)
-                            : (res.reason || 'Localization failed.');
-                        ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
-                        ctx.rerender();
-                    });
-                }
-            }
-            else if (fName === 'music-port-form') {
-                const path = data.get('path');
-                const folder = data.get('folder');
-                const L = window.EveAudioflixLocalize;
-                if (L && path) {
-                    ctx.playbackStatus = 'Scanning local folder for music extraction...'; ctx.rerender();
-                    L.importMusicPort(path, folder).then(res => {
-                        ctx.playbackStatus = res.ok
-                            ? `Extracted ${res.added} track(s) into folder tag "${res.folder}".`
-                            : (res.reason || 'Music Port failed.');
-                        ctx.musicPortFormOpen = false;
-                        ctx.rerender();
-                    });
-                }
-            }
-            else if (fName === 'edit-track') {
-                const title = data.get('title'), url = data.get('url'), artist = data.get('artist'), folder = data.get('folder'), localPath = data.get('localPath');
-                const patch = { title, url, artist, folder, card: folder };
-                if (localPath !== null && localPath !== undefined) patch.localPath = String(localPath).trim();
-                window.EveAudioflixState?.updateItem?.('music', id, patch);
-                if (ctx.activeInfoItem?.id === id) {
-                    Object.assign(ctx.activeInfoItem, patch);
-                }
-                ctx.rerender();
-            }
-            else {
-                const itemType = fName === 'music' ? 'music' : 'sound';
-                window.EveAudioflixState?.addItem?.(itemType, { type: itemType, title: data.get('title'), url: data.get('url'), artist: data.get('artist'), folder: data.get('folder'), category: data.get('category'), volume: data.get('volume') });
-                ctx.pushHotkeysToBridge(); ctx.rerender();
-            }
-            form.reset();
-        }
+        // Form submissions live in a sibling module (same ctx) to keep this file under the cap.
+        const handleForm = window.EveAudioflixUiForms.create(ctx);
 
         return { handleAction, handleForm };
     };

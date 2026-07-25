@@ -55,6 +55,12 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             if (type === 'music') {
                 const smart = frontendMusicSmartEntries();
                 const activeKey = state().activeFrontendMusicGroup;
+                // A `class:` key is a classifier selection (time filter, group rank, manual label)
+                // rather than a real group, so resolve it through the classifier engine.
+                if (String(activeKey || '').startsWith('class:')) {
+                    const items = ctx.classifierTracks(activeKey);
+                    if (items.length) return { name: activeKey, items, entries, smart };
+                }
                 const chosen = entries.find(([n]) => n === activeKey) || smart.find(([n]) => n === activeKey) || entries[0] || ['', []];
                 return { name: chosen[0], items: chosen[1], entries, smart };
             }
@@ -73,7 +79,7 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const isDup = window.EveAudioflixDuplicates?.isDuplicate?.(type, item.id);
             const dupBadge = isDup ? `<span class="audioflix-dup-badge" title="Duplicate item detected">👯 Dup</span>` : '';
             const isLocal = type === 'music' && window.EveAudioflixPlaylists?.isLocalTrackInImportedGroup?.(item);
-            const localBadge = isLocal ? `<span class="audioflix-local-badge" title="Added locally (not from upstream playlist)">⚡ Local</span>` : '';
+            const localBadge = isLocal ? `<span class="audioflix-local-badge is-minimized" title="Added locally (not from upstream playlist)" data-af-action="toggle-local-badge"><span class="audioflix-local-badge-icon">⚡</span><span class="audioflix-local-badge-text"> Local</span></span>` : '';
             const amq = ctx.getActiveMusicQueue();
             let queueBadge = '';
             if (type === 'music' && amq.isPlaying && amq.items.includes(item.id)) {
@@ -111,7 +117,11 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const allFolders = [...new Set(musicItems.map((it) => String(it.folder || it.card || '').trim()).filter(Boolean))];
             const activeScope = state().activeMusicFolderScope || '';
             const smartLabel = (smart || []).find(([k]) => k === name)?.[2];
-            const displayName = smartLabel || name;
+            const classifierRow = ctx.renderClassifierRow ? ctx.renderClassifierRow(name) : '';
+            const classifierLabel = String(name || '').startsWith('class:')
+                ? (window.EveAudioflixClassifiers?.selectableEntries?.() || []).find(([k]) => k === name)?.[2]
+                : '';
+            const displayName = smartLabel || classifierLabel || name;
             const scopePills = `<div class="audioflix-folder-scope-selector"><span class="audioflix-scope-label">Track Focus:</span><button type="button" class="audioflix-scope-pill${activeScope === '' ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="">🌐 All Folders (No Focus)</button>${allFolders.map((f) => `<button type="button" class="audioflix-scope-pill${activeScope === f ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="${esc(f)}">📁 ${esc(f)}</button>`).join('')}</div>`;
             const selector = `<div class="audioflix-group-selector">${entries.map(([g, members]) => `<button type="button" class="audioflix-group-pill${g === name ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-type="music" data-af-group="${esc(g)}">${esc(g)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('')}</div>`;
             const smartOpen = ctx.smartArtistExpanded;
@@ -123,7 +133,15 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const playGroupBtn = items.length ? (isQueuePlaying
                 ? `<button type="button" class="audioflix-play-group-btn is-active" data-af-action="stop-music-group">⏹ Stop Group</button>`
                 : `<button type="button" class="audioflix-play-group-btn" data-af-action="play-music-group">▶ Play Group</button>`) : '';
-            return `${scopePills}${selector}${smartSelector}<div class="audioflix-frontend-subhead" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; padding:0 4px;"><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:1.05rem; color:#f8fafc;">${esc(displayName)}</strong> <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">(${items.length} track${items.length === 1 ? '' : 's'})</span></div>${playGroupBtn}</div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map((it) => renderItemCard(it, 'music')).join('')}</div>`;
+            // Shuffle Order pins the playing track at #1 and randomizes the rest; Activate Loop wraps
+            // back to #1 at the end (reshuffling first when shuffle is on).
+            const shuffleBtn = items.length
+                ? `<button type="button" class="audioflix-play-group-btn${amq.shuffle ? ' is-active' : ''}" data-af-action="shuffle-music-group" title="Make the current track #1 and shuffle the rest">🔀 Shuffle Order</button>`
+                : '';
+            const loopBtn = items.length
+                ? `<button type="button" class="audioflix-play-group-btn${amq.loop ? ' is-active' : ''}" data-af-action="loop-music-group" title="When the last track ends, loop back to #1">🔁 ${amq.loop ? 'Loop On' : 'Activate Loop'}</button>`
+                : '';
+            return `${scopePills}${selector}${smartSelector}${classifierRow}<div class="audioflix-frontend-subhead" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:0 4px;"><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:1.05rem; color:#f8fafc;">${esc(displayName)}</strong> <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">(${items.length} track${items.length === 1 ? '' : 's'})</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${playGroupBtn}${shuffleBtn}${loopBtn}</div></div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map((it) => renderItemCard(it, 'music')).join('')}</div>`;
         };
 
         return { frontendMusicItems, frontendMusicSmartEntries, frontendGroupEntries, frontendActiveGroup, renderItemCard, renderItems, renderFrontendActive, renderFrontendMusicActive };

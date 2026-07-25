@@ -1,15 +1,10 @@
-// Music-library localization for Audioflix: convert online (yt-dlp) tracks into local files, and
-// re-attach a folder of already-localized files back onto matching tracks.
+// Music-library localization for Audioflix: turn online (yt-dlp) tracks into local files and
+// re-attach already-localized folders back onto tracks.
 //
-// A localized track becomes DUAL-SOURCE: it keeps its online `url` and gains a `localPath` (the
-// same shape a duplicate merge produces), so playback can prefer the offline file and fall back to
-// the stream. Scopes: the whole library, one folder, one group, or a single song. Downloads run
-// one at a time server-side; the client loops the scope so the user sees N/total progress.
-//
-// The "music port" (importMusicPort) scans a chosen folder and extracts its audio files into EveOS
-// as new tracks under a FOLDER tag — the same way the soundboard ports a folder (not a group like an
-// imported playlist). reimportMerge is the lighter variant: re-attach files to existing tracks by
-// title (restoring localPaths after a datapack move) rather than adding new ones.
+// A localized track is DUAL-SOURCE: it keeps its online `url` and gains a `localPath`, so playback
+// prefers the offline file and falls back to the stream. Scopes: library, folder, group, song.
+// importMusicPort extracts a folder's audio into EveOS as new tracks under a FOLDER tag (like a
+// soundboard port); reimportMerge instead re-attaches files to existing tracks by title.
 window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
 
 (function () {
@@ -57,43 +52,10 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     }
 
     // Audit local PC disk status for a scope using scanLocalized.
-    async function auditScopeDiskStatus(scope, key) {
-        const targetDir = getScopeDir(scope, key);
-        const items = collectScope(scope, key);
-        if (!targetDir || !items.length) return { ok: true, checked: 0, missing: 0 };
-
-        const N = window.EveAudioflixNative;
-        let existingFiles = new Set();
-        if (N?.scanLocalized) {
-            try {
-                const scan = await N.scanLocalized(targetDir);
-                if (scan?.ok && Array.isArray(scan.files)) {
-                    scan.files.forEach((f) => {
-                        if (f.name) existingFiles.add(f.name.toLowerCase());
-                        if (f.path) existingFiles.add(f.path.toLowerCase().replace(/\\/g, '/'));
-                    });
-                }
-            } catch {}
-        }
-
-        let checked = 0, missing = 0;
-        items.forEach((it) => {
-            if (text(it.localPath)) {
-                checked += 1;
-                const filename = text(it.localPath).replace(/.*[/\\]/, '').toLowerCase();
-                const normPath = text(it.localPath).toLowerCase().replace(/\\/g, '/');
-                const exists = existingFiles.has(filename) || existingFiles.has(normPath);
-                if (!exists) {
-                    S()?.updateItem?.('music', it.id, { missingLocal: true });
-                    missing += 1;
-                } else {
-                    if (it.missingLocal) S()?.updateItem?.('music', it.id, { missingLocal: false });
-                }
-            }
-        });
-
-        return { ok: true, checked, missing, targetDir };
-    }
+    // The disk audit lives in a sibling module (see it for the shortcut-vs-physical rules).
+    const auditScopeDiskStatus = window.EveAudioflixLocalizeAudit.create({
+        S, text, collectScope, getScopeDir: (s, k) => getScopeDir(s, k), extractDir: (p) => extractDir(p)
+    });
 
     function extractDir(filePath) {
         const p = text(filePath).replace(/\\/g, '/');
@@ -127,49 +89,56 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
 
     // Batch-update target directory for a scope (e.g. folder or group) and migrate localPaths for all member tracks.
     function updateScopeDir(scope, key, newTargetDir) {
-        const dir = text(newTargetDir).replace(/[/\\]+$/, '');
+        // Normalize to backslashes (the convention extractDir already uses) so a dir typed with
+        // forward slashes can't produce mixed-separator paths that later fail string comparisons.
+        const dir = text(newTargetDir).replace(/[/\\]+$/, '').replace(/\//g, '\\');
         if (!dir) return { ok: false, reason: 'Invalid directory path' };
         
+        // Read the OLD remembered dir before rememberDir() overwrites it — the legacy-upgrade branch
+        // below needs to know where this scope used to point.
+        const previousDir = text(state().localizeScopeDirs?.[`${scope}:${key || ''}`]);
         rememberDir(dir, scope, key);
         const items = collectScope(scope, key);
         let updatedCount = 0;
 
+        // Recalibrating ONE scope must only move THAT scope's own entry. A song lives physically in a
+        // single place (normally its folder file); the other entries are where a shortcut should sit or
+        // where a group keeps its own duplicate copy. The old code rewrote localPath/url for every
+        // member, so recalibrating a folder stomped the group's paths (and vice versa) — the
+        // "EveOS logic overwrote the songs" case. `linkOf` is never rewritten here: a shortcut's
+        // physical target belongs to whichever scope really owns the bytes.
+        const scopeSource = `${scope}:${key}`;
+        const sameDir = (a, b) => !!a && !!b && extractDir(a).toLowerCase() === String(b).toLowerCase().replace(/[/\\]+$/, '');
+
         items.forEach((it) => {
-            let hasChange = false;
             const patch = {};
-            if (text(it.localPath)) {
-                const filename = text(it.localPath).replace(/.*[/\\]/, '');
-                if (filename) {
-                    const newPath = `${dir}\\${filename}`;
-                    if (text(it.localPath) !== newPath) {
-                        patch.localPath = newPath;
-                        hasChange = true;
-                    }
-                }
-            }
-            if (text(it.url) && !isHttp(it.url)) {
-                const filename = text(it.url).replace(/.*[/\\]/, '');
-                if (filename) {
-                    const newUrl = `${dir}\\${filename}`;
-                    if (text(it.url) !== newUrl) {
-                        patch.url = newUrl;
-                        hasChange = true;
-                    }
-                }
-            }
-            // Keep the class-based localizations for THIS scope in sync with the new dir, or the
-            // effective path (which prefers localizations) would keep resolving to the old folder.
-            const scopeSource = `${scope}:${key}`;
-            if (Array.isArray(it.localizations) && it.localizations.some((l) => l.source === scopeSource && l.kind === 'file')) {
-                patch.localizations = it.localizations.map((l) => {
-                    if (l.source !== scopeSource || l.kind !== 'file' || !text(l.path)) return l;
+            const existing = Array.isArray(it.localizations) ? it.localizations : [];
+            const owns = existing.some((l) => l.source === scopeSource);
+            let next = existing;
+
+            if (owns) {
+                next = existing.map((l) => {
+                    if (l.source !== scopeSource || !text(l.path)) return l;
                     const fn = text(l.path).replace(/.*[/\\]/, '');
-                    return fn ? { ...l, path: `${dir}\\${fn}` } : l;
+                    return fn ? { ...l, path: `${dir}\\${fn}` } : l;   // keeps kind AND linkOf intact
                 });
-                patch.localPath = effectiveLocalPath({ localizations: patch.localizations, localPath: patch.localPath || it.localPath });
-                hasChange = true;
+            } else if (text(it.localPath) && (sameDir(it.localPath, previousDir) || !previousDir)) {
+                // Legacy upgrade: a pre-classifier localPath that lived in this scope's old folder
+                // becomes a proper entry for this scope, so future recalibrations stay scoped.
+                const fn = text(it.localPath).replace(/.*[/\\]/, '');
+                if (fn) next = [...existing, { source: scopeSource, path: `${dir}\\${fn}`, kind: 'file', linkOf: '' }];
             }
-            if (hasChange) {
+
+            if (next !== existing) {
+                patch.localizations = next;
+                // The effective path is re-derived from class priority, never assumed to be this scope.
+                const effective = effectiveLocalPath({ localizations: next, localPath: it.localPath });
+                if (effective && effective !== text(it.localPath)) patch.localPath = effective;
+                // A local-file `url` follows the physical file only when this scope owns it.
+                if (text(it.url) && !isHttp(it.url) && effective) patch.url = effective;
+            }
+
+            if (Object.keys(patch).length) {
                 S()?.updateItem?.('music', it.id, patch);
                 updatedCount += 1;
             }
@@ -234,11 +203,13 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return ordered.length ? ordered[0].path : text(track?.localPath);
     }
     // Add/replace a track's localization for one source, then refresh its effective localPath.
-    function addLocalization(track, source, path, kind = 'file') {
+    // `linkOf` (shortcuts only) records the PHYSICAL file the link points at, so the disk sensor can
+    // verify the real bytes rather than deciding a shortcut is missing.
+    function addLocalization(track, source, path, kind = 'file', linkOf = '') {
         const cleanPath = text(path);
         if (!track?.id || !cleanPath || !source) return;
         const next = (track.localizations || []).filter((l) => l.source !== source);
-        next.push({ source, path: cleanPath, kind });
+        next.push(linkOf ? { source, path: cleanPath, kind, linkOf: text(linkOf) } : { source, path: cleanPath, kind });
         S()?.updateItem?.('music', track.id, { localizations: next, localPath: effectiveLocalPath({ localizations: next, localPath: track.localPath }) });
     }
     // library/song localize attributes to the track's own folder (so it counts as 1st class) or a
@@ -255,14 +226,11 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return (res?.ok && res.filePath) ? { ok: true, path: res.filePath } : { ok: false, error: res?.error || res?.message || 'download failed' };
     }
 
-    // Group localization, three ways (all keep the class priority intact when resolving playback):
-    //   'link'  — reuse: a folder-localized song keeps its folder file (1st class, skipped); a song
-    //             already localized anywhere ELSE gets a shortcut into this group (3rd class, so no
-    //             second copy on disk); anything left downloads into the group path (2nd class).
-    //   'smart' — class-aware but no shortcuts: folder-localized songs are skipped (their folder copy
-    //             stays primary); every other online song downloads into this group's path.
-    //   'dup'   — ignore classes: every online song gets its own copy in the group path, so the track
-    //             ends up with two real physical locations (the folder file still plays first).
+    // Group localization, three ways (class priority always decides playback):
+    //   'link'  — reuse: folder copy stays 1st; already-local elsewhere becomes a 3rd-class shortcut
+    //             (no second copy on disk); the rest download into the group path (2nd class).
+    //   'smart' — no shortcuts: folder copies skipped, every other online song downloads here.
+    //   'dup'   — ignore classes: own copy of every song here (folder file still plays first).
     async function localizeGroup(groupKey, dir, onProgress, mode = 'link') {
         const N = window.EveAudioflixNative;
         const source = `group:${groupKey}`;
@@ -277,7 +245,13 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                 || (text(it.localPath) ? { path: it.localPath } : null);
             if (mode !== 'dup' && folderFile) { skipped += 1; continue; }        // 1st class stays primary
             if (mode === 'link' && elsewhereFile) {                              // 3rd class: reference it
-                addLocalization(it, source, elsewhereFile.path, 'shortcut');
+                // Create a REAL link in the group folder so the shortcut exists on disk too (it used
+                // to be EveOS-only, so the group's path looked empty in Explorer). The stored path is
+                // the link inside this group; `linkOf` remembers the physical file it points at, which
+                // is what keeps the disk sensor from reading it as missing.
+                const linked = await N?.linkLocalFile?.(elsewhereFile.path, dir, it.title);
+                if (linked?.ok && linked.path) addLocalization(it, source, linked.path, 'shortcut', elsewhereFile.path);
+                else addLocalization(it, source, elsewhereFile.path, 'shortcut', elsewhereFile.path);
                 shortcut += 1;
                 continue;
             }
@@ -335,7 +309,9 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                 : l.kind === 'shortcut' ? `Group shortcut · ${l.source.slice(6)}`
                     : l.source.startsWith('group:') ? `Group · ${l.source.slice(6)}` : l.source,
             path: l.path,
-            kind: l.kind
+            kind: l.kind,
+            source: l.source,
+            linkOf: text(l.linkOf)
         }));
     }
 
@@ -393,8 +369,21 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return { ok: true, added: addedCount, total: files.length, folder: targetFolder, path: cleanPath };
     }
 
+    // Point one localization entry at a different file (user edit from the track settings panel).
+    // Only that entry moves; the effective localPath is then re-derived from class priority.
+    function setLocalizationPath(trackId, source, newPath) {
+        const track = musicItems().find((it) => it.id === trackId);
+        const clean = text(newPath);
+        if (!track || !clean) return { ok: false };
+        const next = (track.localizations || []).map((l) => (l.source === source ? { ...l, path: clean } : l));
+        if (!next.some((l) => l.source === source)) return { ok: false, reason: 'Unknown localization entry.' };
+        S()?.updateItem?.('music', trackId, { localizations: next, localPath: effectiveLocalPath({ localizations: next, localPath: track.localPath }) });
+        return { ok: true };
+    }
+
     Object.assign(ns, {
         ready: true,
+        setLocalizationPath,
         lastDir,
         getScopeDir,
         updateScopeDir,
