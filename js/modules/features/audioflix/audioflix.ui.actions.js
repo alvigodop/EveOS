@@ -77,7 +77,28 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 return;
             }
             if (action === 'remove-group') { if (type === 'music') window.EveAudioflixState?.removeMusicGroup?.(actionTarget.dataset.afGroup); else window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); ctx.rerender(); return; }
-            if (action === 'select-frontend-group') { if (type === 'music') window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: actionTarget.dataset.afGroup }, 'audioflix-active-music-group'); else window.EveAudioflixState?.update?.({ activeFrontendGroup: actionTarget.dataset.afGroup }, 'audioflix-active-group'); ctx.pushHotkeysToBridge(); ctx.rerender(); return; }
+            if (action === 'toggle-smart-artists') {
+                ctx.smartArtistExpanded = !ctx.smartArtistExpanded;
+                ctx.rerender();
+                return;
+            }
+            if (action === 'select-frontend-group') {
+                const targetGroup = actionTarget.dataset.afGroup || '';
+                if (type === 'music') {
+                    const cur = ctx.state().activeFrontendMusicGroup || '';
+                    const defaultGroup = (ctx.frontendGroupEntries('music')[0] || [''])[0];
+                    const next = cur === targetGroup ? defaultGroup : targetGroup;
+                    window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: next }, 'audioflix-active-music-group');
+                } else {
+                    const cur = ctx.state().activeFrontendGroup || '';
+                    const defaultGroup = (ctx.frontendGroupEntries('sound')[0] || [''])[0];
+                    const next = cur === targetGroup ? defaultGroup : targetGroup;
+                    window.EveAudioflixState?.update?.({ activeFrontendGroup: next }, 'audioflix-active-group');
+                }
+                ctx.pushHotkeysToBridge();
+                ctx.rerender();
+                return;
+            }
             if (action === 'toggle-view-mode') {
                 if (type === 'music') {
                     const next = (ctx.state().musicViewMode || 'backend') === 'frontend' ? 'backend' : 'frontend';
@@ -303,6 +324,12 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
+            if (action === 'open-nexus-search') {
+                ctx.close();
+                if (typeof window.openSearchModal === 'function') window.openSearchModal();
+                else if (window.EveOS?.SearchAdvanced?.open) window.EveOS.SearchAdvanced.open();
+                return;
+            }
             if (action === 'toggle-group-paths') {
                 const key = actionTarget.dataset.afGroup || '', cur = ctx.groupPathsOpen || {};
                 ctx.groupPathsOpen = (cur.open && cur.key === key) ? { open: false, key: '' } : { open: true, key };
@@ -313,7 +340,20 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.nexusState = (st.open && st.type === nType) ? { open: false, type: nType, query: '', facet: '' } : { open: true, type: nType, query: st.query || '', facet: '' };
                 ctx.rerender(); return;
             }
-            if (action === 'nexus-facet') { ctx.nexusState = { ...(ctx.nexusState || {}), facet: actionTarget.dataset.afFacet || '' }; ctx.rerender(); return; }
+            if (action === 'nexus-facet') {
+                const targetFacet = actionTarget.dataset.afFacet || '';
+                const st = ctx.nexusState || {};
+                const nextFacet = st.facet === targetFacet ? '' : targetFacet;
+                ctx.nexusState = { ...st, facet: nextFacet };
+                ctx.rerender();
+                return;
+            }
+            if (action === 'toggle-nexus-section') {
+                const sec = actionTarget.dataset.afSection;
+                if (sec && window.EveAudioflixNexusUi?.toggleSection) window.EveAudioflixNexusUi.toggleSection(sec);
+                ctx.rerender();
+                return;
+            }
             if (action === 'audit-scope-disk') {
                 const scope = actionTarget.dataset.afScope || 'library';
                 const key = actionTarget.dataset.afKey || '';

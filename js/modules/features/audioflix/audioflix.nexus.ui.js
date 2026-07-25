@@ -11,6 +11,12 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
     const ns = window.EveAudioflixNexusUi;
     if (ns.ready) return;
 
+    let expandedSections = { artist: false, group: false, folder: false, duration: false };
+
+    ns.toggleSection = function toggleSection(sec) {
+        if (sec in expandedSections) expandedSections[sec] = !expandedSections[sec];
+    };
+
     ns.create = function create(deps) {
         const esc = deps.esc;
         const getNexus = deps.getNexusState;   // () -> { open, type, query, facet }
@@ -60,7 +66,7 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
 
         function chip(kind, val, label, count, active) {
             const on = active;
-            return `<button type="button" data-af-action="nexus-facet" data-af-facet="${esc(kind + '::' + val)}" style="font-size:0.72rem; padding:2px 8px; border-radius:12px; border:1px solid rgba(148,163,184,0.35); background:${on ? 'rgba(56,189,248,0.28)' : 'rgba(148,163,184,0.12)'}; color:#e2e8f0; cursor:pointer; margin:2px;">${esc(label)}${count != null ? ` (${count})` : ''}</button>`;
+            return `<button type="button" data-af-action="nexus-facet" data-af-facet="${esc(kind + '::' + val)}" style="font-size:0.72rem; padding:2px 8px; border-radius:12px; border:1px solid rgba(148,163,184,0.35); background:${on ? 'rgba(56,189,248,0.35)' : 'rgba(148,163,184,0.12)'}; color:${on ? '#38bdf8' : '#e2e8f0'}; cursor:pointer; margin:2px; font-weight:${on ? '700' : 'normal'};" title="${on ? 'Click to deselect' : 'Click to filter'}">${esc(label)}${count != null ? ` (${count})` : ''}</button>`;
         }
 
         function renderPanel(type) {
@@ -70,20 +76,30 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
             const f = api.facets(type, all);
             const dup = api.dupReport(type, all);
             const dupCount = dup.exact.length + dup.similar.length;
-            const row = (title, chips) => chips ? `<div style="margin-top:6px;"><span style="font-size:0.72rem; color:#94a3b8; font-weight:700;">${title}</span><div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;">${chips}</div></div>` : '';
+
+            const [activeKind] = String(st.facet || '').split('::');
+
+            const sectionRow = (secKey, title, count, chips) => {
+                if (!chips || !count) return '';
+                const isOpen = expandedSections[secKey] || activeKind === secKey || (secKey === 'duration' && (activeKind === 'around' || activeKind === 'below'));
+                const toggleBtn = `<button type="button" class="audioflix-add-toggle${isOpen ? ' is-active' : ''}" data-af-action="toggle-nexus-section" data-af-section="${esc(secKey)}" style="font-size:0.72rem; padding:2px 8px; border-radius:10px; cursor:pointer;">${isOpen ? '▲' : '▼'} ${esc(title)} (${count})</button>`;
+                return `<div style="margin-top:6px;"><div style="display:flex; align-items:center; gap:6px;">${toggleBtn}</div>${isOpen ? `<div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:4px; padding-left:4px;">${chips}</div>` : ''}</div>`;
+            };
+
             const dupChip = dupCount
                 ? chip('dups', '1', `👯 Possible duplicates`, dupCount, st.facet === 'dups::1') + `<span style="font-size:0.7rem; color:#94a3b8; margin-left:6px;">open a hit's ⚙ to merge / keep both</span>`
                 : '<span style="font-size:0.75rem; color:#94a3b8;">No duplicate names detected.</span>';
             const artistChips = f.artists.slice(0, 14).map((a) => chip('artist', a.name, a.name, a.count, st.facet === `artist::${a.name}`)).join('');
             const groupChips = f.groups.slice(0, 14).map((g) => chip('group', g.name, g.name, g.count, st.facet === `group::${g.name}`)).join('');
             const folderChips = f.folders.slice(0, 14).map((x) => chip('folder', x.name, x.name, x.count, st.facet === `folder::${x.name}`)).join('');
-            // Soft "around N min" (the :36 roll-up rule) and hard "under N min" cutoffs.
             const durChips = type === 'music' ? f.durations.map((d) => chip('around', String(d.min), `~${d.min} min`, d.count, st.facet === `around::${d.min}`)).join('') : '';
             const belowChips = type === 'music'
                 ? f.durations.map((d) => d.min).filter((m) => m > 0).map((m) => chip('below', String(m), `< ${m} min`, null, st.facet === `below::${m}`)).join('')
                 : '';
-            const clearBtn = st.facet ? `<button type="button" class="audioflix-icon-btn" data-af-action="nexus-facet" data-af-facet="" title="Clear filter">✕</button>` : '';
-            return `<div class="audioflix-nexus-panel" style="margin-top:8px; padding:12px; border-radius:12px; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.25);"><div style="display:flex; align-items:center; gap:8px;"><input type="text" data-af-nexus-search data-af-type="${esc(type)}" value="${esc(st.query)}" placeholder="Search ${type === 'music' ? 'tracks' : 'sounds'} by name, artist, folder, group..." style="flex:1; padding:6px 10px; border-radius:10px; border:1px solid rgba(148,163,184,0.35); background:rgba(0,0,0,0.3); color:#f8fafc;">${clearBtn}</div>${row('Manage duplicates', dupChip)}${row('Artists', artistChips)}${row('Groups', groupChips)}${row('Folders', folderChips)}${row('Duration — soft (around)', durChips)}${row('Duration — hard (under)', belowChips)}<div class="audioflix-nexus-results" data-af-nexus-results="${esc(type)}" style="margin-top:8px; max-height:300px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.08);">${renderResults(type)}</div></div>`;
+            const combinedDurChips = (durChips || belowChips) ? (durChips + belowChips) : '';
+
+            const clearBtn = st.facet ? `<button type="button" class="audioflix-icon-btn" data-af-action="nexus-facet" data-af-facet="${esc(st.facet)}" title="Clear filter">✕</button>` : '';
+            return `<div class="audioflix-nexus-panel" style="margin-top:8px; padding:12px; border-radius:12px; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.25);"><div style="display:flex; align-items:center; gap:8px;"><input type="text" data-af-nexus-search data-af-type="${esc(type)}" value="${esc(st.query)}" placeholder="Search ${type === 'music' ? 'tracks' : 'sounds'} by name, artist, folder, group..." style="flex:1; padding:6px 10px; border-radius:10px; border:1px solid rgba(148,163,184,0.35); background:rgba(0,0,0,0.3); color:#f8fafc;">${clearBtn}</div><div style="margin-top:6px;"><span style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Manage duplicates</span><div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;">${dupChip}</div></div>${sectionRow('artist', 'Artists', f.artists.length, artistChips)}${sectionRow('group', 'Groups', f.groups.length, groupChips)}${sectionRow('folder', 'Folders', f.folders.length, folderChips)}${sectionRow('duration', 'Duration Filters', f.durations.length, combinedDurChips)}<div class="audioflix-nexus-results" data-af-nexus-results="${esc(type)}" style="margin-top:8px; max-height:300px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.08);">${renderResults(type)}</div></div>`;
         }
 
         return { renderButton, renderPanel, renderResults };

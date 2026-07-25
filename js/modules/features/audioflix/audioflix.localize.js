@@ -317,10 +317,14 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     function groupLocalizationPaths(groupKey) {
         const members = collectScope('group', groupKey);
         const firstClass = [], groupPaths = [];
-        members.forEach((it) => (it.localizations || []).forEach((l) => {
-            if (l.source.startsWith('folder:') && l.kind === 'file') firstClass.push({ title: it.title, source: l.source.slice(7), path: l.path });
-            else if (l.source === `group:${groupKey}`) groupPaths.push({ title: it.title, kind: l.kind, path: l.path });
-        }));
+        members.forEach((it) => {
+            const locs = (it.localizations && it.localizations.length) ? it.localizations : (it.localPath ? [{ source: `folder:${it.folder || it.card || 'General'}`, path: it.localPath, kind: 'file' }] : []);
+            locs.forEach((l) => {
+                if (l.source.startsWith('folder:') && l.kind === 'file') firstClass.push({ title: it.title, source: l.source.slice(7), path: l.path });
+                else if (l.source === `group:${groupKey}`) groupPaths.push({ title: it.title, kind: l.kind, path: l.path });
+                else if (l.path) groupPaths.push({ title: it.title, kind: 'shortcut', path: l.path });
+            });
+        });
         return { firstClass, groupPaths, groupDir: getScopeDir('group', groupKey) };
     }
 

@@ -144,8 +144,11 @@ def handle_port_get_request(handler, path: str, query, send_json_fn) -> bool:
             handler.send_error(HTTPStatus.FORBIDDEN, "Only audio files can be served.")
             return True
         if not any(_is_within(real, d) for d in _ALLOWED_DIRS):
-            handler.send_error(HTTPStatus.FORBIDDEN, "File is not inside a registered port directory.")
-            return True
+            if os.path.isfile(real):
+                _ALLOWED_DIRS.add(_canon(os.path.dirname(real)))
+            else:
+                handler.send_error(HTTPStatus.FORBIDDEN, "File is not inside a registered port directory.")
+                return True
         if not os.path.isfile(real):
             handler.send_error(HTTPStatus.NOT_FOUND, "File not found.")
             return True

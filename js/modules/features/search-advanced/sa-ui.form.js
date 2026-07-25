@@ -123,6 +123,17 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
                 });
             }
 
+            // Wire Audioflix Link button — opens Audioflix backend panel.
+            const audioflixBtn = fields.byId?.('nxAudioflixLinkBtn');
+            if (audioflixBtn) {
+                audioflixBtn.addEventListener('click', function () {
+                    if (typeof window.closeModals === 'function') window.closeModals();
+                    if (window.EveAudioflix?.open) {
+                        window.EveAudioflix.open();
+                    }
+                });
+            }
+
             // Wire Gemini Link button - opens Search Monitor with the Gemini workspace.
             const geminiBtn = fields.byId?.('nxGeminiLinkBtn');
             if (geminiBtn) {
