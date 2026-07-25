@@ -39,6 +39,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     let smartArtistExpanded = false;
     let musicPortFormOpen = false;
     let groupPathsOpen = { open: false, key: '' };
+    let groupPathsScopesOpen = {};
     // Localization UI renderers live in a sibling module (they reach this view's open-flags through
     // these getters, so the renderers can stay pure while the flags remain the single source here).
     const uiLoc = window.EveAudioflixUiLocalize.create({
@@ -46,7 +47,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         findItem: (t, id) => findItem(t, id),
         getLocalizeFormOpen: () => localizeFormOpen,
         getMissingListOpen: () => missingListOpen,
-        getGroupPathsOpen: () => groupPathsOpen
+        getGroupPathsOpen: () => groupPathsOpen,
+        getGroupPathsScopesOpen: () => groupPathsScopesOpen
     });
     // Nexus Audio Link search panel (music + soundboard, backend + frontend).
     let nexusState = { open: false, type: 'music', query: '', facet: '' };
@@ -322,7 +324,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         const snapshot = state(), musicCount = snapshot.music?.length || 0, soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length, routedCount = snapshot.counters?.routedGeminiEvents || 0;
         const soundboardItems = [...(snapshot.soundboard || []), ...portedSounds];
         const tabBody = activeTab === 'music' ? `${renderAddSection('music')}${renderItems(snapshot.music || [], 'music')}` : activeTab === 'router' ? (window.EveAudioflixRouting?.renderRouter?.(snapshot) || '') : `${renderAddSection('sound')}${renderItems(soundboardItems, 'sound')}`;
-        return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title"><header class="audioflix-header"><div><span class="audioflix-kicker">EveOS Audio Backend</span><h2 id="audioflix-title">Audioflix</h2><p>Soundboard, music cards, browser output routing, and Gemini voice-port staging.</p></div><div class="audioflix-header-actions"><button type="button" class="audioflix-add-toggle" data-af-action="open-nexus-search" style="margin-right:6px; background:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(14,165,233,0.3)); border:1px solid rgba(56,189,248,0.4); color:#38bdf8; font-weight:700; font-size:0.8rem; padding:4px 10px; border-radius:12px;" title="Open Nexus Search">⚔ Nexus Search</button><button type="button" class="audioflix-clear-events" data-af-action="clear-gemini-events">Clear events</button><span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span><button type="button" class="audioflix-settings-toggle${settingsOpen ? ' is-active' : ''}" data-af-action="toggle-settings" title="Audioflix settings (hotkey bypass)" aria-label="Audioflix settings">⚙</button><button type="button" class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen">⛶</button><button type="button" data-af-action="close">${closeSvg}</button></div></header><nav class="audioflix-tabs">${tabButton('soundboard', 'Soundboard')}${tabButton('music', 'Music Library')}${tabButton('router', 'Routing Notes')}</nav>${renderSettings(snapshot)}${renderRoutingDrawer(snapshot)}<div class="audioflix-content">${tabBody}</div>${activeInfoItem ? renderInfoModal(activeInfoItem, activeInfoType) : ''}</div>`;
+        return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title"><header class="audioflix-header"><div><span class="audioflix-kicker">EveOS Audio Backend</span><h2 id="audioflix-title">Audioflix</h2><p>Soundboard, music cards, browser output routing, and Gemini voice-port staging.</p></div><div class="audioflix-header-actions"><button type="button" class="audioflix-clear-events" data-af-action="clear-gemini-events">Clear events</button><span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span><button type="button" class="audioflix-settings-toggle${settingsOpen ? ' is-active' : ''}" data-af-action="toggle-settings" title="Audioflix settings (hotkey bypass)" aria-label="Audioflix settings">⚙</button><button type="button" class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen">⛶</button><button type="button" data-af-action="close">${closeSvg}</button></div></header><nav class="audioflix-tabs">${tabButton('soundboard', 'Soundboard')}${tabButton('music', 'Music Library')}${tabButton('router', 'Routing Notes')}</nav>${renderSettings(snapshot)}${renderRoutingDrawer(snapshot)}<div class="audioflix-content">${tabBody}</div>${activeInfoItem ? renderInfoModal(activeInfoItem, activeInfoType) : ''}</div>`;
     }
 
     const renderSettings = (snapshot) => { const combo = snapshot.hotkeyBypassCombo || '', issue = hotkeyComboIssue(combo), summary = combo ? esc(combo) : 'Not set'; return !settingsOpen ? `<section class="audioflix-settings-drawer"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Open settings</b></button></section>` : `<section class="audioflix-settings-drawer is-open"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Collapse</b></button><div class="audioflix-settings-body"><label class="audioflix-settings-field"><span>Hotkey bypass toggle key</span><input type="text" class="audioflix-bypass-input${issue?.invalid ? ' audioflix-input-invalid' : ''}" placeholder="e.g. ctrl+shift+b" value="${esc(combo)}" title="${issue ? esc(issue.msg) : 'Press this to suspend/resume all sound hotkeys'}"></label><p class="audioflix-settings-hint">Press this key while in-game to <strong>suspend</strong> every sound hotkey so the keys type/act normally — press again to re-arm. Use a modifier combo (e.g. <strong>ctrl+shift+b</strong>) so it never clashes with normal typing. Single plain keys get grabbed globally.</p><div class="audioflix-bypass-status">Sound hotkeys: <span class="audioflix-bypass-state" data-state="unknown">—</span></div></div></section>`; };
@@ -377,6 +379,9 @@ window.EveAudioflix = window.EveAudioflix || {};
         get missingListOpen() { return missingListOpen; }, set missingListOpen(v) { missingListOpen = v; },
         get smartArtistExpanded() { return smartArtistExpanded; }, set smartArtistExpanded(v) { smartArtistExpanded = v; },
         get musicPortFormOpen() { return musicPortFormOpen; }, set musicPortFormOpen(v) { musicPortFormOpen = v; },
+        get open() { return open; },
+        get close() { return close; },
+        get groupPathsScopesOpen() { return groupPathsScopesOpen; }, set groupPathsScopesOpen(v) { groupPathsScopesOpen = v; },
         get groupPathsOpen() { return groupPathsOpen; }, set groupPathsOpen(v) { groupPathsOpen = v; },
         get nexusState() { return nexusState; }, set nexusState(v) { nexusState = v; },
         get activeMusicQueue() { return activeMusicQueue; }, set activeMusicQueue(v) { activeMusicQueue = v; },

@@ -85,11 +85,17 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
             const po = getPaths();
             if (!po.open || po.key !== groupKey) return '';
             const data = L()?.groupLocalizationPaths?.(groupKey) || { firstClass: [], groupPaths: [], groupDir: '' };
+            const scopesOpen = deps.getGroupPathsScopesOpen?.() || {};
+            const groupScopes = scopesOpen[groupKey] || { first: false, group: false };
             const row = (label, path, tag, color) => `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.06);"><span style="color:#f8fafc; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(label)} <em style="color:${color}; font-style:normal; font-size:0.7rem;">${tag}</em></span><span style="color:#cbd5e1; font-family:monospace; font-size:0.7rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:52%;" title="${esc(path)}">${esc(path)}</span></div>`;
-            const first = data.firstClass.map((e) => row(e.title, e.path, `1st · folder ${e.source}`, '#38bdf8')).join('');
-            const grp = data.groupPaths.map((e) => row(e.title, e.path, e.kind === 'shortcut' ? '3rd · shortcut' : '2nd · group', e.kind === 'shortcut' ? '#c084fc' : '#34d399')).join('');
-            const body = (first || grp) || '<div style="color:#94a3b8;">No localizations connected to this group yet.</div>';
-            return `<div class="audioflix-group-paths-box" style="margin-top:6px; padding:8px 10px; background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.25); border-radius:8px; font-size:0.78rem;"><div style="font-weight:700; margin-bottom:4px; color:#93c5fd;">Connected Paths — group dir: <span style="font-family:monospace; color:#cbd5e1;">${esc(data.groupDir || '(none)')}</span></div>${first ? `<div style="color:#38bdf8; font-weight:600; margin-top:4px;">1st class (folder)</div>${first}` : ''}${grp ? `<div style="color:#34d399; font-weight:600; margin-top:4px;">Group (2nd class / shortcuts)</div>${grp}` : ''}${(!first && !grp) ? body : ''}</div>`;
+            const firstRows = data.firstClass.map((e) => row(e.title, e.path, `1st · folder ${e.source}`, '#38bdf8')).join('');
+            const grpRows = data.groupPaths.map((e) => row(e.title, e.path, e.kind === 'shortcut' ? '3rd · shortcut' : '2nd · group', e.kind === 'shortcut' ? '#c084fc' : '#34d399')).join('');
+            const firstHeader = `<button type="button" class="audioflix-add-toggle${groupScopes.first ? ' is-active' : ''}" data-af-action="toggle-group-paths-scope" data-af-group="${esc(groupKey)}" data-af-scope="first" style="font-size:0.72rem; padding:2px 8px; border-radius:10px; cursor:pointer; margin-top:4px;">${groupScopes.first ? '▲' : '▼'} 1st class (folder) (${data.firstClass.length})</button>`;
+            const grpHeader = `<button type="button" class="audioflix-add-toggle${groupScopes.group ? ' is-active' : ''}" data-af-action="toggle-group-paths-scope" data-af-group="${esc(groupKey)}" data-af-scope="group" style="font-size:0.72rem; padding:2px 8px; border-radius:10px; cursor:pointer; margin-top:4px;">${groupScopes.group ? '▲' : '▼'} Group (2nd class / shortcuts) (${data.groupPaths.length})</button>`;
+            const firstBlock = data.firstClass.length ? `<div style="margin-top:4px;">${firstHeader}${groupScopes.first ? `<div style="margin-top:2px;">${firstRows}</div>` : ''}</div>` : '';
+            const grpBlock = data.groupPaths.length ? `<div style="margin-top:4px;">${grpHeader}${groupScopes.group ? `<div style="margin-top:2px;">${grpRows}</div>` : ''}</div>` : '';
+            const body = (firstBlock || grpBlock) || '<div style="color:#94a3b8; margin-top:4px;">No localizations connected to this group yet.</div>';
+            return `<div class="audioflix-group-paths-box" style="margin-top:6px; padding:8px 10px; background:rgba(15,23,42,0.5); border:1px solid rgba(148,163,184,0.25); border-radius:8px; font-size:0.78rem;"><div style="font-weight:700; margin-bottom:4px; color:#93c5fd;">Connected Paths — group dir: <span style="font-family:monospace; color:#cbd5e1;">${esc(data.groupDir || '(none)')}</span></div>${body}</div>`;
         }
 
         // The track settings panel's localization list, most-important class first.

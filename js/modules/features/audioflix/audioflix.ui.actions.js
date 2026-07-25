@@ -335,6 +335,18 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.groupPathsOpen = (cur.open && cur.key === key) ? { open: false, key: '' } : { open: true, key };
                 ctx.rerender(); return;
             }
+            if (action === 'toggle-group-paths-scope') {
+                const key = actionTarget.dataset.afGroup || '';
+                const scope = actionTarget.dataset.afScope || 'first';
+                const curAll = ctx.groupPathsScopesOpen || {};
+                const curGroup = curAll[key] || { first: false, group: false };
+                ctx.groupPathsScopesOpen = {
+                    ...curAll,
+                    [key]: { ...curGroup, [scope]: !curGroup[scope] }
+                };
+                ctx.rerender();
+                return;
+            }
             if (action === 'toggle-nexus') {
                 const nType = actionTarget.dataset.afType || 'music', st = ctx.nexusState || {};
                 ctx.nexusState = (st.open && st.type === nType) ? { open: false, type: nType, query: '', facet: '' } : { open: true, type: nType, query: st.query || '', facet: '' };
