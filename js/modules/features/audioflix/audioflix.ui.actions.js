@@ -353,6 +353,12 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.playbackStatus = next === 'text-brain-live-voice' ? 'Mode 2 enabled.' : 'Direct Live mode enabled.'; ctx.rerender(); return;
             }
             if (action === 'clear-gemini-events') { window.EveAudioflixState?.clearGeminiAudioEvents?.(); ctx.playbackStatus = 'Gemini event counter cleared'; ctx.rerender(); return; }
+            if (action === 'trigger-wpl-file-picker') {
+                const form = actionTarget.closest('form');
+                const fileInput = form?.querySelector('.audioflix-wpl-file-picker');
+                fileInput?.click();
+                return;
+            }
             if (action === 'toggle-import-form') {
                 ctx.importFormOpen = !ctx.importFormOpen;
                 if (ctx.importFormOpen) {
