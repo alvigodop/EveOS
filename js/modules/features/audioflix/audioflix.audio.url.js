@@ -112,21 +112,30 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 setStageStatus('Playing this linked audio inside EveOS.');
             }
             const player = new Audio();
-            player.crossOrigin = 'anonymous';
+            // Only tag the element for CORS when we are actually going to tap it into Web Audio
+            // (the native capture route needs an untainted element). Setting it unconditionally
+            // makes any host that does not send Access-Control-Allow-Origin refuse to load at
+            // all, so ordinary direct links silently stopped playing in the browser-only case.
+            // It has to be decided BEFORE src — assigning it afterwards does nothing until the
+            // resource is reloaded.
+            const nativeMusic = window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() === true;
+            if (nativeMusic) player.crossOrigin = 'anonymous';
             player.preload = 'auto';
             player.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
             player.src = item.url;
             // Follow the routed output (picked sink or matched native endpoint) so linked music
             // shares the soundboard's control layer; resolvePlaybackSink covers both cases.
             let routedLabel = '';
-            const nativeMusic = window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.();
+            // capture.start() declines when the bridge device will not open. Ignoring that return
+            // left us claiming "native route" for a stream nobody was listening to, and skipped
+            // the sink selection that would have made it audible.
+            let capturing = false;
             if (nativeMusic) {
                 const capture = window.EveAudioflixAudio?.getMusicCapture?.();
-                if (capture) {
-                    await capture.start(player);
-                    routedLabel = window.EveAudioflixState?.ensure?.()?.nativeOutputLabel || 'native route';
-                }
-            } else {
+                capturing = capture ? (await capture.start(player)) === true : false;
+                if (capturing) routedLabel = window.EveAudioflixState?.ensure?.()?.nativeOutputLabel || 'native route';
+            }
+            if (!capturing) {
                 try {
                     const routed = typeof player.setSinkId === 'function' && await window.EveAudioflixAudio?.resolvePlaybackSink?.();
                     if (routed?.deviceId) { await player.setSinkId(routed.deviceId); routedLabel = routed.label || ''; }
@@ -145,7 +154,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             player.addEventListener('pause', () => { update(); emitPlayback('Paused'); });
             player.addEventListener('ended', () => {
                 update();
-                if (nativeMusic) window.EveAudioflixAudio?.getMusicCapture?.()?.stop?.();
+                if (capturing) window.EveAudioflixAudio?.getMusicCapture?.()?.stop?.({ drain: true });
                 emitPlayback('Ended');
             });
             player.addEventListener('error', async () => {
@@ -296,48 +305,15 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             }, 250);
         }
 
-        async function playSoundCloud(item) {
-            const host = ensureStage(item, 'SoundCloud');
-            const iframe = document.createElement('iframe');
-            iframe.allow = 'autoplay';
-            iframe.title = item.title || 'SoundCloud player';
-            iframe.src = `https://w.soundcloud.com/player/?url=${encodeURIComponent(item.url)}&auto_play=true&hide_related=true&show_comments=false&show_user=true`;
-            host.appendChild(iframe);
-            await loadScript('https://w.soundcloud.com/player/api.js', () => !!window.SC?.Widget);
-            await new Promise((resolve, reject) => {
-                const widget = window.SC.Widget(iframe);
-                active = { kind: 'soundcloud', player: widget };
-                const events = window.SC.Widget.Events;
-                const timeout = setTimeout(() => reject(new Error('SoundCloud player did not become ready.')), SCRIPT_TIMEOUT_MS);
-                widget.bind(events.READY, () => {
-                    clearTimeout(timeout);
-                    widget.setVolume(Math.round(Math.max(0, Math.min(1, Number(item.volume ?? 1))) * 100));
-                    widget.getDuration((duration) => { playback.duration = Number(duration || 0) / 1000; emitProgress(); });
-                    widget.play();
-                    setStageStatus('Playing with SoundCloud\'s browser player.');
-                    resolve();
-                });
-                widget.bind(events.PLAY, () => { playback.paused = false; emitPlayback(`Playing ${item.title || 'SoundCloud audio'} with SoundCloud`); });
-                widget.bind(events.PAUSE, () => { playback.paused = true; emitPlayback('Paused'); emitProgress(); });
-                widget.bind(events.FINISH, () => { playback.paused = true; playback.currentTime = playback.duration; emitPlayback('Ended'); emitProgress(); });
-                widget.bind(events.PLAY_PROGRESS, (data) => { playback.currentTime = Number(data.currentPosition || 0) / 1000; emitProgress(); });
-            });
-        }
-
-        async function playVimeo(item) {
-            const host = ensureStage(item, 'Vimeo');
-            await loadScript('https://player.vimeo.com/api/player.js', () => !!window.Vimeo?.Player);
-            const player = new window.Vimeo.Player(host, { url: item.url, autoplay: true, controls: true, responsive: true });
-            active = { kind: 'vimeo', player };
-            player.on('play', () => { playback.paused = false; emitPlayback(`Playing ${item.title || 'Vimeo audio'} with Vimeo`); });
-            player.on('pause', () => { playback.paused = true; emitPlayback('Paused'); emitProgress(); });
-            player.on('ended', () => { playback.paused = true; playback.currentTime = playback.duration; emitPlayback('Ended'); emitProgress(); });
-            player.on('timeupdate', (data) => { playback.currentTime = Number(data.seconds || 0); playback.duration = Number(data.duration || 0); emitProgress(); });
-            await player.ready();
-            await player.setVolume(Math.max(0, Math.min(1, Number(item.volume ?? 1))));
-            await player.play();
-            setStageStatus('Playing with Vimeo\'s browser player.');
-        }
+        // SoundCloud + Vimeo are third-party iframe widgets rather than audio we control; both
+        // live in a sibling module and write back through this controller's playback state.
+        const { playSoundCloud, playVimeo } = window.EveAudioflixUrlWidgets.create({
+            ensureStage, setStageStatus, emitPlayback, emitProgress, loadScript, SCRIPT_TIMEOUT_MS,
+            view: {
+                get active() { return active; }, set active(v) { active = v; },
+                get playback() { return playback; }
+            }
+        });
 
         async function play(item, playOptions = {}) {
             const provider = providerFor(item?.url);

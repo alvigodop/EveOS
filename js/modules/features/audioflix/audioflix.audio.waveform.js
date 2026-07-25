@@ -18,6 +18,10 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         let canvas = null;
         let canvasContext = null;
         let animationFrame = 0;
+        // Which players already have our transport listeners. A WeakSet instead of a data-*
+        // attribute so this works for anything event-capable, not just DOM elements — attachPlayer
+        // sits on the playItem path, where a throw costs the user all audio, not just the drawing.
+        const wiredPlayers = new WeakSet();
 
         let activePlayer = null;
         const connectedSources = new WeakMap();
@@ -267,8 +271,8 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
                 }
             } catch (e) {}
             ensureGraph(player);
-            if (!player.dataset.audioflixWaveformEvents) {
-                player.dataset.audioflixWaveformEvents = 'true';
+            if (!wiredPlayers.has(player) && typeof player.addEventListener === 'function') {
+                wiredPlayers.add(player);
                 player.addEventListener('play', start);
                 player.addEventListener('pause', stop);
                 player.addEventListener('ended', stop);

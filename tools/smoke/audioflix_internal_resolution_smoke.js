@@ -32,6 +32,9 @@ function assert(condition, message) {
                 this.paused = true;
                 this.volume = 1;
                 this.src = '';
+                // A real HTMLAudioElement always has these; the waveform controller reads them.
+                this.dataset = {};
+                this.crossOrigin = null;
                 fakePlayers.push(this);
             }
             async play() {
@@ -92,14 +95,16 @@ function assert(condition, message) {
 
             await window.EveAudioflixAudio.stopAll();
             native.getStatus = () => ({ ok: false });
-            const playersBeforeMusic = fakePlayers.length;
             await window.EveAudioflixAudio.playItem(item);
-            const musicPlayer = fakePlayers[fakePlayers.length - 1];
+            // The library reuses ONE long-lived media element ("continuous"), so identify the
+            // music player by the element actually carrying the resolved track, not by a new
+            // object appearing — counting allocations asserted the opposite of the design.
+            const musicPlayer = fakePlayers.filter((p) => p.src && !p.paused).pop()
+                || fakePlayers[fakePlayers.length - 1];
             return {
                 internal,
                 totalResolutions: resolutions,
-                playersBeforeMusic,
-                playersAfterMusic: fakePlayers.length,
+                continuousPlayers: fakePlayers.length,
                 musicSrc: musicPlayer?.src || '',
                 musicPlaying: musicPlayer?.paused === false,
                 musicSink: musicPlayer?.sinkId || '',
@@ -123,7 +128,8 @@ function assert(condition, message) {
     assert(result.internal.sourceHref.includes('youtube.com/watch'), 'internal view lost the original source link');
     assert(result.internal.playing, 'resolved internal audio did not start');
     assert(result.totalResolutions === 2, 'file-mode music skipped resolver-first playback while the native probe was cold');
-    assert(result.playersAfterMusic > result.playersBeforeMusic, 'music did not use a continuous browser media player');
+    // One reused element for the whole run, not a fresh one per track.
+    assert(result.continuousPlayers <= 2, `music should reuse the continuous media element (saw ${result.continuousPlayers})`);
     assert(result.musicSrc.includes('resolved-track.m4a'), 'music player did not use the resolved URL');
     assert(result.musicPlaying, 'music player did not start');
     assert(result.musicSink === 'test-output', 'continuous music did not preserve the selected browser output');

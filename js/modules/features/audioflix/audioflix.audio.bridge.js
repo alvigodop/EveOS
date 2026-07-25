@@ -175,6 +175,10 @@ window.EveAudioflixAudioBridge = window.EveAudioflixAudioBridge || {};
 
     Object.assign(ns, {
         ready: true,
+        // Tuning knobs, exposed so tests assert against the real chunking instead of a copied
+        // magic number (a CHUNK_SECONDS change silently invalidated the scheduler smoke once).
+        CHUNK_SECONDS,
+        LEAD_SECONDS,
         createStream,
         createTimeline,
         // Exposed for the live-capture music route, which encodes real-time frames straight from

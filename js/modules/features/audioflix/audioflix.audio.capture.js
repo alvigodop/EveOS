@@ -150,12 +150,26 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             // could reach the bridge while WASAPI was still cold-opening (100-300ms), starving the
             // callback and stuttering the opening seconds. Bounded so a slow or missing server
             // delays the start by at most WARM_TIMEOUT_MS instead of hanging playback.
+            //
+            // It doubles as the liveness check. shouldSuppressBrowserPlayback() only reads saved
+            // state flags, so an armed route whose server has since died still gets here — and
+            // committing anyway muted the speakers and streamed PCM nowhere, i.e. a track that
+            // "plays" in total silence. A DEFINITE failure now declines the route so the caller
+            // falls back to browser playback on the selected output. A timeout does not: a slow
+            // but live bridge is still the route the user asked for.
+            const TIMED_OUT = Symbol('warm-timeout');
+            let warmed = TIMED_OUT;
             try {
-                await Promise.race([
-                    Promise.resolve(window.EveAudioflixNative?.warm?.(rate)).catch(() => {}),
-                    new Promise((resolve) => setTimeout(resolve, WARM_TIMEOUT_MS))
+                warmed = await Promise.race([
+                    Promise.resolve(window.EveAudioflixNative?.warm?.(rate)),
+                    new Promise((resolve) => setTimeout(() => resolve(TIMED_OUT), WARM_TIMEOUT_MS))
                 ]);
-            } catch { /* warming is best-effort */ }
+            } catch { warmed = false; }
+            if (warmed === false) {
+                await waveform.setFrameTap(null);
+                activePlayer = null;
+                return false;
+            }
             active = true;
             waveform.setSpeakerMuted?.(true);
             return true;

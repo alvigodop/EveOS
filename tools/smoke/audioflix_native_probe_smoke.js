@@ -2,10 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const source = fs.readFileSync(
-    path.resolve(__dirname, '..', '..', 'js/modules/features/audioflix/audioflix.native.js'),
-    'utf8'
-);
+const MODULE_DIR = path.resolve(__dirname, '..', '..', 'js/modules/features/audioflix');
+const readModule = (file) => fs.readFileSync(path.join(MODULE_DIR, file), 'utf8');
+// audioflix.native.js delegates its localize/probe half to a sibling factory, so that has to be
+// in the context before it loads.
+const localizeSource = readModule('audioflix.native.localize.js');
+const source = readModule('audioflix.native.js');
 
 let fetchCount = 0;
 let nativeState = { nativeBridgeBase: 'http://127.0.0.1:8765' };
@@ -48,6 +50,7 @@ const context = vm.createContext({
     Date,
     JSON
 });
+vm.runInContext(localizeSource, context, { filename: 'audioflix.native.localize.js' });
 vm.runInContext(source, context, { filename: 'audioflix.native.js' });
 
 (async () => {

@@ -93,6 +93,23 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         capture.stop();
         out.unmutedAfterStop = muted === false;
         out.tapTornDown = tap === null;
+
+        // (g) Bridge armed in saved state but the server is DEAD. shouldSuppressBrowserPlayback()
+        // only reads state flags, so we still get here — and committing anyway muted the speakers
+        // and streamed PCM into the void: a track that "plays" in total silence. The pre-open is
+        // the liveness check, so a definite failure must DECLINE the route and leave local audio
+        // alone, letting the caller fall back to browser playback.
+        muted = null;
+        window.EveAudioflixNative.warm = async () => false;
+        out.startedWhileBridgeDown = await capture.start();
+        out.mutedWhileBridgeDown = muted;
+        out.tapAfterDeclining = tap;
+
+        // A warm() that throws (connection refused) is the same verdict.
+        muted = null;
+        window.EveAudioflixNative.warm = async () => { throw new Error('Native bridge unreachable'); };
+        out.startedWhileBridgeThrows = await capture.start();
+        out.mutedWhileBridgeThrows = muted;
         return out;
     });
 
@@ -107,6 +124,11 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
     if (result.overlaps) fails.push(`${result.overlaps} overlapping sends — chunks can reach the device out of order (choppy audio)`);
     if (!result.unmutedAfterStop) fails.push('local output was not restored after stopping the native route');
     if (!result.tapTornDown) fails.push('live PCM tap was not torn down on stop');
+    if (result.startedWhileBridgeDown !== false) fails.push('capture claimed the native route even though the device would not open — audio goes nowhere');
+    if (result.mutedWhileBridgeDown === true) fails.push('local speakers were silenced for a native route that never opened (silent playback)');
+    if (result.tapAfterDeclining !== null) fails.push('declined native route left its PCM tap attached');
+    if (result.startedWhileBridgeThrows !== false) fails.push('capture claimed the native route after the pre-open threw (bridge unreachable)');
+    if (result.mutedWhileBridgeThrows === true) fails.push('local speakers were silenced after the pre-open threw (silent playback)');
     if (fails.length) { console.error('FAIL: ' + fails.join('; ')); process.exit(1); }
     console.log(`AUDIOFLIX_MUSIC_NATIVE_CAPTURE_OK (decodes=0, priming=0, chunks=${result.chunksAfterPriming}, overlaps=0)`);
 })().catch((e) => { console.error(e); process.exit(1); });
