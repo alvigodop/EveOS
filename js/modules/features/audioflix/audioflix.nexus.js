@@ -57,12 +57,16 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         return aroundMinute(s) === Number(targetMin);
     }
 
+    function getArtist(it) {
+        return text(it?.artist || it?.author || it?.uploader);
+    }
+
     // Facet buckets for the search panel and smart folders.
     function facets(type, list) {
         const arr = list || items(type);
         const artists = {}, groups = {}, folders = {}, mins = {};
         arr.forEach((it) => {
-            const a = text(it.artist); if (a) artists[a] = (artists[a] || 0) + 1;
+            const a = getArtist(it); if (a) artists[a] = (artists[a] || 0) + 1;
             const f = text(it.folder || it.card || it.category); if (f) folders[f] = (folders[f] || 0) + 1;
             groupsOf(type, it.id).forEach((g) => { groups[g] = (groups[g] || 0) + 1; });
             const m = aroundMinute(it.duration); if (m != null) mins[m] = (mins[m] || 0) + 1;
@@ -105,5 +109,5 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         } catch (e) { /* monitor not present */ }
     }
 
-    Object.assign(ns, { ready: true, items, groupsOf, search, facets, dupReport, durationMatch, aroundMinute, recordSearch });
+    Object.assign(ns, { ready: true, items, groupsOf, search, facets, dupReport, durationMatch, aroundMinute, recordSearch, getArtist });
 })();

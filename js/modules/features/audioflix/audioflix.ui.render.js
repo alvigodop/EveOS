@@ -28,14 +28,13 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const items = frontendMusicItems();
             const out = [];
             const byArtist = {};
-            items.forEach((it) => { const a = String(it.artist || '').trim(); if (a) (byArtist[a] = byArtist[a] || []).push(it); });
-            Object.entries(byArtist).filter(([, m]) => m.length > 1).sort((a, b) => b[1].length - a[1].length)
+            items.forEach((it) => {
+                const a = (X?.getArtist ? X.getArtist(it) : String(it.artist || '').trim());
+                if (a) (byArtist[a] = byArtist[a] || []).push(it);
+            });
+            Object.entries(byArtist)
+                .sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))
                 .forEach(([a, m]) => out.push([`smart:artist:${a}`, m, `🎤 ${a}`]));
-            if (X?.aroundMinute) {
-                const byMin = {};
-                items.forEach((it) => { const mn = X.aroundMinute(it.duration); if (mn != null) (byMin[mn] = byMin[mn] || []).push(it); });
-                Object.keys(byMin).map(Number).sort((a, b) => a - b).forEach((mn) => out.push([`smart:around:${mn}`, byMin[mn], `⏱ ~${mn} min`]));
-            }
             return out;
         }
         function frontendGroupEntries(type = 'sound') {
