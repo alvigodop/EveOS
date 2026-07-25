@@ -421,6 +421,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                     localPath: f.path,
                     classifiers: mergedClassifiers
                 });
+                S()?.toggleMusicGroup?.(existing.id, targetFolder, false);
                 updatedCount += 1;
             } else {
                 const added = S()?.addItem?.('music', {
@@ -434,6 +435,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                     classifiers: subClassifiers
                 });
                 if (added?.id) {
+                    S()?.toggleMusicGroup?.(added.id, targetFolder, false);
                     addedCount += 1;
                 }
             }
