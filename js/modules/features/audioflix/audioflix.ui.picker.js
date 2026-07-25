@@ -22,7 +22,13 @@ window.EveAudioflixUiPicker = window.EveAudioflixUiPicker || {};
 
         function applyFile(file) {
             const pathString = file.path || file.name || '';
-            V.importFormValues = { ...V.importFormValues, wplUrl: pathString };
+            // Drop any content held from an earlier pick BEFORE the new read starts. Leaving it in
+            // place meant a quick Import (or a failed previous import, which keeps the form values)
+            // could pair the new file's NAME with the old file's TRACKS. wplContentFor records the
+            // file the bytes actually came from so the submit step can verify the pairing.
+            V.importFormValues = {
+                ...V.importFormValues, wplUrl: pathString, wplFileContent: '', wplContentFor: ''
+            };
             rerender();
 
             // Read the bytes we already hold FIRST. Asking the server before doing this meant that
@@ -30,7 +36,11 @@ window.EveAudioflixUiPicker = window.EveAudioflixUiPicker || {};
             // during that window fell through to a second timeout — it just looked frozen.
             const reader = new FileReader();
             reader.onload = (evt) => {
-                V.importFormValues = { ...V.importFormValues, wplFileContent: evt.target?.result || '' };
+                V.importFormValues = {
+                    ...V.importFormValues,
+                    wplFileContent: evt.target?.result || '',
+                    wplContentFor: pathString
+                };
                 V.playbackStatus = `Selected WPL file "${file.name}". Specify target folder and click Import.`;
                 rerender();
             };

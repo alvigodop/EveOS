@@ -30,7 +30,13 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                     if (PL && url) {
                         if (mode === 'wpl') {
                             ctx.playbackStatus = 'Reading WPL playlist...'; ctx.rerender();
-                            const wplSource = ctx.importFormValues?.wplFileContent || form._wplFileContent || url;
+                            // Only reuse cached bytes when they came from the file being imported.
+                            // Otherwise fall back to the path so the parser re-reads it — a name
+                            // paired with another file's tracks is worse than an honest failure.
+                            const base = (v) => String(v || '').replace(/\\/g, '/').split('/').pop().toLowerCase();
+                            const held = ctx.importFormValues || {};
+                            const contentFits = held.wplFileContent && base(held.wplContentFor) === base(url);
+                            const wplSource = contentFits ? held.wplFileContent : url;
                             PL.importWplPlaylist(wplSource, { folder: folder || '', wplPath: url }).then(res => {
                                 ctx.playbackStatus = res.ok
                                     ? `Imported WPL Playlist "${res.group}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.folder}.`

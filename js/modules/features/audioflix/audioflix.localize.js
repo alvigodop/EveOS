@@ -87,6 +87,17 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return lastDir();
     }
 
+    // The scope's OWN directory, with no last-used fallback. getScopeDir's fallback is right for
+    // pre-filling the localize form but wrong for display: the Groups/Folders panels rendered it as
+    // "📁 <dir>" next to a group, so an unrelated folder (whatever was localized last) looked like
+    // that group's established location.
+    function getScopeDirOwn(scope = 'library', key = '') {
+        const saved = text(state().localizeScopeDirs?.[`${scope}:${key || ''}`]);
+        if (saved) return saved;
+        const withLocal = collectScope(scope, key).find((it) => text(it.localPath));
+        return withLocal ? (extractDir(withLocal.localPath) || '') : '';
+    }
+
     // Batch-update target directory for a scope (e.g. folder or group) and migrate localPaths for all member tracks.
     function updateScopeDir(scope, key, newTargetDir) {
         // Normalize to backslashes (the convention extractDir already uses) so a dir typed with
@@ -353,6 +364,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         setLocalizationPath,
         lastDir,
         getScopeDir,
+        getScopeDirOwn,
         updateScopeDir,
         recalibrateScopePath,
         auditScopeDiskStatus,

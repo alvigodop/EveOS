@@ -33,7 +33,9 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
             const countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length;
             const list = groups.map((g) => {
                 const conn = isM ? window.EveAudioflixPlaylists?.getPlaylistForGroup?.(g) : null;
-                const dir = isM ? (window.EveAudioflixLocalize?.getScopeDir?.('group', g) || '') : '';
+                // Own dir only — getScopeDir falls back to the last-used folder, which showed an
+                // unrelated location as if this group were localized there.
+                const dir = isM ? (window.EveAudioflixLocalize?.getScopeDirOwn?.('group', g) || '') : '';
                 // Imported-playlist groups show BOTH the source URL and (if localized) the folder path.
                 // A .wpl link is a disk path, not something an <a href> can open — show it as text.
                 const isWebLink = /^https?:\/\//i.test(conn?.url || '');
@@ -69,7 +71,7 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
                 if (f === 'Ungrouped') return '';
                 const conns = state().musicPortConnections || [];
                 const conn = conns.find(c => c.folder === f);
-                const dir = conn?.path || window.EveAudioflixLocalize?.getScopeDir?.('folder', f) || '';
+                const dir = conn?.path || window.EveAudioflixLocalize?.getScopeDirOwn?.('folder', f) || '';
                 const dirLine = dir ? `<div style="font-size:0.75rem; color:#94a3b8; margin-top:2px;">📁 ${esc(dir)}</div>` : '';
                 const isLoc = localizeFormOpen().open && localizeFormOpen().scope === 'folder' && localizeFormOpen().key === f;
                 const locForm = isLoc ? renderLocalizeForm() : '';

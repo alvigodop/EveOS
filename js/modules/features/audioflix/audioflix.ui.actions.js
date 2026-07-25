@@ -25,7 +25,9 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'layer-play') return item && window.EveAudioflixAudio?.layerPlay?.(item);
             if (action === 'internal-view') { if (item) try { await window.EveAudioflixAudio?.openInternalView?.(item); } catch (err) { ctx.playbackStatus = err.message || 'Internal player failed'; ctx.rerender(); } return; }
             if (action === 'item-info') {
-                if (!item) return; ctx.activeInfoItem = item; ctx.activeInfoType = type; ctx.rerender();
+                // Modal-only swap: nothing outside the settings panel changes, so do not rebuild
+                // every card (that stall is what made a playing song hitch on open).
+                if (!item) return; ctx.activeInfoItem = item; ctx.activeInfoType = type; ctx.rerenderModal();
                 if (!item.duration || Number(item.duration) <= 0) {
                     const local = item.localPath || (!/^https?:\/\//i.test(item.url || '') ? item.url : '');
                     let probeUrl = local ? ('http://localhost:8765/api/audioflix/port/file?path=' + encodeURIComponent(local)) : (item.url && !/(?:youtube\.com|youtu\.be)/i.test(item.url) ? item.url : '');
@@ -35,14 +37,14 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                             if (a.duration && isFinite(a.duration) && a.duration > 0) {
                                 item.duration = a.duration;
                                 window.EveAudioflixState?.updateItem?.(type || 'music', item.id, { duration: a.duration });
-                                if (ctx.activeInfoItem?.id === item.id) ctx.rerender();
+                                if (ctx.activeInfoItem?.id === item.id) ctx.rerenderModal();
                             }
                         };
                     }
                 }
                 return;
             }
-            if (action === 'close-info') { ctx.activeInfoItem = ctx.activeInfoType = null; ctx.rerender(); return; }
+            if (action === 'close-info') { ctx.activeInfoItem = ctx.activeInfoType = null; ctx.rerenderModal(); return; }
             if (action === 'copy-url') {
                 try {
                     await navigator.clipboard.writeText(actionTarget.dataset.afUrl || '');

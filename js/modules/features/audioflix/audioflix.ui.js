@@ -260,13 +260,31 @@ window.EveAudioflix = window.EveAudioflix || {};
         const snapshot = state(), musicCount = snapshot.music?.length || 0, soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length, routedCount = snapshot.counters?.routedGeminiEvents || 0;
         const soundboardItems = [...(snapshot.soundboard || []), ...portedSounds];
         const tabBody = activeTab === 'music' ? `${renderAddSection('music')}${renderItems(snapshot.music || [], 'music')}` : activeTab === 'router' ? (window.EveAudioflixRouting?.renderRouter?.(snapshot) || '') : `${renderAddSection('sound')}${renderItems(soundboardItems, 'sound')}`;
-        return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title"><header class="audioflix-header"><div><span class="audioflix-kicker">EveOS Audio Backend</span><h2 id="audioflix-title">Audioflix</h2><p>Soundboard, music cards, browser output routing, and Gemini voice-port staging.</p></div><div class="audioflix-header-actions"><button type="button" class="audioflix-clear-events" data-af-action="clear-gemini-events">Clear events</button><span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span><button type="button" class="audioflix-settings-toggle${settingsOpen ? ' is-active' : ''}" data-af-action="toggle-settings" title="Audioflix settings (hotkey bypass)" aria-label="Audioflix settings">⚙</button><button type="button" class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen">⛶</button><button type="button" data-af-action="close">${closeSvg}</button></div></header><nav class="audioflix-tabs">${tabButton('soundboard', 'Soundboard')}${tabButton('music', 'Music Library')}${tabButton('router', 'Routing Notes')}</nav>${renderSettings(snapshot)}${renderRoutingDrawer(snapshot)}<div class="audioflix-content">${tabBody}</div>${activeInfoItem ? renderInfoModal(activeInfoItem, activeInfoType) : ''}</div>`;
+        return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title"><header class="audioflix-header"><div><span class="audioflix-kicker">EveOS Audio Backend</span><h2 id="audioflix-title">Audioflix</h2><p>Soundboard, music cards, browser output routing, and Gemini voice-port staging.</p></div><div class="audioflix-header-actions"><button type="button" class="audioflix-clear-events" data-af-action="clear-gemini-events">Clear events</button><span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span><button type="button" class="audioflix-settings-toggle${settingsOpen ? ' is-active' : ''}" data-af-action="toggle-settings" title="Audioflix settings (hotkey bypass)" aria-label="Audioflix settings">⚙</button><button type="button" class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen">⛶</button><button type="button" data-af-action="close">${closeSvg}</button></div></header><nav class="audioflix-tabs">${tabButton('soundboard', 'Soundboard')}${tabButton('music', 'Music Library')}${tabButton('router', 'Routing Notes')}</nav>${renderSettings(snapshot)}${renderRoutingDrawer(snapshot)}<div class="audioflix-content">${tabBody}</div><div class="audioflix-modal-host">${renderModalHost()}</div></div>`;
     }
 
     const renderSettings = (snapshot) => { const combo = snapshot.hotkeyBypassCombo || '', issue = hotkeyComboIssue(combo), summary = combo ? esc(combo) : 'Not set'; return !settingsOpen ? `<section class="audioflix-settings-drawer"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Open settings</b></button></section>` : `<section class="audioflix-settings-drawer is-open"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Collapse</b></button><div class="audioflix-settings-body"><label class="audioflix-settings-field"><span>Hotkey bypass toggle key</span><input type="text" class="audioflix-bypass-input${issue?.invalid ? ' audioflix-input-invalid' : ''}" placeholder="e.g. ctrl+shift+b" value="${esc(combo)}" title="${issue ? esc(issue.msg) : 'Press this to suspend/resume all sound hotkeys'}"></label><p class="audioflix-settings-hint">Press this key while in-game to <strong>suspend</strong> every sound hotkey so the keys type/act normally — press again to re-arm. Use a modifier combo (e.g. <strong>ctrl+shift+b</strong>) so it never clashes with normal typing. Single plain keys get grabbed globally.</p><div class="audioflix-bypass-status">Sound hotkeys: <span class="audioflix-bypass-state" data-state="unknown">—</span></div></div></section>`; };
     const renderRoutingDrawer = (snapshot) => { const routeLabel = snapshot.nativeBridgeEnabled && snapshot.nativeOutputLabel ? snapshot.nativeOutputLabel : (snapshot.preferredSinkLabel || 'Default browser output'), stateLabel = snapshot.nativeBridgeEnabled ? 'Native route active' : (snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback'); return `<section class="audioflix-routing-drawer ${routingOpen ? 'is-open' : ''}"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-routing-drawer"><span>Gemini / Voice Port</span><strong>${esc(stateLabel)}</strong><em>${esc(routeLabel)}</em><b>${routingOpen ? 'Collapse' : 'Open routing'}</b></button>${routingOpen ? `<div class="audioflix-routing-body">${window.EveAudioflixRouting?.renderStatusCards?.(snapshot, playbackStatus) || ''}<section class="audioflix-player"><div><strong>Waveform</strong><span>${esc(playbackStatus)}</span></div><canvas id="audioflix-waveform" height="90"></canvas><button type="button" data-af-action="pause">Pause</button></section></div>` : ''}</section>`; };
 
     const tabButton = (tab, label) => `<button type="button" class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
+
+    const renderModalHost = () => (activeInfoItem ? renderInfoModal(activeInfoItem, activeInfoType) : '');
+
+    // Opening a song's settings panel used to go through the full rerender below, rebuilding EVERY
+    // card's markup for a change that only affects the modal. On a large library that is a long
+    // synchronous block, and with the ScriptProcessor capture tap (the file:// fallback, which runs
+    // on the main thread) that stall is audible as the song hitching. The modal lives in its own
+    // host so it can be swapped on its own.
+    function rerenderModal() {
+        if (!overlay || overlay.hidden) return;
+        const host = overlay.querySelector('.audioflix-modal-host');
+        if (!host) return rerender();
+        if (activeInfoItem) activeInfoItem = findItem(activeInfoType, activeInfoItem.id) || activeInfoItem;
+        const keepScroll = host.querySelector('.audioflix-info-body')?.scrollTop || 0;
+        host.innerHTML = renderModalHost();
+        const body = host.querySelector('.audioflix-info-body');
+        if (body) body.scrollTop = keepScroll;
+    }
 
     function rerender() {
         if (!overlay || overlay.hidden) return;
@@ -292,7 +310,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     // Handlers live in sibling modules and reach this view's mutable state through `uiCtx`, so the
     // renderers above keep using the same closure variables unchanged.
     const uiCtx = {
-        state, rerender, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries,
+        state, rerender, rerenderModal, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries,
         get overlay() { return overlay; },
         get portedSounds() { return portedSounds; },
         get activeRepeaters() { return activeRepeaters; }, set activeRepeaters(v) { activeRepeaters = v; },

@@ -129,6 +129,26 @@ async function main() {
         `wpl sync must go through the WPL reader, not the URL lister (got "${syncRes.reason}")`);
     console.log('wpl sync routing OK —', syncRes.reason);
 
+    // A second pick must not leave the FIRST file's bytes staged. Pairing one file's name with
+    // another file's tracks is how an imported group ended up linked to the wrong .wpl.
+    const other = path.join(tmpDir, 'Other Playlist.wpl');
+    fs.writeFileSync(other, WPL_XML.replace('alpha.mp3', 'zulu.mp3'), 'utf8');
+    await page.click('[data-af-action="toggle-import-form"]');
+    await page.click('[data-af-action="select-playlist-mode"][data-af-mode="wpl"]');
+    await page.waitForSelector('form[data-af-form="import-playlist"][data-af-mode="wpl"]', { timeout: 5000 });
+    await page.click('[data-af-action="trigger-wpl-file-picker"]');
+    const picker2 = await page.$('.audioflix-wpl-file-picker');
+    await picker2.setInputFiles(other);
+    await page.waitForFunction(
+        () => /Other Playlist\.wpl$/.test(document.querySelector('form[data-af-form="import-playlist"] input[name="url"]')?.value || ''),
+        undefined, { timeout: 5000 });
+    const staged = await page.evaluate(() => {
+        const el = document.querySelector('form[data-af-form="import-playlist"] input[name="url"]');
+        return { url: el.value };
+    });
+    assert(/Other Playlist\.wpl$/.test(staged.url), `the new pick owns the path field (got "${staged.url}")`);
+    console.log('pick isolation OK — a new pick does not inherit the previous file');
+
     assert(pageErrors.length === 0, 'no uncaught page errors: ' + pageErrors.join(' | '));
 
     await browser.close();
