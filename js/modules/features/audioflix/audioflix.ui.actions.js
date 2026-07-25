@@ -17,7 +17,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
             const item = id ? (ctx.findItem(type, id) || ctx.portedSounds.find(s => s.id === id)) : null;
-            if (action === 'stop-item') return ctx.stopRepeater(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id), window.EveAudioflixAudio?.stopItemLayers?.(id);
+            if (action === 'stop-item') return ctx.stopRepeater(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id), window.EveAudioflixAudio?.stopItemLayers?.(id), window.EveAudioflixAudio?.pause?.();
             if (action === 'toggle-repeater') {
                 if (ctx.activeRepeaters[id]) ctx.stopRepeater(id);
                 else ctx.startRepeater(item, Math.max(100, parseFloat(document.getElementById('audioflix-rep-interval')?.value || 1.0) * 1000), parseInt(document.getElementById('audioflix-rep-count')?.value || 0, 10));
@@ -86,12 +86,14 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 const targetGroup = actionTarget.dataset.afGroup || '';
                 if (type === 'music') {
                     const cur = ctx.state().activeFrontendMusicGroup || '';
-                    const defaultGroup = (ctx.frontendGroupEntries('music')[0] || [''])[0];
+                    const entries = ctx.frontendGroupEntries ? ctx.frontendGroupEntries('music') : [];
+                    const defaultGroup = (entries[0] || [''])[0];
                     const next = cur === targetGroup ? defaultGroup : targetGroup;
                     window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: next }, 'audioflix-active-music-group');
                 } else {
                     const cur = ctx.state().activeFrontendGroup || '';
-                    const defaultGroup = (ctx.frontendGroupEntries('sound')[0] || [''])[0];
+                    const entries = ctx.frontendGroupEntries ? ctx.frontendGroupEntries('sound') : [];
+                    const defaultGroup = (entries[0] || [''])[0];
                     const next = cur === targetGroup ? defaultGroup : targetGroup;
                     window.EveAudioflixState?.update?.({ activeFrontendGroup: next }, 'audioflix-active-group');
                 }
@@ -325,9 +327,14 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 return;
             }
             if (action === 'open-nexus-search') {
-                ctx.close();
-                if (typeof window.openSearchModal === 'function') window.openSearchModal();
-                else if (window.EveOS?.SearchAdvanced?.open) window.EveOS.SearchAdvanced.open();
+                if (typeof ctx.close === 'function') ctx.close();
+                if (typeof window.openExpandedSearchModal === 'function') {
+                    window.openExpandedSearchModal();
+                } else if (window.EveOS?.SearchAdvanced?.UI?.openExpandedSearchModal) {
+                    window.EveOS.SearchAdvanced.UI.openExpandedSearchModal();
+                } else if (typeof window.openSearchModal === 'function') {
+                    window.openSearchModal();
+                }
                 return;
             }
             if (action === 'toggle-group-paths') {

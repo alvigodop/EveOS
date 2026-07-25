@@ -244,7 +244,8 @@ window.EveAudioflix = window.EveAudioflix || {};
         getPorted: () => portedSounds,
         getActiveRepeaters: () => activeRepeaters,
         getActiveMusicQueue: () => activeMusicQueue,
-        getCollapsedGroups: () => collapsedGroups
+        getCollapsedGroups: () => collapsedGroups,
+        get smartArtistExpanded() { return smartArtistExpanded; }
     });
     const { frontendGroupEntries, frontendActiveGroup, renderItemCard, renderItems, renderFrontendActive, renderFrontendMusicActive } = uiRender;
 
@@ -358,7 +359,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     // mutable state through the `uiCtx` accessor facade below, so the renderers above keep using
     // the same closure variables unchanged — only the moved handler code goes through uiCtx.
     const uiCtx = {
-        state, rerender, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup,
+        state, rerender, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries,
         get overlay() { return overlay; },
         get portedSounds() { return portedSounds; },
         get activeRepeaters() { return activeRepeaters; },
@@ -408,7 +409,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
     }
 
-    window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); window.EveAudioflixTransport?.sync?.(overlay); });
+    window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); window.EveAudioflixTransport?.sync?.(overlay); if (nexusState?.open) rerender(); });
     window.addEventListener('eve:audioflix-progress', e => window.EveAudioflixTransport?.sync?.(overlay, e.detail));
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reason = e.detail?.reason;

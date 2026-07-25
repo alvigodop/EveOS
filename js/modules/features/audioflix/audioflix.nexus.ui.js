@@ -52,7 +52,15 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
         function rowHtml(it, type) {
             const meta = [it.artist, it.folder || it.card || it.category].filter(Boolean).join(' · ');
             const dupBadge = window.EveAudioflixDuplicates?.isDuplicate?.(type, it.id) ? ' <span style="color:#f87171; font-size:0.7rem;">👯 dup</span>' : '';
-            return `<div style="display:flex; align-items:center; gap:8px; padding:5px 8px; border-bottom:1px solid rgba(255,255,255,0.06);"><button type="button" class="audioflix-icon-btn" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Play">▶</button><div style="flex:1; min-width:0;"><strong style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(it.title)}${dupBadge}</strong><span style="font-size:0.75rem; color:#94a3b8;">${esc(meta) || '—'}</span></div><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Settings / manage duplicate">⚙</button></div>`;
+            const audioStatus = window.EveAudioflixAudio?.getStatus?.();
+            const isCurrent = audioStatus?.item?.id === it.id;
+            const isPlaying = isCurrent && (audioStatus?.playback?.playing || (audioStatus?.playback && !audioStatus?.playback?.paused)) && audioStatus?.status !== 'Idle' && audioStatus?.status !== 'Paused';
+
+            const actionBtn = isPlaying
+                ? `<button type="button" class="audioflix-icon-btn danger" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Stop" style="color:#f87171; border-color:rgba(248,113,113,0.4);">⏹</button>`
+                : `<button type="button" class="audioflix-icon-btn" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Play">▶</button>`;
+
+            return `<div style="display:flex; align-items:center; gap:8px; padding:5px 8px; border-bottom:1px solid rgba(255,255,255,0.06);">${actionBtn}<div style="flex:1; min-width:0;"><strong style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ${isPlaying ? 'color:#38bdf8;' : ''}">${esc(it.title)}${dupBadge}</strong><span style="font-size:0.75rem; color:#94a3b8;">${esc(meta) || '—'}</span></div><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Settings / manage duplicate">⚙</button></div>`;
         }
 
         function renderResults(type) {
