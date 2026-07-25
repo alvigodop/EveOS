@@ -400,9 +400,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
             C?.addManual?.(clsName);
         });
 
-        // 3. Add new tracks or update existing matching tracks, and register targetFolder as a group
-        S()?.addMusicGroup?.(targetFolder);
-
+        // 3. Add new tracks or update existing matching tracks (folder tag only, no group)
         files.forEach((f) => {
             const rawTitle = f.name.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || f.name;
             const subClassifiers = fileClassifiersMap.get(f.path) || [];
@@ -423,7 +421,6 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                     localPath: f.path,
                     classifiers: mergedClassifiers
                 });
-                S()?.toggleMusicGroup?.(existing.id, targetFolder, true);
                 updatedCount += 1;
             } else {
                 const added = S()?.addItem?.('music', {
@@ -437,7 +434,6 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                     classifiers: subClassifiers
                 });
                 if (added?.id) {
-                    S()?.toggleMusicGroup?.(added.id, targetFolder, true);
                     addedCount += 1;
                 }
             }
