@@ -69,6 +69,22 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         }));
     }
 
+    // ---- automatic: localized, url, ported --------------------------------------------------
+    function localizedTracks(list) {
+        const items = list || musicItems();
+        return items.filter((it) => Boolean(text(it.localPath)));
+    }
+
+    function urlTracks(list) {
+        const items = list || musicItems();
+        return items.filter((it) => Boolean(text(it.url)));
+    }
+
+    function portedTracks(list) {
+        const items = list || musicItems();
+        return items.filter((it) => Boolean(it.isPorted || it.isMusicPort));
+    }
+
     // ---- manual ---------------------------------------------------------------------------------
     const manualNames = () => (state().musicClassifiers || []).map((n) => text(n)).filter(Boolean);
 
@@ -130,7 +146,26 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         const items = musicItems();
         const dur = durationBuckets(items);
         const ranks = rankBuckets(items);
+        const loc = localizedTracks(items);
+        const urls = urlTracks(items);
+        const ported = portedTracks(items);
+
         const auto = [
+            {
+                id: 'auto:localized', kind: 'auto', label: '⚡ Localized Tracks',
+                count: loc.length, buckets: 1,
+                note: 'tracks with an offline file copy on disk'
+            },
+            {
+                id: 'auto:url', kind: 'auto', label: '🌐 URL Tracks',
+                count: urls.length, buckets: 1,
+                note: 'tracks with an online stream or URL'
+            },
+            {
+                id: 'auto:ported', kind: 'auto', label: '📁 Ported Tracks',
+                count: ported.length, buckets: 1,
+                note: 'tracks imported via Music Port'
+            },
             {
                 id: 'auto:duration', kind: 'auto', label: '⏱ Time Filter (duration)',
                 count: dur.reduce((n, b) => n + b.tracks.length, 0),
@@ -155,6 +190,9 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
     // Manager detail for one classifier: the buckets (auto) or the member songs (manual).
     function detail(id) {
         const clean = text(id);
+        if (clean === 'auto:localized') return { kind: 'auto', label: '⚡ Localized Tracks', buckets: [{ key: 'auto:localized', label: 'Localized (Offline Copy)', tracks: localizedTracks() }] };
+        if (clean === 'auto:url') return { kind: 'auto', label: '🌐 URL Tracks', buckets: [{ key: 'auto:url', label: 'URL / Online Stream', tracks: urlTracks() }] };
+        if (clean === 'auto:ported') return { kind: 'auto', label: '📁 Ported Tracks', buckets: [{ key: 'auto:ported', label: 'Music Ported Tracks', tracks: portedTracks() }] };
         if (clean === 'auto:duration') return { kind: 'auto', label: '⏱ Time Filter (duration)', buckets: durationBuckets() };
         if (clean === 'auto:grouprank') return { kind: 'auto', label: '🏆 Group Rank', buckets: rankBuckets(), ranked: groupRanking().slice(0, 50) };
         if (clean.startsWith('manual:')) {
@@ -169,6 +207,16 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
     function selectableEntries(list) {
         const items = list || musicItems();
         const out = [];
+
+        const loc = localizedTracks(items);
+        if (loc.length) out.push(['class:auto:localized', loc, '⚡ Localized']);
+
+        const urls = urlTracks(items);
+        if (urls.length) out.push(['class:auto:url', urls, '🌐 URL Track']);
+
+        const ported = portedTracks(items);
+        if (ported.length) out.push(['class:auto:ported', ported, '📁 Ported']);
+
         durationBuckets(items).forEach((b) => out.push([`class:auto:${b.key}`, b.tracks, `⏱ ${b.label}`]));
         rankBuckets(items).forEach((b) => out.push([`class:auto:${b.key}`, b.tracks, `🏆 ${b.label}`]));
         manualNames().forEach((name) => {
@@ -190,6 +238,11 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         if (!track) return { manual: [], auto: [] };
         const X = nexus();
         const auto = [];
+
+        if (text(track.localPath)) auto.push({ label: '⚡ Localized', key: 'class:auto:localized' });
+        if (text(track.url)) auto.push({ label: '🌐 URL Track', key: 'class:auto:url' });
+        if (track.isPorted || track.isMusicPort) auto.push({ label: '📁 Ported', key: 'class:auto:ported' });
+
         const mn = X?.aroundMinute ? X.aroundMinute(track.duration) : null;
         if (mn != null) auto.push({ label: `⏱ ~${mn} min`, key: `class:auto:around:${mn}` });
         const groups = groupsOf(track.id).length;
@@ -199,7 +252,7 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
 
     Object.assign(ns, {
         ready: true,
-        durationBuckets, groupRanking, rankBuckets,
+        durationBuckets, groupRanking, rankBuckets, localizedTracks, urlTracks, portedTracks,
         manualNames, addManual, removeManual, renameManual, toggleOnTrack, manualTracks,
         overview, detail, selectableEntries, tracksForKey, classifiersForTrack
     });

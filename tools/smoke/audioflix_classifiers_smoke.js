@@ -107,14 +107,36 @@ const SEED = {
         console.log('manual classifiers OK (create/attach/detach/rename/delete)');
     }
 
-    // --- 4. Manager overview + selectable entries for frontend / nexus ---
+    // --- 4. Automatic: Localized, URL, Ported classifiers + dual-source tracks ---
+    {
+        const seed = {
+            music: [
+                { id: '1', title: 'URL Only', url: 'http://stream/1' },
+                { id: '2', title: 'Localized Only', localPath: 'C:/offline/2.mp3' },
+                { id: '3', title: 'Both Dual Source', url: 'http://stream/3', localPath: 'C:/offline/3.mp3' },
+                { id: '4', title: 'Ported Song', localPath: 'C:/port/4.mp3', isPorted: true }
+            ]
+        };
+        const { C, S } = load(makeCtx(seed));
+        assert(C.urlTracks().length === 2, 'urlTracks counts songs with a url');
+        assert(C.localizedTracks().length === 3, 'localizedTracks counts songs with a localPath');
+        assert(C.portedTracks().length === 1, 'portedTracks counts ported songs');
+
+        const dualTrack = C.classifiersForTrack(seed.music[2]); // Both Dual Source
+        const autoKeys = dualTrack.auto.map((a) => a.key);
+        assert(autoKeys.includes('class:auto:localized'), 'song with localPath gets ⚡ Localized classifier');
+        assert(autoKeys.includes('class:auto:url'), 'song with url gets 🌐 URL Track classifier');
+        console.log('automatic localized / url / ported classifiers OK (dual source tested)');
+    }
+
+    // --- 5. Manager overview + selectable entries for frontend / nexus ---
     {
         const { C } = load(makeCtx(SEED));
         C.addManual('English only');
         C.toggleOnTrack('a', 'English only', true);
 
         const ov = C.overview();
-        assert(ov.auto.length === 2, 'two automatic classifiers (time filter + group rank)');
+        assert(ov.auto.length === 5, 'five automatic classifiers (localized, url, ported, time filter, group rank)');
         assert(ov.auto.find((e) => e.id === 'auto:duration').count === 3, 'duration covers the 3 tracks with a length');
         assert(ov.manual.find((e) => e.label === 'English only').count === 1, 'manual count reflects membership');
         assert(ov.auto.every((e) => e.kind === 'auto') && ov.manual.every((e) => e.kind === 'manual'), 'kinds are labelled');

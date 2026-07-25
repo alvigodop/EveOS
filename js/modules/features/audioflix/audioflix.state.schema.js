@@ -53,6 +53,8 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 sourceId: text(source.sourceId, ''),
                 upstreamMissing: source.upstreamMissing === true,
                 missingLocal: source.missingLocal === true,
+                isPorted: source.isPorted === true,
+                isMusicPort: source.isMusicPort === true,
                 createdAt: Number(source.createdAt || 0) || Date.now(),
                 lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
             };
@@ -70,7 +72,7 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
         function boundedItems(list, type, max) {
             return (Array.isArray(list) ? list : [])
                 .map((item) => cleanItem(item, type))
-                .filter((item) => !!item.url)
+                .filter((item) => !!item.url || !!item.localPath)
                 .slice(-max);
         }
 

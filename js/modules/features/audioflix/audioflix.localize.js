@@ -332,6 +332,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     }
 
     // Music port: scan a folder and extract all audio files into EveOS as music tracks tagged with a FOLDER (not group).
+    // Physical subfolders inside the main folder path automatically become manual classifiers attached to the imported songs.
     async function importMusicPort(folderPath, folderName) {
         const N = window.EveAudioflixNative;
         if (!N?.scanLocalized) return { ok: false, reason: 'Music Port needs the EveOS localhost server running.' };
@@ -341,6 +342,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         const scan = await N.scanLocalized(cleanPath);
         if (!scan?.ok) return { ok: false, reason: scan?.message || 'Could not scan that folder.' };
         
+        const normRoot = cleanPath.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
         const pathParts = cleanPath.replace(/\\/g, '/').split('/').filter(Boolean);
         const defaultFolderName = pathParts[pathParts.length - 1] || 'Ported Music';
         const targetFolder = text(folderName, defaultFolderName);
@@ -350,17 +352,44 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         
         rememberDir(cleanPath);
         let addedCount = 0;
+        const C = window.EveAudioflixClassifiers;
+
         files.forEach((f) => {
             const rawTitle = f.name.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || f.name;
+            const normFile = f.path.replace(/\\/g, '/');
+
+            // Extract physical subfolder names relative to the main ported root folder
+            const subClassifiers = [];
+            if (normFile.toLowerCase().startsWith(normRoot + '/')) {
+                const relPath = normFile.slice(normRoot.length + 1);
+                const parts = relPath.split('/').filter(Boolean);
+                // Intermediate folder names (excluding the file itself)
+                const folderParts = parts.slice(0, -1);
+                folderParts.forEach((dirName) => {
+                    const cleanLabel = text(dirName);
+                    if (cleanLabel) {
+                        C?.addManual?.(cleanLabel);
+                        if (!subClassifiers.includes(cleanLabel)) subClassifiers.push(cleanLabel);
+                    }
+                });
+            }
+
             const added = S()?.addItem?.('music', {
                 title: rawTitle,
                 url: f.path,
                 folder: targetFolder,
-                card: targetFolder
+                card: targetFolder,
+                isPorted: true,
+                isMusicPort: true,
+                classifiers: subClassifiers
             });
+
             if (added?.id) {
                 S()?.updateItem?.('music', added.id, {
-                    localPath: f.path
+                    localPath: f.path,
+                    isPorted: true,
+                    isMusicPort: true,
+                    classifiers: subClassifiers
                 });
                 addedCount += 1;
             }
