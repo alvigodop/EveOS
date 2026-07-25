@@ -105,51 +105,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     }
 
-    function cleanItem(item, type) {
-        const source = item && typeof item === 'object' ? item : {};
-        return {
-            id: text(source.id, id(type)),
-            type,
-            title: text(source.title, type === 'music' ? 'Untitled Track' : 'Sound Clip'),
-            url: text(source.url, ''),
-            // Optional second source for the SAME track: a merged duplicate can carry both an
-            // online stream (`url`) and a local file (`localPath`), so localization/offline play
-            // can prefer the file while the online url stays as a fallback. Empty for normal items.
-            localPath: text(source.localPath, ''),
-            artist: text(source.artist, ''),
-            card: text(source.card, ''),
-            folder: text(source.folder, ''),
-            category: text(source.category, ''),
-            volume: normalizeVolume(source.volume, 1),
-            exposed: source.exposed === true,
-            hotkey: text(source.hotkey, ''),
-            // Live-playlist link: which imported connection a track came from, its upstream id,
-            // and whether it has since disappeared upstream (greyed, never auto-deleted).
-            // These must survive normalize(), or a re-sync would lose every track's identity.
-            playlistId: text(source.playlistId, ''),
-            sourceId: text(source.sourceId, ''),
-            upstreamMissing: source.upstreamMissing === true,
-            missingLocal: source.missingLocal === true,
-            createdAt: Number(source.createdAt || 0) || Date.now(),
-            lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
-        };
-    }
-
-    function cleanPort(port) {
-        const src = port && typeof port === 'object' ? port : {};
-        return {
-            id: text(src.id, id('port')),
-            nickname: text(src.nickname, 'Unnamed Port'),
-            path: text(src.path, '')
-        };
-    }
-
-    function boundedItems(list, type, max) {
-        return (Array.isArray(list) ? list : [])
-            .map((item) => cleanItem(item, type))
-            .filter((item) => !!item.url)
-            .slice(-max);
-    }
+    // Per-item cleaners live in a sibling module (audioflix.state.schema.js) so this store stays
+    // under the line cap; they run against the same coerce/clamp/id primitives.
+    const { cleanItem, cleanPort, boundedItems } = window.EveAudioflixStateSchema.create({ text, normalizeVolume, id });
 
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};

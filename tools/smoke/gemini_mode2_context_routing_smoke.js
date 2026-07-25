@@ -21,6 +21,7 @@ function runScript(context, relativePath) {
 }
 // state.js installs its group/folder editors from a sibling module at load, so preload it first.
 function loadState(context) {
+    runScript(context, 'js/modules/features/audioflix/audioflix.state.schema.js');
     runScript(context, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(context, 'js/modules/features/audioflix/audioflix.state.js');
 }

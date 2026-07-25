@@ -40,6 +40,7 @@ function makeCtx(stored, nativeStub) {
 }
 
 function loadAll(ctx) {
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.js');
@@ -102,6 +103,63 @@ function stub() {
         const a = S.ensure().music.find(m => m.id === 'a');
         assert(a.localPath === 'D:/EveMusic/Night Drive.mp3', 'reimport re-attached localPath by title');
         console.log('reimport music port OK');
+    }
+
+    // --- 5. Group localization classes: folder=1st, group=2nd, shortcut=3rd (smart mode) ---
+    {
+        const seed = {
+            music: [
+                { id: 'f1', title: 'Folder Song', url: 'https://y/1', folder: 'Chill', localizations: [{ source: 'folder:Chill', path: 'D:/Chill/Folder Song.mp3', kind: 'file' }], localPath: 'D:/Chill/Folder Song.mp3' },
+                { id: 'n1', title: 'New Song', url: 'https://y/2', folder: 'Chill' },
+                { id: 's1', title: 'Shared Song', url: 'https://y/3', folder: 'Chill', localizations: [{ source: 'group:Other', path: 'D:/Other/Shared Song.mp3', kind: 'file' }], localPath: 'D:/Other/Shared Song.mp3' }
+            ],
+            musicGroups: ['Vibes'], musicGroupMap: { f1: ['Vibes'], n1: ['Vibes'], s1: ['Vibes'] }
+        };
+        const nat = stub();
+        const { S, L } = loadAll(makeCtx(seed, nat));
+        const res = await L.localizeScope('group', 'Vibes', 'D:/Vibes', () => {}, false, 'link');
+        assert(res.ok && res.skipped === 1 && res.shortcut === 1 && res.done === 1, `link classes: skip1/short1/dl1 (got ${res.skipped}/${res.shortcut}/${res.done})`);
+        assert(nat.downloaded.join() === 'n1', 'only the fresh song downloaded');
+        const m = (id) => S.ensure().music.find((x) => x.id === id);
+        assert(L.effectiveLocalPath(m('f1')) === 'D:/Chill/Folder Song.mp3', 'f1 keeps folder path (1st class)');
+        assert(m('s1').localizations.some((l) => l.source === 'group:Vibes' && l.kind === 'shortcut' && l.path === 'D:/Other/Shared Song.mp3'), 's1 got a group shortcut to the existing file');
+        assert(L.effectiveLocalPath(m('s1')) === 'D:/Other/Shared Song.mp3', 's1 effective = shortcut target (3rd class, no dup file)');
+        assert(L.effectiveLocalPath(m('n1')) === 'D:/Vibes/New Song.mp3', 'n1 got a 2nd-class group file');
+        assert(L.songLocalizationList(m('f1'))[0].label.startsWith('Folder'), 'song list ranks folder first');
+        console.log('group classes OK — link mode (folder 1st / group 2nd / shortcut 3rd)');
+    }
+
+    // --- 5b. "Fresh" mode: no shortcuts — folder copies still skipped, everything else downloads ---
+    {
+        const seed = {
+            music: [
+                { id: 'f1', title: 'Folder Song', url: 'https://y/1', folder: 'Chill', localizations: [{ source: 'folder:Chill', path: 'D:/Chill/Folder Song.mp3', kind: 'file' }], localPath: 'D:/Chill/Folder Song.mp3' },
+                { id: 's1', title: 'Shared Song', url: 'https://y/3', folder: 'Chill', localizations: [{ source: 'group:Other', path: 'D:/Other/Shared Song.mp3', kind: 'file' }], localPath: 'D:/Other/Shared Song.mp3' }
+            ],
+            musicGroups: ['Vibes'], musicGroupMap: { f1: ['Vibes'], s1: ['Vibes'] }
+        };
+        const nat = stub();
+        const { S, L } = loadAll(makeCtx(seed, nat));
+        const res = await L.localizeScope('group', 'Vibes', 'D:/Vibes', () => {}, false, 'smart');
+        assert(res.skipped === 1 && res.shortcut === 0 && res.done === 1, `fresh mode: skip folder, no shortcut, download the rest (got ${res.skipped}/${res.shortcut}/${res.done})`);
+        const s1 = S.ensure().music.find((x) => x.id === 's1');
+        assert(s1.localizations.some((l) => l.source === 'group:Vibes' && l.kind === 'file'), 'fresh mode gives s1 a real group file, not a shortcut');
+        console.log('group classes OK — fresh mode (no shortcuts)');
+    }
+
+    // --- 6. Duplicate mode: every online song gets its own copy; folder still plays first ---
+    {
+        const seed = {
+            music: [{ id: 'f1', title: 'Folder Song', url: 'https://y/1', folder: 'Chill', localizations: [{ source: 'folder:Chill', path: 'D:/Chill/Folder Song.mp3', kind: 'file' }], localPath: 'D:/Chill/Folder Song.mp3' }],
+            musicGroups: ['Vibes'], musicGroupMap: { f1: ['Vibes'] }
+        };
+        const { S, L } = loadAll(makeCtx(seed, stub()));
+        const res = await L.localizeScope('group', 'Vibes', 'D:/Vibes', () => {}, false, 'dup');
+        assert(res.done === 1, 'dup mode downloads even the folder-localized song');
+        const m = S.ensure().music.find((x) => x.id === 'f1');
+        assert(m.localizations.some((l) => l.source === 'folder:Chill') && m.localizations.some((l) => l.source === 'group:Vibes'), 'f1 carries both folder + group paths');
+        assert(L.effectiveLocalPath(m) === 'D:/Chill/Folder Song.mp3', 'folder path still primary over the group dup');
+        console.log('duplicate mode OK (2 paths, folder still 1st)');
     }
 
     console.log('AUDIOFLIX_LOCALIZE_SMOKE_OK');

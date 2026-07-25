@@ -157,6 +157,18 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                     }
                 }
             }
+            // Keep the class-based localizations for THIS scope in sync with the new dir, or the
+            // effective path (which prefers localizations) would keep resolving to the old folder.
+            const scopeSource = `${scope}:${key}`;
+            if (Array.isArray(it.localizations) && it.localizations.some((l) => l.source === scopeSource && l.kind === 'file')) {
+                patch.localizations = it.localizations.map((l) => {
+                    if (l.source !== scopeSource || l.kind !== 'file' || !text(l.path)) return l;
+                    const fn = text(l.path).replace(/.*[/\\]/, '');
+                    return fn ? { ...l, path: `${dir}\\${fn}` } : l;
+                });
+                patch.localPath = effectiveLocalPath({ localizations: patch.localizations, localPath: patch.localPath || it.localPath });
+                hasChange = true;
+            }
             if (hasChange) {
                 S()?.updateItem?.('music', it.id, patch);
                 updatedCount += 1;
@@ -208,25 +220,119 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         };
     }
 
-    // Download every candidate in the scope to targetDir, tagging each with its resulting localPath.
-    // `force` re-downloads tracks that already have a localPath (relocalize).
-    async function localizeScope(scope, key, targetDir, onProgress, force = false) {
+    // --- Localization class model -------------------------------------------------------------
+    // A track can be localized under several scopes at once. Its EFFECTIVE local file is picked by
+    // class priority: 1st = a folder file, 3rd = a group shortcut (a reference to a file localized
+    // elsewhere, so we never duplicate it), 2nd/dup = a group's own file. localPath is kept in sync
+    // with the winner so playback (audio.js -> getLocalFileUrl) needs no change.
+    const locClass = (l) => (l.source.startsWith('folder:') && l.kind === 'file') ? 0
+        : (l.source.startsWith('group:') && l.kind === 'shortcut') ? 1
+            : (l.source.startsWith('group:') && l.kind === 'file') ? 2 : 3;
+    const orderedLocs = (track) => [...(track.localizations || [])].filter((l) => text(l.path)).sort((a, b) => locClass(a) - locClass(b));
+    function effectiveLocalPath(track) {
+        const ordered = orderedLocs(track);
+        return ordered.length ? ordered[0].path : text(track?.localPath);
+    }
+    // Add/replace a track's localization for one source, then refresh its effective localPath.
+    function addLocalization(track, source, path, kind = 'file') {
+        const cleanPath = text(path);
+        if (!track?.id || !cleanPath || !source) return;
+        const next = (track.localizations || []).filter((l) => l.source !== source);
+        next.push({ source, path: cleanPath, kind });
+        S()?.updateItem?.('music', track.id, { localizations: next, localPath: effectiveLocalPath({ localizations: next, localPath: track.localPath }) });
+    }
+    // library/song localize attributes to the track's own folder (so it counts as 1st class) or a
+    // manual tag; folder/group scopes map straight through.
+    function sourceForScope(scope, key, track) {
+        if (scope === 'folder') return `folder:${key}`;
+        if (scope === 'group') return `group:${key}`;
+        const folder = text(track.folder || track.card);
+        return folder ? `folder:${folder}` : `manual:${track.id}`;
+    }
+
+    async function downloadInto(N, it, dir) {
+        const res = await N.localizeTrack({ id: it.id, title: it.title, url: it.url }, dir);
+        return (res?.ok && res.filePath) ? { ok: true, path: res.filePath } : { ok: false, error: res?.error || res?.message || 'download failed' };
+    }
+
+    // Group localization, three ways (all keep the class priority intact when resolving playback):
+    //   'link'  — reuse: a folder-localized song keeps its folder file (1st class, skipped); a song
+    //             already localized anywhere ELSE gets a shortcut into this group (3rd class, so no
+    //             second copy on disk); anything left downloads into the group path (2nd class).
+    //   'smart' — class-aware but no shortcuts: folder-localized songs are skipped (their folder copy
+    //             stays primary); every other online song downloads into this group's path.
+    //   'dup'   — ignore classes: every online song gets its own copy in the group path, so the track
+    //             ends up with two real physical locations (the folder file still plays first).
+    async function localizeGroup(groupKey, dir, onProgress, mode = 'link') {
+        const N = window.EveAudioflixNative;
+        const source = `group:${groupKey}`;
+        const members = collectScope('group', groupKey);
+        let done = 0, shortcut = 0, skipped = 0, failed = 0, lastError = '';
+        for (let i = 0; i < members.length; i += 1) {
+            const it = members[i];
+            onProgress?.({ index: i + 1, total: members.length, title: it.title });
+            const folderFile = (it.localizations || []).find((l) => l.source.startsWith('folder:') && l.kind === 'file' && text(l.path));
+            // A real file this track already has somewhere else (another group, or a legacy localPath).
+            const elsewhereFile = (it.localizations || []).find((l) => l.kind === 'file' && text(l.path) && l.source !== source)
+                || (text(it.localPath) ? { path: it.localPath } : null);
+            if (mode !== 'dup' && folderFile) { skipped += 1; continue; }        // 1st class stays primary
+            if (mode === 'link' && elsewhereFile) {                              // 3rd class: reference it
+                addLocalization(it, source, elsewhereFile.path, 'shortcut');
+                shortcut += 1;
+                continue;
+            }
+            if (!isHttp(it.url)) { skipped += 1; continue; }
+            const dl = await downloadInto(N, it, dir);
+            if (dl.ok) { addLocalization(it, source, dl.path, 'file'); done += 1; }
+            else { failed += 1; lastError = dl.error; }
+        }
+        return { ok: failed === 0 || done + shortcut > 0, done, shortcut, skipped, failed, total: members.length, targetDir: dir, mode, lastError };
+    }
+
+    // Download every candidate in the scope to targetDir, tagging each with a scope-appropriate
+    // localization. `force` re-downloads already-local tracks (relocalize). Group scope dispatches
+    // to the class-aware path (`mode`).
+    async function localizeScope(scope, key, targetDir, onProgress, force = false, mode = 'link') {
         const N = window.EveAudioflixNative;
         if (!N?.localizeTrack) return { ok: false, reason: 'Localization needs the EveOS localhost server running.' };
         const dir = text(targetDir);
         if (!dir) return { ok: false, reason: 'No target folder was chosen.' };
-        const items = localizeCandidates(scope, key, force);
         updateScopeDir(scope, key, dir);
+        if (scope === 'group') return localizeGroup(key, dir, onProgress, mode);
+        const items = localizeCandidates(scope, key, force);
         if (!items.length) return { ok: true, done: 0, failed: 0, total: 0, targetDir: dir, note: 'Nothing to localize.' };
         let done = 0, failed = 0, lastError = '';
         for (let i = 0; i < items.length; i += 1) {
             const it = items[i];
             onProgress?.({ index: i + 1, total: items.length, title: it.title });
-            const res = await N.localizeTrack({ id: it.id, title: it.title, url: it.url }, dir);
-            if (res?.ok && res.filePath) { S()?.updateItem?.('music', it.id, { localPath: res.filePath }); done += 1; }
-            else { failed += 1; lastError = res?.error || res?.message || 'download failed'; }
+            const dl = await downloadInto(N, it, dir);
+            if (dl.ok) { addLocalization(it, sourceForScope(scope, key, it), dl.path, 'file'); done += 1; }
+            else { failed += 1; lastError = dl.error; }
         }
         return { ok: done > 0 || failed === 0, done, failed, total: items.length, targetDir: dir, lastError };
+    }
+
+    // For a group's "view paths" popover: 1st-class folder files of its members + the group's own
+    // files/shortcuts, plus the group's remembered directory.
+    function groupLocalizationPaths(groupKey) {
+        const members = collectScope('group', groupKey);
+        const firstClass = [], groupPaths = [];
+        members.forEach((it) => (it.localizations || []).forEach((l) => {
+            if (l.source.startsWith('folder:') && l.kind === 'file') firstClass.push({ title: it.title, source: l.source.slice(7), path: l.path });
+            else if (l.source === `group:${groupKey}`) groupPaths.push({ title: it.title, kind: l.kind, path: l.path });
+        }));
+        return { firstClass, groupPaths, groupDir: getScopeDir('group', groupKey) };
+    }
+
+    // For the song settings panel: this track's localizations, most-important class first.
+    function songLocalizationList(track) {
+        return orderedLocs(track).map((l) => ({
+            label: l.source.startsWith('folder:') ? `Folder · ${l.source.slice(7)}`
+                : l.kind === 'shortcut' ? `Group shortcut · ${l.source.slice(6)}`
+                    : l.source.startsWith('group:') ? `Group · ${l.source.slice(6)}` : l.source,
+            path: l.path,
+            kind: l.kind
+        }));
     }
 
     // Music port: scan a folder and re-attach files to tracks by title, restoring localPath.
@@ -293,7 +399,11 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         collectScope,
         localizeCandidates,
         scopeStats,
+        effectiveLocalPath,
         localizeScope,
+        localizeGroup,
+        groupLocalizationPaths,
+        songLocalizationList,
         reimportMerge,
         importMusicPort
     });

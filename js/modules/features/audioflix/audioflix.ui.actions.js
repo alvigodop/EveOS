@@ -303,6 +303,17 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
+            if (action === 'toggle-group-paths') {
+                const key = actionTarget.dataset.afGroup || '', cur = ctx.groupPathsOpen || {};
+                ctx.groupPathsOpen = (cur.open && cur.key === key) ? { open: false, key: '' } : { open: true, key };
+                ctx.rerender(); return;
+            }
+            if (action === 'toggle-nexus') {
+                const nType = actionTarget.dataset.afType || 'music', st = ctx.nexusState || {};
+                ctx.nexusState = (st.open && st.type === nType) ? { open: false, type: nType, query: '', facet: '' } : { open: true, type: nType, query: st.query || '', facet: '' };
+                ctx.rerender(); return;
+            }
+            if (action === 'nexus-facet') { ctx.nexusState = { ...(ctx.nexusState || {}), facet: actionTarget.dataset.afFacet || '' }; ctx.rerender(); return; }
             if (action === 'audit-scope-disk') {
                 const scope = actionTarget.dataset.afScope || 'library';
                 const key = actionTarget.dataset.afKey || '';
@@ -380,14 +391,17 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 const key = form.dataset.afKey || '';
                 const targetDir = data.get('targetDir');
                 const force = data.get('force') === '1' || data.get('force') === 'on';
+                const mode = ['dup', 'smart', 'link'].includes(String(data.get('mode') || '')) ? String(data.get('mode')) : 'link';
                 const L = window.EveAudioflixLocalize;
                 if (L && targetDir) {
                     ctx.playbackStatus = 'Localizing candidate tracks...'; ctx.rerender();
                     L.localizeScope(scope, key, targetDir, (p) => {
                         ctx.playbackStatus = `Localizing ${p.index}/${p.total}: ${p.title}`;
-                    }, force).then(res => {
+                    }, force, mode).then(res => {
                         ctx.playbackStatus = res.ok
-                            ? `Localized ${res.done}/${res.total} to ${res.targetDir}${res.failed ? ` (${res.failed} failed — ${res.lastError})` : ''}.`
+                            ? (scope === 'group'
+                                ? `Group localized — ${res.done} downloaded, ${res.shortcut || 0} shortcut${res.shortcut === 1 ? '' : 's'}, ${res.skipped || 0} kept${res.failed ? `, ${res.failed} failed` : ''}.`
+                                : `Localized ${res.done}/${res.total} to ${res.targetDir}${res.failed ? ` (${res.failed} failed — ${res.lastError})` : ''}.`)
                             : (res.reason || 'Localization failed.');
                         ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
                         ctx.rerender();

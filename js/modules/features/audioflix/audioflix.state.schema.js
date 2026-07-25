@@ -1,0 +1,76 @@
+// Per-item cleaners for the Audioflix store (music tracks, soundboard clips, and path ports).
+// Split out of audioflix.state.js to keep that store under the project line cap. These normalize an
+// untrusted item/port into the exact shape the app relies on; unknown fields are dropped, so any new
+// field must be declared here or it is lost on the next normalize(). The host store passes its own
+// primitives (text coerce, volume clamp, id generator) so there's a single source of truth.
+window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
+
+(function () {
+    'use strict';
+
+    const ns = window.EveAudioflixStateSchema;
+    if (ns.ready) return;
+
+    ns.create = function create(deps) {
+        const text = deps.text;
+        const normalizeVolume = deps.normalizeVolume;
+        const id = deps.id;
+
+        function cleanItem(item, type) {
+            const source = item && typeof item === 'object' ? item : {};
+            return {
+                id: text(source.id, id(type)),
+                type,
+                title: text(source.title, type === 'music' ? 'Untitled Track' : 'Sound Clip'),
+                url: text(source.url, ''),
+                // A track can carry both an online stream (`url`) and a local file (`localPath`), so
+                // offline/localized play prefers the file while the url stays a fallback.
+                localPath: text(source.localPath, ''),
+                // Multi-scope localizations of the same track: [{source:"folder:X"|"group:Y", path, kind}].
+                // Effective path priority: folder file (1st) > group shortcut (3rd) > group file (2nd/dup).
+                localizations: Array.isArray(source.localizations)
+                    ? source.localizations.map((l) => ({ source: text(l?.source, ''), path: text(l?.path, ''), kind: l?.kind === 'shortcut' ? 'shortcut' : 'file' })).filter((l) => l.source && l.path).slice(0, 40)
+                    : [],
+                artist: text(source.artist, ''),
+                card: text(source.card, ''),
+                folder: text(source.folder, ''),
+                category: text(source.category, ''),
+                volume: normalizeVolume(source.volume, 1),
+                // Track length in seconds (0 = not yet known). Persisted so duration facets/smart
+                // folders work without replaying every track to re-measure it.
+                duration: Number(source.duration) > 0 ? Number(source.duration) : 0,
+                exposed: source.exposed === true,
+                hotkey: text(source.hotkey, ''),
+                // Live-playlist link: which imported connection a track came from, its upstream id, and
+                // whether it has since disappeared upstream (greyed, never auto-deleted). Must survive
+                // normalize() or a re-sync loses every track's identity.
+                playlistId: text(source.playlistId, ''),
+                sourceId: text(source.sourceId, ''),
+                upstreamMissing: source.upstreamMissing === true,
+                missingLocal: source.missingLocal === true,
+                createdAt: Number(source.createdAt || 0) || Date.now(),
+                lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
+            };
+        }
+
+        function cleanPort(port) {
+            const src = port && typeof port === 'object' ? port : {};
+            return {
+                id: text(src.id, id('port')),
+                nickname: text(src.nickname, 'Unnamed Port'),
+                path: text(src.path, '')
+            };
+        }
+
+        function boundedItems(list, type, max) {
+            return (Array.isArray(list) ? list : [])
+                .map((item) => cleanItem(item, type))
+                .filter((item) => !!item.url)
+                .slice(-max);
+        }
+
+        return { cleanItem, cleanPort, boundedItems };
+    };
+
+    ns.ready = true;
+})();
