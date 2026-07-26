@@ -54,7 +54,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/search-advanced/sa-ui.form.template.js?v=0.4.1",
     "js/modules/features/search-advanced/sa-ui.form.fields.js?v=0.3.2",
     "js/modules/features/search-advanced/sa-ui.typeahead.js?v=0.2.0",
-    "js/modules/features/search-advanced/sa-ui.form.js?v=0.4.1",
+    "js/modules/features/search-advanced/sa-ui.form.js?v=0.4.2",
     "js/modules/features/search-advanced/sa-ui.results.js?v=0.1.0",
     "js/modules/features/search-advanced/sa-ui.results.vectors.parts.js?v=0.1.1",
     "js/modules/features/search-advanced/sa-ui.results.vectors.js?v=0.3.0",

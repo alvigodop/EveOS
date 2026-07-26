@@ -66,6 +66,18 @@ window.modalTemplate += `
             </div>
         </details>
 
+        <details id="bookmarkFocusAudioflixSection" class="settings-disclosure">
+            <summary class="settings-disclosure-summary settings-disclosure-summary--split">
+                <span class="settings-disclosure-summary__label">&#9835; Audioflix Links</span>
+                <span id="bookmarkFocusAudioflixSummary" class="settings-disclosure-summary__meta">0 linked</span>
+            </summary>
+            <div class="settings-disclosure-body bookmark-focus-audioflix-body">
+                <div id="bookmarkFocusAudioflixList" class="bookmark-focus-audioflix-list"></div>
+                <button type="button" onclick="bookmarkFocusOpenAudioflixLinker()">Link Tracks in Audioflix</button>
+                <div class="bookmark-focus-audioflix-hint">References the canonical Audioflix item without copying its media or metadata.</div>
+            </div>
+        </details>
+
         <div id="bookmarkFocusLibrarySection" style="border-top:1px solid rgba(255,255,255,0.14); padding-top:12px; display:flex; flex-direction:column; gap:10px;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
                 <strong>Library Controls</strong>

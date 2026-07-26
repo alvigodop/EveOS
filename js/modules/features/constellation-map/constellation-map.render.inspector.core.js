@@ -215,6 +215,12 @@ function applyInspectorShellStyle(isCollapsed) {
 
         }
 
+        if (node.data?.audioId) {
+            return actions;
+        }
+
+
+
         if (node.kind === 'link') {
 
             if (text(node?.data?.folderId, '')) actions.push({ label: 'Open Folder', action: 'open-folder' });

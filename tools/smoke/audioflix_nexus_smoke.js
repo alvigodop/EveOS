@@ -51,7 +51,8 @@ const SEED = {
 };
 
 (function main() {
-    const X = load(makeCtx(SEED));
+    const ctx = makeCtx(SEED);
+    const X = load(ctx);
 
     // 1. search
     assert(X.search('night', 'music').map((i) => i.id).sort().join() === 'a,b,c', 'search "night" -> a,b,c');
@@ -81,6 +82,16 @@ const SEED = {
     assert(X.durationMatch(218, 4, 'around') && !X.durationMatch(218, 3, 'around'), '3:38 matches around 4 only');
     assert(X.durationMatch(179, 3, 'below') && !X.durationMatch(181, 3, 'below'), 'below 3 = strictly under 3:00');
     console.log('duration around/below OK');
+
+    // 5. Replacing the datapack config root must invalidate cached search documents.
+    ctx.config = {
+        audioflix: {
+            music: [{ id: 'fresh', title: 'Fresh Pack Track', artist: 'New Root', url: 'https://y/fresh' }]
+        }
+    };
+    assert(X.search('fresh pack', 'music').map((item) => item.id).join() === 'fresh', 'new datapack root was not indexed');
+    assert(X.search('night', 'music').length === 0, 'cached results leaked from the previous datapack root');
+    console.log('datapack root cache invalidation OK');
 
     console.log('AUDIOFLIX_NEXUS_SMOKE_OK');
 })();

@@ -101,11 +101,16 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
     function removeManual(name) {
         const clean = text(name);
         if (!clean) return { ok: false };
-        S()?.update?.({ musicClassifiers: manualNames().filter((n) => n !== clean) }, 'audioflix-classifier-remove');
-        musicItems().forEach((it) => {
+        const music = musicItems().map((it) => {
             const own = (it.classifiers || []).map(text);
-            if (own.includes(clean)) S()?.updateItem?.('music', it.id, { classifiers: own.filter((n) => n !== clean) });
+            return own.includes(clean)
+                ? Object.assign({}, it, { classifiers: own.filter((n) => n !== clean) })
+                : it;
         });
+        S()?.update?.({
+            musicClassifiers: manualNames().filter((n) => n !== clean),
+            music
+        }, 'audioflix-classifier-remove');
         return { ok: true };
     }
 
@@ -117,11 +122,16 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         // Exclude the classifier being renamed from the taken-check, or fixing its capitalization
         // ("mid artist" -> "Mid Artist") would collide with itself and be rejected.
         if (names.some((n) => n !== from && n.toLowerCase() === to.toLowerCase())) return { ok: false, reason: 'That name is taken.' };
-        S()?.update?.({ musicClassifiers: names.map((n) => (n === from ? to : n)) }, 'audioflix-classifier-rename');
-        musicItems().forEach((it) => {
+        const music = musicItems().map((it) => {
             const own = (it.classifiers || []).map(text);
-            if (own.includes(from)) S()?.updateItem?.('music', it.id, { classifiers: [...new Set(own.map((n) => (n === from ? to : n)))] });
+            return own.includes(from)
+                ? Object.assign({}, it, { classifiers: [...new Set(own.map((n) => (n === from ? to : n)))] })
+                : it;
         });
+        S()?.update?.({
+            musicClassifiers: names.map((n) => (n === from ? to : n)),
+            music
+        }, 'audioflix-classifier-rename');
         return { ok: true };
     }
 

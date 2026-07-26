@@ -135,13 +135,16 @@ The system is intentionally compartmentalized. Workspace tabs, category cards, b
 EveOS now has three restore/export scopes:
 
 1. Full backup  
-   Exports/restores full app state (bookmarks + config + library + connections).
+   Exports/restores full app state (bookmarks + config + library + connections + Audioflix).
 
 2. Tab backup (`workspace`)  
-   Exports/restores one workspace tab and linked library subset.
+   Exports/restores one workspace tab, its linked library subset, and only the canonical
+   Audioflix items/references linked inside that tab.
 
 3. Card backup (`card`)  
-   Exports/restores one category card inside one workspace and its linked library subset.
+   Exports/restores one category card inside one workspace, its linked library subset, and
+   only card/folder/bookmark Audioflix references in that card. Workspace-wide audio links
+   remain owned by the workspace and are not duplicated into card backups.
 
 Reference JSON schema: `data/unified-state-template.json`
 
@@ -208,6 +211,44 @@ Notes:
 - Connection records are location-aware and include both `workspace` and `categoryName`.
 - Editing and restoring JSON updates visible site state after import.
 - Linked bookmark/library fields sync through `library-connections.js` and module save hooks.
+
+## Audioflix: Offline Audio And EveOS Links
+
+Audioflix is EveOS's canonical store for music tracks and soundboard clips. A track or clip is
+stored once in `config.audioflix`; EveOS surfaces hold lightweight references containing the
+Audioflix item ID and target scope instead of copying media URLs or metadata.
+
+Core behavior:
+
+- `Nexus Audio Link` is both the Audioflix search surface and the bulk organizer.
+- Bulk actions operate atomically over the selected IDs: add/remove groups, add/remove manual
+  classifiers, move to a folder, or clear the folder.
+- The library supports up to 10,000 music records and 20,000 scoped references. Search documents
+  are cached by Audioflix revision so repeated queries do not rebuild every record.
+- The playlist marker `Library-only` means a track is retained in Audioflix but is no longer in
+  its imported playlist. It does not claim that the media is downloaded.
+- Localized files prefer `localPath`/persisted folder handles. Online-only provider URLs still
+  require that provider and network to remain available; localize important media for durable
+  offline playback.
+- Audio worklet source is loaded through a `data:` URL so the audio-thread capture path works in
+  both `file://` and localhost mode.
+
+Canonical references can target a tab, card, folder, or bookmark. The same references are
+projected into Bookmark Focus, Matrix, the Matrix EveOS phone widget, and Constellation. Deleting
+an Audioflix item removes its dangling references. Full backups replace Audioflix as a datapack;
+tab/card/folder/bookmark restores merge their scoped bundles without replacing unrelated tracks or
+machine-local routing settings.
+
+Implementation spine:
+
+- `js/modules/features/audioflix/audioflix.state.js`
+- `js/modules/features/audioflix/audioflix.bulk.js`
+- `js/modules/features/audioflix/audioflix.links.js`
+- `js/modules/features/audioflix/audioflix.links.backup.js`
+- `js/modules/features/audioflix/audioflix.nexus.js`
+- `js/modules/features/audioflix/audioflix.nexus.ui.js`
+- `js/modules/features/audioflix/audioflix.nexus.bulk.ui.js`
+- `js/modules/features/matrix-workshop/matrix-workshop.datapack.bridge.js`
 
 ## Derived Rating Model
 
@@ -575,6 +616,42 @@ node tools\\smoke\\search_monitor_boot_smoke.js
 Use `nexus_index_state_fingerprint_smoke.js` specifically for stale persisted-index regressions, dirty typeahead results, and large-datapack state drift between live links/folders/config and the local Nexus index.
 Use `nexus_index_surgical_delta_smoke.js` for write-through bookmark/folder mutation deltas, scoped local index patching, and non-indexing `saveData`/visual-only `saveConfig` changes.
 Use `nexus_typo_diagnostics_smoke.js` for local-first typo ranking, query operators such as `type:`/`flag:`, concrete integrity issue rows, and readable-structure dirty-state behavior.
+
+#### Audioflix, scoped audio links, and offline playback
+
+Primary scripts:
+
+- `tools/smoke/audioflix_bulk_manager_smoke.js`
+- `tools/smoke/audioflix_nexus_bulk_browser_smoke.js`
+- `tools/smoke/audioflix_scope_links_smoke.js`
+- `tools/smoke/audioflix_durability_smoke.js`
+- `tools/smoke/audioflix_bookmark_focus_browser_smoke.js`
+- `tools/smoke/audioflix_constellation_browser_smoke.js`
+- `tools/smoke/audioflix_capture_worklet_smoke.js`
+- `tools/smoke/matrix_datapack_phone_browser_smoke.js`
+- `tools/smoke/matrix_datapack_phone_file_browser_smoke.js`
+
+Use when touching:
+
+- `js/modules/features/audioflix/*`
+- scoped Audioflix backup/restore behavior
+- Bookmark Focus audio links
+- Matrix/phone Audioflix projection
+- Constellation Audioflix nodes
+- file-mode worklet/localized playback
+
+Recommended command set:
+
+```bash
+node tools\\smoke\\audioflix_bulk_manager_smoke.js
+node tools\\smoke\\audioflix_nexus_bulk_browser_smoke.js
+node tools\\smoke\\audioflix_scope_links_smoke.js
+node tools\\smoke\\audioflix_durability_smoke.js
+node tools\\smoke\\audioflix_bookmark_focus_browser_smoke.js
+node tools\\smoke\\audioflix_constellation_browser_smoke.js
+node tools\\smoke\\matrix_datapack_phone_browser_smoke.js
+node tools\\smoke\\matrix_datapack_phone_file_browser_smoke.js
+```
 
 #### Sidebar, groups, and nested tab interactions
 

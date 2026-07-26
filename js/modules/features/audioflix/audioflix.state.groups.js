@@ -134,6 +134,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                     return entry;
                 });
             }
+            syncRootOrFallback(state);
             scheduleSave('audioflix-rename-folder');
             return ensure();
         }
@@ -151,6 +152,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                     return entry;
                 });
             }
+            syncRootOrFallback(state);
             scheduleSave('audioflix-delete-folder');
             return ensure();
         }
@@ -184,6 +186,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 state[activeKey] = newClean;
             }
 
+            syncRootOrFallback(state);
             scheduleSave(`audioflix-rename-group-${type}`);
             return ensure();
         }

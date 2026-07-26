@@ -56,6 +56,7 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 isPorted: source.isPorted === true,
                 isMusicPort: source.isMusicPort === true,
                 createdAt: Number(source.createdAt || 0) || Date.now(),
+                updatedAt: Number(source.updatedAt || 0) || 0,
                 lastPlayedAt: Number(source.lastPlayedAt || 0) || 0
             };
         }
@@ -69,6 +70,26 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
             };
         }
 
+        function cleanScopeBinding(binding) {
+            const source = binding && typeof binding === 'object' ? binding : {};
+            const audioType = source.audioType === 'sound' ? 'sound' : 'music';
+            const scopeType = ['workspace', 'card', 'folder', 'bookmark'].includes(source.scopeType)
+                ? source.scopeType
+                : 'workspace';
+            return {
+                id: text(source.id, id('audio-link')),
+                audioId: text(source.audioId, ''),
+                audioType,
+                scopeType,
+                workspaceId: text(source.workspaceId, 'main'),
+                categoryName: text(source.categoryName, ''),
+                folderId: text(source.folderId, ''),
+                bookmarkId: text(source.bookmarkId, ''),
+                label: text(source.label, ''),
+                createdAt: Number(source.createdAt || 0) || Date.now()
+            };
+        }
+
         function boundedItems(list, type, max) {
             return (Array.isArray(list) ? list : [])
                 .map((item) => cleanItem(item, type))
@@ -76,7 +97,29 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 .slice(-max);
         }
 
-        return { cleanItem, cleanPort, boundedItems };
+        function boundedBindings(list, max) {
+            const seen = new Set();
+            return (Array.isArray(list) ? list : [])
+                .map(cleanScopeBinding)
+                .filter((entry) => {
+                    if (!entry.audioId) return false;
+                    const key = [
+                        entry.audioType,
+                        entry.audioId,
+                        entry.scopeType,
+                        entry.workspaceId.toLowerCase(),
+                        entry.categoryName.toLowerCase(),
+                        entry.folderId,
+                        entry.bookmarkId
+                    ].join('::');
+                    if (seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                })
+                .slice(-max);
+        }
+
+        return { cleanItem, cleanPort, cleanScopeBinding, boundedItems, boundedBindings };
     };
 
     ns.ready = true;

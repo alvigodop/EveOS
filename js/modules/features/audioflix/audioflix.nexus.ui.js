@@ -12,6 +12,7 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
     if (ns.ready) return;
 
     let expandedSections = { artist: false, group: false, folder: false, duration: false, classifier: false };
+    const lastMatchCounts = { music: 0, sound: 0 };
 
     ns.toggleSection = function toggleSection(sec) {
         if (sec in expandedSections) expandedSections[sec] = !expandedSections[sec];
@@ -22,6 +23,10 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
         const getNexus = deps.getNexusState;   // () -> { open, type, query, facet }
         const getPorted = deps.getPorted;      // () -> ported sounds array (soundboard only)
         const X = () => window.EveAudioflixNexus;
+        const bulkUi = window.EveAudioflixNexusBulkUi?.create?.({
+            esc,
+            getNexusState: getNexus
+        });
 
         function renderButton(type) {
             const st = getNexus();
@@ -32,28 +37,16 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
         function filteredList(type) {
             const st = getNexus();
             const api = X();
-            const all = api.items(type, type === 'sound' ? (getPorted() || []) : []);
-            let list = api.search(st.query, type, all);
-            const [kind, val] = String(st.facet || '').split('::');
-            if (kind === 'artist') list = list.filter((it) => (it.artist || '').toLowerCase() === val.toLowerCase());
-            else if (kind === 'folder') list = list.filter((it) => String(it.folder || it.card || it.category || '').toLowerCase() === val.toLowerCase());
-            else if (kind === 'group') list = list.filter((it) => api.groupsOf(type, it.id).map((g) => g.toLowerCase()).includes(val.toLowerCase()));
-            else if (kind === 'around') list = list.filter((it) => api.durationMatch(it.duration, Number(val), 'around'));
-            else if (kind === 'below') list = list.filter((it) => api.durationMatch(it.duration, Number(val), 'below'));
-            else if (kind === 'classifier') {
-                const ids = new Set((window.EveAudioflixClassifiers?.tracksForKey?.(val) || []).map((t) => t.id));
-                list = list.filter((it) => ids.has(it.id));
-            }
-            else if (kind === 'dups') {
-                const rep = api.dupReport(type, all);
-                const ids = new Set();
-                rep.exact.concat(rep.similar).forEach((g) => g.forEach((x) => ids.add(x.id)));
-                list = list.filter((it) => ids.has(it.id));
-            }
-            return list;
+            const external = type === 'sound' ? api.items(type, getPorted() || []) : null;
+            return api.filter({
+                type,
+                query: st.query,
+                facet: st.facet,
+                list: external
+            });
         }
 
-        function rowHtml(it, type) {
+        function rowHtml(it, type, selectedIds) {
             const meta = [it.artist, it.folder || it.card || it.category].filter(Boolean).join(' · ');
             const dupBadge = window.EveAudioflixDuplicates?.isDuplicate?.(type, it.id) ? ' <span style="color:#f87171; font-size:0.7rem;">👯 dup</span>' : '';
             const audioStatus = window.EveAudioflixAudio?.getStatus?.();
@@ -64,14 +57,20 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
                 ? `<button type="button" class="audioflix-icon-btn danger" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Stop" style="color:#f87171; border-color:rgba(248,113,113,0.4);">⏹</button>`
                 : `<button type="button" class="audioflix-icon-btn" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Play">▶</button>`;
 
-            return `<div style="display:flex; align-items:center; gap:8px; padding:5px 8px; border-bottom:1px solid rgba(255,255,255,0.06);">${actionBtn}<div style="flex:1; min-width:0;"><strong style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ${isPlaying ? 'color:#38bdf8;' : ''}">${esc(it.title)}${dupBadge}</strong><span style="font-size:0.75rem; color:#94a3b8;">${esc(meta) || '—'}</span></div><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Settings / manage duplicate">⚙</button></div>`;
+            const selected = type === 'music' && selectedIds.has(it.id);
+            const checkbox = type === 'music'
+                ? `<input class="audioflix-nexus-select" type="checkbox" data-af-id="${esc(it.id)}"${selected ? ' checked' : ''} aria-label="Select ${esc(it.title)}">`
+                : '';
+            return `<div class="audioflix-nexus-row${selected ? ' is-selected' : ''}">${checkbox}${actionBtn}<div style="flex:1; min-width:0;"><strong style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ${isPlaying ? 'color:#38bdf8;' : ''}">${esc(it.title)}${dupBadge}</strong><span style="font-size:0.75rem; color:#94a3b8;">${esc(meta) || '—'}</span></div><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Settings / manage duplicate">⚙</button></div>`;
         }
 
-        function renderResults(type) {
+        function renderResults(type, preparedList) {
             const st = getNexus();
-            const list = filteredList(type);
+            const list = Array.isArray(preparedList) ? preparedList : filteredList(type);
+            lastMatchCounts[type === 'sound' ? 'sound' : 'music'] = list.length;
             if (st.query) X().recordSearch(st.query, type, list.length);
-            const shown = list.slice(0, 80).map((it) => rowHtml(it, type)).join('');
+            const selectedIds = new Set(st.selectedIds || []);
+            const shown = list.slice(0, 80).map((it) => rowHtml(it, type, selectedIds)).join('');
             const more = list.length > 80 ? `<div style="padding:6px 8px; color:#94a3b8; font-size:0.75rem;">Showing first 80 of ${list.length}.</div>` : '';
             return (shown || '<div style="color:#94a3b8; padding:10px;">No matches.</div>') + more;
         }
@@ -115,10 +114,17 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
             const classifierCount = type === 'music' ? classifierEntries.length : 0;
 
             const clearBtn = st.facet ? `<button type="button" class="audioflix-icon-btn" data-af-action="nexus-facet" data-af-facet="${esc(st.facet)}" title="Clear filter">✕</button>` : '';
-            return `<div class="audioflix-nexus-panel" style="margin-top:8px; padding:12px; border-radius:12px; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.25);"><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;"><span style="font-size:0.78rem; font-weight:700; color:#38bdf8; letter-spacing:0.5px;">🔎 NEXUS AUDIO LINK</span><button type="button" class="audioflix-add-toggle" data-af-action="open-nexus-search" style="background:linear-gradient(135deg,rgba(56,189,248,0.25),rgba(14,165,233,0.35)); border:1px solid rgba(56,189,248,0.5); color:#38bdf8; font-weight:700; font-size:0.75rem; padding:4px 10px; border-radius:10px; cursor:pointer;" title="Open Nexus Main Search Modal">⚔ Open Nexus Search</button></div><div style="display:flex; align-items:center; gap:8px;"><input type="text" data-af-nexus-search data-af-type="${esc(type)}" value="${esc(st.query)}" placeholder="Search ${type === 'music' ? 'tracks' : 'sounds'} by name, artist, folder, group..." style="flex:1; padding:6px 10px; border-radius:10px; border:1px solid rgba(148,163,184,0.35); background:rgba(0,0,0,0.3); color:#f8fafc;">${clearBtn}</div><div style="margin-top:6px;"><span style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Manage duplicates</span><div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;">${dupChip}</div></div>${sectionRow('artist', 'Artists', f.artists.length, artistChips)}${sectionRow('group', 'Groups', f.groups.length, groupChips)}${sectionRow('folder', 'Folders', f.folders.length, folderChips)}${sectionRow('duration', 'Duration Filters', f.durations.length, combinedDurChips)}${sectionRow('classifier', 'Classifiers', classifierCount, classifierChips)}<div class="audioflix-nexus-results" data-af-nexus-results="${esc(type)}" style="margin-top:8px; max-height:300px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.08);">${renderResults(type)}</div></div>`;
+            const filtered = filteredList(type);
+            const bulkManager = bulkUi?.render?.(type, filtered.length) || '';
+            return `<div class="audioflix-nexus-panel" style="margin-top:8px; padding:12px; border-radius:12px; background:rgba(2,6,23,0.55); border:1px solid rgba(148,163,184,0.25);"><div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;"><span style="font-size:0.78rem; font-weight:700; color:#38bdf8; letter-spacing:0.5px;">🔎 NEXUS AUDIO LINK</span><button type="button" class="audioflix-add-toggle" data-af-action="open-nexus-search" style="background:linear-gradient(135deg,rgba(56,189,248,0.25),rgba(14,165,233,0.35)); border:1px solid rgba(56,189,248,0.5); color:#38bdf8; font-weight:700; font-size:0.75rem; padding:4px 10px; border-radius:10px; cursor:pointer;" title="Open Nexus Main Search Modal">⚔ Open Nexus Search</button></div><div style="display:flex; align-items:center; gap:8px;"><input type="text" data-af-nexus-search data-af-type="${esc(type)}" value="${esc(st.query)}" placeholder="Search ${type === 'music' ? 'tracks' : 'sounds'} by name, artist, folder, group..." style="flex:1; padding:6px 10px; border-radius:10px; border:1px solid rgba(148,163,184,0.35); background:rgba(0,0,0,0.3); color:#f8fafc;">${clearBtn}</div>${bulkManager}<div style="margin-top:6px;"><span style="font-size:0.72rem; color:#94a3b8; font-weight:700;">Manage duplicates</span><div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;">${dupChip}</div></div>${sectionRow('artist', 'Artists', f.artists.length, artistChips)}${sectionRow('group', 'Groups', f.groups.length, groupChips)}${sectionRow('folder', 'Folders', f.folders.length, folderChips)}${sectionRow('duration', 'Duration Filters', f.durations.length, combinedDurChips)}${sectionRow('classifier', 'Classifiers', classifierCount, classifierChips)}<div class="audioflix-nexus-results" data-af-nexus-results="${esc(type)}" style="margin-top:8px; max-height:300px; overflow-y:auto; border-top:1px solid rgba(255,255,255,0.08);">${renderResults(type, filtered)}</div></div>`;
         }
 
-        return { renderButton, renderPanel, renderResults };
+        return {
+            renderButton,
+            renderPanel,
+            renderResults,
+            getLastMatchCount: (type) => lastMatchCounts[type === 'sound' ? 'sound' : 'music']
+        };
     };
 
     ns.ready = true;

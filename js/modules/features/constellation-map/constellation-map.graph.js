@@ -45,6 +45,16 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     const graphProjection = ns._graphProjection || {};
     const { tryBuildGraphDataFromNexusProjection } = graphProjection;
 
+    function appendAudioflixLinks(scope) {
+        return window.EveAudioflixLinks?.appendConstellationNodes?.({
+            scope,
+            state,
+            createNode,
+            addNode,
+            addEdge
+        }) || 0;
+    }
+
 function buildGraphData(scopeOption, options = {}) {
         const scope = normalizeScope(scopeOption);
         const preserveLocks = options?.preserveLocks === true;
@@ -83,11 +93,17 @@ function buildGraphData(scopeOption, options = {}) {
             const usedProjection = tryBuildGraphDataFromNexusProjection(scope, scopedLinks, context, centerX, centerY, width, height);
             if (usedProjection && typeof usedProjection.then === 'function') {
                 return usedProjection.then(function (resolvedUsedProjection) {
-                    if (resolvedUsedProjection) return true;
+                    if (resolvedUsedProjection) {
+                        appendAudioflixLinks(scope);
+                        return true;
+                    }
                     return buildGraphData(scope, Object.assign({}, options, { skipNexusProjection: true }));
                 });
             }
-            if (usedProjection) return true;
+            if (usedProjection) {
+                appendAudioflixLinks(scope);
+                return true;
+            }
         }
 
         if (scope.scope === 'all') {
@@ -336,6 +352,7 @@ function buildGraphData(scopeOption, options = {}) {
             }
         });
 
+        appendAudioflixLinks(scope);
         initializeWorldField(centerX, centerY);
         return true;
     }

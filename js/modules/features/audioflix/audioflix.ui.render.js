@@ -81,8 +81,8 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             // Playlist provenance is shown in the track's settings panel; only mirror it onto the
             // card when the user opts in (keeps the grid clean by default).
             const showMarkers = state().showPlaylistMarkersOnCard === true;
-            const isLocal = showMarkers && type === 'music' && window.EveAudioflixPlaylists?.isLocalTrackInImportedGroup?.(item);
-            const localBadge = isLocal ? `<span class="audioflix-local-badge is-minimized" title="Added locally (not from upstream playlist)" data-af-action="toggle-local-badge"><span class="audioflix-local-badge-icon">⚡</span><span class="audioflix-local-badge-text"> Local</span></span>` : '';
+            const isLibraryOnly = showMarkers && type === 'music' && window.EveAudioflixPlaylists?.isLibraryOnlyTrackInImportedGroup?.(item);
+            const localBadge = isLibraryOnly ? `<span class="audioflix-local-badge is-minimized" title="Kept in EveOS; this track is not supplied by the linked playlist" data-af-action="toggle-local-badge"><span class="audioflix-local-badge-icon">⚡</span><span class="audioflix-local-badge-text"> Library-only</span></span>` : '';
             const amq = ctx.getActiveMusicQueue();
             let queueBadge = '';
             if (type === 'music' && amq.isPlaying && amq.items.includes(item.id)) {

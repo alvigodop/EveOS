@@ -265,8 +265,9 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         return syncPlaylist(conn.id, force, targetFolder);
     }
 
-    // Check if a track in an imported group was added locally (not from the upstream playlist source)
-    function isLocalTrackInImportedGroup(item) {
+    // A library-only item remains in an imported group but is not supplied by that playlist.
+    // This is provenance, not proof that the media has a localized/offline file.
+    function isLibraryOnlyTrackInImportedGroup(item) {
         if (!item || !item.id) return false;
         const groups = window.EveAudioflixState?.ensure?.()?.musicGroupMap?.[item.id] || [];
         if (!groups.length) return false;
@@ -285,7 +286,8 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         getPlaylistForGroup,
         setPlaylistLink,
         syncPlaylistByGroup,
-        isLocalTrackInImportedGroup,
+        isLibraryOnlyTrackInImportedGroup,
+        isLocalTrackInImportedGroup: isLibraryOnlyTrackInImportedGroup,
         tracksFor,
         importPlaylist,
         importWplPlaylist,

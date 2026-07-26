@@ -140,6 +140,16 @@ window.EveDataStore = window.EveDataStore || {};
         }
 
         applyKnowledgeState(state.knowledge, [categoryName]);
+        if (state.audioflix?.scoped === true) {
+            window.EveAudioflixLinks?.mergeScopedBackup?.(state.audioflix, {
+                scopeType: 'folder',
+                workspaceId,
+                categoryName,
+                folderId: targetFolderId,
+                folderIds: Array.from(removedFolderIds),
+                bookmarkIds: Array.from(removedLinkIds)
+            });
+        }
 
         return true;
     }

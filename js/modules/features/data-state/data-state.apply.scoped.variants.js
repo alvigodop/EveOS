@@ -168,6 +168,12 @@ window.EveDataStore = window.EveDataStore || {};
                 .concat(Object.keys(state.library?.categories || {}).map((key) => String(parseLibraryKey(key)?.categoryName || '').trim()).filter(Boolean))
         ));
         applyKnowledgeState(state.knowledge, workspaceCategoryNames);
+        if (state.audioflix?.scoped === true) {
+            window.EveAudioflixLinks?.mergeScopedBackup?.(state.audioflix, {
+                scopeType: 'workspace',
+                workspaceId
+            });
+        }
 
         return true;
     }
@@ -265,6 +271,13 @@ window.EveDataStore = window.EveDataStore || {};
         }
 
         applyKnowledgeState(state.knowledge, [categoryName]);
+        if (state.audioflix?.scoped === true) {
+            window.EveAudioflixLinks?.mergeScopedBackup?.(state.audioflix, {
+                scopeType: 'card',
+                workspaceId,
+                categoryName
+            });
+        }
 
         return true;
     }
@@ -335,6 +348,14 @@ window.EveDataStore = window.EveDataStore || {};
         }
 
         applyKnowledgeState(state.knowledge, [categoryName]);
+        if (state.audioflix?.scoped === true) {
+            window.EveAudioflixLinks?.mergeScopedBackup?.(state.audioflix, {
+                scopeType: 'bookmark',
+                workspaceId,
+                categoryName,
+                bookmarkId: normalizedLinkId
+            });
+        }
 
         return true;
     }

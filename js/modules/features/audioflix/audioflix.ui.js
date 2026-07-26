@@ -351,7 +351,19 @@ window.EveAudioflix = window.EveAudioflix || {};
     const { startHotkeyFeedbackPoll, stopHotkeyFeedbackPoll, handleHotkey } = window.EveAudioflixUiHotkeys.create(uiCtx);
 
     const open = () => { ensureOverlay(); overlay.hidden = false; overlay.classList.toggle('is-fullscreen', fullscreenOn); setButtonExpanded(true); loadPortedSounds(); startHotkeyFeedbackPoll(); };
-    const close = () => { if (overlay) overlay.hidden = true; window.EveAudioflixAudio?.attachWaveform?.(null); setButtonExpanded(false); stopHotkeyFeedbackPoll(); pushHotkeysToBridge(); };
+    const close = () => { if (overlay) overlay.hidden = true; window.EveAudioflixAudio?.attachWaveform?.(null); window.EveAudioflixLinks?.clearPendingScope?.(); setButtonExpanded(false); stopHotkeyFeedbackPoll(); pushHotkeysToBridge(); };
+    const openNexus = (type = 'music') => {
+        activeTab = type === 'sound' ? 'soundboard' : 'music';
+        nexusState = {
+            open: true,
+            type: type === 'sound' ? 'sound' : 'music',
+            query: '',
+            facet: '',
+            selectedIds: []
+        };
+        open();
+        rerender();
+    };
 
     function updateStatusDOM() {
         if (!overlay || overlay.hidden) return;
@@ -411,5 +423,5 @@ window.EveAudioflix = window.EveAudioflix || {};
     });
     window.addEventListener('beforeunload', () => { window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); });
 
-    Object.assign(ns, { ready: true, open, close, render: rerender, probeMissingDurations });
+    Object.assign(ns, { ready: true, open, openNexus, close, render: rerender, probeMissingDurations });
 })();

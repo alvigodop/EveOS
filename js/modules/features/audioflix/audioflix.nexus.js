@@ -17,6 +17,14 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
     const text = (v) => String(v ?? '').trim();
     const norm = (v) => text(v).toLowerCase();
     const simKey = (v) => norm(v).replace(/[^a-z0-9]+/g, '');
+    const searchCache = {
+        music: { revision: -1, docs: [] },
+        sound: { revision: -1, docs: [] }
+    };
+    const traceState = {
+        music: { timer: 0, signature: '' },
+        sound: { timer: 0, signature: '' }
+    };
 
     // Base list for a type. Soundboard callers pass ported sounds in via `extra` (they live in the
     // UI, not state) so search covers them too.
@@ -30,15 +38,70 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         return map[id] || [];
     }
 
+    function indexedDocs(type) {
+        const key = type === 'music' ? 'music' : 'sound';
+        const snapshot = state();
+        const revision = Number(S()?.getRevision?.() || 0);
+        const cached = searchCache[key];
+        if (cached.revision === revision) return cached.docs;
+        const list = key === 'music' ? (snapshot.music || []) : (snapshot.soundboard || []);
+        const map = key === 'music' ? (snapshot.musicGroupMap || {}) : (snapshot.soundGroupMap || {});
+        cached.docs = list.map((item) => ({
+            item,
+            haystack: [
+                item.title,
+                item.artist,
+                item.folder,
+                item.card,
+                item.category,
+                ...(Array.isArray(item.classifiers) ? item.classifiers : []),
+                ...(map[item.id] || [])
+            ].map(norm).join('\u0001')
+        }));
+        cached.revision = revision;
+        return cached.docs;
+    }
+
     // Free-text search across title/artist/folder/category and group membership.
     function search(query, type, list) {
         const q = norm(query);
-        const arr = list || items(type);
-        if (!q) return arr;
-        return arr.filter((it) => {
-            const hay = [it.title, it.artist, it.folder, it.card, it.category].map(norm).concat(groupsOf(type, it.id).map(norm)).join('  ');
-            return hay.includes(q);
-        });
+        if (list) {
+            if (!q) return list;
+            return list.filter((item) => [
+                item.title,
+                item.artist,
+                item.folder,
+                item.card,
+                item.category,
+                ...(Array.isArray(item.classifiers) ? item.classifiers : []),
+                ...groupsOf(type, item.id)
+            ].map(norm).join('\u0001').includes(q));
+        }
+        const docs = indexedDocs(type);
+        return q ? docs.filter((doc) => doc.haystack.includes(q)).map((doc) => doc.item) : docs.map((doc) => doc.item);
+    }
+
+    function filter(options) {
+        const input = options && typeof options === 'object' ? options : {};
+        const type = input.type === 'sound' ? 'sound' : 'music';
+        let list = search(input.query, type, input.list);
+        const [kind, value = ''] = text(input.facet).split('::');
+        const lower = value.toLowerCase();
+        if (kind === 'artist') list = list.filter((item) => norm(item.artist) === lower);
+        else if (kind === 'folder') list = list.filter((item) => norm(item.folder || item.card || item.category) === lower);
+        else if (kind === 'group') list = list.filter((item) => groupsOf(type, item.id).some((group) => norm(group) === lower));
+        else if (kind === 'around') list = list.filter((item) => durationMatch(item.duration, Number(value), 'around'));
+        else if (kind === 'below') list = list.filter((item) => durationMatch(item.duration, Number(value), 'below'));
+        else if (kind === 'classifier') {
+            const ids = new Set((window.EveAudioflixClassifiers?.tracksForKey?.(value) || []).map((track) => track.id));
+            list = list.filter((item) => ids.has(item.id));
+        } else if (kind === 'dups') {
+            const report = dupReport(type, input.list || items(type));
+            const ids = new Set();
+            report.exact.concat(report.similar).forEach((group) => group.forEach((item) => ids.add(item.id)));
+            list = list.filter((item) => ids.has(item.id));
+        }
+        return list;
     }
 
     // The minute a duration is "around": it rolls up to the next minute only PAST the :36 mark, so
@@ -100,14 +163,23 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
 
     // Surface a search in the nexus trace log (no-op if the monitor isn't up) — the "connect the two".
     function recordSearch(query, type, count) {
-        try {
-            window.SearchMonitorBoot?.recordNexusTrace?.({
-                id: 'afx-' + Date.now().toString(36), kind: 'audioflix-search',
-                summary: `Nexus Audio Link: "${text(query)}" -> ${count} ${type} match${count === 1 ? '' : 'es'}`,
-                totalMs: 0, endedAt: Date.now()
-            });
-        } catch (e) { /* monitor not present */ }
+        const key = type === 'sound' ? 'sound' : 'music';
+        const signature = `${text(query)}::${Number(count) || 0}`;
+        const trace = traceState[key];
+        if (!text(query) || trace.signature === signature) return;
+        if (trace.timer) window.clearTimeout(trace.timer);
+        trace.timer = window.setTimeout(() => {
+            trace.timer = 0;
+            trace.signature = signature;
+            try {
+                window.SearchMonitorBoot?.recordNexusTrace?.({
+                    id: 'afx-' + Date.now().toString(36), kind: 'audioflix-search',
+                    summary: `Nexus Audio Link: "${text(query)}" -> ${count} ${key} match${count === 1 ? '' : 'es'}`,
+                    totalMs: 0, endedAt: Date.now()
+                });
+            } catch (e) { /* monitor not present */ }
+        }, 350);
     }
 
-    Object.assign(ns, { ready: true, items, groupsOf, search, facets, dupReport, durationMatch, aroundMinute, recordSearch, getArtist });
+    Object.assign(ns, { ready: true, items, groupsOf, search, filter, facets, dupReport, durationMatch, aroundMinute, recordSearch, getArtist });
 })();

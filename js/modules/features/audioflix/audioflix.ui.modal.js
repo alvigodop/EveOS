@@ -47,7 +47,7 @@ window.EveAudioflixUiModal = window.EveAudioflixUiModal || {};
                 const conn = item.playlistId ? (PL?.connections?.() || []).find((c) => c.id === item.playlistId) : null;
                 const chip = (txt, color) => `<span style="display:inline-flex; align-items:center; padding:1px 6px; border-radius:6px; font-size:0.72rem; font-weight:700; border:1px solid ${color}55; background:${color}22; color:${color}; margin-right:4px;">${txt}</span>`;
                 const marks = [];
-                if (PL?.isLocalTrackInImportedGroup?.(item)) marks.push(chip('⚡ Added locally', '#c084fc'));
+                if (PL?.isLibraryOnlyTrackInImportedGroup?.(item)) marks.push(chip('Library-only', '#c084fc'));
                 if (item.upstreamMissing) marks.push(chip('⚠ Gone from source', '#f87171'));
                 if (conn) marks.push(chip('🔗 Linked playlist', '#38bdf8'));
                 const keepBtn = (item.upstreamMissing && item.playlistId)

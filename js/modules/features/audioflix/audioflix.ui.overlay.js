@@ -37,6 +37,18 @@ window.EveAudioflixUiOverlay = window.EveAudioflixUiOverlay || {};
                     V.nexusState = { ...V.nexusState, query: t.value };
                     const box = V.overlay.querySelector(`.audioflix-nexus-results[data-af-nexus-results="${t.dataset.afType}"]`);
                     if (box) box.innerHTML = uiNexus.renderResults(t.dataset.afType);
+                    const matchCounter = V.overlay.querySelector('[data-af-bulk-match-count]');
+                    if (matchCounter) matchCounter.textContent = String(uiNexus.getLastMatchCount?.(t.dataset.afType) || 0);
+                    return;
+                }
+                if (t.hasAttribute && t.hasAttribute('data-af-bulk-field')) {
+                    V.nexusState = {
+                        ...V.nexusState,
+                        bulk: {
+                            ...(V.nexusState.bulk || {}),
+                            [t.dataset.afBulkField]: t.value
+                        }
+                    };
                     return;
                 }
                 if (t.classList.contains('audioflix-seek-slider')) {
@@ -51,7 +63,22 @@ window.EveAudioflixUiOverlay = window.EveAudioflixUiOverlay || {};
             });
             V.overlay.addEventListener('change', async e => {
                 const t = e.target, id = t.dataset.afId, type = t.dataset.afType || 'sound';
-                if (t.classList.contains('audioflix-seek-slider')) {
+                if (t.classList.contains('audioflix-nexus-select')) {
+                    const selected = new Set(V.nexusState.selectedIds || []);
+                    if (t.checked) selected.add(id); else selected.delete(id);
+                    V.nexusState = { ...V.nexusState, selectedIds: [...selected] };
+                    t.closest('.audioflix-nexus-row')?.classList.toggle('is-selected', t.checked);
+                    const counter = V.overlay.querySelector('[data-af-bulk-selected-count]');
+                    if (counter) counter.textContent = String(selected.size);
+                } else if (t.hasAttribute && t.hasAttribute('data-af-bulk-field')) {
+                    V.nexusState = {
+                        ...V.nexusState,
+                        bulk: {
+                            ...(V.nexusState.bulk || {}),
+                            [t.dataset.afBulkField]: t.value
+                        }
+                    };
+                } else if (t.classList.contains('audioflix-seek-slider')) {
                     await window.EveAudioflixAudio?.seek?.(Number(t.value || 0));
                     window.EveAudioflixTransport?.finishSeek?.(t);
                     window.EveAudioflixTransport?.sync?.(V.overlay);

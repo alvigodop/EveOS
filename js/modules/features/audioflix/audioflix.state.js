@@ -8,60 +8,14 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     const STORAGE_KEY = 'eveAudioflixFallbackState';
     const SAVE_DELAY_MS = 500;
     const MAX_SOUNDBOARD = 240;
-    const MAX_MUSIC = 500;
+    const MAX_MUSIC = 10000;
+    const MAX_SCOPE_BINDINGS = 20000;
     const MAX_RECENT = 60;
     let saveTimer = 0;
-
-    const DEFAULTS = {
-        schemaVersion: 1,
-        enabled: true,
-        routeMode: 'browser',
-        preferredSinkId: '',
-        preferredSinkLabel: '',
-        nativeBridgeEnabled: false,
-        nativeOutputId: '',
-        nativeOutputLabel: '',
-        nativeInputId: '',
-        nativeInputLabel: '',
-        nativeSuppressBrowserPlayback: true,
-        nativeBridgeBase: '',
-        geminiVoicePortEnabled: false,
-        geminiVoiceMonitorEnabled: true,
-        geminiVoiceMonitorSinkId: '',
-        geminiVoiceMonitorSinkLabel: '',
-        geminiVoiceMonitorVolume: 0.75,
-        geminiConversationMode: 'text-brain-live-voice',
-        geminiModeDefaultV2Applied: true,
-        soundboard: [],
-        music: [],
-        recentPlays: [],
-        ports: [],
-        // Metadata mirror of the browser-granted folders (FileSystemDirectoryHandle records live
-        // in a separate IndexedDB that cannot be serialized). Carrying id/nickname here lets a
-        // backup remember the folder so restore can surface it for a one-click re-grant.
-        browserFolders: [],
-        portVolumes: {},
-        exposedPortedSounds: {},
-        portHotkeys: {},
-        soundboardViewMode: 'backend',
-        soundboardGroups: [],
-        soundGroupMap: {},
-        activeFrontendGroup: '',
-        musicViewMode: 'backend',
-        // Live connections to external playlists (YouTube etc.). Each imported playlist becomes
-        // a music group; tracks keep a sourceId so a re-sync can tell which upstream entries are
-        // gone (greyed, never auto-deleted).
-        musicPlaylists: [],
-        musicGroups: [],
-        musicGroupMap: {},
-        activeFrontendMusicGroup: '',
-        activeMusicFolderScope: '',
-        hotkeyBypassCombo: '',
-        counters: {
-            plays: 0,
-            routedGeminiEvents: 0
-        }
-    };
+    let cachedRoot = null;
+    let cachedState = null;
+    let fallbackState = null;
+    let revision = 0;
 
     function getConfigRoot() {
         if (window.eveState?.config && typeof window.eveState.config === 'object') return window.eveState.config;
@@ -107,7 +61,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     // Per-item cleaners live in a sibling module (audioflix.state.schema.js) so this store stays
     // under the line cap; they run against the same coerce/clamp/id primitives.
-    const { cleanItem, cleanPort, boundedItems } = window.EveAudioflixStateSchema.create({ text, normalizeVolume, id });
+    const { cleanItem, cleanPort, boundedItems, boundedBindings } = window.EveAudioflixStateSchema.create({ text, normalizeVolume, id });
 
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};
@@ -201,7 +155,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             musicClassifiers: Array.isArray(source.musicClassifiers)
                 ? [...new Set(source.musicClassifiers.map((c) => text(c, '')).filter(Boolean))].slice(0, 200)
                 : [],
-            // Playlist provenance markers (⚡ Local / removed-upstream) live in the track settings
+            // Playlist provenance markers (library-only / removed-upstream) live in track settings
             // panel by default; flip this on to also show them on the song card.
             showPlaylistMarkersOnCard: source.showPlaylistMarkersOnCard === true,
             localizeDir: text(source.localizeDir, ''), // last folder used to save localized mp3s (reused as the prompt default)
@@ -210,6 +164,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             localizeScopeDirs: (source.localizeScopeDirs && typeof source.localizeScopeDirs === 'object' && !Array.isArray(source.localizeScopeDirs))
                 ? Object.fromEntries(Object.entries(source.localizeScopeDirs).map(([k, v]) => [text(k), text(v)]).filter(([k, v]) => k && v))
                 : {},
+            scopeBindings: boundedBindings(source.scopeBindings, MAX_SCOPE_BINDINGS),
             hotkeyBypassCombo: text(source.hotkeyBypassCombo, ''),
             counters: {
                 plays: Number(source.counters?.plays || 0) || 0,
@@ -221,19 +176,40 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     function ensure() {
         const root = getConfigRoot();
         if (!root) {
-            return normalize(fallbackRead());
+            if (!fallbackState) {
+                fallbackState = normalize(fallbackRead());
+                revision += 1;
+            }
+            return fallbackState;
         }
+        if (root === cachedRoot && root.audioflix === cachedState && cachedState) return cachedState;
         const hasDatapackState = Object.prototype.hasOwnProperty.call(root, 'audioflix');
-        root.audioflix = normalize(hasDatapackState ? root.audioflix : fallbackRead());
-        return root.audioflix;
+        cachedRoot = root;
+        cachedState = normalize(hasDatapackState ? root.audioflix : (fallbackState || fallbackRead()));
+        root.audioflix = cachedState;
+        revision += 1;
+        return cachedState;
+    }
+
+    function installState(rawState) {
+        const next = normalize(rawState);
+        const root = getConfigRoot();
+        if (root) {
+            root.audioflix = next;
+            cachedRoot = root;
+            cachedState = next;
+        } else {
+            fallbackState = next;
+        }
+        return next;
     }
 
     function persistNow(reason) {
+        // External loads are normalized by ensure/replaceState. Internal mutation paths already
+        // preserve the schema, so a save flush must not re-clean all 10k tracks on the UI thread.
         const state = ensure();
         if (saveTimer) window.clearTimeout(saveTimer);
         saveTimer = 0;
-        const root = getConfigRoot();
-        if (root) root.audioflix = normalize(state);
         fallbackWrite(state);
         if (typeof window.saveConfig === 'function') {
             window.saveConfig({
@@ -245,28 +221,35 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     }
 
     function scheduleSave(reason) {
+        revision += 1;
         if (saveTimer) window.clearTimeout(saveTimer);
         saveTimer = window.setTimeout(() => persistNow(reason), SAVE_DELAY_MS);
     }
 
     function syncRootOrFallback(state) {
         const root = getConfigRoot();
-        if (root) root.audioflix = normalize(state);
-        else fallbackWrite(state);
+        if (root) {
+            root.audioflix = state;
+            cachedRoot = root;
+            cachedState = state;
+        } else {
+            fallbackState = state;
+            fallbackWrite(state);
+        }
+        return state;
     }
 
     function update(patch, reason) {
         const state = ensure();
         Object.assign(state, patch || {});
-        syncRootOrFallback(state);
+        const next = syncRootOrFallback(state);
         scheduleSave(reason);
-        return ensure();
+        return next;
     }
 
     function replaceState(rawState, reason) {
-        const next = normalize(rawState);
+        const next = installState(rawState);
         const root = getConfigRoot();
-        if (root) root.audioflix = next;
         if (window.config && typeof window.config === 'object' && window.config !== root) {
             window.config.audioflix = next;
         }
@@ -295,6 +278,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             musicPlaylists: [],
             activeFrontendMusicGroup: '',
             activeMusicFolderScope: '',
+            scopeBindings: [],
             counters: Object.assign({}, current.counters, { plays: 0 })
         }), reason);
     }
@@ -304,15 +288,19 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         const key = type === 'music' ? 'music' : 'soundboard';
         const max = type === 'music' ? MAX_MUSIC : MAX_SOUNDBOARD;
         state[key] = boundedItems([...(state[key] || []), item], type === 'music' ? 'music' : 'sound', max);
-        syncRootOrFallback(state);
+        const next = syncRootOrFallback(state);
         scheduleSave(`audioflix-add-${type}`);
-        return state[key][state[key].length - 1];
+        return next[key][next[key].length - 1];
     }
 
     function removeItem(type, itemId) {
         const state = ensure();
         const key = type === 'music' ? 'music' : 'soundboard';
         state[key] = (state[key] || []).filter((item) => item.id !== itemId);
+        state.scopeBindings = (state.scopeBindings || []).filter((binding) => !(
+            binding.audioId === itemId
+            && binding.audioType === (type === 'music' ? 'music' : 'sound')
+        ));
         syncRootOrFallback(state);
         scheduleSave(`audioflix-remove-${type}`);
         return ensure();
@@ -427,6 +415,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         setItemHotkey,
         ...groupOps,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
+        getRevision: function () { return revision; },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });
 })();

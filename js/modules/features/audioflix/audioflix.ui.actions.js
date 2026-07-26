@@ -12,6 +12,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
 
     ns.create = function create(ctx) {
         const localizeActions = window.EveAudioflixUiActionsLocalize.create(ctx);
+        const nexusActions = window.EveAudioflixUiActionsNexus.create(ctx);
 
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
@@ -402,7 +403,8 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
-            // Localization / nexus-panel actions live in a sibling module (shares ctx, returns true).
+            if (await nexusActions(actionTarget, action)) return;
+            // Localization / remaining nexus-panel actions live in a sibling module.
             if (await localizeActions(actionTarget, action)) return;
         }
 

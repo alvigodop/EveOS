@@ -74,7 +74,8 @@ const { runScopeScaleDetach } = require('./matrix_datapack_phone_browser_smoke.s
             || !homeState.copy.includes('5 bookmarks')
             || !homeState.copy.includes('3 tabs / 3 cards')
             || !homeState.copy.includes('Alpha Tab / Tab Scope')
-            || homeState.appCount !== 2
+            || !homeState.copy.includes('Audioflix Links')
+            || homeState.appCount !== 3
             || initialScope.scope !== 'workspace'
             || initialScope.workspaceId !== 'alpha'
         ) {

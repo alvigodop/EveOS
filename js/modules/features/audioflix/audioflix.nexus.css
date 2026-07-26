@@ -1,0 +1,115 @@
+.audioflix-bulk-manager {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid rgba(34, 211, 238, 0.26);
+    border-radius: 12px;
+    background: linear-gradient(145deg, rgba(8, 47, 73, 0.48), rgba(15, 23, 42, 0.72));
+}
+
+.audioflix-bulk-head,
+.audioflix-bulk-foot,
+.audioflix-bulk-scope {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.audioflix-bulk-head > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.audioflix-bulk-head span,
+.audioflix-bulk-foot span,
+.audioflix-bulk-scope span {
+    color: #94a3b8;
+    font-size: 0.74rem;
+}
+
+.audioflix-bulk-scope {
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.audioflix-bulk-scope > div {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.audioflix-bulk-manager button,
+.audioflix-bulk-manager select,
+.audioflix-bulk-manager input {
+    min-height: 30px;
+    border: 1px solid rgba(148, 163, 184, 0.32);
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.72);
+    color: #e2e8f0;
+}
+
+.audioflix-bulk-manager button {
+    padding: 4px 9px;
+    cursor: pointer;
+}
+
+.audioflix-bulk-manager button.is-primary {
+    border-color: rgba(34, 211, 238, 0.58);
+    background: rgba(8, 145, 178, 0.28);
+    color: #67e8f9;
+    font-weight: 700;
+}
+
+.audioflix-bulk-fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(190px, 1fr));
+    gap: 8px;
+    margin: 9px 0;
+}
+
+.audioflix-bulk-fields label {
+    display: grid;
+    grid-template-columns: auto minmax(72px, 0.75fr) minmax(100px, 1.4fr);
+    align-items: center;
+    gap: 6px;
+    color: #bae6fd;
+    font-size: 0.72rem;
+}
+
+.audioflix-bulk-fields select,
+.audioflix-bulk-fields input {
+    width: 100%;
+    min-width: 0;
+    padding: 4px 7px;
+}
+
+.audioflix-nexus-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.audioflix-nexus-row.is-selected {
+    background: rgba(34, 211, 238, 0.1);
+}
+
+.audioflix-nexus-select {
+    accent-color: #22d3ee;
+}
+
+@media (max-width: 900px) {
+    .audioflix-bulk-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .audioflix-bulk-head,
+    .audioflix-bulk-foot,
+    .audioflix-bulk-scope {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

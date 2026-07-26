@@ -5,11 +5,14 @@ window.EveMatrixDatapackPhoneBridge = (function () {
     var RESPONSE_TYPE = 'eve:matrix-phone:snapshot';
     var UPDATE_REQUEST_TYPE = 'eve:matrix-phone:update-bookmark';
     var UPDATE_RESPONSE_TYPE = 'eve:matrix-phone:bookmark-updated';
+    var PLAY_AUDIO_REQUEST_TYPE = 'eve:matrix-phone:play-audio';
+    var PLAY_AUDIO_RESPONSE_TYPE = 'eve:matrix-phone:audio-played';
     var INVALIDATED_TYPE = 'eve:matrix-phone:state-changed';
     var REQUEST_TIMEOUT_MS = 4000;
     var requestSequence = 0;
     var pending = new Map();
     var pendingUpdates = new Map();
+    var pendingAudio = new Map();
     var subscribers = new Set();
 
     function text(value, fallback) {
@@ -26,6 +29,7 @@ window.EveMatrixDatapackPhoneBridge = (function () {
             workspaces: [],
             cards: [],
             bookmarks: [],
+            audioflix: { bindings: [], items: [], count: 0 },
             capturedAt: Date.now()
         };
     }
@@ -138,6 +142,42 @@ window.EveMatrixDatapackPhoneBridge = (function () {
         });
     }
 
+    function playAudio(audioType, audioId) {
+        var directHost = getDirectHost();
+        if (directHost) {
+            try {
+                return Promise.resolve(
+                    directHost.EveMatrixWorkshop.playAudioflixItem(audioType, audioId)
+                );
+            } catch (error) {
+                // Fall through to the file-safe message bridge.
+            }
+        }
+        var candidates = getCandidates();
+        if (!candidates.length) return Promise.resolve({ ok: false, message: 'No EveOS connection.' });
+        requestSequence += 1;
+        var requestId = 'matrix-phone-audio-' + Date.now() + '-' + requestSequence;
+        return new Promise(function (resolve) {
+            var timer = window.setTimeout(function () {
+                pendingAudio.delete(requestId);
+                resolve({ ok: false, message: 'EveOS did not respond.' });
+            }, REQUEST_TIMEOUT_MS);
+            pendingAudio.set(requestId, { resolve: resolve, timer: timer });
+            candidates.forEach(function (candidate) {
+                try {
+                    candidate.postMessage({
+                        type: PLAY_AUDIO_REQUEST_TYPE,
+                        requestId: requestId,
+                        audioType: audioType,
+                        audioId: audioId
+                    }, getTargetOrigin());
+                } catch (error) {
+                    // Continue to any remaining parent/opener candidate.
+                }
+            });
+        });
+    }
+
     function isCandidateSource(source) {
         return getCandidates().some(function (candidate) {
             return candidate === source;
@@ -169,6 +209,15 @@ window.EveMatrixDatapackPhoneBridge = (function () {
             });
             return;
         }
+        if (data.type === PLAY_AUDIO_RESPONSE_TYPE) {
+            var audioRequestId = text(data.requestId, '');
+            var audioRequest = pendingAudio.get(audioRequestId);
+            if (!audioRequest) return;
+            window.clearTimeout(audioRequest.timer);
+            pendingAudio.delete(audioRequestId);
+            audioRequest.resolve(data.result || { ok: false, message: 'EveOS returned no playback result.' });
+            return;
+        }
         if (data.type === INVALIDATED_TYPE) {
             subscribers.forEach(function (callback) {
                 try {
@@ -191,6 +240,7 @@ window.EveMatrixDatapackPhoneBridge = (function () {
     return {
         capture: capture,
         getHost: getDirectHost,
+        playAudio: playAudio,
         subscribe: subscribe,
         updateBookmark: updateBookmark
     };

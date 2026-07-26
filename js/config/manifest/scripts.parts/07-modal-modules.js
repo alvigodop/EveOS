@@ -11,7 +11,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/templates/tpl-emoji.js?v=0.1.0",
     "js/modules/modals/templates/tpl-folder-actions.js?v=0.1.0",
     "js/modules/modals/templates/tpl-category-settings.js?v=0.2.18",
-    "js/modules/modals/templates/tpl-bookmark-focus.js?v=0.2.6",
+    "js/modules/modals/templates/tpl-bookmark-focus.js?v=0.2.7",
     "js/modules/modals/modal-core.js?v=0.1.0",
     "js/modules/modals/emoji-picker.js?v=0.1.0",
     "js/modules/modals/modal-settings.ratings.js?v=0.1.0",

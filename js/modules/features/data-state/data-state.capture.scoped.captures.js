@@ -154,6 +154,10 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             state.library.connections = workspaceConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, workspaceConnections);
             applyKnowledgeContexts(state, workspaceCategoryNames);
+            state.audioflix = window.EveAudioflixLinks?.captureScopedBackup?.({
+                scopeType: 'workspace',
+                workspaceId
+            }) || null;
             return state;
         }
 
@@ -238,6 +242,11 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             state.library.connections = cardConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, cardConnections);
             applyKnowledgeContexts(state, [categoryName]);
+            state.audioflix = window.EveAudioflixLinks?.captureScopedBackup?.({
+                scopeType: 'card',
+                workspaceId,
+                categoryName
+            }) || null;
             return state;
         }
 
@@ -269,6 +278,15 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             state.library.connections = bookmarkConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, bookmarkConnections);
             applyKnowledgeContexts(state, [bookmarkCategory]);
+            state.audioflix = window.EveAudioflixLinks?.captureScopedBackup?.({
+                scopeType: 'bookmark',
+                workspaceId: normalizedWorkspace,
+                categoryName: bookmarkCategory,
+                folderId: String(selectedLink.folderId || '').trim(),
+                bookmarkId: normalizedLinkId
+            }, {
+                directOnly: true
+            }) || null;
             return state;
         }
 
@@ -319,6 +337,25 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             state.library.connections = folderConnections;
             state.library.categories = filterCategoriesForConnections(state.library.categories, folderConnections);
             applyKnowledgeContexts(state, [normalizedCategory]);
+            state.audioflix = window.EveAudioflixLinks?.captureScopedBackup?.({
+                scopeType: 'folder',
+                workspaceId: normalizedWorkspace,
+                categoryName: normalizedCategory,
+                folderId: normalizedFolderId
+            }, {
+                folders: subtreeNodes.map((node) => ({
+                    ...node,
+                    sourceId: node.id,
+                    workspaceId: normalizedWorkspace,
+                    categoryName: normalizedCategory
+                })),
+                bookmarks: folderLinks.map((entry) => ({
+                    ...entry,
+                    sourceId: entry.id,
+                    workspaceId: normalizedWorkspace,
+                    categoryName: normalizedCategory
+                }))
+            }) || null;
             return state;
         }
 

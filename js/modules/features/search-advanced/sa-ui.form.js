@@ -128,7 +128,9 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             if (audioflixBtn) {
                 audioflixBtn.addEventListener('click', function () {
                     if (typeof window.closeModals === 'function') window.closeModals();
-                    if (window.EveAudioflix?.open) {
+                    if (window.EveAudioflix?.openNexus) {
+                        window.EveAudioflix.openNexus('music');
+                    } else if (window.EveAudioflix?.open) {
                         window.EveAudioflix.open();
                     }
                 });

@@ -19,6 +19,7 @@
         slideShuffle: false,
         slideSpeed: 3000,
         slideOpacity: 100,
+        audioStatus: null,
         unsubscribe: null,
         refreshToken: 0,
         ignoreInvalidationsUntil: 0
@@ -305,6 +306,25 @@
             navigate({ name: 'cover-list', type: parts[1], key: parts[2] });
         } else if (parts[0] === 'bookmark') {
             navigate({ name: 'bookmark', id: parts[1] });
+        } else if (parts[0] === 'audioflix-links') {
+            navigate({ name: 'audioflix-links' });
+        } else if (parts[0] === 'audio-play') {
+            button.disabled = true;
+            state.audioStatus = { id: parts[2], message: 'Starting...' };
+            render();
+            Promise.resolve(bridge?.playAudio?.(parts[1], parts[2])).then(function (result) {
+                state.audioStatus = {
+                    id: parts[2],
+                    message: result?.ok ? 'Playing through Audioflix' : (result?.message || 'Playback failed')
+                };
+                render();
+            }).catch(function (error) {
+                state.audioStatus = {
+                    id: parts[2],
+                    message: error?.message || 'Playback failed'
+                };
+                render();
+            });
         } else if (parts[0] === 'slideshow') {
             startScopeSlideshow(parts[1], parts[2]);
         } else if (parts[0] === 'slide-prev') slideshow?.move?.(-1);

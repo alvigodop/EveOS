@@ -18,6 +18,7 @@
     const refreshFocusContext = focus.refreshFocusContext;
     const refreshHeader = focus.refreshHeader;
     const refreshActionButtons = focus.refreshActionButtons;
+    const refreshAudioflixLinks = focus.refreshAudioflixLinks;
     const loadLinkedRecord = focus.loadLinkedRecord;
     const buildLibraryPatch = focus.buildLibraryPatch;
     const buildMetadataPatch = focus.buildMetadataPatch;
@@ -95,6 +96,7 @@
         refreshTargetSwitcher?.(link, focus.currentTargetOverride);
         refreshFocusContext?.(link, focus.currentTargetOverride);
         refreshActionButtons(link);
+        refreshAudioflixLinks?.(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);
         loadLinkedRecord(link.id);
@@ -110,6 +112,7 @@
         const modal = document.getElementById(MODAL_ID);
         if (modal) modal.style.display = 'none';
         focus.currentTargetOverride = null;
+        window.EveAudioflixLinks?.clearPendingScope?.();
     };
 
     window.handleBookmarkFocusOverlayClick = function (event) {
@@ -317,6 +320,7 @@
         refreshTargetSwitcher?.(link, focus.currentTargetOverride);
         refreshFocusContext?.(link, focus.currentTargetOverride);
         refreshActionButtons(link);
+        refreshAudioflixLinks?.(link);
         refreshPinControls(link);
         refreshClickBehaviorControls(link);
         loadLinkedRecord(currentId);

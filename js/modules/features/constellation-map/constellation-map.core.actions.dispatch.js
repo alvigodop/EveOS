@@ -35,6 +35,12 @@
             return;
         }
 
+        if (action === 'play-audio') {
+            window.EveAudioflixLinks?.play?.(node.data?.audioType, node.data?.audioId)
+                ?.catch?.((error) => console.warn('[Constellation] Audioflix playback failed.', error));
+            return;
+        }
+
         if (action === 'center') {
             centerOnNode(node, Math.max(state.transform.scale, 1.24));
             return;

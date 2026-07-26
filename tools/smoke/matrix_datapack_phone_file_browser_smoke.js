@@ -62,6 +62,24 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
             }]);
             window.eveState.bookmarkFolders = {};
             window.bookmarkFolders = {};
+            const linkedTrack = window.EveAudioflixState.addItem('music', {
+                id: 'local-audio-track',
+                title: 'Local Audio Link',
+                artist: 'Audioflix Smoke',
+                url: 'https://example.test/audio.mp3'
+            });
+            window.EveAudioflixLinks.add([linkedTrack.id], {
+                kind: 'workspace',
+                workspaceId: 'local-alpha'
+            }, 'music');
+            window.__matrixPhonePlayed = null;
+            window.EveAudioflixAudio.playItem = async (item) => {
+                window.__matrixPhonePlayed = {
+                    id: item.id,
+                    type: item.type
+                };
+                return true;
+            };
             window.dispatchEvent(new CustomEvent('eve:state-mutated', {
                 detail: { source: 'matrix-file-smoke' }
             }));
@@ -82,6 +100,25 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
         await frame.getByText('2 bookmarks', {
             exact: true
         }).waitFor({ state: 'visible', timeout: 30000 });
+        await frame.getByText('1 scoped audio references', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        await frame.getByText('Audioflix Links', { exact: true }).click();
+        await frame.getByText('Local Audio Link', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        await frame.getByText('Local Audio Link', { exact: true }).click();
+        await frame.getByText('Playing through Audioflix', {
+            exact: true
+        }).waitFor({ state: 'visible', timeout: 30000 });
+        const playedAudio = await page.evaluate(() => window.__matrixPhonePlayed);
+        if (
+            playedAudio?.id !== 'local-audio-track'
+            || playedAudio?.type !== 'music'
+        ) {
+            throw new Error(`Local Matrix Audioflix playback mismatch: ${JSON.stringify(playedAudio)}`);
+        }
+        await frame.locator('[data-phone-back]').click();
 
         await frame.getByText('Datapack Matrix', { exact: true }).click();
         const tabNames = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
@@ -114,7 +151,8 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
         console.log('MATRIX_DATAPACK_PHONE_FILE_BROWSER_SMOKE_OK', JSON.stringify({
             result,
-            tabNames
+            tabNames,
+            playedAudio
         }));
     } catch (error) {
         console.error(error && error.stack ? error.stack : error);

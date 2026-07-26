@@ -30,6 +30,7 @@ window.EveConstellationMap = window.EveConstellationMap || {};
     function getPrimaryAction(node) {
         if (!node) return null;
         if (node.data?.detached && node.data?.detachedRoot) return { label: 'Reattach Chain', action: 'arm-rewire' };
+        if (node.data?.audioId) return { label: 'Play Audioflix Item', action: 'play-audio' };
         if (node.kind === 'link') return { label: 'Open Bookmark', action: 'open-link' };
         if (node.kind === 'workspace') return { label: 'Open Tab', action: 'open-workspace' };
         if (node.kind === 'category') return { label: 'Open Card', action: 'open-category' };

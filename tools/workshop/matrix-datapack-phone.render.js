@@ -87,7 +87,25 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
             + '<div class="eve-matrix-phone-grid eve-matrix-phone-grid--home">'
             + appButton(action('matrix-tabs'), 'MX', 'Datapack Matrix', 'Tabs, cards, bookmarks')
             + appButton(action('cover-scopes'), 'CV', 'Cover Atlas', 'Browse and play covers')
+            + appButton(action('audioflix-links'), 'AF', 'Audioflix Links', (snap.audioflix?.count || 0) + ' scoped audio references')
             + '</div>';
+    }
+
+    function renderAudioflixLinks(state) {
+        var items = filterItems(state.snapshot?.audioflix?.items || [], state, ['title', 'artist', 'type']);
+        var page = paginate(items, state);
+        return grid(page, page.items.map(function (item) {
+            var status = state.audioStatus?.id === item.id
+                ? state.audioStatus.message
+                : [item.artist, item.localized ? 'Localized' : item.type === 'sound' ? 'Soundboard' : 'Music']
+                    .filter(Boolean).join(' / ');
+            return appButton(
+                action('audio-play', item.type, item.id),
+                item.type === 'sound' ? 'SFX' : '♪',
+                item.title,
+                status
+            );
+        }));
     }
 
     function renderCoverScopes() {
@@ -275,6 +293,7 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
                 : 'Covered Bookmarks';
             html = renderCoverList(state, route.type, route.key);
         } else if (route.name === 'slideshow') { title = 'Cover Slideshow'; html = renderSlideshow(state); }
+        else if (route.name === 'audioflix-links') { title = 'Audioflix Links'; html = renderAudioflixLinks(state); }
 
         widget.querySelector('[data-phone-title]').textContent = title;
         widget.querySelector('[data-phone-subtitle]').textContent = subtitle;
@@ -299,6 +318,9 @@ window.EveMatrixDatapackPhoneRenderer = (function () {
             return filterItems(buildCoverGroups(state, route.type), state, ['label']).length;
         }
         if (route.name === 'cover-list') return getCoverItems(state, route.type, route.key).length;
+        if (route.name === 'audioflix-links') {
+            return filterItems(state.snapshot?.audioflix?.items || [], state, ['title', 'artist', 'type']).length;
+        }
         return 0;
     }
 
