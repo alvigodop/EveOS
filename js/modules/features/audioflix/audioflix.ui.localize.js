@@ -56,6 +56,7 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
             const btnStyle = `font-size:0.8rem; padding:5px 12px; height:32px; white-space:nowrap; border-radius:16px;`;
             const auditBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="audit-scope-disk" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="${btnStyle} background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.35);" title="Scan the folder on PC to check if files were deleted outside EveOS">🔍 Verify Files</button>`;
             const recalibrateBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="recalibrate-scope-path" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="${btnStyle} background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35);" title="Re-link local files to this path without re-downloading">🔄 Recalibrate Path</button>`;
+            const grantBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="grant-localize-folder" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" data-af-nickname="${esc(key || 'Audioflix Music')}" style="${btnStyle}" title="Grant this folder so EveOS can verify and play it without localhost">Grant File Access</button>`;
             return `<form class="audioflix-form audioflix-localize-panel-form" data-af-form="localize-form" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:12px; background:rgba(0,0,0,0.25);">
                 <label class="audioflix-wide-field" style="width:100%;"><span>Target Local Folder Path (on PC)</span><input name="targetDir" required value="${esc(lastDir)}" placeholder="e.g. C:\\Music\\EveOS or /home/you/Music" style="width:100%; box-sizing:border-box;"></label>
                 ${modeField}
@@ -65,6 +66,7 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
                     <button type="submit" data-af-action="submit-form" ${canRun ? '' : 'disabled'} style="${btnStyle}">${btnLabel}</button>
                     ${recalibrateBtn}
                     ${auditBtn}
+                    ${grantBtn}
                 </div>
                 <div style="font-size:0.78rem; color:#94a3b8; font-weight:500; margin-top:2px;">${esc(note)}</div>
             </form>`;

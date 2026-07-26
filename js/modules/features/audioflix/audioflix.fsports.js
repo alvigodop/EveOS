@@ -145,7 +145,12 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         const records = await allRecords();
         const states = [];
         for (const rec of records) {
-            states.push({ id: rec.id, nickname: rec.nickname, permission: await permissionOf(rec.handle) });
+            states.push({
+                id: rec.id,
+                nickname: rec.nickname,
+                rootName: rec.handle?.name || '',
+                permission: await permissionOf(rec.handle)
+            });
         }
         return states;
     }

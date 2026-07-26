@@ -1,11 +1,5 @@
-// Disk-status audit for Audioflix localization: for each track in a scope, verify that a physical
-// file it claims really exists and flag/clear `missingLocal`. Split out of audioflix.localize.js to
-// keep that module under the project line cap.
-//
-// The subtlety this exists for: a 3rd-class SHORTCUT keeps its real bytes in whichever folder first
-// localized the song, so checking only the current scope folder made every shortcut read as
-// "missing". Each localization is therefore verified against its own directory, and a shortcut is
-// verified through its `linkOf` target.
+// Disk-status audit for Audioflix localization. An unavailable bridge or unreadable browser
+// folder is "unverified", never proof that a file was deleted.
 window.EveAudioflixLocalizeAudit = window.EveAudioflixLocalizeAudit || {};
 
 (function () {
@@ -20,9 +14,12 @@ window.EveAudioflixLocalizeAudit = window.EveAudioflixLocalizeAudit || {};
         async function auditScopeDiskStatus(scope, key) {
             const targetDir = getScopeDir(scope, key);
             const items = collectScope(scope, key);
-            if (!targetDir || !items.length) return { ok: true, checked: 0, missing: 0 };
+            if (!items.length) {
+                return { ok: true, complete: true, checked: 0, verified: 0, missing: 0, unverified: 0 };
+            }
 
             const N = window.EveAudioflixNative;
+            const FS = window.EveAudioflixFsPorts;
             const indexFiles = (files) => {
                 const index = { paths: new Set(), names: new Set() };
                 (Array.isArray(files) ? files : []).forEach((file) => {
@@ -32,67 +29,118 @@ window.EveAudioflixLocalizeAudit = window.EveAudioflixLocalizeAudit || {};
                 });
                 return index;
             };
-            let targetFiles = indexFiles([]);
-            try {
-                const scan = await N?.scanLocalized?.(targetDir);
-                if (scan?.ok) targetFiles = indexFiles(scan.files);
-            } catch {}
-
-            let checked = 0, missing = 0, shortcuts = 0;
-            // PRESENT if any physical file the track claims really exists. Checking only `localPath`
-            // against this one folder is what made shortcuts read as missing: their real bytes live in
-            // the folder that first localized them, so a shortcut is verified via its `linkOf` target.
-            const presentIn = (dirFiles, p) => {
-                const clean = text(p);
+            const presentIn = (dirFiles, value) => {
+                const clean = text(value);
                 if (!clean) return false;
                 const filename = text(paths?.basename?.(clean)).toLowerCase();
                 const pathKey = paths?.key?.(clean) || clean.toLowerCase().replace(/\\/g, '/');
                 return dirFiles.paths.has(pathKey) || dirFiles.names.has(filename);
             };
-            const targetKey = paths?.key?.(targetDir) || String(targetDir).toLowerCase();
-            const dirCache = new Map([[targetKey, targetFiles]]);
-            const filesFor = async (dir) => {
-                const key = paths?.key?.(dir) || String(dir || '').toLowerCase();
-                if (!key) return indexFiles([]);
-                if (dirCache.has(key)) return dirCache.get(key);
-                let index = indexFiles([]);
+            const dirCache = new Map();
+            const scanDir = async (dir) => {
+                const cacheKey = paths?.key?.(dir) || text(dir).toLowerCase();
+                if (!cacheKey) return { verified: false, files: indexFiles([]) };
+                if (dirCache.has(cacheKey)) return dirCache.get(cacheKey);
+                let result = { verified: false, files: indexFiles([]) };
                 try {
-                    const scan = await N?.scanLocalized?.(dir);
-                    if (scan?.ok) index = indexFiles(scan.files);
-                } catch { /* unreachable folder -> treated as empty */ }
-                dirCache.set(key, index);
-                return index;
+                    if (typeof N?.scanLocalized === 'function') {
+                        const scan = await N.scanLocalized(dir);
+                        if (scan?.ok) result = { verified: true, files: indexFiles(scan.files) };
+                    }
+                } catch { /* transport failure is unverified, not deleted */ }
+                dirCache.set(cacheKey, result);
+                return result;
             };
-            const dirOf = (p) => extractDir(p);
+            const targetScan = targetDir
+                ? await scanDir(targetDir)
+                : { verified: false, files: indexFiles([]) };
 
-            for (const it of items) {
+            let grantedRoots = [];
+            try {
+                if (typeof FS?.folderStates === 'function') {
+                    grantedRoots = (await FS.folderStates()).filter((folder) => (
+                        folder?.permission === 'granted' && text(folder.rootName)
+                    ));
+                }
+            } catch { /* IndexedDB or permission errors leave this source unverified */ }
+            const browserCheck = async (claim) => {
+                if (typeof FS?.fileUrlForPath !== 'function') return { verified: false, present: false };
+                const covered = grantedRoots.some((folder) => (
+                    (paths?.relativeAfterFolder?.(claim, folder.rootName) || []).length > 0
+                ));
+                if (!covered) return { verified: false, present: false };
+                try {
+                    return { verified: true, present: !!(await FS.fileUrlForPath(claim)) };
+                } catch {
+                    return { verified: false, present: false };
+                }
+            };
+
+            let checked = 0;
+            let verified = 0;
+            let missing = 0;
+            let unverified = 0;
+            let shortcuts = 0;
+            for (const item of items) {
                 const claims = [];
-                (it.localizations || []).forEach((l) => {
-                    const physical = l.kind === 'shortcut' && text(l.linkOf) ? text(l.linkOf) : text(l.path);
+                (item.localizations || []).forEach((entry) => {
+                    const physical = entry.kind === 'shortcut' && text(entry.linkOf)
+                        ? text(entry.linkOf)
+                        : text(entry.path);
                     if (physical) claims.push(physical);
-                    if (l.kind === 'shortcut') shortcuts += 1;
+                    if (entry.kind === 'shortcut') shortcuts += 1;
                 });
-                if (!claims.length && text(it.localPath)) claims.push(text(it.localPath));
+                if (!claims.length && text(item.localPath)) claims.push(text(item.localPath));
                 if (!claims.length) continue;
+
                 checked += 1;
                 let found = false;
+                let allClaimsVerified = true;
                 for (const claim of claims) {
-                    const ownFiles = await filesFor(dirOf(claim));
-                    if (presentIn(ownFiles, claim) || presentIn(targetFiles, claim)) {
+                    const ownScan = await scanDir(extractDir(claim));
+                    const insideTarget = !!targetDir && paths?.relativeTo?.(claim, targetDir) != null;
+                    const nativeVerified = ownScan.verified || (insideTarget && targetScan.verified);
+                    const nativePresent = presentIn(ownScan.files, claim)
+                        || (insideTarget && presentIn(targetScan.files, claim));
+                    const browser = nativePresent
+                        ? { verified: false, present: false }
+                        : await browserCheck(claim);
+                    if (nativePresent || browser.present) {
                         found = true;
                         break;
                     }
+                    if (!nativeVerified && !browser.verified) allClaimsVerified = false;
                 }
-                if (!found) {
-                    if (!it.missingLocal) S()?.updateItem?.('music', it.id, { missingLocal: true });
+
+                if (found) {
+                    verified += 1;
+                    if (item.missingLocal) S()?.updateItem?.('music', item.id, { missingLocal: false });
+                } else if (allClaimsVerified) {
+                    verified += 1;
                     missing += 1;
-                } else if (it.missingLocal) {
-                    S()?.updateItem?.('music', it.id, { missingLocal: false });
+                    if (!item.missingLocal) S()?.updateItem?.('music', item.id, { missingLocal: true });
+                } else {
+                    // Older audits persisted a false deletion whenever localhost was unavailable.
+                    if (item.missingLocal) S()?.updateItem?.('music', item.id, { missingLocal: false });
+                    unverified += 1;
                 }
             }
 
-            return { ok: true, checked, missing, shortcuts, targetDir };
+            return {
+                ok: true,
+                complete: unverified === 0,
+                checked,
+                verified,
+                missing,
+                unverified,
+                shortcuts,
+                targetDir,
+                reason: unverified
+                    ? 'Local files could not be verified. Start EveOS localhost or grant this folder.'
+                    : ''
+            };
         }
+
         return auditScopeDiskStatus;
     };
 

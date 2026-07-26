@@ -33,6 +33,32 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
             ctx.rerender();
             return true;
         }
+        if (action === 'grant-localize-folder') {
+            const FS = window.EveAudioflixFsPorts;
+            const scope = actionTarget.dataset.afScope || 'library';
+            const key = actionTarget.dataset.afKey || '';
+            if (!FS?.supported?.()) {
+                ctx.playbackStatus = 'Folder access needs Edge or Chrome with File System Access support.';
+                ctx.rerender();
+                return true;
+            }
+            try {
+                const granted = await FS.addFolder({
+                    nickname: actionTarget.dataset.afNickname || key || 'Audioflix Music'
+                });
+                FS.clearPathCache?.();
+                const audit = await window.EveAudioflixLocalize?.auditScopeDiskStatus?.(scope, key);
+                ctx.playbackStatus = audit?.unverified
+                    ? `Granted "${granted.nickname}", but ${audit.unverified} track(s) remain outside that folder.`
+                    : `Granted "${granted.nickname}" and verified ${audit?.verified || 0} local track(s).`;
+            } catch (err) {
+                ctx.playbackStatus = err?.name === 'AbortError'
+                    ? 'Folder access cancelled.'
+                    : (err?.message || 'Could not grant that folder.');
+            }
+            ctx.rerender();
+            return true;
+        }
         if (action === 'toggle-localize-form') {
             const scope = actionTarget.dataset.afScope || 'library';
             const key = actionTarget.dataset.afKey || '';
@@ -114,9 +140,9 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
             if (L) {
                 ctx.playbackStatus = 'Auditing local disk files...'; ctx.rerender();
                 L.auditScopeDiskStatus(scope, key).then(res => {
-                    ctx.playbackStatus = res.ok
-                        ? `Disk Audit Complete: ${res.missing} file(s) missing on disk out of ${res.checked} local track(s).`
-                        : 'Disk Audit failed.';
+                    ctx.playbackStatus = res.unverified
+                        ? `Could not verify ${res.unverified} local track(s). Start localhost or use Grant File Access; none were marked deleted.`
+                        : `Disk Audit Complete: ${res.missing} file(s) missing on disk out of ${res.checked} local track(s).`;
                     ctx.rerender();
                 });
             }
