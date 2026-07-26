@@ -24,11 +24,54 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
                 return true;
             }
             try {
-                const granted = await FS.addFolder({ nickname: actionTarget.dataset.afNickname || '' });
+                const granted = await FS.addFolder({
+                    nickname: actionTarget.dataset.afNickname || '',
+                    purpose: 'music'
+                });
                 FS.clearPathCache?.();
                 ctx.playbackStatus = `Granted "${granted.nickname}" — its tracks now play without the EveOS server.`;
             } catch (err) {
                 ctx.playbackStatus = err?.name === 'AbortError' ? 'Folder access cancelled.' : (err?.message || 'Could not grant that folder.');
+            }
+            ctx.rerender();
+            return true;
+        }
+        if (action === 'regrant-music-folder') {
+            const FS = window.EveAudioflixFsPorts;
+            const recId = actionTarget.dataset.afId || '';
+            const nickname = actionTarget.dataset.afNickname || actionTarget.dataset.afKey || 'Audioflix Music';
+            if (!FS?.supported?.()) {
+                ctx.playbackStatus = 'Folder access needs Edge or Chrome with File System Access support.';
+                ctx.rerender();
+                return true;
+            }
+            try {
+                const granted = await FS.addFolder({
+                    id: recId,
+                    nickname,
+                    purpose: 'music'
+                });
+                await FS.reconcile?.();
+                FS.clearPathCache?.();
+                ctx.playbackStatus = `Re-granted music folder "${granted.nickname}".`;
+            } catch (err) {
+                if (err?.name !== 'AbortError') ctx.playbackStatus = err?.message || 'Folder re-grant failed';
+            }
+            ctx.rerender();
+            return true;
+        }
+        if (action === 'remove-music-fsport') {
+            const FS = window.EveAudioflixFsPorts;
+            const recId = actionTarget.dataset.afId || '';
+            if (recId) {
+                try {
+                    await FS.removeFolder(recId);
+                    await FS.reconcile?.();
+                    FS.clearPathCache?.();
+                    ctx.playbackStatus = 'Music folder port disconnected.';
+                } catch (err) {
+                    ctx.playbackStatus = err?.message || 'Failed to disconnect music folder.';
+                }
             }
             ctx.rerender();
             return true;

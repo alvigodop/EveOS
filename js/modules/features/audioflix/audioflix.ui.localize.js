@@ -38,7 +38,6 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
                 : (stats.alreadyLocal > 0
                     ? `<label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; color:#cbd5e1; margin-top:6px;"><input type="checkbox" name="force" value="1"> Also re-download ${stats.alreadyLocal} already-local (refresh deleted copies)</label>`
                     : '');
-            // Group scope offers the three localization classes (see localizeGroup for the rules).
             const modeField = scope === 'group'
                 ? `<label style="display:flex; flex-direction:column; gap:2px; font-size:0.8rem; color:#cbd5e1; margin-top:4px;"><span>Group localization mode</span><select name="mode" style="padding:4px 6px; border-radius:8px;"><option value="link">Reuse — folder copies stay 1st; already-local songs get a shortcut (no duplicate files)</option><option value="smart">Fresh — folder copies stay 1st; every other song downloads into this group's path</option><option value="dup">Duplicate — own copy of every song here (track keeps both physical paths)</option></select></label>`
                 : '';
@@ -56,12 +55,30 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
             const btnStyle = `font-size:0.8rem; padding:5px 12px; height:32px; white-space:nowrap; border-radius:16px;`;
             const auditBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="audit-scope-disk" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="${btnStyle} background:rgba(245,158,11,0.15); color:#fbbf24; border:1px solid rgba(245,158,11,0.35);" title="Scan the folder on PC to check if files were deleted outside EveOS">🔍 Verify Files</button>`;
             const recalibrateBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="recalibrate-scope-path" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="${btnStyle} background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.35);" title="Re-link local files to this path without re-downloading">🔄 Recalibrate Path</button>`;
-            const grantBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="grant-localize-folder" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" data-af-nickname="${esc(key || 'Audioflix Music')}" style="${btnStyle}" title="Grant this folder so EveOS can verify and play it without localhost">Grant File Access</button>`;
+
+            // Scope-level Music Port status & management
+            const fsFolders = deps.getFsPortFolders?.() || [];
+            const searchKey = String(key || 'Audioflix Music').toLowerCase();
+            const matchedPort = fsFolders.find((f) => String(f.nickname || '').toLowerCase() === searchKey || String(f.rootName || '').toLowerCase() === searchKey);
+            let portStatusBadge = '';
+            let grantBtn = '';
+            if (matchedPort) {
+                const isGranted = matchedPort.permission === 'granted';
+                const statusLabel = isGranted ? '🟢 Granted (browser access active)' : '⚠️ Needs Reconnect (click to grant access)';
+                const statusColor = isGranted ? '#4ade80' : '#fbbf24';
+                const statusBg = isGranted ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)';
+                const statusBorder = isGranted ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)';
+                portStatusBadge = `<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; padding:6px 10px; background:${statusBg}; border:1px solid ${statusBorder}; border-radius:8px; font-size:0.78rem; box-sizing:border-box;"><span style="color:${statusColor}; font-weight:600;">${statusLabel}</span><div style="display:flex; align-items:center; gap:6px;"><button type="button" class="audioflix-add-toggle" data-af-action="regrant-music-folder" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" data-af-id="${esc(matchedPort.id)}" style="font-size:0.72rem; padding:2px 8px;">${isGranted ? 'Re-grant' : 'Reconnect'}</button><button type="button" class="audioflix-icon-btn danger" data-af-action="remove-music-fsport" data-af-id="${esc(matchedPort.id)}" style="font-size:0.72rem;" title="Disconnect music folder access">${deps.closeSvg || '✕'}</button></div></div>`;
+            } else {
+                grantBtn = `<button type="button" class="audioflix-add-toggle" data-af-action="grant-localize-folder" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" data-af-nickname="${esc(key || 'Audioflix Music')}" style="${btnStyle}" title="Grant this folder so EveOS can verify and play it without localhost">Grant File Access</button>`;
+            }
+
             return `<form class="audioflix-form audioflix-localize-panel-form" data-af-form="localize-form" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:12px; background:rgba(0,0,0,0.25);">
                 <label class="audioflix-wide-field" style="width:100%;"><span>Target Local Folder Path (on PC)</span><input name="targetDir" required value="${esc(lastDir)}" placeholder="e.g. C:\\Music\\EveOS or /home/you/Music" style="width:100%; box-sizing:border-box;"></label>
                 ${modeField}
                 ${forceField}
                 ${missingWarning}
+                ${portStatusBadge}
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:4px;">
                     <button type="submit" data-af-action="submit-form" ${canRun ? '' : 'disabled'} style="${btnStyle}">${btnLabel}</button>
                     ${recalibrateBtn}
@@ -74,12 +91,23 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
 
         function renderMusicPortForm() {
             const lastDir = L()?.lastDir?.() || '';
-            return `<form class="audioflix-form" data-af-form="music-port-form">
+            const fsFolders = (deps.getFsPortFolders?.() || []).filter((f) => f.purpose === 'music');
+            const closeBtn = deps.closeSvg || '✕';
+            const listRows = fsFolders.length
+                ? fsFolders.map((f) => {
+                    const granted = f.permission === 'granted';
+                    const statusText = granted ? 'Connected (browser access)' : 'Needs reconnect';
+                    const statusColor = granted ? '#7ee2a8' : '#f2b96b';
+                    return `<div class="audioflix-port-item"><div><strong>${esc(f.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: ${statusColor};">${statusText}</code></div><button type="button" class="audioflix-add-toggle" data-af-action="regrant-music-folder" data-af-id="${esc(f.id)}" data-af-nickname="${esc(f.nickname)}" style="margin-right: 6px; flex: 0 0 auto;">${granted ? 'Re-grant' : 'Reconnect'}</button><button type="button" class="audioflix-icon-btn danger" data-af-action="remove-music-fsport" data-af-id="${esc(f.id)}">${closeBtn}</button></div>`;
+                }).join('')
+                : '<div class="audioflix-empty" style="margin-bottom:8px;">No standalone music folders granted yet. Grant a folder below or inside a folder/group localize panel.</div>';
+
+            return `<div class="audioflix-ports-mgr" style="margin-bottom:12px;"><h4>Music Browser Folders <span style="font-weight: normal; font-size: 0.78rem; color: #9aa8bd;">(offline access for tracks — no server needed)</span></h4>${listRows}</div><form class="audioflix-form" data-af-form="music-port-form">
                 <label class="audioflix-wide-field"><span>Local Folder Path (Extract Music)</span><input name="path" required value="${esc(lastDir)}" placeholder="C:\\path\\to\\music\\folder"></label>
                 <label><span>Target Folder Tag Name</span><input name="folder" placeholder="Ported Music"></label>
                 <button type="submit" data-af-action="submit-form">Extract to Folder Tag</button>
                 <button type="button" class="audioflix-add-toggle" data-af-action="grant-music-folder" style="margin-left:8px;" title="Grant this folder to EveOS once so its tracks play with the server off">🔓 Grant Offline Access</button>
-                <p class="audioflix-settings-hint" style="flex-basis:100%; margin:6px 0 0;">Importing records the paths; granting the folder lets the browser actually read those files, so the tracks play on <code>file://</code> and with the EveOS server stopped.</p>
+                <p class="audioflix-settings-hint" style="flex-basis:100%; margin:6px 0 0;">Importing records the paths; granting the folder lets the browser read those files offline on <code>file://</code> without a local server.</p>
             </form>`;
         }
 

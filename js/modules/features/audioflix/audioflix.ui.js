@@ -55,11 +55,13 @@ window.EveAudioflix = window.EveAudioflix || {};
     // Localization UI renderers live in a sibling module, reading this view's flags via getters.
     const uiLoc = window.EveAudioflixUiLocalize.create({
         esc: (v) => esc(v),
+        closeSvg,
         findItem: (t, id) => findItem(t, id),
         getLocalizeFormOpen: () => localizeFormOpen,
         getMissingListOpen: () => missingListOpen,
         getGroupPathsOpen: () => groupPathsOpen,
-        getGroupPathsScopesOpen: () => groupPathsScopesOpen
+        getGroupPathsScopesOpen: () => groupPathsScopesOpen,
+        getFsPortFolders: () => fsPortFolders
     });
     // Nexus Audio Link search panel (music + soundboard, backend + frontend).
     let nexusState = { open: false, type: 'music', query: '', facet: '' };
