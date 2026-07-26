@@ -184,7 +184,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function openInternalView(item) {
-        const requestedItem = item && typeof item === 'object' ? { ...item } : {};
+        const prepared = await window.EveAudioflixLocalPlayback?.prepare?.(item);
+        const requestedItem = prepared?.item || (item && typeof item === 'object' ? { ...item } : {});
+        if (prepared?.status) lastStatus = prepared.status;
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
         let playableItem = requestedItem;
         if (window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url)) {
@@ -195,35 +197,15 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function playItem(item) {
-        const requestedItem = item && typeof item === 'object' ? { ...item } : {};
-        // Prefer a localized copy: a dual-source track (from a merge or localization) plays from its
-        // local file via the bridge's file server when one is reachable, falling back to the online
-        // url when it isn't (pure file:// with no server). This is what makes localized music play
-        // offline and route natively without the stream lag.
-        if (requestedItem.localPath) {
-            // A folder the user already granted as a Browser Folder can hand us the real bytes as a
-            // blob: URL with no server involved — the same route that makes the soundboard work on
-            // file://. Try it before the port server so localized music plays in every mode.
-            let blobUrl = '';
-            try { blobUrl = await window.EveAudioflixFsPorts?.fileUrlForPath?.(requestedItem.localPath) || ''; }
-            catch { /* fall through to the served route */ }
-            if (blobUrl) requestedItem.url = blobUrl;
-            const localUrl = blobUrl ? '' : window.EveAudioflixNative?.getLocalFileUrl?.(requestedItem.localPath);
-            // A stale/unauthorized local file surfaces as an async media 'error' event, not a throw,
-            // so a bad path used to mean silence with nothing to catch. Probe one byte first (a
-            // loopback Range request costs ~nothing) and keep the online url when the file can't be
-            // served, so a moved or de-authorized copy degrades to streaming instead of failing.
-            if (localUrl) {
-                const onlineFallback = /^https?:\/\//i.test(String(requestedItem.url || '')) ? requestedItem.url : '';
-                // Probe ALWAYS, not just when there is something to fall back to. Skipping it for
-                // local-only tracks meant a dead port server still got handed to <audio>, which
-                // fails as an async 'error' event — silence with nothing to catch.
-                const localOk = await window.EveAudioflixNative?.probeLocalFile?.(localUrl) !== false;
-                if (localOk) requestedItem.url = localUrl;
-                else if (onlineFallback) lastStatus = `Local copy unavailable for ${requestedItem.title || 'track'} — streaming instead.`;
-                else lastStatus = `Cannot reach the local copy of ${requestedItem.title || 'this track'}. Add its folder under Ports → Browser Folder to play it without the EveOS server.`;
-            }
+        let prepared;
+        try {
+            prepared = await window.EveAudioflixLocalPlayback?.prepare?.(item);
+        } catch (error) {
+            lastStatus = error?.message || 'The local audio source is unavailable.';
+            throw error;
         }
+        const requestedItem = prepared?.item || (item && typeof item === 'object' ? { ...item } : {});
+        if (prepared?.status) lastStatus = prepared.status;
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
 
         const needsResolution = window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url);

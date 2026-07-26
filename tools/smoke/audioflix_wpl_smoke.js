@@ -51,6 +51,7 @@ function runScript(ctx, relPath) {
 }
 
 function loadAll(ctx) {
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.paths.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');

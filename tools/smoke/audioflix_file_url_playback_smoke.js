@@ -4,6 +4,8 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const PATHS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.paths.js');
+const LOCAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.local.js');
 const INTERNAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.internal.js');
 const LOADERS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.loaders.js');
 const WIDGETS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.widgets.js');
@@ -16,12 +18,14 @@ function assert(condition, message) {
 
 async function main() {
     const fixture = path.join(os.tmpdir(), `eveos-audioflix-url-${process.pid}.html`);
+    const pathsModuleUrl = 'file:///' + PATHS_MODULE_PATH.replace(/\\/g, '/');
+    const localModuleUrl = 'file:///' + LOCAL_MODULE_PATH.replace(/\\/g, '/');
     const internalModuleUrl = 'file:///' + INTERNAL_MODULE_PATH.replace(/\\/g, '/');
     const loadersModuleUrl = 'file:///' + LOADERS_MODULE_PATH.replace(/\\/g, '/');
     const widgetsModuleUrl = 'file:///' + WIDGETS_MODULE_PATH.replace(/\\/g, '/');
     const moduleUrl = 'file:///' + MODULE_PATH.replace(/\\/g, '/');
     const styleUrl = 'file:///' + STYLE_PATH.replace(/\\/g, '/');
-    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${internalModuleUrl}"></script><script src="${loadersModuleUrl}"></script><script src="${widgetsModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
+    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${pathsModuleUrl}"></script><script src="${localModuleUrl}"></script><script src="${internalModuleUrl}"></script><script src="${loadersModuleUrl}"></script><script src="${widgetsModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
@@ -98,8 +102,9 @@ async function main() {
             const ytItem = { id: 'yt-1', title: 'YouTube Track', url: 'https://youtu.be/M7lc1UVf-VE', volume: 0.4 };
             let blockedMessage = '';
             try { await youtube.play(ytItem); } catch (error) { blockedMessage = error.message; }
-            const stage = document.querySelector('.audioflix-provider-stage:not([hidden])');
+            const stage = document.querySelector('.audioflix-provider-stage');
             const stageText = stage?.textContent || '';
+            const normalStageHidden = stage?.hidden === true;
             const blockedActive = youtube.isActive();
             const blockedStageElement = document.querySelector('.audioflix-provider-stage.has-error');
             const blockedStage = blockedStageElement?.textContent || '';
@@ -137,6 +142,9 @@ async function main() {
             const internalState = internalYouTube.getPlaybackState();
             const internalStage = internalFrame.closest('.audioflix-provider-stage');
             const internalExpanded = internalStage.classList.contains('is-internal-view');
+            const internalVisible = internalStage.hidden === false;
+            const internalHeader = internalStage.querySelector('header span').textContent;
+            const internalFrameTitle = internalFrame.title;
             const internalStatus = internalStage.querySelector('.audioflix-provider-status').textContent;
             const internalSource = internalStage.querySelector('header a').href;
             const internalFrameUrl = internalFrame.src;
@@ -191,6 +199,43 @@ async function main() {
             const vimeoVolume = vimeoState.item.volume;
             await vimeo.stop();
 
+            const localAttempts = [];
+            window.EveAudioflixFsPorts = {
+                fileUrlForPath: async (localPath) => {
+                    localAttempts.push(localPath);
+                    return /Preferred[/\\]Song\.mp3$/i.test(localPath) ? 'blob:preferred-local-copy' : '';
+                }
+            };
+            let nativeProbeCalls = 0;
+            window.EveAudioflixNative = {
+                getLocalFileUrl: (localPath) => `http://127.0.0.1:8765/local?path=${encodeURIComponent(localPath)}`,
+                probeLocalFile: async () => {
+                    nativeProbeCalls += 1;
+                    return false;
+                }
+            };
+            const dualSourceItem = {
+                id: 'dual',
+                title: 'Dual Source',
+                url: 'https://youtu.be/M7lc1UVf-VE',
+                localPath: 'C:/Legacy/Song.mp3',
+                localizations: [
+                    { source: 'group:Later', path: 'C:/Group/Song.mp3', kind: 'file' },
+                    { source: 'folder:Preferred', path: 'C:/Preferred/Song.mp3', kind: 'file' }
+                ]
+            };
+            const localPrepared = await window.EveAudioflixLocalPlayback.prepare(dualSourceItem);
+            window.EveAudioflixFsPorts.fileUrlForPath = async () => '';
+            const fallbackPrepared = await window.EveAudioflixLocalPlayback.prepare(dualSourceItem);
+            window.EveAudioflixFsPorts.fileUrlForPath = async (localPath) => (
+                /Legacy[/\\]Standalone\.mp3$/i.test(localPath) ? 'blob:legacy-local-copy' : ''
+            );
+            const legacyPrepared = await window.EveAudioflixLocalPlayback.prepare({
+                id: 'legacy-local',
+                title: 'Legacy Local',
+                url: 'C:/Legacy/Standalone.mp3'
+            });
+
             return {
                 preferred,
                 providerDirect: window.EveAudioflixUrlPlayback.providerFor(directItem.url),
@@ -204,6 +249,7 @@ async function main() {
                 progressCount: progressEvents.length,
                 youtubePlayerAttempts,
                 stageText,
+                normalStageHidden,
                 scState,
                 scVolume,
                 vimeoState,
@@ -215,9 +261,19 @@ async function main() {
                 blockedStageHeight,
                 internalState,
                 internalExpanded,
+                internalVisible,
+                internalHeader,
+                internalFrameTitle,
                 internalStatus,
                 internalSource,
-                internalFrameUrl
+                internalFrameUrl,
+                localAttempts,
+                localPreparedUrl: localPrepared.item.url,
+                localPreparedPath: localPrepared.localPath,
+                fallbackPreparedUrl: fallbackPrepared.item.url,
+                fallbackStatus: fallbackPrepared.status,
+                legacyPreparedUrl: legacyPrepared.item.url,
+                nativeProbeCalls
             };
         });
 
@@ -230,7 +286,8 @@ async function main() {
         assert(result.directCrossOrigin == null, 'browser-only direct media must not force CORS mode');
         assert(result.playbackEvents.some((status) => /directly from the browser/.test(status)), 'direct playback status missing');
         assert(result.progressCount > 0, 'direct playback progress events missing');
-        assert(/YouTube Track/.test(result.stageText), 'provider stage did not show the active track');
+        assert(/YouTube Track/.test(result.stageText), 'hidden provider stage did not retain the active track');
+        assert(result.normalStageHidden, 'normal playback opened the Internal player without user action');
         assert(result.scState.provider === 'soundcloud' && result.scState.currentTime === 31, 'SoundCloud transport state failed');
         assert(result.scVolume === 20, `SoundCloud volume was not forwarded: ${result.scVolume}`);
         assert(result.vimeoState.provider === 'vimeo' && result.vimeoState.currentTime === 19, 'Vimeo transport state failed');
@@ -242,10 +299,20 @@ async function main() {
         assert(result.blockedFrameDisplay === 'none', 'blocked provider frame should collapse instead of leaving a black box');
         assert(result.blockedStageHeight < 180, `blocked provider fallback is too tall: ${result.blockedStageHeight}px`);
         assert(result.internalExpanded, 'explicit Internal View did not expand the provider surface');
+        assert(result.internalVisible, 'explicit Internal View remained hidden');
+        assert(result.internalHeader === 'Internal player', `provider-specific Internal player title leaked: ${result.internalHeader}`);
+        assert(/Internal player$/.test(result.internalFrameTitle), `provider iframe title was not generic: ${result.internalFrameTitle}`);
         assert(result.internalState.currentTime === 37 && result.internalState.duration === 212 && result.internalState.paused === false, 'localhost provider bridge did not relay playback state');
         assert(/inside EveOS/.test(result.internalStatus), `internal player status missing: ${result.internalStatus}`);
         assert(result.internalSource === 'https://youtu.be/M7lc1UVf-VE', `internal player source fallback changed: ${result.internalSource}`);
         assert(/^http:\/\/127\.0\.0\.1:8765\/server\/audioflix-provider-host\.html\?/.test(result.internalFrameUrl), `wrong provider host URL: ${result.internalFrameUrl}`);
+        assert(result.localPreparedUrl === 'blob:preferred-local-copy', 'dual-source playback did not choose the local file first');
+        assert(/Preferred[/\\]Song\.mp3$/i.test(result.localPreparedPath), 'folder localization was not the preferred local source');
+        assert(result.localAttempts.length === 1 && /Preferred[/\\]Song\.mp3$/i.test(result.localAttempts[0]), 'lower-priority paths were tried before the preferred folder copy');
+        assert(result.fallbackPreparedUrl === 'https://youtu.be/M7lc1UVf-VE', 'unreachable local files did not fall back to the online URL');
+        assert(/streaming instead/.test(result.fallbackStatus), 'local-to-online fallback did not explain its route');
+        assert(result.legacyPreparedUrl === 'blob:legacy-local-copy', 'legacy absolute URL paths bypassed the local resolver');
+        assert(result.nativeProbeCalls >= 1, 'localhost local-file candidates were not verified before fallback');
         console.log('AUDIOFLIX_FILE_URL_PLAYBACK_SMOKE_OK');
     } finally {
         await browser.close();

@@ -16,6 +16,7 @@ Design notes:
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 from pathlib import Path
@@ -33,6 +34,11 @@ def _get_yt_dlp():
 
 def _is_http(url: str) -> bool:
     return isinstance(url, str) and bool(re.match(r"^https?://", url.strip(), re.IGNORECASE))
+
+
+def _clean_path(value) -> str:
+    raw = str(value or "").strip().strip('"').strip("'")
+    return os.path.expandvars(os.path.expanduser(raw))
 
 
 def _register_servable(folder) -> None:
@@ -54,9 +60,10 @@ def safe_filename(name: str, fallback: str = "track") -> str:
 
 
 def _prepare_dir(target_dir: str):
-    if not target_dir:
+    clean_dir = _clean_path(target_dir)
+    if not clean_dir:
         return None, {"ok": False, "message": "No target folder was provided."}
-    path = Path(target_dir).expanduser()
+    path = Path(clean_dir)
     try:
         path.mkdir(parents=True, exist_ok=True)
     except Exception as exc:  # noqa: BLE001
@@ -93,7 +100,7 @@ def _download(yt_dlp, url: str, outtmpl: str, want_mp3: bool) -> dict:
 def localize_one(payload: dict) -> dict:
     """Download a single track to the target folder. Input: {track:{id,title,url}, targetDir}."""
     track = payload.get("track") or {}
-    target_dir = str(payload.get("targetDir") or "").strip()
+    target_dir = _clean_path(payload.get("targetDir"))
     tid = track.get("id")
     url = str(track.get("url") or "").strip()
     title = track.get("title") or "track"
@@ -145,8 +152,8 @@ def link_into(payload: dict) -> dict:
     exists to avoid, so the caller is told link creation failed and keeps the logical reference.
     Input: {source, targetDir, name?}. Output: {ok, path, method} or {ok: False, error}.
     """
-    source = str(payload.get("source") or "").strip()
-    target_dir = str(payload.get("targetDir") or "").strip()
+    source = _clean_path(payload.get("source"))
+    target_dir = _clean_path(payload.get("targetDir"))
     if not source or not os.path.isfile(source):
         return {"ok": False, "error": "Source file not found."}
     path, err = _prepare_dir(target_dir)
@@ -177,10 +184,10 @@ def link_into(payload: dict) -> dict:
 
 def scan_dir(payload: dict) -> dict:
     """List audio files in a folder so a music port can re-attach them by title. Input: {dir}."""
-    target_dir = str(payload.get("dir") or payload.get("targetDir") or "").strip()
+    target_dir = _clean_path(payload.get("dir") or payload.get("targetDir"))
     if not target_dir:
         return {"ok": False, "message": "No folder was provided."}
-    path = Path(target_dir).expanduser()
+    path = Path(target_dir)
     if not path.is_dir():
         return {"ok": False, "message": f"'{target_dir}' is not a folder."}
     _register_servable(path)  # so localized files here become playable via /port/file
@@ -200,11 +207,11 @@ def scan_dir(payload: dict) -> dict:
 
 def read_wpl(payload: dict) -> dict:
     """Read and parse a WPL XML playlist file on disk. Input: {path}."""
-    wpl_file = str(payload.get("path") or "").strip().strip('"').strip("'")
+    wpl_file = _clean_path(payload.get("path"))
     if not wpl_file:
         return {"ok": False, "message": "No WPL file path was provided."}
 
-    path = Path(wpl_file).expanduser()
+    path = Path(wpl_file)
     if not path.is_file():
         fname = Path(wpl_file).name
         candidates = []
@@ -234,4 +241,3 @@ def read_wpl(payload: dict) -> dict:
         return {"ok": True, "path": str(path.resolve()), "content": content}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "message": f"Cannot read WPL file: {exc}"}
-

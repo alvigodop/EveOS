@@ -134,12 +134,12 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         function open(item, provider, settings = {}) {
             const element = ensureStage();
             currentItem = item;
-            element.hidden = false;
+            element.hidden = settings.visible === false;
             element.classList.remove('has-error');
             element.classList.toggle('is-internal-view', settings.expanded === true);
             if (settings.expanded) element.classList.remove('is-collapsed');
             element.dataset.provider = String(provider || '').toLowerCase();
-            element.querySelector('header span').textContent = `${provider || 'Browser'} internal player`;
+            element.querySelector('header span').textContent = 'Internal player';
             element.querySelector('header strong').textContent = item?.title || 'Linked audio';
             const source = element.querySelector('header a');
             source.href = item?.sourceUrl || item?.url || '#';
@@ -213,7 +213,10 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         async function connectYouTubeBridge(item, videoId, callbacks = {}) {
             const base = await findProviderHost();
             if (!base) return null;
-            const frameHost = open(item, 'YouTube', { expanded: callbacks.expanded === true });
+            const frameHost = open(item, 'YouTube', {
+                expanded: callbacks.expanded === true,
+                visible: callbacks.visible !== false
+            });
             setVisualVisible(true);
             frameHost.replaceChildren();
             const token = `af-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -221,7 +224,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             const iframe = document.createElement('iframe');
             const params = new URLSearchParams({ provider: 'youtube', id: videoId, token, autoplay: '1', volume: String(clamp(item?.volume ?? 1, 0, 1)) });
             iframe.src = `${base}${HOST_PATH}?${params}`;
-            iframe.title = item?.title || 'YouTube internal player';
+            iframe.title = `${item?.title || 'Audio'} - Internal player`;
             iframe.allow = 'autoplay; encrypted-media; picture-in-picture';
             iframe.referrerPolicy = 'strict-origin-when-cross-origin';
             const bridgeState = { currentTime: 0, duration: 0, paused: true };

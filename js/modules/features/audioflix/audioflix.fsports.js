@@ -182,16 +182,47 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
     // directly holds a file of that name.
     const pathBlobCache = new Map();
 
-    function splitPath(localPath) {
-        const parts = String(localPath || '').replace(/\\/g, '/').split('/').filter(Boolean);
-        return { file: parts.pop() || '', dir: parts.pop() || '' };
+    const paths = window.EveAudioflixPaths;
+
+    async function openRelativeFile(root, segments) {
+        if (!root || !segments.length) return null;
+        let directory = root;
+        for (const segment of segments.slice(0, -1)) {
+            directory = await directory.getDirectoryHandle(segment);
+        }
+        return directory.getFileHandle(segments[segments.length - 1]);
+    }
+
+    // Repair stale absolute paths by searching only a bounded portion of a granted tree.
+    async function findFileInTree(root, fileName, maxEntries = 1600, maxDepth = 12) {
+        const wanted = String(fileName || '').toLowerCase();
+        const queue = [{ handle: root, depth: 0 }];
+        let visited = 0;
+        let match = null;
+        while (queue.length && visited < maxEntries) {
+            const current = queue.shift();
+            for await (const [name, entry] of current.handle.entries()) {
+                visited += 1;
+                if (entry.kind === 'file' && name.toLowerCase() === wanted) {
+                    if (match) return null;
+                    match = entry;
+                }
+                if (entry.kind === 'directory' && current.depth < maxDepth) {
+                    queue.push({ handle: entry, depth: current.depth + 1 });
+                }
+                if (visited >= maxEntries) break;
+            }
+        }
+        return match;
     }
 
     async function fileUrlForPath(localPath) {
         if (!supported() || !localPath) return '';
-        const cached = pathBlobCache.get(localPath);
+        const cacheKey = paths?.key?.(localPath) || String(localPath);
+        const cached = pathBlobCache.get(cacheKey);
         if (cached) return cached;
-        const { file, dir } = splitPath(localPath);
+        const file = paths?.basename?.(localPath) || '';
+        const dir = paths?.basename?.(paths?.dirname?.(localPath)) || '';
         if (!file) return '';
 
         const records = await allRecords();
@@ -208,12 +239,24 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         ];
         for (const rec of ordered) {
             try {
-                const handle = await rec.handle.getFileHandle(file);
+                const relative = paths?.relativeAfterFolder?.(localPath, rec.handle.name) || [];
+                let handle = relative.length ? await openRelativeFile(rec.handle, relative) : null;
+                if (!handle) handle = await rec.handle.getFileHandle(file);
                 const url = URL.createObjectURL(await handle.getFile());
                 liveObjectUrls.push(url);
-                pathBlobCache.set(localPath, url);
+                pathBlobCache.set(cacheKey, url);
                 return url;
             } catch { /* not in this folder — keep looking */ }
+        }
+        for (const rec of ordered) {
+            try {
+                const handle = await findFileInTree(rec.handle, file);
+                if (!handle) continue;
+                const url = URL.createObjectURL(await handle.getFile());
+                liveObjectUrls.push(url);
+                pathBlobCache.set(cacheKey, url);
+                return url;
+            } catch { /* unreadable tree - keep looking */ }
         }
         return '';
     }

@@ -12,35 +12,52 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
     if (ns.ready) return;
 
     ns.create = function create(deps) {
-        const { S, state, text, musicItems, rememberDir, effectiveLocalPath } = deps;
+        const { S, state, text, paths, musicItems, rememberDir, getScopeDir, effectiveLocalPath } = deps;
 
         function extractSubfolders(filePath, rootPath) {
             if (!filePath) return [];
-            const normFile = String(filePath).replace(/\\/g, '/');
-            const normRoot = String(rootPath || '').replace(/\\/g, '/').replace(/\/+$/, '');
-
-            const fileLower = normFile.toLowerCase();
-            const rootLower = normRoot.toLowerCase();
-
-            let relPath = '';
-            if (rootLower && fileLower.startsWith(rootLower + '/')) {
-                relPath = normFile.slice(normRoot.length + 1);
-            } else {
-                const parts = normFile.split('/').filter(Boolean);
-                if (parts.length > 1) {
-                    const dirParts = parts.slice(0, -1);
-                    const rootName = normRoot.split('/').filter(Boolean).pop()?.toLowerCase();
-                    const rootIdx = rootName ? dirParts.findIndex(p => p.toLowerCase() === rootName) : -1;
-                    if (rootIdx !== -1 && rootIdx < dirParts.length - 1) {
-                        return dirParts.slice(rootIdx + 1).map(text).filter(Boolean);
-                    }
-                    return [dirParts[dirParts.length - 1]].map(text).filter(Boolean);
-                }
-                return [];
-            }
-
-            const parts = relPath.split('/').filter(Boolean);
+            const relative = paths?.relativeTo?.(filePath, rootPath);
+            const parts = (relative == null
+                ? paths?.relativeAfterFolder?.(filePath, paths?.basename?.(rootPath))
+                : paths?.normalize?.(relative).split('/').filter(Boolean)) || [];
             return parts.slice(0, -1).map(text).filter(Boolean);
+        }
+
+        function localizationPatch(item, file, folder, classifiers) {
+            const source = `folder:${folder}`;
+            const current = Array.isArray(item?.localizations) ? item.localizations : [];
+            const sourceKey = source.toLowerCase();
+            const hasSource = current.some((entry) => text(entry.source).toLowerCase() === sourceKey);
+            const localizations = hasSource
+                ? current.map((entry) => text(entry.source).toLowerCase() === sourceKey
+                    ? { ...entry, source, path: file.path, kind: 'file' }
+                    : entry)
+                : [...current, { source, path: file.path, kind: 'file' }];
+            const localPath = effectiveLocalPath({ ...item, localizations, localPath: file.path }) || file.path;
+            return {
+                folder,
+                card: folder,
+                isPorted: true,
+                isMusicPort: true,
+                localizations,
+                localPath,
+                missingLocal: false,
+                classifiers,
+                ...(/^https?:\/\//i.test(text(item?.url)) ? {} : { url: localPath })
+            };
+        }
+
+        function matchTrack(items, file, roots, targetRoot, usedIds) {
+            const available = items.filter((item) => !usedIds.has(item.id));
+            const exact = available.filter((item) => (
+                [...(paths?.localCandidates?.(item) || []), item.url]
+                    .some((candidate) => paths?.same?.(candidate, file.path))
+            ));
+            if (exact.length === 1) return exact[0];
+            const matched = available.filter((item) => (
+                paths?.matchScannedFile?.(item, [file], roots, targetRoot)?.path === file.path
+            ));
+            return matched.length === 1 ? matched[0] : null;
         }
 
         // Music port: scan a folder and extract all audio files into EveOS as music tracks tagged with a FOLDER (not group).
@@ -48,23 +65,23 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
         async function importMusicPort(folderPath, folderName) {
             const N = window.EveAudioflixNative;
             if (!N?.scanLocalized) return { ok: false, reason: 'Music Port needs the EveOS localhost server running.' };
-            const cleanPath = text(folderPath);
+            const cleanPath = paths?.stripQuotes?.(folderPath) || text(folderPath);
             if (!cleanPath) return { ok: false, reason: 'Please specify a valid folder path.' };
             
             const scan = await N.scanLocalized(cleanPath);
             if (!scan?.ok) return { ok: false, reason: scan?.message || 'Could not scan that folder.' };
             
             const rootDir = scan.dir || cleanPath;
-            const pathParts = rootDir.replace(/\\/g, '/').split('/').filter(Boolean);
-            const defaultFolderName = pathParts[pathParts.length - 1] || 'Ported Music';
-            const targetFolder = text(folderName, defaultFolderName);
+            const defaultFolderName = paths?.basename?.(rootDir) || 'Ported Music';
+            const targetFolder = text(folderName) || defaultFolderName;
             
             const files = scan.files || [];
             if (!files.length) return { ok: false, reason: 'No supported audio files found in that folder.' };
             
-            rememberDir(cleanPath);
+            rememberDir(rootDir, 'folder', targetFolder);
             const C = window.EveAudioflixClassifiers;
             const allItems = musicItems();
+            const usedIds = new Set();
             let addedCount = 0;
             let updatedCount = 0;
 
@@ -89,29 +106,28 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
             files.forEach((f) => {
                 const rawTitle = f.name.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || f.name;
                 const subClassifiers = fileClassifiersMap.get(f.path) || [];
-                const normFilePath = String(f.path).trim();
-
-                const existing = allItems.find((it) => 
-                    (it.localPath && String(it.localPath).trim().toLowerCase() === normFilePath.toLowerCase()) ||
-                    (it.url && String(it.url).trim().toLowerCase() === normFilePath.toLowerCase())
-                );
+                const targetItems = allItems.filter((item) => (
+                    text(item.folder || item.card).toLowerCase() === targetFolder.toLowerCase()
+                ));
+                const exact = allItems.find((item) => !usedIds.has(item.id) && (
+                    [...(paths?.localCandidates?.(item) || []), item.url]
+                        .some((candidate) => paths?.same?.(candidate, f.path))
+                ));
+                const existing = exact || matchTrack(targetItems, f, [rootDir], rootDir, usedIds);
 
                 if (existing) {
+                    usedIds.add(existing.id);
                     const mergedClassifiers = [...new Set([...(existing.classifiers || []).map(text), ...subClassifiers])].filter(Boolean);
-                    S()?.updateItem?.('music', existing.id, {
-                        folder: targetFolder,
-                        card: targetFolder,
-                        isPorted: true,
-                        isMusicPort: true,
-                        localPath: f.path,
-                        classifiers: mergedClassifiers
-                    });
+                    S()?.updateItem?.('music', existing.id, localizationPatch(
+                        existing, f, targetFolder, mergedClassifiers
+                    ));
                     updatedCount += 1;
                 } else {
                     const added = S()?.addItem?.('music', {
                         title: rawTitle,
                         url: f.path,
                         localPath: f.path,
+                        localizations: [{ source: `folder:${targetFolder}`, path: f.path, kind: 'file' }],
                         folder: targetFolder,
                         card: targetFolder,
                         isPorted: true,
@@ -119,6 +135,7 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
                         classifiers: subClassifiers
                     });
                     if (added?.id) {
+                        usedIds.add(added.id);
                         addedCount += 1;
                     }
                 }
@@ -130,8 +147,11 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
 
             // Save / update connection tracking in state.musicPortConnections
             const currentConns = (state().musicPortConnections || []).slice();
-            const nextConns = currentConns.filter(c => c.folder !== targetFolder).concat({
-                id: `port_${Date.now()}`,
+            const existingConnection = currentConns.find((entry) => (
+                text(entry.folder).toLowerCase() === targetFolder.toLowerCase()
+            ));
+            const nextConns = currentConns.filter((entry) => entry !== existingConnection).concat({
+                id: existingConnection?.id || `port_${Date.now()}`,
                 path: rootDir,
                 folder: targetFolder,
                 lastSyncedAt: Date.now(),
@@ -158,10 +178,17 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
             if (!targetFolder) return { ok: false, reason: 'Specify a folder tag to sync.' };
 
             const conns = state().musicPortConnections || [];
-            const conn = conns.find(c => c.folder === targetFolder);
+            const conn = conns.find((entry) => (
+                text(entry.folder).toLowerCase() === targetFolder.toLowerCase()
+            ));
             
-            const folderTracks = musicItems().filter(it => text(it.folder || it.card) === targetFolder);
-            const diskPath = conn?.path || getScopeDir('folder', targetFolder) || folderTracks.find(it => it.localPath)?.localPath;
+            const folderTracks = musicItems().filter((item) => (
+                text(item.folder || item.card).toLowerCase() === targetFolder.toLowerCase()
+            ));
+            const firstLocal = folderTracks.find((item) => text(item.localPath))?.localPath;
+            const diskPath = text(conn?.path)
+                || text(getScopeDir?.('folder', targetFolder))
+                || text(paths?.dirname?.(firstLocal));
 
             if (!diskPath) return { ok: false, reason: `No disk path registered for folder "${targetFolder}".` };
 
@@ -170,6 +197,7 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
 
             const rootDir = scan.dir || diskPath;
             const files = scan.files || [];
+            rememberDir(rootDir, 'folder', targetFolder);
 
             const fileClassifiersMap = new Map();
             const allNewClassifiers = new Set();
@@ -183,33 +211,22 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
             const C = window.EveAudioflixClassifiers;
             allNewClassifiers.forEach((clsName) => C?.addManual?.(clsName));
 
-            const scannedPathSet = new Set(files.map(f => String(f.path).trim().toLowerCase()));
-
             let addedCount = 0;
             let restoredCount = 0;
             let missingCount = 0;
+            const matchedIds = new Set();
+            const oldRoots = [conn?.path, getScopeDir?.('folder', targetFolder), rootDir].filter(Boolean);
 
             files.forEach((f) => {
                 const rawTitle = f.name.replace(/\.[a-z0-9]{2,4}$/i, '').trim() || f.name;
                 const subClassifiers = fileClassifiersMap.get(f.path) || [];
-                const normFilePath = String(f.path).trim().toLowerCase();
-
-                const existing = folderTracks.find((it) => 
-                    (it.localPath && String(it.localPath).trim().toLowerCase() === normFilePath) ||
-                    (it.url && String(it.url).trim().toLowerCase() === normFilePath)
-                );
+                const existing = matchTrack(folderTracks, f, oldRoots, rootDir, matchedIds);
 
                 if (existing) {
+                    matchedIds.add(existing.id);
                     const mergedClassifiers = [...new Set([...(existing.classifiers || []).map(text), ...subClassifiers])].filter(Boolean);
-                    const patch = {
-                        folder: targetFolder,
-                        card: targetFolder,
-                        isPorted: true,
-                        localPath: f.path,
-                        classifiers: mergedClassifiers
-                    };
+                    const patch = localizationPatch(existing, f, targetFolder, mergedClassifiers);
                     if (existing.missingLocal) {
-                        patch.missingLocal = false;
                         restoredCount += 1;
                     }
                     S()?.updateItem?.('music', existing.id, patch);
@@ -218,27 +235,31 @@ window.EveAudioflixLocalizePort = window.EveAudioflixLocalizePort || {};
                         title: rawTitle,
                         url: f.path,
                         localPath: f.path,
+                        localizations: [{ source: `folder:${targetFolder}`, path: f.path, kind: 'file' }],
                         folder: targetFolder,
                         card: targetFolder,
                         isPorted: true,
                         isMusicPort: true,
                         classifiers: subClassifiers
                     });
-                    if (added?.id) addedCount += 1;
-                }
-            });
-
-            folderTracks.forEach((it) => {
-                const localP = String(it.localPath || it.url || '').trim().toLowerCase();
-                if (localP && !scannedPathSet.has(localP)) {
-                    if (!it.missingLocal) {
-                        S()?.updateItem?.('music', it.id, { missingLocal: true });
-                        missingCount += 1;
+                    if (added?.id) {
+                        matchedIds.add(added.id);
+                        addedCount += 1;
                     }
                 }
             });
 
-            const nextConns = (state().musicPortConnections || []).filter(c => c.folder !== targetFolder).concat({
+            folderTracks.forEach((it) => {
+                const ownsFolderFile = (it.localizations || []).some((entry) => (
+                    text(entry.source).toLowerCase() === `folder:${targetFolder}`.toLowerCase()
+                    && entry.kind !== 'shortcut'
+                ));
+                if (!(it.isMusicPort || ownsFolderFile) || matchedIds.has(it.id)) return;
+                if (!it.missingLocal) S()?.updateItem?.('music', it.id, { missingLocal: true });
+                missingCount += 1;
+            });
+
+            const nextConns = (state().musicPortConnections || []).filter((entry) => entry !== conn).concat({
                 id: conn?.id || `port_${Date.now()}`,
                 path: rootDir,
                 folder: targetFolder,

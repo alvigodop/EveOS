@@ -17,6 +17,40 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
         const text = deps.text;
         const scheduleSave = deps.scheduleSave;
         const syncRootOrFallback = deps.syncRootOrFallback || (() => {});
+        const sameName = (a, b) => text(a, '').trim().toLowerCase() === text(b, '').trim().toLowerCase();
+        const uniqueNames = (values) => {
+            const seen = new Set();
+            return (values || []).filter((value) => {
+                const key = text(value, '').trim().toLowerCase();
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+        };
+        const migrateScopeDir = (state, scope, oldName, newName = '') => {
+            const wanted = `${scope}:${oldName}`.toLowerCase();
+            const target = newName ? `${scope}:${newName}` : '';
+            let movedValue = '';
+            const next = {};
+            Object.entries(state.localizeScopeDirs || {}).forEach(([key, value]) => {
+                if (text(key, '').toLowerCase() === wanted) movedValue ||= value;
+                else next[key] = value;
+            });
+            if (target && movedValue && !Object.keys(next).some((key) => key.toLowerCase() === target.toLowerCase())) {
+                next[target] = movedValue;
+            }
+            state.localizeScopeDirs = next;
+            return movedValue;
+        };
+        const migrateLocalizationSource = (item, oldSource, newSource) => {
+            let changed = false;
+            const localizations = (item.localizations || []).map((entry) => {
+                if (!sameName(entry.source, oldSource)) return entry;
+                changed = true;
+                return { ...entry, source: newSource };
+            });
+            return changed ? { ...item, localizations } : item;
+        };
 
         // --- Custom soundboard groups (many-to-many: a sound can sit in several groups) ---
         function addSoundboardGroup(name) {
@@ -79,12 +113,19 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
         function removeMusicGroup(name) {
             const state = ensure();
             const clean = text(name, '').trim();
-            state.musicGroups = (state.musicGroups || []).filter((g) => g !== clean);
+            state.musicGroups = (state.musicGroups || []).filter((g) => !sameName(g, clean));
             state.musicGroupMap = state.musicGroupMap || {};
             for (const id of Object.keys(state.musicGroupMap)) {
-                const next = (state.musicGroupMap[id] || []).filter((g) => g !== clean);
+                const next = (state.musicGroupMap[id] || []).filter((g) => !sameName(g, clean));
                 if (next.length) state.musicGroupMap[id] = next; else delete state.musicGroupMap[id];
             }
+            const oldSource = `group:${clean}`;
+            const oldRoot = migrateScopeDir(state, 'group', clean);
+            state.music = (state.music || []).map((item) => {
+                const next = migrateLocalizationSource(item, oldSource, `manual:${item.id}`);
+                if (next !== item && oldRoot) state.localizeScopeDirs[`song:${item.id}`] ||= oldRoot;
+                return next;
+            });
             syncRootOrFallback(state);
             scheduleSave('audioflix-music-groups');
             return ensure();
@@ -125,15 +166,19 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             const oldClean = text(oldFolder, '').trim();
             const newClean = text(newFolder, '').trim();
             if (!oldClean || !newClean || oldClean === newClean) return ensure();
-            if (state.music) {
-                state.music = state.music.map(entry => {
-                    const currentFolder = text(entry.folder || entry.card, '');
-                    if (currentFolder === oldClean) {
-                        return Object.assign({}, entry, { folder: newClean, card: newClean });
-                    }
-                    return entry;
-                });
-            }
+            const oldSource = `folder:${oldClean}`;
+            state.music = (state.music || []).map((entry) => {
+                const localized = migrateLocalizationSource(entry, oldSource, `folder:${newClean}`);
+                const currentFolder = text(entry.folder || entry.card, '');
+                return sameName(currentFolder, oldClean)
+                    ? Object.assign({}, localized, { folder: newClean, card: newClean })
+                    : localized;
+            });
+            migrateScopeDir(state, 'folder', oldClean, newClean);
+            state.musicPortConnections = (state.musicPortConnections || []).map((entry) => (
+                sameName(entry.folder, oldClean) ? { ...entry, folder: newClean } : entry
+            ));
+            if (sameName(state.activeMusicFolderScope, oldClean)) state.activeMusicFolderScope = newClean;
             syncRootOrFallback(state);
             scheduleSave('audioflix-rename-folder');
             return ensure();
@@ -143,15 +188,19 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             const state = ensure();
             const clean = text(folderName, '').trim();
             if (!clean) return ensure();
-            if (state.music) {
-                state.music = state.music.map(entry => {
-                    const currentFolder = text(entry.folder || entry.card, '');
-                    if (currentFolder === clean) {
-                        return Object.assign({}, entry, { folder: '', card: '' });
-                    }
-                    return entry;
-                });
-            }
+            const oldSource = `folder:${clean}`;
+            const oldRoot = migrateScopeDir(state, 'folder', clean);
+            state.music = (state.music || []).map((entry) => {
+                const localized = migrateLocalizationSource(entry, oldSource, `manual:${entry.id}`);
+                if (localized !== entry && oldRoot) state.localizeScopeDirs[`song:${entry.id}`] ||= oldRoot;
+                const currentFolder = text(entry.folder || entry.card, '');
+                return sameName(currentFolder, clean)
+                    ? Object.assign({}, localized, { folder: '', card: '' })
+                    : localized;
+            });
+            state.musicPortConnections = (state.musicPortConnections || [])
+                .filter((entry) => !sameName(entry.folder, clean));
+            if (sameName(state.activeMusicFolderScope, clean)) state.activeMusicFolderScope = '';
             syncRootOrFallback(state);
             scheduleSave('audioflix-delete-folder');
             return ensure();
@@ -169,21 +218,28 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             const activeKey = isM ? 'activeFrontendMusicGroup' : 'activeFrontendGroup';
 
             if (Array.isArray(state[groupsKey])) {
-                state[groupsKey] = state[groupsKey].map(g => g === oldClean ? newClean : g);
-                state[groupsKey] = [...new Set(state[groupsKey])];
+                state[groupsKey] = uniqueNames(state[groupsKey].map(g => sameName(g, oldClean) ? newClean : g));
             }
 
             if (state[mapKey] && typeof state[mapKey] === 'object') {
                 Object.keys(state[mapKey]).forEach(itemId => {
                     if (Array.isArray(state[mapKey][itemId])) {
-                        state[mapKey][itemId] = state[mapKey][itemId].map(g => g === oldClean ? newClean : g);
-                        state[mapKey][itemId] = [...new Set(state[mapKey][itemId])];
+                        state[mapKey][itemId] = uniqueNames(
+                            state[mapKey][itemId].map(g => sameName(g, oldClean) ? newClean : g)
+                        );
                     }
                 });
             }
 
-            if (state[activeKey] === oldClean) {
+            if (sameName(state[activeKey], oldClean)) {
                 state[activeKey] = newClean;
+            }
+            if (isM) {
+                const oldSource = `group:${oldClean}`;
+                state.music = (state.music || []).map((item) => (
+                    migrateLocalizationSource(item, oldSource, `group:${newClean}`)
+                ));
+                migrateScopeDir(state, 'group', oldClean, newClean);
             }
 
             syncRootOrFallback(state);

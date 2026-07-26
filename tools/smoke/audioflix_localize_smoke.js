@@ -40,6 +40,7 @@ function makeCtx(stored, nativeStub) {
 }
 
 function loadAll(ctx) {
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.paths.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
@@ -260,7 +261,96 @@ function stub() {
         console.log('scoped recalibrate OK (physical vs shortcut paths kept apart)');
     }
 
-    // --- 11. importMusicPort: subfolder tracks get targetFolder and subfolder manual classifiers ---
+    // --- 10. Recalibration preserves nested relative paths and clears stale missing flags. ---
+    {
+        const oldRoot = 'D:/OldMusic';
+        const newRoot = 'E:/NewMusic';
+        const seed = {
+            music: [{
+                id: 'nested', title: 'Nested Song', url: 'https://y/nested', folder: 'Sleep',
+                localPath: `${oldRoot}/Disc 1/Nested Song.mp3`,
+                localizations: [{
+                    source: 'folder:Sleep',
+                    path: `${oldRoot}/Disc 1/Nested Song.mp3`,
+                    kind: 'file'
+                }],
+                missingLocal: true
+            }],
+            musicPortConnections: [{
+                id: 'port-sleep', path: oldRoot, folder: 'Sleep', lastSyncedAt: 1, trackCount: 1
+            }],
+            localizeScopeDirs: { 'folder:Sleep': oldRoot }
+        };
+        const nat = {
+            scanLocalized: async (dir) => ({
+                ok: true,
+                dir,
+                files: [{
+                    name: 'Nested Song',
+                    fileName: 'Nested Song.mp3',
+                    path: `${dir}/Disc 1/Nested Song.mp3`,
+                    ext: 'mp3'
+                }]
+            })
+        };
+        const { S, L } = loadAll(makeCtx(seed, nat));
+        const result = await L.recalibrateScopePath('folder', 'Sleep', `"${newRoot}"`);
+        const track = S.ensure().music[0];
+        const entry = track.localizations.find((loc) => loc.source === 'folder:Sleep');
+        const connection = S.ensure().musicPortConnections.find((item) => item.id === 'port-sleep');
+        assert(result.ok && result.recalibrated === 1, 'nested recalibration did not match the track');
+        assert(entry.path.replace(/\\/g, '/') === `${newRoot}/Disc 1/Nested Song.mp3`, 'nested relative path was flattened');
+        assert(track.localPath.replace(/\\/g, '/') === `${newRoot}/Disc 1/Nested Song.mp3`, 'effective local path did not follow recalibration');
+        assert(track.missingLocal === false, 'recalibration did not clear stale missingLocal');
+        assert(connection.path.replace(/\\/g, '/') === newRoot, 'Music Port root did not follow recalibration');
+        console.log('nested path recalibration OK');
+    }
+
+    // --- 11. Folder/group renames migrate physical ownership metadata case-insensitively. ---
+    {
+        const seed = {
+            music: [{
+                id: 'rename-track',
+                title: 'Rename Track',
+                url: 'https://y/rename',
+                folder: 'Sleep',
+                card: 'Sleep',
+                localPath: 'D:/Sleep/Sub/Rename Track.mp3',
+                localizations: [
+                    { source: 'folder:sLeEp', path: 'D:/Sleep/Sub/Rename Track.mp3', kind: 'file' },
+                    { source: 'group:NIGHT', path: 'D:/Night/Rename Track.mp3', kind: 'file' }
+                ]
+            }],
+            musicGroups: ['NIGHT'],
+            musicGroupMap: { 'rename-track': ['night'] },
+            musicPortConnections: [{ id: 'rename-port', folder: 'SLEEP', path: 'D:/Sleep' }],
+            localizeScopeDirs: {
+                'folder:SLEEP': 'D:/Sleep',
+                'group:Night': 'D:/Night'
+            },
+            activeMusicFolderScope: 'sleep',
+            activeFrontendMusicGroup: 'night'
+        };
+        const { S, L } = loadAll(makeCtx(seed, {}));
+        S.renameMusicFolder('sleep', 'Rest');
+        S.renameGroup('music', 'night', 'Dream');
+        const stored = S.ensure();
+        const track = stored.music[0];
+        assert(track.folder === 'Rest' && track.card === 'Rest', 'folder rename did not update the track');
+        assert(track.localizations.some((entry) => entry.source === 'folder:Rest'), 'folder localization ownership was left stale');
+        assert(track.localizations.some((entry) => entry.source === 'group:Dream'), 'group localization ownership was left stale');
+        assert(stored.musicPortConnections[0].folder === 'Rest', 'Music Port connection did not follow folder rename');
+        assert(stored.localizeScopeDirs['folder:Rest'] === 'D:/Sleep', 'folder localization root did not migrate');
+        assert(stored.localizeScopeDirs['group:Dream'] === 'D:/Night', 'group localization root did not migrate');
+        assert(stored.activeMusicFolderScope === 'Rest', 'active folder scope did not follow rename');
+        assert(stored.activeFrontendMusicGroup === 'Dream', 'active group scope did not follow rename');
+        const moved = L.updateScopeDir('folder', 'REST', 'E:/Rest');
+        assert(moved.updatedCount === 1, 'case-insensitive folder scope failed to collect its track');
+        assert(track.id === 'rename-track', 'rename fixture was corrupted');
+        console.log('folder/group localization rename migration OK');
+    }
+
+    // --- 12. importMusicPort: subfolder tracks get targetFolder and subfolder manual classifiers ---
     {
         const rootDir = 'C:/Users/alvin/Downloads/Temp-Music-Index-Holder/Old Song Relocation';
         const nat = {
@@ -289,9 +379,52 @@ function stub() {
         assert(animeSong.classifiers.includes('Anime'), 'subfolder "Anime" attached as manual classifier');
         assert(pianoTrack.classifiers.includes('Instrumental') && pianoTrack.classifiers.includes('Piano'), 'nested subfolders "Instrumental" and "Piano" attached as manual classifiers');
         assert(rootTrack.classifiers.length === 0, 'root track gets no subfolder classifiers');
+        assert(animeSong.localizations.some((entry) => entry.source === 'folder:Old-Song-Relocation'), 'imported track lacks durable folder localization');
+        assert(S.ensure().musicPortConnections.some((entry) => entry.folder === 'Old-Song-Relocation' && entry.path === rootDir), 'Music Port connection was not retained');
 
         assert(C.manualNames().includes('Anime') && C.manualNames().includes('Instrumental') && C.manualNames().includes('Piano'), 'subfolder names registered in state.musicClassifiers');
         console.log('importMusicPort subfolder classifier extraction OK');
+    }
+
+    // --- 13. Sync restores moved roots without marking unrelated URL-only tracks missing. ---
+    {
+        const oldRoot = 'D:/OldPort';
+        const newRoot = 'E:/NewPort';
+        const seed = {
+            music: [
+                {
+                    id: 'ported', title: 'Ported Song', url: 'https://y/ported', folder: 'Port',
+                    localPath: `${oldRoot}/Sub/Ported Song.mp3`,
+                    localizations: [{ source: 'folder:Port', path: `${oldRoot}/Sub/Ported Song.mp3`, kind: 'file' }],
+                    isMusicPort: true,
+                    missingLocal: true
+                },
+                { id: 'online', title: 'Online Only', url: 'https://y/online', folder: 'Port' }
+            ],
+            musicPortConnections: [{ id: 'port-root', path: newRoot, folder: 'Port', trackCount: 1 }],
+            localizeScopeDirs: { 'folder:Port': newRoot }
+        };
+        const nat = {
+            scanLocalized: async (dir) => ({
+                ok: true,
+                dir,
+                files: [{
+                    name: 'Ported Song',
+                    fileName: 'Ported Song.mp3',
+                    path: `${dir}/Sub/Ported Song.mp3`,
+                    ext: 'mp3'
+                }]
+            })
+        };
+        const { S, L } = loadAll(makeCtx(seed, nat));
+        const result = await L.syncMusicPortFolder('Port');
+        const ported = S.ensure().music.find((item) => item.id === 'ported');
+        const online = S.ensure().music.find((item) => item.id === 'online');
+        assert(result.ok && result.restored === 1 && result.missing === 0, 'Music Port sync did not restore the moved file cleanly');
+        assert(ported.localPath.replace(/\\/g, '/') === `${newRoot}/Sub/Ported Song.mp3`, 'sync did not preserve nested relative path');
+        assert(ported.missingLocal === false, 'restored Music Port track remains missing');
+        assert(online.missingLocal !== true, 'unrelated URL-only track was incorrectly marked missing');
+        console.log('Music Port moved-root sync OK');
     }
 
     console.log('AUDIOFLIX_LOCALIZE_SMOKE_OK');

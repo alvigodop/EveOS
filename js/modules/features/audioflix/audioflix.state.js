@@ -276,8 +276,13 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             musicGroups: [],
             musicGroupMap: {},
             musicPlaylists: [],
+            musicPortConnections: [],
+            musicClassifiers: [],
+            dupDismissedPairs: [],
             activeFrontendMusicGroup: '',
             activeMusicFolderScope: '',
+            localizeDir: '',
+            localizeScopeDirs: {},
             scopeBindings: [],
             counters: Object.assign({}, current.counters, { plays: 0 })
         }), reason);

@@ -1,16 +1,12 @@
 window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
-
 (function () {
     'use strict';
-
     const ns = window.EveAudioflixUrlPlayback;
     if (ns.ready) return;
-
     const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
     const SCRIPT_TIMEOUT_MS = 12000;
     const YOUTUBE_FILE_MESSAGE = 'YouTube requires an HTTPS/app identity that a plain file:// page cannot send. Use Play on YouTube, replace this track URL with a direct media URL, cache a local copy, or start EveOS localhost to play it inside Audioflix.';
     const { loadScript, loadYouTubeApi } = window.EveAudioflixUrlLoaders;
-
     function itemKey(item) {
         return String(item?.id || item?.url || '');
     }
@@ -81,7 +77,10 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
 
         function ensureStage(item, provider, visual = true) {
             if (!view) throw new Error('Audioflix internal player is unavailable. Reload EveOS and try again.');
-            const host = view.open(item, provider, { expanded: requestedInternalView });
+            const host = view.open(item, provider, {
+                expanded: requestedInternalView,
+                visible: requestedInternalView
+            });
             view.setVisualVisible(visual);
             host.replaceChildren();
             return host;
@@ -208,6 +207,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 setStageStatus('Connecting through the EveOS localhost provider host...');
                 const bridge = await view.connectYouTubeBridge(item, id, {
                     expanded: requestedInternalView,
+                    visible: requestedInternalView,
                     onReady(detail) {
                         playback.duration = Number(detail.duration) || 0;
                         setStageStatus('Playing with YouTube inside EveOS.' + routedOutputNote());

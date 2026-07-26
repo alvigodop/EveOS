@@ -15,7 +15,7 @@ window.EveAudioflixLocalizeAudit = window.EveAudioflixLocalizeAudit || {};
     if (ns.ready) return;
 
     ns.create = function create(deps) {
-        const { S, text, collectScope, getScopeDir, extractDir } = deps;
+        const { S, text, paths, collectScope, getScopeDir, extractDir } = deps;
 
         async function auditScopeDiskStatus(scope, key) {
             const targetDir = getScopeDir(scope, key);
@@ -23,18 +23,20 @@ window.EveAudioflixLocalizeAudit = window.EveAudioflixLocalizeAudit || {};
             if (!targetDir || !items.length) return { ok: true, checked: 0, missing: 0 };
 
             const N = window.EveAudioflixNative;
-            let existingFiles = new Set();
-            if (N?.scanLocalized) {
-                try {
-                    const scan = await N.scanLocalized(targetDir);
-                    if (scan?.ok && Array.isArray(scan.files)) {
-                        scan.files.forEach((f) => {
-                            if (f.name) existingFiles.add(f.name.toLowerCase());
-                            if (f.path) existingFiles.add(f.path.toLowerCase().replace(/\\/g, '/'));
-                        });
-                    }
-                } catch {}
-            }
+            const indexFiles = (files) => {
+                const index = { paths: new Set(), names: new Set() };
+                (Array.isArray(files) ? files : []).forEach((file) => {
+                    if (file?.path) index.paths.add(paths?.key?.(file.path) || text(file.path).toLowerCase());
+                    const name = text(file?.fileName || paths?.basename?.(file?.path)).toLowerCase();
+                    if (name) index.names.add(name);
+                });
+                return index;
+            };
+            let targetFiles = indexFiles([]);
+            try {
+                const scan = await N?.scanLocalized?.(targetDir);
+                if (scan?.ok) targetFiles = indexFiles(scan.files);
+            } catch {}
 
             let checked = 0, missing = 0, shortcuts = 0;
             // PRESENT if any physical file the track claims really exists. Checking only `localPath`
@@ -43,25 +45,23 @@ window.EveAudioflixLocalizeAudit = window.EveAudioflixLocalizeAudit || {};
             const presentIn = (dirFiles, p) => {
                 const clean = text(p);
                 if (!clean) return false;
-                const filename = clean.replace(/.*[/\\]/, '').toLowerCase();
-                return dirFiles.has(filename) || dirFiles.has(clean.toLowerCase().replace(/\\/g, '/'));
+                const filename = text(paths?.basename?.(clean)).toLowerCase();
+                const pathKey = paths?.key?.(clean) || clean.toLowerCase().replace(/\\/g, '/');
+                return dirFiles.paths.has(pathKey) || dirFiles.names.has(filename);
             };
-            const dirCache = new Map([[String(targetDir).toLowerCase(), existingFiles]]);
+            const targetKey = paths?.key?.(targetDir) || String(targetDir).toLowerCase();
+            const dirCache = new Map([[targetKey, targetFiles]]);
             const filesFor = async (dir) => {
-                const key = String(dir || '').toLowerCase();
-                if (!key) return new Set();
+                const key = paths?.key?.(dir) || String(dir || '').toLowerCase();
+                if (!key) return indexFiles([]);
                 if (dirCache.has(key)) return dirCache.get(key);
-                const set = new Set();
+                let index = indexFiles([]);
                 try {
                     const scan = await N?.scanLocalized?.(dir);
-                    if (scan?.ok && Array.isArray(scan.files)) scan.files.forEach((f) => {
-                        if (f.fileName) set.add(String(f.fileName).toLowerCase());
-                        if (f.name) set.add(String(f.name).toLowerCase());
-                        if (f.path) set.add(String(f.path).toLowerCase().replace(/\\/g, '/'));
-                    });
+                    if (scan?.ok) index = indexFiles(scan.files);
                 } catch { /* unreachable folder -> treated as empty */ }
-                dirCache.set(key, set);
-                return set;
+                dirCache.set(key, index);
+                return index;
             };
             const dirOf = (p) => extractDir(p);
 
@@ -77,7 +77,11 @@ window.EveAudioflixLocalizeAudit = window.EveAudioflixLocalizeAudit || {};
                 checked += 1;
                 let found = false;
                 for (const claim of claims) {
-                    if (presentIn(await filesFor(dirOf(claim)), claim)) { found = true; break; }
+                    const ownFiles = await filesFor(dirOf(claim));
+                    if (presentIn(ownFiles, claim) || presentIn(targetFiles, claim)) {
+                        found = true;
+                        break;
+                    }
                 }
                 if (!found) {
                     if (!it.missingLocal) S()?.updateItem?.('music', it.id, { missingLocal: true });

@@ -33,7 +33,7 @@ ctx.window.window = ctx.window;
 ctx.window.localStorage = ctx.localStorage;
 ctx.window.setTimeout = setTimeout; ctx.window.clearTimeout = clearTimeout;
 
-['audioflix.state.schema.js', 'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.nexus.js',
+['audioflix.paths.js', 'audioflix.state.schema.js', 'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.nexus.js',
     'audioflix.localize.audit.js', 'audioflix.localize.port.js', 'audioflix.localize.js', 'audioflix.ui.render.js', 'audioflix.ui.localize.js', 'audioflix.nexus.ui.js']
     .forEach((f) => runScript(ctx, 'js/modules/features/audioflix/' + f));
 

@@ -21,6 +21,47 @@ window.EveAudioflixLinks = window.EveAudioflixLinks || {};
         return [...new Set(Object.values(map || {}).flat().map(text).filter(Boolean))];
     }
 
+    function objectForIds(source, ids) {
+        return Object.fromEntries(Object.entries(source || {}).filter(([id]) => ids.has(text(id))));
+    }
+
+    function mergeObject(existing, incoming) {
+        return Object.assign({}, existing || {}, incoming || {});
+    }
+
+    function mergeRecords(existing, incoming) {
+        const byId = new Map((Array.isArray(existing) ? existing : []).map((entry) => [text(entry?.id), entry]));
+        (Array.isArray(incoming) ? incoming : []).forEach((entry) => {
+            const id = text(entry?.id);
+            if (id) byId.set(id, Object.assign({}, byId.get(id) || {}, clone(entry)));
+        });
+        return Array.from(byId.values());
+    }
+
+    function itemUsesPort(item, port) {
+        const portId = text(port?.id);
+        if (portId && text(item?.id).startsWith(`ported_${portId}_`)) return true;
+        const root = text(port?.path);
+        if (!root) return false;
+        const paths = window.EveAudioflixPaths;
+        const candidates = [...(paths?.localCandidates?.(item) || []), item?.url];
+        return candidates.some((candidate) => paths?.relativeTo?.(candidate, root) != null);
+    }
+
+    function localizationScopeKeys(items) {
+        const keys = new Set();
+        (Array.isArray(items) ? items : []).forEach((item) => {
+            keys.add(`song:${text(item?.id)}`.toLowerCase());
+            const folder = text(item?.folder || item?.card);
+            if (folder) keys.add(`folder:${folder}`.toLowerCase());
+            (item?.localizations || []).forEach((entry) => {
+                const source = text(entry?.source).toLowerCase();
+                if (source) keys.add(source);
+            });
+        });
+        return keys;
+    }
+
     function captureScopedBackup(scopeInput, context) {
         const store = window.EveAudioflixState?.ensure?.() || {};
         const scope = ns.normalizeScope?.(scopeInput) || scopeInput || {};
@@ -51,24 +92,54 @@ window.EveAudioflixLinks = window.EveAudioflixLinks || {};
         const soundboard = (store.soundboard || []).filter((item) => soundIds.has(text(item?.id)));
         const musicGroupMap = valuesForIds(store.musicGroupMap, musicIds);
         const soundGroupMap = valuesForIds(store.soundGroupMap, soundIds);
+        const musicGroups = uniqueMapValues(musicGroupMap);
+        const soundboardGroups = uniqueMapValues(soundGroupMap);
         const classifierNames = new Set(music.flatMap((item) => (
             Array.isArray(item?.classifiers) ? item.classifiers.map(text) : []
         )));
         const playlistIds = new Set(music.map((item) => text(item?.playlistId)).filter(Boolean));
+        const musicFolders = new Set(music.map((item) => text(item?.folder || item?.card)).filter(Boolean));
+        const musicFolderKeys = new Set(Array.from(musicFolders, (name) => name.toLowerCase()));
+        const scopeDirKeys = localizationScopeKeys(music);
+        musicGroups.forEach((name) => scopeDirKeys.add(`group:${name}`.toLowerCase()));
+        const localizeScopeDirs = Object.fromEntries(Object.entries(store.localizeScopeDirs || {})
+            .filter(([scopeKey]) => scopeDirKeys.has(text(scopeKey).toLowerCase())));
+        const musicPortConnections = (store.musicPortConnections || []).filter((entry) => (
+            musicFolderKeys.has(text(entry?.folder).toLowerCase())
+            || music.some((item) => itemUsesPort(item, entry))
+        ));
+        const ports = (store.ports || []).filter((port) => soundboard.some((item) => itemUsesPort(item, port)));
+        const browserFolders = (store.browserFolders || []).filter((folder) => (
+            soundboard.some((item) => text(item?.id).startsWith(`ported_${text(folder?.id)}_`))
+        ));
+        const capturedIds = new Set([...musicIds, ...soundIds]);
+        const dupDismissedPairs = (store.dupDismissedPairs || []).filter((pair) => {
+            const [left, right] = text(pair).split('|');
+            return capturedIds.has(left) && capturedIds.has(right);
+        });
 
         return {
-            schemaVersion: 1,
+            schemaVersion: 2,
             scoped: true,
             scope: clone(scope),
             music: clone(music),
             soundboard: clone(soundboard),
             scopeBindings: clone(bindings),
-            musicGroups: uniqueMapValues(musicGroupMap),
+            musicGroups,
             musicGroupMap,
-            soundboardGroups: uniqueMapValues(soundGroupMap),
+            soundboardGroups,
             soundGroupMap,
             musicClassifiers: (store.musicClassifiers || []).filter((name) => classifierNames.has(text(name))),
-            musicPlaylists: clone((store.musicPlaylists || []).filter((entry) => playlistIds.has(text(entry?.id))))
+            musicPlaylists: clone((store.musicPlaylists || []).filter((entry) => playlistIds.has(text(entry?.id)))),
+            musicPortConnections: clone(musicPortConnections),
+            localizeScopeDirs: clone(localizeScopeDirs),
+            localizeDir: text(Object.values(localizeScopeDirs)[0]),
+            dupDismissedPairs: clone(dupDismissedPairs),
+            ports: clone(ports),
+            browserFolders: clone(browserFolders),
+            portVolumes: clone(objectForIds(store.portVolumes, soundIds)),
+            exposedPortedSounds: clone(objectForIds(store.exposedPortedSounds, soundIds)),
+            portHotkeys: clone(objectForIds(store.portHotkeys, soundIds))
         };
     }
 
@@ -76,7 +147,7 @@ window.EveAudioflixLinks = window.EveAudioflixLinks || {};
         const byId = new Map((Array.isArray(existing) ? existing : []).map((item) => [text(item?.id), item]));
         (Array.isArray(incoming) ? incoming : []).forEach((item) => {
             const id = text(item?.id);
-            if (id && !byId.has(id)) byId.set(id, clone(item));
+            if (id) byId.set(id, Object.assign({}, byId.get(id) || {}, clone(item)));
         });
         return Array.from(byId.values());
     }
@@ -144,7 +215,17 @@ window.EveAudioflixLinks = window.EveAudioflixLinks || {};
             soundboardGroups: [...new Set((current.soundboardGroups || []).concat(backup.soundboardGroups || []).map(text).filter(Boolean))],
             soundGroupMap: mergeNamedMap(current.soundGroupMap, backup.soundGroupMap),
             musicClassifiers: [...new Set((current.musicClassifiers || []).concat(backup.musicClassifiers || []).map(text).filter(Boolean))],
-            musicPlaylists: mergeItems(current.musicPlaylists, backup.musicPlaylists)
+            musicPlaylists: mergeItems(current.musicPlaylists, backup.musicPlaylists),
+            musicPortConnections: mergeRecords(current.musicPortConnections, backup.musicPortConnections),
+            localizeScopeDirs: mergeObject(current.localizeScopeDirs, backup.localizeScopeDirs),
+            localizeDir: text(backup.localizeDir) || text(current.localizeDir),
+            dupDismissedPairs: [...new Set((current.dupDismissedPairs || [])
+                .concat(backup.dupDismissedPairs || []).map(text).filter(Boolean))],
+            ports: mergeRecords(current.ports, backup.ports),
+            browserFolders: mergeRecords(current.browserFolders, backup.browserFolders),
+            portVolumes: mergeObject(current.portVolumes, backup.portVolumes),
+            exposedPortedSounds: mergeObject(current.exposedPortedSounds, backup.exposedPortedSounds),
+            portHotkeys: mergeObject(current.portHotkeys, backup.portHotkeys)
         });
         storeApi.replaceState(next, 'audioflix-scoped-restore');
         return {

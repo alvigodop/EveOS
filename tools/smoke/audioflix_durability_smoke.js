@@ -1,5 +1,6 @@
 const path = require('path');
 const { chromium } = require('playwright');
+const seedDurabilityFixture = require('./helpers/audioflix_durability_fixture');
 const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'EveOS.html').replace(/\\/g, '/');
 
 (async () => {
@@ -10,87 +11,7 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
     await page.waitForFunction(() => !!window.EveAudioflixState && !!(window.EveDataStore && window.EveDataStore.Store && window.EveDataStore.Store.captureState && window.EveDataStore.Store.applyState), undefined, { timeout: 60000 });
 
     // 1. Seed every user-content surface that must travel with a datapack.
-    await page.evaluate(() => {
-        window.EveAudioflixState.addPort({ nickname: 'RTPort', path: 'C:/rt/sounds' });
-        window.EveAudioflixState.addSoundboardGroup('RTGroup');
-        window.EveAudioflixState.addItem('sound', { id: 'rt-sound', title: 'RT Sound', url: 'media/rt.wav', volume: 0 });
-        window.EveAudioflixState.addItem('music', { id: 'rt-music', title: 'RT Music', url: 'https://example.com/watch?v=rt', volume: 0.62 });
-        window.EveAudioflixState.addItem('music', { id: 'other-music', title: 'Other Music', url: 'media/other.mp3' });
-        window.EveAudioflixState.addItem('music', { id: 'main-workspace-music', title: 'Main Workspace Music', url: 'media/main.mp3' });
-        window.EveAudioflixState.addItem('music', { id: 'folder-music', title: 'Folder Music', url: 'media/folder.mp3' });
-        window.EveAudioflixState.addItem('music', { id: 'bookmark-music', title: 'Bookmark Music', url: 'media/bookmark.mp3' });
-        window.EveAudioflixState.addItem('music', { id: 'outside-folder-music', title: 'Outside Folder Music', url: 'media/outside.mp3' });
-        window.EveAudioflixLinks.add(['rt-music'], {
-            scopeType: 'card',
-            workspaceId: 'main',
-            categoryName: 'RT Card'
-        }, 'music');
-        window.EveAudioflixLinks.add(['other-music'], {
-            scopeType: 'workspace',
-            workspaceId: 'other'
-        }, 'music');
-        window.EveAudioflixLinks.add(['main-workspace-music'], {
-            scopeType: 'workspace',
-            workspaceId: 'main'
-        }, 'music');
-        window.EveAudioflixLinks.add(['folder-music'], {
-            scopeType: 'folder',
-            workspaceId: 'main',
-            categoryName: 'RT Card',
-            folderId: 'folder-root'
-        }, 'music');
-        window.EveAudioflixLinks.add(['bookmark-music'], {
-            scopeType: 'bookmark',
-            workspaceId: 'main',
-            categoryName: 'RT Card',
-            folderId: 'folder-child',
-            bookmarkId: 'bookmark-child'
-        }, 'music');
-        window.EveAudioflixLinks.add(['outside-folder-music'], {
-            scopeType: 'folder',
-            workspaceId: 'main',
-            categoryName: 'RT Card',
-            folderId: 'folder-outside'
-        }, 'music');
-
-        const datapack = window.EveDataStore.Store.captureState();
-        datapack.bookmarks.links = [
-            {
-                id: 'bookmark-root',
-                title: 'Root Folder Bookmark',
-                url: 'https://example.com/root',
-                workspace: 'main',
-                category: 'RT Card',
-                folderId: 'folder-root'
-            },
-            {
-                id: 'bookmark-child',
-                title: 'Child Folder Bookmark',
-                url: 'https://example.com/child',
-                workspace: 'main',
-                category: 'RT Card',
-                folderId: 'folder-child'
-            },
-            {
-                id: 'bookmark-outside',
-                title: 'Outside Folder Bookmark',
-                url: 'https://example.com/outside',
-                workspace: 'main',
-                category: 'RT Card',
-                folderId: 'folder-outside'
-            }
-        ];
-        datapack.bookmarks.folders = {
-            'main::RT Card': {
-                nodes: [
-                    { id: 'folder-root', parentId: null, name: 'Root Folder', order: 1 },
-                    { id: 'folder-child', parentId: 'folder-root', name: 'Child Folder', order: 1 },
-                    { id: 'folder-outside', parentId: null, name: 'Outside Folder', order: 2 }
-                ]
-            }
-        };
-        window.EveDataStore.Store.applyState(datapack);
-    });
+    await page.evaluate(seedDurabilityFixture);
 
     // 2. Capture (the backup path) -> must include routing plus sound/music content.
     const captureOk = await page.evaluate(() => {
@@ -99,8 +20,41 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         return !!(a
             && (a.ports || []).some(p => p.nickname === 'RTPort')
             && (a.soundboardGroups || []).includes('RTGroup')
-            && (a.soundboard || []).some(item => item.id === 'rt-sound' && item.volume === 0)
-            && (a.music || []).some(item => item.id === 'rt-music' && item.volume === 0.62)
+            && (a.soundboard || []).some(item => (
+                item.id === 'rt-sound'
+                && item.volume === 0
+                && item.localPath === 'C:/rt/sounds/rt.wav'
+                && item.category === 'Alerts'
+                && item.hotkey === 'ctrl+shift+r'
+                && item.exposed === true
+            ))
+            && (a.music || []).some(item => (
+                item.id === 'rt-music'
+                && item.volume === 0.62
+                && item.localPath === 'C:/rt/music/Sleep/Disc 1/RT Music.mp3'
+                && item.localizations?.length === 2
+                && item.classifiers?.join('|') === 'Sleep|Manual'
+                && item.artist === 'Runtime Artist'
+                && item.folder === 'Sleep'
+                && item.category === 'Ambient'
+                && item.duration === 321
+                && item.playlistId === 'playlist-rt'
+                && item.sourceId === 'source-rt'
+                && item.upstreamMissing === true
+                && item.createdAt === 101
+                && item.updatedAt === 202
+                && item.lastPlayedAt === 303
+            ))
+            && a.musicGroupMap?.['rt-music']?.includes('Night')
+            && a.soundGroupMap?.['rt-sound']?.includes('RTGroup')
+            && (a.musicClassifiers || []).includes('Manual')
+            && (a.musicPlaylists || []).some(item => item.id === 'playlist-rt')
+            && (a.musicPortConnections || []).some(item => item.id === 'music-port-rt')
+            && a.localizeScopeDirs?.['folder:Sleep'] === 'C:/rt/music/Sleep'
+            && (a.dupDismissedPairs || []).includes('rt-music|rt-sound')
+            && a.portVolumes?.['rt-sound'] === 0
+            && a.exposedPortedSounds?.['rt-sound'] === true
+            && a.portHotkeys?.['rt-sound'] === 'ctrl+shift+r'
             && (a.scopeBindings || []).some(binding => (
                 binding.audioId === 'rt-music'
                 && binding.scopeType === 'card'
@@ -117,8 +71,20 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         const scopedAudio = scoped.audioflix || {};
         const capturedCleanly = scopedAudio.scoped === true
             && (scopedAudio.music || []).some(item => item.id === 'rt-music')
+            && (scopedAudio.soundboard || []).some(item => item.id === 'rt-sound')
             && !(scopedAudio.music || []).some(item => item.id === 'other-music')
-            && (scopedAudio.scopeBindings || []).every(binding => binding.workspaceId === 'main');
+            && (scopedAudio.scopeBindings || []).every(binding => binding.workspaceId === 'main')
+            && scopedAudio.musicGroupMap?.['rt-music']?.includes('Night')
+            && scopedAudio.soundGroupMap?.['rt-sound']?.includes('RTGroup')
+            && (scopedAudio.musicClassifiers || []).includes('Manual')
+            && (scopedAudio.musicPlaylists || []).some(item => item.id === 'playlist-rt')
+            && (scopedAudio.musicPortConnections || []).some(item => item.id === 'music-port-rt')
+            && scopedAudio.localizeScopeDirs?.['folder:Sleep'] === 'C:/rt/music/Sleep'
+            && scopedAudio.localizeScopeDirs?.['group:Night'] === 'C:/rt/music/Night'
+            && (scopedAudio.dupDismissedPairs || []).includes('rt-music|rt-sound')
+            && scopedAudio.portVolumes?.['rt-sound'] === 0
+            && scopedAudio.exposedPortedSounds?.['rt-sound'] === true
+            && scopedAudio.portHotkeys?.['rt-sound'] === 'ctrl+shift+r';
 
         window.EveAudioflixState.replaceState({
             music: [{ id: 'preserved-music', title: 'Preserved Music', url: 'media/preserved.mp3' }],
@@ -130,6 +96,12 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         const passed = capturedCleanly
             && restored.music.some(item => item.id === 'rt-music')
             && restored.music.some(item => item.id === 'preserved-music')
+            && restored.soundboard.some(item => item.id === 'rt-sound')
+            && restored.music.find(item => item.id === 'rt-music')?.localizations?.length === 2
+            && restored.musicGroupMap?.['rt-music']?.includes('Night')
+            && (restored.musicClassifiers || []).includes('Manual')
+            && (restored.musicPortConnections || []).some(item => item.id === 'music-port-rt')
+            && restored.localizeScopeDirs?.['folder:Sleep'] === 'C:/rt/music/Sleep'
             && restored.scopeBindings.some(binding => (
                 binding.audioId === 'rt-music'
                 && binding.workspaceId === 'main'
@@ -162,8 +134,12 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         const scopedAudio = scoped.audioflix || {};
         const capturedCleanly = scopedAudio.scoped === true
             && (scopedAudio.music || []).some(item => item.id === 'rt-music')
+            && (scopedAudio.soundboard || []).some(item => item.id === 'rt-sound')
             && !(scopedAudio.music || []).some(item => item.id === 'main-workspace-music')
-            && (scopedAudio.scopeBindings || []).every(binding => binding.scopeType !== 'workspace');
+            && (scopedAudio.scopeBindings || []).every(binding => binding.scopeType !== 'workspace')
+            && scopedAudio.musicGroupMap?.['rt-music']?.includes('Night')
+            && (scopedAudio.musicPortConnections || []).some(item => item.id === 'music-port-rt')
+            && scopedAudio.localizeScopeDirs?.['folder:Sleep'] === 'C:/rt/music/Sleep';
 
         window.EveAudioflixState.replaceState({
             music: [{ id: 'card-preserved', title: 'Card Preserved', url: 'media/card-preserved.mp3' }],
@@ -176,6 +152,8 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
             passed: capturedCleanly
                 && restored.music.some(item => item.id === 'rt-music')
                 && restored.music.some(item => item.id === 'card-preserved')
+                && restored.soundboard.some(item => item.id === 'rt-sound')
+                && restored.music.find(item => item.id === 'rt-music')?.classifiers?.includes('Manual')
                 && restored.scopeBindings.some(binding => (
                     binding.audioId === 'rt-music'
                     && binding.scopeType === 'card'
@@ -270,8 +248,22 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         const a = window.eveState.config.audioflix || {};
         return (a.ports || []).some(p => p.nickname === 'RTPort')
             && (a.soundboardGroups || []).includes('RTGroup')
-            && (a.soundboard || []).some(item => item.id === 'rt-sound')
-            && (a.music || []).some(item => item.id === 'rt-music')
+            && (a.soundboard || []).some(item => item.id === 'rt-sound' && item.localPath === 'C:/rt/sounds/rt.wav')
+            && (a.music || []).some(item => (
+                item.id === 'rt-music'
+                && item.url === 'https://example.com/watch?v=rt'
+                && item.localPath === 'C:/rt/music/Sleep/Disc 1/RT Music.mp3'
+                && item.localizations?.some(entry => entry.source === 'folder:Sleep')
+                && item.classifiers?.includes('Manual')
+                && item.folder === 'Sleep'
+                && item.playlistId === 'playlist-rt'
+            ))
+            && a.musicGroupMap?.['rt-music']?.includes('Night')
+            && a.soundGroupMap?.['rt-sound']?.includes('RTGroup')
+            && (a.musicPlaylists || []).some(item => item.id === 'playlist-rt')
+            && (a.musicPortConnections || []).some(item => item.id === 'music-port-rt')
+            && a.localizeScopeDirs?.['folder:Sleep'] === 'C:/rt/music/Sleep'
+            && a.portHotkeys?.['rt-sound'] === 'ctrl+shift+r'
             && (a.scopeBindings || []).some(binding => binding.audioId === 'rt-music');
     });
 
@@ -291,7 +283,14 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
             cleared: a.soundboard.length === 0
                 && a.music.length === 0
                 && a.ports.length === 0
-                && a.scopeBindings.length === 0,
+                && a.scopeBindings.length === 0
+                && a.musicGroups.length === 0
+                && Object.keys(a.musicGroupMap).length === 0
+                && a.musicPlaylists.length === 0
+                && a.musicPortConnections.length === 0
+                && a.musicClassifiers.length === 0
+                && Object.keys(a.localizeScopeDirs).length === 0
+                && a.dupDismissedPairs.length === 0,
             stopCalls
         };
     });
@@ -313,6 +312,13 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
             && a.music.length === 0
             && a.ports.length === 0
             && a.scopeBindings.length === 0
+            && a.musicGroups.length === 0
+            && Object.keys(a.musicGroupMap).length === 0
+            && a.musicPlaylists.length === 0
+            && a.musicPortConnections.length === 0
+            && a.musicClassifiers.length === 0
+            && Object.keys(a.localizeScopeDirs).length === 0
+            && a.dupDismissedPairs.length === 0
             && a.nativeBridgeBase === 'http://127.0.0.1:9876'
             && a.routeMode === 'manual';
     });
