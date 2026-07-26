@@ -51,9 +51,14 @@ window.EveAudioflixLocalPlayback = window.EveAudioflixLocalPlayback || {};
             };
         }
         if (candidates.length) {
+            // Name the folder and the exact control that fixes this. A browser cannot read a path
+            // string on its own, so without a granted handle there is nothing to fall back to —
+            // saying so vaguely just leaves the track silent with no next step.
+            const dir = window.EveAudioflixPaths?.dirname?.(candidates[0]) || '';
             throw new Error(
-                `Cannot reach the local copy of ${playable.title || 'this track'}. `
-                + 'Reconnect its Browser Folder or start EveOS localhost.'
+                `Cannot reach the local copy of ${playable.title || 'this track'}`
+                + (dir ? ` (${dir})` : '') + '. Open the track\'s settings panel (cog) and press '
+                + '"Grant Offline Access" to let EveOS read that folder without the server.'
             );
         }
         return { item: playable, localPath: '', status: '' };

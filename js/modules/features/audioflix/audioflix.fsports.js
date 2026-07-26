@@ -21,6 +21,10 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
     const DB_NAME = 'eve-audioflix-fsports';
     const STORE = 'folders';
     let liveObjectUrls = [];
+    // Blobs minted for a specific TRACK path are kept apart from the soundboard listing's blobs.
+    // They shared one list, so every ported-sounds refresh revoked the URL of whatever music was
+    // playing at the time — the track died mid-song. These are only revoked on an explicit reset.
+    let pathObjectUrls = [];
 
     function supported() {
         return typeof window.showDirectoryPicker === 'function' && !!window.indexedDB;
@@ -248,7 +252,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
                 let handle = relative.length ? await openRelativeFile(rec.handle, relative) : null;
                 if (!handle) handle = await rec.handle.getFileHandle(file);
                 const url = URL.createObjectURL(await handle.getFile());
-                liveObjectUrls.push(url);
+                pathObjectUrls.push(url);
                 pathBlobCache.set(cacheKey, url);
                 return url;
             } catch { /* not in this folder — keep looking */ }
@@ -258,7 +262,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
                 const handle = await findFileInTree(rec.handle, file);
                 if (!handle) continue;
                 const url = URL.createObjectURL(await handle.getFile());
-                liveObjectUrls.push(url);
+                pathObjectUrls.push(url);
                 pathBlobCache.set(cacheKey, url);
                 return url;
             } catch { /* unreadable tree - keep looking */ }
@@ -266,12 +270,14 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         return '';
     }
 
-    // Blob URLs are revoked when the ported list is rebuilt; drop the path cache with them so a
-    // later lookup mints a fresh one instead of handing back a dead URL.
-    function clearPathCache() { pathBlobCache.clear(); }
+    // Drop cached track blobs so the next lookup re-resolves (used after a new folder is granted).
+    function clearPathCache() {
+        pathObjectUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) { } });
+        pathObjectUrls = [];
+        pathBlobCache.clear();
+    }
 
     async function listSounds() {
-        clearPathCache();
         if (!supported()) return [];
         liveObjectUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) { } });
         liveObjectUrls = [];
