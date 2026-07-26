@@ -367,10 +367,14 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return `${base}/api/proxy?media=1&url=${encodeURIComponent(targetUrl)}`;
     }
 
+    function isBridgeOffline() {
+        return Date.now() < bridgeDownUntil;
+    }
+
     // Served URL for a localized file, via /api/audioflix/port/file (only serves audio inside a
     // folder the localize/scan step registered). Empty with no bridge base so playback falls back.
     function getLocalFileUrl(localPath) {
-        if (!localPath) return '';
+        if (!localPath || isBridgeOffline()) return '';
         const base = state().nativeBridgeBase || (window.location.origin.startsWith('http') ? window.location.origin : '');
         if (!base) return '';
         return `${base}/api/audioflix/port/file?path=${encodeURIComponent(localPath)}`;
@@ -398,10 +402,11 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     // Localization transport (probe / download / link / scan) lives in a sibling module.
     const { probeLocalFile, localizeTrack, linkLocalFile, scanLocalized, readWplFile } =
-        window.EveAudioflixNativeLocalize.create({ fetchJson, DEVICE_SCAN_TIMEOUT_MS });
+        window.EveAudioflixNativeLocalize.create({ fetchJson, DEVICE_SCAN_TIMEOUT_MS, isBridgeOffline });
 
     Object.assign(ns, {
         ready: true,
+        isBridgeOffline,
         listSystemDevices,
         listSystemOutputs,
         listSystemInputs,

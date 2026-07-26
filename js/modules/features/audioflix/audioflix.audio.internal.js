@@ -54,7 +54,8 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
     }
 
     async function findProviderHost() {
-        if (cachedHost && Date.now() - cachedHostAt < 60000) return cachedHost;
+        if (window.EveAudioflixNative?.isBridgeOffline?.()) return '';
+        if (cachedHostAt && Date.now() - cachedHostAt < (cachedHost ? 60000 : 30000)) return cachedHost;
         if (hostProbe) return hostProbe;
         hostProbe = (async () => {
             for (const base of providerHostCandidates()) {

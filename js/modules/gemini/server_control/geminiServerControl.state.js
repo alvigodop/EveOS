@@ -37,11 +37,17 @@
         return 700;
     }
 
+    let lastOfflineProbeAt = 0;
+
     async function findController() {
+        if (location.protocol === 'file:' && Date.now() - lastOfflineProbeAt < 20000) {
+            return null;
+        }
         const network = window.GeminiServerNetwork;
         if (state.baseUrl) {
             try {
                 const payload = await network.fetchJson(`${state.baseUrl}${STATUS_PATH}`, null, Math.max(1000, probeTimeoutFor(state.baseUrl)));
+                lastOfflineProbeAt = 0;
                 return { baseUrl: state.baseUrl, payload };
             } catch (error) {
                 state.baseUrl = '';
@@ -51,11 +57,13 @@
             try {
                 const payload = await network.fetchJson(`${baseUrl}${STATUS_PATH}`, null, probeTimeoutFor(baseUrl));
                 state.baseUrl = baseUrl;
+                lastOfflineProbeAt = 0;
                 return { baseUrl, payload };
             } catch (error) {
                 // Try the next known EveOS loopback server.
             }
         }
+        lastOfflineProbeAt = Date.now();
         return null;
     }
 

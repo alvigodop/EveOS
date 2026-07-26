@@ -197,7 +197,7 @@ window.EveAudioflixAudioOutput = window.EveAudioflixAudioOutput || {};
         try { routed = await resolvePlaybackSink(); } catch { routed = null; }
         if (routed?.deviceId) {
             try { await applySink(routed.deviceId); nativeSinkNoticeShown = false; return routed.label || ''; }
-            catch (error) { console.warn('[Audioflix] Routed output sink rejected the browser stream:', error); }
+            catch { /* Fall back to default browser audio output when custom sink ID is rejected/unpermitted */ }
         } else if (routed?.source === 'native-unmatched' && !nativeSinkNoticeShown) {
             nativeSinkNoticeShown = true;
             runtime.lastStatus = `No browser output matches the native "${routed.label}" route; this stream uses the default device. Click "Grant Output Access" so music can follow the native output.`;

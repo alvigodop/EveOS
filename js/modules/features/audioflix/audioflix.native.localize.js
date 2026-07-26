@@ -20,6 +20,7 @@ window.EveAudioflixNativeLocalize = window.EveAudioflixNativeLocalize || {};
         // 404 moved file) — a network hiccup returns true so we never downgrade a good local copy.
         async function probeLocalFile(servedUrl) {
             if (!servedUrl) return false;
+            if (typeof deps?.isBridgeOffline === 'function' && deps.isBridgeOffline()) return false;
             try {
                 const response = await fetch(servedUrl, { method: 'GET', headers: { Range: 'bytes=0-0' } });
                 return response.status !== 403 && response.status !== 404;
