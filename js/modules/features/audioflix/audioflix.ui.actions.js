@@ -147,8 +147,12 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 return;
             }
             if (action === 'open-queue-view') {
-                // Queue-wide internal view. Reuses whatever queue is already running so opening it
-                // mid-group does not restart anything; otherwise it seeds one from this group.
+                // Queue-wide internal view: toggles manually open/closed on button press.
+                if (window.EveAudioflixAudio?.isInternalViewOpen?.()) {
+                    window.EveAudioflixAudio?.closeInternalView?.();
+                    ctx.rerender();
+                    return;
+                }
                 const { name, items } = ctx.frontendActiveGroup('music');
                 if (!items?.length) return;
                 const prev = ctx.activeMusicQueue || {};

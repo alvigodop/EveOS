@@ -99,7 +99,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             Object.assign(playback, { item, currentTime: 0, duration: Number(item.resolvedDuration || 0) || 0, paused: true, provider });
         }
 
-        async function stop() {
+        async function stop(options = {}) {
             clearTimer();
             const session = active;
             active = null;
@@ -112,7 +112,10 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             } catch { }
             playback.paused = true;
             emitProgress();
-            view?.hide?.();
+            if (options?.closeView || !requestedInternalView) {
+                requestedInternalView = false;
+                view?.hide?.();
+            }
         }
 
         async function playDirect(item) {
@@ -432,6 +435,8 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
         return {
             play, openInternalView: (item) => play(item, { internalView: true }), pause, seek, stop, setVolume,
             setRate, getRate: () => playbackRate,
+            isInternalViewOpen: () => requestedInternalView && view?.isOpen?.() === true,
+            closeInternalView: () => stop({ closeView: true }),
             setQueue: (entries, index) => view?.setQueue?.(entries, index),
             canHandle: (item) => !!providerFor(item?.url),
             shouldPreferBrowser: (item) => location.protocol === 'file:'

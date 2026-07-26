@@ -223,6 +223,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     async function sendGeminiChunk(audio, detail = {}) {
+        if (isBridgeOffline()) return false;
         const current = state();
         if (current.nativeBridgeEnabled !== true || !current.nativeOutputId || !audio) return false;
         const payload = await fetchJson('/api/audioflix/play-pcm', {
@@ -244,6 +245,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     // press -> the bridge mixes overlapping voices cleanly (no chunk interleave) and
     // starts it on the next callback (low latency, smooth).
     async function playVoice(audio, detail = {}) {
+        if (isBridgeOffline()) return false;
         const current = state();
         if (current.nativeBridgeEnabled !== true || !current.nativeOutputId || !audio) return false;
         const payload = await fetchJson('/api/audioflix/play-voice', {
@@ -264,6 +266,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     async function clearVoices(voiceId) {
+        if (isBridgeOffline()) return true;
         const current = state();
         if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
         const payload = await fetchJson('/api/audioflix/clear-voices', {
@@ -278,6 +281,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     // Used by the audio player's pause/stop so silencing a Gemini reply over CABLE can't wipe
     // soundboard sounds mixing on the same output.
     async function stopStream() {
+        if (isBridgeOffline()) return true;
         const current = state();
         if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
         const payload = await fetchJson('/api/audioflix/stop-stream', {

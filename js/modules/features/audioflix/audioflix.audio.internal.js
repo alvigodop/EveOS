@@ -300,7 +300,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         }
 
         return {
-            open, hide, setStatus, setVisualVisible, setExpanded, sync, connectYouTubeBridge,
+            open, hide, isOpen: () => !!stage && !stage.hidden, setStatus, setVisualVisible, setExpanded, sync, connectYouTubeBridge,
             setQueue, setRate,
             getFrame: () => ensureStage().querySelector('.audioflix-provider-frame'),
             getStage: () => stage,

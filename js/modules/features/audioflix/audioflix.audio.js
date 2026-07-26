@@ -44,6 +44,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             currentItem = detail.item || currentItem;
             lastStatus = detail.status || lastStatus;
             dispatch('eve:audioflix-playback', detail);
+            if (detail?.status === 'Ended') {
+                queueBridge?.step?.(1);
+            }
         },
         onProgress(detail) { dispatch('eve:audioflix-progress', detail); },
         // Queue View's prev/next/jump. The queue itself belongs to the UI, so it registers a
@@ -125,6 +128,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             lastStatus = 'Ended';
             dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
             dispatch('eve:audioflix-progress', getPlaybackState());
+            queueBridge?.step?.(1);
         });
         ['loadedmetadata', 'durationchange', 'timeupdate', 'seeked'].forEach((eventName) => {
             audio.addEventListener(eventName, () => {
@@ -402,6 +406,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         layerPlay, stopItemLayers, stopAll, updateItemVolume, getDecodedBuffer, encodeBufferToBase64,
         getAudioElement: ensureAudio, getPlaybackState,
         setQueueBridge, syncQueueView, setPlaybackRate,
+        isInternalViewOpen: () => urlPlayback?.isInternalViewOpen?.() === true,
+        closeInternalView: () => urlPlayback?.closeInternalView?.(),
         getPlaybackRate: () => urlPlayback?.getRate?.() ?? 1,
         getMusicCapture: () => musicCapture,
         getWaveformController: () => waveformController,

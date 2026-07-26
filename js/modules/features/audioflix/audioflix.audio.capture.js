@@ -56,6 +56,7 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
         }
 
         async function send(chunk) {
+            if (window.EveAudioflixNative?.isBridgeOffline?.()) return false;
             const payload = window.EveAudioflixAudioBridge?.encodePcm?.(chunk, 0, chunk.length, getVolume());
             if (!payload) return true;
             const detail = { sampleRate: rate, channels: 1 };

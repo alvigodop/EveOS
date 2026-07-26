@@ -157,7 +157,13 @@ window.EveAudioflix = window.EveAudioflix || {};
         activeMusicQueue.currentIndex = index;
         const track = queueTrackAt(index);
         if (!track) return;
-        try { await window.EveAudioflixAudio?.openInternalView?.(track); }
+        try {
+            if (window.EveAudioflixAudio?.isInternalViewOpen?.()) {
+                await window.EveAudioflixAudio?.openInternalView?.(track);
+            } else {
+                await window.EveAudioflixAudio?.playItem?.(track);
+            }
+        }
         catch (err) { playbackStatus = err?.message || 'Playback failed'; }
         window.EveAudioflixAudio?.syncQueueView?.();
         rerender();
