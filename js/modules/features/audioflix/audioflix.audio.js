@@ -44,9 +44,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             currentItem = detail.item || currentItem;
             lastStatus = detail.status || lastStatus;
             dispatch('eve:audioflix-playback', detail);
-            if (detail?.status === 'Ended') {
-                queueBridge?.step?.(1);
-            }
         },
         onProgress(detail) { dispatch('eve:audioflix-progress', detail); },
         // Queue View's prev/next/jump. The queue itself belongs to the UI, so it registers a
@@ -128,7 +125,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             lastStatus = 'Ended';
             dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
             dispatch('eve:audioflix-progress', getPlaybackState());
-            queueBridge?.step?.(1);
         });
         ['loadedmetadata', 'durationchange', 'timeupdate', 'seeked'].forEach((eventName) => {
             audio.addEventListener(eventName, () => {
@@ -178,6 +174,10 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         { getWaveform: () => waveformController, getPlayer: () => audio, getVolume: () => activeStreamVolume }) || null;
 
     async function playUrlItem(item, playOptions = {}) {
+        if (audio && !audio.paused && currentItem?.id === item.id && playOptions.internalView) {
+            urlPlayback?.openInternalView?.(item);
+            return true;
+        }
         if (!urlPlayback?.canHandle?.(item)) throw new Error('This linked track needs the EveOS resolver server.');
         if (audio) audio.pause();
         await stopNativePlayback(false);

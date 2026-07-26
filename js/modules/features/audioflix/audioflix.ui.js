@@ -153,9 +153,26 @@ window.EveAudioflix = window.EveAudioflix || {};
     // lives here, so hand the audio layer a bridge back into it rather than duplicating the rules.
     const queueTrackAt = (index) => (state().music || []).find((m) => m.id === activeMusicQueue.items[index]);
     const playQueueIndex = async (index) => {
-        if (index < 0 || index >= activeMusicQueue.items.length) return;
-        activeMusicQueue.currentIndex = index;
-        const track = queueTrackAt(index);
+        if (!activeMusicQueue.items?.length) return;
+        let targetIndex = Number(index);
+        if (isNaN(targetIndex)) targetIndex = 0;
+        if (targetIndex >= activeMusicQueue.items.length) {
+            if (activeMusicQueue.loop === true) {
+                targetIndex = 0;
+                if (activeMusicQueue.shuffle === true) {
+                    const currentId = activeMusicQueue.items[activeMusicQueue.currentIndex];
+                    const rest = shuffleQueue(activeMusicQueue.items.filter(id => id !== currentId));
+                    activeMusicQueue.items = [currentId, ...rest];
+                }
+            } else {
+                activeMusicQueue.isPlaying = false;
+                return;
+            }
+        } else if (targetIndex < 0) {
+            targetIndex = activeMusicQueue.loop === true ? activeMusicQueue.items.length - 1 : 0;
+        }
+        activeMusicQueue.currentIndex = targetIndex;
+        const track = queueTrackAt(targetIndex);
         if (!track) return;
         try {
             if (window.EveAudioflixAudio?.isInternalViewOpen?.()) {
@@ -388,7 +405,22 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
     }
 
-    window.addEventListener('eve:audioflix-playback', e => { playbackStatus = e.detail?.status || playbackStatus; updateStatusDOM(); window.EveAudioflixTransport?.sync?.(overlay); if (nexusState?.open) rerender(); });
+    window.addEventListener('eve:audioflix-playback', e => {
+        playbackStatus = e.detail?.status || playbackStatus;
+        if (e.detail?.item?.id && activeMusicQueue?.items?.length) {
+            const foundIdx = activeMusicQueue.items.indexOf(e.detail.item.id);
+            if (foundIdx !== -1 && activeMusicQueue.currentIndex !== foundIdx) {
+                activeMusicQueue.currentIndex = foundIdx;
+                window.EveAudioflixAudio?.syncQueueView?.();
+            }
+        }
+        if (e.detail?.status === 'Ended' && activeMusicQueue?.isPlaying && activeMusicQueue?.items?.length) {
+            playQueueIndex(activeMusicQueue.currentIndex + 1);
+        }
+        updateStatusDOM();
+        window.EveAudioflixTransport?.sync?.(overlay);
+        if (nexusState?.open) rerender();
+    });
     window.addEventListener('eve:audioflix-progress', e => window.EveAudioflixTransport?.sync?.(overlay, e.detail));
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reason = e.detail?.reason;
