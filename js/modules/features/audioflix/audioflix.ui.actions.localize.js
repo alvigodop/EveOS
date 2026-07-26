@@ -44,7 +44,8 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
             }
             try {
                 const granted = await FS.addFolder({
-                    nickname: actionTarget.dataset.afNickname || key || 'Audioflix Music'
+                    nickname: actionTarget.dataset.afNickname || key || 'Audioflix Music',
+                    purpose: 'music'
                 });
                 FS.clearPathCache?.();
                 const audit = await window.EveAudioflixLocalize?.auditScopeDiskStatus?.(scope, key);

@@ -71,6 +71,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         const record = {
             id: String(opts.id || '') || 'fsp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
             nickname: String(opts.nickname || '').trim() || handle.name || 'Sound folder',
+            purpose: String(opts.purpose || 'sound').trim(),
             handle,
             addedAt: Date.now()
         };
@@ -80,7 +81,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         } finally {
             db.close();
         }
-        return { id: record.id, nickname: record.nickname };
+        return { id: record.id, nickname: record.nickname, purpose: record.purpose };
     }
 
     async function removeFolder(id) {
@@ -118,9 +119,11 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         if (!supported() || !api?.ensure) return;
         const st = api.ensure();
         const current = Array.isArray(st.browserFolders) ? st.browserFolders : [];
-        // A folder promoted to a path-based server Port (see "Save path") keeps its id in
-        // state.ports — never re-stub it as a browser folder or leave it in the mirror.
         const portIds = new Set((st.ports || []).map((port) => port.id));
+        const musicFolders = new Set([
+            ...(st.musicPortConnections || []).map((c) => String(c.folder || '').toLowerCase()),
+            ...(st.music || []).map((m) => String(m.folder || m.card || '').toLowerCase())
+        ]);
         const mirror = current.filter((folder) => folder && folder.id && !portIds.has(folder.id));
         const db = await openDb();
         try {
@@ -128,13 +131,28 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
             const byId = new Map(records.map((rec) => [rec.id, rec]));
             for (const folder of mirror) {
                 if (byId.has(folder.id)) continue;
-                const stub = { id: folder.id, nickname: folder.nickname || 'Sound folder', handle: null, addedAt: folder.addedAt || Date.now() };
+                const isMusic = musicFolders.has(String(folder.nickname || '').toLowerCase()) || folder.purpose === 'music';
+                const stub = {
+                    id: folder.id,
+                    nickname: folder.nickname || 'Sound folder',
+                    purpose: isMusic ? 'music' : (folder.purpose || 'sound'),
+                    handle: null,
+                    addedAt: folder.addedAt || Date.now()
+                };
                 await tx(db, 'readwrite', (store) => store.put(stub));
                 byId.set(stub.id, stub);
             }
+            // Retain purpose on existing records if nickname matches a music folder
+            for (const rec of records) {
+                const isMusic = musicFolders.has(String(rec.nickname || '').toLowerCase());
+                if (isMusic && rec.purpose !== 'music') {
+                    rec.purpose = 'music';
+                    await tx(db, 'readwrite', (store) => store.put(rec));
+                }
+            }
             const registry = [...byId.values()]
                 .filter((rec) => !portIds.has(rec.id))
-                .map((rec) => ({ id: rec.id, nickname: rec.nickname, addedAt: rec.addedAt || 0 }));
+                .map((rec) => ({ id: rec.id, nickname: rec.nickname, purpose: rec.purpose || 'sound', addedAt: rec.addedAt || 0 }));
             const inSync = registry.length === current.length
                 && registry.every((rec) => current.some((folder) => folder.id === rec.id && folder.nickname === rec.nickname));
             if (!inSync) api.update({ browserFolders: registry }, 'audioflix-browser-folders');
@@ -143,7 +161,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         }
     }
 
-    // [{ id, nickname, permission }] — 'granted' | 'prompt' | 'denied' | 'error'
+    // [{ id, nickname, purpose, permission }] — 'granted' | 'prompt' | 'denied' | 'error'
     async function folderStates() {
         if (!supported()) return [];
         const records = await allRecords();
@@ -152,6 +170,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
             states.push({
                 id: rec.id,
                 nickname: rec.nickname,
+                purpose: rec.purpose || 'sound',
                 rootName: rec.handle?.name || '',
                 permission: await permissionOf(rec.handle)
             });
@@ -285,6 +304,7 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
         const items = [];
         for (const rec of records) {
             try {
+                if (rec.purpose === 'music') continue;
                 if ((await permissionOf(rec.handle)) !== 'granted') continue;
                 const files = [];
                 for await (const [name, entry] of rec.handle.entries()) {
@@ -326,9 +346,8 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
             return `<div class="audioflix-port-item"><div><strong>${esc(p.nickname)}</strong><code style="display: block; font-size: 0.8rem; color: #8ab4f8;">${esc(p.path)}</code>${status}</div>${grantBtn}<button type="button" class="audioflix-icon-btn danger" data-af-action="remove-port" data-af-id="${esc(p.id)}">${closeSvg}</button></div>`;
         }).join('') || '<div class="audioflix-empty">No ports configured.</div>';
         // Standalone Browser Folders (not linked to a port): granted-handle sources that need NO
-        // server (work on file://). A folder the browser downgraded to 'prompt' since last session
-        // shows a Reconnect action (one click re-grants all — requestPermission needs a gesture).
-        const standalone = fsPortFolders.filter(f => !ports.some(p => p.id === f.id));
+        // server (work on file://). Filter out folders granted specifically for Music Library tracks.
+        const standalone = fsPortFolders.filter(f => f.purpose !== 'music' && !ports.some(p => p.id === f.id));
         const pendingCount = fsPortFolders.filter(f => f.permission !== 'granted').length;
         // A non-granted standalone folder (browser-downgraded permission OR a restored backup stub)
         // gets a per-folder Re-grant that re-selects the folder under the same id, so its per-item
