@@ -174,10 +174,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         { getWaveform: () => waveformController, getPlayer: () => audio, getVolume: () => activeStreamVolume }) || null;
 
     async function playUrlItem(item, playOptions = {}) {
-        if (audio && !audio.paused && currentItem?.id === item.id && playOptions.internalView) {
-            urlPlayback?.openInternalView?.(item);
-            return true;
-        }
         if (!urlPlayback?.canHandle?.(item)) throw new Error('This linked track needs the EveOS resolver server.');
         if (audio) audio.pause();
         await stopNativePlayback(false);
