@@ -166,7 +166,7 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
                     new Promise((resolve) => setTimeout(() => resolve(TIMED_OUT), WARM_TIMEOUT_MS))
                 ]);
             } catch { warmed = false; }
-            if (warmed === false) {
+            if (warmed !== true) {
                 await waveform.setFrameTap(null);
                 activePlayer = null;
                 return false;

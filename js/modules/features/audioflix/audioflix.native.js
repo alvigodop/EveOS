@@ -166,6 +166,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     async function warm(sampleRate) {
+        if (isBridgeOffline()) return false;
         const current = state();
         if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
         const payload = await fetchJson('/api/audioflix/warm', {
@@ -216,6 +217,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     }
 
     function shouldSuppressBrowserPlayback() {
+        if (isBridgeOffline()) return false;
         const current = state();
         return current.nativeBridgeEnabled === true
             && current.nativeSuppressBrowserPlayback !== false
