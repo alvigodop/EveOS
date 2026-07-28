@@ -20,6 +20,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     const DEFAULT_SPOTIFY_FOLDER = 'Spotify Playlists';
 
     const text = (value, fallback = '') => String(value ?? '').trim().replace(/^["']+|["']+$/g, '').trim() || fallback;
+    const sameName = (left, right) => text(left).toLowerCase() === text(right).toLowerCase();
     const providers = () => window.EveAudioflixPlaylistProviders;
 
     function state() {
@@ -116,6 +117,18 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         diff.missing.forEach((track) => window.EveAudioflixState?.updateItem?.('music', track.id, { upstreamMissing: true }));
     }
 
+    function ensurePlacement(connection, targetFolder = '') {
+        const folder = text(targetFolder) || text(connection.folder);
+        const group = text(connection.group);
+        if (group) window.EveAudioflixState?.addMusicGroup?.(group);
+        tracksFor(connection.id).forEach((track) => {
+            if (folder && !sameName(track.folder, folder)) {
+                window.EveAudioflixState?.updateItem?.('music', track.id, { folder });
+            }
+            if (group) window.EveAudioflixState?.toggleMusicGroup?.(track.id, group, true);
+        });
+    }
+
     function refreshProviderMetadata(connection, upstreamEntries) {
         const upstream = new Map((upstreamEntries || []).map((entry) => [text(entry?.sourceId), entry]));
         tracksFor(connection.id).forEach((track) => {
@@ -173,6 +186,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         if (connection.group) window.EveAudioflixState?.addMusicGroup?.(connection.group);
         saveConnections(connections().concat(connection), 'audioflix-playlist-import');
         applyDiff(connection, diffPlaylist([], upstream.entries || []), options.folder);
+        ensurePlacement(connection, options.folder);
         return { ok: true, connection, added: (upstream.entries || []).length, missing: 0 };
     }
 
@@ -187,21 +201,30 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         if (!upstream.ok) return upstream;
 
         const folderToUse = text(targetFolder) || connection.folder;
+        const nextTitle = text(upstream.title, connection.title);
+        const followsPlaylistTitle = !connection.group || sameName(connection.group, connection.title);
+        const nextGroup = followsPlaylistTitle ? nextTitle : connection.group;
+        if (nextGroup && connection.group && !sameName(nextGroup, connection.group)) {
+            window.EveAudioflixState?.renameGroup?.('music', connection.group, nextGroup);
+        }
+        const syncedConnection = { ...connection, title: nextTitle, group: nextGroup, folder: folderToUse };
         const diff = diffPlaylist(tracksFor(connection.id), upstream.entries || []);
-        applyDiff(connection, diff, folderToUse);
-        refreshProviderMetadata(connection, upstream.entries || []);
+        applyDiff(syncedConnection, diff, folderToUse);
+        ensurePlacement(syncedConnection, targetFolder);
+        refreshProviderMetadata(syncedConnection, upstream.entries || []);
         const next = connections().map((entry) => entry.id === connection.id
             ? Object.assign({}, entry, {
-                title: text(upstream.title, entry.title),
+                title: nextTitle,
+                group: nextGroup,
                 playlistId: text(upstream.playlistId, entry.playlistId),
-                folder: text(targetFolder) ? text(targetFolder) : entry.folder,
+                folder: folderToUse,
                 lastSyncedAt: Date.now(),
                 trackCount: (upstream.entries || []).length,
                 ...providers()?.connectionPatch?.(connection.provider, upstream)
             })
             : entry);
         saveConnections(next, 'audioflix-playlist-sync');
-        return { ok: true, connection: { ...connection, folder: folderToUse }, added: diff.add.length, restored: diff.restore.length, missing: diff.missing.length };
+        return { ok: true, connection: syncedConnection, added: diff.add.length, restored: diff.restore.length, missing: diff.missing.length };
     }
 
     // Move a track OUT of the playlist connection but keep it in EveOS (its own folder/group).

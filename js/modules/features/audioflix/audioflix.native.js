@@ -48,7 +48,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         // 127.0.0.1 only for the fallback list — the localhost twins doubled every dead-server
         // probe (and console error line) for zero gain: localhost resolves to the same machine,
         // just via the flaky IPv6-first path the comment above already avoids.
-        ['8765', '3000'].forEach((port) => {
+        ['8765', '8766', '8767', '8768', '8769', '8770', '3000'].forEach((port) => {
             bases.push(`http://127.0.0.1:${port}`);
         });
         return [...new Set(bases.filter(Boolean))];
@@ -74,7 +74,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 };
             }
             const payload = await response.json();
-            return Object.assign({ base }, payload || {});
+            return Object.assign({ base, bridgeReached: true }, payload || {});
         } finally {
             clearTimeout(timer);
         }
@@ -94,7 +94,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                     attempts.push({ base, message: 'No native bridge response.' });
                     continue;
                 }
-                if (payload?.ok !== false) {
+                if (payload.bridgeReached === true) {
                     bridgeDownUntil = 0;
                     bridgeMissStreak = 0;
                     if (bridgeOfflineNoticeShown) {

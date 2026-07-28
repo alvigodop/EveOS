@@ -15,6 +15,7 @@ const store = {
     musicGroupMap: {}
 };
 let sequence = 0;
+let playlistTitle = 'Gilded age Music';
 
 global.window = {
     EveAudioflixNative: {
@@ -22,7 +23,7 @@ global.window = {
             return {
                 ok: true,
                 playlistId: '37i9dQZF1DX4WYpdgoIcn6',
-                title: 'Gilded age Music',
+                title: playlistTitle,
                 owner: 'DriftAi',
                 description: 'Imported from the saved Spotify session.',
                 image: 'https://i.scdn.co/image/playlist-cover',
@@ -76,6 +77,12 @@ global.window = {
                 ? [...new Set(current.concat(group))]
                 : current.filter((value) => value !== group);
         },
+        renameGroup(type, oldName, newName) {
+            store.musicGroups = store.musicGroups.map((name) => name === oldName ? newName : name);
+            Object.keys(store.musicGroupMap).forEach((id) => {
+                store.musicGroupMap[id] = store.musicGroupMap[id].map((name) => name === oldName ? newName : name);
+            });
+        },
         removeItem(type, id) {
             store.music = store.music.filter((entry) => entry.id !== id);
         }
@@ -110,7 +117,7 @@ global.CustomEvent = class CustomEvent {};
     assert(normalized.url === 'https://open.spotify.com/playlist/37i9dQZF1DX4WYpdgoIcn6', 'canonical public URL is stored');
     assert(normalized.embedUrl.endsWith('/37i9dQZF1DX4WYpdgoIcn6'), 'canonical embed URL is retained');
 
-    const result = await window.EveAudioflixPlaylists.importPlaylist(iframe);
+    const result = await window.EveAudioflixPlaylists.importPlaylist(iframe, { folder: 'Test-Spotify' });
     assert(result.ok && result.added === 2, 'Spotify playlist imports every extracted row');
     const connection = store.musicPlaylists[0];
     assert(connection.provider === 'spotify', 'connection records the Spotify provider');
@@ -124,6 +131,14 @@ global.CustomEvent = class CustomEvent {};
     assert(imported?.artist === 'Sawano Hiroyuki' && imported?.album, 'track artist and album are retained');
     assert(imported?.explicit === true && imported?.playlistPosition === 2, 'track detail metadata is retained');
     assert(store.musicGroupMap[imported.id]?.includes('Gilded age Music'), 'track is linked into the playlist group');
+    assert(store.music.every((track) => track.folder === 'Test-Spotify'), 'every imported track uses the requested Audioflix folder');
+
+    playlistTitle = 'Gilded age Music Updated';
+    const retried = await window.EveAudioflixPlaylists.importPlaylist(iframe, { folder: 'Moved Spotify' });
+    assert(retried.ok && retried.added === 0, 're-import syncs the existing playlist without duplicate tracks');
+    assert(store.music.every((track) => track.folder === 'Moved Spotify'), 'retrying with a target folder moves every existing member');
+    assert(store.musicPlaylists[0].group === playlistTitle, 'an automatic playlist group follows the current Spotify title');
+    assert(store.music.every((track) => store.musicGroupMap[track.id]?.includes(playlistTitle)), 'sync repairs group membership for every track');
 
     const roundTrip = JSON.parse(JSON.stringify({
         music: store.music,

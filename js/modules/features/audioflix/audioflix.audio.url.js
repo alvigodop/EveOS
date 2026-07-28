@@ -163,7 +163,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                         if (requestedInternalView) setStageStatus('Stream expired — re-resolving fresh YouTube audio link...');
                         const resolved = await window.EveAudioflixNative.resolveUrl(item.originalUrl, true);
                         if (resolved && resolved.ok && resolved.audioUrl) {
-                            const freshProxy = 'http://localhost:8765/api/proxy?media=1&url=' + encodeURIComponent(resolved.audioUrl);
+                            const freshProxy = window.EveAudioflixNative?.getProxyUrl?.(resolved.audioUrl) || resolved.audioUrl;
                             item.rawAudioUrl = resolved.audioUrl;
                             player.src = freshProxy;
                             player.load();
@@ -217,7 +217,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                             setStageStatus('Resolving direct YouTube audio stream via EveOS bridge...');
                             const resolved = await window.EveAudioflixNative.resolveUrl(item.url, true);
                             if (resolved && resolved.ok && resolved.audioUrl) {
-                                const proxyUrl = /^https?:\/\//i.test(resolved.audioUrl) ? ('http://localhost:8765/api/proxy?media=1&url=' + encodeURIComponent(resolved.audioUrl)) : resolved.audioUrl;
+                                const proxyUrl = /^https?:\/\//i.test(resolved.audioUrl) ? (window.EveAudioflixNative?.getProxyUrl?.(resolved.audioUrl) || resolved.audioUrl) : resolved.audioUrl;
                                 setStageStatus(`Playing stream — "${resolved.title || item.title}"`);
                                 return await playDirect({ ...item, url: proxyUrl, rawAudioUrl: resolved.audioUrl, originalUrl: item.url, resolvedDuration: resolved.duration });
                             }

@@ -40,6 +40,29 @@ const assert = (condition, message) => {
         await page.locator('[data-af-action="spotify-session-import"]').isVisible(),
         'Spotify import exposes the saved-session action'
     );
+    assert(
+        (await page.locator('[data-af-form="import-playlist"]').innerText()).includes('separate saved EveOS Edge profile'),
+        'Spotify import explains that private-playlist login uses a dedicated persistent profile'
+    );
+    await page.fill('[data-af-form="import-playlist"] textarea[name="url"]', '<iframe src="https://open.spotify.com/embed/playlist/privatePlaylist"></iframe>');
+    await page.fill('[data-af-form="import-playlist"] input[name="folder"]', 'Test-Spotify');
+    await page.evaluate(() => {
+        window.EveAudioflixNative.listSpotifyPlaylist = async () => ({
+            ok: false,
+            reason: 'Spotify playlist needs the saved account session.'
+        });
+    });
+    await page.click('[data-af-form="import-playlist"] button[type="submit"]');
+    await page.waitForSelector('.audioflix-import-status');
+    assert(
+        (await page.locator('.audioflix-import-status').innerText()).includes('saved account session'),
+        'Spotify import failure is visible inside the import form'
+    );
+    assert(
+        (await page.inputValue('[data-af-form="import-playlist"] textarea[name="url"]')).includes('privatePlaylist')
+            && await page.inputValue('[data-af-form="import-playlist"] input[name="folder"]') === 'Test-Spotify',
+        'failed Spotify import retains its iframe and target folder'
+    );
 
     await page.evaluate(() => {
         const S = window.EveAudioflixState;

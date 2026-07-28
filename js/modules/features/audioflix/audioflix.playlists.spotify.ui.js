@@ -60,7 +60,9 @@ window.EveAudioflixSpotifyUi = window.EveAudioflixSpotifyUi || {};
             }
             const group = target.dataset.afGroup || '';
             const connection = group ? window.EveAudioflixPlaylists?.getPlaylistForGroup?.(group) : null;
-            const importValue = target.closest('form')?.querySelector('[name="url"]')?.value || '';
+            const importForm = target.closest('form');
+            const importValue = importForm?.querySelector('[name="url"]')?.value || '';
+            const importFolder = importForm?.querySelector('[name="folder"]')?.value || '';
             const source = connection?.url || importValue;
             if (!source) {
                 ctx.playbackStatus = 'Enter a Spotify playlist URL or iframe first.';
@@ -69,9 +71,21 @@ window.EveAudioflixSpotifyUi = window.EveAudioflixSpotifyUi || {};
             }
             if (action === 'spotify-session' || action === 'spotify-session-import') {
                 ctx.playbackStatus = 'Opening the saved Spotify session...';
+                if (action === 'spotify-session-import') {
+                    ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                        spotifyUrl: source,
+                        spotifyFolder: importFolder,
+                        spotifyStatus: ctx.playbackStatus
+                    });
+                }
                 ctx.rerender();
                 const result = await window.EveAudioflixSpotify?.openSession?.(source);
                 ctx.playbackStatus = result?.ok ? result.message : (result?.reason || result?.message || 'Could not open Spotify session.');
+                if (action === 'spotify-session-import') {
+                    ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                        spotifyStatus: ctx.playbackStatus
+                    });
+                }
                 ctx.rerender();
                 return true;
             }

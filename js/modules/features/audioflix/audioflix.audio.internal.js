@@ -34,6 +34,11 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             window.EveAudioflixState?.ensure?.()?.nativeBridgeBase,
             /^https?:$/.test(location.protocol) ? location.origin : '',
             'http://127.0.0.1:8765',
+            'http://127.0.0.1:8766',
+            'http://127.0.0.1:8767',
+            'http://127.0.0.1:8768',
+            'http://127.0.0.1:8769',
+            'http://127.0.0.1:8770',
             'http://127.0.0.1:3000'
         ];
         return [...new Set(values.map(normalizeBase).filter(Boolean))];

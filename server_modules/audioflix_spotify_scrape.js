@@ -3,10 +3,12 @@
 
 const { chromium } = require('playwright');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 
 const mode = process.argv[2] || 'scrape';
 const embedUrl = process.argv[3] || '';
 const profileDir = process.argv[4] || '';
+const statusPath = process.argv[5] || '';
 const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 const durationSeconds = (value) => {
     const parts = clean(value).split(':').map(Number);
@@ -18,7 +20,42 @@ const matchKey = (value) => clean(value).toLowerCase().replace(/[^\p{L}\p{N}]+/g
 const stableId = (row, position) => trackId(row.url || row.uri)
     || crypto.createHash('sha1').update(`${row.title}|${row.artist}|${position}`).digest('hex').slice(0, 22);
 
+function writeLaunchStatus(value) {
+    if (!statusPath) return;
+    try {
+        fs.writeFileSync(statusPath, JSON.stringify(value), 'utf8');
+    } catch {}
+}
+
+async function launchContext() {
+    const options = {
+        headless: mode !== 'login',
+        viewport: { width: 1280, height: 900 },
+        locale: 'en-US',
+        args: [
+            '--disable-blink-features=AutomationControlled',
+            '--disable-dev-shm-usage',
+            '--window-position=80,80',
+            '--window-size=1280,900'
+        ]
+    };
+    if (process.platform === 'win32') {
+        try {
+            return await chromium.launchPersistentContext(profileDir, { ...options, channel: 'msedge' });
+        } catch (edgeError) {
+            try {
+                return await chromium.launchPersistentContext(profileDir, options);
+            } catch (chromiumError) {
+                throw new Error(`Could not open the saved Spotify browser profile. Edge: ${edgeError.message}. Chromium: ${chromiumError.message}`);
+            }
+        }
+    }
+    return chromium.launchPersistentContext(profileDir, options);
+}
+
 function mergeTrack(base = {}, overlay = {}) {
+    base = base && typeof base === 'object' ? base : {};
+    overlay = overlay && typeof overlay === 'object' ? overlay : {};
     const artists = overlay.artists?.length ? overlay.artists : (base.artists || []);
     const durationMs = Number(overlay.durationMs || base.durationMs || 0);
     const id = overlay.id || base.id || trackId(overlay.url || base.url);
@@ -189,7 +226,9 @@ async function scrape(context) {
     await page.goto(embedUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForTimeout(4500);
     const body = await page.locator('body').innerText().catch(() => '');
-    if (/page not found|can.?t seem to find/i.test(body)) throw new Error('Spotify returned Page not found. Open the saved Spotify session and sign in.');
+    if (/page not found|can.?t seem to find/i.test(body)) {
+        throw new Error('Spotify could not open this playlist in EveOS. It may be private, deleted, or owned by another account. Open the saved Spotify session, sign in to an account that can view it, confirm the playlist loads there, then import again.');
+    }
     if (/log in|sign in/i.test(body) && !/\b\d{1,3}:\d{2}\b/.test(body)) throw new Error('Spotify login is required. Open the saved Spotify session first.');
     for (const script of await page.locator('script').allTextContents()) {
         if (script.length < 12000000 && /spotify:track:|\/track\//.test(script)) {
@@ -220,15 +259,11 @@ async function scrape(context) {
     return { ok: true, playlistId: embedUrl.match(/playlist\/([A-Za-z0-9]+)/)?.[1] || '', title: meta.title || 'Spotify Playlist', owner: meta.owner, image: meta.image || entries[0].image, count: entries.length, entries };
 }
 
-(async () => {
+async function main() {
     if (!embedUrl || !profileDir) throw new Error('Missing Spotify playlist or profile path.');
-    const context = await chromium.launchPersistentContext(profileDir, {
-        headless: mode !== 'login',
-        viewport: { width: 1280, height: 900 },
-        locale: 'en-US',
-        args: ['--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage']
-    });
+    const context = await launchContext();
     if (mode === 'login') {
+        writeLaunchStatus({ ok: true, pid: process.pid, openedAt: Date.now(), url: embedUrl });
         const page = context.pages()[0] || await context.newPage();
         await page.goto(`https://accounts.spotify.com/login?continue=${encodeURIComponent(embedUrl)}`, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => page.goto(embedUrl));
         await new Promise((resolve) => context.on('close', resolve));
@@ -236,7 +271,15 @@ async function scrape(context) {
     }
     try { process.stdout.write(JSON.stringify(await scrape(context))); }
     finally { await context.close(); }
-})().catch((error) => {
-    process.stdout.write(JSON.stringify({ ok: false, reason: error instanceof Error ? error.message : String(error) }));
-    process.exitCode = 1;
-});
+}
+
+if (require.main === module) {
+    main().catch((error) => {
+        const failure = { ok: false, reason: error instanceof Error ? error.message : String(error) };
+        writeLaunchStatus(failure);
+        process.stdout.write(JSON.stringify(failure));
+        process.exitCode = 1;
+    });
+}
+
+module.exports = { mergeTrack };

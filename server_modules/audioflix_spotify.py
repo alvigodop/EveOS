@@ -20,6 +20,8 @@ _CACHE_TTL_S = 300
 _cache: dict[str, dict] = {}
 _cache_lock = threading.Lock()
 _scrape_lock = threading.Lock()
+_session_lock = threading.Lock()
+_session_process: subprocess.Popen | None = None
 _PLAYLIST_RE = re.compile(
     r"https?://open\.spotify\.com/(?:embed/)?playlist/([A-Za-z0-9]+)(?:[?&#][^\"'<>\s]*)?",
     re.IGNORECASE,
@@ -80,14 +82,41 @@ def _cache_set(key: str, value: dict) -> None:
             _cache.pop(oldest, None)
 
 
-def _helper_command(mode: str, normalized: dict) -> list[str]:
-    return [
+def _helper_command(mode: str, normalized: dict, status_path: Path | None = None) -> list[str]:
+    command = [
         "node",
         str(_project_root() / "server_modules" / "audioflix_spotify_scrape.js"),
         mode,
         normalized["embedUrl"],
         str(_profile_dir()),
     ]
+    if status_path:
+        command.append(str(status_path))
+    return command
+
+
+def _pid_is_running(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        try:
+            result = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=3,
+                check=False,
+            )
+            return f'"{pid}"' in result.stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except (OSError, ValueError):
+        return False
 
 
 def list_playlist(value: str, force: bool = False) -> dict:
@@ -130,26 +159,81 @@ def list_playlist(value: str, force: bool = False) -> dict:
 
 
 def open_session(value: str) -> dict:
+    global _session_process
     normalized = normalize_playlist_input(value)
     if not normalized.get("ok"):
         return normalized
-    command = _helper_command("login", normalized)
+    runtime_dir = _profile_dir().parent
+    status_path = runtime_dir / "spotify-session-launch.json"
+    log_path = runtime_dir / "spotify-session.log"
+    command = _helper_command("login", normalized, status_path)
     flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    try:
-        subprocess.Popen(
-            command,
-            cwd=str(_project_root()),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=flags,
-            close_fds=True,
-        )
-    except OSError as exc:
-        return {"ok": False, "reason": f"Could not open the Spotify session: {exc}"}
+    with _session_lock:
+        if _session_process and _session_process.poll() is None:
+            return {
+                "ok": True,
+                "message": "The EveOS Spotify session window is already open. Use that window to sign in and view the playlist.",
+                "sessionReady": True,
+                **normalized,
+            }
+        try:
+            previous = json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else {}
+        except (OSError, json.JSONDecodeError):
+            previous = {}
+        if previous.get("ok") and _pid_is_running(int(previous.get("pid") or 0)):
+            return {
+                "ok": True,
+                "message": "The EveOS Spotify session window is already open. Use that window to sign in and view the playlist.",
+                "sessionReady": True,
+                **normalized,
+            }
+        try:
+            status_path.unlink(missing_ok=True)
+            with log_path.open("w", encoding="utf-8", errors="replace") as log:
+                _session_process = subprocess.Popen(
+                    command,
+                    cwd=str(_project_root()),
+                    stdin=subprocess.DEVNULL,
+                    stdout=log,
+                    stderr=subprocess.STDOUT,
+                    creationflags=flags,
+                    close_fds=True,
+                )
+        except OSError as exc:
+            return {"ok": False, "reason": f"Could not open the Spotify session: {exc}"}
+
+        deadline = time.monotonic() + 8
+        status = None
+        while time.monotonic() < deadline:
+            if status_path.exists():
+                try:
+                    status = json.loads(status_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    status = None
+                if status:
+                    break
+            if _session_process.poll() is not None:
+                break
+            time.sleep(0.1)
+
+        if not status or not status.get("ok"):
+            detail = str((status or {}).get("reason") or "").strip()
+            if not detail:
+                try:
+                    detail = log_path.read_text(encoding="utf-8", errors="replace").strip()[-1000:]
+                except OSError:
+                    detail = ""
+            if not detail and _session_process.poll() is None:
+                detail = "The browser did not confirm that its window was ready."
+            _session_process = None
+            return {
+                "ok": False,
+                "reason": f"Could not open the EveOS Spotify session window. {detail}".strip(),
+            }
     return {
         "ok": True,
-        "message": "Spotify session opened. Sign in, verify the playlist rows, then close that window and sync again.",
+        "message": "EveOS Spotify opened in a separate saved Edge profile. Sign in there once, verify the private playlist loads, then close that window and import again.",
+        "sessionReady": True,
         **normalized,
     }
 

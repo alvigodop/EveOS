@@ -7,7 +7,8 @@ window.EveAudioflixAudioSource = window.EveAudioflixAudioSource || {};
     if (ns.ready) return;
 
     const DIRECT_AUDIO_RE = /\.(mp3|wav|ogg|oga|flac|aac|m4a|webm|opus)(?:$|[?#])/i;
-    const PLATFORM_RE = /^https?:\/\/(?:www\.|music\.)?(?:youtube\.com|youtu\.be|soundcloud\.com|bandcamp\.com|vimeo\.com)\b/i;
+    const PLATFORM_RE = /^https?:\/\/(?:www\.|music\.)?(?:youtube\.com|youtu\.be|soundcloud\.com|bandcamp\.com|vimeo\.com|open\.spotify\.com)\b/i;
+    const PROVIDER_NATIVE_RE = /^https?:\/\/open\.spotify\.com\/track\/[A-Za-z0-9]+(?:[/?#]|$)/i;
 
     function getOriginalPlatformUrl(item) {
         if (item?.sourceUrl && PLATFORM_RE.test(item.sourceUrl)) return item.sourceUrl;
@@ -26,6 +27,7 @@ window.EveAudioflixAudioSource = window.EveAudioflixAudioSource || {};
 
     function needsResolution(url) {
         const value = String(url || '').trim();
+        if (PROVIDER_NATIVE_RE.test(value)) return false;
         if (value.includes('/api/proxy?') || value.includes('googlevideo.com')) return true;
         return PLATFORM_RE.test(value) || (/^https?:\/\//i.test(value) && !DIRECT_AUDIO_RE.test(value));
     }
