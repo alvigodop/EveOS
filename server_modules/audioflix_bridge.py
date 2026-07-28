@@ -81,6 +81,18 @@ def handle_get_request(handler, path: str, query) -> bool:
         from server_modules import audioflix_playlist
         audioflix_playlist.handle_playlist_request(handler, query)
         return True
+    elif path == "/api/audioflix/spotify-playlist":
+        if not _can_control(handler):
+            _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
+            return True
+        from server_modules import audioflix_spotify
+        values = query.get("url") or []
+        payload = audioflix_spotify.list_playlist(
+            values[0] if values else "",
+            force=bool(query.get("refresh") or query.get("force")),
+        )
+        _send_json(handler, payload)
+        return True
     elif path.startswith("/api/audioflix/port/"):
         if not _can_control(handler):
             _send_json(handler, {"ok": False, "message": "Forbidden."}, HTTPStatus.FORBIDDEN)
@@ -121,9 +133,13 @@ def wpl_read(payload: dict) -> dict:
     from server_modules import audioflix_localize
     return audioflix_localize.read_wpl(payload)
 
+def spotify_session(payload: dict) -> dict:
+    from server_modules import audioflix_spotify
+    return audioflix_spotify.session_action(payload)
+
 
 def handle_post_request(handler, path: str) -> bool:
-    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/stop-stream": stop_stream, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear, "/api/audioflix/localize": localize_track, "/api/audioflix/localize-scan": localize_scan, "/api/audioflix/localize-link": localize_link, "/api/audioflix/wpl-read": wpl_read}.get(path)
+    action = {"/api/audioflix/play-pcm": play_pcm, "/api/audioflix/play-tone": play_tone, "/api/audioflix/play-media": play_media, "/api/audioflix/play-voice": play_voice, "/api/audioflix/set-voice-volume": set_voice_volume, "/api/audioflix/clear-voices": clear_voices, "/api/audioflix/stop-stream": stop_stream, "/api/audioflix/warm": warm, "/api/audioflix/hotkeys/set": hotkeys_set, "/api/audioflix/hotkeys/clear": hotkeys_clear, "/api/audioflix/localize": localize_track, "/api/audioflix/localize-scan": localize_scan, "/api/audioflix/localize-link": localize_link, "/api/audioflix/wpl-read": wpl_read, "/api/audioflix/spotify-session": spotify_session}.get(path)
     if not action:
         return False
     if not _can_control(handler):

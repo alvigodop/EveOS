@@ -176,7 +176,13 @@ window.EveAudioflixPaths = window.EveAudioflixPaths || {};
 
         const wantedTitle = titleKey(item?.title);
         if (!wantedTitle) return null;
-        const titleMatches = list.filter((file) => titleKey(file.name || file.fileName) === wantedTitle);
+        const wantedArtist = titleKey(item?.artist);
+        const acceptedTitles = new Set([wantedTitle]);
+        if (wantedArtist) {
+            acceptedTitles.add(`${wantedTitle} ${wantedArtist}`);
+            acceptedTitles.add(`${wantedArtist} ${wantedTitle}`);
+        }
+        const titleMatches = list.filter((file) => acceptedTitles.has(titleKey(file.name || file.fileName)));
         return titleMatches.length === 1 ? titleMatches[0] : null;
     }
 

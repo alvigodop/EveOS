@@ -17,6 +17,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from server_modules import audioflix_localize as L
+from server_modules import audioflix_spotify as SPOTIFY
 
 
 def check(cond, msg):
@@ -52,12 +53,44 @@ r_local = L.localize_one({"track": {"id": "x", "title": "T", "url": "C:/song.mp3
 check(not r_local.get("ok") and "online" in (r_local.get("error") or "").lower(), "localize_one rejects a non-online url")
 r_nodir = L.localize_one({"track": {"id": "y", "title": "T", "url": "https://example.com/x"}, "targetDir": ""})
 check(not r_nodir.get("ok"), "localize_one rejects a missing target folder before any download")
+r_spotify = L.localize_one({
+    "track": {
+        "id": "spotify",
+        "title": "Owned Spotify Match",
+        "url": "https://open.spotify.com/track/spotifyTrack123",
+        "sourceProvider": "spotify",
+    },
+    "targetDir": tmp,
+})
+check(
+    not r_spotify.get("ok") and "spotify" in (r_spotify.get("error") or "").lower(),
+    "localize_one never downloads Spotify audio",
+)
 
-# 5. bridge route wiring
+# 5. Spotify accepts public, embed, and iframe playlist sources without storing HTML noise.
+spotify_id = "37i9dQZF1DX4WYpdgoIcn6"
+for source in (
+    f"https://open.spotify.com/playlist/{spotify_id}?si=test",
+    f"https://open.spotify.com/embed/playlist/{spotify_id}",
+    f'<iframe src="https://open.spotify.com/embed/playlist/{spotify_id}?utm_source=generator"></iframe>',
+):
+    normalized = SPOTIFY.normalize_playlist_input(source)
+    check(normalized.get("ok") and normalized.get("playlistId") == spotify_id, "Spotify source did not normalize")
+    check(normalized.get("url") == f"https://open.spotify.com/playlist/{spotify_id}", "Spotify public URL was not canonical")
+check(not SPOTIFY.normalize_playlist_input("https://example.com/list").get("ok"), "non-Spotify sources must be rejected")
+
+# 6. bridge route wiring
 from server_modules import audioflix_bridge as B
 check(callable(getattr(B, "localize_track", None)), "bridge exposes localize_track")
 check(callable(getattr(B, "localize_scan", None)), "bridge exposes localize_scan")
 src = open(os.path.join(ROOT, "server_modules", "audioflix_bridge.py"), encoding="utf-8").read()
 check("/api/audioflix/localize" in src and "/api/audioflix/localize-scan" in src, "bridge POST map registers both routes")
+check("/api/audioflix/spotify-playlist" in src and "/api/audioflix/spotify-session" in src, "bridge registers Spotify routes")
+spotify_scraper = open(
+    os.path.join(ROOT, "server_modules", "audioflix_spotify_scrape.js"),
+    encoding="utf-8",
+).read()
+check("[data-testid^='tracklist-row']" in spotify_scraper, "Spotify indexed rows use a prefix selector")
+check("byTitle.get(matchKey(row.title))" in spotify_scraper, "Spotify DOM rows join saved JSON metadata")
 
 print("AUDIOFLIX_LOCALIZE_ENDPOINT_SMOKE_OK")

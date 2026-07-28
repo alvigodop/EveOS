@@ -1,0 +1,141 @@
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const ROOT = path.resolve(__dirname, '..', '..');
+const feature = (name) => path.join(ROOT, 'js', 'modules', 'features', 'audioflix', name);
+const assert = (condition, message) => {
+    if (!condition) throw new Error(`ASSERT FAILED: ${message}`);
+};
+
+const store = {
+    music: [],
+    musicPlaylists: [],
+    musicGroups: [],
+    musicGroupMap: {}
+};
+let sequence = 0;
+
+global.window = {
+    EveAudioflixNative: {
+        async listSpotifyPlaylist() {
+            return {
+                ok: true,
+                playlistId: '37i9dQZF1DX4WYpdgoIcn6',
+                title: 'Gilded age Music',
+                owner: 'DriftAi',
+                description: 'Imported from the saved Spotify session.',
+                image: 'https://i.scdn.co/image/playlist-cover',
+                entries: [
+                    {
+                        sourceId: 'spotify-a',
+                        title: 'Selfish',
+                        artist: 'Madison Beer',
+                        album: 'Silence Between Songs',
+                        image: 'https://i.scdn.co/image/a',
+                        duration: 183,
+                        explicit: false,
+                        position: 1,
+                        url: 'https://open.spotify.com/track/trackA123456'
+                    },
+                    {
+                        sourceId: 'spotify-b',
+                        title: 'Mobius',
+                        artist: 'Sawano Hiroyuki',
+                        album: 'Mobile Suit Gundam Hathaway',
+                        image: 'https://i.scdn.co/image/b',
+                        duration: 233,
+                        explicit: true,
+                        position: 2,
+                        url: 'https://open.spotify.com/track/trackB123456'
+                    }
+                ]
+            };
+        },
+        async openSpotifySession() { return { ok: true }; }
+    },
+    EveAudioflixState: {
+        ensure: () => store,
+        update(patch) { Object.assign(store, JSON.parse(JSON.stringify(patch))); },
+        addMusicGroup(name) {
+            if (!store.musicGroups.includes(name)) store.musicGroups.push(name);
+        },
+        addItem(type, item) {
+            const added = { ...item, id: item.id || `music_${++sequence}`, type };
+            store.music.push(added);
+            return added;
+        },
+        updateItem(type, id, patch) {
+            const item = store.music.find((entry) => entry.id === id);
+            if (item) Object.assign(item, patch);
+            return item;
+        },
+        toggleMusicGroup(id, group, enabled) {
+            const current = store.musicGroupMap[id] || [];
+            store.musicGroupMap[id] = enabled
+                ? [...new Set(current.concat(group))]
+                : current.filter((value) => value !== group);
+        },
+        removeItem(type, id) {
+            store.music = store.music.filter((entry) => entry.id !== id);
+        }
+    },
+    EveAudioflixPlaylistsWpl: {
+        create() {
+            return {
+                importWplPlaylist: async () => ({ ok: false }),
+                syncWplPlaylist: async () => ({ ok: false })
+            };
+        }
+    }
+};
+global.CustomEvent = class CustomEvent {};
+
+[
+    'audioflix.audio.url.providers.js',
+    'audioflix.audio.url.spotify.js',
+    'audioflix.playlists.providers.js',
+    'audioflix.playlists.spotify.js',
+    'audioflix.playlists.js'
+].forEach((name) => vm.runInThisContext(fs.readFileSync(feature(name), 'utf8'), { filename: name }));
+
+(async () => {
+    const trackUrl = 'https://open.spotify.com/track/trackA123456';
+    assert(window.EveAudioflixUrlProviders.providerFor(trackUrl) === 'spotify', 'Spotify track URLs use the Spotify transport');
+    assert(window.EveAudioflixSpotifyPlayback.spotifyTrackId(trackUrl) === 'trackA123456', 'Spotify track IDs normalize for the iframe controller');
+
+    const iframe = '<iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DX4WYpdgoIcn6?utm_source=generator"></iframe>';
+    const normalized = window.EveAudioflixSpotify.normalizeInput(iframe);
+    assert(normalized.ok, 'Spotify iframe snippets normalize');
+    assert(normalized.url === 'https://open.spotify.com/playlist/37i9dQZF1DX4WYpdgoIcn6', 'canonical public URL is stored');
+    assert(normalized.embedUrl.endsWith('/37i9dQZF1DX4WYpdgoIcn6'), 'canonical embed URL is retained');
+
+    const result = await window.EveAudioflixPlaylists.importPlaylist(iframe);
+    assert(result.ok && result.added === 2, 'Spotify playlist imports every extracted row');
+    const connection = store.musicPlaylists[0];
+    assert(connection.provider === 'spotify', 'connection records the Spotify provider');
+    assert(connection.group === 'Gilded age Music', 'playlist title becomes the live Audioflix group');
+    assert(connection.owner === 'DriftAi' && connection.image, 'playlist metadata survives the connection');
+    assert(connection.embedUrl === normalized.embedUrl, 'connection retains its editable embed source');
+    assert(store.musicGroups.includes('Gilded age Music'), 'Spotify import creates a music group');
+
+    const imported = store.music.find((track) => track.sourceId === 'spotify-b');
+    assert(imported?.sourceProvider === 'spotify', 'track records provider provenance');
+    assert(imported?.artist === 'Sawano Hiroyuki' && imported?.album, 'track artist and album are retained');
+    assert(imported?.explicit === true && imported?.playlistPosition === 2, 'track detail metadata is retained');
+    assert(store.musicGroupMap[imported.id]?.includes('Gilded age Music'), 'track is linked into the playlist group');
+
+    const roundTrip = JSON.parse(JSON.stringify({
+        music: store.music,
+        musicPlaylists: store.musicPlaylists,
+        musicGroups: store.musicGroups,
+        musicGroupMap: store.musicGroupMap
+    }));
+    assert(roundTrip.music[1].sourceProvider === 'spotify', 'Spotify track metadata is JSON-backup safe');
+    assert(roundTrip.musicPlaylists[0].owner === 'DriftAi', 'Spotify playlist metadata is JSON-backup safe');
+    assert(window.EveAudioflixPlaylistProviders.detect(normalized.url) === 'spotify', 'registry detects Spotify playlist URLs');
+    console.log('AUDIOFLIX_SPOTIFY_PLAYLIST_SMOKE_OK');
+})().catch((error) => {
+    console.error(error);
+    process.exit(1);
+});

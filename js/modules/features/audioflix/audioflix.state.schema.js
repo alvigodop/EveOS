@@ -37,6 +37,11 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                     ? [...new Set(source.classifiers.map((c) => text(c, '')).filter(Boolean))].slice(0, 40)
                     : [],
                 artist: text(source.artist, ''),
+                album: text(source.album, ''),
+                image: text(source.image, ''),
+                explicit: source.explicit === true,
+                sourceProvider: text(source.sourceProvider, ''),
+                playlistPosition: Math.max(0, Number(source.playlistPosition || 0) || 0),
                 card: text(source.card, ''),
                 folder: text(source.folder, ''),
                 category: text(source.category, ''),

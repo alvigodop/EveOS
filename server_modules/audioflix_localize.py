@@ -107,6 +107,12 @@ def localize_one(payload: dict) -> dict:
 
     if not _is_http(url):
         return {"ok": False, "id": tid, "error": "Track has no online URL to localize."}
+    if "open.spotify.com/" in url.lower():
+        return {
+            "ok": False,
+            "id": tid,
+            "error": "Spotify audio is not downloaded. Put an owned local file in the target folder, then recalibrate or localize again to attach it.",
+        }
 
     path, err = _prepare_dir(target_dir)
     if err:

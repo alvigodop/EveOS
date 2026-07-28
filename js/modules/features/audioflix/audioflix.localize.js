@@ -272,6 +272,12 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     }
 
     async function downloadInto(N, it, dir) {
+        if (it?.sourceProvider === 'spotify' || /open\.spotify\.com\//i.test(text(it?.url))) {
+            return {
+                ok: false,
+                error: 'Spotify audio is not downloaded. Add an owned local file to this folder; Audioflix will match it by title and artist.'
+            };
+        }
         const res = await N.localizeTrack({ id: it.id, title: it.title, url: it.url }, dir);
         return (res?.ok && res.filePath) ? { ok: true, path: res.filePath } : { ok: false, error: res?.error || res?.message || 'download failed' };
     }
@@ -321,7 +327,10 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         if (!N?.localizeTrack) return { ok: false, reason: 'Localization needs the EveOS localhost server running.' };
         const dir = text(targetDir);
         if (!dir) return { ok: false, reason: 'No target folder was chosen.' };
-        updateScopeDir(scope, key, dir);
+        // Attach already-owned files before considering a network localization. This is the only
+        // localization path for Spotify metadata and also avoids re-downloading other dual-source
+        // tracks that are already present under a newly selected directory.
+        await recalibrateScopePath(scope, key, dir);
         if (scope === 'group') return localizeGroup(key, dir, onProgress, mode);
         const items = localizeCandidates(scope, key, force);
         if (!items.length) return { ok: true, done: 0, failed: 0, total: 0, targetDir: dir, note: 'Nothing to localize.' };

@@ -185,6 +185,8 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function openInternalView(item) {
+        const prior = getPlaybackState();
+        const sameItem = String(prior?.item?.id || '') === String(item?.id || '');
         const prepared = await window.EveAudioflixLocalPlayback?.prepare?.(item);
         const requestedItem = prepared?.item || (item && typeof item === 'object' ? { ...item } : {});
         if (prepared?.status) lastStatus = prepared.status;
@@ -194,7 +196,12 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             try { playableItem = await window.EveAudioflixAudioSource.resolveItem(requestedItem); }
             catch { /* Provider playback remains available when the resolver is offline. */ }
         }
-        return playUrlItem(playableItem, { internalView: true });
+        const opened = await playUrlItem(playableItem, { internalView: true });
+        if (sameItem && Number(prior.currentTime) > 0) {
+            await urlPlayback?.seek?.(prior.currentTime);
+            if (prior.paused) await urlPlayback?.pause?.();
+        }
+        return opened;
     }
 
     async function playItem(item) {
@@ -408,6 +415,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         getAudioElement: ensureAudio, getPlaybackState,
         setQueueBridge, syncQueueView, setPlaybackRate,
         isInternalViewOpen: () => urlPlayback?.isInternalViewOpen?.() === true,
+        hideInternalView: () => urlPlayback?.hideInternalView?.(),
         closeInternalView: () => urlPlayback?.closeInternalView?.(),
         getPlaybackRate: () => urlPlayback?.getRate?.() ?? 1,
         getMusicCapture: () => musicCapture,

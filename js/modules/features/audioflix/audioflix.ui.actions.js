@@ -13,6 +13,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
     ns.create = function create(ctx) {
         const localizeActions = window.EveAudioflixUiActionsLocalize.create(ctx);
         const nexusActions = window.EveAudioflixUiActionsNexus.create(ctx);
+        const spotifyActions = window.EveAudioflixSpotifyUi.createActions(ctx);
 
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
@@ -168,10 +169,11 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'open-queue-view') {
                 // Queue-wide internal view: toggles manually open/closed on button press.
                 if (window.EveAudioflixAudio?.isInternalViewOpen?.()) {
-                    window.EveAudioflixAudio?.closeInternalView?.();
+                    window.EveAudioflixAudio?.hideInternalView?.();
                     ctx.rerender();
                     return;
                 }
+                await ctx.waitForQueueTransition?.();
                 const { name, items } = ctx.frontendActiveGroup('music');
                 if (!items?.length) return;
                 const prev = ctx.activeMusicQueue || {};
@@ -263,11 +265,6 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                         ctx.rerender();
                     });
                 }
-                return;
-            }
-            if (action === 'toggle-import-form') {
-                ctx.importFormOpen = !ctx.importFormOpen;
-                ctx.rerender();
                 return;
             }
             if (action === 'toggle-sync-playlist-form') {
@@ -426,6 +423,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
+            if (await spotifyActions(actionTarget, action)) return;
             if (await nexusActions(actionTarget, action)) return;
             // Localization / remaining nexus-panel actions live in a sibling module.
             if (await localizeActions(actionTarget, action)) return;

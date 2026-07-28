@@ -6,6 +6,7 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = { sound: false, music: false }, foldersOpen = { music: false }, portedSounds = [], fsPortFolders = [], deadServerPorts = new Set(), collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
     let activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: false, loop: false };
+    let queueTransition = Promise.resolve();
     const shared = window.EveAudioflixUiShared;
     if (!shared?.ready) throw new Error('Audioflix UI shared module loaded out of order.');
     const { shuffleQueue, hotkeyComboIssue, playSvg, closeSvg, stopSvg, layerPlaySvg, viewSvg, cogSvg } = shared;
@@ -154,16 +155,15 @@ window.EveAudioflix = window.EveAudioflix || {};
         activeMusicQueue.currentIndex = targetIndex;
         const track = queueTrackAt(targetIndex);
         if (!track) return;
-        try {
-            if (window.EveAudioflixAudio?.isInternalViewOpen?.()) {
-                await window.EveAudioflixAudio?.openInternalView?.(track);
-            } else {
-                await window.EveAudioflixAudio?.playItem?.(track);
-            }
-        }
-        catch (err) { playbackStatus = err?.message || 'Playback failed'; }
-        window.EveAudioflixAudio?.syncQueueView?.();
-        rerender();
+        queueTransition = (async () => {
+            try {
+                if (window.EveAudioflixAudio?.isInternalViewOpen?.()) await window.EveAudioflixAudio?.openInternalView?.(track);
+                else await window.EveAudioflixAudio?.playItem?.(track);
+            } catch (err) { playbackStatus = err?.message || 'Playback failed'; }
+            window.EveAudioflixAudio?.syncQueueView?.();
+            rerender();
+        })();
+        return queueTransition;
     };
     window.EveAudioflixAudio?.setQueueBridge?.({
         list: () => activeMusicQueue.items.map((id) => {
@@ -213,22 +213,12 @@ window.EveAudioflix = window.EveAudioflix || {};
     const { frontendGroupEntries, frontendActiveGroup, renderItemCard, renderItems, renderFrontendActive, renderFrontendMusicActive } = uiRender;
 
     const renderForm = (type, m = type === 'music') => `<form class="audioflix-form" data-af-form="${m ? 'music' : 'sound'}"><label><span>${m ? 'Track Title' : 'Sound Name'}</span><input name="title" required></label><label class="audioflix-wide-field"><span>URL / Path</span><input name="url" required></label><label><span>${m ? 'Artist' : 'Category'}</span><input name="${m ? 'artist' : 'category'}"></label><label><span>${m ? 'Folder' : 'Volume'}</span><input name="${m ? 'folder' : 'volume'}"></label><button type="submit" data-af-action="submit-form">${m ? 'Add Track' : 'Add Sound'}</button></form>`;
-    const renderImportPlaylistForm = () => {
-        const mode = playlistImportMode || 'youtube';
-        const isYt = mode === 'youtube';
-        const isWpl = mode === 'wpl';
-
-        const modeSelector = `<div style="display:flex; align-items:center; gap:8px; width:100%; margin-bottom:8px;"><span style="font-size:0.8rem; color:#cbd5e1; font-weight:600;">Import Mode:</span><button type="button" class="audioflix-scope-pill${isYt ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="youtube">📺 YouTube Playlist</button><button type="button" class="audioflix-scope-pill${isWpl ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="wpl">🎵 WPL Playlist</button></div>`;
-
-        if (isWpl) {
-            const urlVal = esc(importFormValues.wplUrl || '');
-            return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${modeSelector}<label class="audioflix-wide-field"><span>WPL Playlist File Path or Browse</span><div style="display:flex; gap:6px; align-items:center; width:100%;"><input name="url" required placeholder="C:\\path\\to\\playlist.wpl" value="${urlVal}" style="flex:1;"><button type="button" class="audioflix-add-toggle" data-af-action="trigger-wpl-file-picker" style="cursor:pointer; white-space:nowrap; padding:0 10px; margin:0;" title="Select .wpl file from your computer">📂 Browse File</button></div></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
-        }
-
-        const plCount = (state().musicPlaylists || []).filter(c => c.provider !== 'wpl').length;
-        const syncAllBtn = plCount ? `<button type="button" class="audioflix-add-toggle" data-af-action="sync-all-playlists" style="margin-left: 8px;" title="Re-read all upstream YouTube playlists">Sync All Playlists</button>` : '';
-        return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="youtube">${modeSelector}<label class="audioflix-wide-field"><span>Playlist URL</span><input name="url" required placeholder="https://youtube.com/playlist?list=..."></label><label><span>Target Folder</span><input name="folder" placeholder="Youtube Playlists"></label><button type="submit" data-af-action="submit-form">Import Playlist</button>${syncAllBtn}</form>`;
-    };
+    const renderImportPlaylistForm = () => window.EveAudioflixPlaylistImportUi.render({
+        mode: playlistImportMode || 'youtube',
+        esc,
+        values: importFormValues,
+        state: state()
+    });
     const renderSyncPlaylistForm = (g) => {
         const conn = window.EveAudioflixPlaylists?.getPlaylistForGroup?.(g);
         const currFolder = conn?.folder || 'Music';
@@ -316,6 +306,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     // renderers above keep using the same closure variables unchanged.
     const uiCtx = {
         state, rerender, rerenderModal, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries,
+        waitForQueueTransition: () => queueTransition.catch(() => {}),
         get overlay() { return overlay; },
         get portedSounds() { return portedSounds; },
         get activeRepeaters() { return activeRepeaters; }, set activeRepeaters(v) { activeRepeaters = v; },
@@ -387,15 +378,20 @@ window.EveAudioflix = window.EveAudioflix || {};
 
     window.addEventListener('eve:audioflix-playback', e => {
         playbackStatus = e.detail?.status || playbackStatus;
-        if (e.detail?.item?.id && activeMusicQueue?.items?.length) {
+        const eventItemId = e.detail?.item?.id;
+        const currentQueueId = activeMusicQueue?.items?.[activeMusicQueue.currentIndex];
+        if (e.detail?.status === 'Ended' && activeMusicQueue?.isPlaying && activeMusicQueue?.items?.length) {
+            // Only the currently owned queue item may advance. A late duplicate "Ended" from a
+            // replaced provider/player must not move the queue a second time.
+            if (!eventItemId || eventItemId === currentQueueId) {
+                playQueueIndex(activeMusicQueue.currentIndex + 1);
+            }
+        } else if (eventItemId && activeMusicQueue?.items?.length) {
             const foundIdx = activeMusicQueue.items.indexOf(e.detail.item.id);
             if (foundIdx !== -1 && activeMusicQueue.currentIndex !== foundIdx) {
                 activeMusicQueue.currentIndex = foundIdx;
                 window.EveAudioflixAudio?.syncQueueView?.();
             }
-        }
-        if (e.detail?.status === 'Ended' && activeMusicQueue?.isPlaying && activeMusicQueue?.items?.length) {
-            playQueueIndex(activeMusicQueue.currentIndex + 1);
         }
         updateStatusDOM();
         window.EveAudioflixTransport?.sync?.(overlay);

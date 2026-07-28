@@ -17,8 +17,10 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     if (ns.ready) return;
 
     const DEFAULT_FOLDER = 'Youtube Playlists';
+    const DEFAULT_SPOTIFY_FOLDER = 'Spotify Playlists';
 
     const text = (value, fallback = '') => String(value ?? '').trim().replace(/^["']+|["']+$/g, '').trim() || fallback;
+    const providers = () => window.EveAudioflixPlaylistProviders;
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -92,6 +94,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
             title: text(entry?.title, 'Untitled Track'),
             url: text(entry?.url),
             artist: text(entry?.artist),
+            ...providers()?.entryPatch?.(connection.provider, entry),
             folder: folderName,
             duration: dur
         });
@@ -113,8 +116,18 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         diff.missing.forEach((track) => window.EveAudioflixState?.updateItem?.('music', track.id, { upstreamMissing: true }));
     }
 
-    async function fetchUpstream(url, force) {
-        const payload = await window.EveAudioflixNative?.listPlaylist?.(url, force);
+    function refreshProviderMetadata(connection, upstreamEntries) {
+        const upstream = new Map((upstreamEntries || []).map((entry) => [text(entry?.sourceId), entry]));
+        tracksFor(connection.id).forEach((track) => {
+            const entry = upstream.get(text(track.sourceId));
+            if (!entry) return;
+            const patch = providers()?.entryPatch?.(connection.provider, entry) || {};
+            if (Object.keys(patch).length) window.EveAudioflixState?.updateItem?.('music', track.id, patch);
+        });
+    }
+
+    async function fetchUpstream(url, force, provider = 'youtube') {
+        const payload = await providers()?.fetchPlaylist?.(provider, url, force);
         if (!payload || payload.ok !== true) {
             const reason = payload?.reason || payload?.message
                 || 'Playlist sync needs the EveOS server (a file:// page cannot read the playlist directly). Start start-server.bat and open EveOS on localhost.';
@@ -132,24 +145,30 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
 
     // Import a playlist URL as a group of tracks. options: { folder, group }
     async function importPlaylist(url, options = {}) {
-        const clean = text(url);
+        let clean = text(url);
         if (!clean) return { ok: false, reason: 'Enter a playlist URL.' };
-        const existing = connections().find((entry) => entry.url === clean);
+        const provider = providers()?.detect?.(clean) || 'youtube';
+        const normalized = providers()?.normalize?.(provider, clean);
+        if (!normalized?.ok) return normalized;
+        clean = normalized.url;
+        const existing = connections().find((entry) => entry.provider === provider && entry.url === clean);
         if (existing) return syncPlaylist(existing.id, true, options.folder);
 
-        const upstream = await fetchUpstream(clean, true);
+        const upstream = await fetchUpstream(clean, true, provider);
         if (!upstream.ok) return upstream;
 
+        const defaultFolder = provider === 'spotify' ? DEFAULT_SPOTIFY_FOLDER : DEFAULT_FOLDER;
         const connection = {
             id: newId(),
             url: clean,
             playlistId: text(upstream.playlistId),
             title: text(upstream.title, 'Playlist'),
-            provider: 'youtube',
+            provider,
             group: text(options.group, text(upstream.title, 'Playlist')),
-            folder: text(options.folder, DEFAULT_FOLDER),
+            folder: text(options.folder, defaultFolder),
             lastSyncedAt: Date.now(),
-            trackCount: (upstream.entries || []).length
+            trackCount: (upstream.entries || []).length,
+            ...providers()?.connectionPatch?.(provider, { ...upstream, ...normalized })
         };
         if (connection.group) window.EveAudioflixState?.addMusicGroup?.(connection.group);
         saveConnections(connections().concat(connection), 'audioflix-playlist-import');
@@ -164,19 +183,21 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         // A .wpl is a file on disk, not a web playlist — sending its path to the URL lister only
         // ever failed, so route it back through the WPL reader.
         if (connection.provider === 'wpl') return syncWplPlaylist(connection, targetFolder);
-        const upstream = await fetchUpstream(connection.url, force);
+        const upstream = await fetchUpstream(connection.url, force, connection.provider);
         if (!upstream.ok) return upstream;
 
         const folderToUse = text(targetFolder) || connection.folder;
         const diff = diffPlaylist(tracksFor(connection.id), upstream.entries || []);
         applyDiff(connection, diff, folderToUse);
+        refreshProviderMetadata(connection, upstream.entries || []);
         const next = connections().map((entry) => entry.id === connection.id
             ? Object.assign({}, entry, {
                 title: text(upstream.title, entry.title),
                 playlistId: text(upstream.playlistId, entry.playlistId),
                 folder: text(targetFolder) ? text(targetFolder) : entry.folder,
                 lastSyncedAt: Date.now(),
-                trackCount: (upstream.entries || []).length
+                trackCount: (upstream.entries || []).length,
+                ...providers()?.connectionPatch?.(connection.provider, upstream)
             })
             : entry);
         saveConnections(next, 'audioflix-playlist-sync');
@@ -249,11 +270,15 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     function setPlaylistLink(groupName, link) {
         const conn = getPlaylistForGroup(groupName);
         if (!conn) return { ok: false, reason: `No live playlist connection found for group "${groupName}".` };
-        const clean = text(link);
+        let clean = text(link);
         if (!clean) return { ok: false, reason: 'Enter a playlist URL or .wpl file path.' };
+        const normalized = providers()?.normalize?.(conn.provider, clean);
+        if (!normalized?.ok) return normalized;
+        clean = normalized.url;
         if (clean === text(conn.url)) return { ok: true, connection: conn, unchanged: true };
+        const providerPatch = providers()?.connectionPatch?.(conn.provider, normalized) || {};
         saveConnections(connections().map((entry) => entry.id === conn.id
-            ? Object.assign({}, entry, { url: clean })
+            ? Object.assign({}, entry, { url: clean }, providerPatch)
             : entry), 'audioflix-playlist-link');
         return { ok: true, connection: { ...conn, url: clean } };
     }
@@ -279,6 +304,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     Object.assign(ns, {
         ready: true,
         DEFAULT_FOLDER,
+        DEFAULT_SPOTIFY_FOLDER,
         DEFAULT_WPL_FOLDER,
         diffPlaylist,
         connections,

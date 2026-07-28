@@ -41,6 +41,13 @@ window.EveAudioflixUiOverlay = window.EveAudioflixUiOverlay || {};
                     if (matchCounter) matchCounter.textContent = String(uiNexus.getLastMatchCount?.(t.dataset.afType) || 0);
                     return;
                 }
+                if (t.hasAttribute && t.hasAttribute('data-af-spotify-search')) {
+                    const query = String(t.value || '').trim().toLowerCase();
+                    t.closest('[data-af-spotify-inspector]')?.querySelectorAll('[data-af-spotify-row]').forEach((row) => {
+                        row.hidden = !!query && !String(row.dataset.afSearch || '').includes(query);
+                    });
+                    return;
+                }
                 if (t.hasAttribute && t.hasAttribute('data-af-bulk-field')) {
                     V.nexusState = {
                         ...V.nexusState,
@@ -135,32 +142,6 @@ window.EveAudioflixUiOverlay = window.EveAudioflixUiOverlay || {};
                 }
             });
             document.addEventListener('keydown', handleHotkey);
-
-            window.addEventListener('eve:audioflix-playback', async (e) => {
-                const detail = e.detail || {};
-                if ((detail.status === 'Ended' || detail.status === 'Stopped') && V.activeMusicQueue.isPlaying && V.activeMusicQueue.items.length) {
-                    const currentPlayingId = V.activeMusicQueue.items[V.activeMusicQueue.currentIndex];
-                    if (detail.item && detail.item.id === currentPlayingId && detail.status === 'Ended') {
-                        V.activeMusicQueue.currentIndex += 1;
-                        if (V.activeMusicQueue.currentIndex >= V.activeMusicQueue.items.length && V.activeMusicQueue.loop) {
-                            // Loop is on: wrap back to #1. With shuffle also on, reshuffle first so the
-                            // next lap is a fresh random order starting from a random track.
-                            if (V.activeMusicQueue.shuffle) V.activeMusicQueue.items = shuffleQueue(V.activeMusicQueue.items);
-                            V.activeMusicQueue.currentIndex = 0;
-                        }
-                        if (V.activeMusicQueue.currentIndex < V.activeMusicQueue.items.length) {
-                            const nextId = V.activeMusicQueue.items[V.activeMusicQueue.currentIndex];
-                            const nextTrack = (state().music || []).find(m => m.id === nextId);
-                            if (nextTrack) {
-                                try { await window.EveAudioflixAudio?.playItem?.(nextTrack); } catch (err) { console.warn('[Audioflix] queue sequential play error:', err); }
-                            }
-                        } else {
-                            V.activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: false, loop: false };
-                        }
-                        rerender();
-                    }
-                }
-            });
 
             return V.overlay;
         }

@@ -87,6 +87,7 @@ function stub() {
     // --- 3. localizeScope tags localPath but keeps the online url (dual-source) ---
     {
         const nat = stub();
+        nat.scanLocalized = async (dir) => ({ ok: true, dir, files: [] });
         const { S, L } = loadAll(makeCtx(SEED, nat));
         const res = await L.localizeScope('folder', 'Chill', 'D:/EveMusic', () => {});
         assert(res.ok && res.done === 1 && res.total === 1, `localized 1 online track in Chill (got done=${res.done})`);

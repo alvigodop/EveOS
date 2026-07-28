@@ -45,7 +45,10 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                                 ctx.rerender();
                             });
                         } else {
-                            ctx.playbackStatus = 'Reading YouTube playlist...'; ctx.rerender();
+                            ctx.playbackStatus = mode === 'spotify'
+                                ? 'Reading Spotify playlist through the saved local session...'
+                                : 'Reading YouTube playlist...';
+                            ctx.rerender();
                             PL.importPlaylist(url, folder ? { folder } : {}).then(res => {
                                 ctx.playbackStatus = res.ok
                                     ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`

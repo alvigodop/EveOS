@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.controls.css?v=0.1.0">
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.transport.css?v=0.1.1">
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.provider.css?v=0.2.1">
+    <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.spotify.css?v=0.1.0">
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.routing.css?v=0.2.0">
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.routing.status.css?v=0.1.0">
     <link rel="stylesheet" href="js/modules/features/audioflix/audioflix.nexus.css?v=0.1.0">
@@ -189,7 +190,7 @@
     <script src="js/modules/features/matrix-workshop/matrix-workshop.datapack.bridge.js?v=0.1.0"></script>
     <script src="js/modules/features/matrix-workshop/matrix-workshop.js?v=0.4.0"></script>
     <script src="js/modules/features/audioflix/audioflix.paths.js?v=0.2.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.state.schema.js?v=0.1.4"></script>
+    <script src="js/modules/features/audioflix/audioflix.state.schema.js?v=0.2.0"></script>
     <script src="js/modules/features/audioflix/audioflix.state.groups.js?v=0.2.0"></script>
     <script src="js/modules/features/audioflix/audioflix.state.js?v=0.6.0"></script>
     <script src="js/modules/features/audioflix/audioflix.links.js?v=0.2.0"></script>
@@ -197,13 +198,15 @@
     <script src="js/modules/features/audioflix/audioflix.fsports.registry.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.fsports.js?v=0.3.0"></script>
     <script src="js/modules/features/audioflix/audioflix.native.localize.js?v=0.1.1"></script>
-    <script src="js/modules/features/audioflix/audioflix.native.js?v=0.2.5"></script>
+    <script src="js/modules/features/audioflix/audioflix.native.spotify.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.native.js?v=0.3.0"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.source.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.internal.js?v=0.3.1"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.url.loaders.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.url.widgets.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.audio.url.spotify.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.url.providers.js?v=0.1.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.audio.url.js?v=0.4.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.audio.url.js?v=0.5.0"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.layers.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.codec.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.audio.bridge.js?v=0.1.3"></script>
@@ -219,11 +222,14 @@
     <script src="js/modules/features/audioflix/audioflix.gemini.js?v=0.1.4"></script>
     <script src="js/modules/features/audioflix/audioflix.wpl.js?v=0.1.1"></script>
     <script src="js/modules/features/audioflix/audioflix.playlists.wpl.js?v=0.1.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.playlists.js?v=0.2.2"></script>
+    <script src="js/modules/features/audioflix/audioflix.playlists.providers.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.playlists.spotify.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.playlists.js?v=0.3.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.playlists.spotify.ui.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.state.duplicates.js?v=0.1.2"></script>
     <script src="js/modules/features/audioflix/audioflix.localize.audit.js?v=0.3.0"></script>
     <script src="js/modules/features/audioflix/audioflix.localize.port.js?v=0.2.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.localize.js?v=0.4.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.localize.js?v=0.5.0"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.localize.js?v=0.1.4"></script>
     <script src="js/modules/features/audioflix/audioflix.nexus.js?v=0.3.0"></script>
     <script src="js/modules/features/audioflix/audioflix.routing.js?v=0.1.8"></script>
@@ -233,18 +239,19 @@
     <script src="js/modules/features/audioflix/audioflix.nexus.ui.js?v=0.3.0"></script>
     <script src="js/modules/features/audioflix/audioflix.classifiers.ui.js?v=0.1.0"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.toolbar.js?v=0.1.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.ui.managers.js?v=0.1.2"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.managers.js?v=0.2.0"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.modal.js?v=0.1.3"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.render.js?v=0.1.4"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.hotkeys.js?v=0.1.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.ui.forms.js?v=0.1.2"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.forms.js?v=0.2.0"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.actions.localize.js?v=0.1.2"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.actions.nexus.js?v=0.2.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.ui.actions.js?v=0.2.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.ui.overlay.js?v=0.2.1"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.actions.js?v=0.3.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.overlay.js?v=0.3.0"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.picker.js?v=0.1.1"></script>
     <script src="js/modules/features/audioflix/audioflix.ui.shared.js?v=0.1.0"></script>
-    <script src="js/modules/features/audioflix/audioflix.ui.js?v=0.5.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.playlist-import.js?v=0.1.0"></script>
+    <script src="js/modules/features/audioflix/audioflix.ui.js?v=0.6.0"></script>
     <script src="js/config/manifest/scripts.parts/00-core.js"></script>
     <script src="js/config/manifest/scripts.parts/01-ui.js?v=0.4.23"></script>
     <script src="js/config/manifest/scripts.parts/02-dashboard-categories.js?v=0.2.6"></script>

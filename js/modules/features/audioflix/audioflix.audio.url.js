@@ -74,7 +74,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 if (session?.kind === 'direct') { session.player.pause(); session.player.removeAttribute('src'); session.player.load(); }
                 else if (session?.kind === 'youtube') session.player.destroy?.();
                 else if (session?.kind === 'soundcloud') session.player.pause?.();
-                else if (session?.kind === 'vimeo') await session.player.destroy?.();
+                else if (session?.kind === 'vimeo' || session?.kind === 'spotify') await session.player.destroy?.();
             } catch { }
             playback.paused = true;
             emitProgress();
@@ -304,6 +304,14 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 get playback() { return playback; }
             }
         });
+        const spotifyFactory = window.EveAudioflixSpotifyPlayback?.create;
+        const spotifyAdapter = typeof spotifyFactory === 'function' && spotifyFactory({
+            ensureStage, setStageStatus, emitPlayback, emitProgress,
+            view: { get active() { return active; }, set active(v) { active = v; }, get playback() { return playback; } }
+        });
+        const playSpotify = spotifyAdapter?.playSpotify || (async () => {
+            throw new Error('Spotify playback support is not loaded yet.');
+        });
 
         async function play(item, playOptions = {}) {
             const provider = providerFor(item?.url);
@@ -314,6 +322,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                     ensureStage(item, 'Direct audio', false);
                     setStageStatus('Playing this linked audio inside EveOS.');
                 } else if (requestedInternalView) view?.setExpanded?.(true);
+                else view?.hide?.();
                 if (playback.paused) await resume();
                 return true;
             }
@@ -321,6 +330,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             resetPlayback(item, provider);
             try {
                 if (provider === 'youtube') await playYouTube(item);
+                else if (provider === 'spotify') await playSpotify(item);
                 else if (provider === 'soundcloud') await playSoundCloud(item);
                 else if (provider === 'vimeo') await playVimeo(item);
                 else await playDirect(item);
@@ -333,7 +343,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                     if (session?.kind === 'direct') session.player.pause?.();
                     else if (session?.kind === 'youtube') session.player.destroy?.();
                     else if (session?.kind === 'soundcloud') session.player.pause?.();
-                    else if (session?.kind === 'vimeo') await session.player.destroy?.();
+                    else if (session?.kind === 'vimeo' || session?.kind === 'spotify') await session.player.destroy?.();
                 } catch { }
                 playback.paused = true;
                 emitProgress();
@@ -356,7 +366,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (active.kind === 'direct') await active.player.play();
             else if (active.kind === 'youtube') active.player.playVideo?.();
             else if (active.kind === 'soundcloud') active.player.play?.();
-            else if (active.kind === 'vimeo') await active.player.play?.();
+            else if (active.kind === 'vimeo' || active.kind === 'spotify') await active.player.play?.();
             playback.paused = false;
             emitProgress();
             return true;
@@ -367,7 +377,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (active.kind === 'direct') active.player.pause();
             else if (active.kind === 'youtube') active.player.pauseVideo?.();
             else if (active.kind === 'soundcloud') active.player.pause?.();
-            else if (active.kind === 'vimeo') await active.player.pause?.();
+            else if (active.kind === 'vimeo' || active.kind === 'spotify') await active.player.pause?.();
             playback.paused = true;
             emitPlayback('Paused');
             emitProgress();
@@ -380,7 +390,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (active.kind === 'direct') active.player.currentTime = target;
             else if (active.kind === 'youtube') active.player.seekTo?.(target, true);
             else if (active.kind === 'soundcloud') active.player.seekTo?.(target * 1000);
-            else if (active.kind === 'vimeo') await active.player.setCurrentTime?.(target);
+            else if (active.kind === 'vimeo' || active.kind === 'spotify') await active.player.setCurrentTime?.(target);
             playback.currentTime = target;
             emitProgress();
             return true;
@@ -392,7 +402,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (active.kind === 'direct') active.player.volume = safe;
             else if (active.kind === 'youtube') active.player.setVolume?.(Math.round(safe * 100));
             else if (active.kind === 'soundcloud') active.player.setVolume?.(Math.round(safe * 100));
-            else if (active.kind === 'vimeo') active.player.setVolume?.(safe).catch?.(() => {});
+            else if (active.kind === 'vimeo' || active.kind === 'spotify') active.player.setVolume?.(safe)?.catch?.(() => {});
             if (playback.item) playback.item.volume = safe;
         }
 
@@ -408,10 +418,17 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             else if (active.kind === 'vimeo') active.player.setPlaybackRate?.(safe)?.catch?.(() => {});
         }
 
+        function hideInternalView() {
+            requestedInternalView = false;
+            view?.hide?.();
+            return true;
+        }
+
         return {
             play, openInternalView: (item) => play(item, { internalView: true }), pause, seek, stop, setVolume,
             setRate, getRate: () => playbackRate,
             isInternalViewOpen: () => requestedInternalView && view?.isOpen?.() === true,
+            hideInternalView,
             closeInternalView: () => stop({ closeView: true }),
             setQueue: (entries, index) => view?.setQueue?.(entries, index),
             canHandle: (item) => !!providerFor(item?.url),

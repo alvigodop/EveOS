@@ -17,7 +17,7 @@ function assert(cond, msg) { if (!cond) throw new Error('ASSERT FAILED: ' + msg)
 
 function silentWav() {
     // Long enough that a track does not end (and hide the stage) mid-test.
-    const rate = 8000, count = 8000 * 20;
+    const rate = 8000, count = 8000 * 90;
     const wav = Buffer.alloc(44 + count * 2);
     wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
     wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
@@ -108,6 +108,52 @@ async function main() {
     assert(rateAfterStep.controller === 2, 'speed survives moving to the next queue track');
     assert(rateAfterStep.picker === 2, 'the picker still shows the chosen speed');
     console.log('speed OK — 2x applied and carried across a queue step');
+
+    // Regression: two listeners used to handle the same Ended event. At the loop boundary that
+    // started #1 and then immediately #2. Repeating the terminal event must advance only once.
+    await page.$eval('[data-af-action="loop-music-group"]', (button) => button.click());
+    await page.click('.audioflix-provider-queue-list li:last-child button');
+    await page.waitForFunction(() => document.querySelector('.audioflix-provider-queue-list li:last-child')?.classList.contains('is-current'), undefined, { timeout: 5000 });
+    await page.evaluate(() => {
+        const item = window.EveAudioflixState.getSnapshot().music.find((track) => track.title === 'Gamma');
+        const detail = { status: 'Ended', item };
+        window.dispatchEvent(new CustomEvent('eve:audioflix-playback', { detail }));
+        window.dispatchEvent(new CustomEvent('eve:audioflix-playback', { detail }));
+    });
+    await page.waitForFunction(() => document.querySelector('.audioflix-provider-queue-list li:first-child')?.classList.contains('is-current'), undefined, { timeout: 5000 });
+    await page.waitForTimeout(350);
+    const wrappedOnce = await page.$$eval('.audioflix-provider-queue-list li', (rows) =>
+        rows.map((row) => row.classList.contains('is-current')));
+    assert(wrappedOnce[0] === true && wrappedOnce[1] === false, 'duplicate Ended events wrap to #1 only, never #2');
+
+    // Hiding Queue View must not stop or fork the queue. The next Ended advances while hidden;
+    // reopening attaches the panel to that same #2 playback session.
+    await page.$eval('[data-af-action="open-queue-view"]', (button) => button.click());
+    assert(await page.$eval('.audioflix-provider-stage', (stage) => stage.hidden), 'closing Queue View only hides the shared player');
+    await page.evaluate(() => {
+        const item = window.EveAudioflixState.getSnapshot().music.find((track) => track.title === 'Alpha');
+        window.dispatchEvent(new CustomEvent('eve:audioflix-playback', { detail: { status: 'Ended', item } }));
+    });
+    await page.waitForFunction(() => {
+        const playback = window.EveAudioflixAudio?.getPlaybackState?.();
+        return playback?.item?.title === 'Beta' && playback.paused === false;
+    }, undefined, { timeout: 5000 });
+    await page.$eval('[data-af-action="open-queue-view"]', (button) => button.click());
+    await page.waitForFunction(() => document.querySelectorAll('.audioflix-provider-queue-list li')[1]?.classList.contains('is-current'), undefined, { timeout: 5000 });
+    const reopened = await page.waitForFunction(() => document.querySelector('.audioflix-provider-stage')?.hidden === false, undefined, { timeout: 5000 })
+        .then(() => true, () => false);
+    if (!reopened) {
+        console.error('reopen diagnostic:', await page.evaluate(() => ({
+            stageHidden: document.querySelector('.audioflix-provider-stage')?.hidden,
+            stageStatus: document.querySelector('.audioflix-provider-status')?.textContent,
+            playback: {
+                title: window.EveAudioflixAudio?.getPlaybackState?.()?.item?.title,
+                paused: window.EveAudioflixAudio?.getPlaybackState?.()?.paused
+            }
+        })));
+    }
+    assert(reopened, 'reopening Queue View attaches to the live queue');
+    console.log('queue ownership OK - loop wrap advances once and hidden/internal views stay synchronized');
 
     assert(pageErrors.length === 0, 'no uncaught page errors: ' + pageErrors.join(' | '));
     await browser.close();

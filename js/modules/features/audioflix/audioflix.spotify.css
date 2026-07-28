@@ -1,0 +1,173 @@
+.audioflix-spotify-inspector {
+    display: grid;
+    gap: 12px;
+    margin: 8px 0 12px;
+    padding: 14px;
+    border: 1px solid rgba(34, 197, 94, .35);
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(3, 24, 13, .94), rgba(5, 16, 13, .92));
+}
+
+.audioflix-playlist-mode-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
+.audioflix-playlist-mode-row > span {
+    color: #cbd5e1;
+    font-size: .8rem;
+    font-weight: 700;
+}
+
+.audioflix-inline-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+}
+
+.audioflix-inline-field input {
+    flex: 1;
+    min-width: 0;
+}
+
+.audioflix-inline-field .audioflix-add-toggle {
+    margin: 0;
+    padding-inline: 10px;
+    white-space: nowrap;
+}
+
+.audioflix-spotify-inspector header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.audioflix-spotify-inspector header img,
+.audioflix-spotify-cover {
+    width: 68px;
+    height: 68px;
+    flex: 0 0 68px;
+    object-fit: cover;
+    display: grid;
+    place-items: center;
+    border-radius: 12px;
+    background: rgba(30, 215, 96, .12);
+    color: #1ed760;
+    font-size: 1.7rem;
+}
+
+.audioflix-spotify-inspector h5 {
+    margin: 3px 0;
+    color: #f4fff7;
+    font-size: 1rem;
+}
+
+.audioflix-spotify-inspector p,
+.audioflix-spotify-row small {
+    display: block;
+    margin: 0;
+    color: #8ca79a;
+    font-size: .74rem;
+}
+
+.audioflix-spotify-kicker {
+    color: #1ed760;
+    font-size: .64rem;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.audioflix-spotify-link-form textarea {
+    width: 100%;
+    min-height: 58px;
+    resize: vertical;
+}
+
+.audioflix-spotify-search {
+    display: grid;
+    gap: 5px;
+    color: #8ca79a;
+    font-size: .7rem;
+}
+
+.audioflix-spotify-search input {
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid rgba(30, 215, 96, .25);
+    border-radius: 10px;
+    color: #eafff1;
+    background: rgba(0, 0, 0, .24);
+}
+
+.audioflix-spotify-list {
+    max-height: 320px;
+    overflow: auto;
+    border: 1px solid rgba(30, 215, 96, .17);
+    border-radius: 12px;
+}
+
+.audioflix-spotify-row {
+    display: grid;
+    grid-template-columns: 28px 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(30, 215, 96, .1);
+}
+
+.audioflix-spotify-row:last-child {
+    border-bottom: 0;
+}
+
+.audioflix-spotify-row[hidden] {
+    display: none;
+}
+
+.audioflix-spotify-row img,
+.audioflix-spotify-art {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    place-items: center;
+    object-fit: cover;
+    border-radius: 8px;
+    background: rgba(30, 215, 96, .1);
+}
+
+.audioflix-spotify-row strong {
+    overflow: hidden;
+    display: block;
+    color: #eafff1;
+    font-size: .78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.audioflix-spotify-row time,
+.audioflix-spotify-index {
+    color: #739081;
+    font-size: .68rem;
+}
+
+@media (max-width: 620px) {
+    .audioflix-spotify-inspector header img,
+    .audioflix-spotify-cover {
+        width: 52px;
+        height: 52px;
+        flex-basis: 52px;
+    }
+
+    .audioflix-spotify-row {
+        grid-template-columns: 22px 34px minmax(0, 1fr);
+    }
+
+    .audioflix-spotify-row time {
+        display: none;
+    }
+}

@@ -129,6 +129,11 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                     provider: text(entry?.provider, 'youtube'),
                     group: text(entry?.group, ''),
                     folder: text(entry?.folder, ''),
+                    owner: text(entry?.owner, ''),
+                    description: text(entry?.description, ''),
+                    image: text(entry?.image, ''),
+                    embedUrl: text(entry?.embedUrl, ''),
+                    scrapeSource: text(entry?.scrapeSource, ''),
                     lastSyncedAt: Number(entry?.lastSyncedAt || 0) || 0,
                     trackCount: Number(entry?.trackCount || 0) || 0
                 }))
