@@ -23,7 +23,9 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
     await page.waitForFunction(() => !!(window.EveAudioflixState && window.EveAudioflixState.ready)
-        && !!(window.EveAudioflixFsPorts && window.EveAudioflixFsPorts.ready), undefined, { timeout: 60000 });
+        && !!(window.EveAudioflixFsPorts && window.EveAudioflixFsPorts.ready)
+        && !!(window.EveAudioflixUiActionsLocalize && window.EveAudioflixUiActionsLocalize.ready),
+    undefined, { timeout: 60000 });
 
     const result = await page.evaluate(async () => {
         const wipeDb = () => new Promise((resolve) => {
@@ -54,15 +56,31 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         const records = await rawRecords();
         const sounds = await window.EveAudioflixFsPorts.listSounds();
         const mirror = window.EveAudioflixState.ensure().browserFolders || [];
+        const surfaced = states.some((f) => f.id === 'fsp_echo' && f.nickname === 'Echo-Like-Connect' && f.permission === 'prompt');
+        const stub = records.some((r) => r.id === 'fsp_echo' && !r.handle);
+        const mirrorInSync = mirror.filter((f) => f.id === 'fsp_echo').length === 1;
+        let liveRefreshes = 0;
+        const actionContext = {
+            playbackStatus: '',
+            rerender() {},
+            async loadPortedSounds() { liveRefreshes += 1; }
+        };
+        const handleAction = window.EveAudioflixUiActionsLocalize.create(actionContext);
+        await handleAction({ dataset: { afId: 'fsp_echo' } }, 'remove-music-fsport');
+        const afterRemoveRecords = await rawRecords();
+        const afterRemoveMirror = window.EveAudioflixState.ensure().browserFolders || [];
         return {
             // The restored folder surfaces as a needs-reconnect entry...
-            surfaced: states.some((f) => f.id === 'fsp_echo' && f.nickname === 'Echo-Like-Connect' && f.permission === 'prompt'),
+            surfaced,
             // ...backed by a stub record with no handle (can't cross browser boundaries)...
-            stub: records.some((r) => r.id === 'fsp_echo' && !r.handle),
+            stub,
             // ...the mirror stays in sync (no duplication)...
-            mirrorInSync: mirror.filter((f) => f.id === 'fsp_echo').length === 1,
+            mirrorInSync,
             // ...and enumerating sounds skips the un-granted stub without throwing.
-            listSafe: Array.isArray(sounds) && sounds.every((s) => !String(s.id).includes('fsp_echo'))
+            listSafe: Array.isArray(sounds) && sounds.every((s) => !String(s.id).includes('fsp_echo')),
+            removedLive: !afterRemoveRecords.some((r) => r.id === 'fsp_echo')
+                && !afterRemoveMirror.some((f) => f.id === 'fsp_echo')
+                && liveRefreshes === 1
         };
     });
 
@@ -73,6 +91,7 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
     if (!result.stub) fails.push('no handle-less stub record was created for the restored folder');
     if (!result.mirrorInSync) fails.push('browserFolders mirror diverged / duplicated');
     if (!result.listSafe) fails.push('listSounds did not skip the un-granted stub');
+    if (!result.removedLive) fails.push('remove action did not persist and refresh live folder state');
     if (fails.length) { console.error('FAIL: ' + fails.join('; ')); process.exit(1); }
     console.log('AUDIOFLIX_BROWSER_FOLDER_RECONCILE_OK');
 })().catch((e) => { console.error(e); process.exit(1); });

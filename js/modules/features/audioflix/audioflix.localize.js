@@ -340,16 +340,31 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     // files/shortcuts, plus the group's remembered directory.
     function groupLocalizationPaths(groupKey) {
         const members = collectScope('group', groupKey);
-        const firstClass = [], groupPaths = [];
+        const firstClass = [], groupPaths = [], inheritedPaths = [];
         members.forEach((it) => {
             const locs = (it.localizations && it.localizations.length) ? it.localizations : (it.localPath ? [{ source: `folder:${it.folder || it.card || 'General'}`, path: it.localPath, kind: 'file' }] : []);
-            locs.forEach((l) => {
-                if (l.source.startsWith('folder:') && l.kind === 'file') firstClass.push({ title: it.title, source: l.source.slice(7), path: l.path });
-                else if (sameText(l.source, `group:${groupKey}`)) groupPaths.push({ title: it.title, kind: l.kind, path: l.path });
-                else if (l.path) groupPaths.push({ title: it.title, kind: 'shortcut', path: l.path });
-            });
+            const folderLoc = locs.find((l) => l.source.startsWith('folder:') && l.kind === 'file' && text(l.path));
+            const ownGroupLoc = locs.find((l) => sameText(l.source, `group:${groupKey}`) && text(l.path));
+            if (folderLoc) {
+                firstClass.push({ id: it.id, title: it.title, source: folderLoc.source.slice(7), path: folderLoc.path });
+            }
+            if (ownGroupLoc) {
+                groupPaths.push({ id: it.id, title: it.title, kind: ownGroupLoc.kind, path: ownGroupLoc.path });
+            }
+            if (!folderLoc && !ownGroupLoc) {
+                const inherited = orderedLocs(it)[0] || (text(it.localPath) ? { path: it.localPath, source: 'legacy' } : null);
+                if (inherited) inheritedPaths.push({ id: it.id, title: it.title, source: inherited.source, path: inherited.path });
+            }
         });
-        return { firstClass, groupPaths, groupDir: getScopeDir('group', groupKey) };
+        const coveredIds = new Set([...firstClass, ...groupPaths, ...inheritedPaths].map((entry) => entry.id));
+        return {
+            firstClass,
+            groupPaths,
+            inheritedPaths,
+            memberCount: members.length,
+            uncoveredCount: members.filter((item) => !coveredIds.has(item.id)).length,
+            groupDir: getScopeDir('group', groupKey)
+        };
     }
 
     // For the song settings panel: this track's localizations, most-important class first.

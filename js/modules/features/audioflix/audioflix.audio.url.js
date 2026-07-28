@@ -3,52 +3,18 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
     'use strict';
     const ns = window.EveAudioflixUrlPlayback;
     if (ns.ready) return;
-    const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
     const SCRIPT_TIMEOUT_MS = 12000;
     const YOUTUBE_FILE_MESSAGE = 'YouTube requires an HTTPS/app identity that a plain file:// page cannot send. Use Play on YouTube, replace this track URL with a direct media URL, cache a local copy, or start EveOS localhost to play it inside Audioflix.';
     const { loadScript, loadYouTubeApi } = window.EveAudioflixUrlLoaders;
+    const { providerFor, youtubeId } = window.EveAudioflixUrlProviders;
     function itemKey(item) {
         return String(item?.id || item?.url || '');
     }
-
-    // Provider iframes own their audio element; setSinkId can't reach them, so flag a routed
-    // output as bypassed instead of silently ignoring it.
+    // Provider iframe audio cannot follow setSinkId, so surface its system-default route.
     function routedOutputNote() {
         const s = window.EveAudioflixState?.ensure?.() || {};
         return (s.preferredSinkId || (s.nativeBridgeEnabled === true && s.nativeOutputId))
             ? ' Note: provider players cannot follow the routed output, so this audio uses the system default device.' : '';
-    }
-
-    function providerFor(rawUrl) {
-        const raw = String(rawUrl || '').trim();
-        // Locally-sourced audio — a granted Browser Folder blob, or an embedded data: URL — has no
-        // hostname to classify but the direct <audio> path plays it fine. Without this the internal
-        // player (and Queue View) rejected every local track, so a localized library could not use
-        // the in-EveOS player at all.
-        if (/^blob:/i.test(raw) || /^data:audio\//i.test(raw)) return 'direct';
-        let parsed;
-        try { parsed = new URL(raw); } catch { return ''; }
-        const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
-        if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube';
-        if (host === 'soundcloud.com' || host.endsWith('.soundcloud.com')) return 'soundcloud';
-        if (host === 'vimeo.com' || host.endsWith('.vimeo.com')) return 'vimeo';
-        return /^https?:$/.test(parsed.protocol) ? 'direct' : '';
-    }
-
-    function youtubeId(rawUrl) {
-        try {
-            const url = new URL(rawUrl);
-            const host = url.hostname.toLowerCase().replace(/^www\./, '');
-            let id = host === 'youtu.be'
-                ? url.pathname.split('/').filter(Boolean)[0]
-                : url.searchParams.get('v');
-            if (!id) {
-                const parts = url.pathname.split('/').filter(Boolean);
-                const marker = parts.findIndex((part) => ['embed', 'shorts', 'live'].includes(part));
-                if (marker >= 0) id = parts[marker + 1];
-            }
-            return YOUTUBE_ID_RE.test(id || '') ? id : '';
-        } catch { return ''; }
     }
 
     function createController(options = {}) {
@@ -131,7 +97,16 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             // It has to be decided BEFORE src — assigning it afterwards does nothing until the
             // resource is reloaded.
             const nativeMusic = window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() === true;
-            if (nativeMusic) player.crossOrigin = 'anonymous';
+            let waveformSafe = /^(?:blob:|data:audio\/)/i.test(item.url);
+            try {
+                const parsed = new URL(item.url, location.href);
+                waveformSafe = waveformSafe
+                    || parsed.origin === location.origin
+                    || ['localhost', '127.0.0.1'].includes(parsed.hostname);
+            } catch {}
+            waveformSafe = waveformSafe || nativeMusic;
+            if (waveformSafe && /^https?:\/\//i.test(item.url)) player.crossOrigin = 'anonymous';
+            player._eveAudioflixWaveformSafe = waveformSafe;
             player.preload = 'auto';
             player.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
             player.playbackRate = playbackRate;   // carry the chosen speed across queue tracks
@@ -155,6 +130,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 } catch { }
             }
             active = { kind: 'direct', player };
+            if (waveformSafe) options.onPlayer?.(player);
             const update = () => {
                 playback.currentTime = Number(player.currentTime || 0) || 0;
                 playback.duration = Number.isFinite(player.duration) ? player.duration : playback.duration;
@@ -443,6 +419,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 && /^https?:\/\//i.test(String(item?.url || ''))
                 && window.EveAudioflixNative?.getStatus?.()?.ok !== true,
             isActive: () => !!active,
+            getAudioElement: () => active?.kind === 'direct' ? active.player : null,
             matches: (itemOrId) => typeof itemOrId === 'object'
                 ? itemKey(playback.item) === itemKey(itemOrId)
                 : String(playback.item?.id || '') === String(itemOrId || ''),

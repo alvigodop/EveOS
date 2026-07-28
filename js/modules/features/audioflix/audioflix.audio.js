@@ -46,6 +46,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             dispatch('eve:audioflix-playback', detail);
         },
         onProgress(detail) { dispatch('eve:audioflix-progress', detail); },
+        onPlayer(player) { waveformController?.attachPlayer?.(player); },
         // Queue View's prev/next/jump. The queue itself belongs to the UI, so it registers a
         // bridge rather than this layer duplicating the ordering, shuffle and loop rules.
         onStep: (delta) => queueBridge?.step?.(delta),
@@ -394,6 +395,10 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     function attachWaveform(targetCanvas) {
         waveformController?.attach?.(targetCanvas);
+        const internalPlayer = urlPlayback?.getAudioElement?.();
+        if (targetCanvas && internalPlayer?._eveAudioflixWaveformSafe) {
+            waveformController?.attachPlayer?.(internalPlayer);
+        }
     }
 
     Object.assign(ns, {

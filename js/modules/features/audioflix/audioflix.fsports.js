@@ -18,179 +18,23 @@ window.EveAudioflixFsPorts = window.EveAudioflixFsPorts || {};
 
     // Mirror the server-side port filter (audioflix_bridge_ports.py AUDIO_EXTENSIONS).
     const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']);
-    const DB_NAME = 'eve-audioflix-fsports';
-    const STORE = 'folders';
+    const registry = window.EveAudioflixFsPortsRegistry;
+    if (!registry?.ready) throw new Error('Audioflix folder registry loaded out of order.');
+    const {
+        supported,
+        allRecords,
+        addFolder,
+        removeFolder,
+        permissionOf,
+        reconcile,
+        folderStates,
+        reconnectAll
+    } = registry;
     let liveObjectUrls = [];
     // Blobs minted for a specific TRACK path are kept apart from the soundboard listing's blobs.
     // They shared one list, so every ported-sounds refresh revoked the URL of whatever music was
     // playing at the time — the track died mid-song. These are only revoked on an explicit reset.
     let pathObjectUrls = [];
-
-    function supported() {
-        return typeof window.showDirectoryPicker === 'function' && !!window.indexedDB;
-    }
-
-    function openDb() {
-        return new Promise((resolve, reject) => {
-            const req = indexedDB.open(DB_NAME, 1);
-            req.onupgradeneeded = () => {
-                if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: 'id' });
-            };
-            req.onsuccess = () => resolve(req.result);
-            req.onerror = () => reject(req.error);
-        });
-    }
-
-    function tx(db, mode, run) {
-        return new Promise((resolve, reject) => {
-            const t = db.transaction(STORE, mode);
-            const out = run(t.objectStore(STORE));
-            t.oncomplete = () => resolve(out && 'result' in out ? out.result : undefined);
-            t.onerror = () => reject(t.error);
-        });
-    }
-
-    async function allRecords() {
-        const db = await openDb();
-        try {
-            return (await tx(db, 'readonly', (store) => store.getAll())) || [];
-        } finally {
-            db.close();
-        }
-    }
-
-    // Ask the user to grant a folder; the handle persists across sessions in IndexedDB.
-    // overrides.id / overrides.nickname let a grant be stored under an EXISTING server port's
-    // identity ("recalibrating" that port for serverless use): item ids embed this record id, so
-    // reusing the port's id keeps every per-item setting (volume/expose/hotkeys/groups) intact.
-    // Re-granting the same id just replaces the stored handle.
-    async function addFolder(overrides) {
-        if (!supported()) throw new Error('This browser does not support folder access (needs Edge/Chrome).');
-        const handle = await window.showDirectoryPicker({ mode: 'read' });
-        const opts = overrides && typeof overrides === 'object' ? overrides : {};
-        const record = {
-            id: String(opts.id || '') || 'fsp_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-            nickname: String(opts.nickname || '').trim() || handle.name || 'Sound folder',
-            purpose: String(opts.purpose || 'sound').trim(),
-            handle,
-            addedAt: Date.now()
-        };
-        const db = await openDb();
-        try {
-            await tx(db, 'readwrite', (store) => store.put(record));
-        } finally {
-            db.close();
-        }
-        return { id: record.id, nickname: record.nickname, purpose: record.purpose };
-    }
-
-    async function removeFolder(id) {
-        const db = await openDb();
-        try {
-            await tx(db, 'readwrite', (store) => store.delete(id));
-        } finally {
-            db.close();
-        }
-        return true;
-    }
-
-    async function permissionOf(handle) {
-        // A restored stub (backed-up folder not yet re-granted in this browser) has no handle;
-        // treat it exactly like a permission the browser downgraded to 'prompt' — needs reconnect.
-        if (!handle) return 'prompt';
-        try {
-            return await handle.queryPermission({ mode: 'read' });
-        } catch (e) {
-            return 'error';
-        }
-    }
-
-    function stateApi() {
-        return window.EveAudioflixState;
-    }
-
-    // Keep config.audioflix.browserFolders (a JSON-serializable metadata mirror) in step with the
-    // IndexedDB registry AND materialize restored stubs. A backup carries the mirror; on a fresh
-    // browser (incognito reload / new machine) the handles are gone, so we recreate stub records
-    // from the mirror — they list as "Needs reconnect" and re-grant under the SAME id, keeping
-    // every per-item setting (volume/expose/hotkey/groups) intact.
-    async function reconcile() {
-        const api = stateApi();
-        if (!supported() || !api?.ensure) return;
-        const st = api.ensure();
-        const current = Array.isArray(st.browserFolders) ? st.browserFolders : [];
-        const portIds = new Set((st.ports || []).map((port) => port.id));
-        const musicFolders = new Set([
-            ...(st.musicPortConnections || []).map((c) => String(c.folder || '').toLowerCase()),
-            ...(st.music || []).map((m) => String(m.folder || m.card || '').toLowerCase())
-        ]);
-        const mirror = current.filter((folder) => folder && folder.id && !portIds.has(folder.id));
-        const db = await openDb();
-        try {
-            const records = (await tx(db, 'readonly', (store) => store.getAll())) || [];
-            const byId = new Map(records.map((rec) => [rec.id, rec]));
-            for (const folder of mirror) {
-                if (byId.has(folder.id)) continue;
-                const isMusic = musicFolders.has(String(folder.nickname || '').toLowerCase()) || folder.purpose === 'music';
-                const stub = {
-                    id: folder.id,
-                    nickname: folder.nickname || 'Sound folder',
-                    purpose: isMusic ? 'music' : (folder.purpose || 'sound'),
-                    handle: null,
-                    addedAt: folder.addedAt || Date.now()
-                };
-                await tx(db, 'readwrite', (store) => store.put(stub));
-                byId.set(stub.id, stub);
-            }
-            // Retain purpose on existing records if nickname matches a music folder
-            for (const rec of records) {
-                const isMusic = musicFolders.has(String(rec.nickname || '').toLowerCase());
-                if (isMusic && rec.purpose !== 'music') {
-                    rec.purpose = 'music';
-                    await tx(db, 'readwrite', (store) => store.put(rec));
-                }
-            }
-            const registry = [...byId.values()]
-                .filter((rec) => !portIds.has(rec.id))
-                .map((rec) => ({ id: rec.id, nickname: rec.nickname, purpose: rec.purpose || 'sound', addedAt: rec.addedAt || 0 }));
-            const inSync = registry.length === current.length
-                && registry.every((rec) => current.some((folder) => folder.id === rec.id && folder.nickname === rec.nickname));
-            if (!inSync) api.update({ browserFolders: registry }, 'audioflix-browser-folders');
-        } finally {
-            db.close();
-        }
-    }
-
-    // [{ id, nickname, purpose, permission }] — 'granted' | 'prompt' | 'denied' | 'error'
-    async function folderStates() {
-        if (!supported()) return [];
-        const records = await allRecords();
-        const states = [];
-        for (const rec of records) {
-            states.push({
-                id: rec.id,
-                nickname: rec.nickname,
-                purpose: rec.purpose || 'sound',
-                rootName: rec.handle?.name || '',
-                permission: await permissionOf(rec.handle)
-            });
-        }
-        return states;
-    }
-
-    // Re-grant folders the browser downgraded to 'prompt' since last session. requestPermission
-    // needs a user gesture, so this is only called from the Reconnect button click.
-    async function reconnectAll() {
-        const records = await allRecords();
-        let granted = 0;
-        for (const rec of records) {
-            try {
-                if ((await permissionOf(rec.handle)) === 'granted') { granted++; continue; }
-                if ((await rec.handle.requestPermission({ mode: 'read' })) === 'granted') granted++;
-            } catch (e) { /* denied or handle gone — surfaced via folderStates badge */ }
-        }
-        return granted;
-    }
 
     // Enumerate every GRANTED folder (top-level audio files, matching the server port behavior)
     // into soundboard-shaped raw items. The id embeds the persisted record id + filename so the

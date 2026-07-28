@@ -246,18 +246,19 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
 
         function attachPlayer(player) {
             if (!player) return;
-            try {
-                if (player.crossOrigin !== 'anonymous' && player.src && !player.src.startsWith('data:')) {
-                    player.crossOrigin = 'anonymous';
-                }
-            } catch (e) {}
+            activePlayer = player;
             ensureGraph(player);
             if (!wiredPlayers.has(player) && typeof player.addEventListener === 'function') {
                 wiredPlayers.add(player);
-                player.addEventListener('play', start);
-                player.addEventListener('pause', stop);
-                player.addEventListener('ended', stop);
-                player.addEventListener('error', stop);
+                player.addEventListener('play', () => {
+                    activePlayer = player;
+                    start();
+                });
+                ['pause', 'ended', 'error'].forEach((eventName) => {
+                    player.addEventListener(eventName, () => {
+                        if (activePlayer === player) stop();
+                    });
+                });
             }
             if (canvas && !animationFrame && !player.paused) start();
         }

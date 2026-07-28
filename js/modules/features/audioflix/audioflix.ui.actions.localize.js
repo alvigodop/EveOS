@@ -33,7 +33,7 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
             } catch (err) {
                 ctx.playbackStatus = err?.name === 'AbortError' ? 'Folder access cancelled.' : (err?.message || 'Could not grant that folder.');
             }
-            ctx.rerender();
+            await ctx.loadPortedSounds();
             return true;
         }
         if (action === 'regrant-music-folder') {
@@ -57,7 +57,7 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
             } catch (err) {
                 if (err?.name !== 'AbortError') ctx.playbackStatus = err?.message || 'Folder re-grant failed';
             }
-            ctx.rerender();
+            await ctx.loadPortedSounds();
             return true;
         }
         if (action === 'remove-music-fsport') {
@@ -73,7 +73,7 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
                     ctx.playbackStatus = err?.message || 'Failed to disconnect music folder.';
                 }
             }
-            ctx.rerender();
+            await ctx.loadPortedSounds();
             return true;
         }
         if (action === 'grant-localize-folder') {
@@ -100,7 +100,7 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
                     ? 'Folder access cancelled.'
                     : (err?.message || 'Could not grant that folder.');
             }
-            ctx.rerender();
+            await ctx.loadPortedSounds();
             return true;
         }
         if (action === 'toggle-localize-form') {

@@ -24,6 +24,7 @@ const stored = {
 
 const ctx = {
     console, Date, JSON, Math, Object, Array, String, Number, Boolean, Set, Map, RegExp,
+    CustomEvent: class CustomEvent { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
     setTimeout, clearTimeout,
     localStorage: { getItem: () => JSON.stringify(stored), setItem() {}, removeItem() {} },
     config: {},
@@ -34,7 +35,8 @@ ctx.window.localStorage = ctx.localStorage;
 ctx.window.setTimeout = setTimeout; ctx.window.clearTimeout = clearTimeout;
 
 ['audioflix.paths.js', 'audioflix.state.schema.js', 'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.nexus.js',
-    'audioflix.localize.audit.js', 'audioflix.localize.port.js', 'audioflix.localize.js', 'audioflix.ui.render.js', 'audioflix.ui.localize.js', 'audioflix.nexus.ui.js']
+    'audioflix.classifiers.js', 'audioflix.localize.audit.js', 'audioflix.localize.port.js', 'audioflix.localize.js',
+    'audioflix.ui.render.js', 'audioflix.ui.localize.js', 'audioflix.nexus.ui.js']
     .forEach((f) => runScript(ctx, 'js/modules/features/audioflix/' + f));
 
 const W = ctx.window;
@@ -51,6 +53,8 @@ const render = W.EveAudioflixUiRender.create({
     stopSvg: noSvg, playSvg: noSvg, layerPlaySvg: noSvg, cogSvg: noSvg, closeSvg: noSvg,
     getPorted: () => [], getActiveRepeaters: () => ({}),
     getActiveMusicQueue: () => ({ isPlaying: false, items: [], currentIndex: -1, groupName: '' }),
+    classifierEntries: (items) => W.EveAudioflixClassifiers.selectableEntries(items),
+    renderClassifierRow: () => '',
     getCollapsedGroups: () => ({})
 });
 const track = W.EveAudioflixState.ensure().music[0];
@@ -58,7 +62,14 @@ assert(isStr(render.renderItemCard(track, 'music')) && render.renderItemCard(tra
 assert(isStr(render.renderItems(W.EveAudioflixState.ensure().music, 'music')), 'renderItems backend');
 const fa = render.frontendActiveGroup('music');
 assert(Array.isArray(fa.smart) && fa.smart.some(([k]) => k.startsWith('smart:artist:Kavinsky')), 'smart folders include shared artist');
-assert(isStr(render.renderFrontendMusicActive()), 'renderFrontendMusicActive');
+const frontendHtml = render.renderFrontendMusicActive();
+assert(isStr(frontendHtml), 'renderFrontendMusicActive');
+assert(frontendHtml.includes('All Groups (No Focus)'), 'music frontend has an explicit no-focus group');
+W.EveAudioflixState.update({ activeMusicFolderScope: 'Synthwave', activeFrontendMusicGroup: 'Fav' }, 'scope-smoke');
+const scoped = render.frontendActiveGroup('music');
+assert(scoped.items.length === 1 && scoped.items[0].id === 'a', 'folder and group scopes chain');
+assert(scoped.smart.length === 1 && scoped.smart[0][1].every((item) => item.id === 'a'), 'artist choices inherit folder and group scopes');
+assert(scoped.classifiers.every(([, items]) => items.every((item) => item.id === 'a')), 'classifier choices inherit folder and group scopes');
 console.log('ui.render OK (cards, smart folders, frontend view)');
 
 // ui.localize

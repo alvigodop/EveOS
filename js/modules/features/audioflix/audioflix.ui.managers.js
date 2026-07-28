@@ -29,8 +29,13 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
         const renderGroupsManager = (type = 'sound') => {
             const isM = type === 'music';
             const groups = allGroups(type);
-            const map = isM ? (state().musicGroupMap || {}) : (state().soundGroupMap || {});
-            const countFor = (g) => Object.values(map).filter((arr) => Array.isArray(arr) && arr.includes(g)).length;
+            const snapshot = state();
+            const map = isM ? (snapshot.musicGroupMap || {}) : (snapshot.soundGroupMap || {});
+            const countFor = (g) => isM
+                ? (snapshot.music || []).filter((item) => (
+                    (map[item.id] || []).some((name) => String(name).toLowerCase() === String(g).toLowerCase())
+                )).length
+                : Object.values(map).filter((names) => Array.isArray(names) && names.includes(g)).length;
             const list = groups.map((g) => {
                 const conn = isM ? window.EveAudioflixPlaylists?.getPlaylistForGroup?.(g) : null;
                 // Own dir only — getScopeDir falls back to the last-used folder, which showed an

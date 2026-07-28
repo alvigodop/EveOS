@@ -66,7 +66,16 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'toggle-ports') { ctx.portsOpen = !ctx.portsOpen; ctx.rerender(); return; }
             if (action === 'toggle-groups') { const key = (type === 'music' || ctx.activeTab === 'music') ? 'music' : 'sound'; ctx.groupsOpen = { ...ctx.groupsOpen, [key]: !ctx.groupsOpen[key] }; ctx.rerender(); return; }
             if (action === 'toggle-folders') { ctx.foldersOpen = { ...ctx.foldersOpen, music: !ctx.foldersOpen.music }; ctx.rerender(); return; }
-            if (action === 'select-folder-scope') { window.EveAudioflixState?.update?.({ activeMusicFolderScope: actionTarget.dataset.afScope || '' }, 'audioflix-folder-scope'); ctx.rerender(); return; }
+            if (action === 'select-folder-scope') {
+                window.EveAudioflixState?.update?.({
+                    activeMusicFolderScope: actionTarget.dataset.afScope || '',
+                    activeFrontendMusicGroup: '',
+                    activeFrontendMusicArtist: '',
+                    activeFrontendMusicClassifier: ''
+                }, 'audioflix-folder-scope');
+                ctx.rerender();
+                return;
+            }
             if (action === 'rename-group-prompt') {
                 const oldGroup = actionTarget.dataset.afGroup;
                 const isM = type === 'music';
@@ -98,11 +107,21 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 const targetGroup = actionTarget.dataset.afGroup || '';
                 const isMusic = type === 'music' || ctx.activeTab === 'music';
                 if (isMusic) {
-                    const cur = ctx.state().activeFrontendMusicGroup || '';
-                    const entries = ctx.frontendGroupEntries ? ctx.frontendGroupEntries('music') : [];
-                    const defaultGroup = (entries[0] || [''])[0];
-                    const next = cur === targetGroup ? defaultGroup : targetGroup;
-                    window.EveAudioflixState?.update?.({ activeFrontendMusicGroup: next, musicViewMode: 'frontend' }, 'audioflix-active-music-group');
+                    const dimension = actionTarget.dataset.afDimension || (
+                        targetGroup.startsWith('smart:artist:') ? 'artist'
+                            : targetGroup.startsWith('class:') ? 'classifier' : 'group'
+                    );
+                    const key = dimension === 'artist' ? 'activeFrontendMusicArtist'
+                        : dimension === 'classifier' ? 'activeFrontendMusicClassifier'
+                            : 'activeFrontendMusicGroup';
+                    const patch = { [key]: ctx.state()[key] === targetGroup ? '' : targetGroup, musicViewMode: 'frontend' };
+                    if (dimension === 'group') {
+                        patch.activeFrontendMusicArtist = '';
+                        patch.activeFrontendMusicClassifier = '';
+                    } else if (dimension === 'artist') {
+                        patch.activeFrontendMusicClassifier = '';
+                    }
+                    window.EveAudioflixState?.update?.(patch, `audioflix-active-music-${dimension}`);
                 } else {
                     const cur = ctx.state().activeFrontendGroup || '';
                     const entries = ctx.frontendGroupEntries ? ctx.frontendGroupEntries('sound') : [];

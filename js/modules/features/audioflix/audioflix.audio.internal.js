@@ -53,9 +53,10 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         finally { clearTimeout(timer); }
     }
 
-    async function findProviderHost() {
+    async function findProviderHost(options = {}) {
         if (window.EveAudioflixNative?.isBridgeOffline?.()) return '';
-        if (cachedHostAt && Date.now() - cachedHostAt < (cachedHost ? 60000 : 30000)) return cachedHost;
+        const force = options.force === true;
+        if (!force && cachedHostAt && Date.now() - cachedHostAt < (cachedHost ? 60000 : 30000)) return cachedHost;
         if (hostProbe) return hostProbe;
         hostProbe = (async () => {
             for (const base of providerHostCandidates()) {
@@ -212,7 +213,9 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         }
 
         async function connectYouTubeBridge(item, videoId, callbacks = {}) {
-            const base = await findProviderHost();
+            // Explicit Internal View retries should notice a server that started after an
+            // earlier failed probe instead of honoring the 30-second negative cache.
+            const base = await findProviderHost({ force: callbacks.expanded === true });
             if (!base) return null;
             const frameHost = open(item, 'YouTube', {
                 expanded: callbacks.expanded === true,

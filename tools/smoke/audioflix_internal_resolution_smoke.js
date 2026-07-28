@@ -59,9 +59,13 @@ function assert(condition, message) {
         const originalSuppress = native.shouldSuppressBrowserPlayback;
         const state = window.EveAudioflixState;
         const originalState = JSON.parse(JSON.stringify(state.ensure()));
+        const waveform = window.EveAudioflixAudio.getWaveformController?.();
+        const originalWaveformAttach = waveform?.attachPlayer;
+        const waveformPlayers = [];
         let resolutions = 0;
         try {
             window.Audio = FakeAudio;
+            if (waveform) waveform.attachPlayer = (player) => waveformPlayers.push(player);
             state.update({ preferredSinkId: 'test-output', preferredSinkLabel: 'Test output' }, 'smoke-output');
             source.needsResolution = () => true;
             source.resolveItem = async (item) => {
@@ -103,6 +107,7 @@ function assert(condition, message) {
                 || fakePlayers[fakePlayers.length - 1];
             return {
                 internal,
+                internalWaveformAttached: waveformPlayers.includes(fakePlayers[0]),
                 totalResolutions: resolutions,
                 continuousPlayers: fakePlayers.length,
                 musicSrc: musicPlayer?.src || '',
@@ -117,6 +122,7 @@ function assert(condition, message) {
             source.resolveItem = originalResolveItem;
             native.getStatus = originalGetStatus;
             native.shouldSuppressBrowserPlayback = originalSuppress;
+            if (waveform && originalWaveformAttach) waveform.attachPlayer = originalWaveformAttach;
             state.replaceState(originalState, 'smoke-restore');
         }
     });
@@ -127,6 +133,7 @@ function assert(condition, message) {
     assert(result.internal.playerSrc.includes('resolved-track.m4a'), 'internal view did not use the resolved audio URL');
     assert(result.internal.sourceHref.includes('youtube.com/watch'), 'internal view lost the original source link');
     assert(result.internal.playing, 'resolved internal audio did not start');
+    assert(result.internalWaveformAttached, 'resolved internal audio did not attach to the routing waveform');
     assert(result.totalResolutions === 2, 'file-mode music skipped resolver-first playback while the native probe was cold');
     // One reused element for the whole run, not a fresh one per track.
     assert(result.continuousPlayers <= 2, `music should reuse the continuous media element (saw ${result.continuousPlayers})`);

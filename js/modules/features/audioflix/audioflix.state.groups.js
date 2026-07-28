@@ -119,6 +119,11 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 const next = (state.musicGroupMap[id] || []).filter((g) => !sameName(g, clean));
                 if (next.length) state.musicGroupMap[id] = next; else delete state.musicGroupMap[id];
             }
+            if (sameName(state.activeFrontendMusicGroup, clean)) {
+                state.activeFrontendMusicGroup = '';
+                state.activeFrontendMusicArtist = '';
+                state.activeFrontendMusicClassifier = '';
+            }
             const oldSource = `group:${clean}`;
             const oldRoot = migrateScopeDir(state, 'group', clean);
             state.music = (state.music || []).map((item) => {

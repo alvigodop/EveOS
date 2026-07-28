@@ -53,7 +53,7 @@ window.EveAudioflixClassifiersUi = window.EveAudioflixClassifiersUi || {};
             const bucket = (b) => {
                 const names = b.tracks.slice(0, 25).map((t) => `<span style="${PILL} cursor:default; background:rgba(148,163,184,0.12);">${esc(t.title)}</span>`).join('');
                 const more = b.tracks.length > 25 ? `<span style="font-size:0.72rem; color:#94a3b8;"> +${b.tracks.length - 25} more</span>` : '';
-                const jump = `<button type="button" class="audioflix-add-toggle" data-af-action="select-frontend-group" data-af-type="music" data-af-group="${esc(b.key.startsWith('class:') ? b.key : `class:${data.kind === 'manual' ? b.key : `auto:${b.key}`}`)}" style="${PILL} background:rgba(56,189,248,0.2);" title="Show these songs in the frontend">▶ View in frontend</button>`;
+                const jump = `<button type="button" class="audioflix-add-toggle" data-af-action="select-frontend-group" data-af-dimension="classifier" data-af-type="music" data-af-group="${esc(b.key.startsWith('class:') ? b.key : `class:${data.kind === 'manual' ? b.key : `auto:${b.key}`}`)}" style="${PILL} background:rgba(56,189,248,0.2);" title="Show these songs in the frontend">▶ View in frontend</button>`;
                 return `<div style="margin-top:6px; padding:6px 8px; background:rgba(0,0,0,0.22); border-radius:8px;"><div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><strong style="font-size:0.8rem; color:#f8fafc;">${esc(b.label)} <span style="color:#94a3b8; font-weight:500;">(${b.tracks.length})</span></strong>${jump}</div><div style="display:flex; flex-wrap:wrap; margin-top:4px;">${names || '<span style="font-size:0.75rem; color:#94a3b8;">No songs.</span>'}${more}</div></div>`;
             };
             const ranked = data.ranked?.length
@@ -63,13 +63,13 @@ window.EveAudioflixClassifiersUi = window.EveAudioflixClassifiersUi || {};
         }
 
         // Frontend: a collapsed-by-default pill row (click a pill to view, click again to deselect).
-        function renderFrontendRow(activeKey) {
-            const entries = C()?.selectableEntries() || [];
+        function renderFrontendRow(activeKey, scopedEntries) {
+            const entries = Array.isArray(scopedEntries) ? scopedEntries : (C()?.selectableEntries() || []);
             if (!entries.length) return '';
             const open = ctx.getFrontendOpen();
             const toggle = `<button type="button" class="audioflix-group-pill${open ? ' is-active' : ''}" data-af-action="toggle-classifier-row" title="Show classifier filters">🏷 Classifiers<span class="audioflix-group-pill-count">${entries.length}</span></button>`;
             const pills = open
-                ? entries.map(([key, tracks, label]) => `<button type="button" class="audioflix-group-pill${key === activeKey ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-type="music" data-af-group="${esc(key)}">${esc(label)}<span class="audioflix-group-pill-count">${tracks.length}</span></button>`).join('')
+                ? entries.map(([key, tracks, label]) => `<button type="button" class="audioflix-group-pill${key === activeKey ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-dimension="classifier" data-af-type="music" data-af-group="${esc(key)}">${esc(label)}<span class="audioflix-group-pill-count">${tracks.length}</span></button>`).join('')
                 : '';
             return `<div class="audioflix-group-selector audioflix-classifier-selector"><span class="audioflix-scope-label">Classify:</span>${toggle}${pills}</div>`;
         }

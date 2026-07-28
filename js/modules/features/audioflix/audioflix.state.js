@@ -65,6 +65,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};
+        const legacyMusicFocus = text(source.activeFrontendMusicGroup, '');
+        const legacyArtist = legacyMusicFocus.startsWith('smart:artist:') ? legacyMusicFocus : '';
+        const legacyClassifier = legacyMusicFocus.startsWith('class:') ? legacyMusicFocus : '';
         return {
             schemaVersion: 1,
             enabled: source.enabled !== false,
@@ -147,7 +150,9 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                     .map(([k, v]) => [k, Array.isArray(v) ? [...new Set(v.map((g) => text(g, '')).filter(Boolean))] : []])
                     .filter(([, v]) => v.length))
                 : {},
-            activeFrontendMusicGroup: text(source.activeFrontendMusicGroup, ''),
+            activeFrontendMusicGroup: (legacyArtist || legacyClassifier) ? '' : legacyMusicFocus,
+            activeFrontendMusicArtist: text(source.activeFrontendMusicArtist, legacyArtist),
+            activeFrontendMusicClassifier: text(source.activeFrontendMusicClassifier, legacyClassifier),
             activeMusicFolderScope: text(source.activeMusicFolderScope, ''),
             // "Keep both" duplicate acknowledgements: sorted "idA|idB" pair keys left as separate items.
             dupDismissedPairs: Array.isArray(source.dupDismissedPairs) ? [...new Set(source.dupDismissedPairs.map((p) => text(p, '')).filter(Boolean))].slice(-2000) : [],
@@ -280,6 +285,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             musicClassifiers: [],
             dupDismissedPairs: [],
             activeFrontendMusicGroup: '',
+            activeFrontendMusicArtist: '',
+            activeFrontendMusicClassifier: '',
             activeMusicFolderScope: '',
             localizeDir: '',
             localizeScopeDirs: {},

@@ -9,6 +9,7 @@ const LOCAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'aud
 const INTERNAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.internal.js');
 const LOADERS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.loaders.js');
 const WIDGETS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.widgets.js');
+const PROVIDERS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.providers.js');
 const MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.js');
 const STYLE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.provider.css');
 
@@ -23,9 +24,10 @@ async function main() {
     const internalModuleUrl = 'file:///' + INTERNAL_MODULE_PATH.replace(/\\/g, '/');
     const loadersModuleUrl = 'file:///' + LOADERS_MODULE_PATH.replace(/\\/g, '/');
     const widgetsModuleUrl = 'file:///' + WIDGETS_MODULE_PATH.replace(/\\/g, '/');
+    const providersModuleUrl = 'file:///' + PROVIDERS_MODULE_PATH.replace(/\\/g, '/');
     const moduleUrl = 'file:///' + MODULE_PATH.replace(/\\/g, '/');
     const styleUrl = 'file:///' + STYLE_PATH.replace(/\\/g, '/');
-    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${pathsModuleUrl}"></script><script src="${localModuleUrl}"></script><script src="${internalModuleUrl}"></script><script src="${loadersModuleUrl}"></script><script src="${widgetsModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
+    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${pathsModuleUrl}"></script><script src="${localModuleUrl}"></script><script src="${internalModuleUrl}"></script><script src="${loadersModuleUrl}"></script><script src="${widgetsModuleUrl}"></script><script src="${providersModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
@@ -75,9 +77,11 @@ async function main() {
         const result = await page.evaluate(async () => {
             const playbackEvents = [];
             const progressEvents = [];
+            const waveformPlayers = [];
             const makeController = () => window.EveAudioflixUrlPlayback.createController({
                 onPlayback: (detail) => playbackEvents.push(detail),
-                onProgress: (detail) => progressEvents.push(detail)
+                onProgress: (detail) => progressEvents.push(detail),
+                onPlayer: (player) => waveformPlayers.push(player)
             });
 
             const direct = makeController();
@@ -90,6 +94,11 @@ async function main() {
             await direct.pause();
             const directAudio = window.__fakeAudioInstances[0];
             await direct.stop();
+
+            const localDirect = makeController();
+            await localDirect.play({ id: 'local-direct', title: 'Local Direct', url: 'blob:audioflix-local' });
+            const localDirectAudio = localDirect.getAudioElement();
+            await localDirect.stop();
 
             let youtubePlayerAttempts = 0;
             window.YT = {
@@ -245,6 +254,9 @@ async function main() {
                 directPaused: directAudio.paused,
                 directVolume: directAudio.volume,
                 directCrossOrigin: directAudio.crossOrigin,
+                remoteDirectWaveformSafe: directAudio._eveAudioflixWaveformSafe,
+                localDirectWaveformSafe: localDirectAudio?._eveAudioflixWaveformSafe,
+                localDirectWaveformAttached: waveformPlayers.includes(localDirectAudio),
                 playbackEvents: playbackEvents.map((event) => event.status),
                 progressCount: progressEvents.length,
                 youtubePlayerAttempts,
@@ -284,6 +296,8 @@ async function main() {
         assert(result.directState.currentTime === 42 && result.directState.duration === 180, 'direct media seek/duration state failed');
         assert(result.directPaused && result.directVolume === 0.3, 'direct media pause/volume controls failed');
         assert(result.directCrossOrigin == null, 'browser-only direct media must not force CORS mode');
+        assert(result.remoteDirectWaveformSafe === false, 'cross-origin direct media was incorrectly attached to Web Audio');
+        assert(result.localDirectWaveformSafe === true && result.localDirectWaveformAttached, 'local internal media did not attach to the routing waveform');
         assert(result.playbackEvents.some((status) => /directly from the browser/.test(status)), 'direct playback status missing');
         assert(result.progressCount > 0, 'direct playback progress events missing');
         assert(/YouTube Track/.test(result.stageText), 'hidden provider stage did not retain the active track');
