@@ -32,7 +32,12 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
         </label>`;
     }
 
-    function renderPrompt(prompt, index, canRemove) {
+    function renderPrompt(prompt, index, canRemove, controlView) {
+        const knob = controlView === 'knobs';
+        const progress = Math.max(0, Math.min(1, Number(prompt.weight) / 2));
+        const weightInput = `<input type="range" min="0" max="2" step="0.01" value="${esc(prompt.weight)}"
+            data-sf-field="prompt-weight" data-sf-prompt="${esc(prompt.id)}"
+            aria-label="Direction ${index + 1} weight">`;
         return `<article class="sonic-forge-prompt" style="--prompt-color:${esc(prompt.color)}">
             <div class="sonic-forge-prompt-top">
                 <span class="sonic-forge-prompt-number">${String(index + 1).padStart(2, '0')}</span>
@@ -45,10 +50,11 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                     ${canRemove ? '' : 'disabled'} aria-label="Remove musical direction">x</button>
             </div>
             <div class="sonic-forge-prompt-mix">
-                <label>
+                <label class="sonic-forge-prompt-weight${knob ? ' is-knob' : ''}">
                     <span>Weight <output data-sf-prompt-weight="${esc(prompt.id)}">${Number(prompt.weight).toFixed(2)}</output></span>
-                    <input type="range" min="0" max="2" step="0.01" value="${esc(prompt.weight)}"
-                        data-sf-field="prompt-weight" data-sf-prompt="${esc(prompt.id)}">
+                    ${knob
+                        ? `<span class="sonic-forge-knob-shell is-prompt" style="--sf-knob:${progress};--sf-mint:${esc(prompt.color)}">${weightInput}</span>`
+                        : weightInput}
                 </label>
                 <label class="sonic-forge-cc">
                     <span>MIDI CC</span>
@@ -67,12 +73,21 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                     <h3>Prompt Mixer</h3>
                     <p>Blend musical ideas live. Zero mutes a direction; higher weights make it dominant.</p>
                 </div>
-                <button type="button" data-af-action="soundlab-add-prompt" ${prompts.length >= 12 ? 'disabled' : ''}>
-                    + Direction
-                </button>
+                <div class="sonic-forge-header-actions">
+                    <div class="sonic-forge-view-toggle" role="group" aria-label="Prompt mixer control view">
+                        ${['sliders', 'knobs'].map((view) => `<button type="button"
+                            class="${soundLab.promptControlView === view ? 'is-active' : ''}"
+                            data-af-action="soundlab-prompt-view" data-sf-view="${view}">${view}</button>`).join('')}
+                    </div>
+                    <button type="button" data-af-action="soundlab-add-prompt" ${prompts.length >= 12 ? 'disabled' : ''}>
+                        + Direction
+                    </button>
+                </div>
             </header>
-            <div class="sonic-forge-prompt-grid">
-                ${prompts.map((prompt, index) => renderPrompt(prompt, index, prompts.length > 1)).join('')}
+            <div class="sonic-forge-prompt-grid is-${esc(soundLab.promptControlView)}">
+                ${prompts.map((prompt, index) => renderPrompt(
+                    prompt, index, prompts.length > 1, soundLab.promptControlView
+                )).join('')}
             </div>
         </section>`;
     }
@@ -203,7 +218,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 </div>
             </div>
             <div class="sonic-forge-transport">
-                <label class="sonic-forge-key"><span>Gemini API key</span>
+                <label class="sonic-forge-key"><span>Gemini Link credential</span>
                     <input type="password" autocomplete="off" placeholder="${window.EveAudioflixSoundLabEngine?.getApiKey?.() ? 'Stored for this browser session' : 'Required for Lyria RealTime'}"
                         data-sf-field="api-key">
                 </label>
@@ -216,7 +231,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                     <button type="button" data-af-action="soundlab-reset">Reset Context</button>
                     <button type="button" data-af-action="soundlab-clear-key">Clear Key</button>
                 </div>
-                <small>This field is session-only; an existing Gemini credential may be reused. Prompts and presets are backed up, but credentials and audio are not.</small>
+                <small>The credential saved in Gemini Link is reused here for this browser session. This field is an optional session override; credentials and generated audio never enter datapack backups.</small>
             </div>
             <div class="sonic-forge-route"><span>Output route</span><b>${esc(routeLabel)}</b></div>
             <div class="sonic-forge-visual">

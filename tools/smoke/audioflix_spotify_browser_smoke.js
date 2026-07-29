@@ -124,7 +124,8 @@ const assert = (condition, message) => {
                 url: `https://open.spotify.com/track/browserTrack${index}`,
                 sourceProvider: 'spotify',
                 folder: 'Spotify Playlists',
-                duration: 180 + index
+                duration: 180 + index,
+                showProviderTransport: index === 1
             });
             ids.push(track.id);
             S.updateItem('music', track.id, {
@@ -159,13 +160,30 @@ const assert = (condition, message) => {
     await page.click(cardPlay);
     await page.waitForFunction(() => window.__spotifyUiTotals?.play >= 1);
     assert(
-        await page.locator('.audioflix-provider-stage.is-transport-only').isVisible(),
-        'regular Spotify card play exposes the compact provider transport'
+        await page.locator('.audioflix-provider-stage.is-transport-only.is-transport-hidden').count() === 1,
+        'regular Spotify card play hides its mounted provider transport by default'
     );
     assert(
         await page.evaluate((id) => window.EveAudioflixAudio.getPlaybackState()?.item?.id === id, firstId),
         'regular Spotify card play owns the shared Audioflix transport'
     );
+    await page.click(`[data-af-action="item-info"][data-af-type="music"][data-af-id="${firstId}"]`);
+    await page.waitForSelector('.audioflix-provider-transport-toggle');
+    assert(
+        await page.locator('.audioflix-provider-transport-toggle').isChecked() === false,
+        'compact Spotify panel preference defaults off'
+    );
+    await page.check('.audioflix-provider-transport-toggle');
+    assert(
+        await page.evaluate((id) => window.EveAudioflixState.ensure().music
+            .find((item) => item.id === id)?.showProviderTransport === true, firstId),
+        'per-track compact Spotify panel preference persists'
+    );
+    assert(
+        await page.locator('.audioflix-provider-stage.is-transport-only:not(.is-transport-hidden)').count() === 1,
+        'enabling the preference reveals the active compact Spotify panel'
+    );
+    await page.click('.audioflix-info-close-btn');
     await page.click(internalView);
     await page.waitForSelector('.audioflix-provider-stage.is-internal-view');
     await page.evaluate(() => window.EveAudioflixAudio.pause());

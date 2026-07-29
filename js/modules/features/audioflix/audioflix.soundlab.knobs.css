@@ -20,6 +20,14 @@
     color: #baffea;
 }
 
+.sonic-forge-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 .sonic-forge-controls-grid.is-knobs {
     grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
 }
@@ -90,6 +98,30 @@
     text-align: center;
 }
 
+.sonic-forge-prompt-grid.is-knobs {
+    grid-template-columns: repeat(auto-fit, minmax(min(285px, 100%), 1fr));
+}
+
+.sonic-forge-prompt-weight.is-knob {
+    justify-items: center;
+}
+
+.sonic-forge-prompt-weight.is-knob > span:first-child {
+    width: 100%;
+}
+
+.sonic-forge-knob-shell.is-prompt {
+    width: 74px;
+    height: 74px;
+    margin: 0 auto;
+}
+
+.sonic-forge-knob-shell.is-prompt::after {
+    top: 11px;
+    height: 23px;
+    transform-origin: 1px 25px;
+}
+
 @media (max-width: 620px) {
     .sonic-forge-view-toggle {
         width: 100%;
@@ -97,5 +129,9 @@
 
     .sonic-forge-view-toggle button {
         flex: 1 1 50%;
+    }
+
+    .sonic-forge-header-actions {
+        width: 100%;
     }
 }

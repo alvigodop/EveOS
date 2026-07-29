@@ -46,6 +46,14 @@
         } catch (error) {
             // The secure vault is now the durable source; restricted storage should not block reconnect.
         }
+        try {
+            // The vault stays authoritative. This tab-scoped handoff lets Sonic Forge reuse the
+            // credential without writing it into Audioflix state or a datapack backup.
+            sessionStorage.setItem('eveAudioflixSoundLabApiKey', normalizedKey);
+            window.EveAudioflixSoundLabEngine?.setApiKey?.(normalizedKey);
+        } catch (error) {
+            // A restricted session store must not invalidate the already-saved Gemini credential.
+        }
 
         markCredentialRefreshInProgress();
         if (window.SocketGlobalState) {

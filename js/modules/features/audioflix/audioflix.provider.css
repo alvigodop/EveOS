@@ -33,6 +33,15 @@
     box-shadow: 0 14px 44px rgba(0, 0, 0, 0.7);
 }
 
+.audioflix-provider-stage.is-transport-only.is-transport-hidden {
+    /* Keep provider SDK geometry intact while removing its transport from the EveOS surface. */
+    right: auto;
+    left: -10000px;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: none;
+}
+
 .audioflix-provider-stage.is-transport-only header,
 .audioflix-provider-stage.is-transport-only .audioflix-provider-status,
 .audioflix-provider-stage.is-transport-only .audioflix-provider-transport,

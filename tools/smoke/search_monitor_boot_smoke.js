@@ -143,6 +143,30 @@ async function main() {
             throw new Error(`Search Monitor sizing controls are not stable: ${JSON.stringify(modeControlState)}`);
         }
 
+        const firstLayerClick = await page.evaluate(() => {
+            const underlay = document.createElement('button');
+            underlay.id = 'search-monitor-underlay-smoke';
+            underlay.addEventListener('click', () => {
+                window.__searchMonitorUnderlayClicks = (window.__searchMonitorUnderlayClicks || 0) + 1;
+            });
+            document.body.appendChild(underlay);
+            underlay.click();
+            return {
+                compact: document.getElementById('loadingIndicator')?.classList.contains('compact'),
+                underlayClicks: window.__searchMonitorUnderlayClicks || 0
+            };
+        });
+        if (!firstLayerClick.compact || firstLayerClick.underlayClicks !== 0) {
+            throw new Error(`Top-layer outside click leaked through Search Monitor: ${JSON.stringify(firstLayerClick)}`);
+        }
+        const secondLayerClick = await page.evaluate(() => {
+            document.getElementById('search-monitor-underlay-smoke')?.click();
+            return window.__searchMonitorUnderlayClicks || 0;
+        });
+        if (secondLayerClick !== 1) {
+            throw new Error(`Underlying surface did not receive the next click: ${secondLayerClick}`);
+        }
+
         const criticalConsoleErrors = consoleErrors.filter((entry) => !isBenignConsoleError(entry));
         if (pageErrors.length) {
             throw new Error(`Page errors detected:\n${pageErrors.join('\n\n')}`);

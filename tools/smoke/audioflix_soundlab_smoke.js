@@ -14,6 +14,10 @@ function staticContracts() {
     const html = fs.readFileSync(path.join(ROOT, 'EveOS.html'), 'utf8');
     const ui = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.js'), 'utf8');
     const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
+    const credentials = fs.readFileSync(
+        path.join(ROOT, 'js', 'modules', 'gemini', 'server_control', 'geminiCredentialWorkflow.js'),
+        'utf8'
+    );
     const bridge = fs.readFileSync(path.join(ROOT, 'server_modules', 'audioflix_bridge.py'), 'utf8');
     const order = ['soundboard', 'music', 'soundlab', 'router']
         .map((tab) => ui.indexOf(`tabButton('${tab}'`));
@@ -33,7 +37,20 @@ function staticContracts() {
         steering.indexOf('setMusicGenerationConfig') < steering.indexOf('resetContext'),
         'Lyria applies BPM/scale configuration before resetting generation context'
     );
+    assert(
+        engine.includes('Promise.race([connection, deadline])')
+            && engine.includes('connectionExpired'),
+        'Lyria connection has a hard deadline and closes sessions that resolve too late'
+    );
+    assert(
+        engine.includes("audioFormat: 'pcm16'") && engine.includes('sampleRateHz: SAMPLE_RATE'),
+        'Lyria requests the PCM16 48 kHz format used by the playback buffer'
+    );
     assert(bridge.includes('/api/audioflix/save-soundlab-recording'), 'recording save route is registered');
+    assert(
+        credentials.includes("sessionStorage.setItem('eveAudioflixSoundLabApiKey', normalizedKey)"),
+        'Gemini Link securely hands its saved credential to Sonic Forge for this tab'
+    );
 }
 
 (async () => {
@@ -94,6 +111,7 @@ function staticContracts() {
             const first = stateApi.ensure();
             const second = stateApi.ensure();
             const migratedControlView = first.controlView;
+            const migratedPromptControlView = first.promptControlView;
             const initialVolume = first.masterVolume;
 
             window.EveAudioflixSoundLabEngine.setApiKey('soundlab-session-test');
@@ -132,7 +150,10 @@ function staticContracts() {
             const knobButton = host.querySelector('[data-af-action="soundlab-control-view"][data-sf-view="knobs"]');
             await window.EveAudioflixSoundLabUi.handleAction(knobButton);
             host.innerHTML = window.EveAudioflixSoundLabUi.render();
-            const knobCount = host.querySelectorAll('.sonic-forge-knob-shell').length;
+            const generationKnobCount = host.querySelectorAll(
+                '.sonic-forge-control .sonic-forge-knob-shell:not(.is-prompt)'
+            ).length;
+            const promptKnobCount = host.querySelectorAll('.sonic-forge-knob-shell.is-prompt').length;
             const steeringCalls = [];
             const originalQueueSteering = window.EveAudioflixSoundLabEngine.queueSteering;
             window.EveAudioflixSoundLabEngine.queueSteering = (options) => {
@@ -151,6 +172,7 @@ function staticContracts() {
             return {
                 sameIdentity: first === second,
                 migratedControlView,
+                migratedPromptControlView,
                 promptCount: current.prompts.length,
                 presetNames: current.presets.map((preset) => preset.name),
                 initialVolume,
@@ -161,8 +183,10 @@ function staticContracts() {
                 leakedCredential: serialized.includes('soundlab-session-test'),
                 hasTitle: host.querySelector('h2')?.textContent === 'Sonic Forge',
                 visualModes,
-                knobCount,
+                generationKnobCount,
+                promptKnobCount,
                 controlView: stateApi.ensure().controlView,
+                promptControlView: stateApi.ensure().promptControlView,
                 steeringCalls,
                 hasRecording: !!host.querySelector('[data-af-action="soundlab-toggle-record"]'),
                 hasImport: !!host.querySelector('[data-af-action="soundlab-import-presets"]'),
@@ -172,6 +196,7 @@ function staticContracts() {
 
         assert(result.sameIdentity, 'state reads preserve object identity');
         assert(result.migratedControlView === 'sliders', 'schema-v1 scenes migrate the control view default');
+        assert(result.migratedPromptControlView === 'knobs', 'legacy scenes gain Prompt Mixer knobs');
         assert(result.promptCount >= 1 && result.promptCount <= 12, 'prompt collection is bounded');
         assert(result.presetNames.includes('Smoke Scene'), 'saved scene persists in Audioflix state');
         assert(result.presetNames.includes('Imported Scene'), 'scene JSON imports into Audioflix state');
@@ -183,7 +208,14 @@ function staticContracts() {
         assert(result.hasTitle && result.hasRecording && result.hasImport, 'Sonic Forge workbench renders all core tools');
         assert(['frequency', 'waveform', 'radial', 'spectrogram']
             .every((mode) => result.visualModes.includes(mode)), 'all visualizer modes are available');
-        assert(result.controlView === 'knobs' && result.knobCount === 6, 'knob steering view is functional and persisted');
+        assert(
+            result.controlView === 'knobs' && result.generationKnobCount === 6,
+            'generation knob view is functional and persisted'
+        );
+        assert(
+            result.promptControlView === 'knobs' && result.promptKnobCount === result.promptCount,
+            'each prompt weight has a persisted knob control'
+        );
         assert(
             result.steeringCalls[0]?.resetContext === true
                 && result.steeringCalls[1]?.resetContext === false,

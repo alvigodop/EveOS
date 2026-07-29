@@ -160,6 +160,8 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             topK: Number(config.topK),
             scale: config.scale,
             musicGenerationMode: config.musicGenerationMode,
+            audioFormat: 'pcm16',
+            sampleRateHz: SAMPLE_RATE,
             muteBass: config.muteBass === true,
             muteDrums: config.muteDrums === true,
             onlyBassAndDrums: config.onlyBassAndDrums === true
@@ -294,13 +296,19 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         const sdk = await loadSdk();
         const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: 'v1beta' });
         let timeout = 0;
+        let connectionExpired = false;
         const setup = new Promise((resolve, reject) => {
             setupResolve = resolve;
             setupReject = reject;
-            timeout = window.setTimeout(() => reject(new Error('Lyria setup timed out.')), 12000);
+        });
+        const deadline = new Promise((_, reject) => {
+            timeout = window.setTimeout(() => {
+                connectionExpired = true;
+                reject(new Error('Lyria connection timed out. Try reconnecting.'));
+            }, 20000);
         });
         try {
-            session = await ai.live.music.connect({
+            const connection = ai.live.music.connect({
                 model: MODEL,
                 callbacks: {
                     onmessage: handleMessage,
@@ -316,7 +324,13 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
                     }
                 }
             });
-            await setup;
+            connection.then((lateSession) => {
+                if (connectionExpired) {
+                    try { lateSession?.close?.(); } catch {}
+                }
+            }).catch(() => {});
+            session = await Promise.race([connection, deadline]);
+            await Promise.race([setup, deadline]);
             await applySteering();
             publish({ phase: 'ready', connected: true, message: 'Connected. Press play to generate.' });
             return session;

@@ -82,9 +82,9 @@ const assert = (condition, message) => {
             const mainCardTransportOnly = stage?.classList.contains('is-transport-only') === true
                 && stage.hidden === false
                 && player.isInternalViewOpen() === false;
-            const compactTransportVisible = getComputedStyle(stage).position === 'fixed'
-                && Number.parseFloat(getComputedStyle(stage).opacity) === 1
-                && stage.getBoundingClientRect().right <= innerWidth;
+            const compactTransportHidden = stage?.classList.contains('is-transport-hidden') === true
+                && Number.parseFloat(getComputedStyle(stage).opacity) === 0
+                && stage.getBoundingClientRect().right < 0;
             window.__spotifyController.emit('playback_started', {});
             await player.openInternalView(item);
             const internalExpanded = stage?.classList.contains('is-internal-view') === true
@@ -127,7 +127,8 @@ const assert = (condition, message) => {
             await player.openInternalView({
                 id: 'spotify-blocked',
                 title: 'Blocked track',
-                url: 'https://open.spotify.com/track/FEDCBA0987654321'
+                url: 'https://open.spotify.com/track/FEDCBA0987654321',
+                showProviderTransport: true
             });
             await new Promise((resolve) => setTimeout(resolve, 100));
             const stalledStatus = document.querySelector('.audioflix-provider-status')?.textContent || '';
@@ -140,7 +141,7 @@ const assert = (condition, message) => {
                 stateAt42: progress.find((entry) => entry.currentTime === 42),
                 endedCount: events.filter((status) => status === 'Ended').length,
                 mainCardTransportOnly,
-                compactTransportVisible,
+                compactTransportHidden,
                 internalExpanded,
                 closePreservedTransport,
                 activeAfterHide,
@@ -159,7 +160,7 @@ const assert = (condition, message) => {
         assert(result.calls.seek.includes(61), 'Spotify seek receives seconds, not milliseconds');
         assert(result.endedCount === 1, 'repeated terminal updates emit Ended once');
         assert(result.mainCardTransportOnly, 'main-card play keeps the Spotify SDK in compact transport mode');
-        assert(result.compactTransportVisible, 'main-card play exposes a compact native Spotify transport');
+        assert(result.compactTransportHidden, 'main-card play hides the mounted Spotify transport by default');
         assert(result.internalExpanded, 'Internal Player expands the existing Spotify controller');
         assert(result.closePreservedTransport && result.activeAfterHide, 'closing Internal Player preserves playback ownership');
         assert(result.resumedFromMainCard, 'main-card play resumes the existing Spotify controller after Internal Player closes');

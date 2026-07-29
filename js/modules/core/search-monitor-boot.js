@@ -132,13 +132,11 @@
         if (!indicator) return;
         ensureVisible(indicator);
         indicator.classList.remove('compact');
-        document.addEventListener('click', handleOutsideClick, true);
     }
 
     function collapseFallback(indicator) {
         if (!indicator) return;
         indicator.classList.add('compact');
-        document.removeEventListener('click', handleOutsideClick, true);
     }
 
     function toggleViaModule(event) {
@@ -190,12 +188,22 @@
             return;
         }
 
+        // Search Monitor is the top layer. Consume this click so an overlay underneath it
+        // (Audioflix, Matrix, etc.) does not also close or activate on the same gesture.
+        event.preventDefault();
+        event.stopImmediatePropagation();
         if (window.LoadingIndicator && typeof window.LoadingIndicator.collapse === 'function') {
             window.LoadingIndicator.collapse();
             return;
         }
 
         collapseFallback(indicator);
+    }
+
+    function handleTopLayerOutsideClick(event) {
+        const indicator = getIndicator();
+        if (!indicator || isCompact(indicator)) return;
+        handleOutsideClick(event);
     }
 
     function handleToggle(event) {
@@ -248,6 +256,10 @@
         ensureDetailsArrow(indicator);
         restoreDetailsCollapsed(indicator);
         bindModeControls(indicator);
+        if (!window.__searchMonitorTopLayerGateBound) {
+            window.__searchMonitorTopLayerGateBound = true;
+            document.addEventListener('click', handleTopLayerOutsideClick, true);
+        }
 
         indicator.addEventListener('click', handleToggle);
         indicator.addEventListener('keydown', function (event) {

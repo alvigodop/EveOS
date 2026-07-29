@@ -142,10 +142,14 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             const element = ensureStage();
             currentItem = item;
             const transportOnly = settings.visible === false;
-            // Provider SDKs such as Spotify do not reliably initialize, resume, or preserve
-            // user activation when hidden. Keep a compact native transport visible.
+            // Provider SDKs need a rendered iframe. Normal card playback keeps it mounted
+            // off-screen unless this track explicitly opts into the compact provider panel.
             element.hidden = false;
             element.classList.toggle('is-transport-only', transportOnly);
+            element.classList.toggle(
+                'is-transport-hidden',
+                transportOnly && item?.showProviderTransport !== true
+            );
             element.classList.remove('has-error');
             element.classList.toggle('is-internal-view', settings.expanded === true);
             if (settings.expanded) element.classList.remove('is-collapsed');
@@ -201,7 +205,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         function setExpanded(expanded = true) {
             const element = ensureStage();
             element.hidden = false;
-            element.classList.remove('is-transport-only');
+            element.classList.remove('is-transport-only', 'is-transport-hidden');
             element.classList.toggle('is-internal-view', expanded);
             if (expanded) element.classList.remove('is-collapsed');
         }
@@ -210,6 +214,10 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             const element = ensureStage();
             element.hidden = false;
             element.classList.toggle('is-transport-only', enabled === true);
+            element.classList.toggle(
+                'is-transport-hidden',
+                enabled === true && currentItem?.showProviderTransport !== true
+            );
             if (enabled) element.classList.remove('is-internal-view', 'is-collapsed');
         }
 
@@ -227,7 +235,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
 
         function hide() {
             if (!stage) return;
-            stage.classList.remove('is-transport-only');
+            stage.classList.remove('is-transport-only', 'is-transport-hidden');
             stage.hidden = true;
         }
 

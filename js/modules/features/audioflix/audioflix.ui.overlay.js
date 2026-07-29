@@ -97,6 +97,16 @@ window.EveAudioflixUiOverlay = window.EveAudioflixUiOverlay || {};
                     const ps = V.portedSounds.find(s => s.id === id); if (ps) ps.exposed = t.checked;
                     pushHotkeysToBridge();
                     rerender();
+                } else if (t.classList.contains('audioflix-provider-transport-toggle')) {
+                    window.EveAudioflixState?.updateItem?.('music', id, {
+                        showProviderTransport: t.checked
+                    });
+                    if (V.activeInfoItem?.id === id) V.activeInfoItem.showProviderTransport = t.checked;
+                    const activeId = window.EveAudioflixAudio?.getPlaybackState?.()?.item?.id;
+                    if (String(activeId || '') === String(id || '')) {
+                        document.querySelector('.audioflix-provider-stage.is-transport-only')
+                            ?.classList.toggle('is-transport-hidden', !t.checked);
+                    }
                 } else if (t.classList.contains('audioflix-localization-path')) {
                     const res = window.EveAudioflixLocalize?.setLocalizationPath?.(t.dataset.afId, t.dataset.afSource, t.value);
                     V.playbackStatus = res?.ok ? 'Localization path updated.' : (res?.reason || 'Could not update that path.');

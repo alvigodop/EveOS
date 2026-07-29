@@ -189,7 +189,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             setCompact(false);
             indicator.classList.remove('compact');
             indicator.classList.add('visible');
-            document.addEventListener('click', state.boundHandleOutsideClick);
+            document.addEventListener('click', state.boundHandleOutsideClick, true);
             ensureWideToggle(indicator);
 
             // Restore wide mode preference
@@ -215,7 +215,7 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
 
             setCompact(true);
             indicator.classList.add('compact');
-            document.removeEventListener('click', state.boundHandleOutsideClick);
+            document.removeEventListener('click', state.boundHandleOutsideClick, true);
         }
 
         function handleOutsideClick(event) {
@@ -232,6 +232,8 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 + '[role="dialog"], [data-eve-dialog]'
             );
             if (!indicator.contains(target) && !isDialog) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
                 collapse();
             }
         }

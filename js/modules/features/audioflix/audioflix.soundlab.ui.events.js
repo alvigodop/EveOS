@@ -20,15 +20,17 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
             const output = root?.querySelector(`[data-sf-prompt-weight="${CSS.escape(target.dataset.sfPrompt)}"]`);
             if (output) output.textContent = Number(value).toFixed(2);
         }
+        const knob = target.closest('.sonic-forge-knob-shell');
+        if (knob) {
+            const min = Number(target.min || 0);
+            const max = Number(target.max || 1);
+            knob.style.setProperty('--sf-knob', String(
+                Math.max(0, Math.min(1, (Number(value) - min) / (max - min || 1)))
+            ));
+        }
         if (target.dataset.sfConfig) {
             const output = root?.querySelector(`[data-sf-output="${CSS.escape(target.dataset.sfConfig)}"]`);
             if (output) output.textContent = String(value);
-            const knob = target.closest('.sonic-forge-knob-shell');
-            if (knob) {
-                const min = Number(target.min || 0);
-                const max = Number(target.max || 1);
-                knob.style.setProperty('--sf-knob', String(Math.max(0, Math.min(1, (Number(value) - min) / (max - min || 1)))));
-            }
         }
     }
 
@@ -150,6 +152,10 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         } else if (action === 'soundlab-control-view') {
             const controlView = target.dataset.sfView === 'knobs' ? 'knobs' : 'sliders';
             labState()?.update?.({ controlView }, 'audioflix-soundlab-control-view');
+            return { rerender: true };
+        } else if (action === 'soundlab-prompt-view') {
+            const promptControlView = target.dataset.sfView === 'sliders' ? 'sliders' : 'knobs';
+            labState()?.update?.({ promptControlView }, 'audioflix-soundlab-prompt-view');
             return { rerender: true };
         } else if (action === 'soundlab-remove-prompt') {
             labState()?.removePrompt?.(target.dataset.sfPrompt);

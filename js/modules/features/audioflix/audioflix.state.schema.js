@@ -50,6 +50,8 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 // folders work without replaying every track to re-measure it.
                 duration: Number(source.duration) > 0 ? Number(source.duration) : 0,
                 exposed: source.exposed === true,
+                // Provider playback may need a mounted iframe, but its compact panel is opt-in.
+                showProviderTransport: source.showProviderTransport === true,
                 hotkey: text(source.hotkey, ''),
                 // Live-playlist link: which imported connection a track came from, its upstream id, and
                 // whether it has since disappeared upstream (greyed, never auto-deleted). Must survive
