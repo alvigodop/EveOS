@@ -222,6 +222,7 @@
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #conversation-memory-card-placeholder,
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #ai-self-talk-card-placeholder,
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #audio-processing-controls-card-placeholder,
+#loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #sonic-forge-manager-card-placeholder,
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #session-controls-card-placeholder,
 #loadingIndicator #gemini-ui-root[data-gemini-monitor-view="summary"] #screen-capture-settings-card-placeholder {
     display: none !important;

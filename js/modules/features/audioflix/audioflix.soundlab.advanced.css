@@ -232,6 +232,10 @@
     border-color: rgba(255, 202, 95, 0.2);
 }
 
+.sonic-forge-rendered[hidden] {
+    display: none !important;
+}
+
 .sonic-forge-rendered > label {
     display: grid;
     gap: 6px;

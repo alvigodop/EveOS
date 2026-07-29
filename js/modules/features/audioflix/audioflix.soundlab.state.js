@@ -23,11 +23,49 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
         'B_MAJOR_A_FLAT_MINOR'
     ];
 
-    const DEFAULT_PROMPTS = [
-        { id: 'prompt_atmosphere', text: 'warm cinematic atmosphere with evolving harmony', weight: 1, color: COLORS[0], cc: 16 },
-        { id: 'prompt_rhythm', text: 'patient electronic percussion and deep bass pulse', weight: 0.65, color: COLORS[1], cc: 17 },
-        { id: 'prompt_texture', text: 'shimmering analog synth texture, spacious and detailed', weight: 0.45, color: COLORS[2], cc: 18 }
+    const LEGACY_DEFAULT_PROMPTS = [
+        { text: 'warm cinematic atmosphere with evolving harmony', weight: 1 },
+        { text: 'patient electronic percussion and deep bass pulse', weight: 0.65 },
+        { text: 'shimmering analog synth texture, spacious and detailed', weight: 0.45 }
     ];
+    const DEFAULT_PROMPTS = [
+        {
+            id: 'prompt_anchor',
+            text: 'cohesive ambient electronic instrumental, steady groove, recurring warm synth motif, stable arrangement',
+            weight: 1,
+            color: COLORS[0],
+            cc: 16
+        },
+        {
+            id: 'prompt_rhythm',
+            text: 'restrained electronic percussion and deep bass pulse, consistent groove',
+            weight: 0.3,
+            color: COLORS[1],
+            cc: 17
+        },
+        {
+            id: 'prompt_texture',
+            text: 'subtle analog synth shimmer and spacious detail',
+            weight: 0.18,
+            color: COLORS[2],
+            cc: 18
+        }
+    ];
+    const STABLE_CONFIG_DEFAULTS = {
+        bpm: 96,
+        density: 0.42,
+        brightness: 0.45,
+        guidance: 4,
+        temperature: 0.9,
+        topK: 32,
+        seed: 0,
+        scale: 'SCALE_UNSPECIFIED',
+        musicGenerationMode: 'QUALITY',
+        muteBass: false,
+        muteDrums: false,
+        onlyBassAndDrums: false
+    };
+    const DEFAULT_BUFFER_SECONDS = 3;
 
     function clamp(value, min, max, fallback) {
         const numeric = Number(value);
@@ -37,6 +75,10 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
     function text(value, fallback = '', max = 240) {
         const result = String(value ?? '').trim() || String(fallback ?? '').trim();
         return result.slice(0, max);
+    }
+
+    function cleanBufferSeconds(value) {
+        return clamp(value, DEFAULT_BUFFER_SECONDS, 6, DEFAULT_BUFFER_SECONDS);
     }
 
     function id(prefix) {
@@ -57,12 +99,12 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
     function cleanConfig(config) {
         const source = config && typeof config === 'object' ? config : {};
         return {
-            bpm: Math.round(clamp(source.bpm, 60, 200, 96)),
-            density: clamp(source.density, 0, 1, 0.55),
-            brightness: clamp(source.brightness, 0, 1, 0.48),
-            guidance: clamp(source.guidance, 0, 6, 3.2),
-            temperature: clamp(source.temperature, 0, 3, 1.1),
-            topK: Math.round(clamp(source.topK, 1, 1000, 40)),
+            bpm: Math.round(clamp(source.bpm, 60, 200, STABLE_CONFIG_DEFAULTS.bpm)),
+            density: clamp(source.density, 0, 1, STABLE_CONFIG_DEFAULTS.density),
+            brightness: clamp(source.brightness, 0, 1, STABLE_CONFIG_DEFAULTS.brightness),
+            guidance: clamp(source.guidance, 0, 6, STABLE_CONFIG_DEFAULTS.guidance),
+            temperature: clamp(source.temperature, 0, 3, STABLE_CONFIG_DEFAULTS.temperature),
+            topK: Math.round(clamp(source.topK, 1, 1000, STABLE_CONFIG_DEFAULTS.topK)),
             seed: Math.max(0, Math.round(clamp(source.seed, 0, 2147483647, 0))),
             scale: SCALES.includes(source.scale) ? source.scale : 'SCALE_UNSPECIFIED',
             musicGenerationMode: ['QUALITY', 'DIVERSITY', 'VOCALIZATION'].includes(source.musicGenerationMode)
@@ -171,7 +213,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             diagnostics: cleanDiagnostics(source.diagnostics),
             visualizerMode: normalizeVisualizerMode(source.visualizerMode),
             masterVolume: clamp(source.masterVolume, 0, 1, 0.78),
-            bufferSeconds: clamp(source.bufferSeconds, 0.25, 2, 0.65)
+            bufferSeconds: cleanBufferSeconds(source.bufferSeconds)
         };
     }
 
@@ -193,6 +235,27 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
         return result.length ? result : DEFAULT_PROMPTS.map(cleanPrompt);
     }
 
+    function usesLegacyDefaultPrompts(prompts) {
+        return Array.isArray(prompts)
+            && prompts.length === LEGACY_DEFAULT_PROMPTS.length
+            && prompts.every((prompt, index) => (
+                String(prompt?.text || '').trim() === LEGACY_DEFAULT_PROMPTS[index].text
+                && Number(prompt?.weight) === LEGACY_DEFAULT_PROMPTS[index].weight
+            ));
+    }
+
+    function usesLegacyDefaultConfig(config) {
+        const source = config && typeof config === 'object' ? config : null;
+        if (!source) return false;
+        const legacy = {
+            bpm: 96, density: 0.55, brightness: 0.48, guidance: 3.2,
+            temperature: 1.1, topK: 40, seed: 0,
+            scale: 'SCALE_UNSPECIFIED', musicGenerationMode: 'QUALITY',
+            muteBass: false, muteDrums: false, onlyBassAndDrums: false
+        };
+        return Object.entries(legacy).every(([key, value]) => source[key] === value);
+    }
+
     function normalizeVisualizerMode(value) {
         if (value === 'frequency') return 'spectrum';
         return MODES.includes(value) ? value : 'spectrum';
@@ -200,10 +263,12 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
 
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};
+        const prompts = usesLegacyDefaultPrompts(source.prompts) ? DEFAULT_PROMPTS : source.prompts;
+        const config = usesLegacyDefaultConfig(source.config) ? STABLE_CONFIG_DEFAULTS : source.config;
         return {
             schemaVersion: 3,
-            prompts: cleanPrompts(source.prompts),
-            config: cleanConfig(source.config),
+            prompts: cleanPrompts(prompts),
+            config: cleanConfig(config),
             effects: cleanEffects(source.effects),
             modulation: cleanModulation(source.modulation),
             diagnostics: cleanDiagnostics(source.diagnostics),
@@ -221,11 +286,12 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
                 ? source.promptControlView : 'knobs',
             visualizerMode: normalizeVisualizerMode(source.visualizerMode),
             masterVolume: clamp(source.masterVolume, 0, 1, 0.78),
-            bufferSeconds: clamp(source.bufferSeconds, 0.25, 2, 0.65),
+            bufferSeconds: cleanBufferSeconds(source.bufferSeconds),
             midiEnabled: source.midiEnabled === true,
             midiInputId: text(source.midiInputId, '', 160),
             recordingDir: text(source.recordingDir, '', 500),
-            recordingName: text(source.recordingName, 'Sonic Forge Session', 120)
+            recordingName: text(source.recordingName, 'Sonic Forge Session', 120),
+            showPaidApiFeatures: source.showPaidApiFeatures === true
         };
     }
 
@@ -240,7 +306,9 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             || root.soundLab.schemaVersion !== 3
             || !['sliders', 'knobs'].includes(root.soundLab.controlView)
             || !['sliders', 'knobs'].includes(root.soundLab.promptControlView)
-            || !MODES.includes(root.soundLab.visualizerMode)) {
+            || !MODES.includes(root.soundLab.visualizerMode)
+            || Number(root.soundLab.bufferSeconds) < DEFAULT_BUFFER_SECONDS
+            || typeof root.soundLab.showPaidApiFeatures !== 'boolean') {
             root.soundLab = normalize(root.soundLab);
         }
         return root.soundLab;

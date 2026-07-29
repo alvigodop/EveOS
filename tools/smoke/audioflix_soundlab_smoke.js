@@ -29,6 +29,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
         path.join(AUDIOFLIX, 'audioflix.soundlab.modulation.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.connection.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.continuity.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.steering.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.scenes.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.overlay.js'),
@@ -357,6 +358,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
                 migratedSchemaVersion,
                 migratedControlView,
                 migratedPromptControlView,
+                bufferSeconds: first.bufferSeconds,
                 neutralEffects,
                 savedSceneHasEffects: savedScene?.effects?.delay?.enabled === true
                     && savedScene?.effects?.delay?.mix === 0.19,

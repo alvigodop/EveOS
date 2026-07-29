@@ -220,6 +220,19 @@
     color: rgba(232, 247, 255, 0.62);
 }
 
+#gemini-ui-root .gemini-agentic-card-note {
+    align-self: end;
+    padding-top: 9px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    color: rgba(232, 247, 255, 0.48);
+    font-size: 0.69rem;
+    line-height: 1.45;
+}
+
+#gemini-ui-root .gemini-agentic-card--sonic-forge {
+    border-color: rgba(255, 202, 95, 0.16);
+}
+
 #gemini-ui-root .gemini-agentic-switch {
     display: inline-block;
     flex: 0 0 52px;

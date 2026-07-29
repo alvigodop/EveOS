@@ -158,6 +158,11 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         if (save) save.disabled = status?.available !== true;
     }
 
+    function updatePaidFeatures(enabled) {
+        const panel = root?.querySelector?.('.sonic-forge-rendered');
+        if (panel) panel.hidden = enabled !== true;
+    }
+
     function subscribe() {
         if (subscribed) return;
         subscribed = true;
@@ -165,6 +170,9 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         window.EveAudioflixSoundLabRecording?.subscribe?.(updateRecording);
         window.EveAudioflixSoundLabMidi?.subscribe?.(updateMidi);
         window.EveAudioflixSoundLabRendered?.subscribe?.(updateRendered);
+        window.addEventListener('eve:sonic-forge-paid-features-changed', (event) => {
+            updatePaidFeatures(event.detail?.enabled === true);
+        });
         window.addEventListener('eve:audioflix-soundlab-midi', (event) => {
             if (!root) return;
             const id = event.detail?.promptId;
@@ -189,6 +197,7 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         updateRecording(window.EveAudioflixSoundLabRecording?.getStatus?.() || {});
         updateMidi(window.EveAudioflixSoundLabMidi?.getStatus?.() || {});
         updateRendered(window.EveAudioflixSoundLabRendered?.getStatus?.() || {});
+        updatePaidFeatures(window.EveAudioflixSoundLabState?.ensure?.().showPaidApiFeatures === true);
         if (!midiRestored) {
             midiRestored = true;
             window.EveAudioflixSoundLabMidi?.restore?.().catch(() => {});

@@ -12,9 +12,8 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     let context = null, streamGain = null, mixBus = null, analyser = null;
     let masterGain = null, outputGain = null, recordDestination = null;
     let effectsRack = null, playback = null, nativeCapture = null, modulation = null;
-    let connection = null, continuity = null;
+    let connection = null, continuity = null, steering = null;
     let liveMasterVolume = 1;
-    let steeringTimer = 0, steeringBusy = false, steeringPending = null, lastSteeringAt = 0;
     let nativeSendChain = Promise.resolve(), generation = 0;
     let transientScene = null;
     let modulationMetrics = { low: 0, mid: 0, high: 0, rms: 0, active: false };
@@ -74,7 +73,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         if (context) return context;
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('Web Audio is unavailable in this browser.');
-        context = new AudioContextCtor({ sampleRate: SAMPLE_RATE, latencyHint: 'interactive' });
+        context = new AudioContextCtor({ sampleRate: SAMPLE_RATE, latencyHint: 'playback' });
         streamGain = context.createGain();
         mixBus = context.createGain();
         analyser = context.createAnalyser();
@@ -158,49 +157,21 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         return result;
     }
 
-    async function applySteering(options, targetSession) {
-        const liveSession = targetSession || connection?.getSession?.();
-        if (!liveSession) return false;
-        const scene = options?.scene;
-        await liveSession.setWeightedPrompts({ weightedPrompts: weightedPrompts(scene) });
-        await liveSession.setMusicGenerationConfig({ musicGenerationConfig: musicConfig(scene) });
-        if (options?.resetContext) liveSession.resetContext?.();
-        return true;
+    function ensureSteering() {
+        if (!steering) {
+            steering = window.EveAudioflixSoundLabSteering.create({
+                getSession: () => connection?.getSession?.(),
+                getPrompts: weightedPrompts,
+                getConfig: musicConfig,
+                publish
+            });
+        }
+        return steering;
     }
 
-    function scheduleSteering() {
-        if (steeringTimer || steeringBusy || !steeringPending) return;
-        const wait = Math.max(0, 180 - (performance.now() - lastSteeringAt));
-        steeringTimer = window.setTimeout(async () => {
-            steeringTimer = 0;
-            const options = steeringPending;
-            steeringPending = null;
-            steeringBusy = true;
-            lastSteeringAt = performance.now();
-            try {
-                await applySteering(options);
-            } catch (error) {
-                publish({ phase: 'error', message: error?.message || 'Could not update music controls.' });
-            } finally {
-                steeringBusy = false;
-                scheduleSteering();
-            }
-        }, wait);
-    }
-
-    function queueSteering(options) {
-        steeringPending = {
-            resetContext: steeringPending?.resetContext === true || options?.resetContext === true,
-            scene: options?.scene || steeringPending?.scene || null
-        };
-        scheduleSteering();
-    }
-
-    function clearSteeringQueue() {
-        if (steeringTimer) window.clearTimeout(steeringTimer);
-        steeringTimer = 0;
-        steeringPending = null;
-    }
+    const applySteering = (options, targetSession) => ensureSteering().apply(options, targetSession);
+    const queueSteering = (options) => ensureSteering().queue(options);
+    const clearSteeringQueue = () => steering?.clear?.();
 
     function routeNativeChunk(data) {
         if (!window.EveAudioflixNative?.sendGeminiChunk) return;
@@ -233,8 +204,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             try {
                 const buffer = window.EveAudioflixSoundLabCodec.pcm16ToAudioBuffer(context, chunk.data, {
                     channels: 2,
-                    sampleRate: SAMPLE_RATE,
-                    stereoBalance: true
+                    sampleRate: SAMPLE_RATE
                 });
                 const dropped = playback?.enqueue(buffer) || 0;
                 if (dropped) publish({ droppedChunks: status.droppedChunks + dropped });
@@ -257,6 +227,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         }
     }
     function ensureManagers() {
+        ensureSteering();
         if (connection && continuity) return;
         continuity = window.EveAudioflixSoundLabContinuity.create({
             policy: () => soundState().continuity,
@@ -289,6 +260,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             onMessage: handleMessage,
             configureSession: (liveSession) => applySteering({}, liveSession),
             onClose(detail) {
+                steering?.reset?.();
                 playback?.stop();
                 nativeCapture?.stop?.().catch(() => {});
                 publish({

@@ -15,6 +15,7 @@ function staticContracts() {
     const html = fs.readFileSync(path.join(ROOT, 'EveOS.html'), 'utf8');
     const ui = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.js'), 'utf8');
     const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
+    const steering = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.steering.js'), 'utf8');
     const connection = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.connection.js'), 'utf8');
     const effects = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.effects.js'), 'utf8');
     const nativeCapture = fs.readFileSync(
@@ -50,6 +51,7 @@ function staticContracts() {
         'audioflix.soundlab.modulation.js',
         'audioflix.soundlab.connection.js',
         'audioflix.soundlab.continuity.js',
+        'audioflix.soundlab.steering.js',
         'audioflix.soundlab.engine.js',
         'audioflix.soundlab.scenes.js',
         'audioflix.soundlab.visualizer.overlay.js',
@@ -60,13 +62,15 @@ function staticContracts() {
         'audioflix.soundlab.ui.js',
         'geminiApiFailure.js'
     ].forEach((name) => assert(html.includes(name), `${name} is loaded by EveOS`));
-    const steering = engine.slice(
-        engine.indexOf('async function applySteering'),
-        engine.indexOf('function queueSteering')
+    assert(
+        steering.indexOf('setMusicGenerationConfig') < steering.indexOf('liveSession.resetContext'),
+        'Lyria applies BPM/scale configuration before resetting generation context'
     );
     assert(
-        steering.indexOf('setMusicGenerationConfig') < steering.indexOf('resetContext'),
-        'Lyria applies BPM/scale configuration before resetting generation context'
+        engine.includes('EveAudioflixSoundLabSteering.create')
+            && steering.includes('nextSignature === appliedSignature')
+            && steering.includes('hardTransition(config)'),
+        'Lyria steering is coalesced, deduplicated, and resets only for hard transitions'
     );
     assert(
         connection.includes('Promise.race([connection, transportFailure, deadline])')
@@ -78,6 +82,18 @@ function staticContracts() {
     assert(!connection.includes('setupReject'), 'transport failure cannot leave a rejected setup promise');
     assert(!engine.includes('fade.gain.linearRampToValueAtTime'), 'PCM chunks are not faded independently');
     assert(playback.includes('source.connect(output)'), 'Lyria chunks share one continuous playback bus');
+    const browserDecode = engine.match(/pcm16ToAudioBuffer\(context, chunk\.data,[\s\S]*?\n\s*}\);/)?.[0] || '';
+    assert(
+        browserDecode && !browserDecode.includes('stereoBalance: true'),
+        'browser playback preserves Lyria stereo instead of changing channel gain per PCM fragment'
+    );
+    assert(
+        engine.includes("latencyHint: 'playback'")
+            && playback.includes('INITIAL_BUFFER_SECONDS = 3')
+            && playback.includes('REBUFFER_SECONDS = 4')
+            && !playback.includes('pending.shift();\n                dropped += 1'),
+        'Lyria uses playback latency, a deep adaptive reserve, and preserves generated phrase order'
+    );
     assert(
         engine.includes('gain: liveMasterVolume') && engine.includes('liveMasterVolume = safe'),
         'native Lyria chunks follow live volume changes before settings persistence'
@@ -116,6 +132,7 @@ function assertResult(result) {
     assert(result.migratedSchemaVersion === 3, 'legacy Sonic Forge state migrates to schema v3');
     assert(result.migratedControlView === 'sliders', 'schema-v1 scenes migrate the control view default');
     assert(result.migratedPromptControlView === 'knobs', 'legacy scenes gain Prompt Mixer knobs');
+    assert(result.bufferSeconds === 3, 'legacy shallow buffering migrates to the smooth playback reserve');
     assert(
         result.neutralEffects.filter === false
             && result.neutralEffects.delay === false

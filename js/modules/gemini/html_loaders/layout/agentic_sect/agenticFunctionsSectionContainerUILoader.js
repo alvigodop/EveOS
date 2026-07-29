@@ -28,6 +28,8 @@ async function loadAgenticFunctionsSectionContainer() {
             <div id="ai-self-talk-card-placeholder"></div>
             <!-- Audio Processing Controls -->
             <div id="audio-processing-controls-card-placeholder"></div>
+            <!-- Sonic Forge paid-feature visibility -->
+            <div id="sonic-forge-manager-card-placeholder"></div>
             <!-- Session Controls card -->
             <div id="session-controls-card-placeholder"></div>
             <!-- Screen Capture Interval card placeholder -->

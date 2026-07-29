@@ -28,6 +28,7 @@ if (!apiKey) {
         GEMINI_FAILURE,
         path.join(AUDIOFLIX, 'audioflix.soundlab.sdk.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.steering.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js')
     ].map((file) => `<script src="${fileUrl(file)}"></script>`).join('');
     fs.writeFileSync(fixture, `<!doctype html><html><head>

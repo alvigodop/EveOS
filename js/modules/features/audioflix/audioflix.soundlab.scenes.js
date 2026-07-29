@@ -59,11 +59,20 @@ window.EveAudioflixSoundLabScenes = window.EveAudioflixSoundLabScenes || {};
         }).filter((prompt) => prompt.text && prompt.weight > 0.001);
     }
 
+    function blendConfig(a, b, amount) {
+        const result = blendObject(a, b, amount);
+        ['bpm', 'scale', 'seed'].forEach((key) => {
+            result[key] = amount < 1 ? (a?.[key] ?? b?.[key]) : (b?.[key] ?? a?.[key]);
+        });
+        result.topK = Math.round(Number(result.topK) || 40);
+        return result;
+    }
+
     function blendScenes(from, to, amount) {
         const t = clamp01(amount);
         return {
             prompts: blendPrompts(from.prompts, to.prompts, t),
-            config: blendObject(from.config, to.config, t),
+            config: blendConfig(from.config, to.config, t),
             effects: blendObject(from.effects, to.effects, t),
             modulation: blendObject(from.modulation, to.modulation, t),
             diagnostics: t < 0.5 ? from.diagnostics : to.diagnostics,

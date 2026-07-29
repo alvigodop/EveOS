@@ -81,6 +81,12 @@ async function initializeAgenticHtmlComponents() {
             }
         });
 
+        // --- Sonic Forge Manager ---
+        await safeInitializeFeature('loadSonicForgeManagerCard', 'Sonic Forge Manager', async () => {
+            window.SonicForgeManagerAgentic?.initialize?.();
+            console.log('Sonic Forge Manager initialized.');
+        });
+
         // --- Session Controls ---
         await safeInitializeFeature('loadSessionControlsCard', 'Session Controls', async () => {
             console.log('Session Controls UI loaded.');

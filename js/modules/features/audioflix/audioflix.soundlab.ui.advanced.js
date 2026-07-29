@@ -156,7 +156,8 @@ window.EveAudioflixSoundLabUiAdvanced = window.EveAudioflixSoundLabUiAdvanced ||
     function renderRendered(soundLab) {
         const render = soundLab.render || {};
         const status = window.EveAudioflixSoundLabRendered?.getStatus?.() || {};
-        return `<section class="sonic-forge-block sonic-forge-rendered">
+        const hidden = soundLab.showPaidApiFeatures === true ? '' : ' hidden';
+        return `<section class="sonic-forge-block sonic-forge-rendered"${hidden}>
             <header><div><span class="sonic-forge-eyebrow">Bounded Render Lane</span><h3>Lyria 3 Render</h3>
                 <p>Create a finished clip separately from the continuous realtime session.</p></div></header>
             <label><span>Render prompt</span>
