@@ -2,7 +2,6 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
 (function () {
     'use strict';
-
     const ns = window.EveAudioflixSoundLabEngine;
     if (ns.ready) return;
 
@@ -12,20 +11,25 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     const listeners = new Set();
     let context = null, streamGain = null, mixBus = null, analyser = null;
     let masterGain = null, outputGain = null, recordDestination = null;
-    let playback = null;
+    let effectsRack = null, playback = null, nativeCapture = null, modulation = null;
+    let connection = null, continuity = null;
     let liveMasterVolume = 1;
-    let session = null, connectPromise = null;
-    let connectionToken = 0, pendingSocket = null;
     let steeringTimer = 0, steeringBusy = false, steeringPending = null, lastSteeringAt = 0;
     let nativeSendChain = Promise.resolve(), generation = 0;
+    let transientScene = null;
+    let modulationMetrics = { low: 0, mid: 0, high: 0, rms: 0, active: false };
     let status = {
         phase: 'idle',
+        connectionState: 'idle',
         message: 'Ready when you are.',
         connected: false,
         playing: false,
         buffering: false,
         bufferedSeconds: 0,
         droppedChunks: 0,
+        reconnectAttempts: 0,
+        lastDisconnectReason: '',
+        nativeProcessedRoute: false,
         filteredPrompt: ''
     };
 
@@ -46,8 +50,24 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     function getApiKey() {
         return window.EveAudioflixSoundLabSdk?.getApiKey?.() || '';
     }
+
     function setApiKey(value) {
         return window.EveAudioflixSoundLabSdk?.setApiKey?.(value) || false;
+    }
+
+    function setMasterVolume(value, persist = true) {
+        const safe = Math.max(0, Math.min(1, Number(value) || 0));
+        liveMasterVolume = safe;
+        if (masterGain) masterGain.gain.setTargetAtTime(safe, context.currentTime, 0.02);
+        if (persist) {
+            window.EveAudioflixSoundLabState?.update?.({ masterVolume: safe }, 'audioflix-soundlab-volume');
+        }
+        return safe;
+    }
+
+    function applyEffects(next) {
+        transientScene = null;
+        return effectsRack?.apply?.(next || soundState().effects) || false;
     }
 
     async function ensureAudio() {
@@ -61,10 +81,12 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         masterGain = context.createGain();
         outputGain = context.createGain();
         recordDestination = context.createMediaStreamDestination();
+        effectsRack = window.EveAudioflixSoundLabEffects.create(context);
         analyser.fftSize = 2048;
         analyser.smoothingTimeConstant = 0.78;
         streamGain.connect(mixBus);
-        mixBus.connect(analyser);
+        mixBus.connect(effectsRack.input);
+        effectsRack.output.connect(analyser);
         analyser.connect(masterGain);
         masterGain.connect(outputGain);
         masterGain.connect(recordDestination);
@@ -76,7 +98,25 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             targetSeconds: () => soundState().bufferSeconds,
             publish
         });
+        nativeCapture = window.EveAudioflixSoundLabNativeCapture?.create?.({
+            context,
+            source: masterGain,
+            publish
+        }) || null;
+        modulation = window.EveAudioflixSoundLabModulation?.create?.({
+            analyser: () => analyser,
+            effects: () => effectsRack,
+            state: () => transientScene
+                ? Object.assign({}, soundState(), {
+                    effects: transientScene.effects,
+                    modulation: transientScene.modulation
+                })
+                : soundState(),
+            publish: (metrics) => { modulationMetrics = metrics; }
+        }) || null;
+        applyEffects(soundState().effects);
         setMasterVolume(soundState().masterVolume, false);
+        modulation?.start?.();
         await applyOutputRoute();
         return context;
     }
@@ -92,25 +132,15 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         return true;
     }
 
-    function setMasterVolume(value, persist = true) {
-        const safe = Math.max(0, Math.min(1, Number(value) || 0));
-        liveMasterVolume = safe;
-        if (masterGain) masterGain.gain.setTargetAtTime(safe, context.currentTime, 0.02);
-        if (persist) {
-            window.EveAudioflixSoundLabState?.update?.({ masterVolume: safe }, 'audioflix-soundlab-volume');
-        }
-        return safe;
-    }
-
-    function weightedPrompts() {
-        const prompts = (soundState().prompts || [])
+    function weightedPrompts(scene) {
+        const prompts = (scene?.prompts || soundState().prompts || [])
             .map((prompt) => ({ text: String(prompt.text || '').trim(), weight: Number(prompt.weight || 0) }))
             .filter((prompt) => prompt.text && prompt.weight > 0);
         return prompts.length ? prompts : [{ text: 'ambient instrumental music', weight: 1 }];
     }
 
-    function musicConfig() {
-        const config = soundState().config || {};
+    function musicConfig(scene) {
+        const config = scene?.config || soundState().config || {};
         const result = {
             bpm: Number(config.bpm),
             density: Number(config.density),
@@ -128,11 +158,13 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         return result;
     }
 
-    async function applySteering(options) {
-        if (!session) return false;
-        await session.setWeightedPrompts({ weightedPrompts: weightedPrompts() });
-        await session.setMusicGenerationConfig({ musicGenerationConfig: musicConfig() });
-        if (options?.resetContext) session.resetContext?.();
+    async function applySteering(options, targetSession) {
+        const liveSession = targetSession || connection?.getSession?.();
+        if (!liveSession) return false;
+        const scene = options?.scene;
+        await liveSession.setWeightedPrompts({ weightedPrompts: weightedPrompts(scene) });
+        await liveSession.setMusicGenerationConfig({ musicGenerationConfig: musicConfig(scene) });
+        if (options?.resetContext) liveSession.resetContext?.();
         return true;
     }
 
@@ -148,10 +180,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             try {
                 await applySteering(options);
             } catch (error) {
-                publish({
-                    phase: 'error',
-                    message: error?.message || 'Could not update music controls.'
-                });
+                publish({ phase: 'error', message: error?.message || 'Could not update music controls.' });
             } finally {
                 steeringBusy = false;
                 scheduleSteering();
@@ -161,7 +190,8 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
     function queueSteering(options) {
         steeringPending = {
-            resetContext: steeringPending?.resetContext === true || options?.resetContext === true
+            resetContext: steeringPending?.resetContext === true || options?.resetContext === true,
+            scene: options?.scene || steeringPending?.scene || null
         };
         scheduleSteering();
     }
@@ -182,7 +212,10 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
                 gain: liveMasterVolume,
                 stereoBalance: true
             });
-            await window.EveAudioflixNative.sendGeminiChunk(routed, { sampleRate: SAMPLE_RATE, channels: 2 });
+            await window.EveAudioflixNative.sendGeminiChunk(routed, {
+                sampleRate: SAMPLE_RATE,
+                channels: 2
+            });
         }).catch(() => {});
     }
 
@@ -203,152 +236,80 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
                     sampleRate: SAMPLE_RATE,
                     stereoBalance: true
                 });
-                status.droppedChunks += playback?.enqueue(buffer) || 0;
-                if (audioflixState().nativeBridgeEnabled === true) routeNativeChunk(chunk.data);
+                const dropped = playback?.enqueue(buffer) || 0;
+                if (dropped) publish({ droppedChunks: status.droppedChunks + dropped });
+                if (audioflixState().nativeBridgeEnabled === true && !nativeCapture?.isActive?.()) {
+                    routeNativeChunk(chunk.data);
+                }
             } catch (error) {
                 publish({ phase: 'error', message: error?.message || 'Music PCM decode failed.' });
             }
         });
     }
-
-    async function connectAttempt(token) {
-        const isCurrent = () => token === connectionToken;
-        const apiKey = getApiKey();
-        if (!apiKey) throw new Error('Save a Gemini API key in Search Monitor > Session Controls before connecting.');
-        publish({ phase: 'connecting', message: 'Connecting Sonic Forge...', filteredPrompt: '' });
-        await ensureAudio();
-        const sdk = await window.EveAudioflixSoundLabSdk.load();
-        if (!isCurrent()) throw new Error('Sonic Forge connection cancelled.');
-        const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: API_VERSION });
-        let timeout = 0;
-        let connectionExpired = false;
-        let setupComplete = false;
-        let resolveSetup = null;
-        let connectedSession = null;
-        let attemptSocket = null;
-        let lastFailure = null;
-        const setup = new Promise((resolve) => { resolveSetup = resolve; });
-        let transportReject = null;
-        const transportFailure = new Promise((_, reject) => {
-            transportReject = reject;
-        });
-        const deadline = new Promise((_, reject) => {
-            timeout = window.setTimeout(() => {
-                connectionExpired = true;
-                try { attemptSocket?.close?.(); } catch {}
-                reject(new Error('Lyria connection timed out. Try reconnecting.'));
-            }, 20000);
-        });
+    async function startLiveSession(liveSession) {
         try {
-            const connectSocket = window.EveGeminiApiFailure?.connectWithNormalizedWebSocket
-                || ((callback) => callback());
-            const connection = connectSocket(() => ai.live.music.connect({
-                model: MODEL,
-                callbacks: {
-                    onmessage: (message) => {
-                        if (!isCurrent()) return;
-                        if (message?.setupComplete) {
-                            setupComplete = true;
-                            resolveSetup?.(true);
-                        }
-                        handleMessage(message);
-                    },
-                    onerror: (event) => {
-                        if (!isCurrent()) return;
-                        const failure = window.EveGeminiApiFailure.classify(event);
-                        lastFailure = failure;
-                        const error = new Error(failure.message);
-                        if (!setupComplete) {
-                            resolveSetup?.({ error });
-                            transportReject?.(error);
-                        }
-                        publish({ phase: 'error', message: failure.message });
-                    },
-                    onclose: (event) => {
-                        if (!isCurrent()) return;
-                        const classified = window.EveGeminiApiFailure.classify(event);
-                        const failure = classified.kind === 'unknown'
-                            && lastFailure
-                            && lastFailure.kind !== 'unknown'
-                            ? lastFailure
-                            : classified;
-                        const code = Number(event?.code) || 0;
-                        const reason = String(event?.reason || '').trim();
-                        const message = failure.kind !== 'unknown'
-                            ? failure.message
-                            : (setupComplete
-                                ? (reason || 'Sonic Forge disconnected.')
-                                : `Lyria closed before setup completed${code ? ` (code ${code})` : ''}${reason ? `: ${reason}` : '.'}`);
-                        if (!setupComplete) {
-                            const error = new Error(message);
-                            resolveSetup?.({ error });
-                            transportReject?.(error);
-                        }
-                        if (!connectedSession || session === connectedSession) session = null;
-                        pendingSocket = null;
-                        playback?.stop();
-                        publish({
-                            phase: failure.kind === 'unknown' && setupComplete ? 'idle' : 'error',
-                            connected: false,
-                            playing: false,
-                            message
-                        });
-                    }
-                }
-            }), {
-                onSocket(socket) {
-                    attemptSocket = socket;
-                    if (isCurrent()) pendingSocket = socket;
-                    else try { socket?.close?.(); } catch {}
-                }
-            });
-            connection.then((lateSession) => {
-                if (connectionExpired || !isCurrent()) {
-                    try { lateSession?.close?.(); } catch {}
-                }
-            }).catch(() => {});
-            connectedSession = await Promise.race([connection, transportFailure, deadline]);
-            const setupResult = await Promise.race([setup, deadline]);
-            if (setupResult?.error) throw setupResult.error;
-            if (!isCurrent()) {
-                try { connectedSession?.close?.(); } catch {}
-                throw new Error('Sonic Forge connection cancelled.');
-            }
-            session = connectedSession;
-            pendingSocket = null;
-            await applySteering();
-            publish({ phase: 'ready', connected: true, message: 'Connected. Press play to generate.' });
-            return session;
+            await Promise.resolve(liveSession.play());
+            playback?.start();
         } catch (error) {
-            connectionExpired = true;
-            try { connectedSession?.close?.(); } catch {}
-            try { attemptSocket?.close?.(); } catch {}
-            if (session === connectedSession) session = null;
-            if (pendingSocket === attemptSocket) pendingSocket = null;
-            if (isCurrent()) publish({
-                phase: 'error',
-                connected: false,
-                playing: false,
-                message: error?.message || 'Could not connect.'
-            });
+            continuity?.setIntent?.('paused'); await nativeCapture?.stop?.();
+            publish({ phase: 'error', playing: false, buffering: false, message: error?.message || 'Could not start generation.' });
             throw error;
-        } finally {
-            window.clearTimeout(timeout);
-            resolveSetup = null;
-            transportReject = null;
         }
+    }
+    function ensureManagers() {
+        if (connection && continuity) return;
+        continuity = window.EveAudioflixSoundLabContinuity.create({
+            policy: () => soundState().continuity,
+            publish,
+            recover: async () => {
+                const liveSession = await connection.connect();
+                await ensureAudio();
+                await applyOutputRoute();
+                if (context.state === 'suspended') await context.resume();
+                generation += 1;
+                if (audioflixState().nativeBridgeEnabled === true) await nativeCapture?.start?.();
+                publish({
+                    phase: 'playing',
+                    connectionState: 'playing',
+                    connected: true,
+                    playing: true,
+                    buffering: true,
+                    message: 'Recovery connected; resuming music stream...'
+                });
+                await startLiveSession(liveSession);
+            }
+        });
+        connection = window.EveAudioflixSoundLabConnection.create({
+            model: MODEL,
+            apiVersion: API_VERSION,
+            getApiKey,
+            loadSdk: () => window.EveAudioflixSoundLabSdk.load(),
+            ensureAudio,
+            publish,
+            onMessage: handleMessage,
+            configureSession: (liveSession) => applySteering({}, liveSession),
+            onClose(detail) {
+                playback?.stop();
+                nativeCapture?.stop?.().catch(() => {});
+                publish({
+                    phase: 'error',
+                    connectionState: 'disconnected',
+                    connected: false,
+                    playing: false,
+                    buffering: false,
+                    lastDisconnectReason: detail.message,
+                    message: detail.message
+                });
+                continuity.onDisconnect(detail);
+            }
+        });
     }
 
     async function connect() {
-        if (session) return session;
-        if (connectPromise) return connectPromise;
-        const token = ++connectionToken;
-        connectPromise = connectAttempt(token);
-        try {
-            return await connectPromise;
-        } finally {
-            if (token === connectionToken) connectPromise = null;
-        }
+        ensureManagers();
+        const liveSession = await connection.connect();
+        continuity.markConnected();
+        return liveSession;
     }
 
     async function play() {
@@ -357,47 +318,95 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         await applyOutputRoute();
         if (context.state === 'suspended') await context.resume();
         generation += 1;
-        if (audioflixState().nativeBridgeEnabled === true) await window.EveAudioflixNative?.stopStream?.();
-        publish({ phase: 'playing', playing: true, buffering: true, message: 'Starting music stream...' });
-        await Promise.resolve(liveSession.play());
-        playback?.start();
+        if (audioflixState().nativeBridgeEnabled === true) {
+            await window.EveAudioflixNative?.stopStream?.();
+            await nativeCapture?.start?.();
+        } else {
+            await nativeCapture?.stop?.();
+        }
+        continuity.setIntent('playing');
+        publish({
+            phase: 'playing',
+            connectionState: 'playing',
+            playing: true,
+            buffering: true,
+            message: 'Starting music stream...'
+        });
+        await startLiveSession(liveSession);
         return true;
     }
 
     async function pause() {
-        session?.pause?.();
+        continuity?.setIntent?.('paused');
+        connection?.getSession?.()?.pause?.();
         if (context?.state === 'running') await context.suspend();
         playback?.pause();
-        publish({ phase: 'paused', playing: false, buffering: false, message: 'Paused.' });
+        await nativeCapture?.stop?.();
+        publish({
+            phase: 'paused',
+            connectionState: 'paused',
+            playing: false,
+            buffering: false,
+            message: 'Paused.'
+        });
     }
 
     async function stop() {
+        continuity?.setIntent?.('stopped');
         generation += 1;
-        session?.stop?.();
+        connection?.getSession?.()?.stop?.();
         playback?.stop();
+        await nativeCapture?.stop?.();
         await window.EveAudioflixNative?.stopStream?.();
-        publish({ phase: session ? 'ready' : 'idle', playing: false, message: session ? 'Stopped. Prompts retained.' : 'Stopped.' });
+        publish({
+            phase: connection?.getSession?.() ? 'ready' : 'idle',
+            connectionState: connection?.getSession?.() ? 'ready' : 'idle',
+            playing: false,
+            message: connection?.getSession?.() ? 'Stopped. Prompts retained.' : 'Stopped.'
+        });
     }
 
     function resetContext() {
-        session?.resetContext?.();
+        connection?.getSession?.()?.resetContext?.();
         publish({ message: 'Generation context reset; prompts and controls retained.' });
     }
 
     async function disconnect() {
         generation += 1;
-        connectionToken += 1;
+        continuity?.setIntent?.('stopped');
+        continuity?.cancel?.();
         clearSteeringQueue();
-        connectPromise = null;
-        const closingSocket = pendingSocket;
-        const closingSession = session;
-        pendingSocket = null;
-        session = null;
         playback?.stop();
-        try { closingSocket?.close?.(); } catch {}
-        try { closingSession?.close?.(); } catch {}
+        await nativeCapture?.stop?.();
+        connection?.disconnect?.();
         if (context?.state === 'running') await context.suspend();
-        publish({ phase: 'idle', connected: false, playing: false, message: 'Disconnected.' });
+        publish({
+            phase: 'idle',
+            connectionState: 'idle',
+            connected: false,
+            playing: false,
+            message: 'Disconnected.'
+        });
+    }
+
+    function applyScene(scene, options) {
+        if (!scene) return false;
+        transientScene = options?.transient === true ? scene : null;
+        effectsRack?.apply?.(scene.effects);
+        setMasterVolume(scene.masterVolume, false);
+        if (options?.steer !== false) queueSteering({ scene });
+        return true;
+    }
+
+    function diagnostics() {
+        return {
+            playback: playback?.metrics?.() || {},
+            native: nativeCapture?.getStats?.() || {},
+            modulation: Object.assign({}, modulationMetrics),
+            effects: effectsRack?.metrics?.() || {},
+            connection: connection?.getState?.() || {},
+            continuity: continuity?.getState?.() || {}
+        };
     }
 
     Object.assign(ns, {
@@ -411,15 +420,21 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         applySteering,
         queueSteering,
         applyOutputRoute,
+        applyEffects,
+        applyScene,
         setMasterVolume,
         getApiKey,
         setApiKey,
         getStatus: () => Object.assign({}, status),
+        getDiagnostics: diagnostics,
         getTimeline: () => playback?.timeline() || {
             elapsedSeconds: 0,
             generatedSeconds: 0,
             bufferedSeconds: 0,
-            running: false
+            running: false,
+            jitterMs: 0,
+            underruns: 0,
+            lowWaterSeconds: 0
         },
         getAnalyser: () => analyser,
         getRecordingStream: () => recordDestination?.stream || null,

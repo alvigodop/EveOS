@@ -6,8 +6,10 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const AUDIOFLIX = path.join(ROOT, 'js', 'modules', 'features', 'audioflix');
 const statePath = path.join(AUDIOFLIX, 'audioflix.soundlab.state.js');
+const overlayPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.overlay.js');
 const visualizerPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.js');
 const stateSource = fs.readFileSync(statePath, 'utf8');
+const overlaySource = fs.readFileSync(overlayPath, 'utf8');
 const visualizerSource = fs.readFileSync(visualizerPath, 'utf8');
 const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
 const assert = (condition, message) => {
@@ -30,6 +32,13 @@ assert(
         && visualizerSource.includes('const sample = bandAt((index % points)')
         && visualizerSource.includes('const sample = bandAt(1 - y'),
     'waveform, radial, and spectrogram sampling use corrected analysis domains'
+);
+assert(
+    overlaySource.includes('drawFrequencyLabels')
+        && overlaySource.includes('drawBeatGrid')
+        && overlaySource.includes('drawTelemetry')
+        && visualizerSource.includes('EveAudioflixSoundLabVisualizerOverlay?.draw?.'),
+    'visual diagnostics add frequency labels, beat guides, and route telemetry without replacing modes'
 );
 
 (async () => {
@@ -68,6 +77,7 @@ assert(
             addEventListener('error', (event) => window.__visualizerErrors.push(event.message));
         </script>
         <script src="${fileUrl(statePath)}"></script>
+        <script src="${fileUrl(overlayPath)}"></script>
         <script src="${fileUrl(visualizerPath)}"></script>
     </body></html>`);
 

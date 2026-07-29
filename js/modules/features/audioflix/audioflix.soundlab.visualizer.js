@@ -300,6 +300,14 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         else if (mode === 'spectrogram') drawSpectrogram(colors.colors);
         else if (mode === 'frequency-linear') drawLinearFrequency(colors.colors);
         else drawSpectrum(colors.colors);
+        window.EveAudioflixSoundLabVisualizerOverlay?.draw?.({
+            context,
+            canvas,
+            mode,
+            state: state(),
+            timeline: window.EveAudioflixSoundLabEngine?.getTimeline?.() || {},
+            engineDiagnostics: window.EveAudioflixSoundLabEngine?.getDiagnostics?.() || {}
+        });
         requestFrame();
     }
 

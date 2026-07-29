@@ -67,6 +67,18 @@ window.EveAudioflixSoundLabCodec = window.EveAudioflixSoundLabCodec || {};
         return encodeBase64(output);
     }
 
+    function float32ToPcm16Base64(samples, gain = 1) {
+        const source = samples instanceof Float32Array ? samples : new Float32Array(samples || 0);
+        const output = new Uint8Array(source.length * 2);
+        const view = new DataView(output.buffer);
+        const safeGain = Math.max(0, Math.min(2, Number(gain) || 0));
+        for (let index = 0; index < source.length; index += 1) {
+            const sample = Math.max(-1, Math.min(1, source[index] * safeGain));
+            view.setInt16(index * 2, sample < 0 ? sample * 32768 : sample * 32767, true);
+        }
+        return encodeBase64(output);
+    }
+
     function pcm16ToAudioBuffer(context, base64, options) {
         const settings = Object.assign({
             channels: 2,
@@ -116,6 +128,7 @@ window.EveAudioflixSoundLabCodec = window.EveAudioflixSoundLabCodec || {};
     Object.assign(ns, {
         ready: true,
         decodeBase64,
+        float32ToPcm16Base64,
         transformPcm16Base64,
         pcm16ToAudioBuffer,
         bestRecordingMimeType,

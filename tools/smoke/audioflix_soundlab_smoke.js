@@ -2,6 +2,10 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { chromium } = require('playwright');
+const {
+    staticContracts,
+    assertResult
+} = require('./helpers/audioflix_soundlab_contracts');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const AUDIOFLIX = path.join(ROOT, 'js', 'modules', 'features', 'audioflix');
@@ -9,79 +13,32 @@ const GEMINI_SOCKET = path.join(
     ROOT, 'js', 'modules', 'gemini', 'client', 'connection_management', 'socket_core'
 );
 const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
-const assert = (condition, message) => {
-    if (!condition) throw new Error(`ASSERT FAILED: ${message}`);
-};
-
-function staticContracts() {
-    const html = fs.readFileSync(path.join(ROOT, 'EveOS.html'), 'utf8');
-    const ui = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.js'), 'utf8');
-    const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
-    const playback = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'), 'utf8');
-    const failureApi = fs.readFileSync(path.join(GEMINI_SOCKET, 'geminiApiFailure.js'), 'utf8');
-    const credentials = fs.readFileSync(
-        path.join(ROOT, 'js', 'modules', 'gemini', 'server_control', 'geminiCredentialWorkflow.js'),
-        'utf8'
-    );
-    const bridge = fs.readFileSync(path.join(ROOT, 'server_modules', 'audioflix_bridge.py'), 'utf8');
-    const order = ['soundboard', 'music', 'soundlab', 'router']
-        .map((tab) => ui.indexOf(`tabButton('${tab}'`));
-    assert(order.every((index) => index >= 0), 'all Audioflix tabs are wired');
-    assert(order.every((index, position) => !position || index > order[position - 1]), 'Sonic Forge tab order is stable');
-    [
-        'audioflix.soundlab.state.js',
-        'audioflix.soundlab.sdk.js',
-        'audioflix.soundlab.playback.js',
-        'audioflix.soundlab.engine.js',
-        'audioflix.soundlab.presets.js',
-        'audioflix.soundlab.ui.js',
-        'geminiApiFailure.js'
-    ].forEach((name) => assert(html.includes(name), `${name} is loaded by EveOS`));
-    const steering = engine.slice(
-        engine.indexOf('async function applySteering'),
-        engine.indexOf('function queueSteering')
-    );
-    assert(
-        steering.indexOf('setMusicGenerationConfig') < steering.indexOf('resetContext'),
-        'Lyria applies BPM/scale configuration before resetting generation context'
-    );
-    assert(
-        engine.includes('Promise.race([connection, transportFailure, deadline])')
-            && engine.includes('connectionExpired')
-            && engine.includes('EveGeminiApiFailure?.connectWithNormalizedWebSocket')
-            && failureApi.includes('connectWithNormalizedWebSocket'),
-        'Lyria connection has a deadline, closes late sessions, and normalizes its SDK WebSocket'
-    );
-    assert(!engine.includes('setupReject'), 'Lyria setup cannot leave a rejected promise after transport failure');
-    assert(!engine.includes('fade.gain.linearRampToValueAtTime'), 'Lyria no longer fades every PCM chunk independently');
-    assert(playback.includes('source.connect(output)'), 'Lyria chunks share one continuous playback bus');
-    assert(
-        engine.includes('gain: liveMasterVolume') && engine.includes('liveMasterVolume = safe'),
-        'native Lyria chunks follow live volume changes before settings persistence'
-    );
-    assert(!engine.includes('audioFormat:') && !engine.includes('sampleRateHz:'),
-        'Lyria sends only fields supported by the deployed Live Music generation config');
-    assert(bridge.includes('/api/audioflix/save-soundlab-recording'), 'recording save route is registered');
-    assert(
-        credentials.includes("sessionStorage.setItem('eveAudioflixSoundLabApiKey', normalizedKey)"),
-        'Gemini Link securely hands its saved credential to Sonic Forge for this tab'
-    );
-}
 
 (async () => {
     staticContracts();
     const fixture = path.join(os.tmpdir(), `eveos-soundlab-${process.pid}.html`);
     const modules = [
         path.join(AUDIOFLIX, 'audioflix.soundlab.state.js'),
+        path.join(AUDIOFLIX, 'audioflix.capture.processor.src.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),
         path.join(GEMINI_SOCKET, 'geminiApiFailure.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.sdk.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.effects.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.native-capture.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.modulation.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.connection.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.continuity.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.scenes.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.overlay.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.recording.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.rendered.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.midi.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.presets.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.ui.advanced.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.ui.advanced.events.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.render.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.events.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.knob-input.js'),
@@ -131,6 +88,14 @@ function staticContracts() {
             const second = stateApi.ensure();
             const migratedControlView = first.controlView;
             const migratedPromptControlView = first.promptControlView;
+            const migratedSchemaVersion = first.schemaVersion;
+            const neutralEffects = {
+                filter: first.effects.filter.enabled,
+                delay: first.effects.delay.enabled,
+                reverb: first.effects.reverb.enabled,
+                stereo: first.effects.stereo.enabled,
+                limiter: first.effects.limiter.enabled
+            };
             const initialVolume = first.masterVolume;
 
             window.EveAudioflixSoundLabEngine.setApiKey('soundlab-session-test');
@@ -139,7 +104,26 @@ function staticContracts() {
             window.EveAudioflixSoundLabEngine.setMasterVolume(0.31, true);
             const volumeAfterCommit = stateApi.ensure().masterVolume;
 
+            stateApi.update({
+                effects: stateApi.cleanEffects({
+                    ...stateApi.ensure().effects,
+                    delay: {
+                        ...stateApi.ensure().effects.delay,
+                        enabled: true,
+                        mix: 0.19
+                    }
+                })
+            }, 'soundlab-smoke-effect');
             stateApi.savePreset('Smoke Scene');
+            const savedScene = stateApi.ensure().presets.find((preset) => preset.name === 'Smoke Scene');
+            stateApi.captureSceneSlot('a');
+            stateApi.update({
+                config: { ...stateApi.ensure().config, bpm: 101 },
+                masterVolume: 0.41
+            }, 'soundlab-smoke-scene-b');
+            stateApi.captureSceneSlot('b');
+            const capturedSlots = stateApi.ensure().sceneSlots;
+            stateApi.applySceneSlot('a');
             const importPayload = {
                 kind: 'eveos-sonic-forge-scenes',
                 schemaVersion: 1,
@@ -198,6 +182,29 @@ function staticContracts() {
             ).length;
             const promptKnobCount = host.querySelectorAll('.sonic-forge-knob-shell.is-prompt').length;
             const knobBoundCount = host.querySelectorAll('[data-sf-knob-bound="1"]').length;
+            const advancedPanels = {
+                effects: !!host.querySelector('.sonic-forge-effects'),
+                modulation: !!host.querySelector('.sonic-forge-modulation'),
+                scenes: !!host.querySelector('.sonic-forge-scene-slots'),
+                diagnostics: !!host.querySelector('.sonic-forge-diagnostics'),
+                rendered: !!host.querySelector('.sonic-forge-rendered')
+            };
+            const reverbDecay = host.querySelector(
+                '[data-sf-field="effect"][data-sf-effect="reverb"][data-sf-effect-key="decay"]'
+            );
+            const decayBeforeInput = stateApi.ensure().effects.reverb.decay;
+            const effectApplyCalls = [];
+            const originalApplyEffects = window.EveAudioflixSoundLabEngine.applyEffects;
+            window.EveAudioflixSoundLabEngine.applyEffects = (effects) => {
+                effectApplyCalls.push(effects);
+                return true;
+            };
+            reverbDecay.value = '3.4';
+            window.EveAudioflixSoundLabUi.handleInput(reverbDecay);
+            const decayAfterInput = stateApi.ensure().effects.reverb.decay;
+            await window.EveAudioflixSoundLabUi.handleChange(reverbDecay);
+            const decayAfterCommit = stateApi.ensure().effects.reverb.decay;
+            window.EveAudioflixSoundLabEngine.applyEffects = originalApplyEffects;
             const promptText = host.querySelector('[data-sf-field="prompt-text"]');
             const promptId = promptText.dataset.sfPrompt;
             const promptBeforeInput = stateApi.ensure().prompts.find((prompt) => prompt.id === promptId).text;
@@ -248,6 +255,30 @@ function staticContracts() {
                 transformedLevels[0] += Math.abs(transformedView.getInt16(frame * 4, true));
                 transformedLevels[1] += Math.abs(transformedView.getInt16(frame * 4 + 2, true));
             }
+            const renderedBinary = btoa('rendered-audio-smoke'.repeat(16));
+            window.EveAudioflixGenAI = {
+                GoogleGenAI: class {
+                    constructor(options) {
+                        window.__renderedApiVersion = options?.apiVersion;
+                        this.interactions = {
+                            create: async (request) => {
+                                window.__renderedRequest = request;
+                                return {
+                                    output_audio: {
+                                        data: renderedBinary,
+                                        mime_type: 'audio/mpeg'
+                                    }
+                                };
+                            }
+                        };
+                    }
+                }
+            };
+            const renderedGenerated = await window.EveAudioflixSoundLabRendered.generate({
+                model: 'lyria-3-clip-preview',
+                prompt: 'bounded render smoke'
+            });
+            const renderedStatus = window.EveAudioflixSoundLabRendered.getStatus();
             const NativeWebSocket = window.WebSocket;
             window.WebSocket = class SmokeWebSocket {
                 constructor(url) { window.__soundLabSocketUrl = String(url); }
@@ -258,6 +289,7 @@ function staticContracts() {
                     window.__soundLabMusicConfig = value?.musicGenerationConfig;
                     return true;
                 },
+                play: async () => { throw new Error('play transport rejected'); },
                 close: () => queueMicrotask(() => window.__soundLabFirstCallbacks?.onclose({
                     code: 1000,
                     reason: 'Intentional disconnect'
@@ -286,6 +318,13 @@ function staticContracts() {
             const singleFlightConnect = connected[0] === connected[1]
                 && window.__soundLabConnectCalls === 1;
             const musicConfig = window.__soundLabMusicConfig;
+            let playFailure = '';
+            try {
+                await window.EveAudioflixSoundLabEngine.play();
+            } catch (error) {
+                playFailure = String(error?.message || error);
+            }
+            const playFailureStatus = window.EveAudioflixSoundLabEngine.getStatus();
             await window.EveAudioflixSoundLabEngine.disconnect();
             await new Promise((resolve) => setTimeout(resolve, 0));
             const intentionalDisconnectStatus = window.EveAudioflixSoundLabEngine.getStatus();
@@ -315,8 +354,18 @@ function staticContracts() {
             window.EveAudioflixSoundLabUi.setVisible(false);
             return {
                 sameIdentity: first === second,
+                migratedSchemaVersion,
                 migratedControlView,
                 migratedPromptControlView,
+                neutralEffects,
+                savedSceneHasEffects: savedScene?.effects?.delay?.enabled === true
+                    && savedScene?.effects?.delay?.mix === 0.19,
+                capturedSlots: {
+                    aBpm: capturedSlots.a?.config?.bpm,
+                    bBpm: capturedSlots.b?.config?.bpm,
+                    aVolume: capturedSlots.a?.masterVolume,
+                    bVolume: capturedSlots.b?.masterVolume
+                },
                 promptCount: current.prompts.length,
                 presetNames: current.presets.map((preset) => preset.name),
                 legacyPromptText: legacyPromptPreset?.prompts?.[0]?.text || '',
@@ -330,6 +379,8 @@ function staticContracts() {
                 normalizedSocketUrl,
                 singleFlightConnect,
                 musicConfig,
+                playFailure,
+                playFailureStatus,
                 intentionalDisconnectStatus,
                 apiVersion: window.__soundLabApiVersion,
                 restrictedMessage,
@@ -339,6 +390,11 @@ function staticContracts() {
                 hasClearKey: !!host.querySelector('[data-af-action="soundlab-clear-key"]'),
                 credentialNotice: host.querySelector('.sonic-forge-credential-note')?.textContent || '',
                 visualModes,
+                advancedPanels,
+                decayBeforeInput,
+                decayAfterInput,
+                decayAfterCommit,
+                effectApplyCalls: effectApplyCalls.length,
                 generationKnobCount,
                 promptKnobCount,
                 knobBoundCount,
@@ -349,6 +405,10 @@ function staticContracts() {
                 hasSessionTimer: !!host.querySelector('[data-sf-session-time]'),
                 timeline: window.EveAudioflixSoundLabEngine.getTimeline(),
                 transformedLevels,
+                renderedGenerated,
+                renderedStatus,
+                renderedRequest: window.__renderedRequest,
+                renderedApiVersion: window.__renderedApiVersion,
                 controlView: stateApi.ensure().controlView,
                 promptControlView: stateApi.ensure().promptControlView,
                 steeringCalls,
@@ -358,85 +418,7 @@ function staticContracts() {
             };
         });
 
-        assert(result.sameIdentity, 'state reads preserve object identity');
-        assert(result.migratedControlView === 'sliders', 'schema-v1 scenes migrate the control view default');
-        assert(result.migratedPromptControlView === 'knobs', 'legacy scenes gain Prompt Mixer knobs');
-        assert(result.promptCount >= 1 && result.promptCount <= 16, 'prompt collection is bounded');
-        assert(result.presetNames.includes('Smoke Scene'), 'saved scene persists in Audioflix state');
-        assert(result.presetNames.includes('Imported Scene'), 'scene JSON imports into Audioflix state');
-        assert(
-            result.legacyPromptText === 'legacy glass bells'
-                && result.legacyConfig.bpm === 123
-                && result.legacyConfig.scale === 'G_MAJOR_E_MINOR'
-                && /legacy/i.test(result.presetMessage),
-            'original AI Sound prompt and config preset arrays import as native scenes'
-        );
-        assert(result.initialVolume === result.volumeAfterPreview, 'volume preview avoids config write amplification');
-        assert(result.volumeAfterCommit === 0.31, 'volume change commits after interaction');
-        assert(result.sessionKeyBeforeClear === 'soundlab-session-test', 'credential is retained for this browser session');
-        assert(result.sessionKeyAfterClear === null, 'test credential is cleared after use');
-        assert(
-            result.normalizedSocketUrl === 'wss://generativelanguage.googleapis.com/ws/test',
-            'Lyria SDK double-slash WebSocket paths are normalized before connection'
-        );
-        assert(result.singleFlightConnect, 'concurrent Lyria connect requests share one transport attempt');
-        assert(
-            result.intentionalDisconnectStatus.phase === 'idle'
-                && result.intentionalDisconnectStatus.message === 'Disconnected.',
-            'an intentional disconnect cannot be overwritten by its stale close callback'
-        );
-        assert(
-            !Object.hasOwn(result.musicConfig, 'audioFormat')
-                && !Object.hasOwn(result.musicConfig, 'sampleRateHz')
-                && !Object.hasOwn(result.musicConfig, 'scale'),
-            'default steering omits unsupported transport fields and the unspecified scale'
-        );
-        assert(result.apiVersion === 'v1alpha', 'Lyria uses the deployed Live Music WebSocket endpoint');
-        assert(
-            /ip allowlist/i.test(result.restrictedMessage),
-            'Lyria exposes actionable IP restriction diagnostics instead of a generic disconnect'
-        );
-        assert(result.leakedCredential === false, 'session credential never enters datapack state');
-        assert(
-            !result.hasCredentialEditor && !result.hasClearKey
-                && result.credentialNotice.includes('Session Controls'),
-            'Sonic Forge exposes Gemini Link credential status without a second key editor'
-        );
-        assert(result.hasTitle && result.hasRecording && result.hasImport, 'Sonic Forge workbench renders all core tools');
-        assert(result.visualModes.join(',') === 'spectrum,waveform,radial,spectrogram,frequency-linear',
-            'log spectrum is primary and the original linear frequency view remains available last');
-        assert(
-            result.controlView === 'knobs' && result.generationKnobCount === 6,
-            'generation knob view is functional and persisted'
-        );
-        assert(
-            result.promptControlView === 'knobs' && result.promptKnobCount === result.promptCount,
-            'each prompt weight has a persisted knob control'
-        );
-        assert(result.knobBoundCount >= result.promptKnobCount, 'knob controls use the low-sensitivity vertical input adapter');
-        assert(
-            result.promptAfterInput === result.promptBeforeInput
-                && result.promptAfterCommit === 'committed only after blur'
-                && result.promptSteeringCalls === 1,
-            'prompt text is committed once after editing instead of steering on every keystroke'
-        );
-        assert(
-            result.hasSessionTimer
-                && Object.hasOwn(result.timeline, 'elapsedSeconds')
-                && Object.hasOwn(result.timeline, 'generatedSeconds'),
-            'Sonic Forge exposes a live/generated session timeline'
-        );
-        assert(
-            Math.max(...result.transformedLevels) < 1300000
-                && Math.max(...result.transformedLevels) / Math.min(...result.transformedLevels) <= 1.21,
-            'native PCM volume and extreme stereo imbalance are corrected before routing'
-        );
-        assert(
-            result.steeringCalls[0]?.resetContext === true
-                && result.steeringCalls[1]?.resetContext === false,
-            'BPM resets Lyria context while density remains a live steering update'
-        );
-        assert(result.errors.length === 0, `browser emitted errors: ${result.errors.join('; ')}`);
+        assertResult(result);
         console.log('AUDIOFLIX_SOUNDLAB_SMOKE_OK');
     } finally {
         await browser.close();

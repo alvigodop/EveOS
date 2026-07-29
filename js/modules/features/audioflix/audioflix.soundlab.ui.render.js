@@ -142,7 +142,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
         const presets = soundLab.presets || [];
         return `<section class="sonic-forge-block sonic-forge-presets">
             <header><div><span class="sonic-forge-eyebrow">Datapack Memory</span><h3>Scene Presets</h3>
-                <p>Prompt and generation settings travel with normal EveOS backups.</p></div></header>
+                <p>Prompts, generation controls, effects, and modulation travel with normal EveOS backups.</p></div></header>
             <div class="sonic-forge-inline-form">
                 <input type="text" maxlength="80" placeholder="Preset name" data-sf-preset-name>
                 <button type="button" data-af-action="soundlab-save-preset">Save Scene</button>
@@ -241,7 +241,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                         ${window.EveAudioflixSoundLabState.modes.map((mode) => `<option value="${mode}"${selected(soundLab.visualizerMode, mode)}>${esc(window.EveAudioflixSoundLabState.modeLabel(mode))}</option>`).join('')}
                     </select>
                     <label>Volume <input type="range" min="0" max="1" step="0.01" value="${esc(soundLab.masterVolume)}" data-sf-field="master-volume"></label>
-                    <span data-sf-session-time title="Current session elapsed time and generated audio received. Lyria does not expose a fixed session countdown.">00:00 live · 00:00 generated</span>
+                    <span data-sf-session-time title="Current session elapsed time and generated audio received. Lyria does not expose a fixed session countdown.">00:00 live / 00:00 generated</span>
                     <span data-sf-buffer>${Number(engineStatus.bufferedSeconds || 0).toFixed(1)}s buffered</span>
                 </div>
             </div>
@@ -253,13 +253,21 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
         const engineStatus = window.EveAudioflixSoundLabEngine?.getStatus?.() || { phase: 'idle', message: 'Engine loading.' };
         const recording = window.EveAudioflixSoundLabRecording?.getStatus?.() || { recording: false, available: false, message: '' };
         const midi = window.EveAudioflixSoundLabMidi?.getStatus?.() || { inputs: [], message: 'MIDI is off.' };
+        const advanced = window.EveAudioflixSoundLabUiAdvanced;
         return `<div class="sonic-forge" data-audioflix-soundlab>
             ${renderHero(soundLab, engineStatus)}
             <div class="sonic-forge-workspace">
                 ${renderPrompts(soundLab)}
-                ${renderConfig(soundLab)}
+                <div class="sonic-forge-main-grid">
+                    ${renderConfig(soundLab)}
+                    ${advanced?.renderEffects?.(soundLab) || ''}
+                    ${advanced?.renderModulation?.(soundLab) || ''}
+                </div>
                 <div class="sonic-forge-side-grid">
+                    ${advanced?.renderSceneSlots?.(soundLab) || ''}
                     ${renderPresets(soundLab)}
+                    ${advanced?.renderRendered?.(soundLab) || ''}
+                    ${advanced?.renderDiagnostics?.(soundLab, engineStatus) || ''}
                     ${renderMidi(soundLab, midi)}
                     ${renderRecording(soundLab, recording)}
                 </div>

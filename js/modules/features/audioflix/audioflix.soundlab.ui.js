@@ -50,7 +50,18 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         const output = root?.querySelector?.('[data-sf-session-time]');
         if (!output) return;
         const timeline = window.EveAudioflixSoundLabEngine?.getTimeline?.() || {};
-        output.textContent = `${formatTime(timeline.elapsedSeconds)} live · ${formatTime(timeline.generatedSeconds)} generated`;
+        output.textContent = `${formatTime(timeline.elapsedSeconds)} live / ${formatTime(timeline.generatedSeconds)} generated`;
+        const diagnostics = window.EveAudioflixSoundLabEngine?.getDiagnostics?.() || {};
+        const values = {
+            jitter: `${Number(diagnostics.playback?.jitterMs || 0).toFixed(0)} ms`,
+            underruns: String(Number(diagnostics.playback?.underruns || 0)),
+            native: `${Number(diagnostics.native?.queuedMs || 0).toFixed(0)} ms`,
+            drops: String(Number(diagnostics.native?.dropped || 0))
+        };
+        Object.entries(values).forEach(([key, value]) => {
+            const metric = root?.querySelector?.(`[data-sf-metric="${key}"]`);
+            if (metric) metric.textContent = value;
+        });
     }
 
     function syncTimelineTimer() {
@@ -132,12 +143,28 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         select.disabled = current.midiEnabled !== true;
     }
 
+    function updateRendered(status) {
+        if (!root) return;
+        const message = root.querySelector('[data-sf-render-status]');
+        const generate = root.querySelector('[data-af-action="soundlab-render"]');
+        const download = root.querySelector('[data-af-action="soundlab-render-download"]');
+        const save = root.querySelector('[data-af-action="soundlab-render-library"]');
+        if (message) message.textContent = status?.message || '';
+        if (generate) {
+            generate.disabled = status?.generating === true;
+            generate.textContent = status?.generating ? 'Rendering...' : 'Render Scene';
+        }
+        if (download) download.disabled = status?.available !== true;
+        if (save) save.disabled = status?.available !== true;
+    }
+
     function subscribe() {
         if (subscribed) return;
         subscribed = true;
         window.EveAudioflixSoundLabEngine?.subscribe?.(updateEngine);
         window.EveAudioflixSoundLabRecording?.subscribe?.(updateRecording);
         window.EveAudioflixSoundLabMidi?.subscribe?.(updateMidi);
+        window.EveAudioflixSoundLabRendered?.subscribe?.(updateRendered);
         window.addEventListener('eve:audioflix-soundlab-midi', (event) => {
             if (!root) return;
             const id = event.detail?.promptId;
@@ -161,6 +188,7 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         updateEngine(window.EveAudioflixSoundLabEngine?.getStatus?.() || {});
         updateRecording(window.EveAudioflixSoundLabRecording?.getStatus?.() || {});
         updateMidi(window.EveAudioflixSoundLabMidi?.getStatus?.() || {});
+        updateRendered(window.EveAudioflixSoundLabRendered?.getStatus?.() || {});
         if (!midiRestored) {
             midiRestored = true;
             window.EveAudioflixSoundLabMidi?.restore?.().catch(() => {});

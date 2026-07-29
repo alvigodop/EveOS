@@ -74,6 +74,7 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
     }
 
     function handleInput(target) {
+        if (window.EveAudioflixSoundLabUiAdvancedEvents?.handleInput?.(target)) return true;
         const field = target?.dataset?.sfField;
         if (!field) return false;
         if (field === 'prompt-text') return true;
@@ -88,6 +89,7 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
     }
 
     async function handleChange(target) {
+        if (window.EveAudioflixSoundLabUiAdvancedEvents?.handleChange?.(target)) return true;
         const field = target?.dataset?.sfField;
         if (!field) return false;
         if (field.startsWith('prompt-')) return applyPrompt(target);
@@ -136,6 +138,8 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
     async function handleAction(target) {
         const action = target?.dataset?.afAction || '';
         if (!action.startsWith('soundlab-')) return null;
+        const advanced = await window.EveAudioflixSoundLabUiAdvancedEvents?.handleAction?.(target);
+        if (advanced) return advanced;
         if (action === 'soundlab-connect') await engine()?.connect?.();
         else if (action === 'soundlab-disconnect') await engine()?.disconnect?.();
         else if (action === 'soundlab-play') await engine()?.play?.();
@@ -167,7 +171,8 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         } else if (action === 'soundlab-load-preset') {
             const id = selectedPreset(target);
             if (id) {
-                labState()?.loadPreset?.(id);
+                const next = labState()?.loadPreset?.(id);
+                engine()?.applyScene?.(next);
                 await engine()?.applySteering?.({ resetContext: true });
             }
             return { rerender: true };

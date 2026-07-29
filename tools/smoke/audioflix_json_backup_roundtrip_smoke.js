@@ -66,6 +66,25 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
                 trackCount: 1
             }]
         }, 'json-smoke-spotify');
+        const soundLab = window.EveAudioflixSoundLabState.ensure();
+        window.EveAudioflixSoundLabState.update({
+            effects: window.EveAudioflixSoundLabState.cleanEffects({
+                ...soundLab.effects,
+                delay: { ...soundLab.effects.delay, enabled: true, mix: 0.23 }
+            }),
+            modulation: {
+                ...soundLab.modulation,
+                enabled: true,
+                lowToFilter: { enabled: true, depth: 0.64 }
+            },
+            diagnostics: { ...soundLab.diagnostics, showTelemetry: false },
+            render: {
+                ...soundLab.render,
+                name: 'JSON Render Lane',
+                prompt: 'backup-safe rendered music'
+            }
+        }, 'json-smoke-soundlab');
+        window.EveAudioflixSoundLabState.captureSceneSlot('a');
     });
 
     // 2. Run the REAL JSON-only backup and read the produced blob's text.
@@ -99,7 +118,14 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         && (inFile.musicPlaylists || []).some((item) => item.id === 'json-spotify-playlist'
             && item.provider === 'spotify'
             && item.owner === 'Backup Owner'
-            && item.embedUrl.includes('/embed/playlist/')));
+            && item.embedUrl.includes('/embed/playlist/'))
+        && inFile.soundLab?.schemaVersion === 3
+        && inFile.soundLab?.effects?.delay?.enabled === true
+        && inFile.soundLab?.effects?.delay?.mix === 0.23
+        && inFile.soundLab?.modulation?.lowToFilter?.depth === 0.64
+        && inFile.soundLab?.diagnostics?.showTelemetry === false
+        && inFile.soundLab?.render?.name === 'JSON Render Lane'
+        && inFile.soundLab?.sceneSlots?.a?.effects?.delay?.enabled === true);
     // The unified importer keys on metadata+bookmarks+library; the file must satisfy that too.
     const unifiedShapeOk = !!(parsed && parsed.metadata && parsed.bookmarks && parsed.library);
 
@@ -118,7 +144,10 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
                 && (live.soundboard || []).some((item) => item.id === 'json-sound')
                 && (live.music || []).some((item) => item.id === 'json-music')
                 && (live.music || []).some((item) => item.id === 'json-spotify' && item.sourceProvider === 'spotify')
-                && (live.musicPlaylists || []).some((item) => item.id === 'json-spotify-playlist' && item.owner === 'Backup Owner'),
+                && (live.musicPlaylists || []).some((item) => item.id === 'json-spotify-playlist' && item.owner === 'Backup Owner')
+                && live.soundLab?.schemaVersion === 3
+                && live.soundLab?.effects?.delay?.mix === 0.23
+                && live.soundLab?.sceneSlots?.a?.effects?.delay?.enabled === true,
             // A fresh reload rebuilds Audioflix from this fallback (file:// has no server),
             // so the restored content must be written there, not just held in memory.
             fallbackOk: (fallback.ports || []).some((p) => p.nickname === 'JsonPort')
@@ -126,6 +155,9 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
                 && (fallback.music || []).some((item) => item.id === 'json-music')
                 && (fallback.music || []).some((item) => item.id === 'json-spotify' && item.playlistPosition === 7)
                 && (fallback.musicPlaylists || []).some((item) => item.id === 'json-spotify-playlist' && item.provider === 'spotify')
+                && fallback.soundLab?.schemaVersion === 3
+                && fallback.soundLab?.modulation?.enabled === true
+                && fallback.soundLab?.render?.prompt === 'backup-safe rendered music'
         };
     }, exportedText);
 

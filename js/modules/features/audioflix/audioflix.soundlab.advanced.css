@@ -1,0 +1,282 @@
+.sonic-forge-main-grid {
+    display: grid;
+    min-width: 0;
+    gap: 16px;
+}
+
+.sonic-forge textarea {
+    width: 100%;
+    min-width: 0;
+    resize: vertical;
+    border: 1px solid rgba(255, 255, 255, 0.13);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.28);
+    color: #f0f9fb;
+    padding: 10px;
+    font: inherit;
+    line-height: 1.45;
+}
+
+.sonic-forge textarea:focus-visible {
+    outline: 2px solid var(--sf-cyan);
+    outline-offset: 2px;
+}
+
+.sonic-forge-effects {
+    border-color: rgba(32, 227, 178, 0.18);
+}
+
+.sonic-forge-effects-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.sonic-forge-effect-card {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 13px;
+    background: rgba(1, 8, 12, 0.34);
+    opacity: 0.68;
+    transition: border-color 160ms ease, background 160ms ease, opacity 160ms ease;
+}
+
+.sonic-forge-effect-card.is-on {
+    border-color: rgba(32, 227, 178, 0.32);
+    background: linear-gradient(145deg, rgba(32, 227, 178, 0.08), rgba(1, 8, 12, 0.4));
+    opacity: 1;
+}
+
+.sonic-forge-effect-card > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 11px;
+}
+
+.sonic-forge-effect-card > header > div {
+    display: grid;
+    gap: 2px;
+}
+
+.sonic-forge-effect-card header span {
+    font-weight: 750;
+}
+
+.sonic-forge-effect-card header small {
+    color: rgba(224, 240, 243, 0.46);
+    font-size: 0.64rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sonic-forge-effect-controls {
+    display: grid;
+    gap: 10px;
+}
+
+.sonic-forge-mini-control {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    color: rgba(235, 247, 249, 0.72);
+    font-size: 0.72rem;
+}
+
+.sonic-forge-mini-control > span {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.sonic-forge-mini-control output {
+    color: var(--sf-mint);
+    font-family: Consolas, monospace;
+}
+
+.sonic-forge-compact-toggle {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+}
+
+.sonic-forge-compact-toggle input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.sonic-forge-compact-toggle i {
+    position: relative;
+    display: block;
+    width: 38px;
+    height: 21px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+}
+
+.sonic-forge-compact-toggle i::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: rgba(245, 252, 253, 0.78);
+    transition: transform 150ms ease, background 150ms ease;
+}
+
+.sonic-forge-compact-toggle input:checked + i {
+    border-color: rgba(32, 227, 178, 0.45);
+    background: rgba(32, 227, 178, 0.17);
+}
+
+.sonic-forge-compact-toggle input:checked + i::after {
+    background: var(--sf-mint);
+    transform: translateX(17px);
+}
+
+.sonic-forge-mod-list {
+    display: grid;
+    gap: 9px;
+}
+
+.sonic-forge-mod-row {
+    display: grid;
+    grid-template-columns: auto minmax(130px, 0.7fr) minmax(120px, 1fr);
+    gap: 10px;
+    align-items: center;
+    padding: 9px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 11px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.sonic-forge-mod-row > span {
+    display: grid;
+    gap: 2px;
+}
+
+.sonic-forge-mod-row small {
+    color: rgba(224, 240, 243, 0.48);
+    font-size: 0.66rem;
+}
+
+.sonic-forge-scene-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    margin-bottom: 12px;
+}
+
+.sonic-forge-scene-pair article {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 7px;
+    padding: 11px;
+    border: 1px dashed rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+}
+
+.sonic-forge-scene-pair article.is-ready {
+    border-style: solid;
+    border-color: rgba(255, 202, 95, 0.36);
+    background: rgba(255, 202, 95, 0.05);
+}
+
+.sonic-forge-scene-pair article span {
+    color: rgba(224, 240, 243, 0.46);
+    font-size: 0.67rem;
+    text-align: right;
+}
+
+.sonic-forge-scene-pair button {
+    min-height: 30px;
+    padding: 5px 8px;
+}
+
+.sonic-forge-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.sonic-forge-metric-grid > span {
+    display: grid;
+    gap: 3px;
+    padding: 10px;
+    border: 1px solid rgba(41, 220, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.sonic-forge-metric-grid b {
+    color: #dffaff;
+    font-family: Consolas, monospace;
+    font-size: 0.85rem;
+}
+
+.sonic-forge-metric-grid small {
+    color: rgba(224, 240, 243, 0.45);
+    font-size: 0.64rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.sonic-forge-rendered {
+    border-color: rgba(255, 202, 95, 0.2);
+}
+
+.sonic-forge-rendered > label {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.sonic-forge-rendered > label > span {
+    color: rgba(224, 240, 243, 0.68);
+    font-size: 0.72rem;
+}
+
+.sonic-forge-rendered audio {
+    width: 100%;
+    margin-top: 10px;
+    accent-color: var(--sf-gold);
+}
+
+.sonic-forge-rendered .sonic-forge-note {
+    margin-top: 9px;
+}
+
+@media (max-width: 1100px) {
+    .sonic-forge-effects-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 620px) {
+    .sonic-forge-mod-row {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .sonic-forge-mod-row input[type="range"] {
+        grid-column: 1 / -1;
+    }
+
+    .sonic-forge-scene-pair,
+    .sonic-forge-metric-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sonic-forge-effect-card,
+    .sonic-forge-compact-toggle i::after {
+        transition: none;
+    }
+}

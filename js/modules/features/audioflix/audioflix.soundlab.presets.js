@@ -25,14 +25,10 @@ window.EveAudioflixSoundLabPresets = window.EveAudioflixSoundLabPresets || {};
         const state = snapshot();
         const payload = {
             kind: 'eveos-sonic-forge-scenes',
-            schemaVersion: 1,
+            schemaVersion: 2,
             exportedAt: new Date().toISOString(),
-            currentScene: {
-                prompts: state.prompts || [],
-                config: state.config || {},
-                visualizerMode: state.visualizerMode,
-                masterVolume: state.masterVolume
-            },
+            currentScene: window.EveAudioflixSoundLabState?.snapshotScene?.() || {},
+            sceneSlots: state.sceneSlots || { a: null, b: null },
             presets: state.presets || []
         };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -78,11 +74,9 @@ window.EveAudioflixSoundLabPresets = window.EveAudioflixSoundLabPresets || {};
         const raw = Array.isArray(payload) ? payload : payload?.presets;
         const candidates = Array.isArray(raw) ? raw.map(legacyPreset) : [];
         if (!candidates.length && payload?.currentScene) {
-            candidates.push({
+            candidates.push(Object.assign({
                 name: `Imported Scene ${new Date().toLocaleDateString()}`,
-                prompts: payload.currentScene.prompts,
-                config: payload.currentScene.config
-            });
+            }, payload.currentScene));
         }
         return window.EveAudioflixSoundLabState?.normalize?.({ presets: candidates })?.presets || [];
     }

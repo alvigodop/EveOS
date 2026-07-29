@@ -127,24 +127,24 @@ window.EveAudioflixSoundLabRecording = window.EveAudioflixSoundLabRecording || {
         throw new Error(errors[0] || 'Start EveOS localhost to save the recording into Music Library.');
     }
 
-    async function addToLibrary(options) {
-        if (!lastBlob) throw new Error('Record a Sonic Forge session first.');
+    async function saveBlobToLibrary(blob, options) {
+        if (!(blob instanceof Blob) || !blob.size) throw new Error('No generated audio is available to save.');
         const settings = Object.assign({}, window.EveAudioflixSoundLabState?.ensure?.(), options || {});
         const directory = String(settings.recordingDir || '').trim();
         if (!directory) throw new Error('Choose a local recording folder first.');
-        publish({ message: 'Saving recording through the local Audioflix bridge...' });
+        publish({ message: 'Saving generated audio through the local Audioflix bridge...' });
         const result = await postRecording({
-            audio: await blobBase64(lastBlob),
-            mimeType: lastBlob.type,
+            audio: await blobBase64(blob),
+            mimeType: blob.type,
             directory,
             name: settings.recordingName
         });
         const item = window.EveAudioflixState?.addItem?.('music', {
             title: String(settings.recordingName || 'Sonic Forge Session').trim(),
             localPath: result.path,
-            sourceProvider: 'sonic-forge',
-            folder: 'Sonic Forge',
-            category: 'Generated Music',
+            sourceProvider: settings.sourceProvider || 'sonic-forge',
+            folder: settings.folder || 'Sonic Forge',
+            category: settings.category || 'Generated Music',
             exposed: true
         });
         if (item?.id) {
@@ -155,12 +155,18 @@ window.EveAudioflixSoundLabRecording = window.EveAudioflixSoundLabRecording || {
         return item;
     }
 
+    async function addToLibrary(options) {
+        if (!lastBlob) throw new Error('Record a Sonic Forge session first.');
+        return saveBlobToLibrary(lastBlob, options);
+    }
+
     Object.assign(ns, {
         ready: true,
         start,
         stop,
         download,
         addToLibrary,
+        saveBlobToLibrary,
         getStatus: () => Object.assign({}, status),
         getLastBlob: () => lastBlob,
         subscribe(listener) {

@@ -19,16 +19,19 @@
 // settling) makes it deliver late or short frames — heard as the song hitching. A worklet runs on
 // the audio thread and is immune.
 //
-// Downmixes to mono (the bridge mixes mono server-side) and posts fixed-size blocks, transferring
-// the buffer so no copy happens on the audio thread.
+// Defaults to mono for existing capture users. Callers may request interleaved stereo so a
+// processed effects mix reaches the native bridge without losing its stereo field.
+// Fixed-size blocks are transferred so no copy happens on the audio thread.
 window.EveAudioflixCaptureProcessorSrc = String.raw`
 class AudioflixCaptureProcessor extends AudioWorkletProcessor {
     constructor(options) {
         super();
         const requested = Number(options && options.processorOptions && options.processorOptions.blockSize);
+        const requestedChannels = Number(options && options.processorOptions && options.processorOptions.channels);
         this.blockSize = Math.max(256, Number.isFinite(requested) && requested > 0 ? requested : 4096);
-        this.buffer = new Float32Array(this.blockSize);
-        this.filled = 0;
+        this.channels = requestedChannels === 2 ? 2 : 1;
+        this.buffer = new Float32Array(this.blockSize * this.channels);
+        this.filledFrames = 0;
         this.running = true;
         this.port.onmessage = (event) => {
             if (event && event.data && event.data.command === 'stop') this.running = false;
@@ -44,12 +47,20 @@ class AudioflixCaptureProcessor extends AudioWorkletProcessor {
         if (!left) return true;
         const right = input.length > 1 ? input[1] : null;
         for (let index = 0; index < left.length; index += 1) {
-            this.buffer[this.filled] = right ? (left[index] + right[index]) / 2 : left[index];
-            this.filled += 1;
-            if (this.filled === this.blockSize) {
+            if (this.channels === 2) {
+                const offset = this.filledFrames * 2;
+                this.buffer[offset] = left[index];
+                this.buffer[offset + 1] = right ? right[index] : left[index];
+            } else {
+                this.buffer[this.filledFrames] = right
+                    ? (left[index] + right[index]) / 2
+                    : left[index];
+            }
+            this.filledFrames += 1;
+            if (this.filledFrames === this.blockSize) {
                 const block = this.buffer;
-                this.buffer = new Float32Array(this.blockSize);
-                this.filled = 0;
+                this.buffer = new Float32Array(this.blockSize * this.channels);
+                this.filledFrames = 0;
                 this.port.postMessage(block, [block.buffer]);
             }
         }

@@ -15,6 +15,12 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
         let generatedSeconds = 0;
         let startedAt = 0;
         let stopped = true;
+        let lastArrivalAt = 0;
+        let lastBufferDuration = 0;
+        let arrivalErrorMs = [];
+        let underruns = 0;
+        let underrunOpen = false;
+        let lowWaterSeconds = Infinity;
 
         const getContext = () => options.context?.() || null;
         const getOutput = () => options.output?.() || null;
@@ -38,14 +44,31 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 elapsedSeconds: elapsedSeconds + live,
                 generatedSeconds,
                 bufferedSeconds: bufferedSeconds(),
-                running: !!startedAt
+                running: !!startedAt,
+                jitterMs: jitterMs(),
+                underruns,
+                lowWaterSeconds: Number.isFinite(lowWaterSeconds) ? lowWaterSeconds : 0
             };
+        }
+
+        function jitterMs() {
+            if (!arrivalErrorMs.length) return 0;
+            const mean = arrivalErrorMs.reduce((sum, value) => sum + value, 0) / arrivalErrorMs.length;
+            const variance = arrivalErrorMs.reduce((sum, value) => sum + ((value - mean) ** 2), 0)
+                / arrivalErrorMs.length;
+            return Math.sqrt(variance);
         }
 
         function startClock() {
             if (stopped) {
                 elapsedSeconds = 0;
                 generatedSeconds = 0;
+                lastArrivalAt = 0;
+                lastBufferDuration = 0;
+                arrivalErrorMs = [];
+                underruns = 0;
+                underrunOpen = false;
+                lowWaterSeconds = Infinity;
                 stopped = false;
             }
             if (!startedAt) startedAt = now();
@@ -102,6 +125,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                     try { source.disconnect(); } catch {}
                     if (!pending.length && !sources.size && isPlaying()) {
                         streamStarted = false;
+                        if (!underrunOpen) underruns += 1;
+                        underrunOpen = true;
                         notify({
                             buffering: true,
                             bufferedSeconds: 0,
@@ -118,11 +143,20 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 bufferedSeconds: bufferedSeconds(),
                 message: 'Generating and playing.'
             });
+            lowWaterSeconds = Math.min(lowWaterSeconds, bufferedSeconds());
             return true;
         }
 
         function enqueue(buffer) {
             if (!buffer) return 0;
+            const arrivedAt = now();
+            if (lastArrivalAt && lastBufferDuration) {
+                arrivalErrorMs.push(Math.abs((arrivedAt - lastArrivalAt - lastBufferDuration) * 1000));
+                if (arrivalErrorMs.length > 24) arrivalErrorMs.shift();
+            }
+            lastArrivalAt = arrivedAt;
+            lastBufferDuration = Number(buffer.duration || 0);
+            underrunOpen = false;
             pending.push(buffer);
             generatedSeconds += Math.max(0, Number(buffer.duration || 0));
             let dropped = 0;
@@ -164,7 +198,13 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 clear();
                 stopClock();
             },
-            timeline
+            timeline,
+            metrics: () => ({
+                jitterMs: jitterMs(),
+                underruns,
+                lowWaterSeconds: Number.isFinite(lowWaterSeconds) ? lowWaterSeconds : 0,
+                queuedSeconds: bufferedSeconds()
+            })
         };
     }
 
