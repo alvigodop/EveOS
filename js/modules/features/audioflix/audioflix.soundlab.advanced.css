@@ -284,3 +284,40 @@
         transition: none;
     }
 }
+
+/* "auto" pill beside a generation control: when lit, that parameter is omitted from the payload
+   entirely and Lyria infers it from the text direction, so the slider is inert. */
+.sonic-forge-auto {
+    margin-left: 6px;
+    padding: 1px 7px;
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    border-radius: 999px;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.sonic-forge-auto:hover {
+    border-color: rgba(126, 226, 168, 0.7);
+    color: #cbd5e1;
+}
+
+.sonic-forge-auto.is-active {
+    border-color: #7ee2a8;
+    background: rgba(126, 226, 168, 0.16);
+    color: #7ee2a8;
+}
+
+.sonic-forge-control.is-auto input[type="range"] {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.sonic-forge-control.is-auto output {
+    color: #7ee2a8;
+    font-style: italic;
+}

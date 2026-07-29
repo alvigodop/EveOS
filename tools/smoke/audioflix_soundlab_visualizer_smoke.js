@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const AUDIOFLIX = path.join(ROOT, 'js', 'modules', 'features', 'audioflix');
+const configPath = path.join(AUDIOFLIX, 'audioflix.soundlab.config.js');
 const statePath = path.join(AUDIOFLIX, 'audioflix.soundlab.state.js');
 const overlayPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.overlay.js');
 const visualizerPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.js');
@@ -76,6 +77,7 @@ assert(
             window.__visualizerErrors = [];
             addEventListener('error', (event) => window.__visualizerErrors.push(event.message));
         </script>
+        <script src="${fileUrl(configPath)}"></script>
         <script src="${fileUrl(statePath)}"></script>
         <script src="${fileUrl(overlayPath)}"></script>
         <script src="${fileUrl(visualizerPath)}"></script>

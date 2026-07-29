@@ -26,6 +26,7 @@ function staticContracts() {
         path.join(AUDIOFLIX, 'audioflix.capture.processor.src.js'),
         'utf8'
     );
+    const genConfig = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.config.js'), 'utf8');
     const rendered = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.rendered.js'), 'utf8');
     const playback = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'), 'utf8');
     const failureApi = fs.readFileSync(path.join(GEMINI_SOCKET, 'geminiApiFailure.js'), 'utf8');
@@ -52,6 +53,7 @@ function staticContracts() {
         'audioflix.soundlab.connection.js',
         'audioflix.soundlab.continuity.js',
         'audioflix.soundlab.steering.js',
+        'audioflix.soundlab.config.js',
         'audioflix.soundlab.engine.js',
         'audioflix.soundlab.scenes.js',
         'audioflix.soundlab.visualizer.overlay.js',
@@ -62,6 +64,39 @@ function staticContracts() {
         'audioflix.soundlab.ui.js',
         'geminiApiFailure.js'
     ].forEach((name) => assert(html.includes(name), `${name} is loaded by EveOS`));
+    // "Auto" must mean the key is ABSENT from the payload, not a number the model then obeys.
+    // Asserted at the source level because a wrong default here is silent: the generation would
+    // simply keep following a pinned value the UI claims is automatic.
+    assert(
+        genConfig.includes('delete wire[key]')
+            && genConfig.includes("delete wire.autoParams")
+            && /AUTO_PARAM_KEYS\s*=\s*\['bpm', 'density', 'brightness'\]/.test(genConfig),
+        'auto parameters are deleted from the Lyria payload rather than sent with a value'
+    );
+    // guidance/temperature/topK are sampler controls with no model-inferred value, so offering
+    // "auto" on them would be a lie about what omission does.
+    assert(
+        !/AUTO_PARAM_KEYS[^\]]*(guidance|temperature|topK)/.test(genConfig),
+        'sampler controls are not offered as model-inferred auto parameters'
+    );
+    // bpm/scale changes force resetContext(), so nothing may modulate them continuously.
+    assert(
+        /RESET_ON_CHANGE_KEYS\s*=\s*\['bpm', 'scale'\]/.test(genConfig)
+            && genConfig.includes('isSafeToModulate'),
+        'parameters that force a context reset are guarded against continuous modulation'
+    );
+    assert(
+        engine.includes("if (auto.bpm !== true) result.bpm")
+            && engine.includes("if (auto.density !== true) result.density")
+            && engine.includes("if (auto.brightness !== true) result.brightness"),
+        'the engine payload builder omits auto parameters instead of sending a value'
+    );
+    // With a parameter on auto its key is missing, and "missing" must read as unchanged or every
+    // pass would fire a context reset.
+    assert(
+        steering.includes('changedHard') && steering.includes('!hasNext || !hasPrev'),
+        'an absent (auto) parameter never counts as a hard transition'
+    );
     assert(
         steering.indexOf('setMusicGenerationConfig') < steering.indexOf('liveSession.resetContext'),
         'Lyria applies BPM/scale configuration before resetting generation context'

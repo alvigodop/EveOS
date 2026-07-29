@@ -51,20 +51,11 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             cc: 18
         }
     ];
-    const STABLE_CONFIG_DEFAULTS = {
-        bpm: 96,
-        density: 0.42,
-        brightness: 0.45,
-        guidance: 4,
-        temperature: 0.9,
-        topK: 32,
-        seed: 0,
-        scale: 'SCALE_UNSPECIFIED',
-        musicGenerationMode: 'QUALITY',
-        muteBass: false,
-        muteDrums: false,
-        onlyBassAndDrums: false
-    };
+    // Generation config (defaults, sanitising, and the auto-omitting wire payload) lives next
+    // door so this module stays under the line cap.
+    const CFG = () => window.EveAudioflixSoundLabConfig;
+    // Late-bound: reading CFG() at module-init would hard-couple this to script order.
+    const stableDefaults = () => CFG().DEFAULTS;
     const DEFAULT_BUFFER_SECONDS = 3;
 
     function clamp(value, min, max, fallback) {
@@ -96,24 +87,8 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
         };
     }
 
-    function cleanConfig(config) {
-        const source = config && typeof config === 'object' ? config : {};
-        return {
-            bpm: Math.round(clamp(source.bpm, 60, 200, STABLE_CONFIG_DEFAULTS.bpm)),
-            density: clamp(source.density, 0, 1, STABLE_CONFIG_DEFAULTS.density),
-            brightness: clamp(source.brightness, 0, 1, STABLE_CONFIG_DEFAULTS.brightness),
-            guidance: clamp(source.guidance, 0, 6, STABLE_CONFIG_DEFAULTS.guidance),
-            temperature: clamp(source.temperature, 0, 3, STABLE_CONFIG_DEFAULTS.temperature),
-            topK: Math.round(clamp(source.topK, 1, 1000, STABLE_CONFIG_DEFAULTS.topK)),
-            seed: Math.max(0, Math.round(clamp(source.seed, 0, 2147483647, 0))),
-            scale: SCALES.includes(source.scale) ? source.scale : 'SCALE_UNSPECIFIED',
-            musicGenerationMode: ['QUALITY', 'DIVERSITY', 'VOCALIZATION'].includes(source.musicGenerationMode)
-                ? source.musicGenerationMode : 'QUALITY',
-            muteBass: source.muteBass === true,
-            muteDrums: source.muteDrums === true,
-            onlyBassAndDrums: source.onlyBassAndDrums === true
-        };
-    }
+    const cleanConfig = (config) => CFG().cleanConfig(config);
+    const toWireConfig = (config) => CFG().toWireConfig(config);
 
     function cleanEffects(effects) {
         const source = effects && typeof effects === 'object' ? effects : {};
@@ -264,7 +239,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};
         const prompts = usesLegacyDefaultPrompts(source.prompts) ? DEFAULT_PROMPTS : source.prompts;
-        const config = usesLegacyDefaultConfig(source.config) ? STABLE_CONFIG_DEFAULTS : source.config;
+        const config = usesLegacyDefaultConfig(source.config) ? stableDefaults() : source.config;
         return {
             schemaVersion: 3,
             prompts: cleanPrompts(prompts),
@@ -418,6 +393,9 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
         applySceneSlot,
         cleanEffects,
         cleanModulation,
+        cleanConfig,
+        toWireConfig,
+        autoParamKeys: () => AUTO_PARAM_KEYS.slice(),
         cleanScene,
         snapshotScene: () => cleanScene(ensure()),
         scales: SCALES.slice(),

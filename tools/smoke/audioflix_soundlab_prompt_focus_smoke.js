@@ -19,6 +19,7 @@ const assert = (condition, message) => {
 
     const fixture = path.join(os.tmpdir(), `eveos-soundlab-focus-${process.pid}.html`);
     const modules = [
+        'audioflix.soundlab.config.js',
         'audioflix.soundlab.state.js',
         'audioflix.soundlab.ui.render.js',
         'audioflix.soundlab.ui.events.js',

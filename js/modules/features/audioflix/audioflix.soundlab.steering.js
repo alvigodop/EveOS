@@ -20,9 +20,18 @@ window.EveAudioflixSoundLabSteering = window.EveAudioflixSoundLabSteering || {};
         let appliedConfig = null;
 
         const signature = (prompts, config) => JSON.stringify([prompts, config]);
+        // A bpm or scale change needs resetContext(), which is an audible discontinuity. When a
+        // parameter is on auto it is absent from the payload, so "absent" must read as UNCHANGED —
+        // otherwise toggling auto, or any rebuild of the payload, would fire a reset every pass.
+        const changedHard = (next, prev, key) => {
+            const hasNext = next[key] !== undefined;
+            const hasPrev = prev[key] !== undefined;
+            if (!hasNext || !hasPrev) return false;
+            return String(next[key]) !== String(prev[key]);
+        };
         const hardTransition = (config) => !!appliedConfig && (
-            Number(config.bpm) !== Number(appliedConfig.bpm)
-            || String(config.scale || '') !== String(appliedConfig.scale || '')
+            changedHard(config, appliedConfig, 'bpm')
+            || changedHard(config, appliedConfig, 'scale')
         );
 
         async function apply(request, targetSession) {

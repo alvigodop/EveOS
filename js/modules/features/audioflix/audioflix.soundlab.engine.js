@@ -141,9 +141,6 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     function musicConfig(scene) {
         const config = scene?.config || soundState().config || {};
         const result = {
-            bpm: Number(config.bpm),
-            density: Number(config.density),
-            brightness: Number(config.brightness),
             guidance: Number(config.guidance),
             temperature: Number(config.temperature),
             topK: Number(config.topK),
@@ -152,6 +149,14 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             muteDrums: config.muteDrums === true,
             onlyBassAndDrums: config.onlyBassAndDrums === true
         };
+        // bpm / density / brightness are OMITTED when flagged auto. musicGenerationConfig is a
+        // partial config, so a field we never send is inferred from the text direction instead —
+        // sending 96 BPM while the direction asks for drum & bass fights the prompt. This is the
+        // one place the payload is built, so it is the only place the omission belongs.
+        const auto = (config.autoParams && typeof config.autoParams === 'object') ? config.autoParams : {};
+        if (auto.bpm !== true) result.bpm = Number(config.bpm);
+        if (auto.density !== true) result.density = Number(config.density);
+        if (auto.brightness !== true) result.brightness = Number(config.brightness);
         if (config.scale && config.scale !== 'SCALE_UNSPECIFIED') result.scale = config.scale;
         if (Number(config.seed) > 0) result.seed = Number(config.seed);
         return result;
@@ -391,6 +396,9 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         resetContext,
         applySteering,
         queueSteering,
+        // Exposed so tests can assert the exact payload shape (notably that an auto parameter is
+        // absent) without needing a live Lyria session.
+        buildMusicConfig: (scene) => musicConfig(scene),
         applyOutputRoute,
         applyEffects,
         applyScene,

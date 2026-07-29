@@ -18,6 +18,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
     staticContracts();
     const fixture = path.join(os.tmpdir(), `eveos-soundlab-${process.pid}.html`);
     const modules = [
+        path.join(AUDIOFLIX, 'audioflix.soundlab.config.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.state.js'),
         path.join(AUDIOFLIX, 'audioflix.capture.processor.src.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),

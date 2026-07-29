@@ -23,6 +23,7 @@ if (!apiKey) {
 (async () => {
     const fixture = path.join(os.tmpdir(), `eveos-soundlab-live-${process.pid}.html`);
     const modules = [
+        path.join(AUDIOFLIX, 'audioflix.soundlab.config.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.state.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),
         GEMINI_FAILURE,

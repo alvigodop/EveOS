@@ -20,13 +20,22 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
         return value === true ? ' checked' : '';
     }
 
-    function rangeField(label, key, value, min, max, step, detail, controlView) {
+    // `auto` is only passed for the parameters Lyria can infer from the text direction — bpm,
+    // density and brightness. When on, the slider is disabled and its value is not sent at all, so
+    // the readout shows "auto" rather than a number that is no longer in effect.
+    function rangeField(label, key, value, min, max, step, detail, controlView, auto) {
         const knob = controlView === 'knobs';
+        const autoable = auto !== undefined;
+        const isAuto = auto === true;
         const progress = Math.max(0, Math.min(1, (Number(value) - min) / (max - min || 1)));
         const input = `<input type="range" min="${min}" max="${max}" step="${step}" value="${esc(value)}"
-            data-sf-field="config" data-sf-config="${esc(key)}" aria-label="${esc(label)}">`;
-        return `<label class="sonic-forge-control${knob ? ' is-knob' : ''}">
-            <span><b>${esc(label)}</b><output data-sf-output="${esc(key)}">${esc(value)}</output></span>
+            data-sf-field="config" data-sf-config="${esc(key)}" aria-label="${esc(label)}"${isAuto ? ' disabled' : ''}>`;
+        const autoToggle = autoable ? `<button type="button" class="sonic-forge-auto${isAuto ? ' is-active' : ''}"
+            data-af-action="soundlab-toggle-auto" data-sf-auto="${esc(key)}"
+            title="Let the model choose ${esc(label.toLowerCase())} from your prompt"
+            aria-pressed="${isAuto ? 'true' : 'false'}">auto</button>` : '';
+        return `<label class="sonic-forge-control${knob ? ' is-knob' : ''}${isAuto ? ' is-auto' : ''}">
+            <span><b>${esc(label)}</b>${autoToggle}<output data-sf-output="${esc(key)}">${isAuto ? 'auto' : esc(value)}</output></span>
             ${knob ? `<span class="sonic-forge-knob-shell" style="--sf-knob:${progress}">${input}</span>` : input}
             ${detail ? `<small>${esc(detail)}</small>` : ''}
         </label>`;
@@ -94,6 +103,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
 
     function renderConfig(soundLab) {
         const config = soundLab.config || {};
+        const auto = config.autoParams || {};
         const scales = window.EveAudioflixSoundLabState?.scales || [];
         return `<section class="sonic-forge-block sonic-forge-generation">
             <header><div><span class="sonic-forge-eyebrow">Steering</span><h3>Generation Controls</h3>
@@ -105,9 +115,9 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 </div>
             </header>
             <div class="sonic-forge-controls-grid is-${esc(soundLab.controlView)}">
-                ${rangeField('Tempo', 'bpm', config.bpm, 60, 200, 1, 'BPM', soundLab.controlView)}
-                ${rangeField('Density', 'density', config.density, 0, 1, 0.01, '', soundLab.controlView)}
-                ${rangeField('Brightness', 'brightness', config.brightness, 0, 1, 0.01, '', soundLab.controlView)}
+                ${rangeField('Tempo', 'bpm', config.bpm, 60, 200, 1, 'BPM', soundLab.controlView, auto.bpm)}
+                ${rangeField('Density', 'density', config.density, 0, 1, 0.01, '', soundLab.controlView, auto.density)}
+                ${rangeField('Brightness', 'brightness', config.brightness, 0, 1, 0.01, '', soundLab.controlView, auto.brightness)}
                 ${rangeField('Guidance', 'guidance', config.guidance, 0, 6, 0.1, '', soundLab.controlView)}
                 ${rangeField('Temperature', 'temperature', config.temperature, 0, 3, 0.05, '', soundLab.controlView)}
                 ${rangeField('Top K', 'topK', config.topK, 1, 1000, 1, '', soundLab.controlView)}

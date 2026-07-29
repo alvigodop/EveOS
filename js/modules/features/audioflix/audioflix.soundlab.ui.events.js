@@ -157,6 +157,19 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
             const promptControlView = target.dataset.sfView === 'sliders' ? 'sliders' : 'knobs';
             labState()?.update?.({ promptControlView }, 'audioflix-soundlab-prompt-view');
             return { rerender: true };
+        } else if (action === 'soundlab-toggle-auto') {
+            // Flip one parameter between a pinned number and model-inferred. Steering strips auto'd
+            // keys from the payload, so this only has to record the intent and re-steer.
+            // Deliberately NOT data-sf-config: that attribute identifies the slider, and reusing it
+            // here made querySelector('[data-sf-config="bpm"]') resolve to this button instead.
+            const key = target.dataset.sfAuto;
+            const current = labState()?.ensure?.()?.config || {};
+            const autoParams = Object.assign({}, current.autoParams);
+            if (!(key in autoParams)) return null;
+            autoParams[key] = !autoParams[key];
+            labState()?.update?.({ config: Object.assign({}, current, { autoParams }) }, 'audioflix-soundlab-auto-param');
+            engine()?.queueSteering?.();
+            return { rerender: true };
         } else if (action === 'soundlab-remove-prompt') {
             labState()?.removePrompt?.(target.dataset.sfPrompt);
             engine()?.queueSteering?.();
