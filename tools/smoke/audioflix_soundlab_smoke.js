@@ -403,8 +403,8 @@ function staticContracts() {
             'Sonic Forge exposes Gemini Link credential status without a second key editor'
         );
         assert(result.hasTitle && result.hasRecording && result.hasImport, 'Sonic Forge workbench renders all core tools');
-        assert(['frequency', 'waveform', 'radial', 'spectrogram']
-            .every((mode) => result.visualModes.includes(mode)), 'all visualizer modes are available');
+        assert(result.visualModes.join(',') === 'spectrum,waveform,radial,spectrogram,frequency-linear',
+            'log spectrum is primary and the original linear frequency view remains available last');
         assert(
             result.controlView === 'knobs' && result.generationKnobCount === 6,
             'generation knob view is functional and persisted'

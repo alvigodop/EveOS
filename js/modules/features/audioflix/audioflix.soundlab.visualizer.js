@@ -15,6 +15,10 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
     let visible = false;
     let spectrum = null;
     let waveform = null;
+    let frequencyBands = null;
+    let spectrumPeaks = null;
+    let sampleRate = 48000;
+    let lastMode = '';
     let spectrogram = null;
     let spectrogramContext = null;
 
@@ -62,20 +66,77 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         }
     }
 
+    function spectrumAt(position) {
+        const lower = Math.max(1, Math.min(spectrum.length - 1, Math.floor(position)));
+        const upper = Math.min(spectrum.length - 1, lower + 1);
+        const blend = Math.max(0, Math.min(1, position - lower));
+        return (spectrum[lower] * (1 - blend) + spectrum[upper] * blend) / 255;
+    }
+
+    function aggregateSpectrum(lowerBin, upperBin) {
+        if (upperBin - lowerBin < 1) return spectrumAt((lowerBin + upperBin) / 2);
+        const start = Math.max(1, Math.floor(lowerBin));
+        const end = Math.min(spectrum.length - 1, Math.ceil(upperBin));
+        let peak = 0;
+        let squares = 0;
+        let count = 0;
+        for (let index = start; index <= end; index += 1) {
+            const level = spectrum[index] / 255;
+            peak = Math.max(peak, level);
+            squares += level * level;
+            count += 1;
+        }
+        const rms = count ? Math.sqrt(squares / count) : 0;
+        return Math.min(1, rms * 0.72 + peak * 0.28);
+    }
+
+    function prepareLogBands(count = 96) {
+        if (!frequencyBands || frequencyBands.length !== count) {
+            frequencyBands = new Float32Array(count);
+            spectrumPeaks = new Float32Array(count);
+        }
+        const binHz = sampleRate / Math.max(2, spectrum.length * 2);
+        const minimumHz = Math.max(24, binHz);
+        const maximumHz = Math.max(minimumHz * 2, Math.min(20000, sampleRate / 2 - binHz));
+        const frequencyRange = maximumHz / minimumHz;
+        for (let index = 0; index < count; index += 1) {
+            const lowerHz = minimumHz * Math.pow(frequencyRange, index / count);
+            const upperHz = minimumHz * Math.pow(frequencyRange, (index + 1) / count);
+            const rawLevel = aggregateSpectrum(lowerHz / binHz, upperHz / binHz);
+            const position = (index + 0.5) / count;
+            const level = Math.min(1, Math.pow(rawLevel, 0.82) * (0.92 + position * 0.18));
+            frequencyBands[index] = level;
+            spectrumPeaks[index] = Math.max(level, spectrumPeaks[index] - 0.018);
+        }
+    }
+
+    function bandAt(position) {
+        const scaled = Math.max(0, Math.min(1, position)) * (frequencyBands.length - 1);
+        const lower = Math.floor(scaled);
+        const upper = Math.min(frequencyBands.length - 1, lower + 1);
+        return frequencyBands[lower] * (1 - (scaled - lower))
+            + frequencyBands[upper] * (scaled - lower);
+    }
+
     function prepareData(node) {
         const bins = node?.frequencyBinCount || 1024;
+        const timeBins = node?.fftSize || bins * 2;
         if (!spectrum || spectrum.length !== bins) spectrum = new Uint8Array(bins);
-        if (!waveform || waveform.length !== bins) waveform = new Uint8Array(bins);
+        if (!waveform || waveform.length !== timeBins) waveform = new Uint8Array(timeBins);
         if (node) {
+            sampleRate = Number(node.context?.sampleRate) || sampleRate;
             node.getByteFrequencyData(spectrum);
             node.getByteTimeDomainData(waveform);
         } else {
             const tick = performance.now() / 550;
             for (let index = 0; index < bins; index += 1) {
                 spectrum[index] = Math.max(0, 80 + Math.sin(tick + index / 13) * 35 - index / 15);
+            }
+            for (let index = 0; index < timeBins; index += 1) {
                 waveform[index] = 128 + Math.sin(tick * 2 + index / 19) * 9;
             }
         }
+        prepareLogBands(Math.min(96, bins));
     }
 
     function backdrop(colors) {
@@ -99,7 +160,27 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         context.globalAlpha = 1;
     }
 
-    function drawFrequency(colors) {
+    function drawSpectrum(colors) {
+        const width = canvas.width;
+        const height = canvas.height;
+        const count = frequencyBands.length;
+        const gap = Math.max(2, width * 0.0025);
+        const barWidth = (width - gap * (count - 1)) / count;
+        for (let index = 0; index < count; index += 1) {
+            const sample = frequencyBands[index];
+            const barHeight = Math.max(3, sample * height * 0.82);
+            const x = index * (barWidth + gap);
+            context.fillStyle = colors[index % colors.length];
+            context.globalAlpha = 0.32 + sample * 0.68;
+            context.fillRect(x, height - barHeight, barWidth, barHeight);
+            const peakY = height - spectrumPeaks[index] * height * 0.82;
+            context.globalAlpha = 0.42 + spectrumPeaks[index] * 0.45;
+            context.fillRect(x, Math.max(0, peakY), barWidth, Math.max(1, height / 180));
+        }
+        context.globalAlpha = 1;
+    }
+
+    function drawLinearFrequency(colors) {
         const width = canvas.width;
         const height = canvas.height;
         const count = Math.min(96, spectrum.length);
@@ -118,6 +199,14 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
     function drawWaveform(color) {
         const width = canvas.width;
         const height = canvas.height;
+        context.beginPath();
+        context.moveTo(0, height / 2);
+        context.lineTo(width, height / 2);
+        context.strokeStyle = color;
+        context.globalAlpha = 0.16;
+        context.lineWidth = Math.max(1, width / 900);
+        context.stroke();
+        context.globalAlpha = 1;
         context.beginPath();
         waveform.forEach((sample, index) => {
             const x = index / (waveform.length - 1) * width;
@@ -143,7 +232,7 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         context.beginPath();
         for (let index = 0; index <= points; index += 1) {
             const angle = (index / points) * Math.PI * 2 - Math.PI / 2;
-            const sample = spectrum[Math.floor(index % points * spectrum.length / points)] / 255;
+            const sample = bandAt((index % points) / Math.max(1, points - 1));
             const distance = radius + sample * radius * 1.25;
             const x = centerX + Math.cos(angle) * distance;
             const y = centerY + Math.sin(angle) * distance;
@@ -158,7 +247,17 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         context.shadowColor = colors[0];
         context.shadowBlur = 22;
         context.stroke();
+        context.globalAlpha = 0.08;
+        context.fillStyle = colors[0];
+        context.fill();
+        context.globalAlpha = 1;
         context.shadowBlur = 0;
+    }
+
+    function clearSpectrogram() {
+        if (!spectrogramContext || !spectrogram) return;
+        spectrogramContext.fillStyle = '#02080b';
+        spectrogramContext.fillRect(0, 0, spectrogram.width, spectrogram.height);
     }
 
     function drawSpectrogram(colors) {
@@ -171,7 +270,7 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         colors.forEach((color, index) => gradient.addColorStop(0.25 + index * 0.65 / colors.length, color));
         gradient.addColorStop(1, '#fff6d5');
         for (let y = 0; y < height; y += 3) {
-            const sample = spectrum[Math.floor((1 - y / height) * (spectrum.length - 1))] / 255;
+            const sample = bandAt(1 - y / Math.max(1, height - 1));
             spectrogramContext.globalAlpha = Math.max(0.08, sample);
             spectrogramContext.fillStyle = gradient;
             spectrogramContext.fillRect(width - 2, y, 2, 3);
@@ -190,12 +289,17 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         const node = analyser();
         prepareData(node);
         const colors = palette();
-        const mode = state().visualizerMode || 'frequency';
+        const mode = state().visualizerMode || 'spectrum';
+        if (mode !== lastMode) {
+            if (mode === 'spectrogram') clearSpectrogram();
+            lastMode = mode;
+        }
         if (mode !== 'spectrogram') backdrop(colors.colors);
         if (mode === 'waveform') drawWaveform(colors.mixed);
         else if (mode === 'radial') drawRadial(colors.colors);
         else if (mode === 'spectrogram') drawSpectrogram(colors.colors);
-        else drawFrequency(colors.colors);
+        else if (mode === 'frequency-linear') drawLinearFrequency(colors.colors);
+        else drawSpectrum(colors.colors);
         requestFrame();
     }
 

@@ -7,7 +7,14 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
     if (ns.ready) return;
 
     const COLORS = ['#20e3b2', '#67b7ff', '#ffba55', '#ff6f91', '#c798ff', '#9fe870'];
-    const MODES = ['frequency', 'waveform', 'radial', 'spectrogram'];
+    const MODE_LABELS = {
+        spectrum: 'Spectrum (Log)',
+        waveform: 'Waveform',
+        radial: 'Radial Spectrum',
+        spectrogram: 'Spectrogram',
+        'frequency-linear': 'Frequency (Linear Legacy)'
+    };
+    const MODES = Object.keys(MODE_LABELS);
     const SCALES = [
         'SCALE_UNSPECIFIED', 'C_MAJOR_A_MINOR', 'D_FLAT_MAJOR_B_FLAT_MINOR',
         'D_MAJOR_B_MINOR', 'E_FLAT_MAJOR_C_MINOR', 'E_MAJOR_D_FLAT_MINOR',
@@ -86,6 +93,11 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
         return result.length ? result : DEFAULT_PROMPTS.map(cleanPrompt);
     }
 
+    function normalizeVisualizerMode(value) {
+        if (value === 'frequency') return 'spectrum';
+        return MODES.includes(value) ? value : 'spectrum';
+    }
+
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};
         return {
@@ -97,7 +109,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             controlView: ['sliders', 'knobs'].includes(source.controlView) ? source.controlView : 'sliders',
             promptControlView: ['sliders', 'knobs'].includes(source.promptControlView)
                 ? source.promptControlView : 'knobs',
-            visualizerMode: MODES.includes(source.visualizerMode) ? source.visualizerMode : 'frequency',
+            visualizerMode: normalizeVisualizerMode(source.visualizerMode),
             masterVolume: clamp(source.masterVolume, 0, 1, 0.78),
             bufferSeconds: clamp(source.bufferSeconds, 0.25, 2, 0.65),
             midiEnabled: source.midiEnabled === true,
@@ -117,7 +129,8 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             || typeof root.soundLab !== 'object'
             || root.soundLab.schemaVersion !== 2
             || !['sliders', 'knobs'].includes(root.soundLab.controlView)
-            || !['sliders', 'knobs'].includes(root.soundLab.promptControlView)) {
+            || !['sliders', 'knobs'].includes(root.soundLab.promptControlView)
+            || !MODES.includes(root.soundLab.visualizerMode)) {
             root.soundLab = normalize(root.soundLab);
         }
         return root.soundLab;
@@ -210,6 +223,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
         loadPreset,
         removePreset,
         scales: SCALES.slice(),
-        modes: MODES.slice()
+        modes: MODES.slice(),
+        modeLabel: (mode) => MODE_LABELS[mode] || String(mode || '')
     });
 })();

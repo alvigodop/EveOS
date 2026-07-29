@@ -238,7 +238,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 <canvas data-sf-visualizer aria-label="Live Sonic Forge audio visualization"></canvas>
                 <div class="sonic-forge-visual-controls">
                     <select data-sf-field="visualizer-mode" aria-label="Visualizer mode">
-                        ${window.EveAudioflixSoundLabState.modes.map((mode) => `<option value="${mode}"${selected(soundLab.visualizerMode, mode)}>${esc(mode)}</option>`).join('')}
+                        ${window.EveAudioflixSoundLabState.modes.map((mode) => `<option value="${mode}"${selected(soundLab.visualizerMode, mode)}>${esc(window.EveAudioflixSoundLabState.modeLabel(mode))}</option>`).join('')}
                     </select>
                     <label>Volume <input type="range" min="0" max="1" step="0.01" value="${esc(soundLab.masterVolume)}" data-sf-field="master-volume"></label>
                     <span data-sf-session-time title="Current session elapsed time and generated audio received. Lyria does not expose a fixed session countdown.">00:00 live · 00:00 generated</span>
