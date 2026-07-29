@@ -205,6 +205,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
 
     function renderHero(soundLab, engineStatus) {
         const route = window.EveAudioflixState?.ensure?.();
+        const hasCredential = !!window.EveAudioflixSoundLabEngine?.getApiKey?.();
         const routeLabel = route?.nativeBridgeEnabled
             ? `Native: ${route.nativeOutputLabel || 'selected output'}`
             : (route?.preferredSinkLabel || 'Browser default output');
@@ -218,10 +219,10 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 </div>
             </div>
             <div class="sonic-forge-transport">
-                <label class="sonic-forge-key"><span>Gemini Link credential</span>
-                    <input type="password" autocomplete="off" placeholder="${window.EveAudioflixSoundLabEngine?.getApiKey?.() ? 'Stored for this browser session' : 'Required for Lyria RealTime'}"
-                        data-sf-field="api-key">
-                </label>
+                <div class="sonic-forge-credential-note ${hasCredential ? 'is-ready' : 'is-missing'}">
+                    <span>Gemini Link credential</span>
+                    <b>${hasCredential ? 'Available from Session Controls' : 'Set it in Search Monitor Session Controls'}</b>
+                </div>
                 <div class="sonic-forge-button-row">
                     <button type="button" data-af-action="${engineStatus.connected ? 'soundlab-disconnect' : 'soundlab-connect'}"
                         data-sf-connect>${engineStatus.connected ? 'Disconnect' : 'Connect'}</button>
@@ -229,9 +230,8 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                         data-sf-play>${engineStatus.playing ? 'Pause' : 'Generate'}</button>
                     <button type="button" data-af-action="soundlab-stop">Stop</button>
                     <button type="button" data-af-action="soundlab-reset">Reset Context</button>
-                    <button type="button" data-af-action="soundlab-clear-key">Clear Key</button>
                 </div>
-                <small>The credential saved in Gemini Link is reused here for this browser session. This field is an optional session override; credentials and generated audio never enter datapack backups.</small>
+                <small>Sonic Forge reuses the credential managed by Gemini Link. Credentials and generated audio never enter datapack backups.</small>
             </div>
             <div class="sonic-forge-route"><span>Output route</span><b>${esc(routeLabel)}</b></div>
             <div class="sonic-forge-visual">

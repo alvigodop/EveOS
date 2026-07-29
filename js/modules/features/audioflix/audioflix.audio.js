@@ -262,7 +262,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             }
         }
 
-        if (urlPlayback?.shouldPreferBrowser?.(safeItem)) {
+        const resolvedProvider = window.EveAudioflixUrlProviders?.providerFor?.(safeItem.url);
+        if (resolvedProvider && resolvedProvider !== 'direct'
+            && urlPlayback?.shouldPreferBrowser?.(safeItem)) {
             return await playUrlItem(safeItem);
         }
 

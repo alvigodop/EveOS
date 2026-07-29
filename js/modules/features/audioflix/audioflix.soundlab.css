@@ -184,16 +184,32 @@
     background: rgba(0, 0, 0, 0.23);
 }
 
-.sonic-forge-key {
-    display: grid;
-    gap: 6px;
+.sonic-forge-credential-note {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 6px 12px;
+    padding: 9px 11px;
+    border: 1px solid rgba(128, 255, 196, 0.2);
+    border-radius: 10px;
+    background: rgba(128, 255, 196, 0.05);
 }
 
-.sonic-forge-key span,
+.sonic-forge-credential-note span,
 .sonic-forge-recording label span {
     color: rgba(224, 240, 243, 0.68);
     font-size: 0.72rem;
     letter-spacing: 0.04em;
+}
+
+.sonic-forge-credential-note b {
+    color: #a9ffd4;
+    font-size: 0.75rem;
+    text-align: right;
+}
+
+.sonic-forge-credential-note.is-missing b {
+    color: #ffb0c1;
 }
 
 .sonic-forge-transport small {

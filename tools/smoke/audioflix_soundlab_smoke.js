@@ -179,7 +179,8 @@ function staticContracts() {
             };
             window.EveAudioflixGenAI = {
                 GoogleGenAI: class {
-                    constructor() {
+                    constructor(options) {
+                        window.__soundLabApiVersion = options?.apiVersion;
                         this.live = { music: { connect: (options) => {
                             new WebSocket('wss://generativelanguage.googleapis.com//ws/test');
                             queueMicrotask(() => options.callbacks.onmessage({ setupComplete: {} }));
@@ -208,8 +209,12 @@ function staticContracts() {
                 sessionKeyBeforeClear,
                 sessionKeyAfterClear: sessionStorage.getItem('eveAudioflixSoundLabApiKey'),
                 normalizedSocketUrl,
+                apiVersion: window.__soundLabApiVersion,
                 leakedCredential: serialized.includes('soundlab-session-test'),
                 hasTitle: host.querySelector('h2')?.textContent === 'Sonic Forge',
+                hasCredentialEditor: !!host.querySelector('[data-sf-field="api-key"]'),
+                hasClearKey: !!host.querySelector('[data-af-action="soundlab-clear-key"]'),
+                credentialNotice: host.querySelector('.sonic-forge-credential-note')?.textContent || '',
                 visualModes,
                 generationKnobCount,
                 promptKnobCount,
@@ -236,7 +241,13 @@ function staticContracts() {
             result.normalizedSocketUrl === 'wss://generativelanguage.googleapis.com/ws/test',
             'Lyria SDK double-slash WebSocket paths are normalized before connection'
         );
+        assert(result.apiVersion === 'v1alpha', 'Lyria uses the current v1alpha Live Music endpoint');
         assert(result.leakedCredential === false, 'session credential never enters datapack state');
+        assert(
+            !result.hasCredentialEditor && !result.hasClearKey
+                && result.credentialNotice.includes('Session Controls'),
+            'Sonic Forge exposes Gemini Link credential status without a second key editor'
+        );
         assert(result.hasTitle && result.hasRecording && result.hasImport, 'Sonic Forge workbench renders all core tools');
         assert(['frequency', 'waveform', 'radial', 'spectrogram']
             .every((mode) => result.visualModes.includes(mode)), 'all visualizer modes are available');

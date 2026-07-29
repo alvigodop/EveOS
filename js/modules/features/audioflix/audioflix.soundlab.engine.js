@@ -311,11 +311,11 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     async function connect() {
         if (session) return session;
         const apiKey = getApiKey();
-        if (!apiKey) throw new Error('Add a Gemini API key for this session before connecting.');
+        if (!apiKey) throw new Error('Save a Gemini API key in Search Monitor > Session Controls before connecting.');
         publish({ phase: 'connecting', message: 'Connecting Sonic Forge...', filteredPrompt: '' });
         await ensureAudio();
         const sdk = await loadSdk();
-        const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: 'v1beta' });
+        const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: 'v1alpha' });
         let timeout = 0;
         let connectionExpired = false;
         const setup = new Promise((resolve) => {

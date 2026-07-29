@@ -69,10 +69,6 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
     function handleInput(target) {
         const field = target?.dataset?.sfField;
         if (!field) return false;
-        if (field === 'api-key') {
-            engine()?.setApiKey?.(target.value);
-            return true;
-        }
         if (field === 'prompt-text') return true;
         if (field.startsWith('prompt-')) return applyPrompt(target);
         if (field === 'config' && target.type === 'range') return applyConfig(target);
@@ -139,14 +135,7 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         else if (action === 'soundlab-pause') await engine()?.pause?.();
         else if (action === 'soundlab-stop') await engine()?.stop?.();
         else if (action === 'soundlab-reset') engine()?.resetContext?.();
-        else if (action === 'soundlab-clear-key') {
-            engine()?.setApiKey?.('');
-            const input = target.closest('[data-audioflix-soundlab]')?.querySelector('[data-sf-field="api-key"]');
-            if (input) {
-                input.value = '';
-                input.placeholder = 'Required for Lyria RealTime';
-            }
-        } else if (action === 'soundlab-add-prompt') {
+        else if (action === 'soundlab-add-prompt') {
             labState()?.addPrompt?.();
             return { rerender: true };
         } else if (action === 'soundlab-control-view') {
