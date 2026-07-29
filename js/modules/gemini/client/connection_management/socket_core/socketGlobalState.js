@@ -47,6 +47,7 @@ window.SocketGlobalState = {
     credentialRequired: false,
     apiPolicyBlocked: false,
     apiKeyInvalid: false,
+    credentialStatusMessage: '',
 
     previewModelCooldownStart: null,
     geminiApiReady: false,
@@ -69,6 +70,7 @@ window.SocketGlobalState = {
         this.geminiApiReady = false;
         this.apiPolicyBlocked = false;
         this.apiKeyInvalid = false;
+        this.credentialStatusMessage = '';
         this.serverOfflinePauseActive = false;
         this.lastReconnectPauseNoticeAt = 0;
     }

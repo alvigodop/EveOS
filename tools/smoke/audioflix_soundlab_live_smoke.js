@@ -5,6 +5,10 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const AUDIOFLIX = path.join(ROOT, 'js', 'modules', 'features', 'audioflix');
+const GEMINI_FAILURE = path.join(
+    ROOT, 'js', 'modules', 'gemini', 'client', 'connection_management',
+    'socket_core', 'geminiApiFailure.js'
+);
 const apiKey = String(process.env.EVEOS_GEMINI_API_KEY || '').trim();
 const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
 const failAfter = (milliseconds) => new Promise((_, reject) => {
@@ -19,10 +23,12 @@ if (!apiKey) {
 (async () => {
     const fixture = path.join(os.tmpdir(), `eveos-soundlab-live-${process.pid}.html`);
     const modules = [
-        'audioflix.soundlab.state.js',
-        'audioflix.soundlab.codec.js',
-        'audioflix.soundlab.engine.js'
-    ].map((name) => `<script src="${fileUrl(path.join(AUDIOFLIX, name))}"></script>`).join('');
+        path.join(AUDIOFLIX, 'audioflix.soundlab.state.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),
+        GEMINI_FAILURE,
+        path.join(AUDIOFLIX, 'audioflix.soundlab.sdk.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js')
+    ].map((file) => `<script src="${fileUrl(file)}"></script>`).join('');
     fs.writeFileSync(fixture, `<!doctype html><html><head>
         <base href="${fileUrl(ROOT)}/">
     </head><body>
@@ -45,6 +51,23 @@ if (!apiKey) {
         args: ['--autoplay-policy=no-user-gesture-required']
     });
     const page = await browser.newPage();
+    const diagnostics = [];
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Network.enable');
+    const summarizeFrame = (direction, payload) => {
+        try {
+            const parsed = JSON.parse(payload);
+            const keys = Object.keys(parsed);
+            const chunks = parsed.serverContent?.audioChunks?.length || 0;
+            diagnostics.push(`${direction}:${keys.join(',')}${chunks ? `(${chunks} chunks)` : ''}`);
+        } catch {
+            diagnostics.push(`${direction}:non-json`);
+        }
+    };
+    cdp.on('Network.webSocketFrameSent', ({ response }) => summarizeFrame('out', response.payloadData));
+    cdp.on('Network.webSocketFrameReceived', ({ response }) => summarizeFrame('in', response.payloadData));
+    cdp.on('Network.webSocketFrameError', ({ errorMessage }) => diagnostics.push(`frame-error:${errorMessage}`));
+    cdp.on('Network.webSocketClosed', () => diagnostics.push('closed'));
     try {
         await page.goto(fileUrl(fixture), { waitUntil: 'load' });
         const generationRun = page.evaluate(async (credential) => {
@@ -82,7 +105,10 @@ if (!apiKey) {
                 engine.setApiKey('');
             }
         }, apiKey);
-        const result = await Promise.race([generationRun, failAfter(55000)]);
+        const result = await Promise.race([generationRun, failAfter(55000)]).catch((error) => {
+            const trail = diagnostics.slice(-20).join(' > ') || 'no WebSocket frames observed';
+            throw new Error(`${error?.message || error} | ${trail}`);
+        });
         if (!result.playing || !result.hasAudioContext || result.bufferedSeconds <= 0) {
             throw new Error(`Invalid live generation state: ${JSON.stringify(result)}`);
         }

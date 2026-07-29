@@ -5,6 +5,9 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const AUDIOFLIX = path.join(ROOT, 'js', 'modules', 'features', 'audioflix');
+const GEMINI_SOCKET = path.join(
+    ROOT, 'js', 'modules', 'gemini', 'client', 'connection_management', 'socket_core'
+);
 const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
 const assert = (condition, message) => {
     if (!condition) throw new Error(`ASSERT FAILED: ${message}`);
@@ -14,6 +17,7 @@ function staticContracts() {
     const html = fs.readFileSync(path.join(ROOT, 'EveOS.html'), 'utf8');
     const ui = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.js'), 'utf8');
     const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
+    const failureApi = fs.readFileSync(path.join(GEMINI_SOCKET, 'geminiApiFailure.js'), 'utf8');
     const credentials = fs.readFileSync(
         path.join(ROOT, 'js', 'modules', 'gemini', 'server_control', 'geminiCredentialWorkflow.js'),
         'utf8'
@@ -25,9 +29,11 @@ function staticContracts() {
     assert(order.every((index, position) => !position || index > order[position - 1]), 'Sonic Forge tab order is stable');
     [
         'audioflix.soundlab.state.js',
+        'audioflix.soundlab.sdk.js',
         'audioflix.soundlab.engine.js',
         'audioflix.soundlab.presets.js',
-        'audioflix.soundlab.ui.js'
+        'audioflix.soundlab.ui.js',
+        'geminiApiFailure.js'
     ].forEach((name) => assert(html.includes(name), `${name} is loaded by EveOS`));
     const steering = engine.slice(
         engine.indexOf('async function applySteering'),
@@ -40,14 +46,13 @@ function staticContracts() {
     assert(
         engine.includes('Promise.race([connection, transportFailure, deadline])')
             && engine.includes('connectionExpired')
-            && engine.includes('connectWithNormalizedWebSocket'),
+            && engine.includes('EveGeminiApiFailure?.connectWithNormalizedWebSocket')
+            && failureApi.includes('connectWithNormalizedWebSocket'),
         'Lyria connection has a deadline, closes late sessions, and normalizes its SDK WebSocket'
     );
     assert(!engine.includes('setupReject'), 'Lyria setup cannot leave a rejected promise after transport failure');
-    assert(
-        engine.includes("audioFormat: 'pcm16'") && engine.includes('sampleRateHz: SAMPLE_RATE'),
-        'Lyria requests the PCM16 48 kHz format used by the playback buffer'
-    );
+    assert(!engine.includes('audioFormat:') && !engine.includes('sampleRateHz:'),
+        'Lyria sends only fields supported by the deployed Live Music generation config');
     assert(bridge.includes('/api/audioflix/save-soundlab-recording'), 'recording save route is registered');
     assert(
         credentials.includes("sessionStorage.setItem('eveAudioflixSoundLabApiKey', normalizedKey)"),
@@ -59,17 +64,19 @@ function staticContracts() {
     staticContracts();
     const fixture = path.join(os.tmpdir(), `eveos-soundlab-${process.pid}.html`);
     const modules = [
-        'audioflix.soundlab.state.js',
-        'audioflix.soundlab.codec.js',
-        'audioflix.soundlab.engine.js',
-        'audioflix.soundlab.visualizer.js',
-        'audioflix.soundlab.recording.js',
-        'audioflix.soundlab.midi.js',
-        'audioflix.soundlab.presets.js',
-        'audioflix.soundlab.ui.render.js',
-        'audioflix.soundlab.ui.events.js',
-        'audioflix.soundlab.ui.js'
-    ].map((name) => `<script src="${fileUrl(path.join(AUDIOFLIX, name))}"></script>`).join('');
+        path.join(AUDIOFLIX, 'audioflix.soundlab.state.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),
+        path.join(GEMINI_SOCKET, 'geminiApiFailure.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.sdk.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.recording.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.midi.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.presets.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.ui.render.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.ui.events.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.ui.js')
+    ].map((file) => `<script src="${fileUrl(file)}"></script>`).join('');
     fs.writeFileSync(fixture, `<!doctype html><html><body>
         <main id="host"></main>
         <script>
@@ -174,14 +181,23 @@ function staticContracts() {
             };
             const fakeSession = {
                 setWeightedPrompts: async () => true,
-                setMusicGenerationConfig: async () => true,
-                close: () => true
+                setMusicGenerationConfig: async (value) => {
+                    window.__soundLabMusicConfig = value?.musicGenerationConfig;
+                    return true;
+                },
+                close: () => queueMicrotask(() => window.__soundLabFirstCallbacks?.onclose({
+                    code: 1000,
+                    reason: 'Intentional disconnect'
+                }))
             };
+            window.__soundLabConnectCalls = 0;
             window.EveAudioflixGenAI = {
                 GoogleGenAI: class {
                     constructor(options) {
                         window.__soundLabApiVersion = options?.apiVersion;
                         this.live = { music: { connect: (options) => {
+                            window.__soundLabConnectCalls += 1;
+                            window.__soundLabFirstCallbacks = options.callbacks;
                             new WebSocket('wss://generativelanguage.googleapis.com//ws/test');
                             queueMicrotask(() => options.callbacks.onmessage({ setupComplete: {} }));
                             return Promise.resolve(fakeSession);
@@ -189,9 +205,36 @@ function staticContracts() {
                     }
                 }
             };
-            await window.EveAudioflixSoundLabEngine.connect();
+            const connected = await Promise.all([
+                window.EveAudioflixSoundLabEngine.connect(),
+                window.EveAudioflixSoundLabEngine.connect()
+            ]);
             const normalizedSocketUrl = window.__soundLabSocketUrl;
+            const singleFlightConnect = connected[0] === connected[1]
+                && window.__soundLabConnectCalls === 1;
+            const musicConfig = window.__soundLabMusicConfig;
             await window.EveAudioflixSoundLabEngine.disconnect();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            const intentionalDisconnectStatus = window.EveAudioflixSoundLabEngine.getStatus();
+            window.EveAudioflixGenAI = {
+                GoogleGenAI: class {
+                    constructor(options) {
+                        this.live = { music: { connect: (connectOptions) => {
+                            queueMicrotask(() => connectOptions.callbacks.onclose({
+                                code: 1008,
+                                reason: 'The provided API key has an IP address restriction. The originating IP address is not allowed.'
+                            }));
+                            return new Promise(() => {});
+                        } } };
+                    }
+                }
+            };
+            let restrictedMessage = '';
+            try {
+                await window.EveAudioflixSoundLabEngine.connect();
+            } catch (error) {
+                restrictedMessage = String(error?.message || error);
+            }
             window.WebSocket = NativeWebSocket;
             delete window.EveAudioflixGenAI;
             const sessionKeyBeforeClear = sessionStorage.getItem('eveAudioflixSoundLabApiKey');
@@ -209,7 +252,11 @@ function staticContracts() {
                 sessionKeyBeforeClear,
                 sessionKeyAfterClear: sessionStorage.getItem('eveAudioflixSoundLabApiKey'),
                 normalizedSocketUrl,
+                singleFlightConnect,
+                musicConfig,
+                intentionalDisconnectStatus,
                 apiVersion: window.__soundLabApiVersion,
+                restrictedMessage,
                 leakedCredential: serialized.includes('soundlab-session-test'),
                 hasTitle: host.querySelector('h2')?.textContent === 'Sonic Forge',
                 hasCredentialEditor: !!host.querySelector('[data-sf-field="api-key"]'),
@@ -241,7 +288,23 @@ function staticContracts() {
             result.normalizedSocketUrl === 'wss://generativelanguage.googleapis.com/ws/test',
             'Lyria SDK double-slash WebSocket paths are normalized before connection'
         );
-        assert(result.apiVersion === 'v1alpha', 'Lyria uses the current v1alpha Live Music endpoint');
+        assert(result.singleFlightConnect, 'concurrent Lyria connect requests share one transport attempt');
+        assert(
+            result.intentionalDisconnectStatus.phase === 'idle'
+                && result.intentionalDisconnectStatus.message === 'Disconnected.',
+            'an intentional disconnect cannot be overwritten by its stale close callback'
+        );
+        assert(
+            !Object.hasOwn(result.musicConfig, 'audioFormat')
+                && !Object.hasOwn(result.musicConfig, 'sampleRateHz')
+                && !Object.hasOwn(result.musicConfig, 'scale'),
+            'default steering omits unsupported transport fields and the unspecified scale'
+        );
+        assert(result.apiVersion === 'v1alpha', 'Lyria uses the deployed Live Music WebSocket endpoint');
+        assert(
+            /ip allowlist/i.test(result.restrictedMessage),
+            'Lyria exposes actionable IP restriction diagnostics instead of a generic disconnect'
+        );
         assert(result.leakedCredential === false, 'session credential never enters datapack state');
         assert(
             !result.hasCredentialEditor && !result.hasClearKey

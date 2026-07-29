@@ -7,25 +7,17 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     if (ns.ready) return;
 
     const MODEL = 'models/lyria-realtime-exp';
+    const API_VERSION = 'v1alpha';
     const SAMPLE_RATE = 48000;
-    const SESSION_KEY = 'eveAudioflixSoundLabApiKey';
     const listeners = new Set();
     const sources = new Set();
-    let sdkPromise = null;
-    let context = null;
-    let mixBus = null;
-    let analyser = null;
-    let masterGain = null;
-    let outputGain = null;
-    let recordDestination = null;
-    let session = null;
-    let setupResolve = null;
-    let pending = [];
-    let nextStartTime = 0;
+    let context = null, mixBus = null, analyser = null;
+    let masterGain = null, outputGain = null, recordDestination = null;
+    let session = null, connectPromise = null;
+    let connectionToken = 0, pendingSocket = null;
+    let pending = [], nextStartTime = 0, steeringTimer = 0;
     let streamStarted = false;
-    let steeringTimer = 0;
-    let nativeSendChain = Promise.resolve();
-    let generation = 0;
+    let nativeSendChain = Promise.resolve(), generation = 0;
     let status = {
         phase: 'idle',
         message: 'Ready when you are.',
@@ -51,74 +43,11 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         return status;
     }
 
-    function loadSdk() {
-        if (window.EveAudioflixGenAI?.GoogleGenAI) return Promise.resolve(window.EveAudioflixGenAI);
-        if (sdkPromise) return sdkPromise;
-        sdkPromise = new Promise((resolve, reject) => {
-            const existing = document.querySelector('script[data-audioflix-genai-sdk]');
-            const script = existing || document.createElement('script');
-            const timeout = window.setTimeout(() => reject(new Error('Google GenAI SDK load timed out.')), 15000);
-            const finish = () => {
-                window.clearTimeout(timeout);
-                if (window.EveAudioflixGenAI?.GoogleGenAI) resolve(window.EveAudioflixGenAI);
-                else reject(new Error('Google GenAI SDK did not initialize.'));
-            };
-            script.addEventListener('load', finish, { once: true });
-            script.addEventListener('error', () => {
-                window.clearTimeout(timeout);
-                reject(new Error('Could not load the local Google GenAI SDK bundle.'));
-            }, { once: true });
-            if (!existing) {
-                script.dataset.audioflixGenaiSdk = '1';
-                script.src = new URL('js/vendor/audioflix-genai.js?v=2.13.0', document.baseURI).href;
-                document.head.appendChild(script);
-            }
-        }).catch((error) => {
-            sdkPromise = null;
-            throw error;
-        });
-        return sdkPromise;
-    }
-
     function getApiKey() {
-        try {
-            return String(sessionStorage.getItem(SESSION_KEY)
-                || localStorage.getItem('geminiApiKey')
-                || '').trim();
-        } catch {
-            return '';
-        }
+        return window.EveAudioflixSoundLabSdk?.getApiKey?.() || '';
     }
-
     function setApiKey(value) {
-        const key = String(value || '').trim();
-        try {
-            if (key) sessionStorage.setItem(SESSION_KEY, key);
-            else sessionStorage.removeItem(SESSION_KEY);
-        } catch {}
-        return !!key;
-    }
-
-    function connectWithNormalizedWebSocket(connect) {
-        const NativeWebSocket = window.WebSocket;
-        if (typeof NativeWebSocket !== 'function') return connect();
-        const NormalizedWebSocket = new Proxy(NativeWebSocket, {
-            construct(Target, args) {
-                const next = [...args];
-                next[0] = String(next[0] || '').replace(
-                    /^(wss?:\/\/[^/]+)\/+ws\//i,
-                    '$1/ws/'
-                );
-                return Reflect.construct(Target, next);
-            }
-        });
-        window.WebSocket = NormalizedWebSocket;
-        try {
-            // The SDK constructs its socket synchronously before its first await.
-            return connect();
-        } finally {
-            window.WebSocket = NativeWebSocket;
-        }
+        return window.EveAudioflixSoundLabSdk?.setApiKey?.(value) || false;
     }
 
     async function ensureAudio() {
@@ -179,14 +108,12 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             guidance: Number(config.guidance),
             temperature: Number(config.temperature),
             topK: Number(config.topK),
-            scale: config.scale,
             musicGenerationMode: config.musicGenerationMode,
-            audioFormat: 'pcm16',
-            sampleRateHz: SAMPLE_RATE,
             muteBass: config.muteBass === true,
             muteDrums: config.muteDrums === true,
             onlyBassAndDrums: config.onlyBassAndDrums === true
         };
+        if (config.scale && config.scale !== 'SCALE_UNSPECIFIED') result.scale = config.scale;
         if (Number(config.seed) > 0) result.seed = Number(config.seed);
         return result;
     }
@@ -279,7 +206,6 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     }
 
     function handleMessage(message) {
-        if (message?.setupComplete) setupResolve?.(true);
         if (message?.filteredPrompt) {
             const filtered = message.filteredPrompt;
             publish({
@@ -308,19 +234,23 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         });
     }
 
-    async function connect() {
-        if (session) return session;
+    async function connectAttempt(token) {
+        const isCurrent = () => token === connectionToken;
         const apiKey = getApiKey();
         if (!apiKey) throw new Error('Save a Gemini API key in Search Monitor > Session Controls before connecting.');
         publish({ phase: 'connecting', message: 'Connecting Sonic Forge...', filteredPrompt: '' });
         await ensureAudio();
-        const sdk = await loadSdk();
-        const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: 'v1alpha' });
+        const sdk = await window.EveAudioflixSoundLabSdk.load();
+        if (!isCurrent()) throw new Error('Sonic Forge connection cancelled.');
+        const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: API_VERSION });
         let timeout = 0;
         let connectionExpired = false;
-        const setup = new Promise((resolve) => {
-            setupResolve = resolve;
-        });
+        let setupComplete = false;
+        let resolveSetup = null;
+        let connectedSession = null;
+        let attemptSocket = null;
+        let lastFailure = null;
+        const setup = new Promise((resolve) => { resolveSetup = resolve; });
         let transportReject = null;
         const transportFailure = new Promise((_, reject) => {
             transportReject = reject;
@@ -328,48 +258,119 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         const deadline = new Promise((_, reject) => {
             timeout = window.setTimeout(() => {
                 connectionExpired = true;
+                try { attemptSocket?.close?.(); } catch {}
                 reject(new Error('Lyria connection timed out. Try reconnecting.'));
             }, 20000);
         });
         try {
-            const connection = connectWithNormalizedWebSocket(() => ai.live.music.connect({
+            const connectSocket = window.EveGeminiApiFailure?.connectWithNormalizedWebSocket
+                || ((callback) => callback());
+            const connection = connectSocket(() => ai.live.music.connect({
                 model: MODEL,
                 callbacks: {
-                    onmessage: handleMessage,
-                    onerror: (event) => {
-                        const message = event?.error?.message || event?.message || 'Lyria connection error.';
-                        const error = new Error(message);
-                        setupResolve?.({ error });
-                        transportReject?.(error);
-                        publish({ phase: 'error', message });
+                    onmessage: (message) => {
+                        if (!isCurrent()) return;
+                        if (message?.setupComplete) {
+                            setupComplete = true;
+                            resolveSetup?.(true);
+                        }
+                        handleMessage(message);
                     },
-                    onclose: () => {
-                        setupResolve?.({ error: new Error('Lyria closed before setup completed.') });
-                        session = null;
+                    onerror: (event) => {
+                        if (!isCurrent()) return;
+                        const failure = window.EveGeminiApiFailure.classify(event);
+                        lastFailure = failure;
+                        const error = new Error(failure.message);
+                        if (!setupComplete) {
+                            resolveSetup?.({ error });
+                            transportReject?.(error);
+                        }
+                        publish({ phase: 'error', message: failure.message });
+                    },
+                    onclose: (event) => {
+                        if (!isCurrent()) return;
+                        const classified = window.EveGeminiApiFailure.classify(event);
+                        const failure = classified.kind === 'unknown'
+                            && lastFailure
+                            && lastFailure.kind !== 'unknown'
+                            ? lastFailure
+                            : classified;
+                        const code = Number(event?.code) || 0;
+                        const reason = String(event?.reason || '').trim();
+                        const message = failure.kind !== 'unknown'
+                            ? failure.message
+                            : (setupComplete
+                                ? (reason || 'Sonic Forge disconnected.')
+                                : `Lyria closed before setup completed${code ? ` (code ${code})` : ''}${reason ? `: ${reason}` : '.'}`);
+                        if (!setupComplete) {
+                            const error = new Error(message);
+                            resolveSetup?.({ error });
+                            transportReject?.(error);
+                        }
+                        if (!connectedSession || session === connectedSession) session = null;
+                        pendingSocket = null;
                         stopScheduled();
-                        publish({ phase: 'idle', connected: false, playing: false, message: 'Sonic Forge disconnected.' });
+                        publish({
+                            phase: failure.kind === 'unknown' && setupComplete ? 'idle' : 'error',
+                            connected: false,
+                            playing: false,
+                            message
+                        });
                     }
                 }
-            }));
+            }), {
+                onSocket(socket) {
+                    attemptSocket = socket;
+                    if (isCurrent()) pendingSocket = socket;
+                    else try { socket?.close?.(); } catch {}
+                }
+            });
             connection.then((lateSession) => {
-                if (connectionExpired) {
+                if (connectionExpired || !isCurrent()) {
                     try { lateSession?.close?.(); } catch {}
                 }
             }).catch(() => {});
-            session = await Promise.race([connection, transportFailure, deadline]);
+            connectedSession = await Promise.race([connection, transportFailure, deadline]);
             const setupResult = await Promise.race([setup, deadline]);
             if (setupResult?.error) throw setupResult.error;
+            if (!isCurrent()) {
+                try { connectedSession?.close?.(); } catch {}
+                throw new Error('Sonic Forge connection cancelled.');
+            }
+            session = connectedSession;
+            pendingSocket = null;
             await applySteering();
             publish({ phase: 'ready', connected: true, message: 'Connected. Press play to generate.' });
             return session;
         } catch (error) {
-            try { session?.close?.(); } catch {}
-            session = null;
-            publish({ phase: 'error', connected: false, playing: false, message: error?.message || 'Could not connect.' });
+            connectionExpired = true;
+            try { connectedSession?.close?.(); } catch {}
+            try { attemptSocket?.close?.(); } catch {}
+            if (session === connectedSession) session = null;
+            if (pendingSocket === attemptSocket) pendingSocket = null;
+            if (isCurrent()) publish({
+                phase: 'error',
+                connected: false,
+                playing: false,
+                message: error?.message || 'Could not connect.'
+            });
             throw error;
         } finally {
             window.clearTimeout(timeout);
-            setupResolve = null;
+            resolveSetup = null;
+            transportReject = null;
+        }
+    }
+
+    async function connect() {
+        if (session) return session;
+        if (connectPromise) return connectPromise;
+        const token = ++connectionToken;
+        connectPromise = connectAttempt(token);
+        try {
+            return await connectPromise;
+        } finally {
+            if (token === connectionToken) connectPromise = null;
         }
     }
 
@@ -381,7 +382,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         generation += 1;
         if (audioflixState().nativeBridgeEnabled === true) await window.EveAudioflixNative?.stopStream?.();
         publish({ phase: 'playing', playing: true, buffering: true, message: 'Starting music stream...' });
-        liveSession.play();
+        await Promise.resolve(liveSession.play());
         scheduleBuffers();
         return true;
     }
@@ -407,9 +408,15 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
     async function disconnect() {
         generation += 1;
-        stopScheduled();
-        try { session?.close?.(); } catch {}
+        connectionToken += 1;
+        connectPromise = null;
+        const closingSocket = pendingSocket;
+        const closingSession = session;
+        pendingSocket = null;
         session = null;
+        stopScheduled();
+        try { closingSocket?.close?.(); } catch {}
+        try { closingSession?.close?.(); } catch {}
         if (context?.state === 'running') await context.suspend();
         publish({ phase: 'idle', connected: false, playing: false, message: 'Disconnected.' });
     }

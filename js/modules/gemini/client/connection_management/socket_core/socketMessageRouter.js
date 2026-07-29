@@ -11,6 +11,7 @@ console.log("socketMessageRouter.js loading...");
 
     function pauseReconnectForCredentialError(statusMessage) {
         State.credentialRequired = true;
+        State.credentialStatusMessage = statusMessage || 'API Key Required';
         State.geminiApiReady = false;
         State.autoReconnectEnabled = false;
         State.serverOfflinePauseActive = true;
@@ -30,6 +31,24 @@ console.log("socketMessageRouter.js loading...");
     function isMessageFromStaleSocket(event) {
         const source = event?.currentTarget || event?.target || null;
         return !!source && !!window.webSocket && source !== window.webSocket;
+    }
+
+    function handleCredentialFailure(event, data, messageText) {
+        if (!data.is_system_message) return false;
+        const failure = window.EveGeminiApiFailure?.classify?.(messageText);
+        if (!failure?.credential) return false;
+        if (isMessageFromStaleSocket(event)) {
+            console.warn('[Gemini] Ignoring credential failure from a stale socket after refresh.');
+            return true;
+        }
+        State.apiPolicyBlocked = !!failure.policyBlocked;
+        State.apiKeyInvalid = failure.kind === 'invalid-key';
+        pauseReconnectForCredentialError(failure.status);
+        if (typeof displayMessage === 'function') {
+            displayMessage(`System Message: ${failure.message}`, true);
+            if (messageText !== failure.message) displayMessage(data.text, true);
+        }
+        return true;
     }
 
     async function handleSocketMessage(event) {
@@ -72,21 +91,6 @@ console.log("socketMessageRouter.js loading...");
                 }
             } else if (data.text) {
                 const messageText = String(data.text || '').trim();
-                if (data.is_system_message
-                    && /(api key not valid|invalid api key|please pass a valid api key)/i.test(messageText)) {
-                    if (isMessageFromStaleSocket(event)) {
-                        console.warn('[Gemini] Ignoring invalid-key message from a stale socket after credential refresh.');
-                        return;
-                    }
-                    State.apiPolicyBlocked = false;
-                    State.apiKeyInvalid = true;
-                    pauseReconnectForCredentialError('API Key Invalid');
-                    if (typeof displayMessage === 'function') {
-                        displayMessage('System Message: Gemini rejected the saved API key as invalid. Save a valid Gemini API key in Session Controls, then start/reconnect Gemini.', true);
-                        displayMessage(data.text, true);
-                    }
-                    return;
-                }
                 // Self-heal a dead / unsupported MODEL (distinct from a key restriction).
                 // Google retires preview Live models over time; a stale localStorage
                 // selection then fails forever with 1008 "not found / not supported for
@@ -109,32 +113,14 @@ console.log("socketMessageRouter.js loading...");
                     }
                     // Already on the default and still failing -> fall through to generic handling.
                 }
-                if (data.is_system_message
-                    && /(1008|policy violation|unrestricted keys|temporary service disruptions)/i.test(messageText)) {
-                    State.apiPolicyBlocked = true;
-                    State.apiKeyInvalid = false;
-                    pauseReconnectForCredentialError('API Key Restricted');
-                    if (typeof displayMessage === 'function') {
-                        displayMessage('System Message: Gemini Live rejected the current API key restrictions. Update the key allowlist for this network/IP, or save a compatible Gemini key and reconnect.', true);
-                        displayMessage(data.text, true);
-                    }
-                    return;
-                }
-                if (data.is_system_message && /^Error: No API key configured/i.test(messageText)) {
-                    State.apiPolicyBlocked = false;
-                    State.apiKeyInvalid = false;
-                    pauseReconnectForCredentialError('API Key Required');
-                    if (typeof displayMessage === 'function') {
-                        displayMessage(data.text, true);
-                    }
-                    return;
-                }
+                if (handleCredentialFailure(event, data, messageText)) return;
                 const apiReadyMessage = data.is_system_message
                     && /^Connected to (?!server\b)/i.test(messageText);
                 if (!State.geminiApiReady && apiReadyMessage) {
                     State.credentialRequired = false;
                     State.apiPolicyBlocked = false;
                     State.apiKeyInvalid = false;
+                    State.credentialStatusMessage = '';
                     State.geminiApiReady = true;
                     if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connected', 'Connected');
                     if (typeof displayMessage === 'function') {

@@ -15,6 +15,7 @@
         state.credentialRequired = false;
         state.apiPolicyBlocked = false;
         state.apiKeyInvalid = false;
+        state.credentialStatusMessage = '';
         state.geminiApiReady = false;
         state.autoReconnectEnabled = true;
         state.serverOfflinePauseActive = false;

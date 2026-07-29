@@ -193,6 +193,7 @@
         if (!state.credentialsConfigured) return false;
 
         window.SocketGlobalState.credentialRequired = false;
+        window.SocketGlobalState.credentialStatusMessage = '';
         window.SocketGlobalState.geminiApiReady = false;
         window.SocketGlobalState.reconnectAttempts = 0;
         window.SocketGlobalState.serverOfflinePauseActive = false;
@@ -229,6 +230,7 @@
                 window.SocketGlobalState.credentialRequired = false;
                 window.SocketGlobalState.apiPolicyBlocked = false;
                 window.SocketGlobalState.apiKeyInvalid = false;
+                window.SocketGlobalState.credentialStatusMessage = '';
                 if (state.running && isConnectionPreferenceEnabled()) {
                     window.SocketConnectionCore?.startAutoReconnect?.();
                 }

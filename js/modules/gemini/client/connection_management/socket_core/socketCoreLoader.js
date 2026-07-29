@@ -9,17 +9,18 @@ console.log("socketCoreLoader.js loading...");
 const SOCKET_CORE_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/client/connection_management/socket_core';
 
 const socketCoreScripts = [
-    `${SOCKET_CORE_BASE_PATH}/socketGlobalState.js?v=0.2.2`, // Load Global State FIRST
+    `${SOCKET_CORE_BASE_PATH}/geminiApiFailure.js?v=0.1.0`,
+    `${SOCKET_CORE_BASE_PATH}/socketGlobalState.js?v=0.2.3`, // Load Global State before handlers
     `${SOCKET_CORE_BASE_PATH}/scc/eh/errorEventHandler.js?v=0.2.1`,
     `${SOCKET_CORE_BASE_PATH}/scc/eh/openEventHandler.js?v=0.2.0`,
-    `${SOCKET_CORE_BASE_PATH}/scc/eh/closeEventHandler.js?v=0.2.7`,
+    `${SOCKET_CORE_BASE_PATH}/scc/eh/closeEventHandler.js?v=0.2.8`,
     `${SOCKET_CORE_BASE_PATH}/scc/socketConnectionState.js`,
     `${SOCKET_CORE_BASE_PATH}/scc/socketLifecycle.js?v=0.2.2`,
     `${SOCKET_CORE_BASE_PATH}/scc/socketConnectionCoordinator.js`,
-    `${SOCKET_CORE_BASE_PATH}/socketMessageRouter.js?v=0.2.7`,
+    `${SOCKET_CORE_BASE_PATH}/socketMessageRouter.js?v=0.2.8`,
     `${SOCKET_CORE_BASE_PATH}/audioPlayerUI.js`,
     `${SOCKET_CORE_BASE_PATH}/socketAudioLogic.js?v=0.2.4`,
-    `${SOCKET_CORE_BASE_PATH}/serverStatusChecker.js?v=0.2.8`
+    `${SOCKET_CORE_BASE_PATH}/serverStatusChecker.js?v=0.2.9`
 ];
 
 // Load scripts sequentially to ensure dependencies are met

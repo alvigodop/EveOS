@@ -59,6 +59,7 @@ async function main() {
         credentialRequired: false,
         apiPolicyBlocked: false,
         apiKeyInvalid: false,
+        credentialStatusMessage: '',
         geminiApiReady: true,
         autoReconnectEnabled: true,
         serverOfflinePauseActive: false,
@@ -68,6 +69,7 @@ async function main() {
             this.credentialRequired = false;
             this.apiPolicyBlocked = false;
             this.apiKeyInvalid = false;
+            this.credentialStatusMessage = '';
             this.geminiApiReady = false;
         },
     };
@@ -77,6 +79,7 @@ async function main() {
     };
     vm.createContext(context);
 
+    loadScript(context, 'js/modules/gemini/client/connection_management/socket_core/geminiApiFailure.js');
     loadScript(context, 'js/modules/gemini/client/connection_management/socket_core/socketMessageRouter.js');
     loadScript(context, 'js/modules/gemini/client/connection_management/socket_core/scc/eh/closeEventHandler.js');
     loadScript(context, 'js/modules/gemini/server_control/geminiCredentialWorkflow.js');
@@ -153,6 +156,53 @@ async function main() {
     });
     if (context.window.SocketGlobalState.apiKeyInvalid || context.window.SocketGlobalState.credentialRequired) {
         throw new Error('Stale socket invalid-key message re-poisoned the fresh credential state.');
+    }
+
+    Object.assign(context.window.SocketGlobalState, {
+        credentialRequired: false,
+        apiPolicyBlocked: false,
+        apiKeyInvalid: false,
+        credentialStatusMessage: '',
+        geminiApiReady: false,
+        autoReconnectEnabled: true,
+        serverOfflinePauseActive: false,
+        reconnectTimeout: setTimeout(() => {}, 5000),
+        continuousReconnectInterval: setTimeout(() => {}, 5000)
+    });
+    await context.window.handleSocketMessage({
+        data: JSON.stringify({
+            text: 'API error: the provided API key has an IP address restriction. The originating IP address is not allowed.',
+            is_system_message: true,
+            is_error: true,
+        })
+    });
+    if (!state.credentialRequired || !state.apiPolicyBlocked || state.apiKeyInvalid
+        || state.credentialStatusMessage !== 'API Key IP Mismatch') {
+        throw new Error(`IP restriction was not classified precisely: ${JSON.stringify(state)}`);
+    }
+    if (!messages.some((message) => /ip allowlist/i.test(message))) {
+        throw new Error(`IP restriction guidance was not displayed: ${JSON.stringify(messages)}`);
+    }
+
+    Object.assign(context.window.SocketGlobalState, {
+        credentialRequired: false,
+        apiPolicyBlocked: false,
+        apiKeyInvalid: false,
+        credentialStatusMessage: '',
+        geminiApiReady: false,
+        autoReconnectEnabled: true,
+        serverOfflinePauseActive: false
+    });
+    await context.window.handleSocketMessage({
+        data: JSON.stringify({
+            text: 'API error (received 1008 policy violation): temporary service disruptions are affecting Gemini.',
+            is_system_message: true,
+            is_error: true,
+        })
+    });
+    if (state.credentialRequired || state.apiPolicyBlocked || state.apiKeyInvalid
+        || !state.autoReconnectEnabled || state.serverOfflinePauseActive) {
+        throw new Error(`Temporary 1008 incorrectly poisoned credential state: ${JSON.stringify(state)}`);
     }
 
     console.log('GEMINI_INVALID_API_KEY_GATE_SMOKE_OK');
