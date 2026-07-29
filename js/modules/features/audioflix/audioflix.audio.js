@@ -228,10 +228,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
         const needsResolution = window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url);
         if (urlPlayback?.shouldPreferBrowser?.(requestedItem) && !needsResolution) {
-            try { return await playUrlItem(requestedItem); }
-            catch (error) {
-                if (window.EveAudioflixNative?.getStatus?.()?.ok !== true) throw error;
-            }
+            // Provider page URLs are not media streams. Never fall through to the generic
+            // <audio> path just because the native bridge happens to be online.
+            return await playUrlItem(requestedItem);
         } else if (urlPlayback?.isActive?.() && !urlPlayback.matches(requestedItem)) {
             await urlPlayback.stop();
         }
@@ -261,6 +260,10 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                     throw fallbackError;
                 }
             }
+        }
+
+        if (urlPlayback?.shouldPreferBrowser?.(safeItem)) {
+            return await playUrlItem(safeItem);
         }
 
         // Soundboard clips take the BUFFERED native route (short to decode, and buffering is what

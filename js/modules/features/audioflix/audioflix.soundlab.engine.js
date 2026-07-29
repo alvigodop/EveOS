@@ -20,7 +20,6 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     let recordDestination = null;
     let session = null;
     let setupResolve = null;
-    let setupReject = null;
     let pending = [];
     let nextStartTime = 0;
     let streamStarted = false;
@@ -98,6 +97,28 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             else sessionStorage.removeItem(SESSION_KEY);
         } catch {}
         return !!key;
+    }
+
+    function connectWithNormalizedWebSocket(connect) {
+        const NativeWebSocket = window.WebSocket;
+        if (typeof NativeWebSocket !== 'function') return connect();
+        const NormalizedWebSocket = new Proxy(NativeWebSocket, {
+            construct(Target, args) {
+                const next = [...args];
+                next[0] = String(next[0] || '').replace(
+                    /^(wss?:\/\/[^/]+)\/+ws\//i,
+                    '$1/ws/'
+                );
+                return Reflect.construct(Target, next);
+            }
+        });
+        window.WebSocket = NormalizedWebSocket;
+        try {
+            // The SDK constructs its socket synchronously before its first await.
+            return connect();
+        } finally {
+            window.WebSocket = NativeWebSocket;
+        }
     }
 
     async function ensureAudio() {
@@ -297,9 +318,12 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: 'v1beta' });
         let timeout = 0;
         let connectionExpired = false;
-        const setup = new Promise((resolve, reject) => {
+        const setup = new Promise((resolve) => {
             setupResolve = resolve;
-            setupReject = reject;
+        });
+        let transportReject = null;
+        const transportFailure = new Promise((_, reject) => {
+            transportReject = reject;
         });
         const deadline = new Promise((_, reject) => {
             timeout = window.setTimeout(() => {
@@ -308,29 +332,33 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             }, 20000);
         });
         try {
-            const connection = ai.live.music.connect({
+            const connection = connectWithNormalizedWebSocket(() => ai.live.music.connect({
                 model: MODEL,
                 callbacks: {
                     onmessage: handleMessage,
                     onerror: (event) => {
                         const message = event?.error?.message || event?.message || 'Lyria connection error.';
-                        setupReject?.(new Error(message));
+                        const error = new Error(message);
+                        setupResolve?.({ error });
+                        transportReject?.(error);
                         publish({ phase: 'error', message });
                     },
                     onclose: () => {
+                        setupResolve?.({ error: new Error('Lyria closed before setup completed.') });
                         session = null;
                         stopScheduled();
                         publish({ phase: 'idle', connected: false, playing: false, message: 'Sonic Forge disconnected.' });
                     }
                 }
-            });
+            }));
             connection.then((lateSession) => {
                 if (connectionExpired) {
                     try { lateSession?.close?.(); } catch {}
                 }
             }).catch(() => {});
-            session = await Promise.race([connection, deadline]);
-            await Promise.race([setup, deadline]);
+            session = await Promise.race([connection, transportFailure, deadline]);
+            const setupResult = await Promise.race([setup, deadline]);
+            if (setupResult?.error) throw setupResult.error;
             await applySteering();
             publish({ phase: 'ready', connected: true, message: 'Connected. Press play to generate.' });
             return session;
@@ -341,7 +369,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             throw error;
         } finally {
             window.clearTimeout(timeout);
-            setupResolve = setupReject = null;
+            setupResolve = null;
         }
     }
 

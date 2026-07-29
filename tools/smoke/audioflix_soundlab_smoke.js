@@ -38,10 +38,12 @@ function staticContracts() {
         'Lyria applies BPM/scale configuration before resetting generation context'
     );
     assert(
-        engine.includes('Promise.race([connection, deadline])')
-            && engine.includes('connectionExpired'),
-        'Lyria connection has a hard deadline and closes sessions that resolve too late'
+        engine.includes('Promise.race([connection, transportFailure, deadline])')
+            && engine.includes('connectionExpired')
+            && engine.includes('connectWithNormalizedWebSocket'),
+        'Lyria connection has a deadline, closes late sessions, and normalizes its SDK WebSocket'
     );
+    assert(!engine.includes('setupReject'), 'Lyria setup cannot leave a rejected promise after transport failure');
     assert(
         engine.includes("audioFormat: 'pcm16'") && engine.includes('sampleRateHz: SAMPLE_RATE'),
         'Lyria requests the PCM16 48 kHz format used by the playback buffer'
@@ -166,6 +168,31 @@ function staticContracts() {
             density.value = '0.58';
             await window.EveAudioflixSoundLabUi.handleChange(density);
             window.EveAudioflixSoundLabEngine.queueSteering = originalQueueSteering;
+            const NativeWebSocket = window.WebSocket;
+            window.WebSocket = class SmokeWebSocket {
+                constructor(url) { window.__soundLabSocketUrl = String(url); }
+            };
+            const fakeSession = {
+                setWeightedPrompts: async () => true,
+                setMusicGenerationConfig: async () => true,
+                close: () => true
+            };
+            window.EveAudioflixGenAI = {
+                GoogleGenAI: class {
+                    constructor() {
+                        this.live = { music: { connect: (options) => {
+                            new WebSocket('wss://generativelanguage.googleapis.com//ws/test');
+                            queueMicrotask(() => options.callbacks.onmessage({ setupComplete: {} }));
+                            return Promise.resolve(fakeSession);
+                        } } };
+                    }
+                }
+            };
+            await window.EveAudioflixSoundLabEngine.connect();
+            const normalizedSocketUrl = window.__soundLabSocketUrl;
+            await window.EveAudioflixSoundLabEngine.disconnect();
+            window.WebSocket = NativeWebSocket;
+            delete window.EveAudioflixGenAI;
             const sessionKeyBeforeClear = sessionStorage.getItem('eveAudioflixSoundLabApiKey');
             window.EveAudioflixSoundLabEngine.setApiKey('');
             window.EveAudioflixSoundLabUi.setVisible(false);
@@ -180,6 +207,7 @@ function staticContracts() {
                 volumeAfterCommit,
                 sessionKeyBeforeClear,
                 sessionKeyAfterClear: sessionStorage.getItem('eveAudioflixSoundLabApiKey'),
+                normalizedSocketUrl,
                 leakedCredential: serialized.includes('soundlab-session-test'),
                 hasTitle: host.querySelector('h2')?.textContent === 'Sonic Forge',
                 visualModes,
@@ -204,6 +232,10 @@ function staticContracts() {
         assert(result.volumeAfterCommit === 0.31, 'volume change commits after interaction');
         assert(result.sessionKeyBeforeClear === 'soundlab-session-test', 'credential is retained for this browser session');
         assert(result.sessionKeyAfterClear === null, 'test credential is cleared after use');
+        assert(
+            result.normalizedSocketUrl === 'wss://generativelanguage.googleapis.com/ws/test',
+            'Lyria SDK double-slash WebSocket paths are normalized before connection'
+        );
         assert(result.leakedCredential === false, 'session credential never enters datapack state');
         assert(result.hasTitle && result.hasRecording && result.hasImport, 'Sonic Forge workbench renders all core tools');
         assert(['frequency', 'waveform', 'radial', 'spectrogram']

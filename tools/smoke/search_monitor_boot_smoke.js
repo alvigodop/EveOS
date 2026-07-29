@@ -167,6 +167,31 @@ async function main() {
             throw new Error(`Underlying surface did not receive the next click: ${secondLayerClick}`);
         }
 
+        await page.waitForFunction(() => typeof window.EveAudioflix?.open === 'function');
+        const audioflixLayering = await page.evaluate(async () => {
+            document.getElementById('search-monitor-underlay-smoke')?.remove();
+            window.EveAudioflix.open();
+            const indicator = document.getElementById('loadingIndicator');
+            if (indicator?.classList.contains('compact')) indicator.click();
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            const overlay = document.getElementById('audioflix-overlay');
+            overlay?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            const first = {
+                monitorCompact: indicator?.classList.contains('compact') === true,
+                audioflixOpen: overlay?.hidden === false
+            };
+            overlay?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+            return {
+                first,
+                audioflixClosedAfterSecondClick: overlay?.hidden === true
+            };
+        });
+        if (!audioflixLayering.first.monitorCompact
+            || !audioflixLayering.first.audioflixOpen
+            || !audioflixLayering.audioflixClosedAfterSecondClick) {
+            throw new Error(`Search Monitor/Audioflix layer order failed: ${JSON.stringify(audioflixLayering)}`);
+        }
+
         const criticalConsoleErrors = consoleErrors.filter((entry) => !isBenignConsoleError(entry));
         if (pageErrors.length) {
             throw new Error(`Page errors detected:\n${pageErrors.join('\n\n')}`);

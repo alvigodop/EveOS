@@ -83,8 +83,9 @@ const assert = (condition, message) => {
                 && stage.hidden === false
                 && player.isInternalViewOpen() === false;
             const compactTransportHidden = stage?.classList.contains('is-transport-hidden') === true
-                && Number.parseFloat(getComputedStyle(stage).opacity) === 0
-                && stage.getBoundingClientRect().right < 0;
+                && Number.parseFloat(getComputedStyle(stage).opacity) > 0
+                && stage.getBoundingClientRect().left < innerWidth
+                && stage.getBoundingClientRect().right > 0;
             window.__spotifyController.emit('playback_started', {});
             await player.openInternalView(item);
             const internalExpanded = stage?.classList.contains('is-internal-view') === true
@@ -132,6 +133,7 @@ const assert = (condition, message) => {
             });
             await new Promise((resolve) => setTimeout(resolve, 100));
             const stalledStatus = document.querySelector('.audioflix-provider-status')?.textContent || '';
+            const stalledTransportVisible = stage?.classList.contains('is-transport-hidden') === false;
             const stalledState = player.getPlaybackState();
             const stalledErrorCount = events.filter((status) => status.includes('direct click')).length
                 - stalledErrorsBefore;
@@ -149,6 +151,7 @@ const assert = (condition, message) => {
                 runtimeError,
                 runtimeErrorVisible,
                 stalledStatus,
+                stalledTransportVisible,
                 stalledState,
                 stalledErrorCount,
                 spotifyNeedsResolution: window.EveAudioflixAudioSource.needsResolution(item.url)
@@ -160,7 +163,7 @@ const assert = (condition, message) => {
         assert(result.calls.seek.includes(61), 'Spotify seek receives seconds, not milliseconds');
         assert(result.endedCount === 1, 'repeated terminal updates emit Ended once');
         assert(result.mainCardTransportOnly, 'main-card play keeps the Spotify SDK in compact transport mode');
-        assert(result.compactTransportHidden, 'main-card play hides the mounted Spotify transport by default');
+        assert(result.compactTransportHidden, 'main-card play keeps its invisible Spotify transport rendered in the viewport');
         assert(result.internalExpanded, 'Internal Player expands the existing Spotify controller');
         assert(result.closePreservedTransport && result.activeAfterHide, 'closing Internal Player preserves playback ownership');
         assert(result.resumedFromMainCard, 'main-card play resumes the existing Spotify controller after Internal Player closes');
@@ -168,6 +171,7 @@ const assert = (condition, message) => {
         assert(result.runtimeError.includes('direct click'), 'runtime provider failure explains the browser interaction requirement');
         assert(result.runtimeErrorVisible === false, 'recoverable provider failure keeps the official control visible');
         assert(result.stalledStatus.includes('direct click'), 'ready-but-stalled playback times out with an actionable message');
+        assert(result.stalledTransportVisible, 'blocked autoplay reveals the official Spotify control for recovery');
         assert(result.stalledState.paused === true, 'ready-but-stalled playback returns to paused state');
         assert(result.stalledErrorCount === 1, 'startup watchdog emits one error without retrying or advancing');
         assert(result.spotifyNeedsResolution === false, 'Spotify track URLs bypass raw-audio resolution');

@@ -221,6 +221,14 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             if (enabled) element.classList.remove('is-internal-view', 'is-collapsed');
         }
 
+        function revealTransportFallback() {
+            const element = ensureStage();
+            element.hidden = false;
+            element.classList.add('is-transport-only');
+            element.classList.remove('is-transport-hidden', 'is-internal-view', 'is-collapsed');
+            return element;
+        }
+
         function sync(playback = {}) {
             if (!stage || stage.hidden) return;
             const current = Math.max(0, Number(playback.currentTime) || 0);
@@ -331,7 +339,8 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
 
         return {
             open, hide, isOpen: () => !!stage && !stage.hidden && !stage.classList.contains('is-transport-only'),
-            setStatus, setVisualVisible, setExpanded, setTransportOnly, sync, connectYouTubeBridge,
+            setStatus, setVisualVisible, setExpanded, setTransportOnly, revealTransportFallback,
+            sync, connectYouTubeBridge,
             setQueue, setRate,
             getFrame: () => ensureStage().querySelector('.audioflix-provider-frame'),
             getStage: () => stage,

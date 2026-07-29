@@ -89,8 +89,9 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                     runtimeFailureReported = true;
                     clearStartTimer();
                     V.playback.paused = true;
-                    // Autoplay rejection is recoverable: keep Spotify's official control visible
-                    // so the user can satisfy the browser's direct-interaction requirement.
+                    // Keep normal playback invisible. Reveal the official transport only when
+                    // Spotify requires an additional direct click to satisfy browser policy.
+                    V.revealTransportFallback?.();
                     setStageStatus(message);
                     emitPlayback(message, true);
                     emitProgress();

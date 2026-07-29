@@ -34,10 +34,12 @@
 }
 
 .audioflix-provider-stage.is-transport-only.is-transport-hidden {
-    /* Keep provider SDK geometry intact while removing its transport from the EveOS surface. */
-    right: auto;
-    left: -10000px;
-    opacity: 0;
+    /* Spotify may suspend an iframe that is moved outside the rendered viewport.
+       Preserve its full, on-screen geometry while making the transport imperceptible. */
+    right: 12px;
+    left: auto;
+    opacity: 0.001;
+    visibility: visible;
     pointer-events: none;
     box-shadow: none;
 }
