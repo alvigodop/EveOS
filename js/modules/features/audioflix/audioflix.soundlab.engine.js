@@ -10,13 +10,13 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     const API_VERSION = 'v1alpha';
     const SAMPLE_RATE = 48000;
     const listeners = new Set();
-    const sources = new Set();
-    let context = null, mixBus = null, analyser = null;
+    let context = null, streamGain = null, mixBus = null, analyser = null;
     let masterGain = null, outputGain = null, recordDestination = null;
+    let playback = null;
+    let liveMasterVolume = 1;
     let session = null, connectPromise = null;
     let connectionToken = 0, pendingSocket = null;
-    let pending = [], nextStartTime = 0, steeringTimer = 0;
-    let streamStarted = false;
+    let steeringTimer = 0, steeringBusy = false, steeringPending = null, lastSteeringAt = 0;
     let nativeSendChain = Promise.resolve(), generation = 0;
     let status = {
         phase: 'idle',
@@ -55,6 +55,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('Web Audio is unavailable in this browser.');
         context = new AudioContextCtor({ sampleRate: SAMPLE_RATE, latencyHint: 'interactive' });
+        streamGain = context.createGain();
         mixBus = context.createGain();
         analyser = context.createAnalyser();
         masterGain = context.createGain();
@@ -62,11 +63,19 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         recordDestination = context.createMediaStreamDestination();
         analyser.fftSize = 2048;
         analyser.smoothingTimeConstant = 0.78;
+        streamGain.connect(mixBus);
         mixBus.connect(analyser);
         analyser.connect(masterGain);
         masterGain.connect(outputGain);
         masterGain.connect(recordDestination);
         outputGain.connect(context.destination);
+        playback = window.EveAudioflixSoundLabPlayback.create({
+            context: () => context,
+            output: () => streamGain,
+            isPlaying: () => status.playing,
+            targetSeconds: () => soundState().bufferSeconds,
+            publish
+        });
         setMasterVolume(soundState().masterVolume, false);
         await applyOutputRoute();
         return context;
@@ -85,6 +94,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
     function setMasterVolume(value, persist = true) {
         const safe = Math.max(0, Math.min(1, Number(value) || 0));
+        liveMasterVolume = safe;
         if (masterGain) masterGain.gain.setTargetAtTime(safe, context.currentTime, 0.02);
         if (persist) {
             window.EveAudioflixSoundLabState?.update?.({ masterVolume: safe }, 'audioflix-soundlab-volume');
@@ -126,74 +136,40 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         return true;
     }
 
-    function queueSteering(options) {
-        if (steeringTimer) window.clearTimeout(steeringTimer);
-        steeringTimer = window.setTimeout(() => {
+    function scheduleSteering() {
+        if (steeringTimer || steeringBusy || !steeringPending) return;
+        const wait = Math.max(0, 180 - (performance.now() - lastSteeringAt));
+        steeringTimer = window.setTimeout(async () => {
             steeringTimer = 0;
-            applySteering(options).catch((error) => publish({
-                phase: 'error',
-                message: error?.message || 'Could not update music controls.'
-            }));
-        }, 140);
+            const options = steeringPending;
+            steeringPending = null;
+            steeringBusy = true;
+            lastSteeringAt = performance.now();
+            try {
+                await applySteering(options);
+            } catch (error) {
+                publish({
+                    phase: 'error',
+                    message: error?.message || 'Could not update music controls.'
+                });
+            } finally {
+                steeringBusy = false;
+                scheduleSteering();
+            }
+        }, wait);
     }
 
-    function stopScheduled() {
-        sources.forEach((source) => {
-            try { source.stop(); } catch {}
-        });
-        sources.clear();
-        pending = [];
-        nextStartTime = 0;
-        streamStarted = false;
-        publish({ buffering: false, bufferedSeconds: 0 });
+    function queueSteering(options) {
+        steeringPending = {
+            resetContext: steeringPending?.resetContext === true || options?.resetContext === true
+        };
+        scheduleSteering();
     }
 
-    function pendingSeconds() {
-        return pending.reduce((total, buffer) => total + Number(buffer.duration || 0), 0);
-    }
-
-    function scheduleBuffers() {
-        if (!context || !status.playing || context.state === 'suspended') return;
-        const target = Number(soundState().bufferSeconds || 0.65);
-        const available = pendingSeconds();
-        if (!streamStarted && available < target) {
-            publish({ buffering: true, bufferedSeconds: available, message: `Buffering ${available.toFixed(1)}s...` });
-            return;
-        }
-        if (!streamStarted) {
-            streamStarted = true;
-            nextStartTime = Math.max(context.currentTime + 0.12, nextStartTime);
-        }
-        while (pending.length && nextStartTime < context.currentTime + 3) {
-            const buffer = pending.shift();
-            const source = context.createBufferSource();
-            const fade = context.createGain();
-            const start = Math.max(nextStartTime, context.currentTime + 0.04);
-            const end = start + buffer.duration;
-            source.buffer = buffer;
-            fade.gain.setValueAtTime(0.0001, start);
-            fade.gain.linearRampToValueAtTime(1, start + Math.min(0.012, buffer.duration / 4));
-            fade.gain.setValueAtTime(1, Math.max(start + 0.012, end - 0.012));
-            fade.gain.linearRampToValueAtTime(0.0001, end);
-            source.connect(fade);
-            fade.connect(mixBus);
-            source.onended = () => {
-                sources.delete(source);
-                try { source.disconnect(); fade.disconnect(); } catch {}
-                if (!pending.length && !sources.size && status.playing) {
-                    streamStarted = false;
-                    publish({ buffering: true, bufferedSeconds: 0, message: 'Waiting for the next music phrase...' });
-                }
-            };
-            sources.add(source);
-            source.start(start);
-            nextStartTime = end;
-        }
-        publish({
-            buffering: false,
-            bufferedSeconds: Math.max(0, nextStartTime - context.currentTime) + pendingSeconds(),
-            message: 'Generating and playing.'
-        });
+    function clearSteeringQueue() {
+        if (steeringTimer) window.clearTimeout(steeringTimer);
+        steeringTimer = 0;
+        steeringPending = null;
     }
 
     function routeNativeChunk(data) {
@@ -201,7 +177,12 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         const token = generation;
         nativeSendChain = nativeSendChain.then(async () => {
             if (token !== generation || audioflixState().nativeBridgeEnabled !== true) return;
-            await window.EveAudioflixNative.sendGeminiChunk(data, { sampleRate: SAMPLE_RATE, channels: 2 });
+            const routed = window.EveAudioflixSoundLabCodec.transformPcm16Base64(data, {
+                channels: 2,
+                gain: liveMasterVolume,
+                stereoBalance: true
+            });
+            await window.EveAudioflixNative.sendGeminiChunk(routed, { sampleRate: SAMPLE_RATE, channels: 2 });
         }).catch(() => {});
     }
 
@@ -219,15 +200,11 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             try {
                 const buffer = window.EveAudioflixSoundLabCodec.pcm16ToAudioBuffer(context, chunk.data, {
                     channels: 2,
-                    sampleRate: SAMPLE_RATE
+                    sampleRate: SAMPLE_RATE,
+                    stereoBalance: true
                 });
-                pending.push(buffer);
-                while (pendingSeconds() > 12 && pending.length > 1) {
-                    pending.shift();
-                    status.droppedChunks += 1;
-                }
+                status.droppedChunks += playback?.enqueue(buffer) || 0;
                 if (audioflixState().nativeBridgeEnabled === true) routeNativeChunk(chunk.data);
-                scheduleBuffers();
             } catch (error) {
                 publish({ phase: 'error', message: error?.message || 'Music PCM decode failed.' });
             }
@@ -309,7 +286,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
                         }
                         if (!connectedSession || session === connectedSession) session = null;
                         pendingSocket = null;
-                        stopScheduled();
+                        playback?.stop();
                         publish({
                             phase: failure.kind === 'unknown' && setupComplete ? 'idle' : 'error',
                             connected: false,
@@ -383,20 +360,21 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         if (audioflixState().nativeBridgeEnabled === true) await window.EveAudioflixNative?.stopStream?.();
         publish({ phase: 'playing', playing: true, buffering: true, message: 'Starting music stream...' });
         await Promise.resolve(liveSession.play());
-        scheduleBuffers();
+        playback?.start();
         return true;
     }
 
     async function pause() {
         session?.pause?.();
         if (context?.state === 'running') await context.suspend();
+        playback?.pause();
         publish({ phase: 'paused', playing: false, buffering: false, message: 'Paused.' });
     }
 
     async function stop() {
         generation += 1;
         session?.stop?.();
-        stopScheduled();
+        playback?.stop();
         await window.EveAudioflixNative?.stopStream?.();
         publish({ phase: session ? 'ready' : 'idle', playing: false, message: session ? 'Stopped. Prompts retained.' : 'Stopped.' });
     }
@@ -409,12 +387,13 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     async function disconnect() {
         generation += 1;
         connectionToken += 1;
+        clearSteeringQueue();
         connectPromise = null;
         const closingSocket = pendingSocket;
         const closingSession = session;
         pendingSocket = null;
         session = null;
-        stopScheduled();
+        playback?.stop();
         try { closingSocket?.close?.(); } catch {}
         try { closingSession?.close?.(); } catch {}
         if (context?.state === 'running') await context.suspend();
@@ -436,6 +415,12 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         getApiKey,
         setApiKey,
         getStatus: () => Object.assign({}, status),
+        getTimeline: () => playback?.timeline() || {
+            elapsedSeconds: 0,
+            generatedSeconds: 0,
+            bufferedSeconds: 0,
+            running: false
+        },
         getAnalyser: () => analyser,
         getRecordingStream: () => recordDestination?.stream || null,
         getAudioContext: () => context,

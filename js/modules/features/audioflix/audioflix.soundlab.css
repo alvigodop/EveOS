@@ -266,7 +266,7 @@
 
 .sonic-forge-visual-controls {
     display: grid;
-    grid-template-columns: minmax(130px, 0.4fr) minmax(210px, 1fr) auto;
+    grid-template-columns: minmax(130px, 0.4fr) minmax(210px, 1fr) auto auto;
     gap: 14px;
     align-items: center;
     padding: 10px 13px;

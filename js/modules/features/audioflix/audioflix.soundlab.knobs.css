@@ -90,7 +90,9 @@
     height: 100%;
     margin: 0;
     opacity: 0;
-    cursor: ew-resize;
+    cursor: ns-resize;
+    touch-action: none;
+    user-select: none;
 }
 
 .sonic-forge-control.is-knob small {

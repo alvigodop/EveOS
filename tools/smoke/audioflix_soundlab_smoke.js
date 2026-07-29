@@ -17,6 +17,7 @@ function staticContracts() {
     const html = fs.readFileSync(path.join(ROOT, 'EveOS.html'), 'utf8');
     const ui = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.js'), 'utf8');
     const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
+    const playback = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'), 'utf8');
     const failureApi = fs.readFileSync(path.join(GEMINI_SOCKET, 'geminiApiFailure.js'), 'utf8');
     const credentials = fs.readFileSync(
         path.join(ROOT, 'js', 'modules', 'gemini', 'server_control', 'geminiCredentialWorkflow.js'),
@@ -30,6 +31,7 @@ function staticContracts() {
     [
         'audioflix.soundlab.state.js',
         'audioflix.soundlab.sdk.js',
+        'audioflix.soundlab.playback.js',
         'audioflix.soundlab.engine.js',
         'audioflix.soundlab.presets.js',
         'audioflix.soundlab.ui.js',
@@ -51,6 +53,12 @@ function staticContracts() {
         'Lyria connection has a deadline, closes late sessions, and normalizes its SDK WebSocket'
     );
     assert(!engine.includes('setupReject'), 'Lyria setup cannot leave a rejected promise after transport failure');
+    assert(!engine.includes('fade.gain.linearRampToValueAtTime'), 'Lyria no longer fades every PCM chunk independently');
+    assert(playback.includes('source.connect(output)'), 'Lyria chunks share one continuous playback bus');
+    assert(
+        engine.includes('gain: liveMasterVolume') && engine.includes('liveMasterVolume = safe'),
+        'native Lyria chunks follow live volume changes before settings persistence'
+    );
     assert(!engine.includes('audioFormat:') && !engine.includes('sampleRateHz:'),
         'Lyria sends only fields supported by the deployed Live Music generation config');
     assert(bridge.includes('/api/audioflix/save-soundlab-recording'), 'recording save route is registered');
@@ -68,6 +76,7 @@ function staticContracts() {
         path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),
         path.join(GEMINI_SOCKET, 'geminiApiFailure.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.sdk.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.recording.js'),
@@ -75,6 +84,7 @@ function staticContracts() {
         path.join(AUDIOFLIX, 'audioflix.soundlab.presets.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.render.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.events.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.knob-input.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.js')
     ].map((file) => `<script src="${fileUrl(file)}"></script>`).join('');
     fs.writeFileSync(fixture, `<!doctype html><html><body>
@@ -145,6 +155,27 @@ function staticContracts() {
                 'scenes.json',
                 { type: 'application/json' }
             ));
+            const legacyPayload = [
+                ['Legacy Chill', [
+                    ['prompt-0', {
+                        promptId: 'prompt-0',
+                        text: 'legacy glass bells',
+                        weight: 1.4,
+                        cc: 4,
+                        color: '#20e3b2'
+                    }]
+                ]],
+                ['Legacy Config', {
+                    bpm: 123,
+                    density: 0.61,
+                    currentScale: 'G_MAJOR_E_MINOR'
+                }]
+            ];
+            await window.EveAudioflixSoundLabPresets.importFile(new File(
+                [JSON.stringify(legacyPayload)],
+                'legacy-scenes.json',
+                { type: 'application/json' }
+            ));
 
             const host = document.querySelector('#host');
             host.innerHTML = window.EveAudioflixSoundLabUi.render();
@@ -153,16 +184,33 @@ function staticContracts() {
             await new Promise((resolve) => setTimeout(resolve, 80));
 
             const current = stateApi.ensure();
+            const legacyPromptPreset = current.presets.find((preset) => preset.name === 'Legacy Chill');
+            const legacyConfigPreset = current.presets.find((preset) => preset.name === 'Legacy Config');
             const serialized = JSON.stringify(window.__soundLabRoot);
             const visualModes = [...host.querySelectorAll('[data-sf-field="visualizer-mode"] option')]
                 .map((option) => option.value);
             const knobButton = host.querySelector('[data-af-action="soundlab-control-view"][data-sf-view="knobs"]');
             await window.EveAudioflixSoundLabUi.handleAction(knobButton);
             host.innerHTML = window.EveAudioflixSoundLabUi.render();
+            window.EveAudioflixSoundLabUi.afterRender(host);
             const generationKnobCount = host.querySelectorAll(
                 '.sonic-forge-control .sonic-forge-knob-shell:not(.is-prompt)'
             ).length;
             const promptKnobCount = host.querySelectorAll('.sonic-forge-knob-shell.is-prompt').length;
+            const knobBoundCount = host.querySelectorAll('[data-sf-knob-bound="1"]').length;
+            const promptText = host.querySelector('[data-sf-field="prompt-text"]');
+            const promptId = promptText.dataset.sfPrompt;
+            const promptBeforeInput = stateApi.ensure().prompts.find((prompt) => prompt.id === promptId).text;
+            const promptSteeringCalls = [];
+            const promptQueueSteering = window.EveAudioflixSoundLabEngine.queueSteering;
+            window.EveAudioflixSoundLabEngine.queueSteering = () => promptSteeringCalls.push(true);
+            promptText.value = 'committed only after blur';
+            window.EveAudioflixSoundLabUi.handleInput(promptText);
+            const promptAfterInput = stateApi.ensure().prompts.find((prompt) => prompt.id === promptId).text;
+            await window.EveAudioflixSoundLabUi.handleChange(promptText);
+            await window.EveAudioflixSoundLabUi.handleChange(promptText);
+            const promptAfterCommit = stateApi.ensure().prompts.find((prompt) => prompt.id === promptId).text;
+            window.EveAudioflixSoundLabEngine.queueSteering = promptQueueSteering;
             const steeringCalls = [];
             const originalQueueSteering = window.EveAudioflixSoundLabEngine.queueSteering;
             window.EveAudioflixSoundLabEngine.queueSteering = (options) => {
@@ -175,6 +223,31 @@ function staticContracts() {
             density.value = '0.58';
             await window.EveAudioflixSoundLabUi.handleChange(density);
             window.EveAudioflixSoundLabEngine.queueSteering = originalQueueSteering;
+            const pcmBytes = new Uint8Array(400);
+            const pcmView = new DataView(pcmBytes.buffer);
+            for (let frame = 0; frame < 100; frame += 1) {
+                pcmView.setInt16(frame * 4, frame % 2 ? 26000 : -26000, true);
+                pcmView.setInt16(frame * 4 + 2, frame % 2 ? 6500 : -6500, true);
+            }
+            let binary = '';
+            pcmBytes.forEach((value) => { binary += String.fromCharCode(value); });
+            const transformed = window.EveAudioflixSoundLabCodec.decodeBase64(
+                window.EveAudioflixSoundLabCodec.transformPcm16Base64(btoa(binary), {
+                    channels: 2,
+                    gain: 0.5,
+                    stereoBalance: true
+                })
+            );
+            const transformedView = new DataView(
+                transformed.buffer,
+                transformed.byteOffset,
+                transformed.byteLength
+            );
+            const transformedLevels = [0, 0];
+            for (let frame = 0; frame < 100; frame += 1) {
+                transformedLevels[0] += Math.abs(transformedView.getInt16(frame * 4, true));
+                transformedLevels[1] += Math.abs(transformedView.getInt16(frame * 4 + 2, true));
+            }
             const NativeWebSocket = window.WebSocket;
             window.WebSocket = class SmokeWebSocket {
                 constructor(url) { window.__soundLabSocketUrl = String(url); }
@@ -246,6 +319,9 @@ function staticContracts() {
                 migratedPromptControlView,
                 promptCount: current.prompts.length,
                 presetNames: current.presets.map((preset) => preset.name),
+                legacyPromptText: legacyPromptPreset?.prompts?.[0]?.text || '',
+                legacyConfig: legacyConfigPreset?.config || {},
+                presetMessage: window.EveAudioflixSoundLabPresets.getMessage(),
                 initialVolume,
                 volumeAfterPreview,
                 volumeAfterCommit,
@@ -265,6 +341,14 @@ function staticContracts() {
                 visualModes,
                 generationKnobCount,
                 promptKnobCount,
+                knobBoundCount,
+                promptBeforeInput,
+                promptAfterInput,
+                promptAfterCommit,
+                promptSteeringCalls: promptSteeringCalls.length,
+                hasSessionTimer: !!host.querySelector('[data-sf-session-time]'),
+                timeline: window.EveAudioflixSoundLabEngine.getTimeline(),
+                transformedLevels,
                 controlView: stateApi.ensure().controlView,
                 promptControlView: stateApi.ensure().promptControlView,
                 steeringCalls,
@@ -277,9 +361,16 @@ function staticContracts() {
         assert(result.sameIdentity, 'state reads preserve object identity');
         assert(result.migratedControlView === 'sliders', 'schema-v1 scenes migrate the control view default');
         assert(result.migratedPromptControlView === 'knobs', 'legacy scenes gain Prompt Mixer knobs');
-        assert(result.promptCount >= 1 && result.promptCount <= 12, 'prompt collection is bounded');
+        assert(result.promptCount >= 1 && result.promptCount <= 16, 'prompt collection is bounded');
         assert(result.presetNames.includes('Smoke Scene'), 'saved scene persists in Audioflix state');
         assert(result.presetNames.includes('Imported Scene'), 'scene JSON imports into Audioflix state');
+        assert(
+            result.legacyPromptText === 'legacy glass bells'
+                && result.legacyConfig.bpm === 123
+                && result.legacyConfig.scale === 'G_MAJOR_E_MINOR'
+                && /legacy/i.test(result.presetMessage),
+            'original AI Sound prompt and config preset arrays import as native scenes'
+        );
         assert(result.initialVolume === result.volumeAfterPreview, 'volume preview avoids config write amplification');
         assert(result.volumeAfterCommit === 0.31, 'volume change commits after interaction');
         assert(result.sessionKeyBeforeClear === 'soundlab-session-test', 'credential is retained for this browser session');
@@ -321,6 +412,24 @@ function staticContracts() {
         assert(
             result.promptControlView === 'knobs' && result.promptKnobCount === result.promptCount,
             'each prompt weight has a persisted knob control'
+        );
+        assert(result.knobBoundCount >= result.promptKnobCount, 'knob controls use the low-sensitivity vertical input adapter');
+        assert(
+            result.promptAfterInput === result.promptBeforeInput
+                && result.promptAfterCommit === 'committed only after blur'
+                && result.promptSteeringCalls === 1,
+            'prompt text is committed once after editing instead of steering on every keystroke'
+        );
+        assert(
+            result.hasSessionTimer
+                && Object.hasOwn(result.timeline, 'elapsedSeconds')
+                && Object.hasOwn(result.timeline, 'generatedSeconds'),
+            'Sonic Forge exposes a live/generated session timeline'
+        );
+        assert(
+            Math.max(...result.transformedLevels) < 1300000
+                && Math.max(...result.transformedLevels) / Math.min(...result.transformedLevels) <= 1.21,
+            'native PCM volume and extreme stereo imbalance are corrected before routing'
         );
         assert(
             result.steeringCalls[0]?.resetContext === true

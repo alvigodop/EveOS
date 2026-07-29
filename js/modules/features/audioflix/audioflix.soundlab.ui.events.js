@@ -41,6 +41,10 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         const value = target.type === 'checkbox'
             ? target.checked
             : (['scale', 'musicGenerationMode'].includes(key) ? target.value : numeric(target));
+        if (current.config?.[key] === value) {
+            updateOutput(target, value);
+            return true;
+        }
         labState()?.update?.({
             config: Object.assign({}, current.config || {}, { [key]: value }),
             activePresetId: ''
@@ -55,11 +59,14 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         if (!id) return false;
         const field = target.dataset.sfField;
         const patch = {};
-        if (field === 'prompt-text') patch.text = target.value;
+        const current = (labState()?.ensure?.().prompts || []).find((prompt) => prompt.id === id);
+        if (field === 'prompt-text') patch.text = String(target.value || '').trim();
         else if (field === 'prompt-weight') patch.weight = numeric(target);
         else if (field === 'prompt-color') patch.color = target.value;
         else if (field === 'prompt-cc') patch.cc = Math.round(numeric(target));
         else return false;
+        const key = field.replace('prompt-', '');
+        if (current && current[key] === patch[key]) return true;
         labState()?.updatePrompt?.(id, patch);
         if (field === 'prompt-weight') updateOutput(target, patch.weight);
         if (field !== 'prompt-cc') engine()?.queueSteering?.();

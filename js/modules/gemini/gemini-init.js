@@ -246,6 +246,23 @@
                         </div>
                         <p class="gemini-monitor-copy">Compact keeps the short relay surface. Workspace keeps this summary visible and opens the full Gemini layout underneath it.</p>
                         <p class="gemini-monitor-meta">Modules stay deferred until needed, then the broader Gemini workspace boots in-place without leaving Search Monitor.</p>
+                        <details class="gemini-api-setup-guide">
+                            <summary>
+                                <span>Gemini API setup guide</span>
+                                <small>Gemini Link + Sonic Forge</small>
+                            </summary>
+                            <div class="gemini-api-setup-guide-body">
+                                <ol>
+                                    <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio API Keys</a>, sign in, and accept the terms if prompted.</li>
+                                    <li>Create a new API key. New AI Studio keys are authorization keys already limited to Gemini; import your Cloud project first if it is not listed.</li>
+                                    <li>In Search Monitor, switch to <b>Workspace</b>, open <b>Session Controls</b>, paste the key, and save it.</li>
+                                    <li>Start Gemini Link. Sonic Forge automatically reuses the same saved credential.</li>
+                                </ol>
+                                <p><b>Legacy key?</b> AI Studio now rejects unrestricted standard keys. Restrict it to the Gemini API, or replace it with a new authorization key.</p>
+                                <p class="gemini-api-security-note">Treat the key like a password. Never place it in prompts, screenshots, exports, source files, or commits. Replace a key immediately if it is exposed.</p>
+                                <a class="gemini-api-docs-link" href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noopener noreferrer">Read Google’s current API-key guide</a>
+                            </div>
+                        </details>
                     </div>
                 </div>
             </div>

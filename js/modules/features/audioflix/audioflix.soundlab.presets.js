@@ -47,9 +47,36 @@ window.EveAudioflixSoundLabPresets = window.EveAudioflixSoundLabPresets || {};
         return payload;
     }
 
+    function legacyPreset(entry, index) {
+        if (!Array.isArray(entry) || typeof entry[0] !== 'string') return entry;
+        const name = entry[0];
+        if (Array.isArray(entry[1])) {
+            return {
+                name,
+                prompts: entry[1].map((pair, promptIndex) => {
+                    const source = Array.isArray(pair) ? pair[1] : pair;
+                    return Object.assign({}, source || {}, {
+                        id: source?.id || source?.promptId || pair?.[0] || `legacy_prompt_${promptIndex}`
+                    });
+                })
+            };
+        }
+        if (entry[1] && typeof entry[1] === 'object') {
+            const source = entry[1];
+            return {
+                name,
+                config: Object.assign({}, source, {
+                    scale: source.scale || source.currentScale,
+                    musicGenerationMode: source.musicGenerationMode || source.generationMode
+                })
+            };
+        }
+        return { name: name || `Imported Preset ${index + 1}` };
+    }
+
     function importedPresets(payload) {
         const raw = Array.isArray(payload) ? payload : payload?.presets;
-        const candidates = Array.isArray(raw) ? raw.slice() : [];
+        const candidates = Array.isArray(raw) ? raw.map(legacyPreset) : [];
         if (!candidates.length && payload?.currentScene) {
             candidates.push({
                 name: `Imported Scene ${new Date().toLocaleDateString()}`,
@@ -87,7 +114,8 @@ window.EveAudioflixSoundLabPresets = window.EveAudioflixSoundLabPresets || {};
         window.EveAudioflixSoundLabState?.update?.({
             presets: merged.slice(-24)
         }, 'audioflix-soundlab-import-presets');
-        message = `Imported ${incoming.length} scene${incoming.length === 1 ? '' : 's'}; ${Math.min(24, merged.length)} retained.`;
+        const legacy = Array.isArray(payload) && payload.some(Array.isArray);
+        message = `Imported ${incoming.length} ${legacy ? 'legacy ' : ''}scene${incoming.length === 1 ? '' : 's'}; ${Math.min(24, merged.length)} retained.`;
         return incoming.length;
     }
 

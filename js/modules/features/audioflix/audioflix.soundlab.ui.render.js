@@ -71,7 +71,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
             <header>
                 <div><span class="sonic-forge-eyebrow">Direction Matrix</span>
                     <h3>Prompt Mixer</h3>
-                    <p>Blend musical ideas live. Zero mutes a direction; higher weights make it dominant.</p>
+                    <p>Blend musical ideas live. Text commits on blur or Enter; knobs drag vertically, with Shift for fine control.</p>
                 </div>
                 <div class="sonic-forge-header-actions">
                     <div class="sonic-forge-view-toggle" role="group" aria-label="Prompt mixer control view">
@@ -79,7 +79,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                             class="${soundLab.promptControlView === view ? 'is-active' : ''}"
                             data-af-action="soundlab-prompt-view" data-sf-view="${view}">${view}</button>`).join('')}
                     </div>
-                    <button type="button" data-af-action="soundlab-add-prompt" ${prompts.length >= 12 ? 'disabled' : ''}>
+                    <button type="button" data-af-action="soundlab-add-prompt" ${prompts.length >= 16 ? 'disabled' : ''}>
                         + Direction
                     </button>
                 </div>
@@ -241,6 +241,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                         ${window.EveAudioflixSoundLabState.modes.map((mode) => `<option value="${mode}"${selected(soundLab.visualizerMode, mode)}>${esc(mode)}</option>`).join('')}
                     </select>
                     <label>Volume <input type="range" min="0" max="1" step="0.01" value="${esc(soundLab.masterVolume)}" data-sf-field="master-volume"></label>
+                    <span data-sf-session-time title="Current session elapsed time and generated audio received. Lyria does not expose a fixed session countdown.">00:00 live · 00:00 generated</span>
                     <span data-sf-buffer>${Number(engineStatus.bufferedSeconds || 0).toFixed(1)}s buffered</span>
                 </div>
             </div>

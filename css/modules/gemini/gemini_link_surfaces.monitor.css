@@ -285,3 +285,86 @@
     color: rgba(230, 246, 255, 0.58);
 }
 
+.gemini-api-setup-guide {
+    border: 1px solid rgba(110, 231, 255, 0.14);
+    border-radius: 14px;
+    background: rgba(5, 16, 23, 0.48);
+    overflow: hidden;
+}
+
+.gemini-api-setup-guide > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    color: #dff9ff;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.8rem;
+    font-weight: 750;
+}
+
+.gemini-api-setup-guide > summary::-webkit-details-marker {
+    display: none;
+}
+
+.gemini-api-setup-guide > summary::after {
+    content: "+";
+    color: #6ee7ff;
+    font-size: 1rem;
+}
+
+.gemini-api-setup-guide[open] > summary::after {
+    content: "−";
+}
+
+.gemini-api-setup-guide > summary small {
+    margin-left: auto;
+    color: rgba(230, 246, 255, 0.5);
+    font-size: 0.67rem;
+    font-weight: 650;
+}
+
+.gemini-api-setup-guide-body {
+    display: grid;
+    gap: 9px;
+    padding: 0 13px 13px;
+    border-top: 1px solid rgba(110, 231, 255, 0.1);
+    color: rgba(244, 251, 255, 0.76);
+    font-size: 0.76rem;
+    line-height: 1.5;
+}
+
+.gemini-api-setup-guide-body ol {
+    display: grid;
+    gap: 7px;
+    margin: 12px 0 0;
+    padding-left: 20px;
+}
+
+.gemini-api-setup-guide-body p {
+    margin: 0;
+}
+
+.gemini-api-setup-guide-body a {
+    color: #6ee7ff;
+}
+
+.gemini-api-security-note {
+    padding: 8px 10px;
+    border-left: 2px solid #ffba55;
+    border-radius: 4px 10px 10px 4px;
+    background: rgba(255, 186, 85, 0.08);
+}
+
+.gemini-api-docs-link {
+    width: fit-content;
+    font-weight: 750;
+}
+
+@media (max-width: 560px) {
+    .gemini-api-setup-guide > summary small {
+        display: none;
+    }
+}

@@ -50,12 +50,16 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
         const width = Math.max(320, Math.round(rect.width * ratio));
         const height = Math.max(180, Math.round(rect.height * ratio));
         if (canvas.width === width && canvas.height === height) return;
+        const previous = spectrogram;
         canvas.width = width;
         canvas.height = height;
         spectrogram = document.createElement('canvas');
         spectrogram.width = width;
         spectrogram.height = height;
         spectrogramContext = spectrogram.getContext('2d', { alpha: false });
+        if (previous?.width && previous?.height) {
+            spectrogramContext.drawImage(previous, 0, 0, width, height);
+        }
     }
 
     function prepareData(node) {

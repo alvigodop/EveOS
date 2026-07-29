@@ -11,6 +11,44 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
     let subscribed = false;
     let midiRestored = false;
     let transientError = '';
+    let timelineTimer = 0;
+
+    function formatTime(seconds) {
+        const total = Math.max(0, Math.floor(Number(seconds) || 0));
+        const minutes = Math.floor(total / 60);
+        return `${String(minutes).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+    }
+
+    function updateTimeline() {
+        const output = root?.querySelector?.('[data-sf-session-time]');
+        if (!output) return;
+        const timeline = window.EveAudioflixSoundLabEngine?.getTimeline?.() || {};
+        output.textContent = `${formatTime(timeline.elapsedSeconds)} live · ${formatTime(timeline.generatedSeconds)} generated`;
+    }
+
+    function syncTimelineTimer() {
+        if (timelineTimer && (!visible || !root)) {
+            window.clearInterval(timelineTimer);
+            timelineTimer = 0;
+        }
+        if (!timelineTimer && visible && root) {
+            timelineTimer = window.setInterval(updateTimeline, 250);
+        }
+        updateTimeline();
+    }
+
+    function bindPromptCommits() {
+        root?.querySelectorAll?.('[data-sf-field="prompt-text"]').forEach((input) => {
+            if (input.dataset.sfPromptCommitBound === '1') return;
+            input.dataset.sfPromptCommitBound = '1';
+            input.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') input.blur();
+            });
+            input.addEventListener('blur', () => {
+                handleChange(input, new Event('change')).catch(showError);
+            });
+        });
+    }
 
     function updateEngine(status) {
         if (!root) return;
@@ -87,6 +125,9 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         const canvas = root?.querySelector?.('[data-sf-visualizer]') || null;
         window.EveAudioflixSoundLabVisualizer?.mount?.(canvas);
         window.EveAudioflixSoundLabVisualizer?.setVisible?.(visible && !!root);
+        window.EveAudioflixSoundLabKnobInput?.bind?.(root);
+        bindPromptCommits();
+        syncTimelineTimer();
         subscribe();
         updateEngine(window.EveAudioflixSoundLabEngine?.getStatus?.() || {});
         updateRecording(window.EveAudioflixSoundLabRecording?.getStatus?.() || {});
@@ -100,6 +141,7 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
     function setVisible(next) {
         visible = next === true;
         window.EveAudioflixSoundLabVisualizer?.setVisible?.(visible && !!root);
+        syncTimelineTimer();
     }
 
     function showError(error) {

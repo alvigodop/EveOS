@@ -83,6 +83,7 @@ async function main() {
             const selfTalkActions = box('.gemini-agentic-card--self-talk .gemini-agentic-card-actions');
             const selfTalkToggle = box('.gemini-agentic-card--self-talk .gemini-agentic-switch');
             const audioToggle = box('.gemini-agentic-card--audio .gemini-agentic-switch');
+            const apiGuide = document.querySelector('.gemini-api-setup-guide');
 
             return {
                 compact: document.getElementById('loadingIndicator')?.classList.contains('compact') || false,
@@ -96,7 +97,14 @@ async function main() {
                 liveLinkSettingsExpanded: liveLinkSettings?.getAttribute('aria-expanded') || '',
                 selfTalkActions,
                 selfTalkToggle,
-                audioToggle
+                audioToggle,
+                apiGuide: {
+                    exists: !!apiGuide,
+                    open: apiGuide?.open === true,
+                    keyLink: apiGuide?.querySelector('a[href*="aistudio.google.com/apikey"]')?.href || '',
+                    docsLink: apiGuide?.querySelector('a[href*="ai.google.dev/gemini-api/docs/api-key"]')?.href || '',
+                    mentionsSonicForge: /Sonic Forge/i.test(apiGuide?.textContent || '')
+                }
             };
         });
 
@@ -120,6 +128,10 @@ async function main() {
         }
         if (!result.audioToggle || result.audioToggle.width < 48 || result.audioToggle.height < 28) {
             throw new Error(`Audio toggle did not render inside its card bounds: ${JSON.stringify(result)}`);
+        }
+        if (!result.apiGuide.exists || result.apiGuide.open
+            || !result.apiGuide.keyLink || !result.apiGuide.docsLink || !result.apiGuide.mentionsSonicForge) {
+            throw new Error(`Gemini API setup guide is incomplete or not collapsed by default: ${JSON.stringify(result)}`);
         }
         if (!result.selfTalkActions
             || result.selfTalkToggle.x < result.selfTalkActions.x

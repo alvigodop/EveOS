@@ -80,7 +80,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
 
     function cleanPrompts(prompts) {
         const result = (Array.isArray(prompts) ? prompts : DEFAULT_PROMPTS)
-            .slice(0, 12)
+            .slice(0, 16)
             .map(cleanPrompt)
             .filter((prompt) => !!prompt.text);
         return result.length ? result : DEFAULT_PROMPTS.map(cleanPrompt);
@@ -143,7 +143,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
 
     function addPrompt() {
         const state = ensure();
-        if (state.prompts.length >= 12) return state;
+        if (state.prompts.length >= 16) return state;
         const index = state.prompts.length;
         return update({
             prompts: [...state.prompts, cleanPrompt({
