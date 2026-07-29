@@ -11,7 +11,7 @@
     "smoke:file-size": "node tools/smoke/first_party_file_size_smoke.js",
     "smoke:launcher": "node tools/smoke/launcher_contract_smoke.js",
     "smoke:audioflix-spotify": "node tools/smoke/audioflix_spotify_playback_smoke.js",
-    "smoke:audioflix-soundlab": "node tools/smoke/audioflix_soundlab_smoke.js",
+    "smoke:audioflix-soundlab": "node tools/smoke/audioflix_soundlab_smoke.js && node tools/smoke/audioflix_soundlab_prompt_focus_smoke.js",
     "smoke:gemini-context": "node tools/smoke/gemini_selective_context_smoke.js && node tools/smoke/gemini_deep_nesting_payload_smoke.js && node tools/smoke/gemini_context_detail_tiers_smoke.js && node tools/smoke/gemini_context_chunked_transport_smoke.js && node tools/smoke/gemini_mode2_context_routing_smoke.js",
     "verify": "npm run build:audioflix-genai && npm run audit && npm run audit:python && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:audioflix-spotify && npm run smoke:audioflix-soundlab && npm run smoke:gemini-context"
   },

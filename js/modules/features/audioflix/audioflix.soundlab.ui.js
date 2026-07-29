@@ -12,6 +12,33 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
     let midiRestored = false;
     let transientError = '';
     let timelineTimer = 0;
+    let deferredOuterRender = null;
+
+    function activePromptEditor() {
+        const active = document.activeElement;
+        return !!root
+            && root.contains(active)
+            && active?.matches?.('[data-sf-field="prompt-text"]');
+    }
+
+    function deferOuterRender(render) {
+        if (!activePromptEditor()) {
+            deferredOuterRender = null;
+            return false;
+        }
+        if (typeof render === 'function') deferredOuterRender = render;
+        return true;
+    }
+
+    function flushDeferredOuterRender() {
+        const render = deferredOuterRender;
+        if (!render) return;
+        window.setTimeout(() => {
+            if (activePromptEditor() || deferredOuterRender !== render) return;
+            deferredOuterRender = null;
+            render();
+        }, 0);
+    }
 
     function formatTime(seconds) {
         const total = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -45,7 +72,9 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
                 if (event.key === 'Enter') input.blur();
             });
             input.addEventListener('blur', () => {
-                handleChange(input, new Event('change')).catch(showError);
+                handleChange(input, new Event('change'))
+                    .catch(showError)
+                    .finally(flushDeferredOuterRender);
             });
         });
     }
@@ -190,6 +219,7 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         setVisible,
         handleAction,
         handleInput,
-        handleChange
+        handleChange,
+        deferOuterRender
     });
 })();

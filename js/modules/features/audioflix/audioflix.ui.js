@@ -287,7 +287,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     }
 
     function rerender() {
-        if (!overlay || overlay.hidden) return;
+        if (!overlay || overlay.hidden || window.EveAudioflixSoundLabUi?.deferOuterRender?.(rerender)) return;
         if (activeInfoItem) activeInfoItem = findItem(activeInfoType, activeInfoItem.id) || activeInfoItem;
         const panel = overlay.querySelector('.audioflix-panel'), scrollTop = (panel && lastTab === activeTab) ? panel.scrollTop : 0, scrollLeft = (panel && lastTab === activeTab) ? panel.scrollLeft : 0;
         const infoBody = overlay.querySelector('.audioflix-info-body');
@@ -407,7 +407,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     window.addEventListener('eve:audioflix-progress', e => window.EveAudioflixTransport?.sync?.(overlay, e.detail));
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reason = e.detail?.reason;
-        if (reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed' || reason === 'audioflix-groups' || reason === 'audioflix-active-group' || reason === 'audioflix-browser-folders') return;
+        if (reason?.startsWith('audioflix-soundlab-') || reason === 'audioflix-volume' || reason === 'audioflix-play' || reason === 'audioflix-exposed' || reason === 'audioflix-groups' || reason === 'audioflix-active-group' || reason === 'audioflix-browser-folders') return;
         if (reason === 'audioflix-gemini-audio') { updateStatusDOM(); return; }
         rerender();
     });
