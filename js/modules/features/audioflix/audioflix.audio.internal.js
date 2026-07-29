@@ -117,7 +117,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             stage.addEventListener('click', (event) => {
                 const button = event.target.closest('[data-url-player-action]');
                 const action = button?.dataset.urlPlayerAction;
-                if (action === 'stop') options.onStop?.();
+                if (action === 'stop') (options.onClose || options.onStop)?.();
                 else if (action === 'toggle') options.onToggle?.();
                 else if (action === 'prev') options.onStep?.(-1);
                 else if (action === 'next') options.onStep?.(1);
@@ -141,7 +141,11 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         function open(item, provider, settings = {}) {
             const element = ensureStage();
             currentItem = item;
-            element.hidden = settings.visible === false;
+            const transportOnly = settings.visible === false;
+            // Provider SDKs such as Spotify do not reliably initialize, resume, or preserve
+            // user activation when hidden. Keep a compact native transport visible.
+            element.hidden = false;
+            element.classList.toggle('is-transport-only', transportOnly);
             element.classList.remove('has-error');
             element.classList.toggle('is-internal-view', settings.expanded === true);
             if (settings.expanded) element.classList.remove('is-collapsed');
@@ -197,8 +201,16 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         function setExpanded(expanded = true) {
             const element = ensureStage();
             element.hidden = false;
+            element.classList.remove('is-transport-only');
             element.classList.toggle('is-internal-view', expanded);
             if (expanded) element.classList.remove('is-collapsed');
+        }
+
+        function setTransportOnly(enabled = true) {
+            const element = ensureStage();
+            element.hidden = false;
+            element.classList.toggle('is-transport-only', enabled === true);
+            if (enabled) element.classList.remove('is-internal-view', 'is-collapsed');
         }
 
         function sync(playback = {}) {
@@ -214,7 +226,9 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         }
 
         function hide() {
-            if (stage) stage.hidden = true;
+            if (!stage) return;
+            stage.classList.remove('is-transport-only');
+            stage.hidden = true;
         }
 
         async function connectYouTubeBridge(item, videoId, callbacks = {}) {
@@ -308,7 +322,8 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         }
 
         return {
-            open, hide, isOpen: () => !!stage && !stage.hidden, setStatus, setVisualVisible, setExpanded, sync, connectYouTubeBridge,
+            open, hide, isOpen: () => !!stage && !stage.hidden && !stage.classList.contains('is-transport-only'),
+            setStatus, setVisualVisible, setExpanded, setTransportOnly, sync, connectYouTubeBridge,
             setQueue, setRate,
             getFrame: () => ensureStage().querySelector('.audioflix-provider-frame'),
             getStage: () => stage,

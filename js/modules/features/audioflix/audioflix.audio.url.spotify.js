@@ -73,7 +73,7 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                 let startTimer = 0;
                 let runtimeFailureReported = false;
                 const timer = setTimeout(() => finish(new Error('Spotify player did not become ready.')), READY_TIMEOUT_MS);
-                const blockedMessage = 'Spotify playback did not start. Allow protected media and Spotify requests in this browser, retry, or localize this track for reliable playback.';
+                const blockedMessage = 'Spotify playback needs a direct click in this browser. Use the visible Spotify play control, allow protected media, or localize this track for reliable one-click playback.';
                 const clearStartTimer = () => {
                     if (startTimer) clearTimeout(startTimer);
                     startTimer = 0;
@@ -89,10 +89,12 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                     runtimeFailureReported = true;
                     clearStartTimer();
                     V.playback.paused = true;
-                    setStageStatus(message, true);
+                    // Autoplay rejection is recoverable: keep Spotify's official control visible
+                    // so the user can satisfy the browser's direct-interaction requirement.
+                    setStageStatus(message);
                     emitPlayback(message, true);
                     emitProgress();
-                    if (!settled) finish(new Error(message));
+                    if (!settled) finish();
                 };
                 const markStarted = () => {
                     started = true;
@@ -105,9 +107,9 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                     width: '100%',
                     height: 152
                 }, (controller) => {
-                    const invokePlay = () => typeof controller.resume === 'function'
-                        ? controller.resume()
-                        : controller.play?.();
+                    const invokePlay = () => typeof controller.play === 'function'
+                        ? controller.play()
+                        : controller.resume?.();
                     const player = {
                         play: () => {
                             started = false;

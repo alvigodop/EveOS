@@ -410,6 +410,10 @@
     margin-top: 9px;
 }
 
+.sonic-forge-preset-portability {
+    margin-top: 10px;
+}
+
 .sonic-forge-inline-form input,
 .sonic-forge-inline-form select {
     flex: 1 1 180px;
@@ -423,53 +427,4 @@
 
 .sonic-forge-recording .sonic-forge-button-row {
     margin-top: 4px;
-}
-
-@media (max-width: 900px) {
-    .sonic-forge-hero,
-    .sonic-forge-workspace {
-        grid-template-columns: 1fr;
-    }
-
-    .sonic-forge-generation,
-    .sonic-forge-side-grid {
-        grid-column: 1;
-    }
-}
-
-@media (max-width: 620px) {
-    .audioflix-content:has(.sonic-forge) {
-        padding-inline: 10px;
-    }
-
-    .sonic-forge-hero {
-        padding: 16px;
-    }
-
-    .sonic-forge-controls-grid,
-    .sonic-forge-visual-controls {
-        grid-template-columns: 1fr;
-    }
-
-    .sonic-forge-prompt-top {
-        grid-template-columns: auto 30px minmax(0, 1fr);
-    }
-
-    .sonic-forge-prompt-top button {
-        grid-column: 1 / -1;
-    }
-
-    .sonic-forge-prompt-mix {
-        grid-template-columns: 1fr;
-    }
-
-    .sonic-forge-button-row button {
-        flex: 1 1 120px;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .sonic-forge button {
-        transition: none;
-    }
 }

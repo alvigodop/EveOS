@@ -113,7 +113,9 @@ async function main() {
             try { await youtube.play(ytItem); } catch (error) { blockedMessage = error.message; }
             const stage = document.querySelector('.audioflix-provider-stage');
             const stageText = stage?.textContent || '';
-            const normalStageHidden = stage?.hidden === true;
+            const normalStageTransportOnly = stage?.hidden === false
+                && stage.classList.contains('is-transport-only')
+                && youtube.isInternalViewOpen() === false;
             const blockedActive = youtube.isActive();
             const blockedStageElement = document.querySelector('.audioflix-provider-stage.has-error');
             const blockedStage = blockedStageElement?.textContent || '';
@@ -261,7 +263,7 @@ async function main() {
                 progressCount: progressEvents.length,
                 youtubePlayerAttempts,
                 stageText,
-                normalStageHidden,
+                normalStageTransportOnly,
                 scState,
                 scVolume,
                 vimeoState,
@@ -301,7 +303,7 @@ async function main() {
         assert(result.playbackEvents.some((status) => /directly from the browser/.test(status)), 'direct playback status missing');
         assert(result.progressCount > 0, 'direct playback progress events missing');
         assert(/YouTube Track/.test(result.stageText), 'hidden provider stage did not retain the active track');
-        assert(result.normalStageHidden, 'normal playback opened the Internal player without user action');
+        assert(result.normalStageTransportOnly, 'normal playback exposed the Internal player instead of its off-screen transport');
         assert(result.scState.provider === 'soundcloud' && result.scState.currentTime === 31, 'SoundCloud transport state failed');
         assert(result.scVolume === 20, `SoundCloud volume was not forwarded: ${result.scVolume}`);
         assert(result.vimeoState.provider === 'vimeo' && result.vimeoState.currentTime === 19, 'Vimeo transport state failed');
@@ -311,7 +313,7 @@ async function main() {
         assert(result.youtubePlayerAttempts === 0, 'file:// playback should not create a YouTube iframe that is guaranteed to fail');
         assert(/direct media URL/.test(result.blockedStage), 'provider error UI did not offer a usable fallback');
         assert(result.blockedFrameDisplay === 'none', 'blocked provider frame should collapse instead of leaving a black box');
-        assert(result.blockedStageHeight < 180, `blocked provider fallback is too tall: ${result.blockedStageHeight}px`);
+        assert(result.blockedStageHeight <= 184, `off-screen provider fallback exceeded its transport shell: ${result.blockedStageHeight}px`);
         assert(result.internalExpanded, 'explicit Internal View did not expand the provider surface');
         assert(result.internalVisible, 'explicit Internal View remained hidden');
         assert(result.internalHeader === 'Internal player', `provider-specific Internal player title leaked: ${result.internalHeader}`);

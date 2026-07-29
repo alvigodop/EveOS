@@ -117,7 +117,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         masterGain.connect(outputGain);
         masterGain.connect(recordDestination);
         outputGain.connect(context.destination);
-        setMasterVolume(soundState().masterVolume);
+        setMasterVolume(soundState().masterVolume, false);
         await applyOutputRoute();
         return context;
     }
@@ -133,10 +133,12 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         return true;
     }
 
-    function setMasterVolume(value) {
+    function setMasterVolume(value, persist = true) {
         const safe = Math.max(0, Math.min(1, Number(value) || 0));
         if (masterGain) masterGain.gain.setTargetAtTime(safe, context.currentTime, 0.02);
-        window.EveAudioflixSoundLabState?.update?.({ masterVolume: safe }, 'audioflix-soundlab-volume');
+        if (persist) {
+            window.EveAudioflixSoundLabState?.update?.({ masterVolume: safe }, 'audioflix-soundlab-volume');
+        }
         return safe;
     }
 
@@ -168,9 +170,9 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
     async function applySteering(options) {
         if (!session) return false;
-        if (options?.resetContext) session.resetContext();
         await session.setWeightedPrompts({ weightedPrompts: weightedPrompts() });
         await session.setMusicGenerationConfig({ musicGenerationConfig: musicConfig() });
+        if (options?.resetContext) session.resetContext?.();
         return true;
     }
 

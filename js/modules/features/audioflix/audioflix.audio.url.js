@@ -6,7 +6,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
     const SCRIPT_TIMEOUT_MS = 12000;
     const YOUTUBE_FILE_MESSAGE = 'YouTube requires an HTTPS/app identity that a plain file:// page cannot send. Use Play on YouTube, replace this track URL with a direct media URL, cache a local copy, or start EveOS localhost to play it inside Audioflix.';
     const { loadScript, loadYouTubeApi } = window.EveAudioflixUrlLoaders;
-    const { providerFor, youtubeId } = window.EveAudioflixUrlProviders;
+    const { providerFor, youtubeId, shouldPreferBrowser } = window.EveAudioflixUrlProviders;
     function itemKey(item) {
         return String(item?.id || item?.url || '');
     }
@@ -24,7 +24,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
         let playbackRate = 1;
         const playback = { item: null, currentTime: 0, duration: 0, paused: true, provider: '' };
         const view = window.EveAudioflixInternalPlayer?.createController?.({
-            onStop: () => stop({ closeView: true }),
+            onClose: () => hideInternalView(),
             onToggle: () => playback.paused ? resume() : pause(),
             onSeek: (value) => seek(value),
             onVolume: (value) => setVolume(value),
@@ -322,6 +322,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                     ensureStage(item, 'Direct audio', false);
                     setStageStatus('Playing this linked audio inside EveOS.');
                 } else if (requestedInternalView) view?.setExpanded?.(true);
+                else if (provider !== 'direct') view?.setTransportOnly?.(true);
                 else view?.hide?.();
                 if (playback.paused) await resume();
                 return true;
@@ -420,7 +421,8 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
 
         function hideInternalView() {
             requestedInternalView = false;
-            view?.hide?.();
+            if (active && active.kind !== 'direct') view?.setTransportOnly?.(true);
+            else view?.hide?.();
             return true;
         }
 
@@ -429,12 +431,10 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             setRate, getRate: () => playbackRate,
             isInternalViewOpen: () => requestedInternalView && view?.isOpen?.() === true,
             hideInternalView,
-            closeInternalView: () => stop({ closeView: true }),
+            closeInternalView: hideInternalView,
             setQueue: (entries, index) => view?.setQueue?.(entries, index),
             canHandle: (item) => !!providerFor(item?.url),
-            shouldPreferBrowser: (item) => location.protocol === 'file:'
-                && /^https?:\/\//i.test(String(item?.url || ''))
-                && window.EveAudioflixNative?.getStatus?.()?.ok !== true,
+            shouldPreferBrowser,
             isActive: () => !!active,
             getAudioElement: () => active?.kind === 'direct' ? active.player : null,
             matches: (itemOrId) => typeof itemOrId === 'object'

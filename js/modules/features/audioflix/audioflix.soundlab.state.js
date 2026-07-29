@@ -94,6 +94,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             config: cleanConfig(source.config),
             presets: (Array.isArray(source.presets) ? source.presets : []).slice(-24).map(cleanPreset),
             activePresetId: text(source.activePresetId, '', 80),
+            controlView: ['sliders', 'knobs'].includes(source.controlView) ? source.controlView : 'sliders',
             visualizerMode: MODES.includes(source.visualizerMode) ? source.visualizerMode : 'frequency',
             masterVolume: clamp(source.masterVolume, 0, 1, 0.78),
             bufferSeconds: clamp(source.bufferSeconds, 0.25, 2, 0.65),
@@ -110,8 +111,12 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
 
     function ensure() {
         const root = currentRoot();
-        const normalized = normalize(root.soundLab);
-        if (root.soundLab !== normalized) root.soundLab = normalized;
+        if (!root.soundLab
+            || typeof root.soundLab !== 'object'
+            || root.soundLab.schemaVersion !== 1
+            || !['sliders', 'knobs'].includes(root.soundLab.controlView)) {
+            root.soundLab = normalize(root.soundLab);
+        }
         return root.soundLab;
     }
 

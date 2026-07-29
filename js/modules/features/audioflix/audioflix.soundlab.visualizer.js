@@ -9,6 +9,7 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
     let canvas = null;
     let context = null;
     let resizeObserver = null;
+    let resizeFallback = false;
     let frameId = 0;
     let lastFrame = 0;
     let visible = false;
@@ -205,13 +206,21 @@ window.EveAudioflixSoundLabVisualizer = window.EveAudioflixSoundLabVisualizer ||
             return requestFrame();
         }
         if (resizeObserver) resizeObserver.disconnect();
+        if (resizeFallback) window.removeEventListener('resize', resize);
+        resizeFallback = false;
         if (frameId) cancelAnimationFrame(frameId);
         canvas = target || null;
         context = canvas?.getContext?.('2d') || null;
         frameId = 0;
         if (!canvas) return;
-        resizeObserver = new ResizeObserver(resize);
-        resizeObserver.observe(canvas);
+        if (typeof ResizeObserver === 'function') {
+            resizeObserver = new ResizeObserver(resize);
+            resizeObserver.observe(canvas);
+        } else {
+            resizeObserver = null;
+            resizeFallback = true;
+            window.addEventListener('resize', resize);
+        }
         resize();
         requestFrame();
     }

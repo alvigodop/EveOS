@@ -104,17 +104,24 @@ window.EveAudioflixSoundLabRecording = window.EveAudioflixSoundLabRecording || {
     async function postRecording(payload) {
         const errors = [];
         for (const base of candidateBases()) {
+            const controller = new AbortController();
+            const timeout = window.setTimeout(() => controller.abort(), 2200);
             try {
                 const response = await fetch(`${base}/api/audioflix/save-soundlab-recording`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
                 });
                 const result = await response.json().catch(() => ({}));
                 if (response.ok && result.ok) return result;
                 errors.push(result.message || `${base} returned ${response.status}.`);
             } catch (error) {
-                errors.push(error?.message || `${base} did not respond.`);
+                errors.push(error?.name === 'AbortError'
+                    ? `${base} timed out.`
+                    : (error?.message || `${base} did not respond.`));
+            } finally {
+                window.clearTimeout(timeout);
             }
         }
         throw new Error(errors[0] || 'Start EveOS localhost to save the recording into Music Library.');

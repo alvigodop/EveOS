@@ -3,6 +3,8 @@ const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
+const VERBOSE_BROWSER_LOGS = process.env.EVE_SMOKE_VERBOSE === '1';
+const SCREENSHOT_PATH = process.env.EVE_SMOKE_SCREENSHOT || '';
 
 function silentWavDataUrl() {
     const sampleRate = 8000;
@@ -27,7 +29,15 @@ async function main() {
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
     const pageErrors = [];
-    page.on('pageerror', (error) => { console.error('[BROWSER ERROR]', error); pageErrors.push(error?.stack || String(error)); }); page.on('console', (msg) => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
+    page.on('pageerror', (error) => {
+        console.error('[BROWSER ERROR]', error);
+        pageErrors.push(error?.stack || String(error));
+    });
+    page.on('console', (msg) => {
+        if (VERBOSE_BROWSER_LOGS || msg.type() === 'error') {
+            console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`);
+        }
+    });
 
     await page.addInitScript(() => {
         try {
@@ -240,6 +250,19 @@ async function main() {
             && window.__audioflixSeekValue === 45;
     });
 
+    await page.click('[data-af-action="tab"][data-af-tab="soundlab"]');
+    await page.waitForSelector('[data-audioflix-soundlab] [data-af-action="soundlab-control-view"]');
+    await page.click('[data-af-action="soundlab-control-view"][data-sf-view="knobs"]');
+    await page.waitForSelector('.sonic-forge-controls-grid.is-knobs');
+    const soundLabUiOk = await page.evaluate(() => (
+        document.querySelectorAll('.sonic-forge-controls-grid.is-knobs .sonic-forge-knob-shell').length === 6
+        && /Sonic Forge/.test(document.querySelector('[data-audioflix-soundlab]')?.textContent || '')
+        && window.EveAudioflixState.getSnapshot().soundLab?.controlView === 'knobs'
+    ));
+    if (SCREENSHOT_PATH) {
+        await page.locator('#audioflix-overlay .audioflix-panel').screenshot({ path: SCREENSHOT_PATH });
+    }
+
     await page.click('[data-af-action="tab"][data-af-tab="router"]');
     await page.click('[data-af-action="toggle-routing-drawer"]');
     await page.waitForSelector('.audioflix-routing-drawer.is-open .audioflix-route-board', { timeout: 10000 });
@@ -362,6 +385,7 @@ async function main() {
     if (result.musicCount !== 1) failures.push(`expected 1 track, got ${result.musicCount}`);
     if (!internalViewUiOk) failures.push('music Internal View action was missing or not wired');
     if (!musicTransportOk) failures.push('music volume/seek transport did not persist or dispatch');
+    if (!soundLabUiOk) failures.push('Sonic Forge knob view did not render or persist');
     if (!result.voicePortEnabled) failures.push('Gemini voice port did not persist');
     if (!result.voiceMonitorEnabled) failures.push('Gemini voice monitor did not persist');
     if (result.voiceMonitorLabel !== 'Smoke Monitor Speakers') failures.push(`wrong monitor label: ${result.voiceMonitorLabel}`);

@@ -20,11 +20,14 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
         return value === true ? ' checked' : '';
     }
 
-    function rangeField(label, key, value, min, max, step, detail) {
-        return `<label class="sonic-forge-control">
+    function rangeField(label, key, value, min, max, step, detail, controlView) {
+        const knob = controlView === 'knobs';
+        const progress = Math.max(0, Math.min(1, (Number(value) - min) / (max - min || 1)));
+        const input = `<input type="range" min="${min}" max="${max}" step="${step}" value="${esc(value)}"
+            data-sf-field="config" data-sf-config="${esc(key)}" aria-label="${esc(label)}">`;
+        return `<label class="sonic-forge-control${knob ? ' is-knob' : ''}">
             <span><b>${esc(label)}</b><output data-sf-output="${esc(key)}">${esc(value)}</output></span>
-            <input type="range" min="${min}" max="${max}" step="${step}" value="${esc(value)}"
-                data-sf-field="config" data-sf-config="${esc(key)}" aria-label="${esc(label)}">
+            ${knob ? `<span class="sonic-forge-knob-shell" style="--sf-knob:${progress}">${input}</span>` : input}
             ${detail ? `<small>${esc(detail)}</small>` : ''}
         </label>`;
     }
@@ -79,14 +82,20 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
         const scales = window.EveAudioflixSoundLabState?.scales || [];
         return `<section class="sonic-forge-block sonic-forge-generation">
             <header><div><span class="sonic-forge-eyebrow">Steering</span><h3>Generation Controls</h3>
-                <p>Changes are applied without rebuilding the audio engine.</p></div></header>
-            <div class="sonic-forge-controls-grid">
-                ${rangeField('Tempo', 'bpm', config.bpm, 60, 200, 1, 'BPM')}
-                ${rangeField('Density', 'density', config.density, 0, 1, 0.01)}
-                ${rangeField('Brightness', 'brightness', config.brightness, 0, 1, 0.01)}
-                ${rangeField('Guidance', 'guidance', config.guidance, 0, 6, 0.1)}
-                ${rangeField('Temperature', 'temperature', config.temperature, 0, 3, 0.05)}
-                ${rangeField('Top K', 'topK', config.topK, 1, 1000, 1)}
+                <p>Changes are applied without rebuilding the audio engine.</p></div>
+                <div class="sonic-forge-view-toggle" role="group" aria-label="Generation control view">
+                    ${['sliders', 'knobs'].map((view) => `<button type="button"
+                        class="${soundLab.controlView === view ? 'is-active' : ''}"
+                        data-af-action="soundlab-control-view" data-sf-view="${view}">${view}</button>`).join('')}
+                </div>
+            </header>
+            <div class="sonic-forge-controls-grid is-${esc(soundLab.controlView)}">
+                ${rangeField('Tempo', 'bpm', config.bpm, 60, 200, 1, 'BPM', soundLab.controlView)}
+                ${rangeField('Density', 'density', config.density, 0, 1, 0.01, '', soundLab.controlView)}
+                ${rangeField('Brightness', 'brightness', config.brightness, 0, 1, 0.01, '', soundLab.controlView)}
+                ${rangeField('Guidance', 'guidance', config.guidance, 0, 6, 0.1, '', soundLab.controlView)}
+                ${rangeField('Temperature', 'temperature', config.temperature, 0, 3, 0.05, '', soundLab.controlView)}
+                ${rangeField('Top K', 'topK', config.topK, 1, 1000, 1, '', soundLab.controlView)}
                 <label class="sonic-forge-control sonic-forge-select">
                     <span><b>Scale</b></span>
                     <select data-sf-field="config" data-sf-config="scale">
@@ -131,6 +140,12 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 <button type="button" data-af-action="soundlab-load-preset" ${presets.length ? '' : 'disabled'}>Load</button>
                 <button type="button" data-af-action="soundlab-remove-preset" class="is-danger" ${presets.length ? '' : 'disabled'}>Delete</button>
             </div>
+            <div class="sonic-forge-button-row sonic-forge-preset-portability">
+                <button type="button" data-af-action="soundlab-export-presets">Export Scenes</button>
+                <button type="button" data-af-action="soundlab-import-presets">Import Scenes</button>
+                <input type="file" accept="application/json,.json" data-sf-field="preset-file" hidden>
+            </div>
+            <p class="sonic-forge-note">${esc(window.EveAudioflixSoundLabPresets?.getMessage?.() || '')}</p>
         </section>`;
     }
 
@@ -160,7 +175,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
             </label>
             <label><span>Local recording folder</span>
                 <input type="text" maxlength="500" value="${esc(soundLab.recordingDir)}"
-                    placeholder="C:\Music\Sonic Forge" data-sf-field="recording-dir">
+                    placeholder="C:\\Music\\Sonic Forge" data-sf-field="recording-dir">
             </label>
             <div class="sonic-forge-button-row">
                 <button type="button" data-af-action="soundlab-toggle-record" class="${recording.recording ? 'is-recording' : ''}">
@@ -201,7 +216,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                     <button type="button" data-af-action="soundlab-reset">Reset Context</button>
                     <button type="button" data-af-action="soundlab-clear-key">Clear Key</button>
                 </div>
-                <small>Key storage is session-only. Prompts and presets are backed up; credentials and audio are not.</small>
+                <small>This field is session-only; an existing Gemini credential may be reused. Prompts and presets are backed up, but credentials and audio are not.</small>
             </div>
             <div class="sonic-forge-route"><span>Output route</span><b>${esc(routeLabel)}</b></div>
             <div class="sonic-forge-visual">

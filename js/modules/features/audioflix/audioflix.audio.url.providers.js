@@ -41,5 +41,13 @@ window.EveAudioflixUrlProviders = window.EveAudioflixUrlProviders || {};
         }
     }
 
-    Object.assign(ns, { ready: true, providerFor, youtubeId });
+    function shouldPreferBrowser(item) {
+        const provider = providerFor(item?.url);
+        return (!!provider && provider !== 'direct')
+            || (location.protocol === 'file:'
+                && /^https?:\/\//i.test(String(item?.url || ''))
+                && window.EveAudioflixNative?.getStatus?.()?.ok !== true);
+    }
+
+    Object.assign(ns, { ready: true, providerFor, youtubeId, shouldPreferBrowser });
 })();

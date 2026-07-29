@@ -9,7 +9,6 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
 
     const ns = window.EveAudioflixUiActions;
     if (ns.ready) return;
-
     ns.create = function create(ctx) {
         const localizeActions = window.EveAudioflixUiActionsLocalize.create(ctx);
         const nexusActions = window.EveAudioflixUiActionsNexus.create(ctx);
@@ -17,6 +16,11 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
 
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
+            if (action?.startsWith('soundlab-')) {
+                const result = await window.EveAudioflixSoundLabUi?.handleAction?.(actionTarget, e);
+                if (result?.rerender) ctx.rerender();
+                return;
+            }
             const item = id ? (ctx.findItem(type, id) || ctx.portedSounds.find(s => s.id === id)) : null;
             if (action === 'stop-item') return ctx.stopRepeater(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id), window.EveAudioflixAudio?.stopItemLayers?.(id), window.EveAudioflixAudio?.pause?.();
             if (action === 'toggle-repeater') {
@@ -56,7 +60,13 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 return;
             }
             if (action === 'submit-form') { const f = actionTarget.closest('form'); if (f?.reportValidity()) handleForm(f); return; }
-            if (action === 'tab') { ctx.activeTab = actionTarget.dataset.afTab || 'soundboard'; ctx.pushHotkeysToBridge(); ctx.rerender(); return; }
+            if (action === 'tab') {
+                ctx.activeTab = actionTarget.dataset.afTab || 'soundboard';
+                window.EveAudioflixSoundLabUi?.setVisible?.(ctx.activeTab === 'soundlab');
+                ctx.pushHotkeysToBridge();
+                ctx.rerender();
+                return;
+            }
             if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); ctx.playbackStatus = 'Opening Localhost EveOS in a new tab...'; ctx.rerender(); return; }
             if (action === 'toggle-local-badge') { actionTarget.closest('.audioflix-local-badge')?.classList.toggle('is-minimized'); return; }
             if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; ctx.rerender(); return; }

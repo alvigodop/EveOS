@@ -205,6 +205,16 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     }
 
     async function playItem(item) {
+        // Resume an existing provider controller before any async preparation can consume the
+        // originating click gesture. This matters for protected iframe players such as Spotify.
+        if (urlPlayback?.isActive?.()
+            && urlPlayback.matches(item)
+            && urlPlayback.shouldPreferBrowser?.(item)) {
+            currentItem = item;
+            await urlPlayback.play(item);
+            window.EveAudioflixState?.recordPlay?.(item);
+            return true;
+        }
         let prepared;
         try {
             prepared = await window.EveAudioflixLocalPlayback?.prepare?.(item);

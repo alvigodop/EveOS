@@ -23,6 +23,12 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         if (target.dataset.sfConfig) {
             const output = root?.querySelector(`[data-sf-output="${CSS.escape(target.dataset.sfConfig)}"]`);
             if (output) output.textContent = String(value);
+            const knob = target.closest('.sonic-forge-knob-shell');
+            if (knob) {
+                const min = Number(target.min || 0);
+                const max = Number(target.max || 1);
+                knob.style.setProperty('--sf-knob', String(Math.max(0, Math.min(1, (Number(value) - min) / (max - min || 1)))));
+            }
         }
     }
 
@@ -38,7 +44,7 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
             activePresetId: ''
         }, 'audioflix-soundlab-config');
         updateOutput(target, value);
-        engine()?.queueSteering?.();
+        engine()?.queueSteering?.({ resetContext: key === 'bpm' || key === 'scale' });
         return true;
     }
 
@@ -69,7 +75,7 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         if (field.startsWith('prompt-')) return applyPrompt(target);
         if (field === 'config' && target.type === 'range') return applyConfig(target);
         if (field === 'master-volume') {
-            engine()?.setMasterVolume?.(numeric(target));
+            engine()?.setMasterVolume?.(numeric(target), false);
             return true;
         }
         if (field === 'recording-name' || field === 'recording-dir') return true;
@@ -83,6 +89,10 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         if (field === 'config') return applyConfig(target);
         if (field === 'visualizer-mode') {
             labState()?.update?.({ visualizerMode: target.value }, 'audioflix-soundlab-visualizer');
+            return true;
+        }
+        if (field === 'master-volume') {
+            engine()?.setMasterVolume?.(numeric(target), true);
             return true;
         }
         if (field === 'recording-name') {
@@ -103,6 +113,12 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         }
         if (field === 'midi-input') {
             await window.EveAudioflixSoundLabMidi?.selectInput?.(target.value);
+            return true;
+        }
+        if (field === 'preset-file') {
+            await window.EveAudioflixSoundLabPresets?.importFile?.(target.files?.[0]);
+            target.value = '';
+            window.EveAudioflix?.render?.();
             return true;
         }
         return handleInput(target);
@@ -131,6 +147,10 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         } else if (action === 'soundlab-add-prompt') {
             labState()?.addPrompt?.();
             return { rerender: true };
+        } else if (action === 'soundlab-control-view') {
+            const controlView = target.dataset.sfView === 'knobs' ? 'knobs' : 'sliders';
+            labState()?.update?.({ controlView }, 'audioflix-soundlab-control-view');
+            return { rerender: true };
         } else if (action === 'soundlab-remove-prompt') {
             labState()?.removePrompt?.(target.dataset.sfPrompt);
             engine()?.queueSteering?.();
@@ -153,6 +173,12 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
             const id = selectedPreset(target);
             if (id) labState()?.removePreset?.(id);
             return { rerender: true };
+        } else if (action === 'soundlab-export-presets') {
+            window.EveAudioflixSoundLabPresets?.exportScenes?.();
+            return { rerender: true };
+        } else if (action === 'soundlab-import-presets') {
+            target.closest('[data-audioflix-soundlab]')?.querySelector('[data-sf-field="preset-file"]')?.click();
+            return { rerender: false };
         } else if (action === 'soundlab-toggle-record') {
             const recording = window.EveAudioflixSoundLabRecording;
             if (recording?.getStatus?.().recording) await recording.stop();
