@@ -5,6 +5,7 @@
   "description": "Local-first browser workspace and knowledge system",
   "scripts": {
     "test": "npm run verify",
+    "build:audioflix-genai": "esbuild tools/bundles/audioflix-genai.entry.js --bundle --format=iife --platform=browser --target=es2020 --minify --outfile=js/vendor/audioflix-genai.js",
     "audit": "node tools/audit/eveos-repo-audit.js",
     "audit:python": "python -m compileall -q server server_modules tools",
     "smoke:file-size": "node tools/smoke/first_party_file_size_smoke.js",
@@ -16,6 +17,10 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "esbuild": "^0.25.10",
     "playwright": "1.58.2"
+  },
+  "dependencies": {
+    "@google/genai": "^2.13.0"
   }
 }

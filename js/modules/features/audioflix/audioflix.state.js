@@ -159,6 +159,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             activeFrontendMusicArtist: text(source.activeFrontendMusicArtist, legacyArtist),
             activeFrontendMusicClassifier: text(source.activeFrontendMusicClassifier, legacyClassifier),
             activeMusicFolderScope: text(source.activeMusicFolderScope, ''),
+            soundLab: window.EveAudioflixSoundLabState?.normalize?.(source.soundLab) || {},
             // "Keep both" duplicate acknowledgements: sorted "idA|idB" pair keys left as separate items.
             dupDismissedPairs: Array.isArray(source.dupDismissedPairs) ? [...new Set(source.dupDismissedPairs.map((p) => text(p, '')).filter(Boolean))].slice(-2000) : [],
             // Manual music classifier definitions (names). Automatic classifiers are derived.
@@ -293,6 +294,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             activeFrontendMusicArtist: '',
             activeFrontendMusicClassifier: '',
             activeMusicFolderScope: '',
+            soundLab: window.EveAudioflixSoundLabState?.normalize?.({}) || {},
             localizeDir: '',
             localizeScopeDirs: {},
             scopeBindings: [],

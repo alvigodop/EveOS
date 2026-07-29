@@ -3,7 +3,7 @@ import os
 import threading
 from http import HTTPStatus
 
-AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac"}
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg", ".m4a", ".aac", ".flac", ".webm"}
 
 # Directories the user has explicitly registered as soundboard "ports" or localized music folders.
 # The file endpoint will only serve files that live inside one of these (and only audio files), so a
@@ -63,6 +63,7 @@ _CONTENT_TYPES = {
     ".m4a": "audio/mp4",
     ".aac": "audio/aac",
     ".flac": "audio/flac",
+    ".webm": "audio/webm",
 }
 
 
