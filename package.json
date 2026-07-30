@@ -8,6 +8,7 @@
     "build:audioflix-genai": "esbuild tools/bundles/audioflix-genai.entry.mjs --bundle --format=iife --platform=browser --target=es2020 --minify --outfile=js/vendor/audioflix-genai.js",
     "audit": "node tools/audit/eveos-repo-audit.js",
     "audit:python": "python -m compileall -q server server_modules tools",
+    "smoke:audioflix-spotify": "python tools/smoke/audioflix_spotify_match_smoke.py",
     "smoke:file-size": "node tools/smoke/first_party_file_size_smoke.js",
     "smoke:launcher": "node tools/smoke/launcher_contract_smoke.js",
     "smoke:audioflix-spotify": "node tools/smoke/audioflix_spotify_playback_smoke.js",

@@ -107,12 +107,28 @@ def localize_one(payload: dict) -> dict:
 
     if not _is_http(url):
         return {"ok": False, "id": tid, "error": "Track has no online URL to localize."}
+    # Spotify's own audio is Widevine-encrypted and cannot be downloaded. What CAN be done is read
+    # the track's public metadata (no API key needed) and localize the YouTube video holding the same
+    # recording — matched on exact duration so a live take or remix is rejected rather than guessed
+    # at. Only the resolved YouTube url continues through the normal pipeline below.
+    spotify_match = None
     if "open.spotify.com/" in url.lower():
-        return {
-            "ok": False,
-            "id": tid,
-            "error": "Spotify audio is not downloaded. Put an owned local file in the target folder, then recalibrate or localize again to attach it.",
-        }
+        try:
+            from . import audioflix_spotify_match as spotify_matcher
+        except ImportError:
+            import audioflix_spotify_match as spotify_matcher
+        spotify_match = spotify_matcher.find_youtube_match(url)
+        if not spotify_match.get("ok"):
+            return {
+                "ok": False,
+                "id": tid,
+                "error": spotify_match.get("message")
+                or "Could not find a YouTube recording matching that Spotify track.",
+            }
+        url = spotify_match.get("url") or url
+        # Prefer Spotify's own title for the saved filename: YouTube titles carry "(Official Video)"
+        # and similar decoration that does not belong in a library.
+        title = (spotify_match.get("spotify") or {}).get("title") or title
 
     path, err = _prepare_dir(target_dir)
     if err:
