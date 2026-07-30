@@ -184,6 +184,38 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         });
     }
 
+    // Drift moves parameters on a timer, and a state write does not re-render anything, so the
+    // controls would otherwise show stale numbers while the audio genuinely changed. Patch just the
+    // one slider and its readout — a full rerender on a timer would reintroduce the jank that moving
+    // the settings modal out of the panel rebuild was meant to remove.
+    function reflectDrift(change) {
+        if (!root || !change) return false;
+        const selector = change.kind === 'prompt'
+            ? `[data-sf-field="prompt-weight"][data-sf-prompt="${CSS.escape(String(change.id))}"]`
+            : `[data-sf-field="config"][data-sf-config="${CSS.escape(String(change.key))}"]`;
+        const input = root.querySelector(selector);
+        if (!input) return false;
+        // Never fight the user: leave a control alone while it has focus or is being dragged.
+        if (document.activeElement === input) return false;
+        input.value = String(change.value);
+        const shell = input.closest('.sonic-forge-knob-shell');
+        if (shell) {
+            const min = Number(input.min || 0);
+            const max = Number(input.max || 1);
+            const progress = Math.max(0, Math.min(1, (Number(change.value) - min) / ((max - min) || 1)));
+            shell.style.setProperty('--sf-knob', String(progress));
+        }
+        const output = change.kind === 'prompt'
+            ? root.querySelector(`[data-sf-prompt-weight="${CSS.escape(String(change.id))}"]`)
+            : root.querySelector(`[data-sf-output="${CSS.escape(String(change.key))}"]`);
+        if (output) {
+            output.textContent = change.kind === 'prompt'
+                ? Number(change.value).toFixed(2)
+                : String(change.value);
+        }
+        return true;
+    }
+
     function afterRender(host) {
         root = host?.querySelector?.('[data-audioflix-soundlab]') || null;
         const canvas = root?.querySelector?.('[data-sf-visualizer]') || null;
@@ -257,6 +289,7 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         handleAction,
         handleInput,
         handleChange,
+        reflectDrift,
         deferOuterRender
     });
 })();

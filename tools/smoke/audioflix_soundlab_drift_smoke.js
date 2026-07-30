@@ -129,6 +129,28 @@ async function main() {
                 });
             }
 
+            // --- every applied step is reported, so the UI can follow it ---
+            // A state write re-renders nothing, so without this the controls show stale numbers
+            // while the audio really is moving — the feature looks broken when it is working.
+            const reportRig = makeRig({ params: on, prompts: on });
+            const reported = [];
+            reportRig.api = D.create({
+                getState: () => reportRig.state,
+                update: () => {},
+                queueSteering: () => {},
+                onApplied: (change) => reported.push(change),
+                random: () => 0.8,
+                setInterval: () => 1,
+                clearInterval: () => {}
+            });
+            reportRig.api.stepParams();
+            reportRig.api.stepPrompts();
+            const reportedKinds = reported.map((change) => change.kind).sort();
+            const reportedShape = reported.every((change) => (
+                Number.isFinite(change.value)
+                && (change.kind === 'prompt' ? !!change.id : !!change.key)
+            ));
+
             // --- disabled lanes do nothing ---
             const idleRig = makeRig({ params: off, prompts: off });
             idleRig.pushRandom(0.1, 0.9);
@@ -152,6 +174,8 @@ async function main() {
                 idleParams,
                 idlePrompts,
                 idleSteers: idleRig.steers,
+                reportedKinds,
+                reportedShape,
                 fastInterval: D.intervalFor(1),
                 slowInterval: D.intervalFor(0),
                 bounds: D.intervalBounds()
@@ -195,6 +219,12 @@ async function main() {
         // Disabled lanes are inert.
         assert(result.idleParams === null && result.idlePrompts === null && result.idleSteers === 0,
             'a disabled lane performs no work and queues no steering');
+
+        // Each applied step must be reported with enough detail to patch one control.
+        assert(result.reportedKinds.join(',') === 'config,prompt',
+            `both lanes report their applied change (got ${result.reportedKinds.join(',')})`);
+        assert(result.reportedShape,
+            'a reported change carries a finite value plus the key or prompt id it belongs to');
 
         // Rate maps to a sane interval range.
         assert(result.fastInterval === result.bounds.min && result.slowInterval === result.bounds.max,

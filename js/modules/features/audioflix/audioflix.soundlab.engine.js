@@ -180,7 +180,8 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     const ensureDrift = () => (drift = drift || window.EveAudioflixSoundLabDrift.create({
         getState: () => soundState(),
         update: (patch, reason) => window.EveAudioflixSoundLabState.update(patch, reason),
-        queueSteering: () => queueSteering()
+        queueSteering: () => queueSteering(),
+        onApplied: (change) => window.EveAudioflixSoundLabUi?.reflectDrift?.(change)
     }));
     const syncDrift = () => ensureDrift().sync();
     const stopDrift = () => drift?.stop?.();

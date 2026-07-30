@@ -66,6 +66,11 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
         const getState = deps?.getState || (() => ({}));
         const update = deps?.update || (() => {});
         const queueSteering = deps?.queueSteering || (() => {});
+        // Drift writes straight to state, and nothing re-renders on a state change — so without
+        // this the controls sat on stale numbers while the audio really was moving, which reads as
+        // "the feature does nothing". Reported per step so the UI can patch one control instead of
+        // rebuilding the panel on a timer.
+        const onApplied = deps?.onApplied || (() => {});
         const random = deps?.random || Math.random;
         const setTimer = deps?.setInterval || window.setInterval.bind(window);
         const clearTimer = deps?.clearInterval || window.clearInterval.bind(window);
@@ -112,6 +117,7 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
                 'audioflix-soundlab-drift-params'
             );
             queueSteering();
+            onApplied({ kind: 'config', key, value: next });
             return { key, value: next };
         }
 
@@ -138,6 +144,7 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
                 'audioflix-soundlab-drift-prompts'
             );
             queueSteering();
+            onApplied({ kind: 'prompt', id: target.id, value: next });
             return { id: target.id, weight: next };
         }
 
