@@ -85,6 +85,48 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         return items.filter((it) => Boolean(it.isPorted || it.isMusicPort));
     }
 
+    // ---- automatic: import source ---------------------------------------------------------------
+    // Derived from the obvious marker every time, never stored, so a track that gains, loses or has
+    // its url corrected re-tags itself. These are NOT mutually exclusive: a dual-source track can be
+    // both YouTube Linked and WPL Linked, and that is the honest answer rather than a priority guess.
+    const YOUTUBE_HOST = /(?:^|\.)(?:youtube\.com|youtu\.be)$/i;
+    const SPOTIFY_HOST = /(?:^|\.)spotify\.com$/i;
+
+    function hostOf(url) {
+        try { return new URL(text(url)).hostname.toLowerCase(); } catch { return ''; }
+    }
+
+    function youtubeTracks(list) {
+        return (list || musicItems()).filter((it) => YOUTUBE_HOST.test(hostOf(it.url)));
+    }
+
+    function spotifyTracks(list) {
+        return (list || musicItems()).filter((it) => SPOTIFY_HOST.test(hostOf(it.url)));
+    }
+
+    // WPL-imported songs are already local and carry no url, so their marker is the GROUP the wpl
+    // import created. A song can sit in several wpl groups at once (imported from two playlists);
+    // matching on "any" and returning the track once keeps that a single tag instead of one per
+    // group, which is where a naive flat-map would double-count it.
+    function wplGroupNames() {
+        return new Set(
+            (state().musicPlaylists || [])
+                .filter((entry) => entry && entry.provider === 'wpl')
+                .map((entry) => text(entry.group))
+                .filter(Boolean)
+        );
+    }
+
+    function wplTracks(list) {
+        const groups = wplGroupNames();
+        if (!groups.size) return [];
+        const map = state().musicGroupMap || {};
+        return (list || musicItems()).filter((it) => {
+            const mine = map[it.id];
+            return Array.isArray(mine) && mine.some((group) => groups.has(text(group)));
+        });
+    }
+
     // ---- manual ---------------------------------------------------------------------------------
     const manualNames = () => (state().musicClassifiers || []).map((n) => text(n)).filter(Boolean);
 
@@ -177,6 +219,21 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
                 note: 'tracks imported via Music Port'
             },
             {
+                id: 'auto:youtube', kind: 'auto', label: '▶️ YouTube Linked',
+                count: youtubeTracks(items).length, buckets: 1,
+                note: 'tracks whose url points at youtube.com or youtu.be'
+            },
+            {
+                id: 'auto:spotify', kind: 'auto', label: '🟢 Spotify Linked',
+                count: spotifyTracks(items).length, buckets: 1,
+                note: 'tracks whose url points at spotify.com'
+            },
+            {
+                id: 'auto:wpl', kind: 'auto', label: '🎵 WPL Linked',
+                count: wplTracks(items).length, buckets: 1,
+                note: 'local tracks that came from an imported .wpl playlist group'
+            },
+            {
                 id: 'auto:duration', kind: 'auto', label: '⏱ Time Filter (duration)',
                 count: dur.reduce((n, b) => n + b.tracks.length, 0),
                 buckets: dur.length,
@@ -203,6 +260,9 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         if (clean === 'auto:localized') return { kind: 'auto', label: '⚡ Localized Tracks', buckets: [{ key: 'auto:localized', label: 'Localized (Offline Copy)', tracks: localizedTracks() }] };
         if (clean === 'auto:url') return { kind: 'auto', label: '🌐 URL Tracks', buckets: [{ key: 'auto:url', label: 'URL / Online Stream', tracks: urlTracks() }] };
         if (clean === 'auto:ported') return { kind: 'auto', label: '📁 Ported Tracks', buckets: [{ key: 'auto:ported', label: 'Music Ported Tracks', tracks: portedTracks() }] };
+        if (clean === 'auto:youtube') return { kind: 'auto', label: '▶️ YouTube Linked', buckets: [{ key: 'auto:youtube', label: 'Linked to YouTube', tracks: youtubeTracks() }] };
+        if (clean === 'auto:spotify') return { kind: 'auto', label: '🟢 Spotify Linked', buckets: [{ key: 'auto:spotify', label: 'Linked to Spotify', tracks: spotifyTracks() }] };
+        if (clean === 'auto:wpl') return { kind: 'auto', label: '🎵 WPL Linked', buckets: [{ key: 'auto:wpl', label: 'From a WPL playlist', tracks: wplTracks() }] };
         if (clean === 'auto:duration') return { kind: 'auto', label: '⏱ Time Filter (duration)', buckets: durationBuckets() };
         if (clean === 'auto:grouprank') return { kind: 'auto', label: '🏆 Group Rank', buckets: rankBuckets(), ranked: groupRanking().slice(0, 50) };
         if (clean.startsWith('manual:')) {
@@ -226,6 +286,15 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
 
         const ported = portedTracks(items);
         if (ported.length) out.push(['class:auto:ported', ported, '📁 Ported']);
+
+        const yt = youtubeTracks(items);
+        if (yt.length) out.push(['class:auto:youtube', yt, '▶️ YouTube Linked']);
+
+        const sp = spotifyTracks(items);
+        if (sp.length) out.push(['class:auto:spotify', sp, '🟢 Spotify Linked']);
+
+        const wpl = wplTracks(items);
+        if (wpl.length) out.push(['class:auto:wpl', wpl, '🎵 WPL Linked']);
 
         durationBuckets(items).forEach((b) => out.push([`class:auto:${b.key}`, b.tracks, `⏱ ${b.label}`]));
         rankBuckets(items).forEach((b) => out.push([`class:auto:${b.key}`, b.tracks, `🏆 ${b.label}`]));
@@ -252,6 +321,17 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         if (text(track.localPath)) auto.push({ label: '⚡ Localized', key: 'class:auto:localized' });
         if (text(track.url)) auto.push({ label: '🌐 URL Track', key: 'class:auto:url' });
         if (track.isPorted || track.isMusicPort) auto.push({ label: '📁 Ported', key: 'class:auto:ported' });
+
+        // Import source, from the same obvious markers the library-wide lists use. Several can apply
+        // to one track, so these are pushed independently rather than as an either/or.
+        const host = hostOf(track.url);
+        if (YOUTUBE_HOST.test(host)) auto.push({ label: '▶️ YouTube Linked', key: 'class:auto:youtube' });
+        if (SPOTIFY_HOST.test(host)) auto.push({ label: '🟢 Spotify Linked', key: 'class:auto:spotify' });
+        // Once, however many wpl groups this track happens to belong to.
+        const wplGroups = wplGroupNames();
+        if (wplGroups.size && groupsOf(track.id).some((group) => wplGroups.has(text(group)))) {
+            auto.push({ label: '🎵 WPL Linked', key: 'class:auto:wpl' });
+        }
 
         const mn = X?.aroundMinute ? X.aroundMinute(track.duration) : null;
         if (mn != null) auto.push({ label: `⏱ ~${mn} min`, key: `class:auto:around:${mn}` });

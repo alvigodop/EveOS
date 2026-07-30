@@ -20,6 +20,7 @@ function makeCtx(stored) {
     const stores = { eveAudioflixFallbackState: stored ? JSON.stringify(stored) : null };
     const ctx = {
         console, Date, JSON, Math, Object, Array, String, Number, Boolean, Set, Map, RegExp,
+        URL,   // classifiers parse track urls to identify the import source
         setTimeout, clearTimeout,
         localStorage: {
             getItem: (k) => (k in stores ? stores[k] : null),
@@ -136,7 +137,11 @@ const SEED = {
         C.toggleOnTrack('a', 'English only', true);
 
         const ov = C.overview();
-        assert(ov.auto.length === 5, 'five automatic classifiers (localized, url, ported, time filter, group rank)');
+        // localized, url, ported, youtube, spotify, wpl, time filter, group rank
+        assert(ov.auto.length === 8,
+            `eight automatic classifiers incl. the three import sources (got ${ov.auto.length})`);
+        ['auto:youtube', 'auto:spotify', 'auto:wpl'].forEach((id) =>
+            assert(ov.auto.some((entry) => entry.id === id), `${id} appears in the manager overview`));
         assert(ov.auto.find((e) => e.id === 'auto:duration').count === 3, 'duration covers the 3 tracks with a length');
         assert(ov.manual.find((e) => e.label === 'English only').count === 1, 'manual count reflects membership');
         assert(ov.auto.every((e) => e.kind === 'auto') && ov.manual.every((e) => e.kind === 'manual'), 'kinds are labelled');
@@ -155,6 +160,72 @@ const SEED = {
         assert(forTrack.manual.includes('English only'), 'per-track view lists its manual labels');
         assert(forTrack.auto.length >= 2, 'per-track view also shows automatic memberships');
         console.log('manager overview + selectable entries OK');
+    }
+
+    // ---- automatic import-source classifiers ----------------------------------------------------
+    // Derived from the obvious marker, never stored. The case that would glitch quietly is a track
+    // sitting in SEVERAL wpl playlist groups: it must be tagged WPL Linked once, not once per group.
+    {
+        const seed = {
+            music: [
+                { id: 'yt', title: 'Tube', url: 'https://www.youtube.com/watch?v=abc' },
+                { id: 'ytshort', title: 'Short link', url: 'https://youtu.be/abc' },
+                { id: 'sp', title: 'Spot', url: 'https://open.spotify.com/track/xyz' },
+                { id: 'wpl2', title: 'In two playlists', localPath: 'C:/M/a.mp3' },
+                { id: 'wpl1', title: 'In one playlist', localPath: 'C:/M/b.mp3' },
+                { id: 'dual', title: 'Tube and playlist', url: 'https://youtu.be/dual', localPath: 'C:/M/d.mp3' },
+                { id: 'plain', title: 'Nothing special', url: 'https://example.com/x.mp3' },
+                // A near-miss host must NOT match: substring checks would wrongly tag this.
+                { id: 'fake', title: 'Lookalike', url: 'https://notyoutube.com.evil.test/x' }
+            ],
+            musicGroups: ['WPL A', 'WPL B', 'Normal'],
+            musicGroupMap: {
+                wpl2: ['WPL A', 'WPL B'],
+                wpl1: ['WPL A'],
+                dual: ['WPL B', 'Normal'],
+                plain: ['Normal']
+            },
+            musicPlaylists: [
+                // url is required or the state normalizer drops the connection; a real wpl
+                // connection always carries its .wpl path.
+                { id: 'p1', provider: 'wpl', group: 'WPL A', title: 'WPL A', url: 'C:/P/a.wpl' },
+                { id: 'p2', provider: 'wpl', group: 'WPL B', title: 'WPL B', url: 'C:/P/b.wpl' },
+                { id: 'p3', provider: 'youtube', group: 'Normal', title: 'Normal', url: 'https://youtube.com/playlist?list=1' }
+            ]
+        };
+        const { C } = load(makeCtx(seed));
+        // selectableEntries keys carry the class: prefix.
+        const ids = (key) => C.tracksForKey(`class:${key}`).map((t) => t.id).sort().join(',');
+
+        assert(ids('auto:youtube') === 'dual,yt,ytshort',
+            `YouTube Linked covers youtube.com and youtu.be only (got ${ids('auto:youtube')})`);
+        assert(ids('auto:spotify') === 'sp', `Spotify Linked matches spotify hosts (got ${ids('auto:spotify')})`);
+        // A wpl group drives it; the youtube-provider group must not.
+        assert(ids('auto:wpl') === 'dual,wpl1,wpl2',
+            `WPL Linked comes from wpl playlist groups only (got ${ids('auto:wpl')})`);
+
+        // The multi-group case: listed once despite belonging to two wpl groups.
+        const twoGroup = C.tracksForKey('class:auto:wpl').filter((t) => t.id === 'wpl2');
+        assert(twoGroup.length === 1,
+            `a track in two wpl groups is tagged once, not per group (got ${twoGroup.length})`);
+
+        // Several sources on one track is legitimate, not an either/or.
+        const dualAuto = C.classifiersForTrack(seed.music.find((t) => t.id === 'dual')).auto.map((a) => a.key);
+        assert(dualAuto.includes('class:auto:youtube') && dualAuto.includes('class:auto:wpl'),
+            `a dual-source track carries both tags (got ${dualAuto.join(',')})`);
+        const wplOnce = dualAuto.filter((k) => k === 'class:auto:wpl');
+        assert(wplOnce.length === 1, 'the per-track view also lists WPL Linked only once');
+
+        // Host matching, not substring matching.
+        const fakeAuto = C.classifiersForTrack(seed.music.find((t) => t.id === 'fake')).auto.map((a) => a.key);
+        assert(!fakeAuto.includes('class:auto:youtube'),
+            'a lookalike hostname is not treated as YouTube');
+
+        const spAuto = C.classifiersForTrack(seed.music.find((t) => t.id === 'sp')).auto.map((a) => a.key);
+        assert(spAuto.includes('class:auto:spotify') && !spAuto.includes('class:auto:youtube'),
+            'a spotify track is tagged spotify and not youtube');
+
+        console.log('import-source classifiers OK — youtube/spotify/wpl, multi-group deduped');
     }
 
     console.log('AUDIOFLIX_CLASSIFIERS_SMOKE_OK');
