@@ -124,13 +124,18 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
                 enabled: stereo.enabled === true,
                 width: clamp(stereo.width, 0, 1.5, 1)
             },
+            // A TRANSPARENT safety brickwall, not a compressor. The previous defaults (knee 6,
+            // ratio 8:1, threshold -1) started acting at -7 dBFS, and Lyria streams pre-mastered
+            // audio sitting near full scale — so it was compressing essentially every peak and
+            // audibly squashing the material it was only meant to protect. A hard knee at -0.3
+            // catches genuine overs and otherwise does nothing.
             limiter: {
                 enabled: limiter.enabled !== false,
-                threshold: clamp(limiter.threshold, -24, 0, -1),
-                knee: clamp(limiter.knee, 0, 30, 6),
-                ratio: clamp(limiter.ratio, 1, 20, 8),
+                threshold: clamp(limiter.threshold, -24, 0, -0.3),
+                knee: clamp(limiter.knee, 0, 30, 0),
+                ratio: clamp(limiter.ratio, 1, 20, 20),
                 attack: clamp(limiter.attack, 0, 1, 0.003),
-                release: clamp(limiter.release, 0.01, 1, 0.12)
+                release: clamp(limiter.release, 0.01, 1, 0.05)
             }
         };
     }

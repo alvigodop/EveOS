@@ -29,6 +29,11 @@ window.EveAudioflixSoundLabEffects = window.EveAudioflixSoundLabEffects || {};
         processor.connect(wet);
         dry.connect(output);
         wet.connect(output);
+        // Born BYPASSED. GainNodes default to 1, so an un-applied stage summed dry+wet and added
+        // +6 dB (with the processor fully wet). apply() is called during graph setup today, but a
+        // stage must be safe on its own rather than depending on that ordering.
+        dry.gain.value = 1;
+        wet.gain.value = 0;
         return {
             input,
             output,
@@ -58,6 +63,13 @@ window.EveAudioflixSoundLabEffects = window.EveAudioflixSoundLabEffects || {};
         crossRight.connect(merger, 0, 0);
         directRight.connect(merger, 0, 1);
         crossLeft.connect(merger, 0, 1);
+        // Born at unity width. With every gain at the default 1 this stage emitted L+R on BOTH
+        // channels: a mono collapse at +6 dB whose phase cancellation is an audible comb filter.
+        // This stage is always in the signal path, so it must never be left unconfigured.
+        directLeft.gain.value = 1;
+        directRight.gain.value = 1;
+        crossLeft.gain.value = 0;
+        crossRight.gain.value = 0;
         return {
             input,
             output: merger,
@@ -82,6 +94,15 @@ window.EveAudioflixSoundLabEffects = window.EveAudioflixSoundLabEffects || {};
         compressor.connect(wet);
         dry.connect(output);
         wet.connect(output);
+        // Born DRY. Both gains defaulted to 1, so an un-applied stage summed the clean signal with a
+        // compressor still on the WebAudio defaults (-24 dB, 12:1) — roughly +5 dB and audibly
+        // squashed. Also start the compressor at the transparent settings rather than the node's
+        // aggressive defaults, so even a partial apply cannot leave it acting early.
+        dry.gain.value = 1;
+        wet.gain.value = 0;
+        compressor.threshold.value = -0.3;
+        compressor.knee.value = 0;
+        compressor.ratio.value = 20;
         return {
             input,
             output,
