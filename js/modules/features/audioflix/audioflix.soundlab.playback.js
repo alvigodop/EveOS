@@ -52,10 +52,24 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
         const getContext = () => options.context?.() || null;
         const getOutput = () => options.output?.() || null;
         const isPlaying = () => options.isPlaying?.() === true;
-        const targetSeconds = () => Math.max(
-            INITIAL_BUFFER_SECONDS,
-            Math.min(6, Number(options.targetSeconds?.()) || INITIAL_BUFFER_SECONDS)
-        );
+        // PREVENTION, as opposed to the recovery reserve below. This used to be a flat 3-6s that
+        // ignored how the stream was actually behaving, so a single late burst could empty it and the
+        // dropout was then unavoidable no matter how the rebuffer was tuned. The running cushion now
+        // deepens with measured arrival jitter, and with each dropout already suffered, so an unstable
+        // connection stops repeatedly hitting a dry queue. Bounded, because cushion is also latency
+        // between moving a control and hearing it.
+        const targetSeconds = () => {
+            const requested = Math.max(
+                INITIAL_BUFFER_SECONDS,
+                Math.min(6, Number(options.targetSeconds?.()) || INITIAL_BUFFER_SECONDS)
+            );
+            const jitter = Math.min(
+                MAX_JITTER_ALLOWANCE_SECONDS,
+                (jitterMs() / 1000) * JITTER_SAFETY_FACTOR
+            );
+            const experience = Math.min(MAX_ADAPTIVE_REBUFFER_SECONDS, consecutiveUnderruns * 0.5);
+            return Math.min(MAX_REBUFFER_SECONDS, requested + jitter + experience);
+        };
         const now = () => {
             const precise = window.performance?.now?.();
             return Number.isFinite(precise) ? precise / 1000 : Date.now() / 1000;
@@ -90,7 +104,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 underruns,
                 lowWaterSeconds: Number.isFinite(lowWaterSeconds) ? lowWaterSeconds : 0,
                 highWaterSeconds,
-                rebufferTargetSeconds: requiredBufferSeconds()
+                rebufferTargetSeconds: requiredBufferSeconds(),
+                targetBufferSeconds: targetSeconds()
             };
         }
 
@@ -299,7 +314,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 lowWaterSeconds: Number.isFinite(lowWaterSeconds) ? lowWaterSeconds : 0,
                 highWaterSeconds,
                 queuedSeconds: bufferedSeconds(),
-                rebufferTargetSeconds: requiredBufferSeconds()
+                rebufferTargetSeconds: requiredBufferSeconds(),
+                targetBufferSeconds: targetSeconds()
             })
         };
     }

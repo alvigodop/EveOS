@@ -92,6 +92,7 @@ async function main() {
                         pendingSources.forEach((src) => { if (src.onended) src.onended(); });
                     },
                     target: () => api.metrics().rebufferTargetSeconds,
+                    queued: () => api.metrics().queuedSeconds,
                     jitter: () => api.metrics().jitterMs,
                     underruns: () => api.metrics().underruns
                 };
@@ -133,6 +134,14 @@ async function main() {
             out.jitterJittery = +jittery.jitter().toFixed(3);
             jittery.drain();
             out.targetJittery = +jittery.target().toFixed(3);
+
+            // PREVENTION: the RUNNING cushion (not just the recovery reserve) must deepen on a
+            // jittery stream, or the queue keeps going dry however the rebuffer is tuned.
+            out.runningCushionJittery = +jittery.api.metrics().targetBufferSeconds.toFixed(3);
+            const calm = rig(3);
+            calm.api.start();
+            calm.feed(4);
+            out.runningCushionSteady = +calm.api.metrics().targetBufferSeconds.toFixed(3);
 
             out.errors = window.__errors;
             return out;
