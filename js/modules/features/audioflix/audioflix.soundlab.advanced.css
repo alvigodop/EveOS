@@ -362,3 +362,18 @@
 .sonic-forge-drift-rows.is-off {
     opacity: 0.4;
 }
+
+/* Prompt-writing guidance. Wording drives Lyria's output more than any control in this panel, so the
+   advice sits next to the mixer rather than buried in a tooltip. */
+.sonic-forge-hint {
+    margin: 6px 0 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: #94a3b8;
+    max-width: 62ch;
+}
+
+.sonic-forge-hint b {
+    color: #cbd5e1;
+    font-weight: 600;
+}

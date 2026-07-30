@@ -54,6 +54,8 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                     data-sf-prompt="${esc(prompt.id)}" aria-label="Prompt color">
                 <input class="sonic-forge-prompt-text" type="text" maxlength="280" value="${esc(prompt.text)}"
                     data-sf-field="prompt-text" data-sf-prompt="${esc(prompt.id)}"
+                    placeholder="genre, instruments, mood — e.g. smooth lo-fi hip hop, piano and vinyl crackle, relaxed"
+                    title="Be descriptive: name the genre, the instruments and the mood. Vague prompts are the single biggest cause of vague output."
                     aria-label="Musical direction ${index + 1}">
                 <button type="button" data-af-action="soundlab-remove-prompt" data-sf-prompt="${esc(prompt.id)}"
                     ${canRemove ? '' : 'disabled'} aria-label="Remove musical direction">x</button>
@@ -81,6 +83,10 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 <div><span class="sonic-forge-eyebrow">Direction Matrix</span>
                     <h3>Prompt Mixer</h3>
                     <p>Blend musical ideas live. Text commits on blur or Enter; knobs drag vertically, with Shift for fine control.</p>
+                    <p class="sonic-forge-hint">Name the <b>genre</b>, the <b>instruments</b> and the <b>mood</b> — prompt wording
+                    moves the output more than any slider here. To change direction, edit or add elements rather than
+                    replacing a whole line, and lean on weights to cross-fade: Lyria's transitions turn abrupt when a
+                    prompt changes all at once.</p>
                 </div>
                 <div class="sonic-forge-header-actions">
                     <div class="sonic-forge-view-toggle" role="group" aria-label="Prompt mixer control view">
