@@ -7,8 +7,19 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
     if (ns.ready) return;
 
     const INITIAL_BUFFER_SECONDS = 3;
+    // Recovery cushion after a dropout. Deliberately DEEP: resuming on a thin buffer while Lyria
+    // generates at ~1x realtime tends to underrun again immediately, trading one clean gap for
+    // repeated stuttering. audioflix_soundlab_playback_smoke pins this by asserting recovery does
+    // not restart from a single fragment. The cost is a noticeable silence per dropout; the two
+    // adaptive terms below exist so that cost is not also permanent.
     const REBUFFER_SECONDS = 4;
     const MAX_ADAPTIVE_REBUFFER_SECONDS = 2;
+    // Jitter is measured per chunk arrival; allow a few standard deviations of it, capped.
+    const MAX_JITTER_ALLOWANCE_SECONDS = 1.5;
+    const JITTER_SAFETY_FACTOR = 3;
+    // Play this long without a dropout and the escalation is forgiven.
+    const CLEAN_RUN_SECONDS = 20;
+    const MAX_REBUFFER_SECONDS = 6;
     const INITIAL_START_DELAY_SECONDS = 0.35;
     const RECOVERY_START_DELAY_SECONDS = 0.18;
     const SCHEDULE_LEAD_SECONDS = 0.12;
@@ -31,6 +42,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
         let underruns = 0;
         let underrunOpen = false;
         let consecutiveUnderruns = 0;
+        let lastUnderrunAt = 0;
         let lowWaterSeconds = Infinity;
         let highWaterSeconds = 0;
         let lastNoticeAt = 0;
@@ -96,7 +108,14 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 MAX_ADAPTIVE_REBUFFER_SECONDS,
                 consecutiveUnderruns * 0.5
             );
-            return Math.max(REBUFFER_SECONDS, targetSeconds()) + adaptive;
+            // jitterMs() was computed and then thrown away: the one measurement that says how late
+            // chunks actually run was not informing the cushion at all. A steady stream now recovers
+            // quickly and a jittery one is given real headroom.
+            const jitter = Math.min(
+                MAX_JITTER_ALLOWANCE_SECONDS,
+                (jitterMs() / 1000) * JITTER_SAFETY_FACTOR
+            );
+            return Math.min(MAX_REBUFFER_SECONDS, REBUFFER_SECONDS + jitter + adaptive);
         }
 
         function startClock() {
@@ -141,6 +160,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             underrunOpen = true;
             underruns += 1;
             consecutiveUnderruns += 1;
+            lastUnderrunAt = Number(getContext()?.currentTime || 0);
             streamStarted = false;
             nextStartTime = 0;
             notify({
@@ -154,6 +174,13 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             const buffered = bufferedSeconds();
             highWaterSeconds = Math.max(highWaterSeconds, buffered);
             if (streamStarted) lowWaterSeconds = Math.min(lowWaterSeconds, buffered);
+            // consecutiveUnderruns only ever reset on stop, so within one session each dropout
+            // permanently lengthened the next recovery (4.5s, 5s, 5.5s...) and never came back down.
+            // A sustained clean run now clears it, making the adaptation two-way.
+            if (consecutiveUnderruns > 0 && streamStarted && !underrunOpen) {
+                const now = Number(getContext()?.currentTime || 0);
+                if (now - lastUnderrunAt >= CLEAN_RUN_SECONDS) consecutiveUnderruns = 0;
+            }
             return buffered;
         }
 
@@ -240,6 +267,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             hasStarted = false;
             underrunOpen = false;
             consecutiveUnderruns = 0;
+            lastUnderrunAt = 0;
             lastNoticeAt = 0;
             lastNoticeKey = '';
             const gain = getOutput()?.gain;
