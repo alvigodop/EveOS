@@ -12,6 +12,7 @@ const assert = (condition, message) => {
 
 const modulePaths = [
     'audioflix.soundlab.config.js',
+    'audioflix.soundlab.drift.js',
     'audioflix.soundlab.state.js',
     'audioflix.soundlab.effects.js',
     'audioflix.soundlab.modulation.js',

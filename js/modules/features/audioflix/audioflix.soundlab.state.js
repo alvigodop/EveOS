@@ -88,6 +88,10 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
     }
 
     const cleanConfig = (config) => CFG().cleanConfig(config);
+    // Automatic drift settings are owned by the drift module; delegated so state stays under the cap.
+    // Optional-chained on purpose: normalize() is the core of the state layer, so a drift module
+    // that has not loaded yet must degrade to "no drift" rather than break every read of state.
+    const cleanDrift = (drift) => window.EveAudioflixSoundLabDrift?.cleanDrift?.(drift) || null;
     const toWireConfig = (config) => CFG().toWireConfig(config);
 
     function cleanEffects(effects) {
@@ -248,6 +252,9 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             modulation: cleanModulation(source.modulation),
             diagnostics: cleanDiagnostics(source.diagnostics),
             continuity: cleanContinuity(source.continuity),
+            // Top level, deliberately NOT inside cleanScene: drift is a behaviour preference, and
+            // adding a key to a scene changes preset / scene-slot shape and their revision effects.
+            drift: cleanDrift(source.drift),
             render: cleanRender(source.render),
             presets: (Array.isArray(source.presets) ? source.presets : []).slice(-24).map(cleanPreset),
             sceneSlots: {

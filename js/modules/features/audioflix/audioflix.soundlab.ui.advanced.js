@@ -80,6 +80,47 @@ window.EveAudioflixSoundLabUiAdvanced = window.EveAudioflixSoundLabUiAdvanced ||
         </label>`;
     }
 
+    // Automatic drift. Distinct from the auto pills on tempo/density/brightness: those hand a
+    // parameter to the model, this one keeps moving the parameters the model never chooses.
+    function driftLane(lane, key, title, blurb) {
+        const D = window.EveAudioflixSoundLabDrift;
+        const ms = D?.intervalFor?.(lane.rate) || 0;
+        return `<div class="sonic-forge-drift-lane">
+            <div class="sonic-forge-drift-top">
+                <div><b>${esc(title)}</b><small>${esc(blurb)}</small></div>
+                <label class="sonic-forge-compact-toggle">
+                    <input type="checkbox" data-sf-field="drift-enabled" data-sf-drift="${esc(key)}"${checked(lane.enabled)}><i></i>
+                </label>
+            </div>
+            <div class="sonic-forge-drift-rows${lane.enabled ? '' : ' is-off'}">
+                <label class="sonic-forge-mini-control">
+                    <span>Rate <output>${ms}ms</output></span>
+                    <input type="range" min="0" max="1" step="0.01" value="${esc(lane.rate)}"
+                        data-sf-field="drift-rate" data-sf-drift="${esc(key)}"${lane.enabled ? '' : ' disabled'}>
+                </label>
+                <label class="sonic-forge-mini-control">
+                    <span>Depth <output>${Math.round(Number(lane.depth) * 100)}%</output></span>
+                    <input type="range" min="0" max="1" step="0.01" value="${esc(lane.depth)}"
+                        data-sf-field="drift-depth" data-sf-drift="${esc(key)}"${lane.enabled ? '' : ' disabled'}>
+                </label>
+            </div>
+        </div>`;
+    }
+
+    function renderDrift(soundLab) {
+        const drift = soundLab.drift || {};
+        const params = drift.params || {};
+        const prompts = drift.prompts || {};
+        return `<section class="sonic-forge-block sonic-forge-drift">
+            <header><div><span class="sonic-forge-eyebrow">Automatic Variation</span><h3>Drift</h3>
+                <p>A slow bounded walk around your settings, so a long take keeps evolving. Tempo and
+                scale are excluded: changing either restarts the generation context.</p>
+            </div></header>
+            ${driftLane(params, 'params', 'Sampler controls', 'Nudges guidance, temperature and top K.')}
+            ${driftLane(prompts, 'prompts', 'Prompt blend', 'Nudges the weight of one active direction at a time.')}
+        </section>`;
+    }
+
     function renderModulation(soundLab) {
         const mod = soundLab.modulation || {};
         return `<section class="sonic-forge-block sonic-forge-modulation">
@@ -186,6 +227,7 @@ window.EveAudioflixSoundLabUiAdvanced = window.EveAudioflixSoundLabUiAdvanced ||
         ready: true,
         renderEffects,
         renderModulation,
+        renderDrift,
         renderSceneSlots,
         renderDiagnostics,
         renderRendered

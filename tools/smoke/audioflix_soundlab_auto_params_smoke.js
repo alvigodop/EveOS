@@ -26,6 +26,7 @@ function assert(condition, message) {
 async function main() {
     const modules = [
         'audioflix.soundlab.config.js',
+        'audioflix.soundlab.drift.js',
         'audioflix.soundlab.state.js'
     ].map((name) => `<script src="${fileUrl(path.join(AUDIOFLIX, name))}"></script>`).join('\n');
 

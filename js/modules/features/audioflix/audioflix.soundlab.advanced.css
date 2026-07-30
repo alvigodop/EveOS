@@ -321,3 +321,44 @@
     color: #7ee2a8;
     font-style: italic;
 }
+
+/* Drift: two independent automatic-variation lanes. Rows dim when the lane is off so the panel
+   reads at a glance without hiding the settings. */
+.sonic-forge-drift-lane {
+    padding: 10px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.32);
+    margin-bottom: 8px;
+}
+
+.sonic-forge-drift-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.sonic-forge-drift-top b {
+    display: block;
+    font-size: 0.86rem;
+    color: #e2e8f0;
+}
+
+.sonic-forge-drift-top small {
+    display: block;
+    font-size: 0.72rem;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+.sonic-forge-drift-rows {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.sonic-forge-drift-rows.is-off {
+    opacity: 0.4;
+}

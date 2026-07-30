@@ -174,6 +174,17 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         return steering;
     }
 
+    // Automatic drift (sampler params + prompt weights), armed only while audio is playing: a walk
+    // against a stopped session would queue steering for nothing.
+    let drift = null;
+    const ensureDrift = () => (drift = drift || window.EveAudioflixSoundLabDrift.create({
+        getState: () => soundState(),
+        update: (patch, reason) => window.EveAudioflixSoundLabState.update(patch, reason),
+        queueSteering: () => queueSteering()
+    }));
+    const syncDrift = () => ensureDrift().sync();
+    const stopDrift = () => drift?.stop?.();
+
     const applySteering = (options, targetSession) => ensureSteering().apply(options, targetSession);
     const queueSteering = (options) => ensureSteering().queue(options);
     const clearSteeringQueue = () => steering?.clear?.();
@@ -295,6 +306,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         await applyOutputRoute();
         if (context.state === 'suspended') await context.resume();
         generation += 1;
+        syncDrift();
         if (audioflixState().nativeBridgeEnabled === true) {
             await window.EveAudioflixNative?.stopStream?.();
             await nativeCapture?.start?.();
@@ -330,6 +342,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
     async function stop() {
         continuity?.setIntent?.('stopped');
+        stopDrift();
         generation += 1;
         connection?.getSession?.()?.stop?.();
         playback?.stop();
@@ -350,6 +363,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
     async function disconnect() {
         generation += 1;
+        stopDrift();
         continuity?.setIntent?.('stopped');
         continuity?.cancel?.();
         clearSteeringQueue();
@@ -396,6 +410,9 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         resetContext,
         applySteering,
         queueSteering,
+        syncDrift,
+        stopDrift,
+        getDrift: () => ensureDrift(),
         // Exposed so tests can assert the exact payload shape (notably that an auto parameter is
         // absent) without needing a live Lyria session.
         buildMusicConfig: (scene) => musicConfig(scene),

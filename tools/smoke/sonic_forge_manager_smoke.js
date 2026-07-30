@@ -18,6 +18,7 @@ const assert = (condition, message) => {
     const fixture = path.join(os.tmpdir(), `eveos-sonic-forge-manager-${process.pid}.html`);
     const scripts = [
         path.join(AUDIOFLIX, 'audioflix.soundlab.config.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.drift.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.state.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.advanced.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.js'),

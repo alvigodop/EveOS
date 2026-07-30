@@ -68,6 +68,24 @@ window.EveAudioflixSoundLabUiAdvancedEvents = window.EveAudioflixSoundLabUiAdvan
             }
             return updateNested(target.dataset.sfEffect, target.dataset.sfEffectKey, value);
         }
+        // Drift lanes. syncDrift() re-arms from the stored settings, so toggling a lane or dragging
+        // its rate takes effect immediately without restarting playback.
+        if (field === 'drift-enabled' || field === 'drift-rate' || field === 'drift-depth') {
+            const state = stateApi()?.ensure?.() || {};
+            const lane = target.dataset.sfDrift;
+            if (lane !== 'params' && lane !== 'prompts') return null;
+            const key = field === 'drift-enabled' ? 'enabled'
+                : (field === 'drift-rate' ? 'rate' : 'depth');
+            const value = field === 'drift-enabled' ? target.checked : number(target);
+            showOutput(target);
+            stateApi()?.update?.({
+                drift: Object.assign({}, state.drift, {
+                    [lane]: Object.assign({}, state.drift?.[lane], { [key]: value })
+                })
+            }, 'audioflix-soundlab-drift');
+            window.EveAudioflixSoundLabEngine?.syncDrift?.();
+            return field === 'drift-enabled' ? { rerender: true } : true;
+        }
         if (field === 'modulation-enabled') {
             const state = stateApi()?.ensure?.() || {};
             stateApi()?.update?.({

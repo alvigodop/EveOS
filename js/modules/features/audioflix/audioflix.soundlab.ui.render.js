@@ -272,6 +272,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                     ${renderConfig(soundLab)}
                     ${advanced?.renderEffects?.(soundLab) || ''}
                     ${advanced?.renderModulation?.(soundLab) || ''}
+                    ${advanced?.renderDrift?.(soundLab) || ''}
                 </div>
                 <div class="sonic-forge-side-grid">
                     ${advanced?.renderSceneSlots?.(soundLab) || ''}
