@@ -122,7 +122,8 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 ${rangeField('Temperature', 'temperature', config.temperature, 0, 3, 0.05, '', soundLab.controlView)}
                 ${rangeField('Top K', 'topK', config.topK, 1, 1000, 1, '', soundLab.controlView)}
                 <label class="sonic-forge-control sonic-forge-select">
-                    <span><b>Scale</b></span>
+                    <span><b>Scale</b>${config.scale === 'SCALE_UNSPECIFIED'
+                        ? '<span class="sonic-forge-auto is-active" aria-hidden="true">auto</span>' : ''}</span>
                     <select data-sf-field="config" data-sf-config="scale">
                         ${scales.map((scale) => `<option value="${esc(scale)}"${selected(config.scale, scale)}>${esc(scale.replaceAll('_', ' '))}</option>`).join('')}
                     </select>

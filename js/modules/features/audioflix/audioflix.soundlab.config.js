@@ -11,14 +11,14 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
     const ns = window.EveAudioflixSoundLabConfig;
     if (ns.ready) return;
 
-    // Parameters Lyria can infer from the text direction, and therefore the only ones where "auto"
-    // has a meaning. Lyria's musicGenerationConfig is a PARTIAL config: a field we never send is
-    // chosen by the model from the prompt. Pinning bpm to 96 while the direction asks for drum &
-    // bass actively fights it, and every field used to be sent unconditionally, so "you pick" could
-    // not be expressed at all.
+    // Exactly the fields Lyria infers when omitted. Per the Lyria RealTime docs: "For bpm, density,
+    // brightness and scale, if no value is provided, the model will decide what's best according to
+    // your initial prompts." scale is handled through its own SCALE_UNSPECIFIED option, which the
+    // payload builder already prunes, so it is auto by selecting "Model decides" in the dropdown.
     //
-    // guidance / temperature / topK are deliberately NOT here: they are sampler controls that always
-    // carry a number, so omitting them means "use the API default", not "decide musically".
+    // guidance / temperature / topK are NOT on that list. They have fixed API defaults (4.0, 1.1, 40),
+    // so omitting them means "use the API default", not "decide musically" — offering an auto pill
+    // there would misdescribe what it does. Drift (soundlab.drift) automates them instead.
     const AUTO_PARAM_KEYS = ['bpm', 'density', 'brightness'];
 
     // bpm and scale changes force resetContext() (an audible discontinuity), so they must never be
@@ -39,6 +39,11 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
         bpm: 96,
         density: 0.42,
         brightness: 0.45,
+        // Lyria's own documented defaults are guidance 4.0, temperature 1.1, topK 40. Ours are
+        // deliberately TIGHTER than the model's (0.9 / 32) for more predictable output, and
+        // sonic_forge_manager_smoke pins them as the "stable realtime generation defaults" a legacy
+        // config migrates to. Loosening them toward the API defaults is a taste call, not a fix —
+        // both are reachable from the sliders.
         guidance: 4,
         temperature: 0.9,
         topK: 32,
