@@ -13,6 +13,10 @@ The regression this pins hardest: ranking by duration precision BEFORE popularit
 over the official video, because YouTube reports whole seconds and Spotify milliseconds, so 0.15s of
 rounding noise outranked a 156x view difference. Deltas inside the noise floor must count as equal.
 
+Audio bitrate has exactly the same trap and is pinned the same way, using three real uploads of
+Lauren Aquilina's "King" whose bitrates span 137.5-140.9 kbps: noise must not reorder, but a
+genuinely low-bitrate upload must lose even when it is the most played.
+
 Runs offline — the network paths are injected.
 """
 
@@ -107,6 +111,48 @@ def main():
     check(any(e["id"] == "live" for e in live_ok),
           "a live edition is allowed when the Spotify title says live")
 
+    # ---- audio quality as a tie-break ----
+    # Read from audio-only formats. The muxed entry carries an absurd bitrate so a broken filter
+    # shows up as a wrong number rather than as a ranking that happens to still pass.
+    def formats(abr):
+        return [{"vcodec": "avc1.4d401f", "acodec": "mp4a.40.2", "abr": abr + 500},
+                {"vcodec": "none", "acodec": "mp4a.40.5", "abr": 48.8},
+                {"vcodec": "none", "acodec": "opus", "abr": abr}]
+
+    check(M.best_audio_abr({"formats": formats(140.252)}) == 140.252,
+          f"the top audio-only bitrate is read, not the muxed one (got {M.best_audio_abr({'formats': formats(140.252)})})")
+    check(M.best_audio_abr({"formats": [], "abr": 130.0}) == 130.0, "an item-level abr is the fallback")
+    check(M.best_audio_abr({}) == 0.0, "no format data yields 0, not a crash")
+    check(M.quality_tier(0) == 0, "an unknown bitrate is treated as normal, never demoted on a data gap")
+
+    # The real observed case: three uploads of Lauren Aquilina's "King", all 238s. Their bitrates
+    # span 137.5-140.9 kbps, which is encoder noise — and note the HIGHEST belongs to the LEAST
+    # played upload, so sorting on the number itself would flip the pick to a 5M-view video over a
+    # 204M-view one on a 0.6 kbps difference. Tiers must render them equal and let plays decide.
+    king = {"title": "King", "artists": ["Lauren Aquilina"], "duration_seconds": 238.0}
+    king_candidates = [
+        {"id": "lyrics", "title": "Lauren Aquilina - King (Lyrics)", "duration": 238,
+         "view_count": 12823994, "formats": formats(137.484), "webpage_url": "https://y/lyrics"},
+        {"id": "plain", "title": "King", "duration": 238,
+         "view_count": 4977233, "formats": formats(140.913), "webpage_url": "https://y/plain"},
+        {"id": "viral", "title": "you can be king again", "duration": 238,
+         "view_count": 204204170, "formats": formats(140.252), "webpage_url": "https://y/viral"},
+    ]
+    king_ranked, _ = M.rank_candidates(king, king_candidates)
+    check([e["id"] for e in king_ranked] == ["viral", "lyrics", "plain"],
+          f"equal-quality uploads rank on plays (got {[e['id'] for e in king_ranked]})")
+    check(len({e["quality"] for e in king_ranked}) == 1,
+          "137-141 kbps is one tier, so the spread never reorders anything")
+
+    # But a genuinely worse upload IS demoted, even when it is the most played of the three — this
+    # is the whole reason quality sits above popularity rather than beside it.
+    poor = dict(king_candidates[2], id="poor", formats=formats(64.0), view_count=900000000)
+    poor_ranked, _ = M.rank_candidates(king, king_candidates[:2] + [poor])
+    check(poor_ranked[-1]["id"] == "poor",
+          f"a low-bitrate upload loses despite the most plays (got {[e['id'] for e in poor_ranked]})")
+    check(poor_ranked[0]["id"] == "lyrics",
+          "with the viral upload degraded, the most-played NORMAL-quality one wins")
+
     # ---- end to end, with both network calls injected ----
     result = M.find_youtube_match(
         "https://open.spotify.com/track/4PTG3Z6ehGkBFwjybzWkR8",
@@ -139,7 +185,8 @@ def main():
     check(broke.get("ok") is False and "network down" in (broke.get("message") or ""),
           "a search failure is reported, not raised")
 
-    print("spotify match OK — official video chosen; live/instrumental/loop/no-duration rejected")
+    print("spotify match OK - best-matching video chosen; live/instrumental/loop/no-duration "
+          "rejected; bitrate noise does not reorder, a low-bitrate upload is demoted")
     print("AUDIOFLIX_SPOTIFY_MATCH_SMOKE_OK")
 
 

@@ -79,12 +79,45 @@ const assert = (condition, message) => {
     );
     const track = ctx.window.EveAudioflixState.ensure().music[0];
     assert(result.ok && result.done === 0 && result.total === 0, 'owned-file match completes without a download');
-    assert(downloaded.length === 0, 'Spotify metadata never enters the downloader');
+    assert(downloaded.length === 0, 'a track whose file is already owned never downloads');
     assert(track.localPath === 'D:/OwnedSpotify/Mobius - Sawano Hiroyuki.mp3', 'owned local file was attached');
     assert(
         track.localizations.some((entry) => entry.source === 'folder:Spotify Imports'),
         'local file retains folder ownership metadata'
     );
+
+    // With NO owned file on disk, the Spotify track must reach the server. The server resolves the
+    // link to the YouTube video holding the same recording and downloads that; Spotify's own
+    // (Widevine-encrypted) audio is still never touched. This used to be blocked client-side, which
+    // made that whole server capability unreachable from the UI.
+    const unmatched = { ok: true, dir: 'D:/NoOwnedFiles', files: [] };
+    ctx.window.EveAudioflixNative = {
+        scanLocalized: async () => unmatched,
+        localizeTrack: async (t, dir) => {
+            downloaded.push(t.id);
+            assert(/open\.spotify\.com\//i.test(t.url), 'the Spotify url is handed to the server as-is');
+            return { ok: true, filePath: `${dir}/King.mp3`, ext: 'mp3', duration: 238 };
+        }
+    };
+    ctx.window.EveAudioflixState.update({
+        music: [{
+            id: 'spotify-unowned',
+            title: 'King',
+            artist: 'Lauren Aquilina',
+            url: 'https://open.spotify.com/track/0zhzkkSXFj60Y5fzb2j9hU',
+            sourceProvider: 'spotify',
+            folder: 'Spotify Imports'
+        }]
+    }, 'smoke-reset');
+
+    const viaYoutube = await ctx.window.EveAudioflixLocalize.localizeScope(
+        'folder', 'Spotify Imports', 'D:/NoOwnedFiles', () => {}
+    );
+    const localized = ctx.window.EveAudioflixState.ensure().music[0];
+    assert(downloaded.includes('spotify-unowned'), 'an unowned Spotify track reaches the localizer');
+    assert(viaYoutube.ok && viaYoutube.done === 1,
+        `the localization is reported as done (got ${JSON.stringify(viaYoutube)})`);
+    assert(localized.localPath === 'D:/NoOwnedFiles/King.mp3', 'the downloaded file is attached to the track');
     console.log('AUDIOFLIX_SPOTIFY_LOCALIZE_SMOKE_OK');
 })().catch((error) => {
     console.error(error);

@@ -271,13 +271,13 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         return folder ? `folder:${folder}` : `manual:${track.id}`;
     }
 
+    // Spotify tracks are NOT refused here any more. Spotify's own audio is Widevine-encrypted and
+    // still never downloaded; what the server does instead is read the track's public metadata and
+    // localize the YouTube video holding the same recording, matched on exact duration. Blocking the
+    // call client-side meant that server capability was unreachable from the UI — the download only
+    // ever ran from a script. An owned local file still wins: localizeScope recalibrates first, so a
+    // track that already has the real file on disk never reaches this function at all.
     async function downloadInto(N, it, dir) {
-        if (it?.sourceProvider === 'spotify' || /open\.spotify\.com\//i.test(text(it?.url))) {
-            return {
-                ok: false,
-                error: 'Spotify audio is not downloaded. Add an owned local file to this folder; Audioflix will match it by title and artist.'
-            };
-        }
         const res = await N.localizeTrack({ id: it.id, title: it.title, url: it.url }, dir);
         return (res?.ok && res.filePath) ? { ok: true, path: res.filePath } : { ok: false, error: res?.error || res?.message || 'download failed' };
     }
@@ -327,9 +327,10 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         if (!N?.localizeTrack) return { ok: false, reason: 'Localization needs the EveOS localhost server running.' };
         const dir = text(targetDir);
         if (!dir) return { ok: false, reason: 'No target folder was chosen.' };
-        // Attach already-owned files before considering a network localization. This is the only
-        // localization path for Spotify metadata and also avoids re-downloading other dual-source
-        // tracks that are already present under a newly selected directory.
+        // Attach already-owned files before considering a network localization. This keeps a file the
+        // user actually owns ahead of any download (which matters most for Spotify tracks, whose
+        // download is a YouTube match rather than the Spotify master) and avoids re-fetching other
+        // dual-source tracks that are already present under a newly selected directory.
         await recalibrateScopePath(scope, key, dir);
         if (scope === 'group') return localizeGroup(key, dir, onProgress, mode);
         const items = localizeCandidates(scope, key, force);

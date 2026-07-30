@@ -16,9 +16,14 @@ Note it does NOT include the ISRC, so matching leans on title + artist + that ex
 
 Duration is the discriminator that does the real work. Searching the example above returns the
 official video (213s), two remasters (212-214s) and a live performance (234s). A tolerance gate drops
-the live take outright; view count is then only a tie-break BETWEEN plausible candidates, never the
-primary signal — on its own it happily picks a remix or a lyric video with more plays than the
-original.
+the live take outright; audio quality and then view count only break ties BETWEEN plausible
+candidates, never acting as the primary signal — on its own, popularity happily picks a remix or a
+lyric video with more plays than the original.
+
+Note the winner is not required to be the "official" upload. For Lauren Aquilina's "King" the pick
+is a 204M-view upload titled with a lyric rather than the song name, over the artist-titled lyric
+video at 12.8M. Both are the same recording at the same bitrate, so the one the world actually plays
+is the better default.
 """
 
 from __future__ import annotations
@@ -50,6 +55,16 @@ DEFAULT_TOLERANCE_SECONDS = 3.0
 # 156x popularity difference, which is how the official video loses to a remaster.
 DURATION_NOISE_SECONDS = 1.5
 DEFAULT_SEARCH_RESULTS = 8
+
+# Prefer the better-sounding upload, but only when "better" is real. YouTube re-encodes everything
+# onto its own ladder, so the top audio stream is ~130-160 kbps for essentially any modern upload:
+# three uploads of one song measured 137.5 / 140.3 / 140.9 kbps. That spread is encoder noise, and
+# ranking on the number itself would hand the win to whoever landed 0.6 kbps higher — the same shape
+# of bug as ranking on duration precision. So quality is graded in coarse tiers. It only ever demotes
+# an upload that is audibly worse (an old AAC-only rip, a phone recording), and inside one tier
+# popularity still decides.
+GOOD_AUDIO_KBPS = 128.0
+POOR_AUDIO_KBPS = 96.0
 
 
 def spotify_track_id(url: str) -> str:
@@ -131,6 +146,41 @@ def _has(text: str, markers) -> bool:
     return any(marker in low for marker in markers)
 
 
+def best_audio_abr(item) -> float:
+    """Highest audio-only bitrate yt-dlp lists for a candidate, or 0.0 when it reports none.
+
+    Search results already carry `formats`, so reading this costs no extra request.
+    """
+    best = 0.0
+    for fmt in ((item or {}).get("formats") or []):
+        if not isinstance(fmt, dict) or fmt.get("vcodec") != "none":
+            continue
+        if fmt.get("acodec") in (None, "none"):
+            continue
+        try:
+            best = max(best, float(fmt.get("abr") or 0))
+        except (TypeError, ValueError):
+            continue
+    if best <= 0:
+        try:
+            best = float((item or {}).get("abr") or 0)
+        except (TypeError, ValueError):
+            best = 0.0
+    return best
+
+
+def quality_tier(abr: float) -> int:
+    """0 = normal YouTube audio, 1 = noticeably compressed, 2 = poor.
+
+    An unknown bitrate deliberately scores as normal: yt-dlp does not always report one, and
+    demoting a candidate over missing metadata would reorder the pick on a data gap rather than on
+    how it sounds. Falling through to popularity is the behaviour that has been choosing correctly.
+    """
+    if abr <= 0 or abr >= GOOD_AUDIO_KBPS:
+        return 0
+    return 1 if abr >= POOR_AUDIO_KBPS else 2
+
+
 def search_query(meta: dict) -> str:
     artist = (meta.get("artists") or [""])[0]
     return " ".join(part for part in (artist, meta.get("title")) if part).strip()
@@ -176,11 +226,17 @@ def rank_candidates(meta: dict, candidates, tolerance_seconds: float = DEFAULT_T
             rejected.append(entry)
             continue
         entry["delta"] = round(abs(float(duration) - target), 3)
+        entry["abr"] = round(best_audio_abr(item), 1)
+        entry["quality"] = quality_tier(entry["abr"])
         accepted.append(entry)
 
-    # Bucket by whether the duration difference is meaningful at all, then prefer the most-played
-    # candidate inside that bucket. Popularity is the tie-break among equals, never the filter.
-    accepted.sort(key=lambda e: (0 if e["delta"] <= DURATION_NOISE_SECONDS else 1, -e["views"]))
+    # Three keys, each only breaking ties left by the one before it:
+    #   1. is the duration difference meaningful at all (identity)
+    #   2. is the audio audibly worse (fidelity, in coarse tiers)
+    #   3. how many people played it (which upload the world treats as the one)
+    # Identity leads because a pristine rip of the wrong recording is still the wrong recording.
+    accepted.sort(key=lambda e: (0 if e["delta"] <= DURATION_NOISE_SECONDS else 1,
+                                 e["quality"], -e["views"]))
     return accepted, rejected
 
 
