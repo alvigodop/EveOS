@@ -1,6 +1,8 @@
+const path = require('path');
+const { pathToFileURL } = require('url');
 const { chromium } = require('playwright');
 
-const APP_URL = 'file:///C:/Users/alvin/Documents/Workspace/RoughProjDeving/EveOS-0.4/EveOS.html';
+const APP_URL = pathToFileURL(path.resolve(__dirname, '..', '..', 'EveOS.html')).href;
 
 async function main() {
     const browser = await chromium.launch({ headless: true });
