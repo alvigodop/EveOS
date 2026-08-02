@@ -4,6 +4,12 @@ pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
 call "%PROJECT_ROOT%\tools\batch\eveos-ports.bat"
+call "%PROJECT_ROOT%\tools\batch\eveos-python.bat"
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python or create the documented .venv.
+    pause
+    exit /b 1
+)
 set "BRIDGE_PORT=%CAMOFOX_BRIDGE_PORT%"
 if not defined BRIDGE_PORT set "BRIDGE_PORT=3038"
 set "SERVER_PORT_START=9377"
@@ -153,7 +159,7 @@ if not exist "%ACTIVITY_LOG%" type nul > "%ACTIVITY_LOG%"
 
 echo.
 echo [OK] Starting Camofox bridge on port %BRIDGE_PORT%...
-start "EveOS Camofox Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
+start "EveOS Camofox Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && ""%EVEOS_PYTHON%"" -u ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
 timeout /t 2 /nobreak >nul
 exit /b 0
 

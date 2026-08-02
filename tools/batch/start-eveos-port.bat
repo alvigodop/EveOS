@@ -3,12 +3,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 cd /d "%~dp0..\.."
 set "PROJECT_ROOT=%CD%"
-
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Python is not installed or not in PATH.
-    echo Install Python from https://www.python.org/downloads/
-    echo Make sure "Add Python to PATH" is enabled.
+call "%PROJECT_ROOT%\tools\batch\eveos-python.bat"
+if errorlevel 1 (
+    echo ERROR: Python not found. Install Python or create the documented .venv.
     pause
     exit /b 1
 )
@@ -48,4 +45,4 @@ if %ERRORLEVEL% EQU 0 (
 echo Starting EveOS at http://127.0.0.1:%PORT_VALUE%/EveOS.html
 echo Data-pack: current active modular data-pack
 echo.
-python server/python-server.py %PORT_VALUE%
+"%EVEOS_PYTHON%" server/python-server.py %PORT_VALUE%

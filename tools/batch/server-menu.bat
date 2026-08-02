@@ -7,6 +7,12 @@ set "SERVER_ROOT=%PROJECT_ROOT%\server"
 set "GEMINI_MAIN_DIR=%SERVER_ROOT%\gemini-backend\interactions"
 set "GEMINI_MAIN_SCRIPT=%GEMINI_MAIN_DIR%\main.py"
 call "%PROJECT_ROOT%\tools\batch\eveos-ports.bat"
+call "%PROJECT_ROOT%\tools\batch\eveos-python.bat"
+if errorlevel 1 (
+    echo ERROR: Python not found. Install Python or create the documented .venv.
+    pause
+    exit /b 1
+)
 if not defined GEMINI_WS_PORT set "GEMINI_WS_PORT=9083"
 if not defined GEMINI_STATUS_PORT set "GEMINI_STATUS_PORT=9084"
 set "GEMINI_WINDOW_TITLE=EveOS Gemini Main %GEMINI_WS_PORT%-%GEMINI_STATUS_PORT%"
@@ -14,13 +20,6 @@ set "GEMINI_WINDOW_TITLE=EveOS Gemini Main %GEMINI_WS_PORT%-%GEMINI_STATUS_PORT%
 if /I "%~1"=="stop" (
     call :StopGemini
     exit /b %ERRORLEVEL%
-)
-
-python --version >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo ERROR: Python not found in PATH. Install Python and add it to PATH.
-    pause
-    exit /b 1
 )
 
 if not "%~1"=="" (
@@ -136,7 +135,7 @@ rem Clear stale partial listeners. The canonical Gemini process must own both po
 call :StopGeminiSilent
 call :Sleep 1
 
-start "%GEMINI_WINDOW_TITLE%" /min cmd /k "cd /d ""%GEMINI_MAIN_DIR%"" && set ""PYTHONUNBUFFERED=1"" && set ""PYTHONUTF8=1"" && set ""PYTHONIOENCODING=utf-8"" && python -u ""%GEMINI_MAIN_SCRIPT%"" --port %GEMINI_WS_PORT%"
+start "%GEMINI_WINDOW_TITLE%" /min cmd /k "cd /d ""%GEMINI_MAIN_DIR%"" && set ""PYTHONUNBUFFERED=1"" && set ""PYTHONUTF8=1"" && set ""PYTHONIOENCODING=utf-8"" && ""%EVEOS_PYTHON%"" -u ""%GEMINI_MAIN_SCRIPT%"" --port %GEMINI_WS_PORT%"
 
 call :WaitForReady 18
 if %ERRORLEVEL% EQU 0 (

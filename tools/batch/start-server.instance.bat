@@ -9,11 +9,9 @@ set "INSTANCE_PACK_PATH=%~2"
 set "INSTANCE_KIND=%~3"
 set "PORT_MODE=%~4"
 
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo Install Python from https://www.python.org/downloads/
-    echo Make sure "Add Python to PATH" is enabled.
+call "%PROJECT_ROOT%\tools\batch\eveos-python.bat"
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python or create the documented .venv.
     echo.
     pause
     exit /b 1
@@ -21,7 +19,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo.
 echo [OK] Python found:
-python --version
+"%EVEOS_PYTHON%" --version
 echo.
 
 if not exist "%INSTANCE_PACK_PATH%" mkdir "%INSTANCE_PACK_PATH%" >nul 2>nul
@@ -54,18 +52,16 @@ if "%LP_ENABLED_STATE%"=="0" (
     call "%START_SERVER_BROWSER_BAT%" :EnsureLightpandaMonitor
 )
 
-start "EveOS Instance %INSTANCE_PORT%" /min cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
+start "EveOS Instance %INSTANCE_PORT%" /min cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && ""%EVEOS_PYTHON%"" server/python-server.py %INSTANCE_PORT%"
 call "%START_SERVER_PATHS_BAT%" :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
 exit /b 0
 
 :LaunchEvePortOnly
 set "INSTANCE_PORT=%~1"
 
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo Install Python from https://www.python.org/downloads/
-    echo Make sure "Add Python to PATH" is enabled.
+call "%PROJECT_ROOT%\tools\batch\eveos-python.bat"
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python or create the documented .venv.
     echo.
     pause
     exit /b 1
@@ -84,7 +80,6 @@ echo      URL: http://127.0.0.1:%INSTANCE_PORT%/EveOS.html
 echo      Data: current active modular data-pack
 echo.
 
-start "EveOS Port %INSTANCE_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && python server/python-server.py %INSTANCE_PORT%"
+start "EveOS Port %INSTANCE_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && ""%EVEOS_PYTHON%"" server/python-server.py %INSTANCE_PORT%"
 call "%START_SERVER_PATHS_BAT%" :TrackInstance "%INSTANCE_PORT%" "active modular data-pack" "PortOnly"
 exit /b 0
-

@@ -1,6 +1,5 @@
 import gzip
 import html
-import ipaddress
 import json
 import logging
 import re
@@ -12,6 +11,7 @@ import urllib.request
 from http import HTTPStatus
 
 from server_modules import proxy
+from server_modules.outbound_http import build_public_opener, validate_public_http_target
 
 logger = logging.getLogger("FandomDiscoveryServer")
 
@@ -21,37 +21,7 @@ DEFAULT_BROWSER_USER_AGENT = (
 )
 
 def is_popup_target_allowed(target_url):
-    normalized = str(target_url or "").strip()
-    if not normalized:
-        return False, "Missing target URL"
-
-    try:
-        parsed = urllib.parse.urlparse(normalized)
-    except Exception:
-        return False, "Invalid target URL"
-
-    scheme = str(parsed.scheme or "").lower()
-    host = str(parsed.hostname or "").strip().lower()
-    if scheme not in ("http", "https"):
-        return False, "Popup bridge only allows http and https targets"
-    if not host:
-        return False, "Target host is missing"
-
-    if host in ("localhost",) or host.endswith(".localhost"):
-        return False, "Loopback hosts are not allowed"
-    if host.endswith(".local") or host.endswith(".internal") or host.endswith(".lan"):
-        return False, "Private hostname targets are not allowed"
-
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        ip = None
-
-    if ip:
-        if ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            return False, "Private or local network targets are not allowed"
-
-    return True, ""
+    return validate_public_http_target(target_url)
 
 def _read_response_body(response):
     raw_content = response.read()
@@ -110,8 +80,7 @@ def _open_target(target_url, method="GET", body=None, incoming_headers=None, pre
     )
 
     ssl_context = ssl.create_default_context()
-    ssl_context.check_hostname = False
-    ssl_context.verify_mode = ssl.CERT_NONE
+    opener = build_public_opener(ssl_context=ssl_context)
 
     last_http_error = None
     is_wikimedia = proxy._is_wikimedia_request(target_url)
@@ -121,7 +90,7 @@ def _open_target(target_url, method="GET", body=None, incoming_headers=None, pre
             if is_wikimedia:
                 proxy._throttle_wikimedia_request()
 
-            with urllib.request.urlopen(request, timeout=30, context=ssl_context) as response:
+            with opener.open(request, timeout=30) as response:
                 return {
                     "url": response.geturl(),
                     "content_type": response.getheader("Content-Type", "application/octet-stream"),

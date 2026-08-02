@@ -4,10 +4,9 @@ set "_START_SERVER_STACK_LABEL=%~1"
 shift
 goto %_START_SERVER_STACK_LABEL%
 :BootStandardStack
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python is not installed or not in PATH.
-    echo         Install from https://www.python.org/downloads/ ^(enable "Add to PATH"^).
+call "%PROJECT_ROOT%\tools\batch\eveos-python.bat"
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python or create the documented .venv.
     pause
     exit /b 1
 )
@@ -25,7 +24,7 @@ if defined _WEB_PID (
     echo [START] EveOS web ^(hotkeys + audio bypass^) on port %EVEOS_WEB_PORT%...
     rem /min matches the Gemini Main window: spawns minimized so every EveOS server window opens in
     rem the same slim, out-of-the-way style instead of a wide console grabbing the screen.
-    start "EveOS %EVEOS_WEB_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u server/python-server.py %EVEOS_WEB_PORT%"
+    start "EveOS %EVEOS_WEB_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && ""%EVEOS_PYTHON%"" -u server/python-server.py %EVEOS_WEB_PORT%"
 )
 rem --- 2. Gemini backend + file-mode control helper (start-gemini guards internally) ---
 echo [BOOT]  Ensuring Gemini backend ^(WS %GEMINI_WS_PORT% / status %GEMINI_STATUS_PORT%^)...
@@ -73,7 +72,7 @@ rem one tab dies with "[error 0x800700e8 ...] (the pipe is being closed)", leavi
 rem down. Spacing the spawns lets each tab finish initializing before the next handoff.
 ping 127.0.0.1 -n 2 >nul
 rem /min: same slim, minimized style as the Gemini Main window (consistent across all servers).
-start "EveOS %_LABEL%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%_SCRIPT%"" %_PORT%"
+start "EveOS %_LABEL%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && ""%EVEOS_PYTHON%"" -u ""%_SCRIPT%"" %_PORT%"
 exit /b 0
 
 :ReportPort

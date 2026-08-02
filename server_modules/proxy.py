@@ -2,6 +2,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from http import HTTPStatus
+import json
 import logging
 import traceback
 import ssl
@@ -9,6 +10,8 @@ import http.cookiejar
 import gzip
 import threading
 import time
+
+from server_modules.outbound_http import build_public_opener, validate_public_http_target
 
 logger = logging.getLogger("FandomDiscoveryServer")
 
@@ -26,6 +29,27 @@ _FORWARDED_MEDIA_HEADERS = (
     'ETag',
     'Last-Modified',
 )
+
+
+def validate_proxy_target(target_url, resolve_dns=True):
+    """Keep the public helper name while sharing one outbound HTTP policy."""
+    return validate_public_http_target(target_url, resolve_dns=resolve_dns)
+
+
+def _reject_invalid_target(handler, target_url):
+    allowed, reason = validate_proxy_target(target_url)
+    if allowed:
+        return False
+    payload = json.dumps({
+        "error": "Invalid proxy target",
+        "details": reason,
+    }).encode("utf-8")
+    handler.send_response(HTTPStatus.BAD_REQUEST)
+    handler.send_header("Content-Type", "application/json; charset=utf-8")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+    return True
 
 
 def _origin_referer(target_url):
@@ -106,9 +130,6 @@ def _stream_response(handler, response, response_headers):
         handler.send_header(key, value)
     if 'Content-Type' not in response_headers:
         handler.send_header('Content-Type', 'application/octet-stream')
-    handler.send_header('Access-Control-Allow-Origin', '*')
-    handler.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    handler.send_header('Access-Control-Allow-Headers', '*')
     handler.end_headers()
 
     sent = 0
@@ -136,6 +157,8 @@ def handle_proxy_request(handler, query):
         return
 
     target_url = target_url_list[0]
+    if _reject_invalid_target(handler, target_url):
+        return
     media_hint = str((query.get('media') or [''])[0]).lower() in {'1', 'true', 'yes'}
     is_yahoo = 'yahoo.com' in target_url.lower()
     is_bing = 'bing.com' in target_url.lower()
@@ -153,9 +176,6 @@ def handle_proxy_request(handler, query):
     
     try:
         # For search engines, we need cookie handling
-        cookie_jar = http.cookiejar.CookieJar()
-        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
-        
         # Create a request object with headers that mimic a real browser
         headers = {
             'User-Agent': WMF_USER_AGENT if is_wikimedia else 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -207,10 +227,13 @@ def handle_proxy_request(handler, query):
         
         req = urllib.request.Request(target_url, data=None, headers=headers)
         
-        # Create SSL context that doesn't verify certificates
         ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
+        opener_handlers = []
+        if is_yahoo or is_bing or is_ddg or is_brave:
+            opener_handlers.append(
+                urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+            )
+        opener = build_public_opener(*opener_handlers, ssl_context=ssl_context)
         
         content = b''
         response_headers = {}
@@ -221,24 +244,13 @@ def handle_proxy_request(handler, query):
                 if is_wikimedia:
                     _throttle_wikimedia_request()
 
-                # Use opener for cookie handling with search engines, regular urlopen otherwise
-                if is_yahoo or is_bing or is_ddg or is_brave:
-                    urllib.request.install_opener(opener)
-                    try:
-                        response = urllib.request.urlopen(req, timeout=30, context=ssl_context)
-                        content = _read_response_body(response)
-                        response_headers = _collect_response_headers(response)
-                        response.close()
-                    finally:
-                        urllib.request.install_opener(None)
-                else:
-                    with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
-                        response_headers = _collect_response_headers(response)
-                        if not is_wikimedia and _is_streaming_media(response_headers, range_header or media_hint):
-                            sent = _stream_response(handler, response, response_headers)
-                            logger.info("Proxy streamed %s bytes from %s", sent, target_url)
-                            return
-                        content = _read_response_body(response)
+                with opener.open(req, timeout=30) as response:
+                    response_headers = _collect_response_headers(response)
+                    if not is_wikimedia and _is_streaming_media(response_headers, range_header or media_hint):
+                        sent = _stream_response(handler, response, response_headers)
+                        logger.info("Proxy streamed %s bytes from %s", sent, target_url)
+                        return
+                    content = _read_response_body(response)
 
                 last_http_error = None
                 break
@@ -312,6 +324,8 @@ def handle_proxy_post_request(handler, query):
         return
 
     target_url = target_url_list[0]
+    if _reject_invalid_target(handler, target_url):
+        return
     
     # Read the POST body from the incoming request
     content_length = int(handler.headers.get('Content-Length', 0))
@@ -333,13 +347,12 @@ def handle_proxy_post_request(handler, query):
         req = urllib.request.Request(target_url, data=post_data, headers=headers, method='POST')
         
         ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
+        opener = build_public_opener(ssl_context=ssl_context)
         
         if _is_wikimedia_request(target_url):
             _throttle_wikimedia_request()
 
-        with urllib.request.urlopen(req, timeout=30, context=ssl_context) as response:
+        with opener.open(req, timeout=30) as response:
             content = _read_response_body(response)
             content_type_out = response.getheader('Content-Type', 'application/json')
             

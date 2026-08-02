@@ -165,6 +165,23 @@ function inspectRuntimeEncoding(sourceFiles, failures) {
     }
 }
 
+function inspectPackageScripts(failures) {
+    const packagePath = path.join(ROOT, 'package.json');
+    const source = read(packagePath);
+    const scriptsMatch = source.match(/"scripts"\s*:\s*\{([\s\S]*?)\n\s*\}/);
+    if (!scriptsMatch) {
+        failures.push('package-scripts: scripts object not found');
+        return;
+    }
+
+    const seen = new Set();
+    for (const match of scriptsMatch[1].matchAll(/^\s*"([^"]+)"\s*:/gm)) {
+        const key = match[1];
+        if (seen.has(key)) failures.push(`duplicate-package-script: ${key}`);
+        seen.add(key);
+    }
+}
+
 function main() {
     const allFiles = walk(ROOT);
     const sourceFiles = allFiles.filter((filePath) => SOURCE_EXTENSIONS.has(path.extname(filePath).toLowerCase()));
@@ -179,6 +196,7 @@ function main() {
     inspectJavaScriptSyntax(sourceFiles, failures);
     inspectLauncherContracts(failures);
     inspectRuntimeEncoding(sourceFiles, failures);
+    inspectPackageScripts(failures);
 
     let manifest = { scripts: [], styles: [] };
     try {

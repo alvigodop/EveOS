@@ -47,9 +47,9 @@
     function attachGlobalBodyListeners() {
         if (!document.body || window.__eveScriptLoaderBodyListenersAttached) return;
         window.__eveScriptLoaderBodyListenersAttached = true;
-        document.body.onclick = () => {
+        document.body.addEventListener('click', () => {
             if (typeof closeAllMenus === 'function') closeAllMenus();
-        };
+        });
     }
 
     function isExternalScript(src) {
@@ -130,7 +130,7 @@
             if (isExternalScript(src)) {
                 timeoutId = window.setTimeout(() => fail('timeout'), EXTERNAL_SCRIPT_LOAD_TIMEOUT_MS);
             }
-            document.h.appendChild(s);
+            document.head.appendChild(s);
         });
     }
 
@@ -329,8 +329,6 @@
     }
 
     async function init() {
-        // Optimize: Create head alias
-        document.h = document.head || document.getElementsByTagName('head')[0];
         const previousReloadAttempts = getReloadAttempts();
         // Clear stale attempts at startup so manual reloads can auto-recover once again.
         if (previousReloadAttempts > 0) clearReloadAttempts();

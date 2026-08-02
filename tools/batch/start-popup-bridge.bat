@@ -4,6 +4,12 @@ pushd "%~dp0..\.."
 
 set "PROJECT_ROOT=%CD%"
 call "%PROJECT_ROOT%\tools\batch\eveos-ports.bat"
+call "%PROJECT_ROOT%\tools\batch\eveos-python.bat"
+if errorlevel 1 (
+    echo [ERROR] Python not found. Install Python or create the documented .venv.
+    pause
+    exit /b 1
+)
 set "BRIDGE_PORT=%POPUP_BRIDGE_PORT%"
 if not defined BRIDGE_PORT set "BRIDGE_PORT=3040"
 set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\popup-bridge.py"
@@ -91,7 +97,7 @@ if not exist "%ACTIVITY_LOG%" type nul > "%ACTIVITY_LOG%"
 
 echo.
 echo [OK] Starting popup + Wikimedia bridge on port %BRIDGE_PORT%...
-start "EveOS Popup Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && python -u ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
+start "EveOS Popup Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && ""%EVEOS_PYTHON%"" -u ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
 timeout /t 2 /nobreak >nul
 exit /b 0
 

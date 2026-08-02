@@ -8,13 +8,15 @@
     "build:audioflix-genai": "esbuild tools/bundles/audioflix-genai.entry.mjs --bundle --format=iife --platform=browser --target=es2020 --minify --outfile=js/vendor/audioflix-genai.js",
     "audit": "node tools/audit/eveos-repo-audit.js",
     "audit:python": "python -m compileall -q server server_modules tools",
-    "smoke:audioflix-spotify": "python tools/smoke/audioflix_spotify_match_smoke.py",
+    "smoke:audioflix-spotify-match": "python tools/smoke/audioflix_spotify_match_smoke.py",
     "smoke:file-size": "node tools/smoke/first_party_file_size_smoke.js",
     "smoke:launcher": "node tools/smoke/launcher_contract_smoke.js",
-    "smoke:audioflix-spotify": "node tools/smoke/audioflix_spotify_playback_smoke.js",
+    "smoke:server-security": "python tools/smoke/server_proxy_security_smoke.py",
+    "smoke:audioflix-spotify-playback": "node tools/smoke/audioflix_spotify_playback_smoke.js",
+    "smoke:audioflix-spotify": "npm run smoke:audioflix-spotify-match && npm run smoke:audioflix-spotify-playback",
     "smoke:audioflix-soundlab": "node tools/smoke/audioflix_soundlab_smoke.js && node tools/smoke/audioflix_soundlab_auto_params_smoke.js && node tools/smoke/audioflix_soundlab_drift_smoke.js && node tools/smoke/audioflix_soundlab_transparency_smoke.js && node tools/smoke/audioflix_soundlab_underrun_smoke.js && node tools/smoke/audioflix_soundlab_playback_smoke.js && node tools/smoke/audioflix_soundlab_advanced_smoke.js && node tools/smoke/audioflix_soundlab_native_capture_smoke.js && node tools/smoke/audioflix_soundlab_visualizer_smoke.js && node tools/smoke/audioflix_soundlab_prompt_focus_smoke.js && node tools/smoke/audioflix_soundlab_steering_smoke.js && node tools/smoke/sonic_forge_manager_smoke.js",
     "smoke:gemini-context": "node tools/smoke/gemini_selective_context_smoke.js && node tools/smoke/gemini_deep_nesting_payload_smoke.js && node tools/smoke/gemini_context_detail_tiers_smoke.js && node tools/smoke/gemini_context_chunked_transport_smoke.js && node tools/smoke/gemini_mode2_context_routing_smoke.js",
-    "verify": "npm run build:audioflix-genai && npm run audit && npm run audit:python && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:audioflix-spotify && npm run smoke:audioflix-soundlab && npm run smoke:gemini-context"
+    "verify": "npm run build:audioflix-genai && npm run audit && npm run audit:python && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:server-security && npm run smoke:audioflix-spotify && npm run smoke:audioflix-soundlab && npm run smoke:gemini-context"
   },
   "engines": {
     "node": ">=20"

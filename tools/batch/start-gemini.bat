@@ -3,6 +3,12 @@ setlocal EnableExtensions
 
 cd /d "%~dp0"
 call "%~dp0eveos-ports.bat"
+call "%~dp0eveos-python.bat"
+if errorlevel 1 (
+    echo ERROR: Python not found. Install Python or create the documented .venv.
+    pause
+    exit /b 1
+)
 if not defined GEMINI_CONTROL_PORT set "GEMINI_CONTROL_PORT=9082"
 
 if not exist "%~dp0server-menu.bat" (
@@ -29,5 +35,5 @@ exit /b %ERRORLEVEL%
 
 :EnsureControlHelper
 for /f "tokens=5" %%P in ('netstat -aon ^| findstr /R /C:":%GEMINI_CONTROL_PORT% .*LISTENING"') do exit /b 0
-start "EveOS Gemini File Control %GEMINI_CONTROL_PORT%" /min cmd /c "cd /d ""%~dp0..\.."" && python server/gemini-control-helper.py %GEMINI_CONTROL_PORT%"
+start "EveOS Gemini File Control %GEMINI_CONTROL_PORT%" /min cmd /c "cd /d ""%~dp0..\.."" && ""%EVEOS_PYTHON%"" server/gemini-control-helper.py %GEMINI_CONTROL_PORT%"
 exit /b 0

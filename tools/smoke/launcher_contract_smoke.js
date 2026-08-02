@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const childProcess = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const rootLauncher = path.join(ROOT, 'start-server.bat');
@@ -12,6 +13,18 @@ const helperNames = [
     'start-server.browse.bat',
     'start-server.instance.bat',
     'start-server.stack.bat'
+];
+const pythonLauncherNames = [
+    'server-menu.bat',
+    'start-camofox-bridge.bat',
+    'start-eveos-port.bat',
+    'start-gemini-control.bat',
+    'start-gemini.bat',
+    'start-lightpanda-bridge.bat',
+    'start-popup-bridge.bat',
+    'start-server.instance.bat',
+    'start-server.stack.bat',
+    'start-wikimedia-bridge.bat'
 ];
 
 function read(filePath) {
@@ -68,6 +81,42 @@ for (const key of [
         'Canonical numeric port missing: ' + key);
 }
 
+const pythonResolverPath = path.join(ROOT, 'tools', 'batch', 'eveos-python.bat');
+assert(fs.existsSync(pythonResolverPath), 'Canonical Python resolver is missing');
+const pythonResolverSource = read(pythonResolverPath);
+assert(pythonResolverSource.includes('.venv\\Scripts\\python.exe'),
+    'Python resolver does not prefer the documented project virtual environment');
+assert(pythonResolverSource.includes('where python'),
+    'Python resolver lacks the PATH fallback');
+
+if (process.platform === 'win32') {
+    const command = [
+        'call tools\\batch\\eveos-python.bat >nul',
+        'if errorlevel 1 exit /b 9',
+        'if not defined EVEOS_PYTHON exit /b 10',
+        '"!EVEOS_PYTHON!" --version >nul 2>nul'
+    ].join(' & ');
+    const probe = childProcess.spawnSync(process.env.ComSpec || 'cmd.exe', [
+        '/d', '/v:on', '/c', command
+    ], {
+        encoding: 'utf8',
+        cwd: ROOT,
+        env: { ...process.env, EVEOS_PYTHON: 'C:\\missing\\eveos-python.exe' }
+    });
+    assert(probe.status === 0,
+        'Python resolver live probe failed: ' + (probe.stderr || probe.stdout || probe.status));
+}
+
+for (const name of pythonLauncherNames) {
+    const source = read(path.join(ROOT, 'tools', 'batch', name));
+    assert(source.includes('eveos-python.bat'),
+        name + ' bypasses the canonical Python resolver');
+    assert(source.includes('EVEOS_PYTHON'),
+        name + ' does not launch the resolved Python interpreter');
+    assert(/if errorlevel 1/i.test(source),
+        name + ' does not stop when Python resolution fails');
+}
+
 for (const relativePath of [
     'server/python-server.py',
     'server/bridges/popup-bridge.py',
@@ -79,5 +128,6 @@ for (const relativePath of [
 
 console.log('LAUNCHER_CONTRACT_SMOKE_OK', JSON.stringify({
     rootLines: rootSource.split(/\r?\n/).length,
-    helpers: helperNames.length
+    helpers: helperNames.length,
+    pythonLaunchers: pythonLauncherNames.length
 }));

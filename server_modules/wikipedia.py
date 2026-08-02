@@ -8,6 +8,7 @@ import logging
 import time
 
 from server_modules import proxy as proxy_helpers
+from server_modules.outbound_http import build_public_opener
 
 logger = logging.getLogger("FandomDiscoveryServer")
 
@@ -41,15 +42,14 @@ def handle_wikipedia_search(handler, query):
         )
         
         ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
+        opener = build_public_opener(ssl_context=ssl_context)
         
         response_data = None
 
         for attempt in range(2):
             try:
                 proxy_helpers._throttle_wikimedia_request()
-                with urllib.request.urlopen(req, timeout=15, context=ssl_context) as response:
+                with opener.open(req, timeout=15) as response:
                     response_data = json.loads(proxy_helpers._read_response_body(response).decode('utf-8'))
                 break
             except urllib.error.HTTPError as http_error:

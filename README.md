@@ -310,8 +310,11 @@ npx playwright install chromium
 2. Start backend:
 
 ```bash
-python server/python-server.py
+.venv\Scripts\python server/python-server.py
 ```
+
+The Windows launchers also prefer `.venv\Scripts\python.exe` automatically and
+fall back to the first `python` on `PATH` only when the project environment is absent.
 
 3. Open `EveOS.html` in a browser.
 

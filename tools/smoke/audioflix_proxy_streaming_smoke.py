@@ -70,13 +70,24 @@ class _Response:
         return self._chunks.pop(0) if self._chunks else b""
 
 
+class _Opener:
+    def __init__(self, response):
+        self.response = response
+
+    def open(self, *_args, **_kwargs):
+        return self.response
+
+
 def run_case(*, media_hint=False, range_header=None, status=200):
     response = _Response(status=status)
     handler = _Handler(range_header=range_header)
     query = {"url": ["https://media.example/audio-stream"]}
     if media_hint:
         query["media"] = ["1"]
-    with patch("urllib.request.urlopen", return_value=response):
+    with (
+        patch.object(proxy, "validate_proxy_target", return_value=(True, "")),
+        patch.object(proxy, "build_public_opener", return_value=_Opener(response)),
+    ):
         proxy.handle_proxy_request(handler, query)
     assert handler.status == status
     assert handler.wfile.getvalue() == (b"a" * (64 * 1024)) + b"tail"
