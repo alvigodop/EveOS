@@ -7,8 +7,26 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
     def log_message(self, format_string: str, *args) -> None:
         print(f"[{self.log_date_time_string()}] {format_string % args}")
 
+    def allowed_health_origin(self) -> str:
+        origin = str(self.headers.get("Origin") or "")
+        if origin == "null":
+            return origin
+        parsed = urlparse(origin)
+        if parsed.scheme in {"http", "https"} and parsed.hostname in {"127.0.0.1", "localhost", "::1"}:
+            return origin
+        return ""
+
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store")
+        if urlparse(self.path).path == "/api/health":
+            allowed_origin = self.allowed_health_origin()
+            if allowed_origin:
+                self.send_header("Access-Control-Allow-Origin", allowed_origin)
+                self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Vary", "Origin")
+                if str(self.headers.get("Access-Control-Request-Private-Network") or "").lower() == "true":
+                    self.send_header("Access-Control-Allow-Private-Network", "true")
         super().end_headers()
 
     def send_json(self, payload: object, status: int = 200, headers: dict | None = None) -> None:
@@ -35,6 +53,14 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object.")
         return payload
 
+    def do_OPTIONS(self) -> None:
+        if urlparse(self.path).path != "/api/health" or not self.allowed_health_origin():
+            self.send_response(HTTPStatus.FORBIDDEN)
+            self.end_headers()
+            return
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.end_headers()
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if not parsed.path.startswith("/api/"):
@@ -43,6 +69,13 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
+            if parsed.path == "/api/health":
+                return self.send_json({
+                    "ok": True,
+                    "service": "world-book",
+                    "appVersion": APP_VERSION,
+                })
+
             if handle_recovery_get(self, parsed):
                 return
 

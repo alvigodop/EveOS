@@ -11,7 +11,7 @@
     "smoke:audioflix-spotify-match": "python tools/smoke/audioflix_spotify_match_smoke.py",
     "smoke:file-size": "node tools/smoke/first_party_file_size_smoke.js",
     "smoke:launcher": "node tools/smoke/launcher_contract_smoke.js",
-    "smoke:world-book": "python tools/smoke/world_book_integration_smoke.py",
+    "smoke:world-book": "python tools/smoke/world_book_integration_smoke.py && node tools/smoke/world_book_client_smoke.js",
     "smoke:server-security": "python tools/smoke/server_proxy_security_smoke.py",
     "smoke:audioflix-spotify-playback": "node tools/smoke/audioflix_spotify_playback_smoke.js",
     "smoke:audioflix-spotify": "npm run smoke:audioflix-spotify-match && npm run smoke:audioflix-spotify-playback",

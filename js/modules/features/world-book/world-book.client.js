@@ -4,17 +4,25 @@ window.EveWorldBook = window.EveWorldBook || {};
     'use strict';
 
     const STATUS_PATH = '/api/world-book/status';
+    const HEALTH_PATH = 'api/health';
     const state = {
         baseUrl: '',
         controllerAvailable: false,
+        directAvailable: false,
         installed: true,
         running: false,
         desiredRunning: false,
         serverState: 'checking',
+        source: 'none',
         busy: false,
         url: 'http://127.0.0.1:8766/',
         message: 'Checking World Book...'
     };
+
+    function worldBookUrl() {
+        const configured = Number(window.config?.bridges?.worldBookPort) || 8766;
+        return `http://127.0.0.1:${configured}/`;
+    }
 
     function candidateBases() {
         const bases = [];
@@ -52,15 +60,32 @@ window.EveWorldBook = window.EveWorldBook || {};
         }
     }
 
-    function applyStatus(payload, baseUrl) {
+    function applyStatus(payload, baseUrl, shouldPublish) {
         state.baseUrl = baseUrl || state.baseUrl;
         state.controllerAvailable = true;
         state.installed = payload.installed !== false;
         state.running = payload.running === true;
+        state.directAvailable = state.running;
         state.desiredRunning = payload.desiredRunning === true;
         state.serverState = String(payload.state || (state.running ? 'running' : 'stopped'));
         state.url = String(payload.url || state.url);
+        state.source = state.running ? 'managed' : 'none';
         state.message = String(payload.message || '');
+        if (shouldPublish !== false) publish();
+        return { ...state };
+    }
+
+    function applyDirectStatus(payload) {
+        state.baseUrl = '';
+        state.controllerAvailable = false;
+        state.directAvailable = true;
+        state.installed = true;
+        state.running = true;
+        state.serverState = 'running';
+        state.source = 'standalone';
+        state.url = worldBookUrl();
+        state.appVersion = String(payload.appVersion || '');
+        state.message = 'World Book is online through its standalone launcher.';
         publish();
         return { ...state };
     }
@@ -87,14 +112,44 @@ window.EveWorldBook = window.EveWorldBook || {};
         return null;
     }
 
+    async function findDirectServer() {
+        const url = worldBookUrl();
+        try {
+            const payload = await fetchJson(`${url}${HEALTH_PATH}`, null, 1400);
+            if (payload.ok !== true || payload.service !== 'world-book' || !payload.appVersion) {
+                return null;
+            }
+            return payload;
+        } catch (error) {
+            return null;
+        }
+    }
+
     async function refresh() {
-        const found = await findController();
-        if (found) return applyStatus(found.payload, found.baseUrl);
+        const [found, direct] = await Promise.all([findController(), findDirectServer()]);
+        if (found) {
+            applyStatus(found.payload, found.baseUrl, false);
+            if (direct) {
+                state.directAvailable = true;
+                state.running = true;
+                state.serverState = 'running';
+                state.source = 'managed';
+                state.url = worldBookUrl();
+                state.appVersion = String(direct.appVersion || state.appVersion || '');
+                state.message = found.payload.message || 'World Book is online.';
+            }
+            publish();
+            return { ...state };
+        }
+        if (direct) return applyDirectStatus(direct);
         state.baseUrl = '';
         state.controllerAvailable = false;
+        state.directAvailable = false;
         state.running = false;
         state.serverState = 'unavailable';
-        state.message = 'Start EveOS localhost to control World Book from this page.';
+        state.source = 'none';
+        state.url = worldBookUrl();
+        state.message = 'Run tools\\World-Book\\launch.bat, or start EveOS localhost for managed controls.';
         publish();
         return { ...state };
     }

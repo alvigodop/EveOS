@@ -88,16 +88,18 @@ window.EveWorldBook = window.EveWorldBook || {};
         const status = overlay.querySelector('[data-world-book-status]');
         const pill = overlay.querySelector('[data-world-book-status-pill]');
         const toggle = overlay.querySelector('[data-world-book-server-toggle]');
+        const offlineStart = overlay.querySelector('[data-world-book-offline-start]');
         const message = overlay.querySelector('[data-world-book-offline-message]');
         const frame = overlay.querySelector('[data-world-book-frame]');
         const running = snapshot.running === true;
+        const controllable = snapshot.controllerAvailable === true;
 
         if (status) status.textContent = snapshot.message || (running ? 'World Book online' : 'World Book stopped');
         if (pill) {
             pill.dataset.state = snapshot.serverState || 'stopped';
             pill.textContent = running
-                ? 'Online'
-                : snapshot.controllerAvailable === false
+                ? controllable ? 'Online' : 'Standalone Online'
+                : !controllable
                     ? 'Controller offline'
                     : snapshot.serverState === 'starting'
                         ? 'Starting'
@@ -106,9 +108,23 @@ window.EveWorldBook = window.EveWorldBook || {};
                             : 'Stopped';
         }
         if (toggle) {
-            toggle.disabled = snapshot.busy === true || snapshot.controllerAvailable === false;
-            toggle.textContent = running ? 'Stop World Book' : 'Start World Book';
+            toggle.disabled = snapshot.busy === true || !controllable;
+            toggle.textContent = running
+                ? controllable ? 'Stop World Book' : 'World Book Online'
+                : controllable ? 'Start World Book' : 'Start via Launcher';
             toggle.dataset.action = running ? 'stop' : 'start';
+            toggle.title = controllable
+                ? running ? 'Stop the World Book server' : 'Start the World Book server'
+                : running
+                    ? 'Standalone server detected. Stop it from its launcher terminal.'
+                    : 'Run tools\\World-Book\\launch.bat or start EveOS localhost.';
+        }
+        if (offlineStart) {
+            offlineStart.disabled = snapshot.busy === true || !controllable;
+            offlineStart.textContent = controllable ? 'Start World Book' : 'Start via Launcher';
+            offlineStart.title = controllable
+                ? 'Start the World Book server'
+                : 'Run tools\\World-Book\\launch.bat or start EveOS localhost.';
         }
         if (message) message.textContent = snapshot.message || '';
 

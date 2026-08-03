@@ -36,6 +36,7 @@ def wait_until(predicate, timeout: float = 4.0) -> bool:
 def assert_static_contract() -> None:
     tool = ROOT / "tools" / "World-Book"
     assert (tool / "server.py").is_file()
+    assert (tool / "launch.ps1").is_file()
     assert (tool / "app" / "index.html").is_file()
     assert (tool / "worldbook_runtime" / "bootstrap.py").is_file()
 
@@ -43,11 +44,23 @@ def assert_static_contract() -> None:
     assert "Notes &amp; World Books" in html
     assert "world-book.client.js" in html
     assert "world-book.overlay.js" in html
+    client = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.client.js").read_text(encoding="utf-8")
+    assert "api/health" in client
+    assert "standalone launcher" in client
 
     server = (ROOT / "server" / "python-server.py").read_text(encoding="utf-8")
     assert "world_book_control.handle_get_request" in server
     assert "world_book_control.handle_post_request" in server
     assert "world_book_control.restore_desired_state_async" in server
+    control = (ROOT / "server_modules" / "world_book_control.py").read_text(encoding="utf-8")
+    assert "launch.ps1" in control
+
+    handler = (tool / "worldbook_runtime" / "layers" / "80_http_handler.py").read_text(encoding="utf-8")
+    assert 'parsed.path == "/api/health"' in handler
+    assert "Access-Control-Allow-Origin" in handler
+
+    launch_batch = (tool / "launch.bat").read_text(encoding="utf-8")
+    assert 'launch.ps1" %*' in launch_batch
 
     ports = (ROOT / "tools" / "batch" / "eveos-ports.bat").read_text(encoding="utf-8")
     assert 'set "WORLD_BOOK_PORT=8766"' in ports

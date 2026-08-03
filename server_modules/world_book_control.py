@@ -5,6 +5,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import shutil
 import signal
 import socket
 import subprocess
@@ -31,6 +32,10 @@ def _tool_root() -> Path:
 
 def _entry_point() -> Path:
     return _tool_root() / "server.py"
+
+
+def _launcher_path() -> Path:
+    return _tool_root() / "launch.ps1"
 
 
 def _preference_path() -> Path:
@@ -72,26 +77,56 @@ def _port_open() -> bool:
 
 
 def _health_payload() -> dict | None:
-    connection = None
-    try:
-        connection = http.client.HTTPConnection("127.0.0.1", WORLD_BOOK_PORT, timeout=0.7)
-        connection.request("GET", "/api/config", headers={"Connection": "close"})
-        response = connection.getresponse()
-        body = response.read(65536)
-        if response.status != 200:
-            return None
-        payload = json.loads(body.decode("utf-8"))
-        if payload.get("ok") is not True or not payload.get("appVersion"):
-            return None
-        return payload
-    except (OSError, ValueError, UnicodeError):
-        return None
-    finally:
-        if connection is not None:
-            try:
-                connection.close()
-            except OSError:
-                pass
+    for endpoint in ("/api/health", "/api/config"):
+        connection = None
+        try:
+            connection = http.client.HTTPConnection("127.0.0.1", WORLD_BOOK_PORT, timeout=0.7)
+            connection.request("GET", endpoint, headers={"Connection": "close"})
+            response = connection.getresponse()
+            body = response.read(65536)
+            if response.status != 200:
+                continue
+            payload = json.loads(body.decode("utf-8"))
+            if payload.get("ok") is not True or not payload.get("appVersion"):
+                continue
+            if endpoint == "/api/health" and payload.get("service") != "world-book":
+                continue
+            return payload
+        except (OSError, ValueError, UnicodeError):
+            continue
+        finally:
+            if connection is not None:
+                try:
+                    connection.close()
+                except OSError:
+                    pass
+    return None
+
+
+def _launch_command(entry: Path) -> list[str]:
+    launcher = _launcher_path()
+    canonical_entry = _tool_root() / "server.py"
+    if os.name == "nt" and launcher.is_file() and entry.resolve() == canonical_entry.resolve():
+        powershell = shutil.which("powershell.exe") or shutil.which("powershell")
+        if powershell:
+            return [
+                powershell,
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(launcher),
+                "-Port",
+                str(WORLD_BOOK_PORT),
+                "-NoBrowser",
+            ]
+    return [
+        sys.executable,
+        str(entry),
+        "--port",
+        str(WORLD_BOOK_PORT),
+        "--no-browser",
+    ]
 
 
 def _listener_pids() -> list[int]:
@@ -210,13 +245,7 @@ def start_server(*, persist: bool = True) -> dict:
         environment["PYTHONUTF8"] = "1"
         environment["PYTHONIOENCODING"] = "utf-8"
         _PROCESS = subprocess.Popen(
-            [
-                sys.executable,
-                str(entry),
-                "--port",
-                str(WORLD_BOOK_PORT),
-                "--no-browser",
-            ],
+            _launch_command(entry),
             cwd=str(entry.parent),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
