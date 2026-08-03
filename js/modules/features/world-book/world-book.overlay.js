@@ -36,6 +36,11 @@ window.EveWorldBook = window.EveWorldBook || {};
         return document.getElementById(OVERLAY_ID)?.dataset.view || 'notes';
     }
 
+    function setOverlayStatus(message) {
+        const status = document.querySelector(`#${OVERLAY_ID} [data-world-book-status]`);
+        if (status) status.textContent = message;
+    }
+
     async function readNotes() {
         const original = document.getElementById('notes-area');
         if (original) return original.value;
@@ -189,6 +194,12 @@ window.EveWorldBook = window.EveWorldBook || {};
                     <div class="notes-world-book-actions">
                         <span class="notes-world-book-status-pill" data-world-book-status-pill data-state="checking">Checking</span>
                         <button type="button" data-world-book-server-toggle>Start World Book</button>
+                        <button type="button" class="notes-world-book-detach"
+                            data-world-book-detach aria-label="Detach World Book into a window"
+                            title="Detach World Book into a window">
+                            <span aria-hidden="true">&#8599;</span>
+                            <span class="notes-world-book-detach-label">Detach</span>
+                        </button>
                         <button type="button" data-world-book-fullscreen aria-pressed="false" title="Use full screen">&#x26F6;</button>
                         <button type="button" data-world-book-header-toggle title="Hide header">&#9650;</button>
                         <button type="button" data-world-book-close class="is-close">Close &times;</button>
@@ -224,6 +235,7 @@ window.EveWorldBook = window.EveWorldBook || {};
         overlay.querySelector('[data-world-book-close]').addEventListener('click', ns.close);
         overlay.querySelector('[data-world-book-server-toggle]').addEventListener('click', toggleServer);
         overlay.querySelector('[data-world-book-offline-start]').addEventListener('click', toggleServer);
+        overlay.querySelector('[data-world-book-detach]').addEventListener('click', ns.detach);
         overlay.querySelector('[data-world-book-header-toggle]').addEventListener('click', () => setHeaderHidden(true));
         overlay.querySelector('[data-world-book-header-restore]').addEventListener('click', () => setHeaderHidden(false));
         overlay.querySelector('[data-world-book-fullscreen]').addEventListener('click', function () {
@@ -277,8 +289,19 @@ window.EveWorldBook = window.EveWorldBook || {};
         previousFocus = null;
     };
 
+    ns.detach = function detachWorldBook() {
+        return ns.detached.open({
+            onSnapshot: renderStatus,
+            onMessage: setOverlayStatus,
+            onReady: ns.close
+        });
+    };
+
     ns.setView = setView;
     ns.isOpen = isOpen;
+    ns.getDetachedWindow = function getDetachedWindow() {
+        return ns.detached.getWindow();
+    };
 
     document.addEventListener('input', function (event) {
         if (event.target?.id !== 'notes-area') return;

@@ -152,6 +152,23 @@
     padding: 0;
 }
 
+.notes-world-book-detach {
+    min-width: 78px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.notes-world-book-detach > span:first-child {
+    font-size: 0.88rem;
+    line-height: 1;
+}
+
+.notes-world-book-overlay[data-view="notes"] .notes-world-book-detach {
+    display: none;
+}
+
 .notes-world-book-actions .is-close {
     border-color: rgba(226, 111, 105, 0.38);
 }
@@ -316,6 +333,18 @@
 
 .is-header-hidden .notes-world-book-header-restore {
     display: block;
+}
+
+@media (max-width: 1180px) {
+    .notes-world-book-detach {
+        min-width: 36px;
+        width: 36px;
+        padding: 0;
+    }
+
+    .notes-world-book-detach-label {
+        display: none;
+    }
 }
 
 @media (max-width: 980px) {

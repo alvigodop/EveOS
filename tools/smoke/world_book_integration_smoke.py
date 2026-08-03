@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
 import sys
 import tempfile
 import textwrap
@@ -47,6 +48,13 @@ def assert_static_contract() -> None:
     client = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.client.js").read_text(encoding="utf-8")
     assert "api/health" in client
     assert "standalone launcher" in client
+    overlay = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.overlay.js").read_text(encoding="utf-8")
+    detached = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.detach.js").read_text(encoding="utf-8")
+    assert "world-book.detach.js" in html
+    assert 'data-world-book-detach' in overlay
+    assert "ns.detach" in overlay
+    assert "eveWorldBookWindow" in detached
+    assert "window.open" in detached
 
     server = (ROOT / "server" / "python-server.py").read_text(encoding="utf-8")
     assert "world_book_control.handle_get_request" in server
@@ -64,6 +72,26 @@ def assert_static_contract() -> None:
 
     ports = (ROOT / "tools" / "batch" / "eveos-ports.bat").read_text(encoding="utf-8")
     assert 'set "WORLD_BOOK_PORT=8766"' in ports
+
+
+def assert_private_data_contract() -> None:
+    ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert "tools/World-Book/data/**" in ignore
+    assert "!tools/World-Book/data/README.txt" in ignore
+
+    if not (ROOT / ".git").exists():
+        return
+    result = subprocess.run(
+        ["git", "ls-files", "--", "tools/World-Book/data/**"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    tracked = {line.strip().replace("\\", "/") for line in result.stdout.splitlines() if line.strip()}
+    assert tracked <= {"tools/World-Book/data/README.txt"}, (
+        "World Book private runtime data is tracked: " + ", ".join(sorted(tracked))
+    )
 
 
 def assert_lifecycle_contract() -> None:
@@ -134,5 +162,6 @@ def assert_lifecycle_contract() -> None:
 
 if __name__ == "__main__":
     assert_static_contract()
+    assert_private_data_contract()
     assert_lifecycle_contract()
     print("WORLD_BOOK_INTEGRATION_SMOKE_OK")
