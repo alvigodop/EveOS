@@ -85,3 +85,8 @@ The direct-extract patch is flat. Stop the server, extract into the active
 World-Book folder, and replace matching files. Preserve data/. State schema 10
 adds recoverable-deletion history and provenance metadata. Existing entries migrate
 automatically; no lore is deleted or reorganized by the update itself.
+
+V0.15 PATCH NOTE
+The direct-extract patch is flat. Stop World Book, extract into the active
+World-Book folder, and replace matching files. Preserve data/. This update
+adds a browser-local header collapse preference and does not change schema 10.

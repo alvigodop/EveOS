@@ -1,0 +1,46 @@
+.topbar-collapse-toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.topbar.is-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 8px 14px;
+}
+
+.topbar.is-collapsed .brand {
+  width: 100%;
+  min-width: 0;
+}
+
+.topbar.is-collapsed .brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+}
+
+.topbar.is-collapsed .brand-copy {
+  min-width: 0;
+}
+
+.topbar.is-collapsed .brand h1 {
+  font-size: 16px;
+}
+
+.topbar.is-collapsed .brand p,
+.topbar.is-collapsed .workspace-control,
+.topbar.is-collapsed .topbar-actions {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .topbar-collapse-toggle {
+    padding-inline: 9px;
+  }
+
+  .topbar.is-collapsed {
+    padding-inline: 10px;
+  }
+}

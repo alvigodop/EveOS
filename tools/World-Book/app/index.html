@@ -11,20 +11,23 @@
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">W</div>
-        <div>
+        <div class="brand-copy">
           <h1>World Book</h1>
           <p>Live files + connected novel lore</p>
         </div>
+        <button id="topbar-collapse-btn" class="button button-small topbar-collapse-toggle"
+          type="button" aria-expanded="true" aria-controls="workspace-controls topbar-actions"
+          title="Collapse World Book header">Collapse header</button>
       </div>
 
-      <div class="workspace-control">
+      <div id="workspace-controls" class="workspace-control">
         <label for="workspace-path">Workspace</label>
         <input id="workspace-path" placeholder="C:\Lex-Temp">
         <button id="set-workspace-btn" class="button">Mount path</button>
         <button id="refresh-btn" class="button">Refresh</button>
       </div>
 
-      <div class="topbar-actions">
+      <div id="topbar-actions" class="topbar-actions">
         <span id="save-status" class="save-status">Ready</span>
         <button id="new-folder-btn" class="button">New folder</button>
         <button id="new-file-btn" class="button">New text file</button>

@@ -12,6 +12,7 @@
     "assets/js/api.js",
     "assets/js/state.js",
     "assets/js/theme.js",
+    "assets/js/header-collapse.js",
     "assets/js/links.js",
     "assets/js/canon.js",
     "assets/js/smart-collections.js",
@@ -57,5 +58,5 @@
   }
 })().catch(error => {
   console.error(error);
-  document.body.innerHTML = `<main class="bootstrap-error"><h1>World Book could not start</h1><p>${String(error.message || error)}</p></main>`;
+  document.body.innerHTML = `<main class="bootstrap-error"><h1>Eve OS World Book could not start</h1><p>${String(error.message || error)}</p></main>`;
 });

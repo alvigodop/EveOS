@@ -49,6 +49,7 @@ def check_javascript() -> list[str]:
     failures.extend(run(["node", str(ROOT / "tools/check_links.js")]))
     failures.extend(run(["node", str(ROOT / "tools/check_integrity.js")]))
     failures.extend(run(["node", str(ROOT / "tools/check_v014.js")]))
+    failures.extend(run(["node", str(ROOT / "tools/check_v015.js")]))
     standalone = [
         path for path in (ROOT / "app/assets/js").rglob("*.js")
         if path.name not in {"app.js", "taxonomy.js"}

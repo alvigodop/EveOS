@@ -1,3 +1,10 @@
+v0.15.0
+- Added a manual Collapse header / Expand header control to the World Book application header.
+- Collapsed mode hides Workspace and action controls while preserving a compact sticky World Book strip.
+- The preference persists locally in the browser and works in standalone, detached, and EveOS-embedded views.
+- Added accessible expanded-state reporting, a public header controller, and a regression check.
+- Preserved portable state schema 10 because no lore or World Book state migration is required.
+
 v0.14.0
 - Added manual Create/Edit Smart Collection UI with relationship-target, semantic-kind, status, tags-all, and tags-any rules.
 - Added required match preview before Smart Collection rules are saved.

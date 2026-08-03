@@ -1,4 +1,11 @@
-EVE OS WORLD BOOK — v0.14.0
+EVE OS WORLD BOOK — v0.15.0
+
+V0.15.0 COLLAPSIBLE WORLD BOOK HEADER
+--------------------------------------
+- Added a Collapse header button directly inside World Book's own header.
+- Collapsed mode hides Workspace, Mount path, Refresh, and the action row while keeping a compact World Book strip with an Expand header control.
+- The setting persists in the browser and behaves the same standalone, detached, or embedded in EveOS.
+- This is a UI-only update: lore, recovery files, server lifecycle preferences, and portable state schema 10 remain unchanged.
 
 V0.14.0 AUTHOR CONTROL, RECOVERY, AND PROVENANCE
 ------------------------------------------------
@@ -234,7 +241,7 @@ V0.7 LINKS
 - Full Copy Scope output and World Book ZIP metadata now include links.
 
 V0.7 THEMES
-- Normal preserves the original World Book appearance.
+- Normal preserves the original Eve OS World Book appearance.
 - Dark provides a complete dark palette.
 - Custom allows manual control of background, panels, sidebar, text, muted text,
   accent, soft accent, borders, and danger colors.
