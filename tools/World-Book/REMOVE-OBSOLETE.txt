@@ -1,0 +1,2 @@
+app/assets/js/app.js
+app/assets/js/taxonomy.js

@@ -35,6 +35,7 @@ try:
     from server_modules import gemini_control
     from server_modules import gemini_credentials
     from server_modules import audioflix_bridge
+    from server_modules import world_book_control
     from server_modules.eveos_http_cors import eveos_cors_origin
 except ImportError as exc:
     raise SystemExit(f"[FATAL] EveOS server dependency import failed: {exc}") from exc
@@ -49,7 +50,6 @@ logger = logging.getLogger("EveOSServer")
 
 # Default port
 DEFAULT_PORT = 3000
-
 
 def configure_modular_store(modular_root=None, persist_modular_root=False):
     """
@@ -201,6 +201,9 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         elif path == '/api/gemini-server/status':
             gemini_control.send_json(self, gemini_control.get_status())
 
+        elif world_book_control.handle_get_request(self, path):
+            return
+
         elif path == '/api/gemini-credentials/status':
             if not gemini_control.request_can_control(self):
                 gemini_control.send_json(
@@ -266,6 +269,9 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             action = gemini_control.start_server if path.endswith('/start') else gemini_control.stop_server
             payload = action()
             gemini_control.send_json(self, payload, HTTPStatus.OK if payload.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+
+        if world_book_control.handle_post_request(self, path):
             return
 
         if path == '/api/gemini-credentials':
@@ -365,6 +371,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
             print("  Popup:   Enabled at /api/popup-view?url=...")
             print("  Bridge:  Lightpanda/WSL enabled at /api/lightpanda")
             print("  Gemini:  Lifecycle control enabled at /api/gemini-server/status")
+            print(f"  World:   Saved lifecycle state on port {world_book_control.WORLD_BOOK_PORT}")
             print("  Audio:   Soundboard + VB-Cable bypass + global hotkeys at /api/audioflix/*")
             # Pre-warm the audio device scan so the first soundboard press / hotkey right after
             # boot isn't delayed by a cold WASAPI device enumeration. Non-fatal, off-thread.
@@ -373,6 +380,7 @@ def run_server(port=DEFAULT_PORT, open_browser=True):
                 _af_t.Thread(target=lambda: audioflix_bridge.list_devices(force=True), daemon=True).start()
             except Exception as exc:
                 logger.debug("Audioflix device prewarm skipped: %s", exc)
+            world_book_control.restore_desired_state_async()
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the server")
             
@@ -437,6 +445,5 @@ if __name__ == "__main__":
         env_modular_root = os.environ.get("EVEOS_MODULAR_ROOT", "").strip()
         if env_modular_root:
             args.modular_root = env_modular_root
-
     configure_modular_store(args.modular_root, args.persist_modular_root)
     sys.exit(run_server(args.port, open_browser=not args.no_browser))

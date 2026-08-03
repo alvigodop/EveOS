@@ -69,6 +69,7 @@ assert(rootSource.split(/\r?\n/).length <= 450,
 const portsSource = read(path.join(ROOT, 'tools', 'batch', 'eveos-ports.bat'));
 for (const key of [
     'EVEOS_WEB_PORT',
+    'WORLD_BOOK_PORT',
     'GEMINI_WS_PORT',
     'GEMINI_STATUS_PORT',
     'GEMINI_CONTROL_PORT',

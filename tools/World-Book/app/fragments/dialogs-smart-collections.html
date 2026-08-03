@@ -1,0 +1,96 @@
+<dialog id="smart-collection-dialog" class="wide-dialog">
+  <form method="dialog" class="dialog-card dialog-card-tall">
+    <div class="dialog-heading">
+      <div>
+        <span class="eyebrow">Generated one-source lens</span>
+        <h2 id="smart-collection-title">Create Smart Collection</h2>
+        <p>Build a starred folder whose shortcuts regenerate from your canon graph.</p>
+      </div>
+      <button value="cancel" class="icon-button" aria-label="Close">×</button>
+    </div>
+
+    <div class="smart-collection-grid">
+      <label class="field">
+        <span>Name</span>
+        <input id="smart-collection-name" placeholder="Chapter 1 characters">
+      </label>
+      <label class="field">
+        <span>Destination folder</span>
+        <select id="smart-collection-parent"></select>
+      </label>
+    </div>
+
+    <section class="smart-rule-card">
+      <div class="section-heading compact-section-heading">
+        <div><h3>Rule builder</h3><p>Blank filters are ignored. Active filters must all match.</p></div>
+      </div>
+
+      <div class="smart-collection-grid">
+        <label class="field">
+          <span>Relationship</span>
+          <select id="smart-relationship-type"><option value="">Any relationship</option></select>
+        </label>
+        <div class="field">
+          <span>Relationship target</span>
+          <input id="smart-target-search" type="search" placeholder="Search World Book entries">
+          <div id="smart-target-results" class="smart-target-results" hidden></div>
+          <div id="smart-selected-target" class="smart-selected-target" hidden>
+            <span><strong id="smart-selected-target-name"></strong><small id="smart-selected-target-path"></small></span>
+            <button id="smart-clear-target-btn" type="button" class="button button-small">Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <span>Semantic kinds</span>
+        <div id="smart-kind-options" class="smart-check-grid"></div>
+      </div>
+
+      <div class="field">
+        <span>Statuses</span>
+        <div id="smart-status-options" class="smart-check-grid"></div>
+      </div>
+
+      <div class="smart-collection-grid">
+        <label class="field">
+          <span>Must have all tags</span>
+          <input id="smart-tags-all" placeholder="Chapter 1, Canon">
+        </label>
+        <label class="field">
+          <span>Must have any tag</span>
+          <input id="smart-tags-any" placeholder="Character, Organization">
+        </label>
+      </div>
+    </section>
+
+    <section class="smart-preview-card">
+      <div class="section-heading compact-section-heading">
+        <div><h3>Preview matches</h3><p>Review the shortcuts that will appear before saving.</p></div>
+        <span id="smart-preview-count" class="pill">Not previewed</span>
+      </div>
+      <div id="smart-preview-list" class="smart-preview-list"><p class="dialog-note">Press Preview matches to test this rule.</p></div>
+    </section>
+
+    <div class="dialog-actions split-actions">
+      <button id="smart-preview-btn" type="button" class="button">Preview matches</button>
+      <span class="dialog-action-spacer"></span>
+      <button value="cancel" class="button">Cancel</button>
+      <button id="smart-save-btn" type="button" class="button button-primary">Save Smart Collection</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="deleted-items-dialog" class="wide-dialog">
+  <form method="dialog" class="dialog-card dialog-card-tall">
+    <div class="dialog-heading">
+      <div>
+        <span class="eyebrow">Recoverable history</span>
+        <h2>Deleted World Book entries</h2>
+        <p>Restore deleted virtual entries with their original IDs, children, links, and metadata.</p>
+      </div>
+      <button value="cancel" class="icon-button" aria-label="Close">×</button>
+    </div>
+    <div id="deleted-items-list" class="deleted-items-list"></div>
+    <div class="dialog-actions"><button value="cancel" class="button">Close</button></div>
+  </form>
+</dialog>

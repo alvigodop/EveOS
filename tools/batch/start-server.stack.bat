@@ -26,6 +26,7 @@ if defined _WEB_PID (
     rem the same slim, out-of-the-way style instead of a wide console grabbing the screen.
     start "EveOS %EVEOS_WEB_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && ""%EVEOS_PYTHON%"" -u server/python-server.py %EVEOS_WEB_PORT%"
 )
+echo [INFO]  World Book follows its saved On/Off state on port %WORLD_BOOK_PORT%.
 rem --- 2. Gemini backend + file-mode control helper (start-gemini guards internally) ---
 echo [BOOT]  Ensuring Gemini backend ^(WS %GEMINI_WS_PORT% / status %GEMINI_STATUS_PORT%^)...
 call "%GEMINI_AUTOSTART_BAT%" >nul 2>nul

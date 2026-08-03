@@ -1,0 +1,404 @@
+  function findPhysicalByPath(node, path) {
+    if (!node) return null;
+    if ((node.relativePath || "") === (path || "")) return node;
+
+    for (const child of node.children || []) {
+      const found = findPhysicalByPath(child, path);
+      if (found) return found;
+    }
+
+    return null;
+  }
+
+  function invalidatePhysicalFolder(folder) {
+    if (!folder) return;
+    folder.loaded = false;
+    folder.children = [];
+  }
+
+  async function createPhysical(kind) {
+    if (!config || !config.rootPath) {
+      window.alert("Mount a workspace path first.");
+      return;
+    }
+
+    const parent = selectedPhysicalFolder();
+    if (!parent) return;
+
+    const defaultName = kind === "folder" ? "New Folder" : "New Note.md";
+    const name = window.prompt(`Name the physical ${kind}:`, defaultName);
+    if (name === null) return;
+
+    try {
+      const payload = await WB.API.create(parent.relativePath || "", name.trim(), kind, "");
+      invalidatePhysicalFolder(parent);
+      parent.open = true;
+      await ensurePhysicalChildren(parent);
+      const node = findPhysicalByPath(physicalRoot, payload.entry.relativePath);
+      renderTree();
+      if (node) await selectPhysical(node);
+      setStatus("Created");
+    } catch (error) {
+      console.error(error);
+      window.alert(error.message);
+    }
+  }
+  function selectedVirtualNode() {
+    if (!selected || selected.source !== "virtual") return null;
+    return selected.node;
+  }
+
+  function selectVirtual(node) {
+    node = WB.Canon ? WB.Canon.resolveNode(state, node) : node;
+    els.tagManagerPanel.hidden = true;
+    els.integrityPanel.hidden = true;
+    selected = { source: "virtual", node };
+    state.selectedVirtualId = node.id;
+    ensureUIState();
+    state.ui.lastVirtualFolderId = node.type === "folder"
+      ? node.id
+      : (WB.findVirtualParent(state.virtualRoot, node.id) || state.virtualRoot).id;
+    const path = WB.virtualPath(state.virtualRoot, node.id);
+    path.forEach(item => {
+      if (item.type === "folder") item.open = true;
+    });
+    renderTree();
+    WB.Editor.showVirtual(node, path, state, WB.Taxonomy.virtualTagInfo(state, node));
+    refreshAdvancedEntryControls(node);
+    if (focusMode) closeFocusSidebar();
+    updateFocusDock();
+    scheduleStateSave();
+  }
+
+  function toggleVirtual(node) {
+    node.open = !node.open;
+    node.updatedAt = WB.nowISO();
+    renderTree();
+    scheduleStateSave();
+  }
+
+  function createVirtual(kind) {
+    const current = selectedVirtualNode();
+    let parent = current && current.type === "folder"
+      ? current
+      : current
+        ? WB.findVirtualParent(state.virtualRoot, current.id)
+        : state.virtualRoot;
+
+    parent = parent || state.virtualRoot;
+    const defaultName = kind === "folder" ? "New Folder" : "New File";
+    const name = window.prompt(`Name this virtual ${kind}:`, defaultName);
+    if (name === null) return;
+
+    const node = WB.createVirtualNode(kind, name.trim() || defaultName);
+    parent.children.push(node);
+    parent.open = true;
+    parent.updatedAt = WB.nowISO();
+    selectVirtual(node);
+    scheduleStateSave();
+  }
+
+  function renameVirtual(newName) {
+    const node = selectedVirtualNode();
+    if (!node) return;
+
+    node.name = newName.trim() || node.name;
+    node.updatedAt = WB.nowISO();
+    renderTree();
+    WB.Editor.showVirtual(node, WB.virtualPath(state.virtualRoot, node.id), state, WB.Taxonomy.virtualTagInfo(state, node));
+    refreshAdvancedEntryControls(node);
+    scheduleStateSave();
+  }
+
+  async function renamePhysical(newName) {
+    if (!selected || selected.source !== "physical") return;
+
+    const node = selected.node;
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === node.name) return;
+
+    try {
+      const payload = await WB.API.rename(node.relativePath, trimmed);
+      const parentPath = payload.newPath.split("/").slice(0, -1).join("/");
+      const parent = findPhysicalByPath(physicalRoot, parentPath) || physicalRoot;
+      invalidatePhysicalFolder(parent);
+      parent.open = true;
+      await ensurePhysicalChildren(parent);
+      const renamed = findPhysicalByPath(physicalRoot, payload.newPath);
+      renderTree();
+      if (renamed) await selectPhysical(renamed);
+      setStatus("Renamed");
+    } catch (error) {
+      console.error(error);
+      els.entryName.value = node.name;
+      window.alert(error.message);
+    }
+  }
+
+  function updateMeta(changes) {
+    if (!selected) return;
+    const refreshTags = Boolean(changes.refreshTags);
+    changes = { ...changes };
+    delete changes.refreshTags;
+    if (Object.prototype.hasOwnProperty.call(changes, "tags")) {
+      changes.tags = WB.normalizeTags(changes.tags);
+      changes.tags.forEach(tag => WB.Taxonomy.ensureTag(state, tag));
+    }
+
+    if (selected.source === "physical") {
+      const meta = metaForPhysical(selected.node.relativePath || "");
+      Object.assign(meta, changes, { updatedAt: WB.nowISO() });
+      els.metaUpdatedAt.textContent = new Date(meta.updatedAt).toLocaleString();
+      if (refreshTags) refreshSelectedTagDisplay();
+    scheduleStateSave();
+      return;
+    }
+
+    if (selected.source === "virtual") {
+      const node = selected.node;
+      if (Object.prototype.hasOwnProperty.call(changes, "status")) node.status = changes.status;
+      if (Object.prototype.hasOwnProperty.call(changes, "tags")) node.tags = changes.tags;
+      if (Object.prototype.hasOwnProperty.call(changes, "notes")) node.content = changes.notes;
+      node.updatedAt = WB.nowISO();
+      els.modifiedAt.textContent = new Date(node.updatedAt).toLocaleString();
+      els.metaUpdatedAt.textContent = new Date(node.updatedAt).toLocaleString();
+      renderTree();
+      if (refreshTags) refreshSelectedTagDisplay();
+    scheduleStateSave();
+    }
+  }
+
+  async function savePhysicalFile(content) {
+    if (!selected || selected.source !== "physical" || selected.node.kind !== "file") return;
+
+    setStatus("Writing file…");
+    try {
+      const payload = await WB.API.write(selected.node.relativePath, content);
+      Object.assign(selected.node, payload.entry);
+      WB.Editor.showPhysical(
+        selected.node,
+        metaForPhysical(selected.node.relativePath),
+        {
+          content,
+          editable: true,
+          format: "text"
+        },
+        state,
+        WB.Taxonomy.simpleTagInfo(metaForPhysical(selected.node.relativePath).tags, metaForPhysical(selected.node.relativePath).visibleTags)
+      );
+      setStatus("File saved");
+    } catch (error) {
+      console.error(error);
+      setStatus("Write failed");
+      window.alert(error.message);
+    }
+  }
+
+  function deleteVirtual() {
+    const node = selectedVirtualNode();
+    if (!node || node.id === "root") return;
+
+    const confirmed = window.confirm(`Delete virtual entry "${node.name}"?\n\nIt will remain recoverable in Deleted items.`);
+    if (!confirmed) return;
+
+    const parent = WB.findVirtualParent(state.virtualRoot, node.id) || state.virtualRoot;
+    try {
+      WB.deleteVirtualToHistory(state, node.id);
+      WB.Canon.normalizeState(state);
+      selected = { source: "virtual", node: parent };
+      state.selectedVirtualId = parent.id;
+      renderTree();
+      WB.Editor.showVirtual(parent, WB.virtualPath(state.virtualRoot, parent.id), state, WB.Taxonomy.virtualTagInfo(state, parent));
+      refreshAdvancedEntryControls(parent);
+      updateDeletedControls();
+      scheduleStateSave();
+      setStatus(`Deleted ${node.name} · Undo available`);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  async function openSelected() {
+    if (!selected || selected.source !== "physical") return;
+    try {
+      await WB.API.open(selected.node.relativePath || "");
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  async function revealSelected() {
+    if (!selected || selected.source !== "physical") return;
+    try {
+      await WB.API.reveal(selected.node.relativePath || "");
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  async function setWorkspace() {
+    const path = els.workspacePath.value.trim();
+    if (!path) return;
+
+    setStatus("Mounting…");
+    try {
+      const payload = await WB.API.setConfig(path);
+      config = payload.config;
+      selected = null;
+      await loadPhysicalRoot();
+      setStatus("Workspace mounted");
+    } catch (error) {
+      console.error(error);
+      setStatus("Mount failed");
+      window.alert(error.message);
+    }
+  }
+
+  async function refreshCurrent() {
+    if (currentView === "files") {
+      selected = null;
+      await loadPhysicalRoot();
+    } else if (currentView === "imports") {
+      await loadImports();
+    } else if (currentView === "tags") {
+      await refreshTagManager(true);
+    } else {
+      renderTree();
+    }
+    setStatus("Refreshed");
+  }
+
+
+
+  function copyScopeSelection() {
+    const selectedRange = document.querySelector('input[name="copy-scope-range"]:checked');
+    const selectedMode = document.querySelector('input[name="copy-scope-mode"]:checked');
+    return {
+      range: selectedRange ? selectedRange.value : "selected",
+      mode: selectedMode ? selectedMode.value : "tree",
+      style: els.copyScopeStyle.value || "unicode"
+    };
+  }
+
+  function currentScopeTarget(range) {
+    if (currentView === "files") {
+      const node = range === "selected" && selected?.source === "physical"
+        ? selected.node
+        : physicalRoot;
+      return {
+        source: "physical",
+        path: node ? (node.relativePath || "") : "",
+        virtualId: "root",
+        label: node ? (node.relativePath || node.name) : "Live workspace root",
+        kind: node ? node.kind : "folder"
+      };
+    }
+
+    const node = range === "selected" && selected?.source === "virtual"
+      ? selected.node
+      : state.virtualRoot;
+    return {
+      source: "virtual",
+      path: "",
+      virtualId: node ? node.id : "root",
+      label: node ? WB.virtualPath(state.virtualRoot, node.id).map(item => item.name).join(" › ") : "World Book root",
+      kind: node ? node.type : "folder"
+    };
+  }
+
+  function updateCopyScopeTargetLabel() {
+    const options = copyScopeSelection();
+    const target = currentScopeTarget(options.range);
+    els.copyScopeSourceLabel.textContent = `${currentView === "files" ? "Live Files" : "World Book"}: ${target.label}`;
+    resetCopyScopeResult();
+  }
+
+  function resetCopyScopeResult() {
+    lastCopiedScopeText = "";
+    lastCopiedScopeFilename = "world-book-scope.txt";
+    els.copyScopeResult.hidden = true;
+    els.copyScopePreview.value = "";
+    els.copyScopeSummary.textContent = "Ready";
+  }
+
+  function openCopyScopeDialog() {
+    if (!state || !["files", "worldbook"].includes(currentView)) {
+      window.alert("Copy scope is available from Live Files or World Book.");
+      return;
+    }
+    if (currentView === "files" && !physicalRoot) {
+      window.alert("Mount a live workspace first.");
+      return;
+    }
+
+    const hasCurrentSelection = currentView === "files"
+      ? selected?.source === "physical"
+      : selected?.source === "virtual";
+
+    els.copyScopeSelected.disabled = !hasCurrentSelection;
+    if (!hasCurrentSelection) {
+      document.querySelector('input[name="copy-scope-range"][value="all"]').checked = true;
+    } else {
+      els.copyScopeSelected.checked = true;
+    }
+
+    updateCopyScopeTargetLabel();
+    els.copyScopeDialog.showModal();
+  }
+
+  async function writeClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const fallback = document.createElement("textarea");
+    fallback.value = text;
+    fallback.setAttribute("readonly", "");
+    fallback.style.position = "fixed";
+    fallback.style.opacity = "0";
+    document.body.appendChild(fallback);
+    fallback.select();
+    const copied = document.execCommand("copy");
+    fallback.remove();
+    if (!copied) throw new Error("The browser blocked clipboard access.");
+  }
+
+  async function generateAndCopyScope() {
+    const options = copyScopeSelection();
+    const target = currentScopeTarget(options.range);
+
+    if (options.mode === "folders" && target.kind !== "folder") {
+      window.alert("Select a folder, or choose Entire current tree, for folder-only mode.");
+      return;
+    }
+
+    els.generateCopyScope.disabled = true;
+    els.generateCopyScope.textContent = "Building…";
+    setStatus("Building copy scope…");
+
+    try {
+      await saveStateNow(true);
+      const payload = await WB.API.copyScope(
+        target.source,
+        options.mode,
+        options.style,
+        target.path,
+        target.virtualId
+      );
+      lastCopiedScopeText = payload.text;
+      lastCopiedScopeFilename = payload.filename || "world-book-scope.txt";
+      els.copyScopePreview.value = payload.text;
+      els.copyScopeResult.hidden = false;
+      els.copyScopeSummary.textContent = `${Number(payload.entryCount || 0).toLocaleString()} entries copied`;
+      await writeClipboard(payload.text);
+      setStatus("Scope copied");
+    } catch (error) {
+      console.error(error);
+      setStatus("Copy scope failed");
+      window.alert(error.message);
+    } finally {
+      els.generateCopyScope.disabled = false;
+      els.generateCopyScope.textContent = "Copy to clipboard";
+    }
+  }

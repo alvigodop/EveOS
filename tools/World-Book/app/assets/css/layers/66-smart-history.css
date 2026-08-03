@@ -1,0 +1,102 @@
+/* v0.14 user-created smart collections and recoverable deletion */
+.smart-collection-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.smart-rule-card,
+.smart-preview-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--muted-surface);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.smart-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.smart-check-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.smart-target-results {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  margin-top: 6px;
+}
+
+.smart-target-result {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 9px 11px;
+  display: grid;
+  gap: 2px;
+}
+
+.smart-target-result:last-child { border-bottom: 0; }
+.smart-target-result:hover { background: var(--accent-soft); }
+.smart-target-result small,
+.smart-selected-target small { color: var(--muted); }
+
+.smart-selected-target {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.smart-selected-target span { display: grid; gap: 2px; }
+.smart-preview-list { max-height: 250px; overflow: auto; display: grid; gap: 7px; }
+.smart-preview-row {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  padding: 8px 10px;
+  display: grid;
+  gap: 2px;
+}
+.smart-preview-row small { color: var(--muted); }
+
+.deleted-items-list { display: grid; gap: 10px; min-height: 120px; }
+.deleted-item-row {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--muted-surface);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.deleted-item-copy { display: grid; gap: 3px; min-width: 0; }
+.deleted-item-copy small { color: var(--muted); overflow-wrap: anywhere; }
+.deleted-item-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+@media (max-width: 850px) {
+  .smart-collection-grid { grid-template-columns: 1fr; }
+  .deleted-item-row { align-items: flex-start; flex-direction: column; }
+}

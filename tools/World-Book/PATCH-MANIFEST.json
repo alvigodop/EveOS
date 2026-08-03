@@ -1,0 +1,10 @@
+{
+  "version": "0.14.0",
+  "fromVersion": "0.13.1",
+  "directExtract": true,
+  "preserve": [
+    "data"
+  ],
+  "remove": [],
+  "notes": "Adds manual Smart Collections and semantic kinds, recoverable virtual deletion, visible provenance and non-owning provenance injection operations, richer Copy Scope metadata, and an in-app Eve Injection fresh-context guide."
+}

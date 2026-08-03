@@ -1,0 +1,49 @@
+
+  <dialog id="recovery-center-dialog" class="wide-dialog recovery-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div><h2>Backup & Restore</h2><p class="dialog-subtitle">Portable archives for reference and exact backups for disaster recovery.</p></div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <section class="recovery-grid">
+        <article class="recovery-option">
+          <span class="recovery-kicker">Portable</span>
+          <h3>JSON Snapshot</h3>
+          <p>Searchable state, readable file contents, links, tags, statuses, themes, and metadata. Best for review, archive, and virtual World Book restoration.</p>
+          <button id="portable-snapshot-btn" type="button" class="button">Export portable JSON</button>
+        </article>
+        <article class="recovery-option emphasized">
+          <span class="recovery-kicker">Exact recovery</span>
+          <h3>Full Recovery Backup</h3>
+          <p>Includes exact physical file bytes, active state, imported snapshots, a portable snapshot, checksums, and a restore manifest.</p>
+          <button id="full-recovery-btn" type="button" class="button button-primary">Export full recovery ZIP</button>
+        </article>
+      </section>
+
+      <section class="recovery-restore-section">
+        <div class="section-heading">
+          <div><h3>Verify or restore a full backup</h3><p>The ZIP is checked before restore. Active state receives an automatic rollback first.</p></div>
+          <button id="choose-recovery-zip-btn" type="button" class="button">Choose recovery ZIP</button>
+          <input id="recovery-zip-input" type="file" accept=".zip,application/zip" hidden>
+        </div>
+        <div id="recovery-inspection-status" class="recovery-status">No recovery ZIP selected.</div>
+        <div id="recovery-restore-panel" class="recovery-restore-panel" hidden>
+          <div id="recovery-restore-summary" class="recovery-summary"></div>
+          <label class="field compact-field"><span>Restore</span><select id="recovery-restore-mode"><option value="worldbook">World Book state and imported snapshots</option><option value="physical">Exact physical workspace files only</option><option value="everything">Everything and mount the restored workspace</option></select></label>
+          <label id="recovery-destination-row" class="field"><span>Physical restore destination</span><input id="recovery-destination-path" placeholder="C:\Lex-Temp-Recovered"><small>A new or empty folder is safest.</small></label>
+          <label id="recovery-conflict-row" class="field compact-field"><span>Existing-file policy</span><select id="recovery-conflict-policy"><option value="new-folder">Require a new or empty folder</option><option value="skip-existing">Merge, but skip existing files</option><option value="overwrite">Replace existing files</option></select></label>
+          <div class="dialog-actions"><button id="confirm-recovery-restore-btn" type="button" class="button button-primary">Restore and verify</button></div>
+        </div>
+      </section>
+    </form>
+  </dialog>
+
+  <dialog id="json-import-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading"><div><h2>Import JSON</h2><p id="json-import-summary" class="dialog-subtitle"></p></div><button value="cancel" class="icon-button" aria-label="Close">×</button></div>
+      <label class="field compact-field"><span>Import action</span><select id="json-import-mode"></select></label>
+      <p class="dialog-note">Restore actions create a rollback copy before changing active data. Archive keeps the snapshot read-only under Imports.</p>
+      <div class="dialog-actions"><button value="cancel" class="button">Cancel</button><button id="confirm-json-import-btn" type="button" class="button button-primary">Continue</button></div>
+    </form>
+  </dialog>

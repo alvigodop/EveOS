@@ -1,0 +1,153 @@
+/* Eve Injection viewport-responsive sizing. Keep layout ownership separate from feature styling. */
+.integration-dialog {
+  width: clamp(520px, 88vw, 1100px);
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  overflow: hidden;
+}
+
+.integration-dialog-card {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  max-height: calc(100dvh - 24px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.integration-dialog-card > *,
+.integration-dialog-card .field,
+.integration-dialog-card textarea,
+.integration-dialog-card button,
+.integration-dialog-card .integration-plan-row,
+.integration-dialog-card .integration-history-row {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.integration-dialog-card .dialog-heading {
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.integration-dialog-card .dialog-heading > div {
+  min-width: 0;
+}
+
+.integration-dialog-card .dialog-heading p,
+.integration-rule-callout,
+.integration-plan-row,
+.integration-history-row {
+  overflow-wrap: anywhere;
+}
+
+.integration-payload-field textarea {
+  width: 100%;
+  min-height: clamp(150px, 27dvh, 300px);
+  max-height: min(52dvh, 520px);
+}
+
+.integration-plan-list {
+  max-height: clamp(150px, 30dvh, 340px);
+}
+
+.integration-history-list {
+  max-height: clamp(110px, 22dvh, 220px);
+}
+
+@media (max-width: 760px) {
+  .integration-dialog {
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    max-height: calc(100dvh - 12px);
+  }
+
+  .integration-dialog-card {
+    padding: 14px;
+    max-height: calc(100dvh - 12px);
+  }
+
+  .integration-dialog-card .dialog-heading {
+    margin-bottom: 13px;
+  }
+
+  .integration-rule-callout {
+    padding: 10px 11px;
+    font-size: 12px;
+  }
+
+  .integration-toolbar {
+    gap: 6px;
+  }
+
+  .integration-toolbar .button {
+    flex: 1 1 140px;
+  }
+
+  .integration-preview-actions {
+    align-items: stretch;
+  }
+
+  .integration-preview-actions .button {
+    flex: 1 1 170px;
+  }
+
+  .integration-preview-actions .save-status {
+    flex: 1 1 100%;
+  }
+
+  .integration-plan-panel {
+    padding: 11px;
+  }
+
+  .integration-plan-row {
+    grid-template-columns: 1fr;
+  }
+
+  .integration-op-pill {
+    justify-self: start;
+  }
+
+  .integration-dialog .split-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-height: 700px) {
+  .integration-payload-field textarea {
+    min-height: 120px;
+    max-height: 34dvh;
+  }
+
+  .integration-plan-list {
+    max-height: 24dvh;
+  }
+
+  .integration-history-list {
+    max-height: 18dvh;
+  }
+}
+
+@media (max-width: 460px) {
+  .integration-dialog-card {
+    padding: 11px;
+  }
+
+  .integration-dialog-card .dialog-heading h2 {
+    font-size: 22px;
+  }
+
+  .integration-toolbar .button,
+  .integration-preview-actions .button,
+  .integration-dialog .dialog-actions .button {
+    width: 100%;
+    flex-basis: 100%;
+  }
+
+  .integration-dialog .dialog-action-spacer {
+    display: none;
+  }
+}

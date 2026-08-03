@@ -16,6 +16,9 @@ rem ============================================================
 rem -- EveOS web surface (the page you open) --
 set "EVEOS_WEB_PORT=8765"
 
+rem -- World Book tool (managed by the EveOS web server) --
+set "WORLD_BOOK_PORT=8766"
+
 rem -- Gemini Live backend (one process owns WS + status) --
 set "GEMINI_WS_PORT=9083"
 set "GEMINI_STATUS_PORT=9084"

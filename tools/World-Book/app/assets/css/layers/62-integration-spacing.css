@@ -1,0 +1,28 @@
+/* Eve Injection section rhythm. Keep spacing separate from sizing and feature styling. */
+.integration-rule-callout + .integration-toolbar {
+  margin-top: 12px;
+}
+
+.integration-toolbar + .integration-payload-field {
+  margin-top: 12px;
+}
+
+.integration-preview-actions {
+  margin-bottom: 12px;
+}
+
+.integration-plan-panel:not([hidden]) {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 760px) {
+  .integration-rule-callout + .integration-toolbar,
+  .integration-toolbar + .integration-payload-field {
+    margin-top: 10px;
+  }
+
+  .integration-preview-actions,
+  .integration-plan-panel:not([hidden]) {
+    margin-bottom: 10px;
+  }
+}

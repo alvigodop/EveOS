@@ -1,0 +1,404 @@
+  function renderEntryTagManager() {
+    if (!entryTagDraft) return;
+    const info = entryTagDraftInfo();
+    const query = els.entryTagSearch.value.trim().toLowerCase();
+    const effectiveByName = new Map(info.effective.map(item => [item.name.toLowerCase(), item]));
+    const names = new Map();
+    (state.tagDefinitions || []).forEach(definition => names.set(definition.name.toLowerCase(), definition.name));
+    info.effective.forEach(item => names.set(item.name.toLowerCase(), item.name));
+    entryTagDraft.manual.forEach(tag => names.set(tag.toLowerCase(), tag));
+
+    const rows = [...names.values()]
+      .filter(name => !query || name.toLowerCase().includes(query))
+      .sort((a, b) => {
+        const aEffective = effectiveByName.has(a.toLowerCase()) ? 0 : 1;
+        const bEffective = effectiveByName.has(b.toLowerCase()) ? 0 : 1;
+        return aEffective - bEffective || a.localeCompare(b);
+      });
+
+    const manualSet = new Set(entryTagDraft.manual.map(tag => tag.toLowerCase()));
+    const sharedSet = new Set(entryTagDraft.shared.map(tag => tag.toLowerCase()));
+    const visibleSet = new Set(entryTagDraft.visible.map(tag => tag.toLowerCase()));
+    els.entryTagTableBody.innerHTML = "";
+
+    rows.forEach(name => {
+      const key = name.toLowerCase();
+      const effective = effectiveByName.get(key);
+      const tr = document.createElement("tr");
+      if (!effective) tr.className = "entry-tag-row-unavailable";
+      tr.innerHTML = `
+        <td><span class="entry-tag-name">${WB.escapeHTML(name)}</span></td>
+        <td><div class="entry-tag-source-list">${entryTagSourceBadges(effective)}</div></td>
+        <td class="entry-tag-check-cell"><input class="entry-tag-manual-check" type="checkbox" ${manualSet.has(key) ? "checked" : ""} aria-label="Attach ${WB.escapeHTML(name)} manually"></td>
+        <td class="entry-tag-check-cell"><input class="entry-tag-visible-check" type="checkbox" ${visibleSet.has(key) && effective ? "checked" : ""} ${effective ? "" : "disabled"} aria-label="Show ${WB.escapeHTML(name)} in compact view"></td>
+        <td class="entry-tag-check-cell"><input class="entry-tag-share-check" type="checkbox" ${sharedSet.has(key) ? "checked" : ""} ${entryTagDraft.isFolder && manualSet.has(key) ? "" : "disabled"} aria-label="Share ${WB.escapeHTML(name)} with descendants"></td>
+      `;
+
+      tr.querySelector(".entry-tag-manual-check").addEventListener("change", event => {
+        if (event.target.checked) {
+          entryTagDraft.manual = WB.normalizeTags([...entryTagDraft.manual, name]);
+          entryTagDraft.visible = WB.normalizeTags([...entryTagDraft.visible, name]);
+        } else {
+          entryTagDraft.manual = entryTagDraft.manual.filter(tag => tag.toLowerCase() !== key);
+          entryTagDraft.shared = entryTagDraft.shared.filter(tag => tag.toLowerCase() !== key);
+        }
+        renderEntryTagManager();
+      });
+
+      tr.querySelector(".entry-tag-visible-check").addEventListener("change", event => {
+        entryTagDraft.visible = event.target.checked
+          ? WB.normalizeTags([...entryTagDraft.visible, name])
+          : entryTagDraft.visible.filter(tag => tag.toLowerCase() !== key);
+        renderEntryTagManager();
+      });
+
+      tr.querySelector(".entry-tag-share-check").addEventListener("change", event => {
+        entryTagDraft.shared = event.target.checked
+          ? WB.normalizeTags([...entryTagDraft.shared, name])
+          : entryTagDraft.shared.filter(tag => tag.toLowerCase() !== key);
+        renderEntryTagManager();
+      });
+
+      els.entryTagTableBody.appendChild(tr);
+    });
+
+    if (!rows.length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td colspan="5" class="tag-empty">No tags match this search.</td>';
+      els.entryTagTableBody.appendChild(tr);
+    }
+
+    els.entryTagManagerCount.textContent = `${info.effective.length} effective · ${info.visible.length} shown · ${entryTagDraft.shared.length} shared`;
+    els.pathTagsToggleRow.hidden = entryTagDraft.source !== "virtual";
+    els.shareTagHeading.hidden = !entryTagDraft.isFolder;
+    els.sharedTagHelp.hidden = !entryTagDraft.isFolder;
+    els.entryTagTableBody.querySelectorAll(".entry-tag-share-check").forEach(input => {
+      input.closest("td").hidden = !entryTagDraft.isFolder;
+    });
+  }
+
+  function openEntryTagsDialog() {
+    const container = selectedTagContainer();
+    if (!container || !selected) return;
+    const isVirtual = selected.source === "virtual";
+    const isFolder = isVirtual && selected.node.type === "folder";
+    entryTagDraft = {
+      source: selected.source,
+      id: isVirtual ? selected.node.id : "",
+      path: isVirtual ? "" : selected.node.relativePath || "",
+      isFolder,
+      manual: WB.normalizeTags(container.tags),
+      shared: isFolder ? WB.normalizeTags(container.sharedTags) : [],
+      visible: WB.normalizeTags(container.visibleTags),
+      pathEnabled: state.tagAutomation?.pathTagsEnabled !== false,
+      mentionEnabled: state.tagAutomation?.mentionTagsEnabled !== false
+    };
+    els.entryTagsSourceLabel.textContent = isVirtual
+      ? WB.virtualPath(state.virtualRoot, selected.node.id).map(item => item.name).join(" › ")
+      : (selected.node.relativePath || selected.node.name);
+    els.entryTagSearch.value = "";
+    els.pathTagsEnabled.checked = entryTagDraft.pathEnabled;
+    els.mentionTagsEnabled.checked = entryTagDraft.mentionEnabled;
+    renderEntryTagManager();
+    els.entryTagsDialog.showModal();
+  }
+
+  function saveEntryTagSetup() {
+    if (!entryTagDraft) return;
+    let container = null;
+    if (entryTagDraft.source === "virtual") {
+      container = WB.findVirtual(state.virtualRoot, entryTagDraft.id);
+    } else if (selected?.source === "physical" && (selected.node.relativePath || "") === entryTagDraft.path) {
+      container = metaForPhysical(entryTagDraft.path);
+    }
+    if (!container) {
+      window.alert("The entry changed before its tags could be saved.");
+      return;
+    }
+
+    entryTagDraft.manual.forEach(tag => WB.Taxonomy.ensureTag(state, tag));
+    container.tags = WB.normalizeTags(entryTagDraft.manual);
+    container.sharedTags = entryTagDraft.isFolder
+      ? WB.normalizeTags(entryTagDraft.shared).filter(tag =>
+          container.tags.some(manual => manual.toLowerCase() === tag.toLowerCase())
+        )
+      : [];
+    container.visibleTags = WB.normalizeTags(entryTagDraft.visible);
+    if (entryTagDraft.source === "virtual") {
+      state.tagAutomation.pathTagsEnabled = Boolean(entryTagDraft.pathEnabled);
+      state.tagAutomation.mentionTagsEnabled = Boolean(entryTagDraft.mentionEnabled);
+    }
+    touchSelectedEntry();
+    normalizeTaxonomy();
+    refreshSelectedTagDisplay();
+    refreshTagManager(true).catch(error => console.error(error));
+    renderTree();
+    scheduleStateSave();
+    els.entryTagsDialog.close();
+    entryTagDraft = null;
+    setStatus("Tag setup saved");
+  }
+
+  function showAllEffectiveEntryTags() {
+    if (!entryTagDraft) return;
+    entryTagDraft.visible = entryTagDraftInfo().effective.map(item => item.name);
+    renderEntryTagManager();
+  }
+
+  function hideAllEffectiveEntryTags() {
+    if (!entryTagDraft) return;
+    entryTagDraft.visible = [];
+    renderEntryTagManager();
+  }
+
+  function updateUndoMoveButton() {
+    els.undoMoveButton.disabled = !lastVirtualMove || currentView !== "worldbook";
+  }
+
+  function refreshAfterVirtualMove(nodeId, message) {
+    const node = WB.findVirtual(state.virtualRoot, nodeId);
+    if (node) {
+      selected = { source: "virtual", node };
+      state.selectedVirtualId = node.id;
+      const path = WB.virtualPath(state.virtualRoot, node.id);
+      path.forEach(item => { if (item.type === "folder") item.open = true; });
+      WB.Editor.showVirtual(node, path, state, WB.Taxonomy.virtualTagInfo(state, node));
+      refreshAdvancedEntryControls(node);
+    }
+    renderTree();
+    if (tagDashboard) tagDashboard.setData(state, tagPhysicalEntries);
+    updateUndoMoveButton();
+    updateFocusDock();
+    scheduleStateSave();
+    setStatus(message || "Entry moved");
+  }
+
+  function moveVirtualByDrop(nodeId, target, position) {
+    clearTimeout(dragExpandTimer);
+    try {
+      const record = WB.moveVirtualRelative(state.virtualRoot, nodeId, target.id, position);
+      if (!record) return;
+      lastVirtualMove = record;
+      refreshAfterVirtualMove(nodeId, position === "inside" ? `Moved into ${target.name}` : "Entry reordered");
+    } catch (error) {
+      window.alert(error.message);
+      renderTree();
+    } finally {
+      draggedVirtualId = "";
+    }
+  }
+
+  function handleVirtualDragOver(_target, _position) {
+    // Collapsed folders still accept an inside drop and open after the move.
+    // Avoid rebuilding the tree during a native drag, which can cancel the drag in some browsers.
+    clearTimeout(dragExpandTimer);
+  }
+
+  function openMoveEntryDialog() {
+    const node = selectedVirtualNode();
+    if (!node || node.id === "root") return;
+    const folders = [];
+    WB.walkVirtual(state.virtualRoot, candidate => {
+      if (candidate.type !== "folder" || candidate.id === node.id) return;
+      if (WB.isVirtualDescendant(state.virtualRoot, candidate.id, node.id)) return;
+      folders.push(candidate);
+    });
+    els.moveEntryDestination.innerHTML = "";
+    folders.forEach(folder => {
+      const option = document.createElement("option");
+      option.value = folder.id;
+      option.textContent = WB.virtualPath(state.virtualRoot, folder.id).map(item => item.name).join(" › ");
+      els.moveEntryDestination.appendChild(option);
+    });
+    const currentParent = WB.findVirtualParent(state.virtualRoot, node.id) || state.virtualRoot;
+    els.moveEntryDestination.value = currentParent.id;
+    els.moveEntryPlacement.value = "end";
+    els.moveEntrySourceLabel.textContent = WB.virtualPath(state.virtualRoot, node.id).map(item => item.name).join(" › ");
+    els.moveEntryDialog.showModal();
+  }
+
+  function confirmMoveEntry() {
+    const node = selectedVirtualNode();
+    if (!node) return;
+    const destination = WB.findVirtual(state.virtualRoot, els.moveEntryDestination.value);
+    if (!destination) return;
+    try {
+      const index = els.moveEntryPlacement.value === "start" ? 0 : destination.children.length;
+      lastVirtualMove = WB.moveVirtualTo(state.virtualRoot, node.id, destination.id, index);
+      els.moveEntryDialog.close();
+      refreshAfterVirtualMove(node.id, `Moved into ${destination.name}`);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function undoLastVirtualMove() {
+    if (!lastVirtualMove) return;
+    const nodeId = lastVirtualMove.nodeId;
+    try {
+      WB.undoVirtualMove(state.virtualRoot, lastVirtualMove);
+      lastVirtualMove = null;
+      refreshAfterVirtualMove(nodeId, "Move undone");
+    } catch (error) {
+      lastVirtualMove = null;
+      updateUndoMoveButton();
+      window.alert(error.message);
+    }
+  }
+
+  async function exportSnapshot() {
+    if (!config || !config.rootPath) {
+      window.alert("Mount a workspace before exporting a physical snapshot.");
+      return;
+    }
+    setStatus("Preparing snapshot…");
+    try {
+      await saveStateNow(true);
+      const payload = await WB.API.exportSnapshot();
+      const url = URL.createObjectURL(payload.blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = payload.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setStatus("Snapshot exported");
+    } catch (error) {
+      console.error(error);
+      setStatus("Snapshot export failed");
+      window.alert(`Snapshot export failed: ${error.message}`);
+    }
+  }
+
+  function metaForPhysical(path) {
+    return WB.fileMeta(state, path);
+  }
+
+  async function saveStateNow(throwOnError = false) {
+    if (!state) return true;
+    clearTimeout(saveTimer);
+    setStatus("Saving…");
+
+    try {
+      await WB.API.saveState(state);
+      setStatus("Saved");
+      return true;
+    } catch (error) {
+      console.error(error);
+      setStatus("Save failed");
+      if (throwOnError) throw error;
+      return false;
+    }
+  }
+
+  function scheduleStateSave() {
+    clearTimeout(saveTimer);
+    setStatus("Saving…");
+    saveTimer = setTimeout(saveStateNow, 220);
+  }
+
+  function rootNameFromPath(path) {
+    const normalized = String(path || "").replace(/[\\/]+$/, "");
+    return normalized.split(/[\\/]/).pop() || "Workspace";
+  }
+
+  async function loadPhysicalRoot() {
+    if (!config || !config.rootPath) {
+      physicalRoot = null;
+      renderTree();
+      WB.Editor.hide(
+        "Mount your writing workspace",
+        "Enter a folder path such as C:\\Lex-Temp above."
+      );
+      return;
+    }
+
+    physicalRoot = {
+      name: rootNameFromPath(config.rootPath),
+      relativePath: "",
+      kind: "folder",
+      readable: false,
+      editable: false,
+      open: true,
+      loaded: false,
+      loading: false,
+      children: []
+    };
+
+    await ensurePhysicalChildren(physicalRoot);
+    renderTree();
+  }
+
+  async function ensurePhysicalChildren(node) {
+    if (node.kind !== "folder" || node.loaded || node.loading) return;
+
+    node.loading = true;
+    renderTree();
+
+    try {
+      const payload = await WB.API.list(node.relativePath || "");
+      node.children = payload.entries.map(entry => ({
+        ...entry,
+        open: false,
+        loaded: false,
+        loading: false,
+        children: []
+      }));
+      node.loaded = true;
+    } catch (error) {
+      console.error(error);
+      window.alert(error.message);
+    } finally {
+      node.loading = false;
+    }
+  }
+
+  async function selectPhysical(node) {
+    els.tagManagerPanel.hidden = true;
+    els.integrityPanel.hidden = true;
+    selected = { source: "physical", node };
+    renderTree();
+
+    const meta = metaForPhysical(node.relativePath || "");
+    ensureUIState();
+    state.ui.lastPhysicalFolderPath = node.kind === "folder"
+      ? (node.relativePath || "")
+      : (node.relativePath || "").split("/").slice(0, -1).join("/");
+    scheduleStateSave();
+    let contentPayload = null;
+
+    if (node.kind === "file" && node.readable) {
+      setStatus("Reading file…");
+      try {
+        contentPayload = await WB.API.read(node.relativePath);
+        setStatus("Ready");
+      } catch (error) {
+        console.error(error);
+        setStatus("Preview unavailable");
+        window.alert(error.message);
+      }
+    }
+
+    WB.Editor.showPhysical(node, meta, contentPayload, state, WB.Taxonomy.simpleTagInfo(meta.tags, meta.visibleTags));
+    refreshAdvancedEntryControls(null);
+    if (focusMode) closeFocusSidebar();
+    updateFocusDock();
+  }
+
+  async function togglePhysical(node) {
+    node.open = !node.open;
+    if (node.open) {
+      await ensurePhysicalChildren(node);
+    }
+    renderTree();
+  }
+
+  function selectedPhysicalFolder() {
+    if (!selected || selected.source !== "physical") return physicalRoot;
+    if (selected.node.kind === "folder") return selected.node;
+
+    const path = selected.node.relativePath || "";
+    const parentPath = path.split("/").slice(0, -1).join("/");
+    return findPhysicalByPath(physicalRoot, parentPath) || physicalRoot;
+  }

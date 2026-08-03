@@ -1,0 +1,29 @@
+  function initializeIntegrityDashboard() {
+    if (!integrityDashboard) {
+      integrityDashboard = WB.Integrity.createDashboard({
+        refresh: els.integrityRefresh,
+        severity: els.integritySeverity,
+        type: els.integrityType,
+        showIgnored: els.integrityShowIgnored,
+        list: els.integrityFindingList,
+        count: els.integrityResultCount,
+        lastScan: els.integrityLastScan,
+        summary: els.integritySummary
+      }, {
+        onChange: scheduleStateSave,
+        onSidebarChange() {
+          if (currentView === "integrity") renderTree();
+        },
+        onOpen(id) {
+          const node = WB.findVirtual(state.virtualRoot, id);
+          if (!node) return;
+          setView("worldbook");
+          selectVirtual(node);
+        }
+      });
+    }
+    integrityDashboard.setState(state);
+  }
+
+  start();
+})();

@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>World Book</title>
+  <link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">W</div>
+        <div>
+          <h1>World Book</h1>
+          <p>Live files + connected novel lore</p>
+        </div>
+      </div>
+
+      <div class="workspace-control">
+        <label for="workspace-path">Workspace</label>
+        <input id="workspace-path" placeholder="C:\Lex-Temp">
+        <button id="set-workspace-btn" class="button">Mount path</button>
+        <button id="refresh-btn" class="button">Refresh</button>
+      </div>
+
+      <div class="topbar-actions">
+        <span id="save-status" class="save-status">Ready</span>
+        <button id="new-folder-btn" class="button">New folder</button>
+        <button id="new-file-btn" class="button">New text file</button>
+        <button id="create-smart-collection-btn" class="button" title="Create a generated shortcut folder">Smart collection</button>
+        <button id="focus-mode-btn" class="button" aria-pressed="false" title="Focus mode (Ctrl+Shift+F)">Focus</button>
+        <button id="theme-btn" class="button" title="Change appearance">Theme</button>
+        <button id="integration-btn" class="button" title="Apply a controlled World Book JSON injection">Eve Injection</button>
+        <button id="export-btn" class="button button-primary">Backup & Restore</button>
+        <button id="import-btn" class="button">Import JSON</button>
+        <input id="import-input" type="file" accept=".json,application/json" hidden>
+      </div>
+    </header>
+
+    <div id="focus-dock" class="focus-dock" hidden>
+      <button id="focus-tree-btn" class="button button-small" type="button">Tree</button>
+      <span id="focus-dock-title" class="focus-dock-title">Focus mode</span>
+      <button id="focus-details-btn" class="button button-small" type="button" aria-pressed="false">Details</button>
+      <button id="exit-focus-btn" class="button button-primary button-small" type="button">Exit focus</button>
+    </div>
+    <button id="focus-backdrop" class="focus-backdrop" type="button" hidden aria-label="Close focused tree"></button>
+
+    <main class="workspace">
+      <aside class="sidebar">
+        <div class="view-tabs" role="tablist">
+          <button class="view-tab active" data-view="files">Live files</button>
+          <button class="view-tab" data-view="worldbook">World Book</button>
+          <button class="view-tab" data-view="tags">Tags</button>
+          <button class="view-tab" data-view="integrity">Integrity</button>
+          <button class="view-tab" data-view="imports">Imports</button>
+        </div>
+
+        <div class="sidebar-search">
+          <label for="search-input">Search</label>
+          <input id="search-input" type="search" placeholder="Search the current view">
+        </div>
+
+        <div id="tree-toolbar" class="tree-toolbar">
+          <button id="expand-all-btn" class="button button-small">Expand all</button>
+          <button id="collapse-all-btn" class="button button-small">Collapse all</button>
+          <button id="copy-scope-btn" class="button button-small">Copy scope</button>
+          <button id="undo-move-btn" class="button button-small" disabled title="Undo the most recent World Book move">Undo move</button>
+          <button id="undo-delete-btn" class="button button-small" disabled title="Restore the most recently deleted World Book entry">Undo delete</button>
+          <button id="deleted-items-btn" class="button button-small" title="View deleted World Book entries">Deleted</button>
+        </div>
+
+        <div id="tree-panel" class="tree-panel" aria-label="World Book tree"></div>
+        <div id="search-results" class="search-results" hidden></div>
+      </aside>
+      <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-label="Resize sidebar" aria-orientation="vertical"></div>
+
+      <section class="content-area">
+        <div id="empty-state" class="empty-state">
+          <div class="empty-icon">✦</div>
+          <h2>Mount your writing workspace</h2>
+          <p>Set a local path such as C:\Lex-Temp, then browse physical files and connected lore here.</p>
+        </div>
+
+        <article id="editor-panel" class="editor-panel" hidden>
+          <div class="editor-heading">
+            <div class="editor-title-wrap">
+              <div id="breadcrumb" class="breadcrumb"></div>
+              <input id="entry-name" class="title-input" aria-label="Entry name">
+              <div class="entry-subline">
+                <span id="entry-kind" class="pill"></span>
+                <span id="entry-path" class="entry-path"></span>
+              </div>
+            </div>
+
+            <div class="editor-actions">
+              <button id="open-btn" class="button">Open externally</button>
+              <button id="reveal-btn" class="button">Reveal</button>
+              <button id="move-virtual-btn" class="button" hidden>Move</button>
+              <button id="edit-smart-collection-btn" class="button" hidden>Edit smart collection</button>
+              <button id="copy-to-worldbook-btn" class="button" hidden>Copy to World Book</button>
+              <button id="export-zip-live-btn" class="button" hidden>Export ZIP to Live</button>
+              <button id="save-file-btn" class="button button-primary" hidden>Save file</button>
+              <button id="delete-virtual-btn" class="button button-danger" hidden>Delete</button>
+            </div>
+          </div>
+
+          <div class="field-grid focus-secondary">
+            <label class="field">
+              <span class="field-title-row"><span>Status</span><button id="manage-statuses-inline-btn" type="button" class="mini-link">Manage</button></span>
+              <select id="entry-status"></select>
+            </label>
+
+            <label class="field">
+              <span>Semantic kind</span>
+              <select id="entry-semantic-kind"></select>
+            </label>
+
+            <div class="field">
+              <span class="field-title-row"><span>Tags</span><button id="manage-tags-inline-btn" type="button" class="mini-link">Manage</button></span>
+              <div class="tag-picker">
+                <div id="entry-tag-chips" class="tag-chip-list"></div>
+                <div class="tag-inline-bottomline">
+                  <input id="entry-tag-input" autocomplete="off" placeholder="Add a manual tag">
+                  <small id="entry-tag-summary">0 shown · 0 effective</small>
+                </div>
+                <div id="entry-tag-suggestions" class="tag-suggestions" hidden></div>
+              </div>
+            </div>
+          </div>
+
+          <label class="field">
+            <span>Connected notes</span>
+            <textarea id="entry-notes" class="notes-textarea" placeholder="Relationships, responsibilities, governed land, unresolved questions..."></textarea>
+          </label>
+
+          <section id="entry-links-section" class="links-card">
+            <div class="section-heading links-heading">
+              <div>
+                <h3>Links</h3>
+                <p>Jump both ways between this entry and every World Book source connected to it.</p>
+              </div>
+              <div class="links-heading-actions">
+                <span id="entry-link-count" class="save-status">0 from here · 0 to here</span>
+                <label class="link-direction-control">
+                  <select id="link-direction-filter" aria-label="Choose which link directions to show">
+                    <option value="all">All links</option>
+                    <option value="outgoing">From here</option>
+                    <option value="incoming">To here</option>
+                  </select>
+                </label>
+                <button id="link-back-btn" type="button" class="button button-small" hidden>Back</button>
+                <button id="toggle-links-btn" type="button" class="button button-small" aria-expanded="true">Collapse</button>
+                <button id="add-link-btn" type="button" class="button button-small">Add link</button>
+              </div>
+            </div>
+            <div id="entry-link-list" class="link-list"></div>
+          </section>
+
+          <section id="file-content-section" class="content-card" hidden>
+            <div class="section-heading">
+              <div>
+                <h3 id="content-title">File content</h3>
+                <p id="content-help"></p>
+              </div>
+              <span id="content-format" class="pill"></span>
+            </div>
+            <textarea id="file-content" class="file-content" spellcheck="true"></textarea>
+          </section>
+
+          <section id="entry-provenance-section" class="details-card focus-secondary" hidden>
+            <h3>Provenance & knowledge boundary</h3>
+            <div class="details-grid">
+              <div><span>Source</span><strong id="entry-provenance-source">—</strong></div>
+              <div><span>Known as of</span><strong id="entry-provenance-known">—</strong></div>
+              <div><span>Confidence</span><strong id="entry-provenance-confidence">—</strong></div>
+              <div><span>Created by</span><strong id="entry-provenance-created-by">—</strong></div>
+            </div>
+          </section>
+
+          <section class="details-card focus-secondary">
+            <h3>Entry details</h3>
+            <div class="details-grid">
+              <div><span>File modified</span><strong id="modified-at">—</strong></div>
+              <div><span>Metadata updated</span><strong id="meta-updated-at">—</strong></div>
+              <div><span>Size</span><strong id="entry-size">—</strong></div>
+              <div><span>Source</span><strong id="entry-source">—</strong></div>
+            </div>
+          </section>
+        </article>
+
+        <section id="tag-manager-panel" class="tag-manager-panel" hidden>
+          <div class="tag-manager-heading">
+            <div>
+              <span class="eyebrow">Connected index</span>
+              <h2>Tags</h2>
+              <p>Attach reusable labels once, then combine them to find exactly the lore you need.</p>
+            </div>
+            <div class="editor-actions">
+              <button id="manage-tags-btn" class="button">Manage tags</button>
+              <button id="manage-statuses-btn" class="button">Manage statuses</button>
+            </div>
+          </div>
+
+          <section class="tag-filter-card">
+            <div class="tag-filter-topline">
+              <div>
+                <h3>Find entries</h3>
+                <span id="tag-result-count" class="save-status">0 entries</span>
+              </div>
+              <button id="clear-tag-filter-btn" class="button button-small">Clear filters</button>
+            </div>
+
+            <div class="tag-filter-controls">
+              <div class="field tag-filter-picker-field">
+                <span>Tags</span>
+                <div class="tag-picker">
+                  <div id="tag-filter-chips" class="tag-chip-list"></div>
+                  <input id="tag-filter-input" autocomplete="off" placeholder="Type a tag, then choose it or press Enter…">
+                  <div id="tag-filter-suggestions" class="tag-suggestions" hidden></div>
+                </div>
+              </div>
+
+              <label class="field compact-field">
+                <span>Match</span>
+                <select id="tag-match-mode">
+                  <option value="all">All selected tags</option>
+                  <option value="any">Any selected tag</option>
+                </select>
+              </label>
+
+              <label class="field compact-field">
+                <span>Sort</span>
+                <select id="tag-sort-mode">
+                  <option value="recent">Most recently updated</option>
+                  <option value="oldest">Oldest updated</option>
+                  <option value="name">Name</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <details class="tag-section tag-overview-section">
+            <summary class="tag-overview-summary">
+              <span><strong>Tag overview</strong><small>Counts and newest activity under every tag.</small></span>
+              <span class="tag-overview-summary-hint">Expand</span>
+            </summary>
+            <div id="tag-overview-grid" class="tag-overview-grid"></div>
+          </details>
+
+          <section class="tag-section">
+            <div class="section-heading">
+              <div><h3>Attached entries</h3><p>Physical and virtual entries together, newest first.</p></div>
+            </div>
+            <div id="tag-result-list" class="tag-result-list"></div>
+          </section>
+        </section>
+
+        <section id="integrity-panel" class="integrity-panel" hidden>
+          <div class="integrity-heading">
+            <div>
+              <span class="eyebrow">Reconciliation layer</span>
+              <h2>Canon Integrity</h2>
+              <p>Find duplicate authority, broken graph edges, premature fragmentation, and places where the onion can become smarter.</p>
+            </div>
+            <div class="editor-actions">
+              <button id="integrity-refresh-btn" class="button button-primary">Refresh scan</button>
+            </div>
+          </div>
+
+          <section class="integrity-notice">
+            <strong>Advisory only.</strong> This view never reorganizes lore by itself. Open a finding, review its evidence, then decide whether a later manual action or Eve Injection should resolve it.
+          </section>
+
+          <section class="integrity-summary-grid" aria-label="Canon integrity summary">
+            <div class="integrity-summary-card"><span>All findings</span><strong id="integrity-total-count">0</strong></div>
+            <div class="integrity-summary-card severity-error"><span>Errors</span><strong id="integrity-error-count">0</strong></div>
+            <div class="integrity-summary-card severity-review"><span>Needs review</span><strong id="integrity-review-count">0</strong></div>
+            <div class="integrity-summary-card severity-opportunity"><span>Opportunities</span><strong id="integrity-opportunity-count">0</strong></div>
+            <div class="integrity-summary-card"><span>Ignored</span><strong id="integrity-ignored-count">0</strong></div>
+          </section>
+
+          <section class="integrity-filter-card">
+            <div class="integrity-filter-heading">
+              <div>
+                <h3>Reconciliation findings</h3>
+                <span id="integrity-result-count" class="save-status">0 findings shown</span>
+              </div>
+              <span id="integrity-last-scan" class="save-status">Not scanned yet</span>
+            </div>
+            <div class="integrity-filter-controls">
+              <label class="field compact-field">
+                <span>Severity</span>
+                <select id="integrity-severity-filter">
+                  <option value="all">All severities</option>
+                  <option value="error">Errors</option>
+                  <option value="review">Needs review</option>
+                  <option value="opportunity">Opportunities</option>
+                  <option value="info">Informational</option>
+                </select>
+              </label>
+              <label class="field compact-field">
+                <span>Issue type</span>
+                <select id="integrity-type-filter"><option value="all">All issue types</option></select>
+              </label>
+              <label class="integrity-show-ignored">
+                <input id="integrity-show-ignored" type="checkbox">
+                <span>Show ignored findings</span>
+              </label>
+            </div>
+          </section>
+
+          <div id="integrity-finding-list" class="integrity-finding-list"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span id="footer-note">The server is local-only and binds to 127.0.0.1.</span>
+      <button id="project-settings-btn" class="link-button">Project settings</button>
+    </footer>
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <div id="dialog-host"></div>
+  <script src="assets/js/bootstrap.js"></script>
+</body>
+</html>

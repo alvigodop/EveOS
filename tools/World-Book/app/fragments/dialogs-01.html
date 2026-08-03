@@ -1,0 +1,371 @@
+
+  <dialog id="copy-scope-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div>
+          <h2>Copy scope</h2>
+          <p id="copy-scope-source-label" class="dialog-subtitle"></p>
+        </div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <div class="scope-option-grid">
+        <fieldset class="scope-option-group">
+          <legend>Scope</legend>
+          <label class="choice-card">
+            <input id="copy-scope-selected" type="radio" name="copy-scope-range" value="selected" checked>
+            <span><strong>Selected branch</strong><small>The selected folder/file and everything below it.</small></span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="copy-scope-range" value="all">
+            <span><strong>Entire current tree</strong><small>All Live Files or the entire virtual World Book.</small></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="scope-option-group">
+          <legend>Include</legend>
+          <label class="choice-card">
+            <input type="radio" name="copy-scope-mode" value="folders">
+            <span><strong>Folders only</strong><small>Folder and subfolder hierarchy without files.</small></span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="copy-scope-mode" value="tree" checked>
+            <span><strong>Folders + files</strong><small>A clean path tree like the tree command.</small></span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="copy-scope-mode" value="full">
+            <span><strong>Full contextual copy</strong><small>Tree, readable contents, tags, status, notes, and edit times.</small></span>
+          </label>
+        </fieldset>
+      </div>
+
+      <label class="field compact-field scope-style-field">
+        <span>Tree style</span>
+        <select id="copy-scope-style">
+          <option value="unicode">Unicode branches (├──)</option>
+          <option value="ascii">Plain ASCII (|--)</option>
+        </select>
+      </label>
+
+      <p class="dialog-note">
+        Full contextual copy is designed for pasting a complete branch into ChatGPT or another writing tool.
+        Very large scopes may ask you to choose a smaller branch.
+      </p>
+
+      <div id="copy-scope-result" class="copy-scope-result" hidden>
+        <div class="copy-result-heading">
+          <strong id="copy-scope-summary">Ready</strong>
+          <button id="download-scope-btn" type="button" class="button button-small">Download TXT</button>
+        </div>
+        <textarea id="copy-scope-preview" readonly></textarea>
+      </div>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="button">Close</button>
+        <button id="generate-copy-scope-btn" type="button" class="button button-primary">Copy to clipboard</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="copy-worldbook-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div>
+          <h2>Copy into World Book</h2>
+          <p id="copy-source-label" class="dialog-subtitle"></p>
+        </div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <label class="field">
+        <span>Destination folder</span>
+        <select id="copy-virtual-destination"></select>
+      </label>
+
+      <p class="dialog-note">
+        This copies the selected live structure into virtual World Book entries.
+        Physical files remain untouched.
+      </p>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="button">Cancel</button>
+        <button id="confirm-copy-worldbook-btn" value="default" class="button button-primary">Copy</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="export-zip-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div>
+          <h2>Export World Book ZIP</h2>
+          <p id="zip-source-label" class="dialog-subtitle"></p>
+        </div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <label class="field">
+        <span>Live destination folder</span>
+        <input id="zip-destination-path" placeholder="Blank means workspace root">
+        <small>Use a path relative to the mounted workspace, such as The-World-Book\Exports.</small>
+      </label>
+
+      <label class="field">
+        <span>ZIP filename</span>
+        <input id="zip-file-name" placeholder="Characters.zip">
+      </label>
+
+      <p class="dialog-note">
+        The ZIP contains the virtual folder/file structure plus an Eve metadata manifest.
+      </p>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="button">Cancel</button>
+        <button id="confirm-export-zip-btn" value="default" class="button button-primary">Create ZIP</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="entry-tags-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card dialog-card-tall">
+      <div class="dialog-heading">
+        <div>
+          <h2>Entry tags</h2>
+          <p id="entry-tags-source-label" class="dialog-subtitle"></p>
+        </div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <div class="entry-tag-manager-topline">
+        <label class="field entry-tag-search-field">
+          <span>Search tags</span>
+          <input id="entry-tag-search" type="search" placeholder="Find attached, inherited, path, or available tags">
+        </label>
+        <label id="path-tags-toggle-row" class="automation-toggle">
+          <input id="path-tags-enabled" type="checkbox">
+          <span><strong>Automatic path tags</strong><small>Use ancestor folders as searchable tags across this World Book. The current entry, manager root, and top book container are excluded.</small></span>
+        </label>
+        <label class="automation-toggle">
+          <input id="mention-tags-enabled" type="checkbox">
+          <span><strong>Connected-note mention tags</strong><small>When connected notes contain an existing tag or World Book entry name, add it as a hidden searchable tag. Matching is phrase-aware and does not create new tags.</small></span>
+        </label>
+      </div>
+
+      <div class="entry-tag-legend">
+        <span class="tag-source-badge manual">Manual</span>
+        <span class="tag-source-badge shared">Shared from parent</span>
+        <span class="tag-source-badge path">Path</span>
+        <span class="tag-source-badge mention">Mention</span>
+        <small>Only tags checked under “Show” appear beside Status. All effective tags remain searchable.</small>
+      </div>
+
+      <div class="entry-tag-table-wrap">
+        <table class="entry-tag-table">
+          <thead>
+            <tr>
+              <th>Tag</th>
+              <th>Sources</th>
+              <th>Manual</th>
+              <th>Show</th>
+              <th id="share-tag-heading">Share below</th>
+            </tr>
+          </thead>
+          <tbody id="entry-tag-table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="entry-tag-manager-footer">
+        <span id="entry-tag-manager-count" class="save-status">0 effective tags</span>
+        <div class="editor-actions">
+          <button id="show-all-effective-tags-btn" type="button" class="button button-small">Show all effective</button>
+          <button id="hide-all-effective-tags-btn" type="button" class="button button-small">Hide all</button>
+          <button id="open-tag-library-btn" type="button" class="button button-small">Tag library</button>
+        </div>
+      </div>
+
+      <p id="shared-tag-help" class="dialog-note">
+        “Share below” makes a manual tag effective for every descendant without copying it into each child. Moving a child out of this folder removes that inherited relationship automatically.
+      </p>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="button">Cancel</button>
+        <button id="save-entry-tags-btn" type="button" class="button button-primary">Save tag setup</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="move-entry-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div>
+          <h2>Move World Book entry</h2>
+          <p id="move-entry-source-label" class="dialog-subtitle"></p>
+        </div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <label class="field">
+        <span>Destination folder</span>
+        <select id="move-entry-destination"></select>
+      </label>
+
+      <label class="field compact-field">
+        <span>Place entry</span>
+        <select id="move-entry-placement">
+          <option value="end">At the end of the folder</option>
+          <option value="start">At the beginning of the folder</option>
+        </select>
+      </label>
+
+      <p class="dialog-note">You can also drag entries directly in the World Book sidebar. Links survive moves because they point to entry IDs, and path tags recalculate automatically.</p>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="button">Cancel</button>
+        <button id="confirm-move-entry-btn" type="button" class="button button-primary">Move entry</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="manage-tags-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div><h2>Manage tags</h2><p class="dialog-subtitle">Create once, reuse everywhere, and rename globally.</p></div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+      <div class="definition-add-row">
+        <input id="new-tag-name" placeholder="New tag name">
+        <button id="add-tag-btn" type="button" class="button button-primary">Add tag</button>
+      </div>
+      <div id="tag-definition-list" class="definition-list"></div>
+      <div class="dialog-actions"><button value="cancel" class="button button-primary">Done</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="manage-statuses-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div><h2>Manage statuses</h2><p class="dialog-subtitle">Statuses are user-defined. Rename them without changing every entry.</p></div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+      <div class="definition-add-row">
+        <input id="new-status-name" placeholder="New status name">
+        <button id="add-status-btn" type="button" class="button button-primary">Add status</button>
+      </div>
+      <div id="status-definition-list" class="definition-list"></div>
+      <div class="dialog-actions"><button value="cancel" class="button button-primary">Done</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="link-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div>
+          <h2 id="link-dialog-title">Add link</h2>
+          <p id="link-source-label" class="dialog-subtitle"></p>
+        </div>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <label class="field">
+        <span>Find a World Book file or folder</span>
+        <input id="link-target-search" autocomplete="off" placeholder="Search Leon, school, magic system…">
+      </label>
+
+      <div id="link-target-results" class="link-target-results"></div>
+
+      <div id="link-selected-target" class="selected-link-target" hidden>
+        <span>Selected target</span>
+        <strong id="link-selected-target-name"></strong>
+        <small id="link-selected-target-path"></small>
+      </div>
+
+      <label class="field">
+        <span>Relationship type</span>
+        <select id="link-relationship-type"></select>
+        <small>The inverse view is generated automatically on the target entry.</small>
+      </label>
+
+      <label class="automation-toggle">
+        <input id="link-mount-shortcut" type="checkbox">
+        <span><strong>Show as child shortcut</strong><small>Available when the current entry is a folder. The shortcut opens the one canonical source and cannot drift.</small></span>
+      </label>
+
+      <label class="field">
+        <span>Link name shown on this entry</span>
+        <input id="link-custom-label" placeholder="Leon's character file">
+        <small>This can be different from the target file or folder name.</small>
+      </label>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="button">Cancel</button>
+        <button id="save-link-btn" type="button" class="button button-primary">Save link</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="theme-dialog" class="wide-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <div>
+          <h2>Theme</h2>
+          <p class="dialog-subtitle">Keep the original look, switch to dark, or build your own palette.</p>
+        </div>
+        <button id="cancel-theme-x-btn" type="button" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <label class="field compact-field">
+        <span>Theme mode</span>
+        <select id="theme-mode">
+          <option value="normal">Normal — original Eve OS theme</option>
+          <option value="dark">Dark</option>
+          <option value="custom">Custom colors</option>
+        </select>
+      </label>
+
+      <div id="custom-theme-controls" class="theme-color-grid" hidden>
+        <label><span>Background</span><input id="theme-background" type="color"></label>
+        <label><span>Panels</span><input id="theme-panel" type="color"></label>
+        <label><span>Sidebar</span><input id="theme-sidebar" type="color"></label>
+        <label><span>Text</span><input id="theme-text" type="color"></label>
+        <label><span>Muted text</span><input id="theme-muted" type="color"></label>
+        <label><span>Accent</span><input id="theme-accent" type="color"></label>
+        <label><span>Accent soft</span><input id="theme-accent-soft" type="color"></label>
+        <label><span>Borders</span><input id="theme-border" type="color"></label>
+        <label><span>Danger</span><input id="theme-danger" type="color"></label>
+      </div>
+
+      <div class="theme-preview">
+        <div class="theme-preview-sidebar">World Book<br><small>Characters</small></div>
+        <div class="theme-preview-panel">
+          <strong>Leon Kirumi</strong>
+          <span>Connected novel lore</span>
+          <button type="button" tabindex="-1">Accent button</button>
+        </div>
+      </div>
+
+      <div class="dialog-actions split-actions">
+        <button id="reset-custom-theme-btn" type="button" class="button">Reset custom colors</button>
+        <span class="dialog-action-spacer"></span>
+        <button id="cancel-theme-btn" type="button" class="button">Cancel</button>
+        <button id="save-theme-btn" type="button" class="button button-primary">Apply theme</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="settings-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="dialog-heading">
+        <h2>Project settings</h2>
+        <button value="cancel" class="icon-button" aria-label="Close">×</button>
+      </div>
+
+      <label class="field">
+        <span>Project title</span>
+        <input id="project-title-input">
+      </label>
+
+      <div class="dialog-actions">
+        <button id="save-project-settings-btn" value="default" class="button button-primary">Save</button>
+      </div>
+    </form>
+  </dialog>

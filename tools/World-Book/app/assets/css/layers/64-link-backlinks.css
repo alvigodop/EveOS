@@ -1,0 +1,64 @@
+/* v0.12.2 — bidirectional link visibility and compact direction controls */
+.link-direction-control {
+  display: inline-flex;
+  align-items: center;
+}
+
+.link-direction-control select {
+  min-height: 32px;
+  padding: 5px 27px 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.link-direction-control select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.link-direction-badge {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.link-direction-badge.outgoing {
+  background: var(--accent-soft);
+  color: var(--selected-text);
+}
+
+.link-direction-badge.incoming {
+  border: 1px solid var(--line);
+  background: var(--muted-surface);
+  color: var(--muted);
+}
+
+.link-card.incoming {
+  border-style: dashed;
+}
+
+.link-card.incoming:hover {
+  border-style: solid;
+}
+
+@media (max-width: 760px) {
+  .links-heading-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .links-heading-actions .save-status {
+    flex: 1 1 100%;
+  }
+}

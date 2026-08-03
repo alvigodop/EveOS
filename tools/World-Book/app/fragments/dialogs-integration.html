@@ -1,0 +1,69 @@
+<dialog id="integration-dialog" class="wide-dialog integration-dialog">
+  <form method="dialog" class="dialog-card integration-dialog-card">
+    <div class="dialog-heading">
+      <div>
+        <span class="eyebrow">Controlled external integration</span>
+        <h2>Eve Injection</h2>
+        <p>Preview a focused JSON plan before it creates or updates World Book entries.</p>
+      </div>
+      <button value="cancel" class="icon-button" aria-label="Close">×</button>
+    </div>
+
+    <div class="integration-rule-callout">
+      Existing entries are readable but protected. An injection may update, rename, or move only entries carrying the hidden <strong>Injected from Eve</strong> manual tag. New injected entries receive it automatically.
+    </div>
+
+    <div class="integration-toolbar">
+      <button id="integration-load-file-btn" type="button" class="button">Load JSON file</button>
+      <button id="integration-paste-btn" type="button" class="button">Paste clipboard</button>
+      <button id="integration-template-btn" type="button" class="button">Copy template</button>
+      <button id="integration-guide-btn" type="button" class="button">Injection guide</button>
+      <button id="integration-copy-guide-btn" type="button" class="button">Copy context guide</button>
+      <button id="integration-clear-btn" type="button" class="button">Clear</button>
+      <input id="integration-file-input" type="file" accept=".json,application/json" hidden>
+    </div>
+
+    <section id="integration-guide-panel" class="integration-guide-panel" hidden>
+      <div class="section-heading compact-section-heading">
+        <div><h3>Fresh-context operating guide</h3><p>Copy this into a blank Eve context before asking it to construct an injection.</p></div>
+      </div>
+      <pre id="integration-guide-content"></pre>
+    </section>
+
+    <label class="field integration-payload-field">
+      <span>Injection JSON</span>
+      <textarea id="integration-payload" spellcheck="false" placeholder="Paste an eve-os-world-book-injection JSON payload here…"></textarea>
+    </label>
+
+    <div class="integration-preview-actions">
+      <button id="integration-preview-btn" type="button" class="button button-primary">Preview safely</button>
+      <span id="integration-preview-status" class="save-status">Nothing previewed</span>
+    </div>
+
+    <section id="integration-plan-panel" class="integration-plan-panel" hidden>
+      <div class="section-heading compact-section-heading">
+        <div>
+          <h3 id="integration-plan-title">Injection preview</h3>
+          <p id="integration-plan-summary"></p>
+        </div>
+        <span id="integration-plan-count" class="pill">0 changes</span>
+      </div>
+      <div id="integration-plan-messages" class="integration-plan-messages"></div>
+      <div id="integration-plan-list" class="integration-plan-list"></div>
+    </section>
+
+    <details class="integration-history">
+      <summary>
+        <span>Recent injection history</span>
+        <span id="integration-history-count" class="save-status">0 applied</span>
+      </summary>
+      <div id="integration-history-list" class="integration-history-list"></div>
+    </details>
+
+    <div class="dialog-actions split-actions">
+      <span class="dialog-action-spacer"></span>
+      <button value="cancel" class="button">Close</button>
+      <button id="integration-apply-btn" type="button" class="button button-primary" disabled>Apply injection</button>
+    </div>
+  </form>
+</dialog>

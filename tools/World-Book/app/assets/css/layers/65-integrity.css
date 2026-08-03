@@ -1,0 +1,327 @@
+/* v0.13 — Canon Integrity reconciliation view. */
+.view-tabs {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.integrity-panel {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.integrity-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
+.integrity-heading h2 {
+  margin: 2px 0 5px;
+  font-size: clamp(30px, 4vw, 44px);
+  letter-spacing: -.04em;
+}
+
+.integrity-heading p {
+  max-width: 760px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.integrity-notice {
+  margin-bottom: 16px;
+  padding: 13px 15px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel));
+  line-height: 1.5;
+}
+
+.integrity-notice strong {
+  color: var(--accent);
+}
+
+.integrity-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.integrity-summary-card {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.integrity-summary-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.integrity-summary-card strong {
+  font-size: 27px;
+  line-height: 1;
+}
+
+.integrity-summary-card.severity-error {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--line));
+}
+
+.integrity-summary-card.severity-review {
+  border-color: color-mix(in srgb, #b88435 52%, var(--line));
+}
+
+.integrity-summary-card.severity-opportunity {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+}
+
+.integrity-filter-card {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.integrity-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 13px;
+}
+
+.integrity-filter-heading h3 {
+  margin: 0 0 3px;
+}
+
+.integrity-filter-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, .75fr) minmax(240px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.integrity-filter-controls select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--panel-strong);
+  color: var(--text);
+}
+
+.integrity-show-ignored {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--muted-surface);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.integrity-show-ignored input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+}
+
+.integrity-finding-list {
+  display: grid;
+  gap: 12px;
+}
+
+.integrity-finding {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-left-width: 5px;
+  border-radius: 15px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.integrity-finding.severity-error {
+  border-left-color: var(--danger);
+}
+
+.integrity-finding.severity-review {
+  border-left-color: #b88435;
+}
+
+.integrity-finding.severity-opportunity {
+  border-left-color: var(--accent);
+}
+
+.integrity-finding.severity-info {
+  border-left-color: var(--muted);
+}
+
+.integrity-finding.is-ignored {
+  opacity: .62;
+}
+
+.integrity-finding-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.integrity-finding-heading h3 {
+  margin: 4px 0 0;
+  font-size: 17px;
+}
+
+.integrity-finding-eyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.integrity-severity {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--muted-surface);
+  color: var(--text);
+}
+
+.integrity-finding-summary {
+  margin: 11px 0 7px;
+  line-height: 1.5;
+}
+
+.integrity-recommendation {
+  margin: 0 0 11px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.integrity-evidence {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: var(--muted-surface);
+}
+
+.integrity-evidence span {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.integrity-evidence span::before {
+  content: "↳ ";
+  color: var(--accent);
+}
+
+.integrity-finding-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.integrity-empty {
+  min-height: 220px;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 28px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--muted-surface);
+  text-align: center;
+}
+
+.integrity-empty span {
+  color: var(--muted);
+}
+
+.integrity-sidebar-list {
+  display: grid;
+  gap: 6px;
+}
+
+.integrity-sidebar-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+
+.integrity-sidebar-item:hover,
+.integrity-sidebar-item.active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: var(--accent-soft);
+}
+
+.integrity-sidebar-item strong {
+  min-width: 28px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+@media (max-width: 1050px) {
+  .integrity-summary-grid {
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .view-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .integrity-heading,
+  .integrity-filter-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .integrity-filter-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .integrity-summary-grid {
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+  }
+}

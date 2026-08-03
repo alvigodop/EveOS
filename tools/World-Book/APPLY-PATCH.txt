@@ -1,0 +1,9 @@
+EVE OS WORLD BOOK v0.11.2 — DIRECT EXTRACT PATCH
+
+1. Stop the running World Book server with Ctrl+C.
+2. Put this ZIP inside the active EveOS tools\World-Book folder.
+3. Choose Extract here and replace matching files.
+4. Keep your existing data folder. This patch does not include data.
+5. Restart launch.bat.
+
+This patch adds spacing polish to the Eve Injection panel.

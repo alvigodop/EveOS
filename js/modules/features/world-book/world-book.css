@@ -1,0 +1,378 @@
+.notes-world-book-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 12500;
+    display: none;
+    padding: clamp(8px, 1.4vw, 22px);
+    box-sizing: border-box;
+    background:
+        radial-gradient(circle at 15% 0%, rgba(32, 215, 226, 0.14), transparent 38%),
+        radial-gradient(circle at 88% 100%, rgba(213, 160, 62, 0.12), transparent 34%),
+        rgba(3, 9, 13, 0.93);
+    color: var(--text-main);
+    backdrop-filter: blur(20px) saturate(0.82);
+}
+
+.notes-world-book-overlay.is-open {
+    display: flex;
+    animation: notes-world-book-enter 180ms ease-out both;
+}
+
+.notes-world-book-shell {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(57, 215, 226, 0.34);
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--card-bg) 88%, #030a0d 12%);
+    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.72), 0 0 40px rgba(30, 213, 226, 0.07);
+}
+
+.notes-world-book-overlay.is-fullscreen {
+    padding: 0;
+}
+
+.notes-world-book-overlay.is-fullscreen .notes-world-book-shell {
+    border: 0;
+    border-radius: 0;
+}
+
+.notes-world-book-header {
+    position: relative;
+    z-index: 3;
+    flex: 0 0 auto;
+    min-height: 66px;
+    padding: 10px 12px 10px 18px;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto minmax(320px, 1fr);
+    align-items: center;
+    gap: 14px;
+    border-bottom: 1px solid rgba(57, 215, 226, 0.2);
+    background:
+        linear-gradient(90deg, rgba(17, 96, 105, 0.28), transparent 48%),
+        color-mix(in srgb, var(--card-bg) 92%, #02090d 8%);
+}
+
+.notes-world-book-identity {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.notes-world-book-sigil {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(79, 226, 235, 0.5);
+    border-radius: 10px 4px 10px 4px;
+    background: rgba(13, 64, 70, 0.66);
+    color: #91f7ff;
+    font: 700 0.9rem Georgia, serif;
+    box-shadow: 0 0 20px rgba(43, 221, 234, 0.12);
+}
+
+.notes-world-book-identity > div {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+
+.notes-world-book-identity strong {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 1rem;
+    letter-spacing: 0.035em;
+    white-space: nowrap;
+}
+
+.notes-world-book-identity [data-world-book-status] {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notes-world-book-tabs {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px;
+    border: 1px solid rgba(80, 202, 213, 0.22);
+    border-radius: 11px;
+    background: rgba(2, 13, 17, 0.62);
+}
+
+.notes-world-book-tabs button,
+.notes-world-book-actions button,
+.notes-world-book-offline button {
+    min-height: 34px;
+    padding: 7px 12px;
+    border: 1px solid rgba(79, 201, 212, 0.26);
+    border-radius: 8px;
+    background: rgba(8, 31, 37, 0.72);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: 150ms ease;
+}
+
+.notes-world-book-tabs button:hover,
+.notes-world-book-actions button:hover,
+.notes-world-book-offline button:hover {
+    border-color: rgba(103, 235, 244, 0.66);
+    background: rgba(18, 73, 80, 0.8);
+}
+
+.notes-world-book-tabs button.is-active {
+    border-color: rgba(110, 238, 246, 0.7);
+    background: linear-gradient(135deg, rgba(30, 170, 181, 0.7), rgba(22, 103, 113, 0.76));
+    color: #effeff;
+    box-shadow: 0 0 16px rgba(40, 217, 229, 0.13);
+}
+
+.notes-world-book-actions {
+    min-width: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 7px;
+}
+
+.notes-world-book-actions [data-world-book-fullscreen],
+.notes-world-book-actions [data-world-book-header-toggle] {
+    width: 36px;
+    padding: 0;
+}
+
+.notes-world-book-actions .is-close {
+    border-color: rgba(226, 111, 105, 0.38);
+}
+
+.notes-world-book-status-pill {
+    max-width: 130px;
+    padding: 6px 9px;
+    overflow: hidden;
+    border: 1px solid rgba(114, 152, 158, 0.3);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 0.67rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notes-world-book-status-pill[data-state="running"] {
+    border-color: rgba(74, 218, 136, 0.42);
+    background: rgba(22, 106, 62, 0.25);
+    color: #8cf2b6;
+}
+
+.notes-world-book-status-pill[data-state="error"],
+.notes-world-book-status-pill[data-state="blocked"] {
+    border-color: rgba(234, 99, 91, 0.46);
+    color: #ff9e98;
+}
+
+.notes-world-book-stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.notes-world-book-notes-view,
+.notes-world-book-world-view {
+    position: absolute;
+    inset: 0;
+}
+
+.notes-world-book-overlay[data-view="notes"] .notes-world-book-world-view,
+.notes-world-book-overlay[data-view="world"] .notes-world-book-notes-view {
+    display: none;
+}
+
+.notes-world-book-notes-view {
+    padding: clamp(18px, 3vw, 50px);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 14px;
+    background:
+        linear-gradient(rgba(64, 184, 194, 0.045) 1px, transparent 1px) 0 0 / 100% 30px,
+        radial-gradient(circle at 80% 20%, rgba(211, 154, 59, 0.08), transparent 34%),
+        #071015;
+}
+
+.notes-world-book-notes-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.notes-world-book-notes-heading span {
+    color: #96f4fb;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(1.2rem, 2vw, 1.75rem);
+}
+
+.notes-world-book-notes-heading small {
+    color: var(--text-muted);
+}
+
+[data-world-book-notes] {
+    width: 100%;
+    min-height: 0;
+    padding: clamp(18px, 2.4vw, 34px);
+    resize: none;
+    box-sizing: border-box;
+    border: 1px solid rgba(78, 203, 213, 0.22);
+    border-radius: 14px;
+    outline: 0;
+    background: rgba(3, 12, 16, 0.74);
+    color: var(--text-main);
+    font: 1rem/1.75 Georgia, "Times New Roman", serif;
+    caret-color: #65edf5;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.24);
+}
+
+[data-world-book-notes]:focus {
+    border-color: rgba(86, 226, 236, 0.62);
+    box-shadow: 0 0 0 3px rgba(49, 208, 219, 0.07), inset 0 0 40px rgba(0, 0, 0, 0.24);
+}
+
+.notes-world-book-world-view {
+    background: #071013;
+}
+
+[data-world-book-frame] {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #071013;
+}
+
+.notes-world-book-offline {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 10px;
+    padding: 30px;
+    text-align: center;
+    background:
+        radial-gradient(circle, rgba(26, 119, 127, 0.16), transparent 48%),
+        #071013;
+}
+
+.is-world-online .notes-world-book-offline {
+    display: none;
+}
+
+.notes-world-book-offline > span {
+    color: #66e8f1;
+    font-size: 2.2rem;
+}
+
+.notes-world-book-offline strong {
+    font: 1.25rem Georgia, "Times New Roman", serif;
+}
+
+.notes-world-book-offline p {
+    max-width: 480px;
+    margin: 0 0 8px;
+    color: var(--text-muted);
+}
+
+.notes-world-book-header-restore {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 5;
+    width: 36px;
+    height: 30px;
+    display: none;
+    border: 1px solid rgba(77, 215, 225, 0.34);
+    border-radius: 8px;
+    background: rgba(3, 31, 36, 0.68);
+    color: #8df2f8;
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+.is-header-hidden .notes-world-book-header {
+    display: none;
+}
+
+.is-header-hidden .notes-world-book-header-restore {
+    display: block;
+}
+
+@media (max-width: 980px) {
+    .notes-world-book-header {
+        grid-template-columns: minmax(180px, 1fr) auto;
+    }
+
+    .notes-world-book-tabs {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        justify-self: center;
+    }
+
+    .notes-world-book-actions {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .notes-world-book-identity [data-world-book-status],
+    .notes-world-book-status-pill {
+        display: none;
+    }
+}
+
+@media (max-width: 620px) {
+    .notes-world-book-overlay {
+        padding: 0;
+    }
+
+    .notes-world-book-shell {
+        border: 0;
+        border-radius: 0;
+    }
+
+    .notes-world-book-header {
+        padding: 8px;
+    }
+
+    .notes-world-book-identity strong {
+        font-size: 0.82rem;
+    }
+
+    .notes-world-book-sigil,
+    [data-world-book-server-toggle] {
+        display: none;
+    }
+
+    .notes-world-book-notes-view {
+        padding: 14px;
+    }
+
+    .notes-world-book-notes-heading small {
+        display: none;
+    }
+}
+
+@keyframes notes-world-book-enter {
+    from { opacity: 0; transform: scale(0.992); }
+    to { opacity: 1; transform: scale(1); }
+}

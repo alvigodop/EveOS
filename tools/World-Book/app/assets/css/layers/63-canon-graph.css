@@ -1,0 +1,5 @@
+/* v0.12 canonical graph, shortcuts, and smart collections */
+.virtual-tree-row:has(.tree-badge) .tree-badge { white-space: nowrap; }
+.tree-row .tree-icon { width: 20px; text-align: center; }
+.tree-badge:where(:not([class*="status-"])) { color: var(--accent); }
+.relationship-kind { color: var(--accent); font-size: 10px; font-weight: 800; text-transform: uppercase; }

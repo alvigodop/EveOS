@@ -1,0 +1,357 @@
+  const advanced = {
+    createSmart: document.getElementById("create-smart-collection-btn"),
+    editSmart: document.getElementById("edit-smart-collection-btn"),
+    semanticKind: document.getElementById("entry-semantic-kind"),
+    smartDialog: document.getElementById("smart-collection-dialog"),
+    smartTitle: document.getElementById("smart-collection-title"),
+    smartName: document.getElementById("smart-collection-name"),
+    smartParent: document.getElementById("smart-collection-parent"),
+    relationshipType: document.getElementById("smart-relationship-type"),
+    targetSearch: document.getElementById("smart-target-search"),
+    targetResults: document.getElementById("smart-target-results"),
+    selectedTarget: document.getElementById("smart-selected-target"),
+    selectedTargetName: document.getElementById("smart-selected-target-name"),
+    selectedTargetPath: document.getElementById("smart-selected-target-path"),
+    clearTarget: document.getElementById("smart-clear-target-btn"),
+    kindOptions: document.getElementById("smart-kind-options"),
+    statusOptions: document.getElementById("smart-status-options"),
+    tagsAll: document.getElementById("smart-tags-all"),
+    tagsAny: document.getElementById("smart-tags-any"),
+    preview: document.getElementById("smart-preview-btn"),
+    previewCount: document.getElementById("smart-preview-count"),
+    previewList: document.getElementById("smart-preview-list"),
+    saveSmart: document.getElementById("smart-save-btn"),
+    undoDelete: document.getElementById("undo-delete-btn"),
+    deletedButton: document.getElementById("deleted-items-btn"),
+    deletedDialog: document.getElementById("deleted-items-dialog"),
+    deletedList: document.getElementById("deleted-items-list"),
+    provenanceSection: document.getElementById("entry-provenance-section"),
+    provenanceSource: document.getElementById("entry-provenance-source"),
+    provenanceKnown: document.getElementById("entry-provenance-known"),
+    provenanceConfidence: document.getElementById("entry-provenance-confidence"),
+    provenanceCreatedBy: document.getElementById("entry-provenance-created-by")
+  };
+
+  let smartEditingId = "";
+  let smartTargetId = "";
+  let smartPreviewSignature = "";
+
+  function setSmartCollectionAvailability(view) {
+    advanced.createSmart.disabled = view !== "worldbook";
+    advanced.deletedButton.disabled = view !== "worldbook";
+  }
+
+  function semanticKindOptions(current) {
+    const values = [...WB.SmartCollections.KIND_OPTIONS];
+    if (current && !values.includes(current)) values.unshift(current);
+    advanced.semanticKind.innerHTML = "";
+    values.forEach(value => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value.replaceAll("-", " ");
+      advanced.semanticKind.appendChild(option);
+    });
+  }
+
+  function refreshAdvancedEntryControls(node) {
+    const virtual = node && selected?.source === "virtual";
+    advanced.semanticKind.parentElement.hidden = !virtual;
+    advanced.editSmart.hidden = !virtual || node.nodeRole !== "smart-collection";
+    const provenance = virtual && node.provenance && typeof node.provenance === "object" ? node.provenance : {};
+    advanced.provenanceSection.hidden = !virtual || !Object.keys(provenance).length;
+    advanced.provenanceSource.textContent = provenance.source || "—";
+    advanced.provenanceKnown.textContent = provenance.knownAsOf || "—";
+    advanced.provenanceConfidence.textContent = provenance.confidence || "—";
+    advanced.provenanceCreatedBy.textContent = provenance.createdBy || "—";
+    if (!virtual) return;
+    semanticKindOptions(node.semanticKind);
+    advanced.semanticKind.value = node.semanticKind || (node.type === "folder" ? "container" : "document");
+    advanced.semanticKind.disabled = node.nodeRole === "reference" || node.nodeRole === "smart-collection";
+  }
+
+  function updateSemanticKind() {
+    const node = selectedVirtualNode();
+    if (!node || node.nodeRole === "reference" || node.nodeRole === "smart-collection") return;
+    node.semanticKind = advanced.semanticKind.value;
+    node.updatedAt = WB.nowISO();
+    WB.Canon.normalizeState(state);
+    renderTree();
+    scheduleStateSave();
+    setStatus(`Semantic kind → ${node.semanticKind}`);
+  }
+
+  function smartPath(node) {
+    return WB.virtualPath(state.virtualRoot, node.id).map(item => item.name).join(" › ");
+  }
+
+  function smartCandidates() {
+    const result = [];
+    WB.walkVirtual(state.virtualRoot, node => {
+      if (node.nodeRole === "reference" || node.id === smartEditingId) return;
+      result.push(node);
+    });
+    return result;
+  }
+
+  function renderSmartTargetResults() {
+    const query = advanced.targetSearch.value.trim().toLowerCase();
+    advanced.targetResults.innerHTML = "";
+    if (!query) {
+      advanced.targetResults.hidden = true;
+      return;
+    }
+    const matches = smartCandidates().filter(node => `${node.name} ${smartPath(node)}`.toLowerCase().includes(query)).slice(0, 60);
+    matches.forEach(node => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "smart-target-result";
+      button.innerHTML = `<strong>${WB.escapeHTML(node.name)}</strong><small>${WB.escapeHTML(smartPath(node))}</small>`;
+      button.addEventListener("click", () => chooseSmartTarget(node));
+      advanced.targetResults.appendChild(button);
+    });
+    if (!matches.length) advanced.targetResults.innerHTML = '<p class="dialog-note">No matching entries.</p>';
+    advanced.targetResults.hidden = false;
+  }
+
+  function chooseSmartTarget(node) {
+    smartTargetId = node?.id || "";
+    advanced.selectedTarget.hidden = !node;
+    advanced.selectedTargetName.textContent = node?.name || "";
+    advanced.selectedTargetPath.textContent = node ? smartPath(node) : "";
+    advanced.targetSearch.value = "";
+    advanced.targetResults.hidden = true;
+    invalidateSmartPreview();
+  }
+
+  function makeCheck(container, group, value, label, checked) {
+    const option = document.createElement("label");
+    option.className = "smart-check-option";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.name = group;
+    input.value = value;
+    input.checked = checked;
+    const span = document.createElement("span");
+    span.textContent = label;
+    option.append(input, span);
+    container.appendChild(option);
+  }
+
+  function populateSmartRuleOptions(rule) {
+    advanced.relationshipType.innerHTML = '<option value="">Any relationship</option>';
+    (state.relationshipDefinitions || []).forEach(definition => {
+      const option = document.createElement("option");
+      option.value = definition.id;
+      option.textContent = definition.name;
+      advanced.relationshipType.appendChild(option);
+    });
+    advanced.relationshipType.value = rule.relationshipType || "";
+    advanced.kindOptions.innerHTML = "";
+    WB.SmartCollections.KIND_OPTIONS.forEach(kind => makeCheck(
+      advanced.kindOptions, "smart-kind", kind, kind.replaceAll("-", " "), (rule.semanticKinds || []).includes(kind)
+    ));
+    advanced.statusOptions.innerHTML = "";
+    (state.statusDefinitions || []).forEach(status => makeCheck(
+      advanced.statusOptions, "smart-status", status.id, status.name, (rule.statuses || []).includes(status.id)
+    ));
+  }
+
+  function populateSmartParents(defaultParentId) {
+    advanced.smartParent.innerHTML = "";
+    WB.walkVirtual(state.virtualRoot, folder => {
+      if (folder.type !== "folder" || folder.nodeRole === "reference" || folder.nodeRole === "smart-collection") return;
+      if (smartEditingId && (folder.id === smartEditingId || WB.isVirtualDescendant(state.virtualRoot, folder.id, smartEditingId))) return;
+      const option = document.createElement("option");
+      option.value = folder.id;
+      option.textContent = smartPath(folder);
+      advanced.smartParent.appendChild(option);
+    });
+    advanced.smartParent.value = defaultParentId || state.virtualRoot.id;
+  }
+
+  function openSmartCollectionDialog(collection) {
+    smartEditingId = collection?.id || "";
+    const rule = WB.SmartCollections.normalizeRule(collection?.collectionRule || {});
+    const current = selectedVirtualNode();
+    const defaultParent = collection
+      ? (WB.findVirtualParent(state.virtualRoot, collection.id) || state.virtualRoot)
+      : current?.type === "folder" && current.nodeRole !== "smart-collection"
+        ? current
+        : (current ? WB.findVirtualParent(state.virtualRoot, current.id) : state.virtualRoot) || state.virtualRoot;
+    advanced.smartTitle.textContent = collection ? "Edit Smart Collection" : "Create Smart Collection";
+    advanced.smartName.value = collection?.name || "New Smart Collection";
+    populateSmartParents(defaultParent.id);
+    populateSmartRuleOptions(rule);
+    advanced.tagsAll.value = (rule.tagsAll || []).join(", ");
+    advanced.tagsAny.value = (rule.tagsAny || []).join(", ");
+    chooseSmartTarget(rule.relationshipTargetId ? WB.findVirtual(state.virtualRoot, rule.relationshipTargetId) : null);
+    invalidateSmartPreview();
+    advanced.smartDialog.showModal();
+  }
+
+  function checkedValues(name) {
+    return [...advanced.smartDialog.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value);
+  }
+
+  function collectSmartRule() {
+    const relationshipType = advanced.relationshipType.value;
+    if (relationshipType && !smartTargetId) throw new Error("Choose a relationship target or clear the relationship filter.");
+    const rule = WB.SmartCollections.normalizeRule({
+      relationshipType,
+      relationshipTargetId: smartTargetId,
+      semanticKinds: checkedValues("smart-kind"),
+      statuses: checkedValues("smart-status"),
+      tagsAll: advanced.tagsAll.value,
+      tagsAny: advanced.tagsAny.value
+    });
+    if (!Object.keys(rule).length) throw new Error("Add at least one rule filter before creating a Smart Collection.");
+    return rule;
+  }
+
+  function smartSignature() {
+    return JSON.stringify({
+      name: advanced.smartName.value.trim(),
+      parent: advanced.smartParent.value,
+      rule: collectSmartRule()
+    });
+  }
+
+  function invalidateSmartPreview() {
+    smartPreviewSignature = "";
+    advanced.previewCount.textContent = "Not previewed";
+    advanced.previewList.innerHTML = '<p class="dialog-note">Press Preview matches to test this rule.</p>';
+  }
+
+  function previewSmartCollection() {
+    try {
+      const rule = collectSmartRule();
+      const matches = WB.SmartCollections.preview(state, rule, smartEditingId);
+      smartPreviewSignature = smartSignature();
+      advanced.previewCount.textContent = `${matches.length.toLocaleString()} matches`;
+      advanced.previewList.innerHTML = "";
+      matches.slice(0, 150).forEach(node => {
+        const row = document.createElement("div");
+        row.className = "smart-preview-row";
+        row.innerHTML = `<strong>${WB.escapeHTML(node.name)}</strong><small>${WB.escapeHTML(smartPath(node))}</small>`;
+        advanced.previewList.appendChild(row);
+      });
+      if (!matches.length) advanced.previewList.innerHTML = '<p class="dialog-note">No entries match this rule.</p>';
+      if (matches.length > 150) advanced.previewList.insertAdjacentHTML("beforeend", `<p class="dialog-note">Showing 150 of ${matches.length.toLocaleString()} matches.</p>`);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function saveSmartCollection() {
+    try {
+      const signature = smartSignature();
+      if (signature !== smartPreviewSignature) {
+        previewSmartCollection();
+        if (smartSignature() !== smartPreviewSignature) return;
+      }
+      const node = WB.SmartCollections.save(state, {
+        collectionId: smartEditingId,
+        parentId: advanced.smartParent.value,
+        name: advanced.smartName.value,
+        rule: collectSmartRule()
+      });
+      WB.Canon.normalizeState(state);
+      advanced.smartDialog.close();
+      selectVirtual(node);
+      scheduleStateSave();
+      setStatus(smartEditingId ? "Smart Collection updated" : "Smart Collection created");
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function updateDeletedControls() {
+    const records = WB.ensureHistoryState(state).deleted;
+    const usable = currentView === "worldbook";
+    advanced.undoDelete.disabled = !usable || !records.length;
+    advanced.deletedButton.disabled = !usable;
+    advanced.deletedButton.textContent = records.length ? `Deleted (${records.length})` : "Deleted";
+  }
+
+  function renderDeletedItems() {
+    const records = WB.ensureHistoryState(state).deleted;
+    advanced.deletedList.innerHTML = "";
+    if (!records.length) {
+      advanced.deletedList.innerHTML = '<p class="dialog-note">No recoverable deletions.</p>';
+      return;
+    }
+    records.forEach(record => {
+      const row = document.createElement("div");
+      row.className = "deleted-item-row";
+      const copy = document.createElement("div");
+      copy.className = "deleted-item-copy";
+      const title = document.createElement("strong");
+      title.textContent = record.node.name;
+      const meta = document.createElement("small");
+      const when = record.deletedAt ? new Date(record.deletedAt).toLocaleString() : "unknown time";
+      meta.textContent = `${record.parentPath || "World Book Manager"} · deleted ${when}`;
+      copy.append(title, meta);
+      const actions = document.createElement("div");
+      actions.className = "deleted-item-actions";
+      const restore = document.createElement("button");
+      restore.type = "button";
+      restore.className = "button button-primary button-small";
+      restore.textContent = "Restore";
+      restore.addEventListener("click", () => restoreDeleted(record.id));
+      const purge = document.createElement("button");
+      purge.type = "button";
+      purge.className = "button button-danger button-small";
+      purge.textContent = "Delete permanently";
+      purge.addEventListener("click", () => purgeDeleted(record.id, record.node.name));
+      actions.append(restore, purge);
+      row.append(copy, actions);
+      advanced.deletedList.appendChild(row);
+    });
+  }
+
+  function restoreDeleted(recordId) {
+    try {
+      const result = WB.restoreDeletedVirtual(state, recordId);
+      WB.Canon.normalizeState(state);
+      renderDeletedItems();
+      updateDeletedControls();
+      selectVirtual(result.node);
+      scheduleStateSave();
+      setStatus(`Restored ${result.node.name}`);
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
+  function purgeDeleted(recordId, name) {
+    if (!window.confirm(`Permanently remove the recoverable copy of "${name}"?`)) return;
+    WB.purgeDeletedVirtual(state, recordId);
+    renderDeletedItems();
+    updateDeletedControls();
+    scheduleStateSave();
+  }
+
+  function undoLatestDelete() {
+    const record = WB.ensureHistoryState(state).deleted[0];
+    if (record) restoreDeleted(record.id);
+  }
+
+  advanced.semanticKind.addEventListener("change", updateSemanticKind);
+  advanced.createSmart.addEventListener("click", () => openSmartCollectionDialog(null));
+  advanced.editSmart.addEventListener("click", () => {
+    const node = selectedVirtualNode();
+    if (node?.nodeRole === "smart-collection") openSmartCollectionDialog(node);
+  });
+  advanced.targetSearch.addEventListener("input", renderSmartTargetResults);
+  advanced.clearTarget.addEventListener("click", () => chooseSmartTarget(null));
+  advanced.preview.addEventListener("click", previewSmartCollection);
+  advanced.saveSmart.addEventListener("click", saveSmartCollection);
+  advanced.smartDialog.addEventListener("input", event => {
+    if (event.target !== advanced.targetSearch) invalidateSmartPreview();
+  });
+  advanced.smartDialog.addEventListener("change", invalidateSmartPreview);
+  advanced.undoDelete.addEventListener("click", undoLatestDelete);
+  advanced.deletedButton.addEventListener("click", () => {
+    renderDeletedItems();
+    advanced.deletedDialog.showModal();
+  });

@@ -1,0 +1,90 @@
+/* v0.10.1 — scale-safe tag dashboard and responsive filter controls */
+.tag-suggestions,
+.tag-overview-card,
+.tag-result-row { background: var(--panel-strong); }
+
+.tag-source-badge.mention { background: var(--accent-soft); color: var(--accent); }
+
+.tag-manager-panel { container-type: inline-size; }
+.tag-filter-controls > *,
+.tag-filter-controls select,
+.tag-filter-controls input { min-width: 0; max-width: 100%; }
+
+.tag-overview-section { padding: 0; overflow: hidden; }
+.tag-overview-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.tag-overview-summary::-webkit-details-marker { display: none; }
+.tag-overview-summary > span:first-child {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
+  min-width: 0;
+}
+.tag-overview-summary strong { font-size: 12px; white-space: nowrap; }
+.tag-overview-summary small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.tag-overview-summary-hint {
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 750;
+}
+.tag-overview-section[open] .tag-overview-summary-hint { font-size: 0; }
+.tag-overview-section[open] .tag-overview-summary-hint::after {
+  content: "Collapse";
+  font-size: 9px;
+}
+
+.tag-overview-section .tag-overview-grid {
+  max-height: min(30vh, 260px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  padding: 0 8px 8px;
+}
+.tag-overview-grid {
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 5px;
+}
+.tag-overview-card {
+  min-height: 54px;
+  gap: 1px;
+  border-radius: 8px;
+  padding: 6px 7px;
+}
+.tag-overview-card strong { font-size: 14px; line-height: 1; }
+.tag-overview-card small { font-size: 8px; line-height: 1.15; }
+.tag-overview-name {
+  font-size: 9px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 760px) {
+  .tag-filter-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tag-filter-picker-field { grid-column: 1 / -1; }
+}
+
+@container (max-width: 430px) {
+  .tag-filter-controls { grid-template-columns: minmax(0, 1fr); }
+  .tag-filter-picker-field { grid-column: auto; }
+  .tag-overview-summary > span:first-child { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1180px) {
+  .tag-filter-controls { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .tag-filter-picker-field { grid-column: 1 / -1; }
+}

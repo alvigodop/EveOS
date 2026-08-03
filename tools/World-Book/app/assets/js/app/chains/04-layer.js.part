@@ -1,0 +1,384 @@
+  function downloadCopiedScope() {
+    if (!lastCopiedScopeText) return;
+    const blob = new Blob([lastCopiedScopeText], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = lastCopiedScopeFilename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function collectVirtualFolders() {
+    const folders = [];
+    WB.walkVirtual(state.virtualRoot, node => {
+      if (node.type !== "folder") return;
+      folders.push({
+        id: node.id,
+        label: WB.virtualPath(state.virtualRoot, node.id).map(item => item.name).join(" › ")
+      });
+    });
+    return folders;
+  }
+
+  function openCopyToWorldBookDialog() {
+    if (!selected || selected.source !== "physical") return;
+
+    ensureUIState();
+    const folders = collectVirtualFolders();
+    els.copyVirtualDestination.innerHTML = "";
+
+    folders.forEach(folder => {
+      const option = document.createElement("option");
+      option.value = folder.id;
+      option.textContent = folder.label;
+      if (folder.id === state.ui.lastVirtualFolderId) option.selected = true;
+      els.copyVirtualDestination.appendChild(option);
+    });
+
+    els.copySourceLabel.textContent = selected.node.relativePath || selected.node.name;
+    els.copyDialog.showModal();
+  }
+
+  async function confirmCopyToWorldBook(event) {
+    event.preventDefault();
+    if (!selected || selected.source !== "physical") return;
+
+    const sourcePath = selected.node.relativePath || "";
+    const destinationVirtualId = els.copyVirtualDestination.value || "root";
+    els.confirmCopyWorldBook.disabled = true;
+    setStatus("Copying into World Book…");
+
+    try {
+      const payload = await WB.API.copyPhysicalToWorldBook(sourcePath, destinationVirtualId);
+      const statePayload = await WB.API.getState();
+      state = statePayload.state;
+      ensureUIState();
+      normalizeTaxonomy();
+      els.copyDialog.close();
+
+      const imported = WB.findVirtual(state.virtualRoot, payload.node.id);
+      setView("worldbook");
+      if (imported) selectVirtual(imported);
+      setStatus("Copied to World Book");
+      window.alert(payload.message);
+    } catch (error) {
+      console.error(error);
+      setStatus("Transfer failed");
+      window.alert(error.message);
+    } finally {
+      els.confirmCopyWorldBook.disabled = false;
+    }
+  }
+
+  function openExportZipDialog() {
+    if (!selected || selected.source !== "virtual") return;
+
+    ensureUIState();
+    const node = selected.node;
+    els.zipSourceLabel.textContent = WB.virtualPath(state.virtualRoot, node.id)
+      .map(item => item.name)
+      .join(" › ");
+    els.zipDestinationPath.value = state.ui.lastPhysicalFolderPath || "";
+    els.zipFileName.value = `${node.name}.zip`;
+    els.zipDialog.showModal();
+  }
+
+  async function confirmExportZip(event) {
+    event.preventDefault();
+    if (!selected || selected.source !== "virtual") return;
+
+    const virtualId = selected.node.id;
+    const destinationPath = els.zipDestinationPath.value
+      .trim()
+      .replaceAll("\\", "/")
+      .replace(/^\/+|\/+$/g, "");
+    const zipName = els.zipFileName.value.trim() || `${selected.node.name}.zip`;
+
+    els.confirmExportZip.disabled = true;
+    setStatus("Creating ZIP…");
+
+    try {
+      const payload = await WB.API.exportVirtualZip(virtualId, destinationPath, zipName);
+      ensureUIState();
+      state.ui.lastPhysicalFolderPath = destinationPath;
+      scheduleStateSave();
+      els.zipDialog.close();
+
+      selected = null;
+      await loadPhysicalRoot();
+      setView("files");
+      await revealPhysicalPath(payload.entry.relativePath);
+      setStatus("ZIP created");
+      window.alert(payload.message);
+    } catch (error) {
+      console.error(error);
+      setStatus("ZIP export failed");
+      window.alert(error.message);
+    } finally {
+      els.confirmExportZip.disabled = false;
+    }
+  }
+
+  function createTag(name) {
+    const definition = WB.Taxonomy.ensureTag(state, name);
+    if (!definition) return "";
+    scheduleStateSave();
+    if (currentView === "tags") refreshTagManager(false);
+    return definition.name;
+  }
+
+  async function loadTagPhysicalEntries() {
+    try {
+      const payload = await WB.API.getTagIndex();
+      tagPhysicalEntries = payload.entries || [];
+    } catch (error) {
+      console.error(error);
+      tagPhysicalEntries = [];
+    }
+  }
+
+  async function refreshTagManager(reloadPhysical = true) {
+    normalizeTaxonomy();
+    if (reloadPhysical) {
+      await saveStateNow(true);
+      await loadTagPhysicalEntries();
+    }
+    tagDashboard.setData(state, tagPhysicalEntries);
+    if (currentView === "tags") renderTree();
+  }
+
+  async function openTaggedEntry(entry) {
+    if (entry.source === "physical") {
+      if (entry.missing) {
+        window.alert("This tagged physical path no longer exists under the mounted workspace.");
+        return;
+      }
+      setView("files");
+      await revealPhysicalPath(entry.relativePath);
+      return;
+    }
+    const node = WB.findVirtual(state.virtualRoot, entry.id);
+    if (!node) return;
+    setView("worldbook");
+    selectVirtual(node);
+  }
+
+  function renderTagsSidebar() {
+    tagDashboard.renderSidebar(els.treePanel);
+  }
+
+  function renderTagDefinitions() {
+    normalizeTaxonomy();
+    els.tagDefinitionList.innerHTML = "";
+    const usage = new Map(tagDashboard && tagDashboard.state
+      ? tagDashboard.usage().map(item => [item.definition.name.toLowerCase(), item.count])
+      : []);
+    state.tagDefinitions.forEach(definition => {
+      const row = document.createElement("div");
+      row.className = "definition-row";
+      const input = document.createElement("input");
+      input.value = definition.name;
+      input.addEventListener("change", () => {
+        try {
+          WB.Taxonomy.renameTag(state, definition.id, input.value);
+          scheduleStateSave();
+          refreshVisibleTaxonomy();
+        } catch (error) {
+          input.value = definition.name;
+          window.alert(error.message);
+        }
+      });
+      const count = document.createElement("span");
+      count.className = "definition-usage";
+      count.textContent = `${usage.get(definition.name.toLowerCase()) || 0} attached`;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "definition-delete";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", () => {
+        if (!window.confirm(`Delete the tag "${definition.name}" from every entry?`)) return;
+        WB.Taxonomy.deleteTag(state, definition.id);
+        scheduleStateSave();
+        renderTagDefinitions();
+        refreshVisibleTaxonomy();
+      });
+      row.append(input, count, remove);
+      els.tagDefinitionList.appendChild(row);
+    });
+  }
+
+  async function openManageTags() {
+    await refreshTagManager(true);
+    renderTagDefinitions();
+    els.newTagName.value = "";
+    els.manageTagsDialog.showModal();
+  }
+
+  function addTagDefinition() {
+    const definition = WB.Taxonomy.ensureTag(state, els.newTagName.value);
+    if (!definition) return;
+    els.newTagName.value = "";
+    scheduleStateSave();
+    renderTagDefinitions();
+    refreshVisibleTaxonomy();
+  }
+
+  function renderStatusDefinitions() {
+    normalizeTaxonomy();
+    els.statusDefinitionList.innerHTML = "";
+    state.statusDefinitions.forEach(definition => {
+      const row = document.createElement("div");
+      row.className = "definition-row";
+      const input = document.createElement("input");
+      input.value = definition.name;
+      input.addEventListener("change", () => {
+        try {
+          WB.Taxonomy.renameStatus(state, definition.id, input.value);
+          scheduleStateSave();
+          refreshVisibleTaxonomy();
+        } catch (error) {
+          input.value = definition.name;
+          window.alert(error.message);
+        }
+      });
+      const usage = document.createElement("span");
+      usage.className = "definition-usage";
+      const usageCount = WB.Taxonomy.statusUsage(state, definition.id);
+      usage.textContent = `${usageCount} attached`;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "definition-delete";
+      remove.textContent = "Delete";
+      remove.disabled = usageCount > 0 || state.statusDefinitions.length <= 1;
+      remove.title = usageCount > 0 ? "Reassign attached entries first." : "Delete this status";
+      remove.addEventListener("click", () => {
+        try {
+          WB.Taxonomy.deleteStatus(state, definition.id);
+          scheduleStateSave();
+          renderStatusDefinitions();
+          refreshVisibleTaxonomy();
+        } catch (error) {
+          window.alert(error.message);
+        }
+      });
+      row.append(input, usage, remove);
+      els.statusDefinitionList.appendChild(row);
+    });
+  }
+
+  function openManageStatuses() {
+    renderStatusDefinitions();
+    els.newStatusName.value = "";
+    els.manageStatusesDialog.showModal();
+  }
+
+  function addStatusDefinition() {
+    const definition = WB.Taxonomy.createStatus(state, els.newStatusName.value);
+    if (!definition) return;
+    els.newStatusName.value = "";
+    scheduleStateSave();
+    renderStatusDefinitions();
+    refreshVisibleTaxonomy();
+  }
+
+  function refreshVisibleTaxonomy() {
+    normalizeTaxonomy();
+    tagPhysicalEntries = tagPhysicalEntries.map(entry => {
+      const meta = state.fileMeta?.[entry.relativePath];
+      return meta ? {
+        ...entry,
+        tags: [...(meta.tags || [])],
+        status: meta.status || "draft",
+        notes: meta.notes || "",
+        metaUpdatedAt: meta.updatedAt || entry.metaUpdatedAt || ""
+      } : entry;
+    });
+    if (selected && selected.source === "physical") {
+      const meta = metaForPhysical(selected.node.relativePath || "");
+      WB.Editor.refreshTaxonomy(state, meta.status || "draft", WB.Taxonomy.simpleTagInfo(meta.tags, meta.visibleTags), false);
+    } else if (selected && selected.source === "virtual") {
+      WB.Editor.refreshTaxonomy(state, selected.node.status || "draft", WB.Taxonomy.virtualTagInfo(state, selected.node), false);
+    }
+    if (tagDashboard) tagDashboard.setData(state, tagPhysicalEntries);
+    renderTree();
+  }
+  function renderTree() {
+    const selectedKey = selected
+      ? selected.source === "physical"
+        ? `physical:${selected.node.relativePath || ""}`
+        : selected.source === "virtual"
+          ? `virtual:${selected.node.id}`
+          : selected.source === "snapshot"
+            ? `snapshot:${selected.record.id}:${selected.node.relativePath}`
+            : ""
+      : "";
+
+    els.treePanel.hidden = false;
+    els.searchResults.hidden = true;
+
+    if (currentView === "files") {
+      if (!physicalRoot) {
+        els.treePanel.innerHTML = '<p class="tree-loading">No workspace mounted.</p>';
+        return;
+      }
+
+      WB.Tree.renderPhysical(physicalRoot, els.treePanel, selectedKey, {
+        onSelect: selectPhysical,
+        onToggle: togglePhysical
+      });
+      return;
+    }
+
+    if (currentView === "worldbook") {
+      WB.Tree.renderVirtual(state.virtualRoot, els.treePanel, selectedKey, {
+        onSelect: selectVirtual,
+        onToggle: toggleVirtual,
+        statusLabel: status => WB.Taxonomy.statusName(state, status),
+        onDragStart(node) {
+          draggedVirtualId = node.id;
+          setStatus(`Moving ${node.name}…`);
+        },
+        onDragOver: handleVirtualDragOver,
+        onDrop: moveVirtualByDrop,
+        onDragEnd() {
+          clearTimeout(dragExpandTimer);
+          draggedVirtualId = "";
+          if (els.saveStatus.textContent.startsWith("Moving ")) setStatus("Ready");
+        },
+        draggedId: () => draggedVirtualId
+      });
+      return;
+    }
+
+    if (currentView === "integrity") {
+      integrityDashboard?.renderSidebar(els.treePanel);
+      return;
+    }
+
+    if (currentView === "tags") {
+      renderTagsSidebar();
+      return;
+    }
+
+    WB.Tree.renderImports(imports, els.treePanel, selectedKey, {
+      onToggleImport: toggleImport,
+      onSelectImport: selectImportRecord,
+      onSelectSnapshot: selectSnapshot,
+      onRender: renderTree
+    });
+  }
+
+  async function loadImports() {
+    const payload = await WB.API.getImports();
+    const previous = new Map(imports.map(item => [item.id, item]));
+    imports = payload.imports.map(record => ({
+      ...record,
+      open: previous.get(record.id)?.open || false,
+      tree: previous.get(record.id)?.tree || null,
+      snapshot: previous.get(record.id)?.snapshot || null
+    }));
+    renderTree();
+  }

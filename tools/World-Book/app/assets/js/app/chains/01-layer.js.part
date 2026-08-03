@@ -1,0 +1,342 @@
+  function renderLinkTargetResults() {
+    const query = els.linkTargetSearch.value.trim().toLowerCase();
+    const results = linkDialogTargets
+      .filter(target => !query || `${target.name} ${target.path} ${target.type}`.toLowerCase().includes(query))
+      .slice(0, 250);
+
+    els.linkTargetResults.innerHTML = "";
+
+    if (!results.length) {
+      els.linkTargetResults.innerHTML = '<p class="tree-loading">No matching World Book entries.</p>';
+      return;
+    }
+
+    results.forEach(target => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `link-target-result${target.id === linkDialogTargetId ? " selected" : ""}`;
+      button.innerHTML = `
+        <span>${target.type === "folder" ? "📁" : "📄"}</span>
+        <span>
+          <strong>${WB.escapeHTML(target.name)}</strong>
+          <small>${WB.escapeHTML(target.path)}</small>
+        </span>
+      `;
+      button.addEventListener("click", () => {
+        linkDialogTargetId = target.id;
+        els.linkSelectedTarget.hidden = false;
+        els.linkSelectedTargetName.textContent = target.name;
+        els.linkSelectedTargetPath.textContent = target.path;
+        if (!els.linkCustomLabel.value.trim()) {
+          els.linkCustomLabel.value = target.name;
+        }
+        renderLinkTargetResults();
+      });
+      els.linkTargetResults.appendChild(button);
+    });
+  }
+
+  function openLinkDialog(link) {
+    if (!selected || !["physical", "virtual"].includes(selected.source)) return;
+
+    const sourceVirtualId = selected.source === "virtual" ? selected.node.id : "";
+    linkDialogTargets = WB.Links.collectTargets(state, sourceVirtualId);
+    linkDialogEditingId = link?.id || "";
+    linkDialogTargetId = link?.targetId || "";
+
+    els.linkDialogTitle.textContent = link ? "Edit link" : "Add link";
+    els.linkSourceLabel.textContent = selected.source === "physical"
+      ? (selected.node.relativePath || selected.node.name)
+      : WB.virtualPath(state.virtualRoot, selected.node.id).map(item => item.name).join(" › ");
+    els.linkTargetSearch.value = "";
+    els.linkCustomLabel.value = link?.label || "";
+    els.linkRelationshipType.innerHTML = (state.relationshipDefinitions || []).map(def => `<option value="${WB.escapeHTML(def.id)}">${WB.escapeHTML(def.name)} ↔ ${WB.escapeHTML(def.inverse || def.name)}</option>`).join("");
+    els.linkRelationshipType.value = link?.relationshipType || "related-to";
+    els.linkMountShortcut.checked = false;
+    els.linkMountShortcut.disabled = selected.source !== "virtual" || selected.node.type !== "folder" || Boolean(link);
+
+    const target = linkDialogTargets.find(item => item.id === linkDialogTargetId);
+    els.linkSelectedTarget.hidden = !target;
+    els.linkSelectedTargetName.textContent = target?.name || "";
+    els.linkSelectedTargetPath.textContent = target?.path || "";
+
+    renderLinkTargetResults();
+    els.linkDialog.showModal();
+    requestAnimationFrame(() => els.linkTargetSearch.focus());
+  }
+
+  function saveLinkFromDialog() {
+    if (!selected || !linkDialogTargetId) {
+      window.alert("Choose a World Book file or folder to link.");
+      return;
+    }
+
+    const links = selectedLinks();
+    const timestamp = WB.nowISO();
+    const customLabel = els.linkCustomLabel.value.trim();
+
+    if (linkDialogEditingId) {
+      const existing = links.find(link => link.id === linkDialogEditingId);
+      if (!existing) return;
+      existing.targetType = "virtual";
+      existing.targetId = linkDialogTargetId;
+      existing.label = customLabel;
+      existing.relationshipType = els.linkRelationshipType.value || "related-to";
+      existing.updatedAt = timestamp;
+    } else {
+      links.push({
+        id: WB.makeId("link"),
+        targetType: "virtual",
+        targetId: linkDialogTargetId,
+        label: customLabel,
+        relationshipType: els.linkRelationshipType.value || "related-to",
+        provenance: { createdBy: "manual", createdAt: timestamp },
+        createdAt: timestamp,
+        updatedAt: timestamp
+      });
+    }
+
+    if (!linkDialogEditingId && els.linkMountShortcut.checked && selected.source === "virtual" && selected.node.type === "folder") {
+      const target = WB.findVirtual(state.virtualRoot, linkDialogTargetId);
+      if (target && !selected.node.children.some(child => child.nodeRole === "reference" && child.referenceTargetId === target.id)) {
+        const ref = WB.Canon.createReference(target, customLabel || target.name, "manual-link");
+        ref.referenceAlias = customLabel || "";
+        ref.relationshipType = els.linkRelationshipType.value || "related-to";
+        selected.node.children.push(ref);
+        selected.node.open = true;
+      }
+    }
+    WB.Canon.normalizeState(state);
+    els.linkDialog.close();
+    touchSelectedLinks();
+    setStatus("Link saved");
+  }
+
+  function removeLink(link) {
+    if (!selected) return;
+    const label = WB.Links.displayLabel(state, link);
+    if (!window.confirm(`Remove the link "${label}" from this entry?`)) return;
+
+    const links = selectedLinks();
+    const index = links.findIndex(item => item.id === link.id);
+    if (index === -1) return;
+    links.splice(index, 1);
+    touchSelectedLinks();
+    setStatus("Link removed");
+  }
+
+  async function openWorldBookLink(link) {
+    const target = WB.Links.resolveTarget(state, link);
+    if (!target) {
+      window.alert("This linked World Book entry no longer exists.");
+      return;
+    }
+
+    const previous = selectedDescriptor();
+    if (previous) linkHistory.push(previous);
+    setView("worldbook");
+    selectVirtual(target);
+    refreshSelectedLinks();
+  }
+
+  async function navigateBackFromLink() {
+    const previous = linkHistory.pop();
+    if (!previous) {
+      refreshSelectedLinks();
+      return;
+    }
+
+    if (previous.source === "physical") {
+      setView("files");
+      await revealPhysicalPath(previous.path);
+      refreshSelectedLinks();
+      return;
+    }
+
+    const node = WB.findVirtual(state.virtualRoot, previous.id);
+    if (!node) {
+      window.alert("The previous World Book entry no longer exists.");
+      refreshSelectedLinks();
+      return;
+    }
+
+    setView("worldbook");
+    selectVirtual(node);
+    refreshSelectedLinks();
+  }
+
+  function themeColorElements() {
+    return {
+      background: els.themeBackground,
+      panel: els.themePanel,
+      sidebar: els.themeSidebar,
+      text: els.themeText,
+      muted: els.themeMuted,
+      accent: els.themeAccent,
+      accentSoft: els.themeAccentSoft,
+      border: els.themeBorder,
+      danger: els.themeDanger
+    };
+  }
+
+  function fillThemeDialog() {
+    els.themeMode.value = themeDraft.mode;
+    const inputs = themeColorElements();
+    Object.entries(inputs).forEach(([key, input]) => {
+      input.value = themeDraft.custom[key] || WB.Theme.normal[key];
+    });
+    els.customThemeControls.hidden = themeDraft.mode !== "custom";
+  }
+
+  function readThemeDialog() {
+    themeDraft.mode = els.themeMode.value;
+    const inputs = themeColorElements();
+    Object.entries(inputs).forEach(([key, input]) => {
+      themeDraft.custom[key] = input.value;
+    });
+    els.customThemeControls.hidden = themeDraft.mode !== "custom";
+    WB.Theme.apply(themeDraft);
+  }
+
+  function openThemeDialog() {
+    ensureUIState();
+    themeDraft = WB.Theme.clone(state.ui.theme);
+    themeDialogCommitted = false;
+    fillThemeDialog();
+    WB.Theme.apply(themeDraft);
+    els.themeDialog.showModal();
+  }
+
+  function cancelThemeDialog() {
+    themeDialogCommitted = false;
+    WB.Theme.apply(state.ui.theme);
+    els.themeDialog.close();
+  }
+
+  function saveThemeDialog() {
+    readThemeDialog();
+    state.ui.theme = WB.Theme.clone(themeDraft);
+    themeDialogCommitted = true;
+    WB.Theme.apply(state.ui.theme);
+    scheduleStateSave();
+    els.themeDialog.close();
+    setStatus("Theme saved");
+  }
+
+  function resetCustomTheme() {
+    themeDraft.custom = { ...WB.Theme.normal };
+    themeDraft.mode = "custom";
+    fillThemeDialog();
+    WB.Theme.apply(themeDraft);
+  }
+
+  function selectedTagContainer() {
+    if (!selected) return null;
+    if (selected.source === "physical") return metaForPhysical(selected.node.relativePath || "");
+    if (selected.source === "virtual") return selected.node;
+    return null;
+  }
+
+  function selectedTagInfo(options) {
+    const container = selectedTagContainer();
+    if (!container) return WB.Taxonomy.simpleTagInfo([], []);
+    if (selected.source === "virtual") {
+      return WB.Taxonomy.virtualTagInfo(state, selected.node, options);
+    }
+    return WB.Taxonomy.simpleTagInfo(
+      options?.tags == null ? container.tags : options.tags,
+      options?.visibleTags == null ? container.visibleTags : options.visibleTags
+    );
+  }
+
+  function touchSelectedEntry() {
+    const timestamp = WB.nowISO();
+    if (selected?.source === "physical") {
+      const meta = metaForPhysical(selected.node.relativePath || "");
+      meta.updatedAt = timestamp;
+      els.metaUpdatedAt.textContent = new Date(timestamp).toLocaleString();
+    } else if (selected?.source === "virtual") {
+      selected.node.updatedAt = timestamp;
+      els.modifiedAt.textContent = new Date(timestamp).toLocaleString();
+      els.metaUpdatedAt.textContent = new Date(timestamp).toLocaleString();
+    }
+  }
+
+  function refreshSelectedTagDisplay() {
+    if (!selected || !["physical", "virtual"].includes(selected.source)) return;
+    const container = selectedTagContainer();
+    WB.Editor.refreshTaxonomy(
+      state,
+      container.status || "draft",
+      selectedTagInfo(),
+      false
+    );
+    if (selected.source === "physical") {
+      const path = selected.node.relativePath || "";
+      const existing = tagPhysicalEntries.find(entry => entry.relativePath === path);
+      const next = {
+        ...(existing || selected.node),
+        relativePath: path,
+        tags: [...(container.tags || [])],
+        status: container.status || "draft",
+        notes: container.notes || "",
+        metaUpdatedAt: container.updatedAt || ""
+      };
+      tagPhysicalEntries = existing
+        ? tagPhysicalEntries.map(entry => entry.relativePath === path ? next : entry)
+        : [...tagPhysicalEntries, next];
+    }
+    if (tagDashboard) tagDashboard.setData(state, tagPhysicalEntries);
+  }
+
+  function addManualTag(name) {
+    if (!selected || !["physical", "virtual"].includes(selected.source)) return;
+    const definition = WB.Taxonomy.ensureTag(state, name);
+    if (!definition) return;
+    const container = selectedTagContainer();
+    container.tags = WB.normalizeTags([...(container.tags || []), definition.name]);
+    const isInjectionOwner = definition.name.toLowerCase() === WB.EVE_INJECTION_TAG.toLowerCase();
+    container.visibleTags = isInjectionOwner
+      ? WB.normalizeTags(container.visibleTags).filter(tag => tag.toLowerCase() !== definition.name.toLowerCase())
+      : WB.normalizeTags([...(container.visibleTags || []), definition.name]);
+    touchSelectedEntry();
+    refreshSelectedTagDisplay();
+    scheduleStateSave();
+    setStatus("Tag attached");
+  }
+
+  function hideInlineTag(name) {
+    const container = selectedTagContainer();
+    if (!container) return;
+    container.visibleTags = WB.normalizeTags(container.visibleTags).filter(
+      tag => tag.toLowerCase() !== String(name).toLowerCase()
+    );
+    touchSelectedEntry();
+    refreshSelectedTagDisplay();
+    scheduleStateSave();
+    setStatus("Tag hidden from compact view");
+  }
+
+  function entryTagDraftInfo() {
+    if (!entryTagDraft) return WB.Taxonomy.simpleTagInfo([], []);
+    if (entryTagDraft.source === "virtual") {
+      const node = WB.findVirtual(state.virtualRoot, entryTagDraft.id);
+      if (!node) return WB.Taxonomy.simpleTagInfo([], []);
+      return WB.Taxonomy.virtualTagInfo(state, node, {
+        tags: entryTagDraft.manual,
+        sharedTags: entryTagDraft.shared,
+        visibleTags: entryTagDraft.visible,
+        pathTagsEnabled: entryTagDraft.pathEnabled,
+        mentionTagsEnabled: entryTagDraft.mentionEnabled
+      });
+    }
+    return WB.Taxonomy.simpleTagInfo(entryTagDraft.manual, entryTagDraft.visible);
+  }
+
+  function entryTagSourceBadges(item) {
+    if (!item?.sources?.length) return '<span class="tag-source-badge">Available</span>';
+    return item.sources.map(source => {
+      const label = WB.Taxonomy.tagSourceLabel(source);
+      return `<span class="tag-source-badge ${WB.escapeHTML(source.type)}">${WB.escapeHTML(label)}</span>`;
+    }).join("");
+  }

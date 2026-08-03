@@ -188,3 +188,11 @@ chat_history.json
 
 # Audioflix: machine-local list of folders authorized for local file serving (absolute paths).
 server_modules/audioflix_allowed_dirs.json
+
+# World Book: keep the tool tracked, but never publish its machine-local state or recovery data.
+tools/World-Book/data/config.json
+tools/World-Book/data/state.json
+tools/World-Book/data/imports/
+tools/World-Book/data/recovery_rollbacks/
+tools/World-Book/data/recovery_temp/
+tools/World-Book/data/recovery_uploads/

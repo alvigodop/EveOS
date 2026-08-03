@@ -97,7 +97,7 @@ if defined POPUP_STANDALONE_PID (
 )
 echo.
 echo [S] Start STANDARD EveOS stack  ^(recommended canonical boot^)
-echo     - One web surface on port %EVEOS_WEB_PORT% + Gemini backend + bridges. Guarded, no redundant port-states.
+echo     - One web surface on port %EVEOS_WEB_PORT% + Gemini + bridges. World Book restores its saved On/Off state.
 echo.
 echo --- Advanced / explicit (use when you specifically want a different port or sequence) ---
 echo [1] Start EveOS instance ^(choose port + data-pack^)

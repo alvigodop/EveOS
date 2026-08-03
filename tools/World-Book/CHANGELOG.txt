@@ -1,0 +1,188 @@
+v0.14.0
+- Added manual Create/Edit Smart Collection UI with relationship-target, semantic-kind, status, tags-all, and tags-any rules.
+- Added required match preview before Smart Collection rules are saved.
+- Added a manual semantic-kind selector for canonical entries.
+- Added recoverable virtual deletion, one-step Undo delete, Deleted Items restore, and deliberate permanent purge.
+- Preserved stable entry IDs through deletion and restoration so links and shortcuts reconnect.
+- Added visible entry provenance fields for source, knownAsOf, confidence, and createdBy.
+- Added non-owning provenance / set-provenance Eve Injection operations and provenance fields on patch/upsert.
+- Added provenance, semantic kind, node role, relationship type, and relationship provenance to full Copy Scope output.
+- Added an in-app Eve Injection context guide with one-click copy for a blank AI context.
+- Added automated regression checks for provenance ownership, manual Smart Collections, and delete restoration.
+- Bumped the portable state schema to 10.
+
+v0.13.1
+- Fixed smart collections crashing when tag-based rules read structured effective-tag records.
+- Added relationshipTargetPath support for smart-collection injection rules, which resolves to a stable canonical ID during planning.
+- Added a classification injection operation that assigns semantic kinds without transferring entry ownership.
+- Added regression checks covering classification and typed-link smart collections.
+
+v0.13.0
+- Added the Canon Integrity reconciliation view with severity, issue-type, search, and ignored-finding filters.
+- Added advisory detectors for broken graph edges, duplicated authority, mirrored relationship prose,
+  shortcut candidates, smart-collection candidates, empty canonical owners, scaffolding, and provenance gaps.
+- Added persistent ignored-finding fingerprints and intentional-scaffolding marks without changing lore.
+- Added direct navigation from findings to affected canonical entries.
+- Added CANON_INTEGRITY_SPEC.md and automated integrity detector checks.
+- Fixed server state normalization so typed-link relationshipType and provenance are preserved.
+- Bumped the portable state schema to 9.
+
+v0.12.2
+- Added bidirectional link visibility for virtual World Book entries.
+- Links now show both connections created from the current entry and backlinks from other files or folders.
+- Added All links, From here, and To here filters with a persistent selection.
+- Incoming links use the inverse relationship label and open the entry that owns the original link.
+- Incoming links remain read-only from the destination so there is still one authoritative source to edit or remove.
+- Added direction badges, backlink counts, responsive controls, and an automated bidirectional-link regression check.
+
+v0.12.1
+- Fixed Full Recovery Backup export failing with “list object has no attribute get” when the mounted workspace contains unrelated manifest.json files whose JSON root is an array.
+- Recovery manifest discovery now type-checks parsed JSON before reading the Eve recovery format identifier.
+- Generated backups continue to self-validate against the same restore inspector before download.
+
+v0.12.0
+- Canonical identity metadata, semantic kinds, reference shortcuts, smart collections.
+- Typed links with derived inverse views and optional child shortcut mounting.
+- Eve Injection status creation, typed relationships, references, smart collections, and narrow protected overrides.
+- Full recovery ZIP recognition now selects the unique valid recovery manifest and excludes recovery staging folders.
+
+v0.11.2
+- Added consistent vertical spacing between Eve Injection panel sections.
+- Separated the ownership callout from the JSON toolbar.
+- Separated the toolbar from the Injection JSON field.
+- Separated Preview safely and visible plan results from Recent injection history.
+- Kept the visual adjustment isolated in 62-integration-spacing.css.
+
+v0.11.1
+- Made the Eve Injection dialog responsive to both browser width and height.
+- Fixed the dialog-shell/card width mismatch that caused clipping and horizontal scrolling.
+- Added viewport-aware JSON textarea, preview-list, and history-list sizing.
+- Added narrow-window button wrapping, safe long-text wrapping, and compact short-window behavior.
+- Kept the sizing fix isolated in a dedicated integration CSS layer.
+
+v0.11.0
+- Added Eve Injection external JSON integration with paste and file-loading workflows.
+- Added dry-run planning, operation previews, validation messages, and explicit apply confirmation.
+- Protected user-owned entries from update, rename, and move operations unless manually tagged Injected from Eve.
+- Added automatic hidden provenance tags and internal ownership metadata to injected entries.
+- Added upsert, patch, move, rename, tag, sharing, visibility, and path-resolved link operations.
+- Added automatic missing-parent creation limited to the requested path.
+- Added idempotent injection ID/revision history and duplicate-application protection.
+- Added automatic rollback creation before an injection changes active state.
+- Added normal Import JSON restoration for automatic state rollback files.
+- Added a collapsible Links section with persistent UI state.
+- Added EVE_INJECTION_SPEC.md and automated injection safety regression tests.
+
+v0.10.2
+- Fixed the Find entries tag picker runtime error caused by a missing local input normalizer.
+- Restored tag suggestions while typing and Enter/comma selection in the Tags dashboard.
+- Clarified the filter placeholder so it is obvious that tags must be chosen or committed.
+- Added a runtime regression check for the tag picker so this module-scope failure is caught before future releases.
+
+v0.10.1
+- Fixed the missing 50-tag-scale.css import, which prevented the compact dashboard rules from loading.
+- Made Find entries responsive to the actual content-panel width so Match and Sort no longer clip.
+- Added minimum-width guards for filter fields, selects, and inputs.
+- Restored clear spacing between Tag overview and its explanatory text.
+- Reduced tag cards further and bounded expanded overview height with scrolling for world-scale tag sets.
+
+v0.10.0
+- Fixed inline manual-tag creation and attachment (missing local input normalizer).
+- Added hidden Connected-note mention tags using existing tag and entry names.
+- Added a global mention-tag automation toggle beside path-tag automation.
+- Mention tags update while connected notes are edited and participate in tag filtering.
+- Made Tag overview compact, theme-aware, and collapsed by default.
+- Fixed white tag cards and suggestion surfaces under dark/custom themes.
+
+EVE OS WORLD BOOK CHANGELOG
+
+v0.10.0
+- Added checksum-verified Full Recovery Backup ZIPs
+- Added exact byte-for-byte physical workspace recovery
+- Added automatic state rollback before restore
+- Added safe destination and conflict policies
+- Added JSON archive, virtual restore, and complete state restore modes
+- Added recovery of imported snapshot files
+- Modularized Python, app logic, HTML, taxonomy, and CSS into chained onion layers
+- Enforced a 450-line maintained-source cap
+- Added CODEBASE_RULES.md and ARCHITECTURE.md
+
+v0.8.0
+- Added drag-and-drop moving and sibling reordering for World Book entries
+- Added precise Move dialog and one-step Undo move
+- Blocked cyclic moves and preserved links through stable entry IDs
+- Added Manual, Shared, and automatic Path tag layers
+- Added selective parent-tag inheritance without duplicating tags into descendants
+- Added compact visible-tag selection to prevent editor clutter
+- Added per-entry tag manager with source badges, show/hide controls, and folder sharing controls
+- Added automatic ancestor-folder tags while excluding book-container noise
+- Updated World Book search, ALL/ANY filters, tag counts, and Copy Scope to use effective tags
+- Fixed the v0.7 snapshot export failure caused by snapshot state initialization order
+- Added save-before-export, readable export errors, and physical-folder metadata to snapshots
+- Added automatic v0.7-to-v0.8 state migration
+
+v0.7.0
+- Added custom-named links between entries and World Book files/folders
+- Added link navigation history with Back to source
+- Added link editing, removal, missing-target handling, and searchable target picker
+- Added link data to snapshots, full Copy Scope output, and World Book ZIP metadata
+- Added Normal, Dark, and Custom theme modes
+- Added live custom color preview and persistent theme settings
+- Added automatic migration for links and theme state
+
+v0.6.0
+- Added full-window focus mode
+- Added minimized floating focus dock
+- Added temporary off-canvas tree access while focused
+- Added optional metadata/details visibility while focused
+- Added Ctrl+Shift+F shortcut and Escape behavior
+- Expanded the active editor and file-content area in focus mode
+
+v0.5.0
+- Added Copy scope action to the sidebar
+- Added selected-branch and entire-tree scope choices
+- Added folders-only tree copying
+- Added folder-and-file tree copying
+- Added full contextual copying with readable contents, tags, custom status names, notes, and edit times
+- Added Unicode and ASCII tree styles
+- Added clipboard fallback and downloadable TXT output
+- Added copy-size and entry safety limits
+
+v0.4.0
+- Replaced comma-separated tag typing with reusable tag chips and suggestions
+- Added central tag creation, rename, and deletion
+- Added Tags workspace with tag counts and attached-entry overview
+- Added ALL/ANY multi-tag filtering
+- Added recent/name sorting and exact update timestamps
+- Added combined physical + virtual tag results
+- Added user-created and globally renameable statuses
+- Added separate file-modified and metadata-updated timestamps
+- Added physical tagged-entry index API
+
+v0.3.0
+- Added resizable sidebar with saved width
+- Added horizontal scrolling and full names for deeply nested trees
+- Added physical file/folder copy into virtual World Book destinations
+- Added virtual World Book export into physical ZIP files
+- Added ZIP metadata manifest preserving tags, status, notes, IDs, and source paths
+- Added transfer size and entry safety limits
+
+v0.2.0
+- Added localhost Python server
+- Added configurable physical workspace root
+- Added live folder/file tree
+- Added text and DOCX preview
+- Added direct editing for supported physical text files
+- Added physical folder/text-file creation
+- Added physical rename
+- Added open externally and reveal in Explorer
+- Added per-path tags, status, and connected notes
+- Added portable JSON snapshots with readable file content
+- Added read-only imported snapshot browser
+- Added v0.1 virtual-state migration
+- Preserved virtual World Book tab
+- Fixed editor and empty-state appearing together
+- Preserved modular patch-ready architecture
+
+v0.1.0
+- Initial file:// virtual-only prototype

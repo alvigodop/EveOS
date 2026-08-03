@@ -1,0 +1,87 @@
+MODULAR PATCH WORKFLOW
+
+This release is split into independent modules so future updates can contain only changed files.
+
+BACKEND
+server.py
+- Local server
+- Workspace access
+- File reading/writing
+- DOCX extraction
+- Import/export
+- Security boundary
+
+FRONTEND
+app\index.html
+app\assets\css\app.css
+app\assets\js\api.js
+app\assets\js\state.js
+app\assets\js\tree.js
+app\assets\js\editor.js
+app\assets\js\app\chains\
+app\assets\js\integration\
+
+LAUNCHERS
+launch.bat
+launch.ps1
+
+PATCH FORMAT
+Future patch ZIPs should preserve these relative paths and include PATCH-MANIFEST.json.
+Extract the patch over the existing World-Book folder and replace only matching files.
+
+BEFORE PATCHING
+1. Export a snapshot.
+2. Stop the localhost server.
+3. Apply the patch.
+4. Restart launch.bat.
+
+Do not delete the data folder when applying patches.
+
+
+V0.3 PATCH NOTE
+The v0.3 patch changes server.py and several frontend modules.
+Keep the data folder. Stop launch.bat before applying the patch.
+
+
+V0.4 PATCH NOTE
+Adds taxonomy.js and updates state schema to 3. Preserve the data folder; it migrates automatically.
+
+
+V0.5 PATCH NOTE
+This patch changes the local server and frontend interface. Preserve the data folder.
+Stop launch.bat before replacing files, then restart it after the patch.
+
+
+V0.6 PATCH NOTE
+The v0.6 patch adds focus-mode UI behavior. Keep the data folder, stop the
+server before replacing files, then restart launch.bat.
+
+
+V0.7 PATCH NOTE
+The v0.7 patch adds links.js and theme.js and updates the state schema.
+Keep the data folder. Existing entries migrate automatically.
+
+
+V0.8 PATCH NOTE
+The v0.8 patch updates the state schema to 5 and adds move/reorder controls,
+effective tag layers, selective tag visibility, inherited folder tags, automatic
+path tags, and the snapshot export repair. Preserve the data folder. Existing v0.7
+manual tags remain attached and visible during automatic migration.
+
+
+V0.9 PATCH NOTE
+This release replaces the monolithic server/app/taxonomy files with layered sources.
+Keep `data/`. On first launch, obsolete v0.8 JavaScript files are removed automatically.
+Export a Full Recovery Backup after confirming the update starts.
+
+
+V0.11 PATCH NOTE
+The direct-extract patch is flat: place it inside the active World-Book folder,
+choose Extract here, and replace matching files. Preserve data/. The schema migrates
+automatically and adds integration history plus the persistent Links collapse setting.
+
+V0.14 PATCH NOTE
+The direct-extract patch is flat. Stop the server, extract into the active
+World-Book folder, and replace matching files. Preserve data/. State schema 10
+adds recoverable-deletion history and provenance metadata. Existing entries migrate
+automatically; no lore is deleted or reorganized by the update itself.

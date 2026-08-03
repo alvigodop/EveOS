@@ -1,0 +1,122 @@
+  els.cancelThemeX.addEventListener("click", cancelThemeDialog);
+  els.saveTheme.addEventListener("click", saveThemeDialog);
+  els.themeDialog.addEventListener("close", () => {
+    if (!themeDialogCommitted) WB.Theme.apply(state.ui.theme);
+  });
+  els.workspacePath.addEventListener("keydown", event => {
+    if (event.key === "Enter") setWorkspace();
+  });
+  els.refresh.addEventListener("click", refreshCurrent);
+  els.newFolder.addEventListener("click", () => {
+    if (currentView === "files") createPhysical("folder");
+    if (currentView === "worldbook") createVirtual("folder");
+  });
+  els.newFile.addEventListener("click", () => {
+    if (currentView === "files") createPhysical("file");
+    if (currentView === "worldbook") createVirtual("file");
+  });
+  els.tabs.forEach(tab => tab.addEventListener("click", () => setView(tab.dataset.view)));
+  els.searchInput.addEventListener("input", () => {
+    clearTimeout(physicalSearchTimer);
+    physicalSearchTimer = setTimeout(performSearch, 220);
+  });
+  els.expandAll.addEventListener("click", expandCurrent);
+  els.collapseAll.addEventListener("click", collapseCurrent);
+
+  els.settingsButton.addEventListener("click", () => {
+    els.projectTitleInput.value = state.project.title;
+    els.settingsDialog.showModal();
+  });
+
+  els.saveProjectSettings.addEventListener("click", () => {
+    const title = els.projectTitleInput.value.trim();
+    if (title) {
+      state.project.title = title;
+      state.project.updatedAt = WB.nowISO();
+      document.title = `${title} - World Book`;
+      scheduleStateSave();
+    }
+  });
+
+
+  WB.AppBridge = {
+    saveStateNow,
+    setStatus,
+    getState: () => state,
+    getConfig: () => config,
+    async reloadAfterRestore() {
+      const [statePayload, configPayload, importsPayload] = await Promise.all([
+        WB.API.getState(), WB.API.getConfig(), WB.API.getImports()
+      ]);
+      state = statePayload.state;
+      config = configPayload.config;
+      ensureUIState();
+      normalizeTaxonomy();
+      initializeIntegrityDashboard();
+      WB.Theme.apply(state.ui.theme);
+      imports = importsPayload.imports.map(record => ({ ...record, open: false, tree: null }));
+      els.workspacePath.value = config.rootPath || "";
+      document.title = `${state.project.title} - World Book`;
+      selected = null;
+      await loadPhysicalRoot();
+      setView("worldbook");
+      renderTree();
+    }
+  };
+
+  document.addEventListener("keydown", event => {
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      toggleFocusMode();
+      return;
+    }
+
+    if (event.key === "Escape" && focusMode) {
+      if (focusSidebarOpen) {
+        closeFocusSidebar();
+      } else {
+        setFocusMode(false);
+      }
+    }
+  });
+
+  window.addEventListener("beforeunload", () => {
+    if (state) {
+      navigator.sendBeacon(
+        "/api/state",
+        new Blob([JSON.stringify({ state })], { type: "application/json" })
+      );
+    }
+  });
+
+  async function start() {
+    setStatus("Starting…");
+
+    try {
+      const [configPayload, statePayload, importsPayload] = await Promise.all([
+        WB.API.getConfig(),
+        WB.API.getState(),
+        WB.API.getImports()
+      ]);
+
+      config = configPayload.config;
+      state = statePayload.state;
+      ensureUIState();
+      normalizeTaxonomy();
+      initializeIntegrityDashboard();
+      WB.Theme.apply(state.ui.theme);
+      applySidebarWidth(state.ui.sidebarWidth);
+      initSidebarResize();
+      imports = importsPayload.imports.map(record => ({ ...record, open: false, tree: null }));
+      els.workspacePath.value = config.rootPath || "";
+      document.title = `${state.project.title} - World Book`;
+      await loadPhysicalRoot();
+      setView("files");
+      updateFocusDock();
+      setStatus("Ready");
+    } catch (error) {
+      console.error(error);
+      setStatus("Startup failed");
+      WB.Editor.hide("Startup failed", error.message);
+    }
+  }

@@ -1,0 +1,393 @@
+(function () {
+  const WB = window.WorldBook;
+
+  const els = {
+    workspacePath: document.getElementById("workspace-path"),
+    setWorkspace: document.getElementById("set-workspace-btn"),
+    refresh: document.getElementById("refresh-btn"),
+    saveStatus: document.getElementById("save-status"),
+    newFolder: document.getElementById("new-folder-btn"),
+    newFile: document.getElementById("new-file-btn"),
+    focusModeButton: document.getElementById("focus-mode-btn"),
+    themeButton: document.getElementById("theme-btn"),
+    exportButton: document.getElementById("export-btn"),
+    importButton: document.getElementById("import-btn"),
+    importInput: document.getElementById("import-input"),
+    tabs: [...document.querySelectorAll(".view-tab")],
+    searchInput: document.getElementById("search-input"),
+    expandAll: document.getElementById("expand-all-btn"),
+    collapseAll: document.getElementById("collapse-all-btn"),
+    copyScopeButton: document.getElementById("copy-scope-btn"),
+    undoMoveButton: document.getElementById("undo-move-btn"),
+    treeToolbar: document.getElementById("tree-toolbar"),
+    treePanel: document.getElementById("tree-panel"),
+    sidebarResizer: document.getElementById("sidebar-resizer"),
+    searchResults: document.getElementById("search-results"),
+    empty: document.getElementById("empty-state"),
+    editor: document.getElementById("editor-panel"),
+    breadcrumb: document.getElementById("breadcrumb"),
+    entryName: document.getElementById("entry-name"),
+    entryKind: document.getElementById("entry-kind"),
+    entryPath: document.getElementById("entry-path"),
+    entryStatus: document.getElementById("entry-status"),
+    entryTagChips: document.getElementById("entry-tag-chips"),
+    entryTagInput: document.getElementById("entry-tag-input"),
+    entryTagSuggestions: document.getElementById("entry-tag-suggestions"),
+    entryTagSummary: document.getElementById("entry-tag-summary"),
+    manageTagsInline: document.getElementById("manage-tags-inline-btn"),
+    manageStatusesInline: document.getElementById("manage-statuses-inline-btn"),
+    entryNotes: document.getElementById("entry-notes"),
+    linksSection: document.getElementById("entry-links-section"),
+    linkList: document.getElementById("entry-link-list"),
+    addLink: document.getElementById("add-link-btn"),
+    linkBack: document.getElementById("link-back-btn"),
+    linkCount: document.getElementById("entry-link-count"),
+    toggleLinks: document.getElementById("toggle-links-btn"),
+    linkDirectionFilter: document.getElementById("link-direction-filter"),
+    fileSection: document.getElementById("file-content-section"),
+    contentTitle: document.getElementById("content-title"),
+    contentHelp: document.getElementById("content-help"),
+    contentFormat: document.getElementById("content-format"),
+    fileContent: document.getElementById("file-content"),
+    modifiedAt: document.getElementById("modified-at"),
+    metaUpdatedAt: document.getElementById("meta-updated-at"),
+    entrySize: document.getElementById("entry-size"),
+    entrySource: document.getElementById("entry-source"),
+    openButton: document.getElementById("open-btn"),
+    revealButton: document.getElementById("reveal-btn"),
+    moveVirtual: document.getElementById("move-virtual-btn"),
+    copyToWorldBook: document.getElementById("copy-to-worldbook-btn"),
+    exportZipToLive: document.getElementById("export-zip-live-btn"),
+    saveFile: document.getElementById("save-file-btn"),
+    deleteVirtual: document.getElementById("delete-virtual-btn"),
+    settingsButton: document.getElementById("project-settings-btn"),
+    settingsDialog: document.getElementById("settings-dialog"),
+    projectTitleInput: document.getElementById("project-title-input"),
+    saveProjectSettings: document.getElementById("save-project-settings-btn"),
+    copyDialog: document.getElementById("copy-worldbook-dialog"),
+    copySourceLabel: document.getElementById("copy-source-label"),
+    copyVirtualDestination: document.getElementById("copy-virtual-destination"),
+    confirmCopyWorldBook: document.getElementById("confirm-copy-worldbook-btn"),
+    zipDialog: document.getElementById("export-zip-dialog"),
+    zipSourceLabel: document.getElementById("zip-source-label"),
+    zipDestinationPath: document.getElementById("zip-destination-path"),
+    zipFileName: document.getElementById("zip-file-name"),
+    confirmExportZip: document.getElementById("confirm-export-zip-btn"),
+    tagManagerPanel: document.getElementById("tag-manager-panel"),
+    integrityPanel: document.getElementById("integrity-panel"),
+    integrityRefresh: document.getElementById("integrity-refresh-btn"),
+    integritySeverity: document.getElementById("integrity-severity-filter"),
+    integrityType: document.getElementById("integrity-type-filter"),
+    integrityShowIgnored: document.getElementById("integrity-show-ignored"),
+    integrityFindingList: document.getElementById("integrity-finding-list"),
+    integrityResultCount: document.getElementById("integrity-result-count"),
+    integrityLastScan: document.getElementById("integrity-last-scan"),
+    integritySummary: {
+      total: document.getElementById("integrity-total-count"), error: document.getElementById("integrity-error-count"),
+      review: document.getElementById("integrity-review-count"), opportunity: document.getElementById("integrity-opportunity-count"),
+      ignored: document.getElementById("integrity-ignored-count")
+    },
+    manageTagsButton: document.getElementById("manage-tags-btn"),
+    manageStatusesButton: document.getElementById("manage-statuses-btn"),
+    tagFilterChips: document.getElementById("tag-filter-chips"),
+    tagFilterInput: document.getElementById("tag-filter-input"),
+    tagFilterSuggestions: document.getElementById("tag-filter-suggestions"),
+    tagMatchMode: document.getElementById("tag-match-mode"),
+    tagSortMode: document.getElementById("tag-sort-mode"),
+    clearTagFilter: document.getElementById("clear-tag-filter-btn"),
+    tagResultCount: document.getElementById("tag-result-count"),
+    tagOverview: document.getElementById("tag-overview-grid"),
+    tagResults: document.getElementById("tag-result-list"),
+    manageTagsDialog: document.getElementById("manage-tags-dialog"),
+    newTagName: document.getElementById("new-tag-name"),
+    addTag: document.getElementById("add-tag-btn"),
+    tagDefinitionList: document.getElementById("tag-definition-list"),
+    manageStatusesDialog: document.getElementById("manage-statuses-dialog"),
+    newStatusName: document.getElementById("new-status-name"),
+    addStatus: document.getElementById("add-status-btn"),
+    statusDefinitionList: document.getElementById("status-definition-list"),
+    copyScopeDialog: document.getElementById("copy-scope-dialog"),
+    copyScopeSourceLabel: document.getElementById("copy-scope-source-label"),
+    copyScopeSelected: document.getElementById("copy-scope-selected"),
+    copyScopeStyle: document.getElementById("copy-scope-style"),
+    generateCopyScope: document.getElementById("generate-copy-scope-btn"),
+    copyScopeResult: document.getElementById("copy-scope-result"),
+    copyScopeSummary: document.getElementById("copy-scope-summary"),
+    copyScopePreview: document.getElementById("copy-scope-preview"),
+    downloadScope: document.getElementById("download-scope-btn"),
+    focusDock: document.getElementById("focus-dock"),
+    focusDockTitle: document.getElementById("focus-dock-title"),
+    focusTreeButton: document.getElementById("focus-tree-btn"),
+    focusDetailsButton: document.getElementById("focus-details-btn"),
+    exitFocusButton: document.getElementById("exit-focus-btn"),
+    focusBackdrop: document.getElementById("focus-backdrop"),
+    linkDialog: document.getElementById("link-dialog"),
+    linkDialogTitle: document.getElementById("link-dialog-title"),
+    linkSourceLabel: document.getElementById("link-source-label"),
+    linkTargetSearch: document.getElementById("link-target-search"),
+    linkTargetResults: document.getElementById("link-target-results"),
+    linkSelectedTarget: document.getElementById("link-selected-target"),
+    linkSelectedTargetName: document.getElementById("link-selected-target-name"),
+    linkSelectedTargetPath: document.getElementById("link-selected-target-path"),
+    linkCustomLabel: document.getElementById("link-custom-label"),
+    linkRelationshipType: document.getElementById("link-relationship-type"),
+    linkMountShortcut: document.getElementById("link-mount-shortcut"),
+    saveLink: document.getElementById("save-link-btn"),
+    themeDialog: document.getElementById("theme-dialog"),
+    themeMode: document.getElementById("theme-mode"),
+    customThemeControls: document.getElementById("custom-theme-controls"),
+    themeBackground: document.getElementById("theme-background"),
+    themePanel: document.getElementById("theme-panel"),
+    themeSidebar: document.getElementById("theme-sidebar"),
+    themeText: document.getElementById("theme-text"),
+    themeMuted: document.getElementById("theme-muted"),
+    themeAccent: document.getElementById("theme-accent"),
+    themeAccentSoft: document.getElementById("theme-accent-soft"),
+    themeBorder: document.getElementById("theme-border"),
+    themeDanger: document.getElementById("theme-danger"),
+    resetCustomTheme: document.getElementById("reset-custom-theme-btn"),
+    cancelTheme: document.getElementById("cancel-theme-btn"),
+    cancelThemeX: document.getElementById("cancel-theme-x-btn"),
+    saveTheme: document.getElementById("save-theme-btn"),
+    entryTagsDialog: document.getElementById("entry-tags-dialog"),
+    entryTagsSourceLabel: document.getElementById("entry-tags-source-label"),
+    entryTagSearch: document.getElementById("entry-tag-search"),
+    pathTagsToggleRow: document.getElementById("path-tags-toggle-row"),
+    pathTagsEnabled: document.getElementById("path-tags-enabled"),
+    mentionTagsEnabled: document.getElementById("mention-tags-enabled"),
+    entryTagTableBody: document.getElementById("entry-tag-table-body"),
+    entryTagManagerCount: document.getElementById("entry-tag-manager-count"),
+    shareTagHeading: document.getElementById("share-tag-heading"),
+    sharedTagHelp: document.getElementById("shared-tag-help"),
+    showAllEffectiveTags: document.getElementById("show-all-effective-tags-btn"),
+    hideAllEffectiveTags: document.getElementById("hide-all-effective-tags-btn"),
+    openTagLibrary: document.getElementById("open-tag-library-btn"),
+    saveEntryTags: document.getElementById("save-entry-tags-btn"),
+    moveEntryDialog: document.getElementById("move-entry-dialog"),
+    moveEntrySourceLabel: document.getElementById("move-entry-source-label"),
+    moveEntryDestination: document.getElementById("move-entry-destination"),
+    moveEntryPlacement: document.getElementById("move-entry-placement"),
+    confirmMoveEntry: document.getElementById("confirm-move-entry-btn")
+  };
+
+  let state = null;
+  let config = null;
+  let currentView = "files";
+  let selected = null;
+  let saveTimer = null;
+  let physicalRoot = null;
+  let imports = [];
+  let physicalSearchTimer = null;
+  let tagPhysicalEntries = [];
+  let tagDashboard = null;
+  let integrityDashboard = null;
+  let lastCopiedScopeText = "";
+  let lastCopiedScopeFilename = "world-book-scope.txt";
+  let focusMode = false;
+  let focusSidebarOpen = false;
+  let focusDetailsOpen = false;
+  let linkHistory = [];
+  let linkDialogEditingId = "";
+  let linkDialogTargetId = "";
+  let linkDialogTargets = [];
+  let themeDraft = null;
+  let themeDialogCommitted = false;
+  let draggedVirtualId = "";
+  let dragExpandTimer = null;
+  let lastVirtualMove = null;
+  let entryTagDraft = null;
+
+
+  function focusTitle() {
+    if (selected?.node?.name) return selected.node.name;
+    if (selected?.record?.name) return selected.record.name;
+
+    return {
+      files: "Live files",
+      worldbook: "World Book",
+      tags: "Tags",
+      integrity: "Canon Integrity",
+      imports: "Imports"
+    }[currentView] || "World Book";
+  }
+
+  function updateFocusDock() {
+    if (!els.focusDockTitle) return;
+
+    els.focusDockTitle.textContent = focusTitle();
+    els.focusTreeButton.textContent = focusSidebarOpen ? "Hide tree" : "Tree";
+    els.focusDetailsButton.textContent = focusDetailsOpen ? "Hide details" : "Details";
+    els.focusDetailsButton.setAttribute("aria-pressed", String(focusDetailsOpen));
+    els.focusModeButton.setAttribute("aria-pressed", String(focusMode));
+    els.focusModeButton.textContent = focusMode ? "Exit focus" : "Focus";
+  }
+
+  function closeFocusSidebar() {
+    focusSidebarOpen = false;
+    document.body.classList.remove("focus-sidebar-open");
+    els.focusBackdrop.hidden = true;
+    updateFocusDock();
+  }
+
+  function toggleFocusSidebar() {
+    if (!focusMode) return;
+    focusSidebarOpen = !focusSidebarOpen;
+    document.body.classList.toggle("focus-sidebar-open", focusSidebarOpen);
+    els.focusBackdrop.hidden = !focusSidebarOpen;
+    updateFocusDock();
+  }
+
+  function setFocusDetails(open) {
+    focusDetailsOpen = Boolean(open);
+    document.body.classList.toggle("focus-details-open", focusDetailsOpen);
+    updateFocusDock();
+  }
+
+  function setFocusMode(enabled) {
+    focusMode = Boolean(enabled);
+    document.body.classList.toggle("focus-mode", focusMode);
+    els.focusDock.hidden = !focusMode;
+
+    if (focusMode) {
+      closeFocusSidebar();
+      setFocusDetails(false);
+      requestAnimationFrame(() => {
+        if (!els.fileContent.hidden && !els.fileSection.hidden) {
+          els.fileContent.focus({ preventScroll: true });
+        }
+      });
+    } else {
+      closeFocusSidebar();
+      setFocusDetails(false);
+    }
+
+    updateFocusDock();
+  }
+
+  function toggleFocusMode() {
+    setFocusMode(!focusMode);
+  }
+
+  function setStatus(message) {
+    els.saveStatus.textContent = message;
+  }
+
+  function ensureUIState() {
+    state.ui = state.ui || {};
+    state.ui.sidebarWidth = Number(state.ui.sidebarWidth || 380);
+    state.ui.lastPhysicalFolderPath = String(state.ui.lastPhysicalFolderPath || "");
+    state.ui.lastVirtualFolderId = String(state.ui.lastVirtualFolderId || "root");
+    state.ui.linksCollapsed = Boolean(state.ui.linksCollapsed);
+    state.ui.linkDirection = ["all", "outgoing", "incoming"].includes(state.ui.linkDirection)
+      ? state.ui.linkDirection
+      : "all";
+    WB.Theme.normalizeState(state);
+  }
+
+  function normalizeTaxonomy() {
+    const taxonomyChanged = WB.Taxonomy.normalizeState(state);
+    const linksChanged = WB.Links.normalizeState(state);
+    WB.Canon.normalizeState(state);
+    WB.Integrity.normalizeState(state);
+    WB.Theme.normalizeState(state);
+    if (taxonomyChanged || linksChanged) scheduleStateSave();
+  }
+
+  function applySidebarWidth(width) {
+    const maximum = Math.max(360, Math.floor(window.innerWidth * 0.72));
+    const normalized = Math.min(maximum, Math.max(280, Number(width) || 380));
+    document.documentElement.style.setProperty("--sidebar-width", `${normalized}px`);
+    if (state) {
+      ensureUIState();
+      state.ui.sidebarWidth = normalized;
+    }
+    return normalized;
+  }
+
+  function initSidebarResize() {
+    let dragging = false;
+
+    els.sidebarResizer.addEventListener("pointerdown", event => {
+      if (window.matchMedia("(max-width: 900px)").matches) return;
+      dragging = true;
+      document.body.classList.add("sidebar-resizing");
+      els.sidebarResizer.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    els.sidebarResizer.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      applySidebarWidth(event.clientX);
+    });
+
+    function finishResize(event) {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove("sidebar-resizing");
+      try { els.sidebarResizer.releasePointerCapture(event.pointerId); } catch (_error) {}
+      scheduleStateSave();
+    }
+
+    els.sidebarResizer.addEventListener("pointerup", finishResize);
+    els.sidebarResizer.addEventListener("pointercancel", finishResize);
+  }
+
+
+  function selectedLinks() {
+    if (!selected) return [];
+    if (selected.source === "physical") {
+      return metaForPhysical(selected.node.relativePath || "").links;
+    }
+    if (selected.source === "virtual") {
+      selected.node.links = WB.Links.normalizeList(selected.node.links);
+      return selected.node.links;
+    }
+    return [];
+  }
+
+  function selectedDescriptor() {
+    if (!selected) return null;
+    if (selected.source === "physical") {
+      return {
+        source: "physical",
+        path: selected.node.relativePath || "",
+        name: selected.node.name || "Live entry"
+      };
+    }
+    if (selected.source === "virtual") {
+      return {
+        source: "virtual",
+        id: selected.node.id,
+        name: selected.node.name || "World Book entry"
+      };
+    }
+    return null;
+  }
+
+  function getLinkBackLabel() {
+    const previous = linkHistory.at(-1);
+    return previous ? `Back to ${previous.name}` : "";
+  }
+
+  function refreshSelectedLinks() {
+    if (!selected || !["physical", "virtual"].includes(selected.source)) return;
+    const links = selected.source === "virtual" ? WB.Links.forEntry(state, selected.node.id) : selectedLinks();
+    WB.Editor.refreshLinks(state, links, false);
+  }
+
+  function touchSelectedLinks() {
+    const timestamp = WB.nowISO();
+
+    if (selected?.source === "physical") {
+      const meta = metaForPhysical(selected.node.relativePath || "");
+      meta.updatedAt = timestamp;
+      els.metaUpdatedAt.textContent = new Date(timestamp).toLocaleString();
+    } else if (selected?.source === "virtual") {
+      selected.node.updatedAt = timestamp;
+      els.modifiedAt.textContent = new Date(timestamp).toLocaleString();
+      els.metaUpdatedAt.textContent = new Date(timestamp).toLocaleString();
+    }
+
+    refreshSelectedLinks();
+    scheduleStateSave();
+  }
