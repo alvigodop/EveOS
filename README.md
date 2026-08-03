@@ -93,9 +93,20 @@ The root launcher also exposes the Gemini backend and supporting bridge controls
 ### Browser-only path
 
 Open `EveOS.html` directly. This `file://` mode keeps the core workspace available
-without starting the local server. Features that need filesystem access, playlist
+without starting the local server. On Windows, run
+`tools\batch\install-eveos-control-protocol.bat` once to register the per-user
+`eveos-control://` launcher; it does not require administrator rights. Search Monitor
+can then start or stop EveOS localhost from the file-mode page after the browser's
+external-app confirmation. The World Book Start/Stop controls use that same launcher:
+they can cold-start local control and manage World Book without also starting EveOS
+localhost or Gemini.
+
+The Search Monitor Assistant status describes the EveOS localhost runtime only:
+**Online** means `http://127.0.0.1:8765/EveOS.html` is reachable. Gemini Live and World
+Book remain optional services with their own start/stop controls, so enabling localhost
+does not silently enable either one. Features that need filesystem access, playlist
 extraction, native audio routing, modular disk storage, or backend bridges still require
-the localhost runtime.
+localhost or their corresponding local service.
 
 ### Fresh development checkout
 

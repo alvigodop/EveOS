@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compatibility entrypoint for the renamed EveOS local control plane."""
+"""Entrypoint for the EveOS local control plane."""
 
 from __future__ import annotations
 

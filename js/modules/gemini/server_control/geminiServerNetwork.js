@@ -8,7 +8,10 @@
             bases.push(window.location.origin);
         }
 
-        const helperPort = Number(window.config?.bridges?.geminiControlPort) || 9082;
+        const helperPort = Number(
+            window.config?.bridges?.localControlPort
+            || window.config?.bridges?.geminiControlPort
+        ) || 9082;
         const configuredPort = Number(window.config?.bridges?.serverPort) || 8765;
         [8765, helperPort, configuredPort, 3000].forEach(function (port) {
             bases.push(`http://127.0.0.1:${port}`);

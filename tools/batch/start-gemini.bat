@@ -34,6 +34,5 @@ call "%~dp0server-menu.bat" %*
 exit /b %ERRORLEVEL%
 
 :EnsureControlHelper
-for /f "tokens=5" %%P in ('netstat -aon ^| findstr /R /C:":%GEMINI_CONTROL_PORT% .*LISTENING"') do exit /b 0
-start "EveOS Gemini File Control %GEMINI_CONTROL_PORT%" /min cmd /c "cd /d ""%~dp0..\.."" && ""%EVEOS_PYTHON%"" server/gemini-control-helper.py %GEMINI_CONTROL_PORT%"
+call "%~dp0start-eveos-control.bat" %GEMINI_CONTROL_PORT%
 exit /b 0

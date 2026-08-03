@@ -1,0 +1,245 @@
+#!/usr/bin/env python3
+"""Lifecycle and HTTP contracts for the file-mode EveOS control plane."""
+
+from __future__ import annotations
+
+import http.client
+import http.server
+import json
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import textwrap
+import threading
+import time
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from server_modules import eveos_control_helper, eveos_web_control  # noqa: E402
+
+
+def free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def assert_true(condition, message):
+    if not condition:
+        raise AssertionError(message)
+
+
+def request_json(port: int, method: str, path: str) -> tuple[int, dict]:
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
+    try:
+        connection.request(
+            method,
+            path,
+            body=b"{}" if method == "POST" else None,
+            headers={"Origin": "null", "Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        return response.status, json.loads(response.read().decode("utf-8"))
+    finally:
+        connection.close()
+
+
+def lifecycle_smoke(tmp: Path):
+    port = free_port()
+    fake_server = tmp / "fake-eveos-server.py"
+    fake_server.write_text(
+        textwrap.dedent(
+            """
+            import argparse
+            import http.server
+            import json
+
+            parser = argparse.ArgumentParser()
+            parser.add_argument("port", type=int)
+            parser.add_argument("--no-browser", action="store_true")
+            args = parser.parse_args()
+
+            class Handler(http.server.BaseHTTPRequestHandler):
+                def do_GET(self):
+                    if self.path != "/api/status":
+                        self.send_error(404)
+                        return
+                    body = json.dumps({
+                        "ok": True,
+                        "service": "eveos-local-server",
+                        "port": args.port
+                    }).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                def log_message(self, *_args):
+                    pass
+
+            http.server.ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
+            """
+        ).strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    original_port = eveos_web_control.EVEOS_WEB_PORT
+    original_entry = eveos_web_control._entry_point
+    original_preference = eveos_web_control._preference_path
+    try:
+        eveos_web_control.EVEOS_WEB_PORT = port
+        eveos_web_control._entry_point = lambda: fake_server
+        eveos_web_control._preference_path = lambda: tmp / "eveos-web-service.json"
+
+        started = eveos_web_control.start_server()
+        assert_true(started["ok"] and started["running"], f"web start failed: {started}")
+        assert_true(started["desiredRunning"], "web desired state was not persisted")
+        assert_true(started["url"].endswith(f":{port}/EveOS.html"), "web URL used the wrong port")
+
+        stopped = eveos_web_control.stop_server()
+        assert_true(stopped["ok"] and not stopped["running"], f"web stop failed: {stopped}")
+        assert_true(not stopped["desiredRunning"], "web stopped state was not persisted")
+    finally:
+        try:
+            eveos_web_control.stop_server(persist=False)
+        except Exception:
+            pass
+        eveos_web_control.EVEOS_WEB_PORT = original_port
+        eveos_web_control._entry_point = original_entry
+        eveos_web_control._preference_path = original_preference
+
+
+def helper_http_smoke():
+    port = free_port()
+    original_get = eveos_control_helper.eveos_web_control.get_status
+    original_start = eveos_control_helper.eveos_web_control.start_server
+    original_stop = eveos_control_helper.eveos_web_control.stop_server
+    original_world_get = eveos_control_helper.world_book_control.get_status
+    original_world_start = eveos_control_helper.world_book_control.start_server
+    original_world_stop = eveos_control_helper.world_book_control.stop_server
+    web_state = {
+        "ok": True,
+        "controllerAvailable": True,
+        "running": False,
+        "desiredRunning": False,
+        "state": "stopped",
+        "port": 8765,
+        "url": "http://127.0.0.1:8765/EveOS.html",
+        "message": "EveOS localhost is stopped.",
+    }
+
+    def get_status():
+        return dict(web_state)
+
+    def set_running(enabled):
+        web_state.update(
+            running=enabled,
+            desiredRunning=enabled,
+            state="running" if enabled else "stopped",
+            message="EveOS localhost is online." if enabled else "EveOS localhost is stopped.",
+        )
+        return dict(web_state)
+
+    world_state = {
+        "ok": True,
+        "controllerAvailable": True,
+        "installed": True,
+        "running": False,
+        "desiredRunning": False,
+        "state": "stopped",
+        "port": 8766,
+        "url": "http://127.0.0.1:8766/",
+        "message": "World Book is stopped.",
+    }
+
+    def set_world_running(enabled):
+        world_state.update(
+            running=enabled,
+            desiredRunning=enabled,
+            state="running" if enabled else "stopped",
+            message="World Book is online." if enabled else "World Book is stopped.",
+        )
+        return dict(world_state)
+
+    eveos_control_helper.eveos_web_control.get_status = get_status
+    eveos_control_helper.eveos_web_control.start_server = lambda: set_running(True)
+    eveos_control_helper.eveos_web_control.stop_server = lambda: set_running(False)
+    eveos_control_helper.world_book_control.get_status = lambda: dict(world_state)
+    eveos_control_helper.world_book_control.start_server = lambda: set_world_running(True)
+    eveos_control_helper.world_book_control.stop_server = lambda: set_world_running(False)
+    server = http.server.ThreadingHTTPServer(
+        ("127.0.0.1", port),
+        eveos_control_helper.EveOSControlHandler,
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status_code, payload = request_json(port, "GET", "/api/control-plane/health")
+        assert_true(status_code == 200, "control-plane health was not reachable")
+        assert_true(payload.get("service") == "eveos-control-plane", "health identity is missing")
+        assert_true(payload.get("controllerAvailable") is True, "health controller flag is missing")
+        assert_true("web" not in payload, "fast health route performed detailed status discovery")
+
+        probe = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "server" / "eveos-control-helper.py"),
+                str(port),
+                "--probe",
+                "--timeout",
+                "2",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=4,
+            check=False,
+        )
+        assert_true(
+            probe.returncode == 0,
+            f"control-plane CLI probe failed: {probe.stderr or probe.stdout}",
+        )
+
+        status_code, payload = request_json(port, "GET", "/api/control-plane/status")
+        assert_true(status_code == 200, "control-plane status was not reachable")
+        assert_true(payload.get("service") == "eveos-control-plane", "control-plane identity is missing")
+        assert_true(payload.get("web", {}).get("running") is False, "initial web status was wrong")
+
+        status_code, payload = request_json(port, "POST", "/api/eveos-server/start")
+        assert_true(status_code == 200 and payload.get("running") is True, "web start route failed")
+        status_code, payload = request_json(port, "POST", "/api/eveos-server/stop")
+        assert_true(status_code == 200 and payload.get("running") is False, "web stop route failed")
+
+        status_code, payload = request_json(port, "POST", "/api/world-book/start")
+        assert_true(status_code == 200 and payload.get("running") is True, "World Book start route failed")
+        assert_true(web_state["running"] is False, "World Book start also started EveOS localhost")
+        status_code, payload = request_json(port, "POST", "/api/world-book/stop")
+        assert_true(status_code == 200 and payload.get("running") is False, "World Book stop route failed")
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+        eveos_control_helper.eveos_web_control.get_status = original_get
+        eveos_control_helper.eveos_web_control.start_server = original_start
+        eveos_control_helper.eveos_web_control.stop_server = original_stop
+        eveos_control_helper.world_book_control.get_status = original_world_get
+        eveos_control_helper.world_book_control.start_server = original_world_start
+        eveos_control_helper.world_book_control.stop_server = original_world_stop
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="eveos-control-smoke-") as temp_dir:
+        lifecycle_smoke(Path(temp_dir))
+    helper_http_smoke()
+    print("EVEOS_CONTROL_PLANE_SMOKE_OK")
+
+
+if __name__ == "__main__":
+    main()

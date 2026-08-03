@@ -36,6 +36,7 @@ try:
     from server_modules import gemini_credentials
     from server_modules import audioflix_bridge
     from server_modules import world_book_control
+    from server_modules import eveos_server_status
     from server_modules.eveos_http_cors import eveos_cors_origin
 except ImportError as exc:
     raise SystemExit(f"[FATAL] EveOS server dependency import failed: {exc}") from exc
@@ -167,11 +168,7 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         query = parse_qs(parsed_path.query)
         
         if path == '/api/status':
-            # Return server status
-            self.send_response(HTTPStatus.OK)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            self.wfile.write(b'{"status": "ok", "version": "1.0.0"}')
+            gemini_control.send_json(self, eveos_server_status.build_status(self.server))
         
         elif path == '/api/wikipedia/search':
             # Handle Wikipedia search request

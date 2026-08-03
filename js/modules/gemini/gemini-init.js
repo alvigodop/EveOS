@@ -214,14 +214,17 @@
                     <div class="gemini-monitor-shell-title">Search Monitor Assistant</div>
                 </div>
                 <div class="gemini-monitor-toolbar-actions">
-                    <div class="gemini-server-control" data-gemini-server-control data-state="checking">
-                        <span class="gemini-server-state" data-gemini-server-status>Checking</span>
-                        <button type="button" class="gemini-server-toggle" data-gemini-server-toggle disabled>
+                    <div class="gemini-server-control" data-eveos-control-plane data-state="checking">
+                        <span class="gemini-server-state" data-eveos-control-status>Checking</span>
+                        <button type="button" class="gemini-server-toggle" data-eveos-control-toggle disabled>
                             <i class="material-icons" aria-hidden="true">sync</i>
-                            <span data-gemini-server-action-label>Start</span>
+                            <span data-eveos-control-action-label>Start</span>
                         </button>
                     </div>
-                    <button type="button" class="gemini-server-inspector-toggle" data-gemini-server-inspector-toggle title="Open Gemini server monitor" aria-label="Open Gemini server monitor">
+                    <button type="button" class="gemini-server-inspector-toggle eveos-control-open" data-eveos-control-open title="Open EveOS localhost" aria-label="Open EveOS localhost" hidden>
+                        <i class="material-icons" aria-hidden="true">open_in_new</i>
+                    </button>
+                    <button type="button" class="gemini-server-inspector-toggle" data-gemini-server-inspector-toggle title="Open EveOS runtime monitor" aria-label="Open EveOS runtime monitor">
                         <i class="material-icons" aria-hidden="true">dns</i>
                     </button>
                     <div class="gemini-monitor-view-switch" role="group" aria-label="Gemini monitor view">

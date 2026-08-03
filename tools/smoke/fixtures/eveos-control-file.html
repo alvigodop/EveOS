@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>EveOS Control Plane Browser Fixture</title>
+</head>
+<body>
+    <div>
+        <div data-eveos-control-plane>
+            <span data-eveos-control-status></span>
+            <button type="button" data-eveos-control-toggle>
+                <span class="material-icons"></span>
+                <span data-eveos-control-action-label></span>
+            </button>
+        </div>
+        <button type="button" data-eveos-control-open></button>
+    </div>
+    <script src="../../../js/modules/core/eveos-local-control.js"></script>
+    <script src="../../../js/modules/gemini/server_control/eveosControlPlane.js"></script>
+</body>
+</html>

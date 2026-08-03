@@ -26,6 +26,12 @@ window.EveWorldBook = window.EveWorldBook || {};
 
     function candidateBases() {
         const bases = [];
+        const helperBase = window.EveOSLocalControl?.baseUrl?.();
+        const helperPort = Number(
+            window.config?.bridges?.localControlPort
+            || window.config?.bridges?.geminiControlPort
+        ) || 9082;
+        bases.push(helperBase || `http://127.0.0.1:${helperPort}`);
         if (/^https?:$/.test(window.location.protocol)
             && /^(127\.0\.0\.1|localhost)$/i.test(window.location.hostname)) {
             bases.push(window.location.origin);
@@ -102,7 +108,7 @@ window.EveWorldBook = window.EveWorldBook || {};
             : candidateBases();
         for (const baseUrl of bases) {
             try {
-                const timeout = baseUrl === window.location.origin ? 2800 : 1000;
+                const timeout = baseUrl === window.location.origin ? 5000 : 3500;
                 const payload = await fetchJson(`${baseUrl}${STATUS_PATH}`, null, timeout);
                 return { baseUrl, payload };
             } catch (error) {
@@ -149,9 +155,36 @@ window.EveWorldBook = window.EveWorldBook || {};
         state.serverState = 'unavailable';
         state.source = 'none';
         state.url = worldBookUrl();
-        state.message = 'Run tools\\World-Book\\launch.bat, or start EveOS localhost for managed controls.';
+        state.message = 'World Book is stopped. Start it here when you need it.';
         publish();
         return { ...state };
+    }
+
+    async function ensureController() {
+        const found = await findController();
+        if (found?.baseUrl) return found;
+
+        const localControl = window.EveOSLocalControl;
+        if (!localControl?.ensure) {
+            throw new Error(
+                'EveOS local control is unavailable. Reload EveOS, then try again.'
+            );
+        }
+
+        state.serverState = 'enabling';
+        state.message = 'Starting EveOS local control for World Book...';
+        publish();
+        const control = await localControl.ensure({
+            onLaunching: function () {
+                state.message = 'Approve the browser prompt to start World Book local control.';
+                publish();
+            }
+        });
+        const baseUrl = control.baseUrl || localControl.baseUrl();
+        const payload = await fetchJson(`${baseUrl}${STATUS_PATH}`, null, 3500);
+        state.baseUrl = baseUrl;
+        state.controllerAvailable = true;
+        return { baseUrl, payload };
     }
 
     async function waitFor(expectedRunning) {
@@ -172,8 +205,7 @@ window.EveWorldBook = window.EveWorldBook || {};
         state.message = enabled ? 'Starting World Book...' : 'Stopping World Book...';
         publish();
         try {
-            const found = state.baseUrl ? { baseUrl: state.baseUrl } : await findController();
-            if (!found?.baseUrl) throw new Error('EveOS localhost controller is unavailable.');
+            const found = await ensureController();
             const payload = await fetchJson(
                 `${found.baseUrl}/api/world-book/${enabled ? 'start' : 'stop'}`,
                 { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
@@ -197,6 +229,7 @@ window.EveWorldBook = window.EveWorldBook || {};
 
     ns.client = Object.freeze({
         state,
+        ensureController,
         refresh,
         start: () => setRunning(true),
         stop: () => setRunning(false)

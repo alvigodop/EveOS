@@ -17,9 +17,8 @@ const helperNames = [
 const pythonLauncherNames = [
     'server-menu.bat',
     'start-camofox-bridge.bat',
+    'start-eveos-control.bat',
     'start-eveos-port.bat',
-    'start-gemini-control.bat',
-    'start-gemini.bat',
     'start-lightpanda-bridge.bat',
     'start-popup-bridge.bat',
     'start-server.instance.bat',
@@ -119,6 +118,7 @@ for (const name of pythonLauncherNames) {
 }
 
 for (const relativePath of [
+    'server/eveos-control-helper.py',
     'server/python-server.py',
     'server/bridges/popup-bridge.py',
     'server/bridges/lightpanda-bridge.py',
@@ -126,6 +126,32 @@ for (const relativePath of [
 ]) {
     assert(fs.existsSync(path.join(ROOT, relativePath)), 'Launcher target missing: ' + relativePath);
 }
+
+for (const relativePath of [
+    'tools/batch/eveos-control-protocol.bat',
+    'tools/batch/install-eveos-control-protocol.bat',
+    'tools/batch/install-eveos-control-protocol.ps1',
+    'tools/batch/start-eveos-control.bat'
+]) {
+    assert(fs.existsSync(path.join(ROOT, relativePath)), 'Local-control bootstrap target missing: ' + relativePath);
+}
+
+const compatibilityControlSource = read(path.join(ROOT, 'tools', 'batch', 'start-gemini-control.bat'));
+assert(compatibilityControlSource.includes('start-eveos-control.bat'),
+    'Legacy Gemini helper launcher does not delegate to EveOS local control');
+const geminiLauncherSource = read(path.join(ROOT, 'tools', 'batch', 'start-gemini.bat'));
+assert(geminiLauncherSource.includes('start-eveos-control.bat'),
+    'Gemini launcher does not ensure the general EveOS control plane');
+assert(geminiLauncherSource.includes('server-menu.bat'),
+    'Gemini launcher does not delegate backend lifecycle to the canonical menu');
+const protocolSource = read(path.join(ROOT, 'tools', 'batch', 'eveos-control-protocol.bat'));
+assert(!/%1|%2|%\*/i.test(protocolSource),
+    'Protocol entrypoint must not forward URI-controlled arguments');
+const controlLauncherSource = read(path.join(ROOT, 'tools', 'batch', 'start-eveos-control.bat'));
+assert(controlLauncherSource.includes('/api/control-plane/health'),
+    'Local-control launcher does not use the fast identity probe');
+assert(controlLauncherSource.includes('--probe --timeout 30'),
+    'Local-control launcher does not wait for verified readiness');
 
 console.log('LAUNCHER_CONTRACT_SMOKE_OK', JSON.stringify({
     rootLines: rootSource.split(/\r?\n/).length,

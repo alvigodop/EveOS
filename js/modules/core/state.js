@@ -105,6 +105,7 @@ let config = {
         camofoxPort: 3038,
         wikimediaPort: 3039,
         popupPort: 3040,
+        localControlPort: 9082,
         geminiControlPort: 9082,
         corsProxyUrl: "",
         codetabsProxyUrl: "",

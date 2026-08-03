@@ -14,6 +14,7 @@ set "START_SERVER_STACK_BAT=%BAT_DIR%\start-server.stack.bat"
 
 set "GEMINI_MENU_BAT=%BAT_DIR%\server-menu.bat"
 set "GEMINI_AUTOSTART_BAT=%BAT_DIR%\start-gemini.bat"
+set "EVEOS_CONTROL_BAT=%BAT_DIR%\start-eveos-control.bat"
 set "LIGHTPANDA_CONTROLLER_BAT=%BAT_DIR%\start-lightpanda-bridge.bat"
 set "CAMOFOX_CONTROLLER_BAT=%BAT_DIR%\start-camofox-bridge.bat"
 set "WIKIMEDIA_CONTROLLER_BAT=%BAT_DIR%\start-wikimedia-bridge.bat"
@@ -107,12 +108,14 @@ echo     - Advanced: serves EveOS at a chosen port using the current active data
 echo [3] Open Gemini Backend Console ^(tools\batch\server-menu.bat^)
 echo     - Start/stop the canonical Gemini Live backend ^(9083 WebSocket + 9084 status^).
 echo [4] Run Gemini auto-start helper ^(tools\batch\start-gemini.bat^)
-echo     - Starts the file:// control helper, then starts the Gemini backend.
+echo     - Starts the EveOS local control plane, then starts the Gemini backend.
 echo [5] Browse and launch any .bat in this EveOS project
 echo     - Shows every local project batch script with purpose notes.
 echo [6] Browser fallback controls
 echo     - Lightpanda, Camofox, and the merged Popup+Wikimedia controller plus monitors.
 echo [7] Exit
+echo [C] Start EveOS local control plane
+echo     - Enables file:// EveOS to start localhost and manage optional services.
 echo.
 set /p "choice=Enter your choice: "
 
@@ -145,6 +148,10 @@ if "%choice%"=="6" (
     goto :BrowserFallbackMenu
 )
 if "%choice%"=="7" exit /b 0
+if /I "%choice%"=="C" (
+    call :LaunchBatch "%EVEOS_CONTROL_BAT%"
+    goto :MainMenu
+)
 
 echo.
 echo [ERROR] Invalid option.

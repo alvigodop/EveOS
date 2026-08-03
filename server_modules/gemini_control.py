@@ -17,6 +17,7 @@ from . import gemini_credentials
 
 WEBSOCKET_PORT = 9083
 STATUS_PORT = 9084
+SERVICE_NAME = "eveos-gemini-live"
 _PROCESS = None
 
 
@@ -36,18 +37,25 @@ def _port_open(port: int) -> bool:
         return False
 
 
-def _status_http_ready() -> bool:
+def _status_http_snapshot() -> dict | None:
     connection = None
     try:
         connection = http.client.HTTPConnection("127.0.0.1", STATUS_PORT, timeout=0.6)
         connection.request("GET", "/status", headers={"Connection": "close"})
         response = connection.getresponse()
-        response.read(256)
-        return response.status == 200
-    except OSError:
-        return False
+        body = response.read(65536)
+        if response.status != 200:
+            return None
+        payload = json.loads(body.decode("utf-8"))
+        if payload.get("service") != SERVICE_NAME:
+            return None
+        if int(payload.get("websocketPort", 0)) != WEBSOCKET_PORT:
+            return None
+        return payload
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
     except Exception:
-        return False
+        return None
     finally:
         if connection is not None:
             try:
@@ -128,12 +136,40 @@ def _terminate_pid(pid: int) -> bool:
 def _status_payload(message: str = "", fresh: bool = False) -> dict:
     websocket_pids = _listener_pids(WEBSOCKET_PORT, fresh)
     status_pids = _listener_pids(STATUS_PORT)
-    websocket_ready = bool(websocket_pids) and _port_open(WEBSOCKET_PORT)
+    websocket_port_open = bool(websocket_pids) and _port_open(WEBSOCKET_PORT)
     status_port_open = bool(status_pids) and _port_open(STATUS_PORT)
-    status_ready = status_port_open and _status_http_ready()
+    status_snapshot = _status_http_snapshot() if status_port_open else None
+    status_ready = status_snapshot is not None
     process_alive = bool(_PROCESS and _PROCESS.poll() is None)
+    known_pid = int(getattr(_PROCESS, "pid", 0) or 0) if process_alive else 0
+
+    # A listener is manageable only when the branded status endpoint proves
+    # ownership, or when this controller created the process itself. Never
+    # infer ownership from a commonly used port number.
+    owned_pids = set(status_pids if status_ready else [])
+    if known_pid and known_pid in set(websocket_pids + status_pids):
+        owned_pids.add(known_pid)
+    websocket_ready = (
+        status_ready
+        and websocket_port_open
+        and bool(set(websocket_pids) & owned_pids)
+    )
     running = websocket_ready and status_ready
-    state = "running" if running else ("starting" if process_alive else "stopped")
+    foreign_pids = set(websocket_pids + status_pids) - owned_pids
+    port_conflict = bool(foreign_pids)
+    if running:
+        state = "running"
+    elif port_conflict:
+        state = "conflict"
+    elif process_alive or owned_pids:
+        state = "starting"
+    else:
+        state = "stopped"
+    default_message = (
+        "Gemini ports are occupied by another local service."
+        if port_conflict
+        else f"Gemini server is {state}."
+    )
     return {
         "ok": True,
         "controllerAvailable": True,
@@ -142,10 +178,12 @@ def _status_payload(message: str = "", fresh: bool = False) -> dict:
         "websocketReady": websocket_ready,
         "statusReady": status_ready,
         "statusPortOpen": status_port_open,
+        "websocketPortOpen": websocket_port_open,
+        "portConflict": port_conflict,
         "websocketPort": WEBSOCKET_PORT,
         "statusPort": STATUS_PORT,
-        "pids": sorted(set(websocket_pids + status_pids)),
-        "message": message or f"Gemini server is {state}.",
+        "pids": sorted(owned_pids),
+        "message": message or default_message,
     }
 
 
@@ -160,12 +198,22 @@ def start_server() -> dict:
     if current["running"]:
         current["message"] = "Gemini server is already running."
         return current
+    if current.get("portConflict"):
+        current.update(
+            ok=False,
+            state="conflict",
+            message=(
+                "Gemini could not start because ports "
+                f"{WEBSOCKET_PORT}/{STATUS_PORT} belong to another local service."
+            ),
+        )
+        return current
 
     # Partial listeners are a bad state: the UI sees a port but cannot complete
     # health checks. Restart the Gemini backend instead of leaving it "starting"
     # forever.
-    if (current["websocketReady"] or current.get("statusPortOpen")) and not current["running"]:
-        for pid in sorted(set(_listener_pids(WEBSOCKET_PORT, fresh=True) + _listener_pids(STATUS_PORT))):
+    if current.get("pids") and not current["running"]:
+        for pid in current["pids"]:
             _terminate_pid(pid)
         _PROCESS = None
         time.sleep(0.35)
@@ -224,9 +272,9 @@ def stop_server() -> dict:
     global _PROCESS
 
     stopped = False
-    for port in (WEBSOCKET_PORT, STATUS_PORT):
-        for pid in _listener_pids(port, fresh=True):
-            stopped = _terminate_pid(pid) or stopped
+    current = _status_payload(fresh=True)
+    for pid in current.get("pids", []):
+        stopped = _terminate_pid(pid) or stopped
 
     if _PROCESS and _PROCESS.poll() is None:
         try:
@@ -242,10 +290,21 @@ def stop_server() -> dict:
     _PROCESS = None
 
     deadline = time.monotonic() + 2
-    while time.monotonic() < deadline and (_port_open(WEBSOCKET_PORT) or _port_open(STATUS_PORT)):
+    while time.monotonic() < deadline and _status_payload(fresh=True).get("pids"):
         time.sleep(0.1)
 
-    return _status_payload("Gemini server stopped." if stopped else "Gemini server was already stopped.", fresh=True)
+    payload = _status_payload(fresh=True)
+    if payload.get("portConflict"):
+        payload.update(
+            ok=False,
+            message=(
+                "No foreign process was stopped. Gemini ports remain occupied "
+                "by another local service."
+            ),
+        )
+    else:
+        payload["message"] = "Gemini server stopped." if stopped else "Gemini server was already stopped."
+    return payload
 
 
 def request_can_control(handler) -> bool:

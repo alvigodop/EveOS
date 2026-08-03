@@ -211,7 +211,10 @@ Notes:
 - Use `--persist-modular-root` only if you want to make a chosen path the default for future server starts.
 - `start-server.bat` includes both `Start EveOS instance` for port + data-pack and `Start EveOS port only` for a plain local preview such as `http://127.0.0.1:8765/EveOS.html`.
 - `tools/batch/start-eveos-port.bat` is the direct helper for starting a plain EveOS HTTP port without a data-pack prompt.
-- `tools/batch/start-gemini-control.bat` starts the file-mode Gemini lifecycle helper on `9082`; `tools/batch/start-gemini.bat` starts that helper before launching the Gemini backend.
+- `tools/batch/start-eveos-control.bat` starts the general file-mode lifecycle control plane on `9082`. It manages EveOS localhost, Gemini, and World Book as independent services.
+- `tools/batch/start-gemini-control.bat` remains a compatibility alias; `tools/batch/start-gemini.bat` ensures the general control plane before launching the Gemini backend.
+- `tools/batch/install-eveos-control-protocol.bat` registers the per-user `eveos-control://` cold-start handler used when a `file://` EveOS page needs to start control without an existing localhost process.
+- Search Monitor and World Book share that bootstrap. Each service still has an independent desired state: starting World Book through `file://` starts the control plane and World Book only, while a detected standalone World Book can be adopted and stopped through the same control plane.
 - All sub-bats now live in `tools/batch/`; `start-server.bat` is the only launcher in the project root (run it, pick `[S]`, or `start-server.bat boot` for the full stack).
 
 ## Data and Sync Behavior

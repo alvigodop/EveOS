@@ -157,7 +157,7 @@
             <div class="gemini-server-inspector-head">
                 <div>
                     <div class="gemini-server-inspector-kicker">Runtime Ports</div>
-                    <h4>Gemini Server Monitor</h4>
+                    <h4>EveOS Runtime Monitor</h4>
                 </div>
                 <div class="gemini-server-inspector-actions">
                     <button type="button" data-gemini-server-inspector-copy title="Copy server monitor report">
@@ -225,7 +225,9 @@
     }
 
     async function buildCards() {
-        const control = window.GeminiServerControl?.getState?.() || {};
+        const controlPlane = window.EveOSControlPlane?.getState?.() || {};
+        const gemini = window.GeminiServerControl?.getState?.() || {};
+        const worldBook = window.EveWorldBook?.client?.state || {};
         const ws = window.webSocket || null;
         const socketState = ws ? wsLabel(ws.readyState) : 'Not created';
         const status = await fetchStatusServer();
@@ -236,14 +238,18 @@
 
         return [
             card('EveOS Page', /^https?:$/i.test(window.location.protocol) ? 'Served' : 'Local file', `Current: ${currentOrigin}\nCandidates:\n${bases.join('\n') || 'None'}`, /^https?:$/i.test(window.location.protocol)),
-            card('Lifecycle Controller', control.serverState || 'Unknown', `Base: ${control.baseUrl || 'not found'}\nRunning: ${control.running ? 'yes' : 'no'}\nPhase: ${control.connectionPhase || 'n/a'}\n${control.message || ''}`, !!control.controllerAvailable),
+            card('Local Control Plane', controlPlane.controllerAvailable ? 'Ready' : 'Unavailable', `Base: ${controlPlane.helperBaseUrl || 'not found'}\nEveOS localhost: ${controlPlane.webRunning ? 'online' : 'off'}\nDesired: ${controlPlane.desiredRunning ? 'on' : 'off'}\n${controlPlane.message || ''}`, !!controlPlane.controllerAvailable),
+            card('Gemini Backend', gemini.serverState || 'Unknown', `Base: ${gemini.baseUrl || 'not found'}\nRunning: ${gemini.running ? 'yes' : 'no'}\nPhase: ${gemini.connectionPhase || 'n/a'}\n${gemini.message || ''}`, !!gemini.running),
+            card('World Book', worldBook.serverState || 'Unknown', `Controller: ${worldBook.baseUrl || 'standalone/not found'}\nRunning: ${worldBook.running ? 'yes' : 'no'}\nDesired: ${worldBook.desiredRunning ? 'on' : 'off'}\n${worldBook.message || ''}`, !!worldBook.running),
             card('Gemini WebSocket', socketState, `URL: ${window.SocketGlobalState?.WS_URL || WS_FALLBACK}\nAPI ready: ${window.SocketGlobalState?.geminiApiReady ? 'yes' : 'no'}\nAuto reconnect: ${window.SocketGlobalState?.autoReconnectEnabled === false ? 'off' : 'on'}`, ws?.readyState === window.WebSocket?.OPEN),
             card('Gemini Status Server', status.ok ? 'Online' : 'Offline', status.ok ? shortJson(status.payload) : status.error, status.ok)
         ].join('');
     }
 
     async function buildReport() {
-        const control = window.GeminiServerControl?.getState?.() || {};
+        const controlPlane = window.EveOSControlPlane?.getState?.() || {};
+        const gemini = window.GeminiServerControl?.getState?.() || {};
+        const worldBook = window.EveWorldBook?.client?.state || {};
         const ws = window.webSocket || null;
         const status = await fetchStatusServer();
         const bases = window.GeminiServerNetwork?.localCandidateBases?.() || [];
@@ -254,12 +260,16 @@
             return `- ${entry.time} ${entry.direction.toUpperCase()} ${entry.title}: ${entry.detail}`;
         }).join('\n') || '- no websocket traffic observed';
         return [
-            'EveOS Gemini Runtime Monitor',
+            'EveOS Runtime Monitor',
             `Generated: ${new Date().toISOString()}`,
             '',
             `[EveOS Page]\nCurrent: ${currentOrigin}\nCandidates:\n${bases.join('\n') || 'None'}`,
             '',
-            `[Lifecycle Controller]\nState: ${control.serverState || 'Unknown'}\nBase: ${control.baseUrl || 'not found'}\nRunning: ${control.running ? 'yes' : 'no'}\nPhase: ${control.connectionPhase || 'n/a'}\nMessage: ${control.message || ''}`,
+            `[Local Control Plane]\nState: ${controlPlane.serverState || 'Unknown'}\nBase: ${controlPlane.helperBaseUrl || 'not found'}\nController ready: ${controlPlane.controllerAvailable ? 'yes' : 'no'}\nEveOS localhost: ${controlPlane.webRunning ? 'online' : 'off'}\nDesired: ${controlPlane.desiredRunning ? 'on' : 'off'}\nMessage: ${controlPlane.message || ''}`,
+            '',
+            `[Gemini Backend]\nState: ${gemini.serverState || 'Unknown'}\nBase: ${gemini.baseUrl || 'not found'}\nRunning: ${gemini.running ? 'yes' : 'no'}\nPhase: ${gemini.connectionPhase || 'n/a'}\nMessage: ${gemini.message || ''}`,
+            '',
+            `[World Book]\nState: ${worldBook.serverState || 'Unknown'}\nBase: ${worldBook.baseUrl || 'standalone/not found'}\nRunning: ${worldBook.running ? 'yes' : 'no'}\nDesired: ${worldBook.desiredRunning ? 'on' : 'off'}\nMessage: ${worldBook.message || ''}`,
             '',
             `[Gemini WebSocket]\nState: ${ws ? wsLabel(ws.readyState) : 'Not created'}\nURL: ${window.SocketGlobalState?.WS_URL || WS_FALLBACK}\nAPI ready: ${window.SocketGlobalState?.geminiApiReady ? 'yes' : 'no'}\nAuto reconnect: ${window.SocketGlobalState?.autoReconnectEnabled === false ? 'off' : 'on'}`,
             '',
@@ -286,7 +296,7 @@
         const report = await buildReport();
         await copyText(report);
         if (typeof window.displayMessage === 'function') {
-            window.displayMessage('System Message: Gemini runtime monitor report copied.', true);
+            window.displayMessage('System Message: EveOS runtime monitor report copied.', true);
         }
     }
 
@@ -343,6 +353,14 @@
         });
         observer.observe(document.documentElement, { childList: true, subtree: true });
         window.addEventListener('eve:gemini-server-status', function () {
+            const panel = document.getElementById('geminiServerInspectorPanel');
+            if (panel && !panel.hidden) refreshPanel();
+        });
+        window.addEventListener('eve:eveos-control-plane-status', function () {
+            const panel = document.getElementById('geminiServerInspectorPanel');
+            if (panel && !panel.hidden) refreshPanel();
+        });
+        window.addEventListener('eve:world-book-status', function () {
             const panel = document.getElementById('geminiServerInspectorPanel');
             if (panel && !panel.hidden) refreshPanel();
         });

@@ -5,6 +5,8 @@ import socketserver
 
 from ..server_initialization.server_config import DEFAULT_PORT
 
+SERVICE_NAME = "eveos-gemini-live"
+
 
 def _websocket_ready(port):
     try:
@@ -28,6 +30,7 @@ class StatusHandler(http.server.BaseHTTPRequestHandler):
 
         # Send status information as JSON
         status_data = {
+            "service": SERVICE_NAME,
             "status": "running" if websocket_ready else "starting",
             "running": websocket_ready,
             "websocketReady": websocket_ready,

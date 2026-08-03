@@ -96,7 +96,19 @@ if /I "%rel%"=="tools\batch\start-gemini.bat" (
     exit /b 0
 )
 if /I "%rel%"=="tools\batch\start-gemini-control.bat" (
-    set "BATCH_NOTE=File-mode helper: lets file:// EveOS start/stop Gemini without an EveOS HTTP port."
+    set "BATCH_NOTE=Compatibility alias for the general EveOS local control plane."
+    exit /b 0
+)
+if /I "%rel%"=="tools\batch\start-eveos-control.bat" (
+    set "BATCH_NOTE=Starts local control so file:// EveOS can manage localhost, Gemini, and World Book independently."
+    exit /b 0
+)
+if /I "%rel%"=="tools\batch\install-eveos-control-protocol.bat" (
+    set "BATCH_NOTE=Registers the per-user eveos-control:// cold-start bridge. No administrator rights required."
+    exit /b 0
+)
+if /I "%rel%"=="tools\batch\eveos-control-protocol.bat" (
+    set "BATCH_NOTE=Fixed command target for the eveos-control:// Windows protocol."
     exit /b 0
 )
 if /I "%rel%"=="tools\batch\start-eveos-port.bat" (

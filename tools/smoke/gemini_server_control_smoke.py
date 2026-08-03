@@ -83,6 +83,10 @@ def assert_backend_lifecycle_contract():
     assert any(pattern.fullmatch("http://127.0.0.1:8765") for pattern in origin_patterns)
     assert any(pattern.fullmatch("https://localhost:3000") for pattern in origin_patterns)
     assert not any(pattern.fullmatch("https://example.com") for pattern in origin_patterns)
+    status_handler_source = (
+        interactions_root / "main_server_files" / "status_monitoring" / "status_handler.py"
+    ).read_text(encoding="utf-8")
+    assert '"service": SERVICE_NAME' in status_handler_source
 
 
 def assert_legacy_http_safety_contract():
@@ -144,23 +148,44 @@ def assert_start_contract():
 def assert_stop_contract():
     gemini_control._PROCESS = None
     with (
-        mock.patch.object(
-            gemini_control,
-            "_listener_pids",
-            side_effect=lambda port, fresh=False: [111] if port == 9083 else [222],
-        ),
         mock.patch.object(gemini_control, "_terminate_pid", return_value=True) as terminate,
-        mock.patch.object(gemini_control, "_port_open", return_value=False),
         mock.patch.object(
             gemini_control,
             "_status_payload",
-            return_value={"ok": True, "running": False, "state": "stopped"},
+            side_effect=[
+                {"ok": True, "running": True, "state": "running", "pids": [111]},
+                {"ok": True, "running": False, "state": "stopped", "pids": []},
+                {"ok": True, "running": False, "state": "stopped", "pids": []},
+            ],
         ),
     ):
         result = gemini_control.stop_server()
 
-    assert {call.args[0] for call in terminate.call_args_list} == {111, 222}
+    assert {call.args[0] for call in terminate.call_args_list} == {111}
     assert result["state"] == "stopped"
+
+
+def assert_foreign_listener_safety():
+    gemini_control._PROCESS = None
+    with (
+        mock.patch.object(
+            gemini_control,
+            "_listener_pids",
+            side_effect=lambda port, fresh=False: [333],
+        ),
+        mock.patch.object(gemini_control, "_port_open", return_value=True),
+        mock.patch.object(gemini_control, "_status_http_snapshot", return_value=None),
+        mock.patch.object(gemini_control, "_terminate_pid", return_value=True) as terminate,
+    ):
+        status = gemini_control.get_status()
+        stopped = gemini_control.stop_server()
+
+    assert status["state"] == "conflict"
+    assert status["portConflict"] is True
+    assert status["running"] is False
+    assert status["pids"] == []
+    assert stopped["ok"] is False
+    assert not terminate.called
 
 
 def assert_origin_guard():
@@ -176,5 +201,6 @@ if __name__ == "__main__":
     assert_legacy_http_safety_contract()
     assert_start_contract()
     assert_stop_contract()
+    assert_foreign_listener_safety()
     assert_origin_guard()
     print("GEMINI_SERVER_CONTROL_SMOKE_OK")

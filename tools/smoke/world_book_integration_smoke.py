@@ -43,15 +43,20 @@ def assert_static_contract() -> None:
 
     html = (ROOT / "EveOS.html").read_text(encoding="utf-8")
     assert "Notes &amp; World Books" in html
+    assert "eveos-local-control.js" in html
     assert "world-book.client.js" in html
     assert "world-book.overlay.js" in html
     client = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.client.js").read_text(encoding="utf-8")
     assert "api/health" in client
     assert "standalone launcher" in client
+    assert "EveOSLocalControl" in client
+    assert "ensureController" in client
     overlay = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.overlay.js").read_text(encoding="utf-8")
     detached = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.detach.js").read_text(encoding="utf-8")
     assert "world-book.detach.js" in html
     assert 'data-world-book-detach' in overlay
+    assert "Start via Launcher" not in overlay
+    assert "Connect local control and stop this standalone World Book server" in overlay
     assert "ns.detach" in overlay
     assert "eveWorldBookWindow" in detached
     assert "window.open" in detached
