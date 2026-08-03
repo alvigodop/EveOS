@@ -2,6 +2,11 @@
 
 **A local-first workspace for bookmarks, libraries, research, media, and personal knowledge.**
 
+> **Current public milestone: EveOS 0.5**
+>
+> The 0.5 release marks EveOS's next stage as a user-controlled knowledge, media, and
+> agent workspace.
+
 EveOS turns a large collection of links into a browsable environment of tabs, cards,
 folders, notes, metadata, maps, search views, and media tools. It is designed around a
 simple principle: **the user should remain in control of the information they organize.**
