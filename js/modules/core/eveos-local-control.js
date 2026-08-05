@@ -66,15 +66,23 @@
         return payload;
     }
 
+    // Routed through a hidden iframe rather than clicking an anchor. When the browser declines the
+    // scheme, the attempt is a failed NAVIGATION -- from an anchor that navigation belongs to the
+    // top-level page, which can tear the app down and reload it, losing all state and bouncing the
+    // user back to the button they just pressed. Contained in an iframe, a refusal costs nothing.
     function invokeProtocol() {
         bootstrapAttemptedAt = Date.now();
-        const anchor = document.createElement('a');
-        anchor.href = PROTOCOL_URL;
-        anchor.hidden = true;
-        anchor.setAttribute('aria-hidden', 'true');
-        document.body.appendChild(anchor);
-        anchor.click();
-        window.setTimeout(() => anchor.remove(), 1000);
+        const frame = document.createElement('iframe');
+        frame.hidden = true;
+        frame.setAttribute('aria-hidden', 'true');
+        frame.style.display = 'none';
+        document.body.appendChild(frame);
+        try {
+            frame.contentWindow.location.href = PROTOCOL_URL;
+        } catch (error) {
+            // A browser that refuses outright throws here; the caller's timeout handles it.
+        }
+        window.setTimeout(() => frame.remove(), 1000);
     }
 
     // Hand the scheme to Windows STRAIGHT from the click handler, before anything is awaited.
@@ -128,10 +136,10 @@
                     return await waitUntilReady(options?.timeoutMs, options?.onProgress);
                 } catch (error) {
                     throw new Error(
-                        'Windows did not start EveOS local control. If the browser asked permission '
-                        + 'to open "EveOS Local Control", choose Open (tick "Always allow" to skip it '
-                        + 'next time). If no prompt appeared, the browser declined the launch — run '
-                        + 'tools\\batch\\start-eveos-control.bat once and this page will connect.'
+                        'This browser will not start EveOS local control from a file:// page. Run '
+                        + 'tools\\batch\\install-eveos-autostart.bat once — local control then runs '
+                        + 'from sign-in and this page connects to it straight away. To start it just '
+                        + 'for now, run tools\\batch\\start-eveos-control.bat.'
                     );
                 }
             })().finally(function () {

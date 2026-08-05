@@ -93,15 +93,24 @@ const documentMock = {
     body: {
         appendChild() {}
     },
+    // The launch goes through a hidden iframe, not an anchor click: a declined custom scheme is a
+    // failed navigation, and from an anchor that lands on the top-level page and can reload the app
+    // out from under the user. Counting the iframe's location assignment keeps this test measuring
+    // "the launch was requested", which is the behaviour that matters, not how it is dispatched.
     createElement(tagName) {
-        if (tagName !== 'a') throw new Error(`Unexpected element: ${tagName}`);
+        if (tagName !== 'iframe') throw new Error(`Unexpected element: ${tagName}`);
         return {
             hidden: false,
-            href: '',
+            style: {},
             setAttribute() {},
-            click() {
-                protocolLaunches += 1;
-                controllerOnline = true;
+            contentWindow: {
+                location: {
+                    set href(value) {
+                        if (!String(value || '').startsWith('eveos-control:')) return;
+                        protocolLaunches += 1;
+                        controllerOnline = true;
+                    }
+                }
             },
             remove() {}
         };
