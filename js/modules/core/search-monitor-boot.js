@@ -170,8 +170,16 @@
     // Dialogs/confirms opened FROM the monitor (clear chat, clear-all confirm, new-chat confirm,
     // inline prompts, generic modals) are appended to <body>, OUTSIDE the indicator's DOM. A click
     // on one of those is interaction with a monitor-spawned surface, not "clicking out" of it.
+    // Peer surfaces are top-level workspaces of their own, NOT something the monitor spawned.
+    // Notes / World Book carries role="dialog" for accessibility, which the generic dialog test
+    // below matches — so clicking it counted as "still inside the monitor's world" and the monitor
+    // stayed open on top of the panel the user had just switched to. Checked first so the
+    // accessibility markup cannot re-capture the click.
+    const PEER_SURFACE_SELECTOR = '#notes-world-book-overlay, .notes-world-book-overlay';
+
     function isMonitorDialogTarget(target) {
         if (!target || typeof target.closest !== 'function') return false;
+        if (target.closest(PEER_SURFACE_SELECTOR)) return false;
         // `dialog` (the element) is essential: native <dialog> panels (audio/session/self-talk/
         // screen-capture settings) have an IMPLICIT role, so `[role="dialog"]` does NOT match them —
         // clicking one was read as "clicked out" and closed the monitor.

@@ -187,6 +187,20 @@ If you are evaluating or modifying it:
 - run the nearest focused smoke after a change;
 - run `npm run verify` before publishing broad changes.
 
+## A Passion Project
+
+EveOS is a passion project. It is not a product, a startup, or anything with a roadmap
+promised to anyone — it is built because building it is the point.
+
+That shapes the whole repository. Features exist because they were interesting or
+genuinely useful to their author, not because they tested well. Some corners are polished
+far past what any reasonable scope would justify; others are honestly rough, and stay that
+way until they start to matter. The commit history is a record of someone learning in
+public, wrong turns included.
+
+You are welcome to read it, run it, take ideas from it, or fork it. Just hold it to the
+right standard: a workshop someone actually works in, not a showroom.
+
 ## License
 
 EveOS is available under the [MIT License](LICENSE).

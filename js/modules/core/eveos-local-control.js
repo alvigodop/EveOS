@@ -9,6 +9,10 @@
     const PROTOCOL_URL = 'eveos-control://start';
     let ensurePromise = null;
     let bootstrapAttemptedAt = 0;
+    // Set by requestLaunch() and CONSUMED by the ensure() that follows it, so one button press
+    // produces exactly one Windows prompt. Deliberately a one-shot flag rather than a time window:
+    // a window would also swallow the user's second click when the first attempt failed.
+    let launchAlreadyRequested = false;
 
     function port() {
         return Number(
@@ -73,6 +77,17 @@
         window.setTimeout(() => anchor.remove(), 1000);
     }
 
+    // Hand the scheme to Windows STRAIGHT from the click handler, before anything is awaited.
+    // Browsers only pass a custom scheme to the OS while the page still holds transient user
+    // activation from an unambiguous action on the top-level page, and they deliberately give no
+    // error when they decline. ensure() used to await a health() probe first, so the launch was
+    // attempted with the gesture already spent — the request was dropped in silence and the UI just
+    // span for 45 seconds, which is exactly "the setup doesn't go all the way through".
+    function requestLaunch() {
+        launchAlreadyRequested = true;
+        invokeProtocol();
+    }
+
     async function waitUntilReady(timeoutMs, onProgress) {
         const deadline = Date.now() + (timeoutMs || 45000);
         let lastError = null;
@@ -105,13 +120,18 @@
         if (!ensurePromise) {
             ensurePromise = (async function () {
                 options?.onLaunching?.();
-                invokeProtocol();
+                // Don't fire a second time when the click handler already asked: that would put a
+                // duplicate Windows permission prompt in front of the user for one button press.
+                if (launchAlreadyRequested) launchAlreadyRequested = false;
+                else invokeProtocol();
                 try {
                     return await waitUntilReady(options?.timeoutMs, options?.onProgress);
                 } catch (error) {
                     throw new Error(
-                        'Local control did not start. Run '
-                        + 'tools\\batch\\install-eveos-control-protocol.bat once, then try again.'
+                        'Windows did not start EveOS local control. If the browser asked permission '
+                        + 'to open "EveOS Local Control", choose Open (tick "Always allow" to skip it '
+                        + 'next time). If no prompt appeared, the browser declined the launch — run '
+                        + 'tools\\batch\\start-eveos-control.bat once and this page will connect.'
                     );
                 }
             })().finally(function () {
@@ -128,6 +148,7 @@
         health,
         status,
         ensure,
+        requestLaunch,
         getBootstrapAttemptedAt: () => bootstrapAttemptedAt
     });
 })();

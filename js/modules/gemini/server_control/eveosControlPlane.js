@@ -213,6 +213,11 @@
             if (button.dataset.eveosControlBound === '1') return;
             button.dataset.eveosControlBound = '1';
             button.addEventListener('click', async function () {
+                // The Windows handoff has to happen on this synchronous turn, while the click's
+                // user activation is still live. Everything after the first await is too late:
+                // browsers silently drop a custom-scheme launch once the gesture is spent, and
+                // ensure() only got there after a health() probe had already been awaited.
+                if (!state.controllerAvailable) window.EveOSLocalControl?.requestLaunch?.();
                 await setRunning(!state.webRunning);
             });
         });
