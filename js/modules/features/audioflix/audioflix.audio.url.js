@@ -401,22 +401,23 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (!active) return;
             const safe = Math.max(0, Math.min(1, Number(volume || 0)));
             if (active.kind === 'direct') active.player.volume = safe;
-            else if (active.kind === 'youtube') active.player.setVolume?.(Math.round(safe * 100));
-            else if (active.kind === 'soundcloud') active.player.setVolume?.(Math.round(safe * 100));
+            else if (active.kind === 'youtube' || active.kind === 'soundcloud') active.player.setVolume?.(Math.round(safe * 100));
             else if (active.kind === 'vimeo' || active.kind === 'spotify') active.player.setVolume?.(safe)?.catch?.(() => {});
+            // Both views must agree: only the card slider persisted, so panel levels never stuck.
             if (playback.item) playback.item.volume = safe;
+            if (playback.item?.id) window.EveAudioflixState?.setItemVolume?.(playback.item.type || 'music', playback.item.id, safe);
+            view?.setVolume?.(safe);
         }
-
-        // Playback speed. Every provider that exposes a rate control gets it; SoundCloud's widget
-        // API has none, so it is left alone rather than silently pretending.
+        // Playback speed. Providers exposing a rate control get it; SoundCloud's widget API has
+        // none, so it is left alone rather than silently pretending.
         function setRate(rate) {
             const safe = Math.max(0.25, Math.min(4, Number(rate) || 1));
             playbackRate = safe;
             view?.setRate?.(safe);
             if (!active) return;
             if (active.kind === 'direct') active.player.playbackRate = safe;
-            else if (active.kind === 'youtube') active.player.setPlaybackRate?.(safe);
-            else if (active.kind === 'vimeo') active.player.setPlaybackRate?.(safe)?.catch?.(() => {});
+            // Vimeo's returns a promise, YouTube's returns undefined; ?.catch covers both.
+            else if (active.kind === 'youtube' || active.kind === 'vimeo') active.player.setPlaybackRate?.(safe)?.catch?.(() => {});
         }
 
         function hideInternalView() {

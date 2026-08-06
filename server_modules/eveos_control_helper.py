@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 import http.server
 import json
+import os
 import threading
 import time
 from http import HTTPStatus
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+from . import eveos_console_prefs
 from . import eveos_web_control
 from . import gemini_control
 from . import gemini_credentials
@@ -53,6 +55,73 @@ def wait_for_control(port: int, timeout: float) -> int:
             pass
         time.sleep(0.2)
     return 1
+
+
+def _console_preferences() -> dict:
+    """Console preferences alone, with no lifecycle probing.
+
+    Flipping a console switch cannot start or stop anything, so answering it with a full overview
+    means paying ~1.7s of netstat and health probes to return facts that provably did not change.
+    That delay is what made a toggle look like it had not worked: the switch moved, nothing else
+    did, and the panel only caught up seconds later.
+    """
+    prefs = eveos_console_prefs.read_all()
+    return {
+        "ok": True,
+        "default": prefs["default"],
+        "envForced": bool(str(os.environ.get("EVEOS_HEADLESS", "")).strip()),
+        "preferencesOnly": True,
+        "services": [
+            {
+                "key": key,
+                "headless": eveos_console_prefs.headless_for(key),
+                "overridden": key in prefs["services"],
+            }
+            for key in eveos_console_prefs.KNOWN_SERVICES
+        ],
+    }
+
+
+def _console_overview() -> dict:
+    """What is running, on which port, and whether it shows a console.
+
+    One payload so the settings panel is a single request: asking three lifecycle endpoints and a
+    preferences file separately would let the list render half-stale, which is exactly the kind of
+    "is that actually running?" doubt this panel exists to remove.
+
+    Costs roughly two seconds -- a netstat sweep and three health probes -- so it belongs on the
+    panel opening, not on every switch. See _console_preferences for the cheap path.
+    """
+    prefs = eveos_console_prefs.read_all()
+    services = []
+    for key, label, status_fn, ports in (
+        ("web", "EveOS localhost", eveos_web_control.get_status,
+         lambda s: [s.get("port")]),
+        ("gemini", "Gemini backend", gemini_control.get_status,
+         lambda s: [s.get("websocketPort"), s.get("statusPort")]),
+        ("worldBook", "World Book", world_book_control.get_status,
+         lambda s: [s.get("port")]),
+    ):
+        try:
+            status = status_fn() or {}
+        except Exception as exc:  # noqa: BLE001
+            status = {"running": False, "message": f"status unavailable: {exc}"}
+        services.append({
+            "key": key,
+            "label": label,
+            "running": status.get("running") is True,
+            "ports": [p for p in ports(status) if p],
+            "message": status.get("message") or "",
+            "headless": eveos_console_prefs.headless_for(key),
+            "overridden": key in prefs["services"],
+        })
+    return {
+        "ok": True,
+        "default": prefs["default"],
+        "envForced": bool(str(os.environ.get("EVEOS_HEADLESS", "")).strip()),
+        "controlPlanePort": _SERVER.server_port if _SERVER else None,
+        "services": services,
+    }
 
 
 def _stop_everything() -> dict:
@@ -135,6 +204,9 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/world-book/status":
             self._send(world_book_control.get_status())
             return
+        if path == "/api/control-plane/consoles":
+            self._send(_console_overview())
+            return
         if path == "/api/gemini-credentials/status":
             if not gemini_control.request_can_control(self):
                 self._send(
@@ -156,6 +228,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/world-book/start",
             "/api/world-book/stop",
             "/api/gemini-credentials",
+            "/api/control-plane/consoles",
         } and not gemini_control.request_can_control(self):
             self._send(
                 {
@@ -186,6 +259,18 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if action is not None:
             payload = action()
             self._send(payload, HTTPStatus.OK if payload.get("ok") else HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        if path == "/api/control-plane/consoles":
+            body = gemini_credentials.read_json_body(self) or {}
+            try:
+                # A console preference only takes effect the next time that service starts; the
+                # already-running process keeps whatever window it was born with.
+                eveos_console_prefs.set_console(body.get("service"), bool(body.get("headless")))
+                payload = _console_preferences()
+                payload["message"] = "Applies the next time that service starts."
+            except ValueError as exc:
+                payload = {"ok": False, "message": str(exc)}
+            self._send(payload, HTTPStatus.OK if payload.get("ok") else HTTPStatus.BAD_REQUEST)
             return
         if path == "/api/gemini-credentials":
             body = gemini_credentials.read_json_body(self)

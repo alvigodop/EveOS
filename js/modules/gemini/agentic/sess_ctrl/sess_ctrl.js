@@ -8,7 +8,7 @@ const SESSION_CONTROLS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/
 
 // List of session controls related scripts to load
 const sessionControlsScripts = [
-    `${SESSION_CONTROLS_BASE_PATH}/session_controls_settings/sessionControlsSettingsHandler.js?v=0.2.4`
+    `${SESSION_CONTROLS_BASE_PATH}/session_controls_settings/sessionControlsSettingsHandler.js?v=0.2.5`
 ];
 
 function loadSessionControlsScripts() {

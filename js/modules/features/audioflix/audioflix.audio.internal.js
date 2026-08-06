@@ -202,6 +202,14 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             if (select) select.value = String(Number(rate) || 1);
         }
 
+        // Mirror a volume change made OUTSIDE this panel (the card slider) onto its own control.
+        // The audio already followed via urlPlayback.setVolume; only the thumb stayed where it was,
+        // so the two views showed different numbers for one track and the panel looked broken.
+        function setVolume(value) {
+            const input = ensureStage().querySelector('.audioflix-provider-volume');
+            if (input) input.value = String(clamp(Number(value) || 0, 0, 1));
+        }
+
         function setExpanded(expanded = true) {
             const element = ensureStage();
             element.hidden = false;
@@ -341,7 +349,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             open, hide, isOpen: () => !!stage && !stage.hidden && !stage.classList.contains('is-transport-only'),
             setStatus, setVisualVisible, setExpanded, setTransportOnly, revealTransportFallback,
             sync, connectYouTubeBridge,
-            setQueue, setRate,
+            setQueue, setRate, setVolume,
             getFrame: () => ensureStage().querySelector('.audioflix-provider-frame'),
             getStage: () => stage,
             getItem: () => currentItem

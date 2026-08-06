@@ -20,22 +20,19 @@ _LOCK = threading.RLock()
 _TRUE = {"1", "true", "yes", "on"}
 
 
-def headless_mode() -> bool:
-    """Whether spawned servers should hide their console. Headed unless asked otherwise.
+def headless_mode(service: str = "web") -> bool:
+    """Whether a spawned server should hide its console. Headed unless asked otherwise.
 
     Everything used to spawn with CREATE_NO_WINDOW, so a server that hung, spewed, or refused to
     die left no visible trace -- you had to already suspect it to go find the log. Showing the
-    console by default makes what is running observable at a glance; set EVEOS_HEADLESS=1 (or the
-    stored preference) when the windows are in the way.
+    console by default makes what is running observable at a glance.
+
+    Preferences live in their own file rather than beside desiredRunning: that one is rewritten
+    wholesale on every start/stop, so a console choice stored there would vanish the first time the
+    service was toggled.
     """
-    env = str(os.environ.get("EVEOS_HEADLESS", "")).strip().lower()
-    if env:
-        return env in _TRUE
-    try:
-        stored = json.loads(_preference_path().read_text(encoding="utf-8"))
-        return bool(stored.get("headless"))
-    except Exception:  # noqa: BLE001
-        return False
+    from . import eveos_console_prefs
+    return eveos_console_prefs.headless_for(service)
 
 
 def _project_root() -> Path:

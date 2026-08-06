@@ -6,7 +6,7 @@ window.EveModuleManifestScriptChunks.push([
     // Modal Modules
     "js/modules/modals/templates/tpl-core.js?v=0.3.3",
     "js/modules/modals/templates/tpl-settings.backup.js?v=0.3.2",
-    "js/modules/modals/templates/tpl-settings.js?v=0.3.8",
+    "js/modules/modals/templates/tpl-settings.js?v=0.3.9",
     "js/modules/modals/templates/tpl-bulk.js?v=0.1.5",
     "js/modules/modals/templates/tpl-emoji.js?v=0.1.0",
     "js/modules/modals/templates/tpl-folder-actions.js?v=0.1.0",
@@ -25,7 +25,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-settings.modular.store.actions.js?v=0.1.0",
     "js/modules/modals/modal-settings.modular.store.js?v=0.1.0",
     "js/modules/modals/modal-settings.modular.js?v=0.1.0",
-    "js/modules/modals/modal-settings.js?v=0.3.3",
+    "js/modules/modals/modal-settings.js?v=0.3.4",
     "js/modules/modals/modal-bulk.runtime.shared.js?v=0.1.0",
     "js/modules/modals/modal-bulk.runtime.ui.js?v=0.1.0",
     "js/modules/modals/modal-bulk.runtime.js?v=0.1.3",

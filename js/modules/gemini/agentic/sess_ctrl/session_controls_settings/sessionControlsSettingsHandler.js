@@ -173,6 +173,15 @@
                 } else {
                     try {
                         await workflow(apiKey);
+                        // Hand it to the in-browser SDK lane before clearing the persisted copy.
+                        // Sonic Forge talks to Lyria from the page, and the vault deliberately
+                        // never returns a key, so its only sources are sessionStorage and the
+                        // localStorage entry cleared on the next line -- meaning a SUCCESSFUL
+                        // vault sync was what broke it, and it then reported "Set it in Search
+                        // Monitor Session Controls" to someone who just had. sessionStorage is
+                        // per-tab and dies with it, so it cannot shadow the vault the way a
+                        // persisted key does, which is the reason for the clear in the first place.
+                        window.EveAudioflixSoundLabSdk?.setApiKey?.(apiKey);
                         try { localStorage.removeItem('geminiApiKey'); } catch (error) {}
                         elements.apiKeyInput.value = '';
                         apiKeySyncState = 'secured';

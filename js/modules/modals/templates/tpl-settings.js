@@ -221,6 +221,19 @@ window.modalTemplate += `
                 </div>
             </div>
 
+            <div class="settings-section" data-settings-section="local-services">
+                <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
+                    <h4 style="margin:0; color:var(--accent);">Local Services</h4>
+                    <span class="settings-section-chevron" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="settings-section-body">
+                    <div style="font-size:0.8rem; opacity:0.75; margin-bottom:8px;">The servers EveOS spawns on this machine: what is running, on which ports, and whether each one shows its terminal window. Filled in by <code>eveos-console-panel.js</code> from the local control plane.</div>
+                    <div id="eveosConsolePanel" data-eveos-console-panel>
+                        <div style="font-size:0.8rem; opacity:0.65;">Local control plane not reached yet.</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="settings-section" data-settings-section="other-panels">
                 <button type="button" class="settings-section-header" onclick="toggleSettingsSection(this)" aria-expanded="true">
                     <h4 style="margin:0; color:var(--accent);">Other Panels</h4>
