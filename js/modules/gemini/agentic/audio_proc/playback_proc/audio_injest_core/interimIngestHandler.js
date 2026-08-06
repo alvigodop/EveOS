@@ -16,6 +16,13 @@ window.AudioIngestCore.InterimIngestHandler = {
     INITIAL_HEADROOM: 0.15, // Reduced from 0.4s for snappier startup
     RESYNC_THRESHOLD: 5.0,  // Increased for better jitter tolerance
     IDLE_THRESHOLD: 10.0,   // Grace period before resetting audio timeline
+    // Ceiling on how far AHEAD of the context clock the queue may run. RESYNC_THRESHOLD catches
+    // the queue falling BEHIND; nothing caught it running ahead, and that is the case that
+    // actually happens: chunks arriving while the AudioContext still waits for its user gesture
+    // are all scheduled the moment it opens, back to back from ~0. A backlog of ~140 lands 6s
+    // into the future and every later chunk inherits that lead, so the voice is heard seconds
+    // after it was spoken and never catches up.
+    MAX_LEAD: 2.0,
     HEARTBEAT_TIMEOUT: 15000, // Persistence window (ms) to keep turn alive
 
     /**
@@ -109,7 +116,19 @@ window.AudioIngestCore.InterimIngestHandler = {
                 }
                 // Otherwise: if gap is small (< 2s), we keep the old nextStartTime.
 
-                // Final safety: don't schedule too far in the past, but allow 
+                // Past MAX_LEAD the queue is not jitter, it is stale conversation: audio the model
+                // finished speaking seconds ago, waiting its turn. Drop what has not been heard yet
+                // and rejoin the live edge rather than playing the backlog out and staying behind
+                // for the rest of the turn.
+                const lead = this.nextStartTime - context.currentTime;
+                if (lead > this.MAX_LEAD) {
+                    console.warn(`[InterimIngestHandler] Scheduling lead ${lead.toFixed(2)}s exceeds `
+                        + `${this.MAX_LEAD}s — dropping the stale backlog and resyncing to the live edge.`);
+                    this.stopAll();
+                    this.nextStartTime = context.currentTime + this.INITIAL_HEADROOM;
+                }
+
+                // Final safety: don't schedule too far in the past, but allow
                 // Web Audio to play late chunks immediately (startTime <= currentTime).
                 const startTime = Math.max(this.nextStartTime, context.currentTime);
                 // Extra logging to detect potential truncation/overlap issues

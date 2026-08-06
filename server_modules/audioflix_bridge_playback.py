@@ -265,14 +265,27 @@ def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str) -> dict:
     if not device_id:
         device_id = "default"
     mono = np.asarray(samples, dtype="float32").reshape(-1)
-    player = _player_for(device_id, sample_rate, 1)
+    used_device, fell_back = device_id, False
+    try:
+        player = _player_for(device_id, sample_rate, 1)
+    except Exception:
+        # A saved output that no longer exists -- unplugged, renamed, driver reinstalled -- raised
+        # on EVERY chunk, and handle_post_request turns any exception into a 400. So one stale
+        # device id produced an unbroken stream of failed requests and total silence, with nothing
+        # in the response pointing at the device as the cause. Fall back to the system default so
+        # sound keeps coming, and report what was actually used so the caller can correct itself.
+        if device_id == "default":
+            raise
+        player = _player_for("default", sample_rate, 1)
+        used_device, fell_back = "default", True
     player.enqueue(mono)
     return {
         "ok": True,
         "kind": kind,
         "queued": int(mono.shape[0]),
         "sampleRate": sample_rate,
-        "deviceId": device_id,
+        "deviceId": used_device,
+        "requestedDeviceUnavailable": fell_back,
     }
 
 
