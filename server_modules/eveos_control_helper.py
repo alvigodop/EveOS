@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import http.server
 import json
+import threading
 import time
 from http import HTTPStatus
 from urllib.parse import urlparse
@@ -18,6 +19,24 @@ from .eveos_http_cors import eveos_cors_origin
 
 
 DEFAULT_PORT = 9082
+# Set once serve_forever() owns it, so a request can ask the plane to stop serving.
+_SERVER = None
+
+
+def _shutdown_plane_after_response(delay: float = 0.4) -> bool:
+    """Stop the control plane itself, once the current response has had time to flush.
+
+    Stop is meant to leave nothing running, and the plane's own console staying open after it read
+    as "the stop did not work". shutdown() must not be called from the thread inside serve_forever,
+    and it would also kill the reply mid-write, so it runs on a short timer from the handler thread.
+
+    Consequence worth knowing: the file:// page cannot start anything again until the plane is back
+    (sign-in with autostart installed, or tools\\batch\\start-eveos-control.bat).
+    """
+    if _SERVER is None:
+        return False
+    threading.Timer(delay, _SERVER.shutdown).start()
+    return True
 
 
 def wait_for_control(port: int, timeout: float) -> int:
@@ -57,6 +76,9 @@ def _stop_everything() -> dict:
 
     payload = eveos_web_control.stop_server()
     payload["stoppedAlso"] = also
+    # ...and the plane last, so "Stop" really does leave nothing running. Its console closing is
+    # the visible confirmation; leaving it up made a completed stop look like a failed one.
+    payload["controlPlaneStopping"] = _shutdown_plane_after_response()
     return payload
 
 
@@ -177,11 +199,18 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
 
     def _send(self, payload: dict, status: int = HTTPStatus.OK):
         body = json.dumps(payload).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionError, OSError):
+            # The caller went away mid-request. Most visible on Stop, where the page tears its
+            # polling down the moment it fires: the work already happened and only the reply was
+            # lost, so a WinError 10053 traceback in a console the user is watching is pure noise
+            # that reads like the stop itself failed.
+            pass
 
 
 def main() -> int:
@@ -192,8 +221,12 @@ def main() -> int:
     args = parser.parse_args()
     if args.probe:
         return wait_for_control(args.port, args.timeout)
+    global _SERVER
     server = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), EveOSControlHandler)
+    _SERVER = server
     print("[OK] EveOS local control plane")
+    print(f"  Consoles: {'headless' if eveos_web_control.headless_mode() else 'visible'}"
+          " (set EVEOS_HEADLESS=1 to hide spawned servers)")
     print(f"  Control: http://127.0.0.1:{args.port}/api/control-plane/status")
     print("  Manages EveOS localhost, Gemini, and World Book independently.")
     print("  Press Ctrl+C to stop the control plane")

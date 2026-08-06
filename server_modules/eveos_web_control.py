@@ -17,6 +17,25 @@ from pathlib import Path
 EVEOS_WEB_PORT = int(os.environ.get("EVEOS_WEB_PORT") or 8765)
 _PROCESS = None
 _LOCK = threading.RLock()
+_TRUE = {"1", "true", "yes", "on"}
+
+
+def headless_mode() -> bool:
+    """Whether spawned servers should hide their console. Headed unless asked otherwise.
+
+    Everything used to spawn with CREATE_NO_WINDOW, so a server that hung, spewed, or refused to
+    die left no visible trace -- you had to already suspect it to go find the log. Showing the
+    console by default makes what is running observable at a glance; set EVEOS_HEADLESS=1 (or the
+    stored preference) when the windows are in the way.
+    """
+    env = str(os.environ.get("EVEOS_HEADLESS", "")).strip().lower()
+    if env:
+        return env in _TRUE
+    try:
+        stored = json.loads(_preference_path().read_text(encoding="utf-8"))
+        return bool(stored.get("headless"))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _project_root() -> Path:
@@ -199,24 +218,31 @@ def start_server(*, persist: bool = True) -> dict:
         environment["PYTHONUTF8"] = "1"
         environment["PYTHONIOENCODING"] = "utf-8"
         environment["EVEOS_WEB_PORT"] = str(EVEOS_WEB_PORT)
+        headless = headless_mode()
         flags = 0
         if os.name == "nt":
-            flags = (
-                getattr(subprocess, "CREATE_NO_WINDOW", 0)
-                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            )
-        with (
-            (log_root / "eveos-web.out.log").open("ab") as stdout_log,
-            (log_root / "eveos-web.err.log").open("ab") as stderr_log,
-        ):
+            flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            # Headed by DEFAULT: the point of a console is that you can see what is running and
+            # what it is doing. Headless hid every server, so a stuck or noisy one was invisible
+            # unless you went looking for a log file. EVEOS_HEADLESS=1 restores the quiet behaviour.
+            flags |= (getattr(subprocess, "CREATE_NO_WINDOW", 0) if headless
+                      else getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        command = [sys.executable, str(entry), str(EVEOS_WEB_PORT), "--no-browser"]
+        if headless:
+            # Only redirect when there is no console to read: a new console PLUS redirection gives
+            # you a window that shows nothing, which is worse than either choice on its own.
+            with (
+                (log_root / "eveos-web.out.log").open("ab") as stdout_log,
+                (log_root / "eveos-web.err.log").open("ab") as stderr_log,
+            ):
+                _PROCESS = subprocess.Popen(
+                    command, cwd=str(_project_root()), stdin=subprocess.DEVNULL,
+                    stdout=stdout_log, stderr=stderr_log, env=environment, creationflags=flags,
+                )
+        else:
             _PROCESS = subprocess.Popen(
-                [sys.executable, str(entry), str(EVEOS_WEB_PORT), "--no-browser"],
-                cwd=str(_project_root()),
-                stdin=subprocess.DEVNULL,
-                stdout=stdout_log,
-                stderr=stderr_log,
-                env=environment,
-                creationflags=flags,
+                command, cwd=str(_project_root()), stdin=subprocess.DEVNULL,
+                env=environment, creationflags=flags,
             )
 
     deadline = time.monotonic() + 5.0
