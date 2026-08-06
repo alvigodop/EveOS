@@ -94,7 +94,8 @@ class LauncherHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Launcher Server')
-    parser.add_argument('--port', type=int, default=9084, help='Port to run the launcher server on')
+    # Matches GEMINI_STATUS_PORT in tools/batch/eveos-ports.bat.
+    parser.add_argument('--port', type=int, default=9086, help='Port to run the launcher server on')
     args = parser.parse_args()
     
     print(f"Starting Launcher Server on port {args.port}...")

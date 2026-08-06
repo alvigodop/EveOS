@@ -30,10 +30,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     function candidateBases() {
         let saved = state().nativeBridgeBase;
-        // "localhost" resolves to ::1 (IPv6) first on Windows; when the server only listens
-        // on IPv4, every request eats a ~1-2s IPv6 connect timeout before falling back to
-        // 127.0.0.1. That delay was making soundboard audio start late and stream choppily.
-        // Always prefer 127.0.0.1 (the bridge allows CORS * so cross-origin is fine).
+        // Always prefer 127.0.0.1: "localhost" resolves to ::1 first on Windows, so against an
+        // IPv4-only server every request eats a ~1-2s IPv6 timeout — which made soundboard audio
+        // start late and stream choppily. The bridge allows CORS *, so cross-origin is fine.
         if (saved && saved.includes('localhost')) {
             saved = saved.replace('localhost', '127.0.0.1');
         }
@@ -45,12 +44,10 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
             }
             bases.push(location.origin);
         }
-        // 127.0.0.1 only for the fallback list — the localhost twins doubled every dead-server
-        // probe (and console error line) for zero gain: localhost resolves to the same machine,
-        // just via the flaky IPv6-first path the comment above already avoids.
-        ['8765', '8766', '8767', '8768', '8769', '8770', '3000'].forEach((port) => {
-            bases.push(`http://127.0.0.1:${port}`);
-        });
+        // Fallback guesses only, and 127.0.0.1 only (localhost twins doubled every dead probe for
+        // nothing). These ports are not ours to assume — each is identity-checked before use.
+        ['8765', '8766', '8767', '8768', '8769', '8770', '3000']
+            .forEach((port) => bases.push(`http://127.0.0.1:${port}`));
         return [...new Set(bases.filter(Boolean))];
     }
 
@@ -88,6 +85,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         }
         const attempts = [];
         for (const base of candidateBases()) {
+            // Only a base that proved it is EveOS may carry data; no module = fail closed.
+            const I = window.EveAudioflixNativeIdentity;
+            if (!I || !(await I.isEveOsBridge(base))) { attempts.push({ base, message: 'Unverified bridge.' }); continue; }
             try {
                 const payload = await fetchFromBase(base, path, options);
                 if (!payload) {

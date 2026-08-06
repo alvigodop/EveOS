@@ -100,7 +100,7 @@ console.log("serverStatusChecker.js loading...");
     async function checkServerStatus() {
         try {
             // Extract port from WebSocket URL and calculate status port
-            const wsPort = parseInt(State.WS_URL.split(':')[2]) || 9083;
+            const wsPort = parseInt(State.WS_URL.split(':')[2]) || 9085;
             const statusPort = wsPort + 1; // Status server is always WebSocket port + 1
             // 127.0.0.1 only: the localhost twin probed the SAME machine a second time (via the
             // flaky IPv6-first path) and doubled the console error spam on every offline check.

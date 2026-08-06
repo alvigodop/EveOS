@@ -25,7 +25,7 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/iOSAudioUnlock.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/user_gesture_core/userGestureLoader.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextHelpers.js`,
-    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/initialization_modules/audioWorkletInitializer.js`,
+    `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/initialization_modules/audioWorkletInitializer.js?v=0.2.0`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/initialization_modules/legacyAudioInitializer.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextCoreInit.js`,
     `${AUDIO_PROCESSING_BASE_PATH}/context_mgmt/audioContextReadiness.js?v=0.1.1`,

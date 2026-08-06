@@ -41,8 +41,12 @@ def assert_port_contract():
     sys.path.insert(0, str(config_path))
     import server_config
 
-    assert server_config.DEFAULT_PORT == 9083
-    assert server_config.STATUS_PORT == 9084
+    # 9085/9086, not 9083/9084: the Document-Audiobook-Converter project claims that older pair on
+    # the dev machine, and whichever process bound first left the other dead with "ports 9083/9084
+    # belong to another local service". These must stay in step with GEMINI_WS_PORT and
+    # GEMINI_STATUS_PORT in tools/batch/eveos-ports.bat, which is the declared source of truth.
+    assert server_config.DEFAULT_PORT == 9085
+    assert server_config.STATUS_PORT == 9086
 
 
 def assert_backend_lifecycle_contract():
@@ -138,7 +142,7 @@ def assert_start_contract():
 
     command = popen.call_args.args[0]
     environment = popen.call_args.kwargs["env"]
-    assert command[-2:] == ["--port", "9083"]
+    assert command[-2:] == ["--port", str(gemini_control.WEBSOCKET_PORT)]
     assert command[0] == sys.executable
     assert environment["PYTHONUTF8"] == "1"
     assert environment["PYTHONIOENCODING"] == "utf-8"

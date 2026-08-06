@@ -7,8 +7,8 @@
 
     window.MonitorState = {
         CONTROL_URL: 'http://127.0.0.1:9082',
-        STATUS_URL: 'http://127.0.0.1:9084/status',
-        WS_URL: 'ws://127.0.0.1:9083',
+        STATUS_URL: 'http://127.0.0.1:9086/status',
+        WS_URL: 'ws://127.0.0.1:9085',
         EVEOS_URL: hostedLocally
             ? window.location.origin + '/EveOS.html'
             : 'http://127.0.0.1:8765/EveOS.html',
@@ -20,7 +20,7 @@
         userRequestedStop: false,
         serverStates: {
             control: { running: false, port: 9082 },
-            gemini: { running: false, port: 9083 },
+            gemini: { running: false, port: 9085 },
             web: { running: hostedLocally || window.location.protocol === 'file:', port: currentPort }
         }
     };

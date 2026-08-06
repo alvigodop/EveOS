@@ -47,8 +47,8 @@ function setGeminiConnectionPreference(enabled) {
 }
 
 function getGeminiStatusUrl() {
-    const wsUrl = (window.SocketGlobalState && window.SocketGlobalState.WS_URL) || 'ws://localhost:9083';
-    const wsPort = parseInt(wsUrl.split(':')[2], 10) || 9083;
+    const wsUrl = (window.SocketGlobalState && window.SocketGlobalState.WS_URL) || 'ws://localhost:9085';
+    const wsPort = parseInt(wsUrl.split(':')[2], 10) || 9085;
     return `http://127.0.0.1:${wsPort + 1}/status`;
 }
 

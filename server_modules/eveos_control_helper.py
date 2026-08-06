@@ -36,6 +36,30 @@ def wait_for_control(port: int, timeout: float) -> int:
     return 1
 
 
+def _stop_everything() -> dict:
+    """Stop every EveOS surface, not just the web server.
+
+    "Stop" in the UI means "shut EveOS down", but it only ever stopped the localhost server. World
+    Book and the Gemini backend kept running with their terminal windows open, and once the page was
+    gone there was no longer anything on screen offering to stop them -- so each session left more
+    orphaned services behind. Stopped dependents-first, then the surface that hosts them.
+
+    A failure to stop one surface must not prevent the others from stopping, so each is isolated;
+    what happened to each is reported back rather than swallowed.
+    """
+    also = {}
+    for name, stop in (("worldBook", world_book_control.stop_server),
+                       ("gemini", gemini_control.stop_server)):
+        try:
+            also[name] = "stopped" if (stop() or {}).get("ok", True) else "reported not-ok"
+        except Exception as exc:  # noqa: BLE001
+            also[name] = f"error: {exc}"
+
+    payload = eveos_web_control.stop_server()
+    payload["stoppedAlso"] = also
+    return payload
+
+
 class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
     def end_headers(self):
         origin = eveos_cors_origin(self.headers.get("Origin"))
@@ -127,7 +151,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/eveos-server/start":
             action = eveos_web_control.start_server
         elif path == "/api/eveos-server/stop":
-            action = eveos_web_control.stop_server
+            action = _stop_everything
         elif path == "/api/gemini-server/start":
             action = gemini_control.start_server
         elif path == "/api/gemini-server/stop":

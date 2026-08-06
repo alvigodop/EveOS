@@ -69,7 +69,7 @@
 
     async function checkDirectServerStatus() {
         try {
-            const payload = await window.GeminiServerNetwork.fetchJson('http://127.0.0.1:9084/status', null, 700);
+            const payload = await window.GeminiServerNetwork.fetchJson('http://127.0.0.1:9086/status', null, 700);
             return isStatusPayloadRunning(payload);
         } catch (error) {
             return false;

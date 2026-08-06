@@ -20,8 +20,10 @@ rem -- World Book tool (managed by the EveOS web server) --
 set "WORLD_BOOK_PORT=8766"
 
 rem -- Gemini Live backend (one process owns WS + status) --
-set "GEMINI_WS_PORT=9083"
-set "GEMINI_STATUS_PORT=9084"
+rem  Moved off 9083/9084: the Document-Audiobook-Converter project claims that pair on this
+rem  machine, and whichever process bound first left the other dead on arrival.
+set "GEMINI_WS_PORT=9085"
+set "GEMINI_STATUS_PORT=9086"
 set "GEMINI_CONTROL_PORT=9082"
 
 rem -- Browser / transport bridges --

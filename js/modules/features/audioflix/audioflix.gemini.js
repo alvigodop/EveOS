@@ -10,6 +10,8 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
     let monitorNextStart = 0;
     let monitorSinkApplied = '';
     let monitorLastAt = 0;
+    // Set only when setSinkId actually succeeded, so "armed" and "routed" stay distinguishable.
+    let voiceSinkActive = false;
 
     function getState() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -52,7 +54,13 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
 
     async function mirrorAudioChunk(base64Audio, detail = {}) {
         const state = getState();
-        if (state.geminiVoicePortEnabled !== true || state.geminiVoiceMonitorEnabled === false || !base64Audio) return false;
+        // ARMED is not the same as ROUTED. setSinkId can fail -- a saved output device that no
+        // longer exists is the usual cause -- and when it does the main voice keeps playing on the
+        // default output. The monitor exists to make an inaudible CABLE-routed voice audible; if
+        // routing never took, there is nothing to make audible and this second copy lands on the
+        // same speakers a few tens of ms behind the first, which is heard as an echo.
+        if (state.geminiVoicePortEnabled !== true || !voiceSinkActive) return false;
+        if (state.geminiVoiceMonitorEnabled === false || !base64Audio) return false;
         if (state.preferredSinkId && state.geminiVoiceMonitorSinkId === state.preferredSinkId) return false;
         const context = await ensureMonitorContext();
         if (!context || typeof window.createAudioBufferFromPCM !== 'function') return false;
@@ -81,11 +89,15 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
     // output-device changes. Safe no-op where AudioContext.setSinkId is unavailable.
     async function applyVoiceSink(ctx) {
         const target = ctx || window.audioInputContext;
-        if (!target || typeof target.setSinkId !== 'function') return false;
+        if (!target || typeof target.setSinkId !== 'function') {
+            voiceSinkActive = false;
+            return false;
+        }
         const state = getState();
         try {
             if (state.geminiVoicePortEnabled === true && state.preferredSinkId) {
                 if (target.sinkId !== state.preferredSinkId) await target.setSinkId(state.preferredSinkId);
+                voiceSinkActive = true;
                 announce('eve:audioflix-gemini-routing-changed', {
                     enabled: true,
                     applied: true,
@@ -95,8 +107,10 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
             }
             // Disarmed (or no device chosen): fall back to the default output device.
             if (target.sinkId) await target.setSinkId('');
+            voiceSinkActive = false;
             return false;
         } catch (error) {
+            voiceSinkActive = false;
             console.warn('[Audioflix] Gemini voice setSinkId failed:', error);
             announce('eve:audioflix-gemini-routing-changed', {
                 enabled: state.geminiVoicePortEnabled === true,

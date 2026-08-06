@@ -13,8 +13,8 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-if not defined GEMINI_WS_PORT set "GEMINI_WS_PORT=9083"
-if not defined GEMINI_STATUS_PORT set "GEMINI_STATUS_PORT=9084"
+if not defined GEMINI_WS_PORT set "GEMINI_WS_PORT=9085"
+if not defined GEMINI_STATUS_PORT set "GEMINI_STATUS_PORT=9086"
 set "GEMINI_WINDOW_TITLE=EveOS Gemini Main %GEMINI_WS_PORT%-%GEMINI_STATUS_PORT%"
 
 if /I "%~1"=="stop" (

@@ -11,8 +11,8 @@
     {
       "name": "gemini-backend",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-u", "server/gemini-backend/interactions/main.py", "--port", "9083"],
-      "port": 9083
+      "runtimeArgs": ["-u", "server/gemini-backend/interactions/main.py", "--port", "9085"],
+      "port": 9085
     },
     {
       "name": "gemini-control-helper",

@@ -9,7 +9,7 @@ console.log("socketGlobalState.js loading...");
 
 window.SocketGlobalState = {
     // Constants
-    WS_URL: "ws://127.0.0.1:9083",
+    WS_URL: "ws://127.0.0.1:9085",
     MAX_RECONNECT_ATTEMPTS: 10,
     INITIAL_CONNECTION_ATTEMPT_INTERVAL: 2000,
     MAX_BACKOFF_INTERVAL: 30000,
