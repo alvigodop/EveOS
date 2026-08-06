@@ -14,7 +14,7 @@
     "smoke:control-plane": "python tools/smoke/eveos_control_plane_smoke.py && python tools/smoke/gemini_server_control_smoke.py && node tools/smoke/eveos_control_plane_ui_smoke.js",
     "smoke:world-book": "python tools/smoke/world_book_integration_smoke.py && node tools/smoke/world_book_client_smoke.js",
     "smoke:search-monitor": "node tools/smoke/search_monitor_peer_panel_smoke.js",
-    "smoke:gemini-audio": "node tools/smoke/gemini_audio_worklet_smoke.js && node tools/smoke/gemini_interim_lead_smoke.js",
+    "smoke:gemini-audio": "node tools/smoke/gemini_audio_worklet_smoke.js && node tools/smoke/gemini_interim_lead_smoke.js && node tools/smoke/audioflix_realtime_backoff_smoke.js",
     "smoke:server-security": "python tools/smoke/server_proxy_security_smoke.py",
     "smoke:audioflix-spotify-playback": "node tools/smoke/audioflix_spotify_playback_smoke.js",
     "smoke:audioflix-spotify": "npm run smoke:audioflix-spotify-match && npm run smoke:audioflix-spotify-playback",

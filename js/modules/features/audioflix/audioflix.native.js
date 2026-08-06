@@ -61,14 +61,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 headers: Object.assign({ 'Content-Type': 'application/json' }, options.headers || {})
             }));
             if (!response.ok) {
-                return {
-                    ok: false,
-                    base,
-                    status: response.status,
-                    message: response.status === 404
-                        ? `Audioflix API is missing on ${base}. Restart that EveOS port so the native bridge endpoint loads.`
-                        : `Native bridge request failed on ${base} (${response.status}).`
-                };
+                return { ok: false, base, status: response.status, message: response.status === 404
+                    ? `Audioflix API is missing on ${base}. Restart that EveOS port so the endpoint loads.`
+                    : `Native bridge request failed on ${base} (${response.status}).` };
             }
             const payload = await response.json();
             return Object.assign({ base, bridgeReached: true }, payload || {});
@@ -77,12 +72,15 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         }
     }
 
+    const BACKOFF = () => window.EveAudioflixNativeBackoff;
     async function fetchJson(path, options = {}) {
         // realtime = live PCM stream lane: never honor the bridge-down cooldown (one transient chunk
         // failure would otherwise mute the router 10-120s mid-song); each chunk has its own timeout.
         if (Date.now() < bridgeDownUntil && options.probe !== true && options.realtime !== true) {
             return { ok: false, cachedDown: true, message: 'Native bridge offline (recent probe failed; will retry shortly).' };
         }
+        // ...but a bridge failing EVERY chunk must stop gating playback. See native.backoff.js.
+        if (options.realtime === true && BACKOFF()?.shouldSkipRealtime?.()) return { ok: false, cachedDown: true };
         const attempts = [];
         for (const base of candidateBases()) {
             // Only a base that proved it is EveOS may carry data; no module = fail closed.
@@ -97,6 +95,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 if (payload.bridgeReached === true) {
                     bridgeDownUntil = 0;
                     bridgeMissStreak = 0;
+                    BACKOFF()?.noteRealtimeResult?.(true);
                     if (bridgeOfflineNoticeShown) {
                         bridgeOfflineNoticeShown = false;
                         console.info('[Audioflix] Native bridge is back online — CABLE routing and global hotkeys available again.');
@@ -118,12 +117,13 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         // Only cache "down" when nothing answered at all (pure network failures); an HTTP error
         // means a server IS there. A realtime chunk failure never arms the cooldown — chunks fire
         // every ~85ms, so a lone hiccup must not blacklist the bridge for device scans/warm.
+        if (options.realtime === true) BACKOFF()?.noteRealtimeResult?.(false);
         if (options.realtime !== true && !attempts.some((item) => item.status)) {
             bridgeMissStreak = Math.min(bridgeMissStreak + 1, 5);
             bridgeDownUntil = Date.now() + Math.min(120000, 10000 * Math.pow(2, bridgeMissStreak - 1));
             if (!bridgeOfflineNoticeShown) {
                 bridgeOfflineNoticeShown = true;
-                console.info('[Audioflix] No EveOS server found — browser-only mode. Soundboard plays through your browser output; start an EveOS server (start-server.bat) and click "Refresh System Outputs" for the CABLE bridge, global hotkeys, and path ports.');
+                console.info('[Audioflix] No EveOS server found — browser-only mode. Start one with start-server.bat, then "Refresh System Outputs" for CABLE routing, hotkeys and path ports.');
             }
         }
         lastStatus = Object.assign({}, lastStatus, {
