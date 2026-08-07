@@ -223,6 +223,7 @@
                     renderCategoryDescriptionSettings();
                     renderCategoryClickBehaviorSettings();
                     renderCategoryPinSettings();
+                    window.EveCategorySettingsAudioflix?.refresh?.();
 
                     if (settingsSlots) {
                         settingsSlots.forEach(function (el) {

@@ -10,9 +10,9 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/templates/tpl-bulk.js?v=0.1.5",
     "js/modules/modals/templates/tpl-emoji.js?v=0.1.0",
     "js/modules/modals/templates/tpl-folder-actions.js?v=0.1.0",
-    "js/modules/modals/templates/tpl-category-settings.js?v=0.2.18",
+    "js/modules/modals/templates/tpl-category-settings.js?v=0.2.19",
     "js/modules/modals/templates/tpl-bookmark-focus.js?v=0.2.7",
-    "js/modules/modals/modal-core.js?v=0.1.0",
+    "js/modules/modals/modal-core.js?v=0.1.1",
     "js/modules/modals/emoji-picker.js?v=0.1.0",
     "js/modules/modals/modal-settings.ratings.js?v=0.1.0",
     "js/modules/modals/modal-settings.modular.ui.js?v=0.3.0",
@@ -42,5 +42,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-category-settings.folders.js?v=0.3.0",
     "js/modules/modals/modal-category-settings.actions.js?v=0.2.4",
     "js/modules/modals/modal-category-settings.helpers.js?v=0.3.1",
-    "js/modules/modals/modal-category-settings.js?v=0.3.3"
+    "js/modules/modals/modal-category-settings.audioflix.js?v=0.1.0",
+    "js/modules/modals/modal-category-settings.js?v=0.3.4"
 ]);

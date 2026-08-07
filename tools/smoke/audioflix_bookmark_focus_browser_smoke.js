@@ -22,8 +22,12 @@ function assert(condition, message) {
         await page.waitForFunction(() => (
             typeof window.openBookmarkFocusModal === 'function'
             && typeof window.bookmarkFocusOpenAudioflixLinker === 'function'
+            && typeof window.openCategorySettings === 'function'
+            && typeof window.categorySettingsOpenAudioflixLinker === 'function'
             && typeof window.EveAudioflix?.openNexus === 'function'
             && typeof window.EveAudioflixLinks?.add === 'function'
+            && window.__eveCoreDataLoaded === true
+            && !!document.getElementById('addModal')
         ), null, { timeout: 180000 });
 
         await page.evaluate(() => {
@@ -53,6 +57,11 @@ function assert(condition, message) {
                 categoryName: 'Audioflix Smoke',
                 bookmarkId
             }, 'music');
+            window.EveAudioflixLinks.add([track.id], {
+                scopeType: 'card',
+                workspaceId: 'main',
+                categoryName: 'Audioflix Smoke'
+            }, 'music');
             window.__audioflixFocusPlayed = '';
             window.EveAudioflixAudio.playItem = async (item) => {
                 window.__audioflixFocusPlayed = item.id;
@@ -63,6 +72,11 @@ function assert(condition, message) {
 
         const modal = page.locator('#bookmarkFocusModal');
         await modal.waitFor({ state: 'visible', timeout: 30000 });
+        await page.evaluate(() => window.initModals());
+        assert(
+            await modal.isVisible(),
+            'Expected a repeated modal availability check to preserve Bookmark Focus'
+        );
         const section = page.locator('#bookmarkFocusAudioflixSection');
         await section.evaluate((node) => { node.open = true; });
         await page.getByText('Canonical Focus Track', { exact: true }).waitFor({
@@ -101,6 +115,61 @@ function assert(condition, message) {
         assert(detachedCount === 0, 'Expected detach to remove the canonical bookmark reference');
 
         await page.evaluate(() => {
+            window.closeBookmarkFocusModal();
+            window.openCategorySettings('Audioflix Smoke', 'general', 'main');
+        });
+        const categoryModal = page.locator('#categorySettingsModal');
+        await categoryModal.waitFor({ state: 'visible', timeout: 30000 });
+        await page.evaluate(() => window.initModals());
+        assert(
+            await categoryModal.isVisible(),
+            'Expected a repeated modal availability check to preserve Card Settings'
+        );
+        const categorySection = page.locator('#categoryAudioflixSection');
+        await categorySection.evaluate((node) => { node.open = true; });
+        await page.locator('#categoryAudioflixList').getByText('Canonical Focus Track', { exact: true }).waitFor({
+            state: 'visible',
+            timeout: 30000
+        });
+        assert(
+            await page.locator('#categoryAudioflixSummary').textContent() === '1 linked',
+            'Expected Card Settings to show one direct Audioflix reference'
+        );
+        await page.locator('#categoryAudioflixList button', { hasText: 'Play' }).click();
+        await page.waitForFunction(() => window.__audioflixFocusPlayed === 'audioflix-focus-track');
+        assert(
+            await categoryModal.isVisible(),
+            'Expected Card Settings Audioflix controls to remain open after playback'
+        );
+        await page.locator('#categoryAudioflixList button', { hasText: 'Detach' }).click();
+        await page.waitForFunction(() => (
+            document.getElementById('categoryAudioflixSummary')?.textContent === '0 linked'
+        ));
+        const detachedCardCount = await page.evaluate(() => (
+            window.EveAudioflixLinks.captureForScope({
+                scopeType: 'card',
+                workspaceId: 'main',
+                categoryName: 'Audioflix Smoke'
+            }, { directOnly: true }).count
+        ));
+        assert(detachedCardCount === 0, 'Expected detach to remove the canonical card reference');
+
+        await page.evaluate(() => {
+            window.EveAudioflixLinks.add(['audioflix-focus-track'], {
+                scopeType: 'card',
+                workspaceId: 'main',
+                categoryName: 'Audioflix Smoke'
+            }, 'music');
+            window.categorySettingsOpenAudioflixLinker();
+        });
+        await page.waitForFunction(() => (
+            document.getElementById('audioflix-overlay')?.hidden === false
+            && window.EveAudioflixLinks.getPendingScope()?.scopeType === 'card'
+            && window.EveAudioflixLinks.getPendingScope()?.categoryName === 'Audioflix Smoke'
+        ), null, { timeout: 30000 });
+        await page.evaluate(() => window.EveAudioflix.close());
+
+        await page.evaluate(() => {
             window.EveAudioflixLinks.add(['audioflix-focus-track'], {
                 scopeType: 'bookmark',
                 workspaceId: 'main',
@@ -117,6 +186,11 @@ function assert(condition, message) {
         const result = await page.evaluate(() => ({
             playedId: window.__audioflixFocusPlayed,
             pendingScope: window.EveAudioflixLinks.getPendingScope(),
+            detachedCardCount: window.EveAudioflixLinks.captureForScope({
+                scopeType: 'card',
+                workspaceId: 'main',
+                categoryName: 'Audioflix Smoke'
+            }, { directOnly: true }).count,
             modalVisible: getComputedStyle(document.getElementById('bookmarkFocusModal')).display !== 'none',
             audioflixVisible: document.getElementById('audioflix-overlay')?.hidden === false
         }));

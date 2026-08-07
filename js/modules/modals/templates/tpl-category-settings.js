@@ -62,6 +62,17 @@ window.modalTemplate += `
                         </div>
                     </div>
                 </details>
+                <details id="categoryAudioflixSection" class="settings-disclosure">
+                    <summary class="settings-disclosure-summary">
+                        <span>&#9835; Audioflix</span>
+                        <span id="categoryAudioflixSummary">0 linked</span>
+                    </summary>
+                    <div class="settings-disclosure-body category-audioflix-body">
+                        <div class="category-audioflix-hint">Direct audio references for this card. Folder and bookmark links stay attached to their narrower scopes.</div>
+                        <div id="categoryAudioflixList" class="category-audioflix-list"></div>
+                        <button type="button" onclick="categorySettingsOpenAudioflixLinker()">Link Audioflix Items</button>
+                    </div>
+                </details>
                 <details class="settings-disclosure">
                     <summary class="settings-disclosure-summary">&#9889; Header Quick Actions</summary>
                     <div class="settings-disclosure-body">

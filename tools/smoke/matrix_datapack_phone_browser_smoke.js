@@ -11,6 +11,10 @@ const {
     seedLargeDatapack
 } = require('./matrix_datapack_phone_browser_smoke.fixtures');
 const { runScopeScaleDetach } = require('./matrix_datapack_phone_browser_smoke.scope');
+const {
+    seedHostedAudioflix,
+    runHostedAudioflixPlayback
+} = require('./matrix_datapack_phone_browser_smoke.audioflix.scope');
 
 (async () => {
     const port = await getFreePort();
@@ -48,6 +52,7 @@ const { runScopeScaleDetach } = require('./matrix_datapack_phone_browser_smoke.s
             && typeof window.setLiveLinks === 'function'
         ), null, { timeout: 180000 });
         await seedDatapack(page);
+        await seedHostedAudioflix(page);
         await page.locator('.topbar-matrix-btn').click();
 
         const frame = page.frameLocator('#matrix-workshop-frame');
@@ -75,12 +80,15 @@ const { runScopeScaleDetach } = require('./matrix_datapack_phone_browser_smoke.s
             || !homeState.copy.includes('3 tabs / 3 cards')
             || !homeState.copy.includes('Alpha Tab / Tab Scope')
             || !homeState.copy.includes('Audioflix Links')
+            || !homeState.copy.includes('1 scoped audio references')
             || homeState.appCount !== 3
             || initialScope.scope !== 'workspace'
             || initialScope.workspaceId !== 'alpha'
         ) {
             throw new Error(`Phone home mismatch: ${JSON.stringify({ homeState, initialScope })}`);
         }
+
+        const playedAudio = await runHostedAudioflixPlayback({ page, frame });
 
         await frame.getByText('Datapack Matrix', { exact: true }).click();
         const scopedTabNames = await frame.locator('.eve-matrix-phone-app strong').allTextContents();
@@ -398,6 +406,7 @@ const { runScopeScaleDetach } = require('./matrix_datapack_phone_browser_smoke.s
 
         console.log('MATRIX_DATAPACK_PHONE_BROWSER_SMOKE_OK', JSON.stringify({
             homeState,
+            playedAudio,
             initialScope,
             scopedTabNames,
             tabIconShape,

@@ -235,13 +235,16 @@
 }
 
 .bookmark-focus-audioflix-body,
-.bookmark-focus-audioflix-list {
+.bookmark-focus-audioflix-list,
+.category-audioflix-body,
+.category-audioflix-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-.bookmark-focus-audioflix-row {
+.bookmark-focus-audioflix-row,
+.category-audioflix-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -252,7 +255,8 @@
     background: rgba(244, 201, 93, 0.055);
 }
 
-.bookmark-focus-audioflix-row > div:first-child {
+.bookmark-focus-audioflix-row > div:first-child,
+.category-audioflix-row > div:first-child {
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -260,19 +264,25 @@
 }
 
 .bookmark-focus-audioflix-row strong,
-.bookmark-focus-audioflix-row span {
+.bookmark-focus-audioflix-row span,
+.category-audioflix-row strong,
+.category-audioflix-row span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .bookmark-focus-audioflix-row span,
-.bookmark-focus-audioflix-hint {
+.bookmark-focus-audioflix-hint,
+.category-audioflix-row span,
+.category-audioflix-hint,
+.category-audioflix-empty {
     color: rgba(255, 255, 255, 0.6);
     font-size: 0.75rem;
 }
 
-.bookmark-focus-audioflix-actions {
+.bookmark-focus-audioflix-actions,
+.category-audioflix-actions {
     display: flex;
     flex: 0 0 auto;
     gap: 6px;

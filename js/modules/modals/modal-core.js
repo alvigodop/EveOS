@@ -3,11 +3,17 @@ function initModals() {
     if (!window.modalTemplate) return;
     const expandedSearchModal = document.getElementById('expandedSearchModal');
     const expandedSearchDisplay = expandedSearchModal?.style?.display || '';
+    let insertedTemplates = false;
     // Check for the concrete link modal root instead of any overlay from unrelated features.
     if (!document.getElementById('addModal')) {
         document.body.insertAdjacentHTML('beforeend', window.modalTemplate);
+        insertedTemplates = true;
     }
-    closeModals();
+    // initModals is also an availability guard for deferred features. Only the first call should
+    // reset modal visibility; a later guard must not close a panel the user already opened.
+    if (insertedTemplates) {
+        closeModals();
+    }
     if (expandedSearchModal && expandedSearchDisplay && expandedSearchDisplay !== 'none') {
         expandedSearchModal.style.display = expandedSearchDisplay;
     }
