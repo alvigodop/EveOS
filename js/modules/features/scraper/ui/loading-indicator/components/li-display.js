@@ -79,6 +79,11 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             indicator.classList.toggle('searching', isSearching);
 
             if (!isSearching) {
+                // A finished search must retire its own watchdog. Only forceReset() used to clear it,
+                // so every completed search left a live 45s timer behind -- and when that timer fired
+                // it did not check whether a NEW search had started in the meantime. Run two searches
+                // inside 45 seconds and the first one's timer tore down the second one mid-flight.
+                clearSafetyTimer();
                 // If not searching, we should hide the overall overlay but maybe keep "Idle" if not specifically hidden
                 indicator.classList.remove('searching');
                 applyMonitorLabels(indicator, DEFAULT_MONITOR_LABELS);

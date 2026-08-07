@@ -27,9 +27,20 @@ StorageManager.KEYS = {
 /**
  * Set the current category context for storage
  */
+StorageManager._contextPrefix = function (context) {
+    return String(context == null ? 'global' : context).toLowerCase().replace(/\s+/g, '_');
+};
+
 StorageManager.setCategoryContext = function (context) {
-    console.log(`StorageManager: Context set to [${context}]`);
-    this.categoryContext = context;
+    // Assign unconditionally when the value differs at all: getScopedStorageValue compares the
+    // context case-SENSITIVELY, so normalising what we store here would silently move it onto its
+    // manual-prefix branch. Only the logging is suppressed.
+    const changed = this._contextPrefix(this.categoryContext) !== this._contextPrefix(context);
+    if (context !== this.categoryContext) this.categoryContext = context;
+    // Scoped reads/writes push a context and pop it back around every single cache operation, so a
+    // single search logged this hundreds of times -- enough console traffic to visibly slow the page
+    // and bury every other message. Only a real change of storage prefix is worth a line.
+    if (changed) console.log(`StorageManager: Context set to [${context}]`);
 };
 
 /**

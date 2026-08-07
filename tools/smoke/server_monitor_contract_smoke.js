@@ -38,8 +38,19 @@ assert(html.includes('id="toggleGeminiBtn"'), 'Current Gemini control button mis
 assert(!html.includes('startLauncherBtn') && !html.includes('startHttpBtn'),
     'Legacy command-server controls remain');
 const state = read(files[1]);
-assert(state.includes('9082') && state.includes('9083') && state.includes('9084'),
-    'Canonical Gemini ports are not represented');
+// Read the ports from the backend rather than hard-coding them. This assertion was pinned to the
+// retired 9083/9084 and silently went stale when Gemini moved to 9085/9086 to stop colliding with
+// the audiobook tool -- the monitor was updated correctly, the test was not, and nothing noticed
+// because it is not in any npm script. Derived from source, it now fails only if they truly diverge.
+const control = read('server_modules/gemini_control.py');
+const wsPort = (control.match(/GEMINI_WS_PORT",\s*(\d+)/) || [])[1];
+const statusPort = (control.match(/GEMINI_STATUS_PORT",\s*(\d+)/) || [])[1];
+assert(wsPort && statusPort, 'Could not read the canonical Gemini ports from gemini_control.py');
+assert(state.includes('9082'), 'Control-plane port 9082 is not represented in the monitor');
+assert(state.includes(wsPort), `Monitor does not point at the Gemini websocket port ${wsPort}`);
+assert(state.includes(statusPort), `Monitor does not point at the Gemini status port ${statusPort}`);
+assert(!state.includes('9083') && !state.includes('9084'),
+    'Retired Gemini ports 9083/9084 remain in the monitor');
 assert(state.includes("new URL('gemini_chat_interface.html', window.location.href)"),
     'Monitor iframe is not page-relative');
 const commands = read(files[2]);

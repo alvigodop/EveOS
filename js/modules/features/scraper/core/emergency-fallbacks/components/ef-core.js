@@ -15,7 +15,11 @@ EmergencyFallbacksCore.init = function () {
  * Ensure StorageManager exists and is functional
  */
 EmergencyFallbacksCore._ensureStorageManager = function () {
-    if (!window.StorageManager) {
+    // Chromium always defines a native StorageManager interface (the navigator.storage constructor),
+    // so a plain truthiness check is ALWAYS satisfied and this fallback could never fire -- the one
+    // situation it exists for, the real module failing to load, was exactly the one it slept through.
+    // Probe for the shape we actually depend on instead.
+    if (typeof window.StorageManager !== 'object' || typeof window.StorageManager.get !== 'function') {
         console.warn('Creating emergency StorageManager');
         window.StorageManager = {
             _initialized: true,
