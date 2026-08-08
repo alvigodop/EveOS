@@ -128,7 +128,7 @@ class AudioProcessor:
                     print(f"WebSocket closed for connection {self.connection_id}, cannot send audio")
                     break
 
-    async def process_turn_complete(self, inline_transcription_mode=False):
+    async def process_turn_complete(self, inline_transcription_mode=False, skip_transcription=False):
         """Process audio data when a turn is complete with optimized performance."""
         try:
             if self.websocket.state in (websockets.protocol.State.CLOSED, websockets.protocol.State.CLOSING):
@@ -147,8 +147,8 @@ class AudioProcessor:
                     except asyncio.TimeoutError:
                         print("Timeout waiting for audio queue to be processed")
 
-                # If inline transcription mode is active, we don't need to call the separate model
-                if inline_transcription_mode:
+                # Narration and inline-transcription clients do not need local Vosk work.
+                if skip_transcription or inline_transcription_mode:
                     print(f"Connection {self.connection_id}: Inline transcription mode active, skipping separate transcription call")
                     return None
 
@@ -196,4 +196,4 @@ class AudioProcessor:
             print(f"Error processing transcription: {e}")
             return None
         finally:
-            self.reset()  # Reset audio data and state after processing 
+            self.reset()  # Reset audio data and state after processing

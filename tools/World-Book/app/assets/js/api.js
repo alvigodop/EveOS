@@ -197,6 +197,39 @@
         method: "POST",
         body: JSON.stringify(options)
       });
+    },
+
+    getReaderDocuments() {
+      return request("/api/narration/documents");
+    },
+
+    getReaderDocument(id) {
+      return request(`/api/narration/document?id=${encodeURIComponent(id)}`);
+    },
+
+    saveReaderText(title, text) {
+      return request("/api/narration/documents/text", {
+        method: "POST",
+        body: JSON.stringify({ title, text })
+      });
+    },
+
+    async importReaderDocument(file) {
+      const response = await fetch("/api/narration/documents/import", {
+        method: "POST",
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+          "X-Eve-File-Name": file.name || "document.txt"
+        },
+        body: file
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || response.statusText);
+      return payload;
+    },
+
+    deleteReaderDocument(id) {
+      return request(`/api/narration/document?id=${encodeURIComponent(id)}`, { method: "DELETE" });
     }
   };
 })();

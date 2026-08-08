@@ -13,6 +13,8 @@
   "66_recovery_restore.py",
   "67_recovery_routes.py",
   "70_tag_index.py",
+  "72_narration_documents.py",
+  "73_narration_routes.py",
   "80_http_handler.py",
   "90_main.py"
 ]

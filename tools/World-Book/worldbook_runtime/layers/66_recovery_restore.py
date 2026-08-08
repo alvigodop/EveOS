@@ -64,6 +64,10 @@ def inspect_recovery_backup(path: Path, verify_hashes: bool = True) -> dict:
             rel = safe_archive_relative(record.get("path") or f"data/imports/{record.get('name')}")
             verify_record(recovery_member(prefix, rel), record, rel)
 
+        for record in (manifest.get("narrationDocuments") or {}).get("files") or []:
+            rel = safe_archive_relative(record.get("path"))
+            verify_record(recovery_member(prefix, rel), record, rel)
+
     return {
         "manifest": manifest,
         "prefix": prefix,
@@ -109,6 +113,7 @@ def store_recovery_upload(handler) -> dict:
             "originalWorkspacePath": manifest.get("originalWorkspacePath") or "",
             "workspace": manifest.get("workspace") or {},
             "imports": manifest.get("imports") or {},
+            "narrationDocuments": manifest.get("narrationDocuments") or {},
             "skipped": manifest.get("skipped") or [],
         },
     }
@@ -193,6 +198,49 @@ def restore_import_files(archive, prefix: str, manifest: dict) -> int:
     return restored
 
 
+def archive_current_narration_documents() -> str:
+    if not NARRATION_DOCUMENTS_DIR.exists() or not any(NARRATION_DOCUMENTS_DIR.rglob("*")):
+        return ""
+    RECOVERY_ROLLBACKS_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    output = RECOVERY_ROLLBACKS_DIR / f"narration-before-restore-{stamp}.zip"
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for path in NARRATION_DOCUMENTS_DIR.rglob("*"):
+            if path.is_file():
+                archive.write(path, path.relative_to(NARRATION_DOCUMENTS_DIR).as_posix())
+    return str(output)
+
+
+def restore_narration_documents(archive, prefix: str, manifest: dict) -> tuple[int, str]:
+    records = (manifest.get("narrationDocuments") or {}).get("files") or []
+    if not records:
+        return 0, ""
+    staging = RECOVERY_TEMP_DIR / new_id("narration-restore")
+    staging.mkdir(parents=True, exist_ok=False)
+    restored = 0
+    try:
+        for record in records:
+            relative = safe_archive_relative(record.get("relativePath"))
+            target = (staging / Path(relative)).resolve()
+            if Path(os.path.commonpath([str(staging.resolve()), str(target)])) != staging.resolve():
+                raise PermissionError("Narration recovery path escaped its staging directory.")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            member_path = safe_archive_relative(record.get("path"))
+            with archive.open(recovery_member(prefix, member_path), "r") as source, target.open("wb") as output:
+                shutil.copyfileobj(source, output, 1024 * 1024)
+            if sha256_file(target) != str(record.get("sha256") or ""):
+                raise ValueError(f"Reader document failed verification: {relative}")
+            restored += 1
+        rollback = archive_current_narration_documents()
+        if NARRATION_DOCUMENTS_DIR.exists():
+            shutil.rmtree(NARRATION_DOCUMENTS_DIR)
+        staging.replace(NARRATION_DOCUMENTS_DIR)
+        return restored, rollback
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+
 def restore_recovery_backup(upload_id: str, mode: str, destination_path: str, policy: str) -> dict:
     safe_id = re.sub(r"[^A-Za-z0-9_-]", "", str(upload_id or ""))
     path = RECOVERY_UPLOADS_DIR / f"{safe_id}.zip"
@@ -208,6 +256,8 @@ def restore_recovery_backup(upload_id: str, mode: str, destination_path: str, po
     destination = None
     physical_result = None
     imported_count = 0
+    narration_count = 0
+    narration_rollback = ""
 
     with zipfile.ZipFile(path, "r") as archive:
         if restore_state:
@@ -215,6 +265,7 @@ def restore_recovery_backup(upload_id: str, mode: str, destination_path: str, po
             incoming = json.loads(archive.read(recovery_member(prefix, "state/state.json")).decode("utf-8"))
             restore_active_state(incoming, preserve_imports=False)
             imported_count = restore_import_files(archive, prefix, manifest)
+            narration_count, narration_rollback = restore_narration_documents(archive, prefix, manifest)
 
         if restore_physical:
             destination_value = str(destination_path or "").strip() or default_recovery_destination(manifest.get("originalWorkspacePath"))
@@ -232,6 +283,8 @@ def restore_recovery_backup(upload_id: str, mode: str, destination_path: str, po
         "destinationPath": str(destination) if destination else "",
         "physical": physical_result,
         "restoredImportFiles": imported_count,
+        "restoredNarrationFiles": narration_count,
+        "narrationRollback": narration_rollback,
         "message": "Full recovery restore completed and verified.",
     }
 

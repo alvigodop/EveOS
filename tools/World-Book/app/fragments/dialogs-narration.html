@@ -1,0 +1,66 @@
+<dialog id="reader-library-dialog" class="wide-dialog narration-dialog">
+  <div class="dialog-card narration-dialog-card">
+    <div class="dialog-heading">
+      <div>
+        <span class="eyebrow">Voice layer</span>
+        <h2>Reader Library</h2>
+        <p class="dialog-subtitle">Hear live files, World Book entries, snapshots, and private imported documents.</p>
+      </div>
+      <button type="button" class="icon-button" data-reader-close aria-label="Close">&times;</button>
+    </div>
+
+    <div class="narration-layout">
+      <section class="narration-library-panel">
+        <div class="narration-section-heading">
+          <div><strong>Private documents</strong><small>Stored locally and included in full recovery backups.</small></div>
+          <label class="button button-small narration-upload-label">Import document<input id="reader-file-input" type="file" accept=".pdf,.docx,.txt,.md,.markdown,.html,.htm" hidden></label>
+        </div>
+        <div id="reader-document-list" class="narration-document-list"></div>
+        <details class="narration-paste-card">
+          <summary>Paste or dictate text</summary>
+          <label class="field"><span>Title</span><input id="reader-paste-title" value="Pasted narration"></label>
+          <label class="field"><span>Text</span><textarea id="reader-paste-text" rows="6" placeholder="Paste prose here..."></textarea></label>
+          <div class="narration-inline-actions">
+            <button id="reader-dictate-btn" type="button" class="button button-small">Dictate</button>
+            <button id="reader-save-text-btn" type="button" class="button button-primary button-small">Save to library</button>
+          </div>
+        </details>
+      </section>
+
+      <section class="narration-player-panel">
+        <div class="narration-now-playing">
+          <span>Now reading</span>
+          <strong id="reader-source-title">Choose an entry or document</strong>
+          <small id="reader-status">Ready</small>
+        </div>
+        <p id="reader-passage-preview" class="narration-passage-preview">The current passage will appear here.</p>
+        <input id="reader-progress" class="narration-progress" type="range" min="0" max="0" value="0" aria-label="Narration passage">
+        <div class="narration-player-controls">
+          <button id="reader-previous-btn" type="button" class="button button-small">Previous</button>
+          <button id="reader-play-btn" type="button" class="button button-primary">Play</button>
+          <button id="reader-pause-btn" type="button" class="button">Pause</button>
+          <button id="reader-stop-btn" type="button" class="button">Stop</button>
+          <button id="reader-next-btn" type="button" class="button button-small">Next</button>
+        </div>
+
+        <details class="narration-settings-card">
+          <summary>Narration settings</summary>
+          <div class="narration-settings-grid">
+            <label class="field"><span>Engine</span><select id="reader-engine"><option value="browser">Browser speech (offline)</option><option value="gemini">Gemini narration</option></select></label>
+            <label class="field"><span>Browser voice</span><select id="reader-browser-voice"></select></label>
+            <label class="field"><span>Gemini voice</span><select id="reader-gemini-voice"><option>Aoede</option><option>Charon</option><option>Fenrir</option><option>Kore</option><option>Leda</option><option>Orus</option><option>Puck</option><option>Zephyr</option></select></label>
+            <label class="field"><span>Rate</span><input id="reader-rate" type="range" min="0.5" max="2" step="0.05"></label>
+            <label class="field"><span>Pitch</span><input id="reader-pitch" type="range" min="0" max="2" step="0.05"></label>
+            <label class="field"><span>Volume</span><input id="reader-volume" type="range" min="0" max="1" step="0.05"></label>
+          </div>
+          <p class="dialog-note">Gemini narration uses the same credential vault configured in EveOS Search Monitor. It never stores a second API key here.</p>
+        </details>
+
+        <div class="narration-cache-row">
+          <span id="reader-cache-stats">Audio cache: checking...</span>
+          <button id="reader-clear-cache-btn" type="button" class="button button-small">Clear generated audio</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</dialog>

@@ -79,6 +79,9 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
             if handle_recovery_get(self, parsed):
                 return
 
+            if handle_narration_get(self, parsed, query):
+                return
+
             if parsed.path == "/api/config":
                 root_value = str(CONFIG.get("rootPath") or "")
                 root_exists = bool(root_value and Path(root_value).expanduser().is_dir())
@@ -182,8 +185,14 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
             if handle_recovery_post_raw(self, parsed):
                 return
 
+            if handle_narration_post_raw(self, parsed):
+                return
+
             payload = self.read_json_body()
             if handle_recovery_post_json(self, parsed, payload):
+                return
+
+            if handle_narration_post_json(self, parsed, payload):
                 return
 
             if parsed.path == "/api/config":
@@ -418,4 +427,19 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
             return self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
         except Exception as exc:
             print(f"POST error: {exc}")
+            return self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        try:
+            if handle_narration_delete(self, parsed, query):
+                return
+            return self.send_error_json(HTTPStatus.NOT_FOUND, "Unknown API endpoint.")
+        except FileNotFoundError as exc:
+            return self.send_error_json(HTTPStatus.NOT_FOUND, str(exc))
+        except (ValueError, PermissionError) as exc:
+            return self.send_error_json(HTTPStatus.BAD_REQUEST, str(exc))
+        except Exception as exc:
+            print(f"DELETE error: {exc}")
             return self.send_error_json(HTTPStatus.INTERNAL_SERVER_ERROR, str(exc))

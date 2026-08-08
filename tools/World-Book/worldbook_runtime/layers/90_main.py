@@ -9,6 +9,7 @@ def main() -> None:
     RECOVERY_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     RECOVERY_ROLLBACKS_DIR.mkdir(parents=True, exist_ok=True)
     RECOVERY_TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    NARRATION_DOCUMENTS_DIR.mkdir(parents=True, exist_ok=True)
     cleanup_recovery_staging()
     mimetypes.add_type("application/javascript", ".js")
 

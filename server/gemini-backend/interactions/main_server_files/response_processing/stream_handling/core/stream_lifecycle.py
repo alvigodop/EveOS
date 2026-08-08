@@ -13,7 +13,7 @@ class StreamSession:
     """
     Manages the lifecycle of the Gemini response stream.
     """
-    def __init__(self, session, websocket, connection_monitor, connection_id, audio_processor, voice_name, client, initialize_gemini_session, response_timeout=None, inline_transcription_mode=False):
+    def __init__(self, session, websocket, connection_monitor, connection_id, audio_processor, voice_name, client, initialize_gemini_session, response_timeout=None, inline_transcription_mode=False, session_role="interactive"):
         self.session = session
         self.websocket = websocket
         self.connection_monitor = connection_monitor
@@ -24,9 +24,15 @@ class StreamSession:
         self.initialize_gemini_session = initialize_gemini_session
         self.response_timeout = response_timeout
         self.inline_transcription_mode = inline_transcription_mode
+        self.session_role = session_role
         
         self.error_handler = StreamErrorHandler(connection_id)
-        self.response_handler = GeminiResponseHandler(connection_monitor, audio_processor, inline_transcription_mode=inline_transcription_mode)
+        self.response_handler = GeminiResponseHandler(
+            connection_monitor,
+            audio_processor,
+            inline_transcription_mode=inline_transcription_mode,
+            session_role=session_role,
+        )
         self.retry_attempt = 0
 
     async def run(self):
@@ -200,6 +206,9 @@ class StreamSession:
              return True
 
     async def _attempt_reconnect(self, handler_msg, error_type="deadline"):
+        if self.session_role == "world_book_narration":
+            await self._notify_stop("Narration transport closed. World Book will reconnect when playback resumes.")
+            return True
         print(f"Connection Status: {handler_msg}")
         if self.connection_monitor.is_websocket_open():
             await self.connection_monitor.safe_send(json.dumps({

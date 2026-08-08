@@ -33,6 +33,7 @@ IMPORTS_DIR = DATA_DIR / "imports"
 RECOVERY_UPLOADS_DIR = DATA_DIR / "recovery_uploads"
 RECOVERY_ROLLBACKS_DIR = DATA_DIR / "recovery_rollbacks"
 RECOVERY_TEMP_DIR = DATA_DIR / "recovery_temp"
+NARRATION_DOCUMENTS_DIR = DATA_DIR / "narration_documents"
 
 TEXT_EXTENSIONS = {
     ".txt", ".md", ".markdown", ".json", ".jsonl", ".csv", ".tsv",
@@ -43,6 +44,7 @@ TEXT_EXTENSIONS = {
     ".gradle", ".gitignore", ".gitattributes"
 }
 READABLE_EXTENSIONS = TEXT_EXTENSIONS | {".docx"}
+NARRATION_EXTENSIONS = {".txt", ".md", ".markdown", ".html", ".htm", ".docx", ".pdf"}
 MAX_REQUEST_BYTES = 100 * 1024 * 1024
 MAX_RECOVERY_UPLOAD_BYTES = 8 * 1024 * 1024 * 1024
 RECOVERY_FORMAT = "eve-os-world-book-full-recovery"

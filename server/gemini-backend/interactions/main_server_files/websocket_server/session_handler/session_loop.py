@@ -13,15 +13,18 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
     """
     Executes the main Gemini session loop.
     """
-    # Load chat history
-    chat_history = load_chat_history()
+    session_role = str(config_data.get("sessionRole") or "interactive").strip().lower()
+    is_narration = session_role == "world_book_narration"
+
+    # Narration is an isolated rendering lane. It must not inherit conversational state.
+    chat_history = [] if is_narration else load_chat_history()
     
     # Build context from chat history
     context = []
 
     # FEW-SHOT PROMPT INJECTION: Prime the model with examples of correct behavior
     # This prevents the "Instruction Dilution" where it forgets the system prompt after a few turns.
-    if config_data.get("inlineTranscriptionMode", True):
+    if not is_narration and config_data.get("inlineTranscriptionMode", True):
         context.extend([
             {
                 "role": "user",
@@ -80,7 +83,9 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
     # FORCE Disable inline transcription for Gemini 2.5 to enable Local Transcription (Vosk)
     # Since gemini-2.5 is configured for AUDIO-only response modalities, it won't send text.
     # We need audio_processor to handle the transcription locally.
-    if "gemini-2.5" in config_data.get("model", MAIN_MODEL):
+    if is_narration:
+         inline_transcription_mode = True
+    elif "gemini-2.5" in config_data.get("model", MAIN_MODEL):
          inline_transcription_mode = False
          print(f"Connection {connection_id}: Forcing inline_transcription_mode=False for Gemini 2.5 to enable Local Vosk Transcription")
 
@@ -123,14 +128,15 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
             print(f"Connected to Gemini API with voice: {voice_name}, model: {model_name}")
             
             # Add to active sessions
-            active_sessions[connection_id] = {
+            active_sessions.setdefault(connection_id, {}).update({
                 "session": session,
                 "voice_name": voice_name,
                 "model": model_name,
                 "generation_config": generation_config,
                 "connected_at": datetime.datetime.now().isoformat(),
-                "client": client  # Store the client instance
-            }
+                "client": client,
+                "session_role": session_role,
+            })
             print(f"Active sessions: {len(active_sessions)}")
             
             # Notify the client that we're connected
@@ -162,7 +168,8 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
                 client=client,
                 initialize_gemini_session=initialize_gemini_session,
                 response_timeout=response_timeout,
-                inline_transcription_mode=inline_transcription_mode
+                inline_transcription_mode=inline_transcription_mode,
+                session_role=session_role
             ))
 
             try:

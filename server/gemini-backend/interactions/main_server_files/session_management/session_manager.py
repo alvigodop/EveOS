@@ -11,6 +11,7 @@ from .core.session_registry import (
     update_session_activity,
     get_active_sessions,
     get_session_info,
+    set_session_role,
     disconnect_other_sessions
 )
 from .core.session_limits import (
@@ -34,6 +35,7 @@ __all__ = [
     'update_session_activity',
     'get_active_sessions',
     'get_session_info',
+    'set_session_role',
     'disconnect_other_sessions',
     'MODEL_SESSION_LIMITS',
     'get_session_limit_for_model',

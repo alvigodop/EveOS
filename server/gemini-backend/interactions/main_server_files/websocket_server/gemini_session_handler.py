@@ -4,7 +4,11 @@ from .session_handler.session_loop import execute_session_loop
 import websockets
 import asyncio
 import json
-from main_server_files.session_management.session_manager import cleanup_resources, disconnect_other_sessions
+from main_server_files.session_management.session_manager import (
+    cleanup_resources,
+    disconnect_other_sessions,
+    set_session_role,
+)
 from main_server_files.api_configuration.api_client_manager import initialize_api_client
 from main_server_files.api_configuration.api_key_manager import persist_api_key
 
@@ -27,23 +31,25 @@ async def gemini_session_handler(websocket, client):
     monitor_task = asyncio.create_task(connection_monitor.monitor_connection())
     
     try:
-        # 1b. SINGLE-OWNER ROUTING
-        # This newest surface takes over the Gemini link: cut any prior client (e.g. a file://
-        # tab when you just connected from localhost) so the session routes here, then give the
-        # kicked sessions a beat to release their semaphore slot before we acquire ours.
-        kicked = await disconnect_other_sessions(connection_id)
-        if kicked:
-            await asyncio.sleep(0.15)
-
-        # 2. ACQUIRE SESSION SLOT
-        slot_acquired = await acquire_session_slot(connection_monitor, error_handler, connection_id)
-        if not slot_acquired:
-            return
-
-        # 3. INITIAL CONFIGURATION HANDSHAKE
+        # 2. INITIAL CONFIGURATION HANDSHAKE
+        # Read the role before claiming a model slot so ownership can be scoped. Narration may
+        # coexist with Search Monitor, while a newer client still replaces an older client that
+        # owns the same role.
         voice_name, config_data = await handle_initial_config(websocket, connection_monitor, error_handler, connection_id)
         if not voice_name:
             # Error handled inside config manager
+            return
+
+        session_role = set_session_role(connection_id, config_data.get("sessionRole") or "interactive")
+        setattr(connection_monitor, "session_role", session_role)
+        setattr(audio_processor, "session_role", session_role)
+        kicked = await disconnect_other_sessions(connection_id, session_role)
+        if kicked:
+            await asyncio.sleep(0.15)
+
+        # 3. ACQUIRE SESSION SLOT
+        slot_acquired = await acquire_session_slot(connection_monitor, error_handler, connection_id)
+        if not slot_acquired:
             return
             
         # 3.5 CHECK FOR PER-SESSION API KEY

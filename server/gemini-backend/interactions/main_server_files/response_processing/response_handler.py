@@ -9,10 +9,11 @@ from ..transcription.transcription_handler import transcribe_audio
 MAX_AUDIO_BUFFER_SIZE = 1024 * 1024 * 5
 
 class GeminiResponseHandler:
-    def __init__(self, connection_monitor, audio_processor, inline_transcription_mode=False):
+    def __init__(self, connection_monitor, audio_processor, inline_transcription_mode=False, session_role="interactive"):
         self.connection_monitor = connection_monitor
         self.audio_processor = audio_processor
         self.inline_transcription_mode = inline_transcription_mode
+        self.session_role = session_role
         self.last_audio_time = None
         self.audio_completion_threshold = 15.0  # Increased to 15.0s to allow for longer model thinking pauses without premature turn completion
         self.screen_suppressed_parts = 0
@@ -58,7 +59,8 @@ class GeminiResponseHandler:
             if hasattr(part, 'text') and part.text is not None:
                 await self.process_text_response(part.text)
                 # Save text responses to chat history immediately
-                save_chat_history(part.text, is_user=False)
+                if self.session_role != "world_book_narration":
+                    save_chat_history(part.text, is_user=False)
             elif hasattr(part, 'inline_data') and part.inline_data is not None:
                 import time
                 self.last_audio_time = time.time()  # Track when audio was received
@@ -114,12 +116,23 @@ class GeminiResponseHandler:
 
             print(f"Processing turn complete with {len(self.audio_processor.audio_data)} bytes of audio data")
             # Process audio data and get transcription (passing inline mode flag)
-            transcribed_text = await self.audio_processor.process_turn_complete(self.inline_transcription_mode)
+            skip_transcription = self.session_role == "world_book_narration"
+            transcribed_text = await self.audio_processor.process_turn_complete(
+                self.inline_transcription_mode,
+                skip_transcription=skip_transcription,
+            )
             
             if transcribed_text:
                 print(f"Got transcription: {transcribed_text[:50]}...")
                 # Save to chat history
-                save_chat_history(transcribed_text, is_user=False)
+                if not skip_transcription:
+                    save_chat_history(transcribed_text, is_user=False)
+
+            if skip_transcription and self.connection_monitor.is_websocket_open():
+                await self.connection_monitor.safe_send(json.dumps({
+                    "type": "turn_complete",
+                    "sessionRole": self.session_role,
+                }))
                 
             # Removed artificial sleep to prevent turn handoff latency
             return transcribed_text

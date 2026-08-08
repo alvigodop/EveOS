@@ -26,7 +26,13 @@
     "assets/js/taxonomy/dashboard.js",
     "assets/js/tree.js",
     "assets/js/editor.js",
-    "assets/js/app-loader.js"
+    "assets/js/app-loader.js",
+    "assets/js/narration/text.js",
+    "assets/js/narration/store.js",
+    "assets/js/narration/browser.js",
+    "assets/js/narration/gemini.js",
+    "assets/js/narration/controller.js",
+    "assets/js/narration/ui.js"
   ];
 
   for (const source of scripts) {

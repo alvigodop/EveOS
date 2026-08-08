@@ -1,6 +1,6 @@
 from .core.stream_lifecycle import StreamSession
 
-async def receive_from_gemini(session, websocket, connection_monitor, connection_id, audio_processor, voice_name, client=None, initialize_gemini_session=None, response_timeout=None, inline_transcription_mode=False):
+async def receive_from_gemini(session, websocket, connection_monitor, connection_id, audio_processor, voice_name, client=None, initialize_gemini_session=None, response_timeout=None, inline_transcription_mode=False, session_role="interactive"):
     """
     Receive and process responses from Gemini with enhanced timeout management, error handling, and persistent session support.
     
@@ -17,7 +17,8 @@ async def receive_from_gemini(session, websocket, connection_monitor, connection
         client=client,
         initialize_gemini_session=initialize_gemini_session,
         response_timeout=response_timeout,
-        inline_transcription_mode=inline_transcription_mode
+        inline_transcription_mode=inline_transcription_mode,
+        session_role=session_role
     )
     
     # Run the session loop

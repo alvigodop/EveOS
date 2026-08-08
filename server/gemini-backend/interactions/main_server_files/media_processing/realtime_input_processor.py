@@ -9,6 +9,7 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
     """Process realtime input data from the client."""
     print(f"Processing realtime_input with {len(data['realtime_input']['media_chunks'])} chunks")
     source = data.get("source")
+    is_world_book_narration = source == "world_book_narration"
     is_modular_context_payload = bool(
         data.get("is_modular_context")
         or source in ("modular_gemini_context", "modular_gemini_data_stream")
@@ -96,7 +97,7 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
                 print("Detected user message with screen-share frame")
             elif is_screen_share:
                 print("Detected screen-share instruction chunk - not saving as user chat")
-            elif not is_selftalk:
+            elif not is_selftalk and not is_world_book_narration:
                 is_user_message = True
         else:
             print(f"WARNING: Unknown MIME type in realtime_input chunk: {mime_type}")

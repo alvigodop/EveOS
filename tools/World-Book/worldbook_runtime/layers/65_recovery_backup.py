@@ -58,6 +58,25 @@ def recovery_workspace_entries(root: Path) -> tuple[list[dict], list[dict], list
     return files, directories, skipped
 
 
+def recovery_private_data_entries(root: Path, archive_root: str, skipped: list[str]) -> list[dict]:
+    records = []
+    if not root.exists():
+        return records
+    for path in sorted((item for item in root.rglob("*") if item.is_file()), key=lambda item: str(item).casefold()):
+        relative = path.relative_to(root).as_posix()
+        try:
+            stat = path.stat()
+            records.append({
+                "relativePath": relative,
+                "path": f"{archive_root.rstrip('/')}/{relative}",
+                "size": stat.st_size,
+                "sha256": sha256_file(path),
+            })
+        except (OSError, PermissionError) as exc:
+            skipped.append(f"{archive_root}/{relative}: {exc}")
+    return records
+
+
 def write_recovery_readme() -> str:
     return """EVE OS WORLD BOOK — FULL RECOVERY BACKUP
 
@@ -106,6 +125,12 @@ def create_full_recovery_backup() -> tuple[Path, str, dict]:
             except OSError as exc:
                 skipped.append(f"data/imports/{path.name}: {exc}")
 
+    narration_files = recovery_private_data_entries(
+        NARRATION_DOCUMENTS_DIR,
+        "data/narration_documents",
+        skipped,
+    )
+
     manifest = {
         "format": RECOVERY_FORMAT,
         "formatVersion": RECOVERY_FORMAT_VERSION,
@@ -123,6 +148,11 @@ def create_full_recovery_backup() -> tuple[Path, str, dict]:
             "directories": workspace_dirs,
         },
         "imports": {"fileCount": len(imported_files), "files": imported_files},
+        "narrationDocuments": {
+            "fileCount": len(narration_files),
+            "totalBytes": sum(item["size"] for item in narration_files),
+            "files": narration_files,
+        },
         "skipped": skipped,
     }
 
@@ -145,6 +175,11 @@ def create_full_recovery_backup() -> tuple[Path, str, dict]:
             archive.write(root / record["path"], f"{prefix}/workspace/{record['path']}")
         for record in imported_files:
             archive.write(IMPORTS_DIR / record["name"], f"{prefix}/{record['path']}")
+        for record in narration_files:
+            archive.write(
+                NARRATION_DOCUMENTS_DIR / record["relativePath"],
+                f"{prefix}/{record['path']}",
+            )
 
     verification = inspect_recovery_backup(output, verify_hashes=True)
     if not verification["integrityOk"]:
@@ -157,6 +192,7 @@ def create_full_recovery_backup() -> tuple[Path, str, dict]:
         "totalBytes": manifest["workspace"]["totalBytes"],
         "verifiedFiles": verification["verifiedFiles"],
         "skippedCount": len(skipped),
+        "narrationDocumentFiles": len(narration_files),
         "complete": not skipped,
     }
     return output, filename, summary
