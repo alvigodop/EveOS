@@ -1,10 +1,10 @@
 {
-  "version": "0.15.0",
-  "fromVersion": "0.14.0",
+  "version": "0.16.0",
+  "fromVersion": "0.15.0",
   "directExtract": true,
   "preserve": [
     "data"
   ],
   "remove": [],
-  "notes": "Adds a persistent, accessible Collapse header / Expand header control to the World Book application's own workspace header. The preference is browser-local, works standalone and embedded in EveOS, and does not change lore, server preferences, or schema 10 state."
+  "notes": "Adds the private Reader Library, live World Book Read Aloud controls, offline browser speech, isolated Gemini narration, source-aware generated-audio cache management, dictation, Audioflix output routing, and full-recovery coverage for imported reader documents. Generated audio remains disposable browser cache. Lore schema 10 is unchanged."
 }

@@ -42,8 +42,9 @@ class NarrationHTMLTextExtractor(HTMLParser):
 
 
 def narration_safe_id(value: str) -> str:
-    safe = re.sub(r"[^A-Za-z0-9_-]", "", str(value or ""))
-    if not safe or len(safe) > 80:
+    raw = str(value or "")
+    safe = re.sub(r"[^A-Za-z0-9_-]", "", raw)
+    if not safe or safe != raw or len(safe) > 80:
         raise ValueError("Reader document id is invalid.")
     return safe
 
@@ -68,7 +69,8 @@ def extract_narration_pdf(path: Path) -> str:
         raise ValueError("PDF reading needs PyMuPDF installed in the World Book Python environment.") from exc
     try:
         with fitz.open(path) as document:
-            return "\n\n".join(page.get_text("text", sort=True).strip() for page in document).strip()
+            pages = [extract_narration_pdf_page(page) for page in document]
+            return normalize_narration_text(combine_narration_pdf_pages(pages))
     except Exception as exc:
         raise ValueError("This PDF could not be read.") from exc
 
@@ -80,14 +82,14 @@ def extract_narration_text(path: Path) -> tuple[str, str]:
     if suffix == ".pdf":
         return extract_narration_pdf(path), "pdf"
     if suffix == ".docx":
-        return extract_docx_text(path), "docx"
+        return normalize_narration_text(extract_docx_text(path)), "docx"
     raw = path.read_bytes()
     value = decode_narration_text(raw)
     if suffix in {".html", ".htm"}:
         parser = NarrationHTMLTextExtractor()
         parser.feed(value)
-        return parser.text(), "html"
-    return value.replace("\r\n", "\n").replace("\r", "\n").strip(), "text"
+        return normalize_narration_text(parser.text()), "html"
+    return normalize_narration_text(value), "text"
 
 
 def narration_metadata(document_dir: Path) -> dict:
@@ -137,24 +139,28 @@ def save_narration_document(title: str, text: str, source_path: Path | None = No
     document_id = new_id("reader")
     document_dir = narration_document_dir(document_id)
     document_dir.mkdir(parents=True, exist_ok=False)
-    source_name = ""
-    if source_path:
-        suffix = source_path.suffix.casefold()
-        source_name = f"source{suffix}"
-        shutil.move(str(source_path), document_dir / source_name)
-    timestamp = now_iso()
-    record = {
-        "id": document_id,
-        "title": str(title or "Untitled document").strip()[:240] or "Untitled document",
-        "format": format_name,
-        "sourceFile": source_name,
-        "characterCount": len(clean_text),
-        "createdAt": timestamp,
-        "updatedAt": timestamp,
-    }
-    (document_dir / "text.txt").write_text(clean_text, encoding="utf-8")
-    atomic_write_json(document_dir / "meta.json", record)
-    return record
+    try:
+        source_name = ""
+        if source_path:
+            suffix = source_path.suffix.casefold()
+            source_name = f"source{suffix}"
+            shutil.move(str(source_path), document_dir / source_name)
+        timestamp = now_iso()
+        record = {
+            "id": document_id,
+            "title": str(title or "Untitled document").strip()[:240] or "Untitled document",
+            "format": format_name,
+            "sourceFile": source_name,
+            "characterCount": len(clean_text),
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
+        }
+        (document_dir / "text.txt").write_text(clean_text, encoding="utf-8")
+        atomic_write_json(document_dir / "meta.json", record)
+        return record
+    except Exception:
+        shutil.rmtree(document_dir, ignore_errors=True)
+        raise
 
 
 def delete_narration_document(document_id: str) -> dict:

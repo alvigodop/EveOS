@@ -1,4 +1,4 @@
-EVE OS WORLD BOOK v0.11.2 — DIRECT EXTRACT PATCH
+EVE OS WORLD BOOK v0.16.0 — DIRECT EXTRACT PATCH
 
 1. Stop the running World Book server with Ctrl+C.
 2. Put this ZIP inside the active EveOS tools\World-Book folder.
@@ -6,4 +6,6 @@ EVE OS WORLD BOOK v0.11.2 — DIRECT EXTRACT PATCH
 4. Keep your existing data folder. This patch does not include data.
 5. Restart launch.bat.
 
-This patch adds spacing polish to the Eve Injection panel.
+This patch adds the private Reader Library, offline and Gemini narration,
+source-aware generated-audio cache management, Audioflix routing, and verified
+reader-document recovery while preserving lore schema 10.

@@ -15,14 +15,8 @@ from pathlib import Path
 from . import gemini_credentials
 
 
-# Read from the environment so tools/batch/eveos-ports.bat stays the single source of truth it
-# claims to be -- these were hardcoded past it, so changing the port there fixed the launchers and
-# left this module still dialing the old pair.
-#
-# The defaults moved off 9083/9084: another local project (the Document-Audiobook-Converter) claims
-# that same pair, and whichever process started first won. When it won, Gemini could not bind and
-# every start returned "ports 9083/9084 belong to another local service" -- a collision between two
-# unrelated tools rather than a fault in either.
+# Read from the environment so tools/batch/eveos-ports.bat remains the single source of truth.
+# Defaults preserve the established pair for direct module use and test isolation.
 def _port_from_env(name: str, default: int) -> int:
     try:
         return int(os.environ.get(name) or default)

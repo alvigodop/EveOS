@@ -32,6 +32,7 @@
     "assets/js/narration/browser.js",
     "assets/js/narration/gemini.js",
     "assets/js/narration/controller.js",
+    "assets/js/narration/cache-ui.js",
     "assets/js/narration/ui.js"
   ];
 

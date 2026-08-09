@@ -8,8 +8,7 @@ from pathlib import Path
 # Global cleanup interval for session cleanup task (seconds)
 CLEANUP_INTERVAL_SEC = 60
 
-# Default WebSocket server port. Must match tools/batch/eveos-ports.bat (GEMINI_WS_PORT); moved off
-# 9083 because the Document-Audiobook-Converter project claims 9083/9084 on this machine.
+# Default WebSocket server port. Must match tools/batch/eveos-ports.bat (GEMINI_WS_PORT).
 DEFAULT_PORT = 9085
 
 # Default status server port (WebSocket port + 1)

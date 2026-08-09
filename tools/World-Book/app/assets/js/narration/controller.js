@@ -1,5 +1,6 @@
 (function () {
   const WB = window.WorldBook = window.WorldBook || {};
+  const CACHE_POLICY_VERSION = "world-book-narration-v1";
 
   function hash(value) {
     let code = 2166136261;
@@ -21,6 +22,8 @@
       this.status = "idle";
       this.runToken = 0;
       this.prefetches = new Map();
+      this.resumeWaiters = new Set();
+      this.cacheEpoch = 0;
     }
 
     snapshot(extra = {}) {
@@ -37,7 +40,7 @@
     emit(extra) {
       const detail = this.snapshot(extra);
       this.dispatchEvent(new CustomEvent("state", { detail }));
-      window.parent?.postMessage?.({ type: "eve-world-book-narration-state", detail }, "*");
+      WB.NarrationHost?.post?.({ type: "eve-world-book-narration-state", detail });
     }
 
     load(source) {
@@ -62,7 +65,16 @@
 
     cacheKey(index, settings) {
       const text = this.passages[index] || "";
-      return `gemini:${settings.geminiVoice}:${hash(text)}`;
+      const policy = settings.strictVerbatim === false ? "natural" : "verbatim";
+      return [
+        "gemini",
+        CACHE_POLICY_VERSION,
+        policy,
+        settings.geminiVoice || "Aoede",
+        hash(this.source?.id || "unknown"),
+        index,
+        hash(text),
+      ].join(":");
     }
 
     async geminiRecord(index, settings) {
@@ -70,11 +82,25 @@
       const cached = await WB.NarrationStore.getAudio(key);
       if (cached) return cached;
       if (this.prefetches.has(key)) return this.prefetches.get(key);
-      const pending = this.gemini.synthesize(this.passages[index], settings).then(async result => {
-        const record = { key, ...result, voice: settings.geminiVoice, sourceId: this.source?.id || "" };
-        await WB.NarrationStore.putAudio(record);
-        return record;
-      }).finally(() => this.prefetches.delete(key));
+      const source = { ...(this.source || {}) };
+      const passage = this.passages[index] || "";
+      const cacheEpoch = this.cacheEpoch;
+      const pending = this.gemini.synthesize(passage, settings).then(async result => {
+        if (cacheEpoch !== this.cacheEpoch) return result;
+        return WB.NarrationStore.putAudio({
+          key,
+          ...result,
+          voice: settings.geminiVoice,
+          sourceId: source.id || "",
+          sourceTitle: source.title || "Unknown source",
+          passageIndex: index,
+          passagePreview: passage.replace(/\s+/g, " ").trim().slice(0, 180),
+          narrationPolicy: settings.strictVerbatim === false ? "natural" : "verbatim",
+          cachePolicyVersion: CACHE_POLICY_VERSION,
+        });
+      }).finally(() => {
+        if (this.prefetches.get(key) === pending) this.prefetches.delete(key);
+      });
       this.prefetches.set(key, pending);
       return pending;
     }
@@ -93,10 +119,12 @@
         this.emit();
         const record = await this.geminiRecord(index, settings);
         if (token !== this.runToken) return;
+        await this.waitWhilePaused(token);
+        if (token !== this.runToken) return;
         this.status = "playing";
         this.emit({ cached: record.createdAt !== undefined });
         this.prefetch(index + 1, settings);
-        await this.gemini.play(record, settings.volume);
+        await this.gemini.play(record, settings);
         return;
       }
       this.status = "playing";
@@ -104,6 +132,35 @@
       await this.browser.speak(passage, settings, charIndex => {
         if (token === this.runToken) this.emit({ charIndex, passageLength: passage.length });
       });
+    }
+
+    waitWhilePaused(token) {
+      if (this.status !== "paused" || token !== this.runToken) return Promise.resolve();
+      return new Promise(resolve => this.resumeWaiters.add(resolve));
+    }
+
+    releasePauseWaiters() {
+      this.resumeWaiters.forEach(resolve => resolve());
+      this.resumeWaiters.clear();
+    }
+
+    invalidateCacheWrites() {
+      this.cacheEpoch += 1;
+    }
+
+    async clearAudioCache() {
+      this.invalidateCacheWrites();
+      await WB.NarrationStore.clearAudio();
+    }
+
+    async clearSourceCache(sourceId) {
+      this.invalidateCacheWrites();
+      return WB.NarrationStore.clearSource(sourceId);
+    }
+
+    async deleteCachedAudio(key) {
+      this.invalidateCacheWrites();
+      await WB.NarrationStore.deleteAudio(key);
     }
 
     async run(token) {
@@ -150,13 +207,18 @@
       this.status = "playing";
       this.browser.resume();
       void this.gemini.resume();
+      this.releasePauseWaiters();
       this.emit();
     }
 
     stop() {
       this.runToken += 1;
+      this.invalidateCacheWrites();
       this.browser.stop();
+      if (this.gemini.isGenerating()) this.gemini.cancelGeneration();
       this.gemini.stopPlayback();
+      this.prefetches.clear();
+      this.releasePauseWaiters();
       this.status = this.passages.length ? "ready" : "idle";
       this.emit();
     }
@@ -174,4 +236,5 @@
   }
 
   WB.Narration = new NarrationController();
+  WB.NARRATION_CACHE_POLICY_VERSION = CACHE_POLICY_VERSION;
 })();

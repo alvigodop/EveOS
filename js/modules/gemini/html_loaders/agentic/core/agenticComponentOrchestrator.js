@@ -87,6 +87,12 @@ async function initializeAgenticHtmlComponents() {
             console.log('Sonic Forge Manager initialized.');
         });
 
+        // --- World Book Narration Manager ---
+        await safeInitializeFeature('loadWorldBookNarrationManagerCard', 'World Book Narration Manager', async () => {
+            window.WorldBookNarrationManagerAgentic?.initialize?.();
+            console.log('World Book Narration Manager initialized.');
+        });
+
         // --- Session Controls ---
         await safeInitializeFeature('loadSessionControlsCard', 'Session Controls', async () => {
             console.log('Session Controls UI loaded.');

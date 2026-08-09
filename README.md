@@ -57,6 +57,7 @@ you create are not intentionally locked to one hosted EveOS account.
 | **Matrix Workshop** | A visual workspace with datapack-aware phone, cover-atlas, and navigation tools. |
 | **Audioflix** | Soundboard, music library, playlist imports, local media paths, routing controls, and Spotify-backed playback. |
 | **Sonic Forge** | Shape live generative music with weighted prompts, steering controls, scenes, visualizers, MIDI, and recording tools. |
+| **World Book** | Maintain private structured lore, read live or imported documents aloud, and recover source documents without publishing them to Git. |
 | **Gemini Link** | Optional live conversation, screen observation, scoped EveOS context relay, and data-stream controls. |
 | **Recovery and history** | Datapack exports, modular state, guarded synchronization, and time-oriented inspection tools. |
 
@@ -136,7 +137,9 @@ EveOS separates core user data from optional network features:
    state.
 3. **Machine-local runtime settings** cover items such as filesystem permissions,
    device routes, and service configuration.
-4. **Optional integrations** send only the data required for the feature you choose to
+4. **World Book private data** includes lore state and imported reader documents. It is
+   ignored by Git and included only when you deliberately create a World Book recovery backup.
+5. **Optional integrations** send only the data required for the feature you choose to
    use, subject to that provider's own terms and privacy policy.
 
 API credentials and browser-granted filesystem permissions should be treated as

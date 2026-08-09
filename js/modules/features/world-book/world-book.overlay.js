@@ -87,6 +87,15 @@ window.EveWorldBook = window.EveWorldBook || {};
         }
     }
 
+    function navigateFrame(frame, source) {
+        if (!frame || frame.src === source) return;
+        const target = frame.contentWindow;
+        if (target) {
+            window.dispatchEvent(new CustomEvent('eve:world-book-frame-loading', { detail: { target } }));
+        }
+        frame.src = source;
+    }
+
     function renderStatus(snapshot) {
         const overlay = document.getElementById(OVERLAY_ID);
         if (!overlay) return;
@@ -136,8 +145,8 @@ window.EveWorldBook = window.EveWorldBook || {};
 
         if (currentView() !== 'world') return;
         overlay.classList.toggle('is-world-online', running);
-        if (running && frame && frame.src !== snapshot.url) frame.src = snapshot.url;
-        if (!running && frame && frame.src !== 'about:blank') frame.src = 'about:blank';
+        if (running) navigateFrame(frame, snapshot.url);
+        else navigateFrame(frame, 'about:blank');
     }
 
     async function refreshStatus() {
@@ -283,7 +292,7 @@ window.EveWorldBook = window.EveWorldBook || {};
         document.body.style.overflow = previousBodyOverflow;
         document.querySelector('.topbar-notes-world-book-btn')?.setAttribute('aria-expanded', 'false');
         const frame = overlay.querySelector('[data-world-book-frame]');
-        if (frame) frame.src = 'about:blank';
+        navigateFrame(frame, 'about:blank');
         window.clearInterval(statusTimer);
         statusTimer = 0;
         previousFocus?.focus?.();

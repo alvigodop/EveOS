@@ -207,6 +207,10 @@
       return request(`/api/narration/document?id=${encodeURIComponent(id)}`);
     },
 
+    readerDocumentDownloadUrl(id) {
+      return `/api/narration/document/download?id=${encodeURIComponent(id)}`;
+    },
+
     saveReaderText(title, text) {
       return request("/api/narration/documents/text", {
         method: "POST",

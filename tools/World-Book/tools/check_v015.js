@@ -78,12 +78,17 @@ const bootstrap = fs.readFileSync(path.join(root, "app/assets/js/bootstrap.js"),
 const state = fs.readFileSync(path.join(root, "app/assets/js/state.js"), "utf8");
 const foundation = fs.readFileSync(path.join(root, "worldbook_runtime/layers/00_foundation.py"), "utf8");
 const readme = fs.readFileSync(path.join(root, "README.txt"), "utf8");
+const patchManifest = JSON.parse(fs.readFileSync(path.join(root, "PATCH-MANIFEST.json"), "utf8"));
 if (!html.includes('id="topbar-collapse-btn"')) throw new Error("Header toggle is missing from HTML.");
 if (!html.includes('aria-controls="workspace-controls topbar-actions"')) throw new Error("Header toggle controls are not declared.");
 if (!cssIndex.includes("67-header-collapse.css")) throw new Error("Header CSS layer is not imported.");
 if (!bootstrap.includes("header-collapse.js")) throw new Error("Header controller is not loaded.");
-if (!state.includes('WB.APP_VERSION = "0.15.0"')) throw new Error("Browser app version is not 0.15.0.");
-if (!foundation.includes('APP_VERSION = "0.15.0"')) throw new Error("Server app version is not 0.15.0.");
+const browserVersion = state.match(/WB\.APP_VERSION\s*=\s*"([^"]+)"/)?.[1];
+const serverVersion = foundation.match(/^APP_VERSION\s*=\s*"([^"]+)"/m)?.[1];
+if (!browserVersion || !serverVersion) throw new Error("World Book version declarations could not be read.");
+if (browserVersion !== serverVersion || browserVersion !== patchManifest.version) {
+  throw new Error(`World Book versions disagree: browser=${browserVersion}, server=${serverVersion}, manifest=${patchManifest.version}.`);
+}
 if (!readme.includes("http://127.0.0.1:8766/")) throw new Error("README does not use the World Book port.");
 
-console.log("V0.15 HEADER COLLAPSE CHECK PASSED");
+console.log(`HEADER COLLAPSE CHECK PASSED (${browserVersion})`);

@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 from xml.etree import ElementTree
 
 
-APP_VERSION = "0.15.0"
+APP_VERSION = "0.16.0"
 SCHEMA_VERSION = 10
 BASE_DIR = Path(__file__).resolve().parent
 APP_DIR = BASE_DIR / "app"

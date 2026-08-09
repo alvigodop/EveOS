@@ -2,6 +2,11 @@
   const WB = window.WorldBook = window.WorldBook || {};
   const WS_URL = "ws://127.0.0.1:9085";
 
+  function boundedNumber(value, min, max, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
+  }
+
   function base64Bytes(value) {
     const binary = atob(value);
     const bytes = new Uint8Array(binary.length);
@@ -20,6 +25,16 @@
     return output.buffer;
   }
 
+  function bytesBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const block = 0x8000;
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += block) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + block));
+    }
+    return btoa(binary);
+  }
+
   class GeminiNarrator {
     constructor() {
       this.socket = null;
@@ -28,6 +43,7 @@
       this.voice = "";
       this.context = null;
       this.source = null;
+      this.nativePlayback = null;
       this.sessionId = `reader-${Date.now().toString(36)}`;
     }
 
@@ -65,6 +81,9 @@
 
     setupMessage(settings) {
       const voice = settings.geminiVoice || "Aoede";
+      const instruction = settings.strictVerbatim === false
+        ? "Narrate the supplied prose naturally without commentary, headings, acknowledgments, summaries, or invented facts."
+        : "Read supplied prose aloud exactly and naturally. Do not add commentary, headings, acknowledgments, summaries, or invented words. Preserve names and punctuation. Return audio only.";
       return {
         sessionRole: "world_book_narration",
         model: "gemini-2.5-flash-native-audio-latest",
@@ -74,7 +93,7 @@
         setup: {
           contents: [{ parts: [{ text: `You are World Book's narrator speaking with the voice of ${voice}.` }] }],
           tools: [],
-          systemInstruction: { parts: [{ text: "Read supplied prose aloud exactly and naturally. Do not add commentary, headings, acknowledgments, summaries, or invented words. Preserve names and punctuation. Return audio only." }] },
+          systemInstruction: { parts: [{ text: instruction }] },
           generationConfig: {
             temperature: 0.2,
             topK: 1,
@@ -95,15 +114,11 @@
       try { data = JSON.parse(event.data); } catch (_error) { return; }
       if (data.audio && this.pending) {
         this.pending.chunks.push(base64Bytes(data.audio));
-        window.parent?.postMessage?.({
-          type: "eve-world-book-narration-audio",
-          sessionId: this.sessionId,
-          audio: data.audio,
-          sampleRate: 24000,
-        }, "*");
       }
       if (data.type === "turn_complete" && this.pending) this.finishPending();
-      if (data.is_error && this.pending) this.finishPending(new Error(data.text || "Gemini narration failed."));
+      if ((data.is_error || data.type === "error") && this.pending) {
+        this.finishPending(new Error(data.text || data.message || "Gemini narration failed."));
+      }
     }
 
     finishPending(error) {
@@ -113,7 +128,16 @@
       window.clearTimeout(pending.timeout);
       if (error) pending.reject(error);
       else if (!pending.chunks.length) pending.reject(new Error("Gemini returned no narration audio."));
-      else pending.resolve({ pcm: joinBytes(pending.chunks), sampleRate: 24000 });
+      else {
+        const pcm = joinBytes(pending.chunks);
+        const seconds = pcm.byteLength / 2 / 24000;
+        const minimumSeconds = Math.min(5, Math.max(0.25, pending.textLength / 120));
+        if (seconds < minimumSeconds) {
+          pending.reject(new Error("Gemini narration ended before the passage was complete. Try this passage again."));
+        } else {
+          pending.resolve({ pcm, sampleRate: 24000 });
+        }
+      }
     }
 
     async synthesize(text, settings) {
@@ -121,7 +145,7 @@
       await this.connect(settings);
       return new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => this.finishPending(new Error("Gemini narration timed out.")), 90000);
-        this.pending = { resolve, reject, chunks: [], timeout };
+        this.pending = { resolve, reject, chunks: [], timeout, textLength: String(text || "").length };
         this.socket.send(JSON.stringify({
           source: "world_book_narration",
           realtime_input: { media_chunks: [{ mime_type: "text/plain", data: text }] },
@@ -129,8 +153,35 @@
       });
     }
 
-    async play(record, volume = 1) {
+    async playNative(record, settings) {
+      const response = await WB.NarrationHost?.request?.({
+        type: "eve-world-book-narration-play",
+        sessionId: this.sessionId,
+        audio: bytesBase64(record.pcm),
+        sampleRate: record.sampleRate || 24000,
+        volume: boundedNumber(settings.volume, 0, 1, 1),
+      }, 8000);
+      if (response?.ok !== true) return false;
+      const durationMs = Math.max(100, Math.ceil(record.pcm.byteLength / 2 / (record.sampleRate || 24000) * 1000));
+      return new Promise(resolve => {
+        this.nativePlayback = {
+          record,
+          settings,
+          resolve,
+          timer: window.setTimeout(() => {
+            this.nativePlayback = null;
+            resolve(true);
+          }, durationMs + 80),
+        };
+      });
+    }
+
+    async play(record, settings = {}) {
       this.stopPlayback();
+      if (settings.routeToAudioflix === true) {
+        const routed = await this.playNative(record, settings);
+        if (routed !== false) return routed;
+      }
       const context = this.context || new (window.AudioContext || window.webkitAudioContext)({ sampleRate: record.sampleRate || 24000 });
       this.context = context;
       await context.resume();
@@ -142,7 +193,7 @@
       for (let index = 0; index < frameCount; index += 1) output[index] = view.getInt16(index * 2, true) / 32768;
       const source = context.createBufferSource();
       const gain = context.createGain();
-      gain.gain.value = Math.min(1, Math.max(0, Number(volume) || 1));
+      gain.gain.value = boundedNumber(settings.volume, 0, 1, 1);
       source.buffer = buffer;
       source.connect(gain).connect(context.destination);
       this.source = source;
@@ -155,11 +206,45 @@
       });
     }
 
-    pause() { return this.context?.suspend?.(); }
-    resume() { return this.context?.resume?.(); }
+    pause() {
+      if (this.nativePlayback) {
+        window.clearTimeout(this.nativePlayback.timer);
+        this.nativePlayback.timer = 0;
+        WB.NarrationHost?.post?.({ type: "eve-world-book-narration-stop", sessionId: this.sessionId });
+        return Promise.resolve();
+      }
+      return this.context?.suspend?.();
+    }
+    async resume() {
+      if (this.nativePlayback && !this.nativePlayback.timer) {
+        const active = this.nativePlayback;
+        this.nativePlayback = null;
+        this.playNative(active.record, active.settings)
+          .then(active.resolve)
+          .catch(() => active.resolve(false));
+        return;
+      }
+      return this.context?.resume?.();
+    }
     stopPlayback() {
       try { this.source?.stop?.(); } catch (_error) {}
       this.source = null;
+      if (this.nativePlayback) {
+        window.clearTimeout(this.nativePlayback.timer);
+        this.nativePlayback.resolve(false);
+        this.nativePlayback = null;
+      }
+      WB.NarrationHost?.post?.({ type: "eve-world-book-narration-stop", sessionId: this.sessionId });
+    }
+    isGenerating() {
+      return Boolean(this.pending);
+    }
+    cancelGeneration() {
+      if (!this.pending) return;
+      this.finishPending(new Error("Gemini narration was stopped."));
+      try { this.socket?.close?.(); } catch (_error) {}
+      this.socket = null;
+      this.connectPromise = null;
     }
     close() {
       this.stopPlayback();

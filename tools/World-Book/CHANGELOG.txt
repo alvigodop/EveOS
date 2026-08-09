@@ -1,3 +1,14 @@
+v0.16.0
+- Added Read Aloud for live files, imported snapshots, and virtual World Book entries.
+- Added a private Reader Library for PDF, DOCX, TXT, Markdown, HTML, pasted text, and browser dictation.
+- Added offline browser speech and a dedicated Gemini narration session that does not replace or inherit Gemini Link chat.
+- Reused EveOS Session Controls credentials without storing a second API key in World Book.
+- Added passage prefetch, source/voice/policy-aware generated-audio caching, retention limits, and per-source cache management.
+- Added optional Audioflix native-output routing for generated Gemini narration.
+- Included private reader documents in verified Full Recovery backups and restores; generated audio stays disposable browser cache.
+- Hardened reader document IDs against malformed-path aliasing.
+- Preserved portable lore state schema 10; no canon migration is required.
+
 v0.15.0
 - Added a manual Collapse header / Expand header control to the World Book application header.
 - Collapsed mode hides Workspace and action controls while preserving a compact sticky World Book strip.

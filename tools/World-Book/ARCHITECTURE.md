@@ -1,4 +1,4 @@
-# World Book v0.13 Architecture
+# World Book v0.16 Architecture
 
 The application is organized as layered chains so each maintained source stays small and replaceable.
 
@@ -18,6 +18,14 @@ Each layer is compiled with its own filename into one shared runtime namespace. 
 ## Recovery layers
 
 Portable JSON remains suited to review and selective state restore. Full Recovery ZIP stores exact workspace bytes, state, imported snapshots, portable JSON, a manifest, and SHA-256 hashes. Restore verifies before writing and creates a rollback before active-state replacement.
+
+Private Reader Library documents are stored under `data/narration_documents` and participate in checksum-verified Full Recovery backup and restore. Generated narration audio remains an IndexedDB cache because it can be rebuilt from the retained source text.
+
+## Narration onion
+
+`narration/text.js` normalizes and bounds passages. `store.js` owns settings and generated-audio retention. `browser.js` provides offline speech. `gemini.js` owns the isolated Gemini transport and playback. `controller.js` coordinates source, passage, prefetch, and playback state. `cache-ui.js` and `ui.js` expose private-document ingest, dictation, playback, and source-aware cache management.
+
+EveOS owns only the bridge: Search Monitor shares settings and its credential vault, while Audioflix optionally receives completed PCM passages. World Book remains authoritative for reader documents and source selection.
 
 ## External integration onion
 

@@ -32,6 +32,24 @@ The top-bar `Notes & World Books` button opens a combined workspace:
 - A standalone instance is labeled `Standalone Online`; managed Start/Stop
   controls become available whenever the EveOS localhost controller is online.
 
+## Reader And Narration Contract
+
+- `Read Aloud` reads the selected live file, imported snapshot, or virtual-entry
+  notes without copying that lore into EveOS.
+- `Reader Library` accepts PDF, DOCX, TXT, Markdown, HTML, pasted text, and
+  browser dictation. Imported reader documents live under ignored World Book
+  private data and are included in verified Full Recovery ZIPs.
+- Offline browser speech requires no backend. Gemini narration uses the existing
+  EveOS Gemini backend and Session Controls credential vault, but connects with
+  the isolated `world_book_narration` role so it neither evicts nor inherits the
+  normal Gemini Link conversation.
+- Generated Gemini audio is source-, voice-, and policy-aware browser cache. It
+  is intentionally excluded from recovery because it is rebuildable.
+- Optional Audioflix routing sends a completed narration passage through the
+  active native output without merging World Book state into Audioflix.
+- Search Monitor's Narration Manager owns shared narration settings and never
+  exposes or stores a second API-key field.
+
 EveOS lifecycle endpoints:
 
 - `GET /api/world-book/status`
@@ -54,5 +72,6 @@ The integration is guarded by:
 - `npm run smoke:world-book`
 - `python tools/smoke/world_book_integration_smoke.py`
 - `node tools/smoke/world_book_client_smoke.js`
+- `node tools/smoke/world_book_narration_smoke.js`
 - `node tools/smoke/launcher_contract_smoke.js`
 - `python tools/World-Book/tools/check_codebase.py`

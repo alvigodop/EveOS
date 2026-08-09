@@ -78,11 +78,20 @@
 
   function editorSource() {
     const title = document.getElementById("entry-name")?.value?.trim() || "World Book entry";
+    const kind = document.getElementById("entry-kind")?.textContent?.trim() || "entry";
+    const path = document.getElementById("entry-path")?.textContent?.trim() || "";
+    const breadcrumb = document.getElementById("breadcrumb")?.textContent?.trim() || "";
     const fileSection = document.getElementById("file-content-section");
     const fileText = document.getElementById("file-content")?.value || "";
     const notesText = document.getElementById("entry-notes")?.value || "";
     const text = fileSection && !fileSection.hidden && fileText.trim() ? fileText : notesText;
-    return { id: `entry:${title}`, title, text };
+    const identity = `${kind}|${path}|${breadcrumb}|${title}`;
+    let code = 2166136261;
+    for (let index = 0; index < identity.length; index += 1) {
+      code ^= identity.charCodeAt(index);
+      code = Math.imul(code, 16777619);
+    }
+    return { id: `entry:${(code >>> 0).toString(36)}`, title, text };
   }
 
   WB.NarrationText = { MAX_CHARS, narratableText, split, editorSource };

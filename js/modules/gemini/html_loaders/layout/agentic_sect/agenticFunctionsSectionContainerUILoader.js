@@ -30,6 +30,8 @@ async function loadAgenticFunctionsSectionContainer() {
             <div id="audio-processing-controls-card-placeholder"></div>
             <!-- Sonic Forge paid-feature visibility -->
             <div id="sonic-forge-manager-card-placeholder"></div>
+            <!-- World Book document narration -->
+            <div id="world-book-narration-manager-card-placeholder"></div>
             <!-- Session Controls card -->
             <div id="session-controls-card-placeholder"></div>
             <!-- Screen Capture Interval card placeholder -->

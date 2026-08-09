@@ -90,3 +90,10 @@ V0.15 PATCH NOTE
 The direct-extract patch is flat. Stop World Book, extract into the active
 World-Book folder, and replace matching files. Preserve data/. This update
 adds a browser-local header collapse preference and does not change schema 10.
+
+V0.16 PATCH NOTE
+The direct-extract patch is flat. Stop World Book, extract into the active
+World-Book folder, and replace matching files. Preserve data/. This update
+adds private reader documents under data/narration_documents and includes them
+in Full Recovery ZIPs. Generated narration audio is browser cache and need not
+be migrated. Portable lore state schema 10 is unchanged.

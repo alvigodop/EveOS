@@ -53,6 +53,7 @@
             <label class="field"><span>Pitch</span><input id="reader-pitch" type="range" min="0" max="2" step="0.05"></label>
             <label class="field"><span>Volume</span><input id="reader-volume" type="range" min="0" max="1" step="0.05"></label>
           </div>
+          <p id="reader-engine-note" class="dialog-note"></p>
           <p class="dialog-note">Gemini narration uses the same credential vault configured in EveOS Search Monitor. It never stores a second API key here.</p>
         </details>
 
@@ -60,6 +61,11 @@
           <span id="reader-cache-stats">Audio cache: checking...</span>
           <button id="reader-clear-cache-btn" type="button" class="button button-small">Clear generated audio</button>
         </div>
+        <details class="narration-cache-manager">
+          <summary>Manage generated audio</summary>
+          <p class="dialog-note">Cached Gemini passages are private browser data. Reader documents remain in full World Book recovery backups; generated audio can always be rebuilt.</p>
+          <div id="reader-cache-list" class="narration-cache-list"></div>
+        </details>
       </section>
     </div>
   </div>

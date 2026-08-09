@@ -29,6 +29,11 @@ window.EveWorldBook = window.EveWorldBook || {};
         if (typeof callback === 'function') callback(value);
     }
 
+    function markLoading(target) {
+        if (!target) return;
+        window.dispatchEvent(new CustomEvent('eve:world-book-frame-loading', { detail: { target } }));
+    }
+
     function renderPlaceholder(target, title, message, isError) {
         try {
             const doc = target.document;
@@ -81,6 +86,7 @@ window.EveWorldBook = window.EveWorldBook || {};
         if (!target || target.closed || target !== detachedWindow) return null;
         if (!snapshot.running) {
             detachedReady = false;
+            markLoading(target);
             const guidance = snapshot.controllerAvailable
                 ? 'Start World Book in EveOS, then choose Detach again.'
                 : 'Run tools\\World-Book\\launch.bat, then choose Detach again.';
@@ -90,6 +96,7 @@ window.EveWorldBook = window.EveWorldBook || {};
         }
 
         detachedReady = true;
+        markLoading(target);
         target.location.href = snapshot.url || ns.client.state.url;
         target.focus();
         notify(options.onReady, snapshot);

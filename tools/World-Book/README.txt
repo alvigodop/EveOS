@@ -1,4 +1,16 @@
-EVE OS WORLD BOOK — v0.15.0
+EVE OS WORLD BOOK — v0.16.0
+
+V0.16.0 READER LIBRARY AND NARRATION
+------------------------------------
+- Read live physical files, imported snapshots, and virtual World Book entry notes aloud.
+- Import private PDF, DOCX, TXT, Markdown, and HTML documents, or save pasted/dictated text.
+- Use offline browser speech or isolated Gemini narration from the same protected EveOS credential vault.
+- Gemini narration runs in its own session role, so it does not replace or inherit Gemini Link conversations.
+- Generated passages can prefetch and cache by source, voice, and narration policy; cache entries can be inspected or cleared by source.
+- Route generated Gemini narration through Audioflix when its native output is active.
+- Full Recovery ZIPs include private reader documents with checksums. Generated audio is disposable browser cache and is rebuilt when needed.
+- Personal lore and reader documents remain under ignored World Book data paths and are never intended for Git.
+- Portable lore state schema remains 10; no canon migration is required.
 
 V0.15.0 COLLAPSIBLE WORLD BOOK HEADER
 --------------------------------------

@@ -233,6 +233,150 @@
     border-color: rgba(255, 202, 95, 0.16);
 }
 
+#gemini-ui-root .gemini-agentic-card--narration {
+    border-color: rgba(88, 224, 205, 0.2);
+}
+
+#gemini-ui-root .gemini-agentic-secondary-btn {
+    width: max-content;
+    max-width: 100%;
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 11px;
+    border: 1px solid rgba(110, 231, 255, 0.2);
+    background: rgba(110, 231, 255, 0.07);
+    color: #d8f7ff;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.gemini-narration-settings-dialog {
+    width: min(680px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid rgba(110, 231, 255, 0.24);
+    border-radius: 20px;
+    background: #0c121b;
+    color: #edfaff;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, 0.62);
+    overflow: auto;
+}
+
+.gemini-narration-settings-dialog::backdrop {
+    background: rgba(0, 4, 8, 0.74);
+    backdrop-filter: blur(5px);
+}
+
+.gemini-narration-settings-card {
+    display: grid;
+    gap: 16px;
+    padding: 22px;
+}
+
+.gemini-narration-settings-card header,
+.gemini-narration-settings-card footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.gemini-narration-settings-card header {
+    justify-content: space-between;
+}
+
+.gemini-narration-settings-card header span {
+    color: #6ee7ff;
+    font-size: 0.66rem;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+}
+
+.gemini-narration-settings-card h3 {
+    margin: 4px 0 0;
+    font-size: 1.35rem;
+}
+
+.gemini-narration-settings-card button,
+.gemini-narration-settings-card select,
+.gemini-narration-settings-card input {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.055);
+    color: #edfaff;
+    font: inherit;
+}
+
+.gemini-narration-settings-card button {
+    min-height: 36px;
+    padding: 0 12px;
+    cursor: pointer;
+}
+
+.gemini-narration-settings-card button.is-primary {
+    background: #27c5dc;
+    color: #031217;
+    border-color: transparent;
+    font-weight: 800;
+}
+
+.gemini-narration-settings-card header button {
+    width: 36px;
+    padding: 0;
+    font-size: 1.25rem;
+}
+
+.gemini-narration-credential-note {
+    margin: 0;
+    padding: 11px 12px;
+    border: 1px solid rgba(88, 224, 205, 0.18);
+    border-radius: 12px;
+    background: rgba(88, 224, 205, 0.06);
+    color: rgba(237, 250, 255, 0.72);
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+
+.gemini-narration-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.gemini-narration-settings-grid label {
+    display: grid;
+    gap: 6px;
+    color: rgba(237, 250, 255, 0.68);
+    font-size: 0.72rem;
+}
+
+.gemini-narration-settings-grid select,
+.gemini-narration-settings-grid input {
+    width: 100%;
+    min-height: 38px;
+    padding: 0 10px;
+    box-sizing: border-box;
+}
+
+.gemini-narration-checks {
+    display: grid;
+    gap: 10px;
+    color: rgba(237, 250, 255, 0.76);
+    font-size: 0.78rem;
+}
+
+.gemini-narration-settings-card footer span {
+    flex: 1;
+}
+
+@media (max-width: 620px) {
+    .gemini-narration-settings-grid { grid-template-columns: 1fr; }
+    .gemini-narration-settings-card footer { flex-wrap: wrap; }
+    .gemini-narration-settings-card footer span { display: none; }
+}
+
 #gemini-ui-root .gemini-agentic-switch {
     display: inline-block;
     flex: 0 0 52px;

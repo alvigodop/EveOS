@@ -1,6 +1,11 @@
 (function () {
   const WB = window.WorldBook = window.WorldBook || {};
 
+  function boundedNumber(value, min, max, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
+  }
+
   class BrowserNarrator {
     constructor() {
       this.active = null;
@@ -24,9 +29,9 @@
           utterance.voice = selected;
           utterance.lang = selected.lang;
         }
-        utterance.rate = Math.min(2, Math.max(0.5, Number(settings.rate) || 1));
-        utterance.pitch = Math.min(2, Math.max(0, Number(settings.pitch) || 1));
-        utterance.volume = Math.min(1, Math.max(0, Number(settings.volume) || 1));
+        utterance.rate = boundedNumber(settings.rate, 0.5, 2, 1);
+        utterance.pitch = boundedNumber(settings.pitch, 0, 2, 1);
+        utterance.volume = boundedNumber(settings.volume, 0, 1, 1);
         utterance.onboundary = event => onBoundary?.(event.charIndex || 0);
         utterance.onend = () => {
           this.active = null;

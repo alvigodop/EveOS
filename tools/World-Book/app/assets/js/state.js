@@ -1,7 +1,7 @@
 (function () {
   const WB = window.WorldBook;
 
-  WB.APP_VERSION = "0.15.0";
+  WB.APP_VERSION = "0.16.0";
   WB.EVE_INJECTION_TAG = "Injected from Eve";
 
   WB.nowISO = function () {

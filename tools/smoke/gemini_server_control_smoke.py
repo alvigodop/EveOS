@@ -41,10 +41,8 @@ def assert_port_contract():
     sys.path.insert(0, str(config_path))
     import server_config
 
-    # 9085/9086, not 9083/9084: the Document-Audiobook-Converter project claims that older pair on
-    # the dev machine, and whichever process bound first left the other dead with "ports 9083/9084
-    # belong to another local service". These must stay in step with GEMINI_WS_PORT and
-    # GEMINI_STATUS_PORT in tools/batch/eveos-ports.bat, which is the declared source of truth.
+    # These must stay in step with GEMINI_WS_PORT and GEMINI_STATUS_PORT in
+    # tools/batch/eveos-ports.bat, which is the declared source of truth.
     assert server_config.DEFAULT_PORT == 9085
     assert server_config.STATUS_PORT == 9086
 
