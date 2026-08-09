@@ -32,7 +32,12 @@
         utterance.rate = boundedNumber(settings.rate, 0.5, 2, 1);
         utterance.pitch = boundedNumber(settings.pitch, 0, 2, 1);
         utterance.volume = boundedNumber(settings.volume, 0, 1, 1);
-        utterance.onboundary = event => onBoundary?.(event.charIndex || 0);
+        utterance.onboundary = event => onBoundary?.({
+          charIndex: Math.max(0, Number(event.charIndex) || 0),
+          charLength: Math.max(0, Number(event.charLength) || 0),
+          elapsedTime: Math.max(0, Number(event.elapsedTime) || 0),
+          name: String(event.name || "word"),
+        });
         utterance.onend = () => {
           this.active = null;
           resolve();

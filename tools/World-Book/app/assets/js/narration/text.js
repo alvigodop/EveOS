@@ -76,6 +76,72 @@
     return pack(pieces, max);
   }
 
+  function wordRanges(text) {
+    const value = String(text || "");
+    if (!value) return [];
+    if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
+      const segmenter = new Intl.Segmenter(undefined, { granularity: "word" });
+      return [...segmenter.segment(value)]
+        .filter(segment => segment.isWordLike)
+        .map(segment => ({ start: segment.index, end: segment.index + segment.segment.length }));
+    }
+    return [...value.matchAll(/[\p{L}\p{N}]+(?:['\u2019][\p{L}\p{N}]+)*/gu)]
+      .map(match => ({ start: match.index, end: match.index + match[0].length }));
+  }
+
+  function sentenceRanges(text) {
+    const value = String(text || "");
+    if (!value) return [];
+    if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
+      const segmenter = new Intl.Segmenter(undefined, { granularity: "sentence" });
+      return [...segmenter.segment(value)]
+        .map(segment => ({ start: segment.index, end: segment.index + segment.segment.length }));
+    }
+    const ranges = [];
+    const matcher = /[^.!?]+(?:[.!?]+["'\u201d\u2019)\]]*|$)/gu;
+    for (const match of value.matchAll(matcher)) {
+      ranges.push({ start: match.index, end: match.index + match[0].length });
+    }
+    return ranges.length ? ranges : [{ start: 0, end: value.length }];
+  }
+
+  function nearestRange(ranges, index) {
+    return ranges.find(range => index >= range.start && index < range.end)
+      || ranges.find(range => range.start >= index)
+      || ranges[ranges.length - 1]
+      || { start: 0, end: 0 };
+  }
+
+  function markerRange(text, boundary = {}) {
+    const value = String(text || "");
+    if (!value) return { sentenceStart: 0, sentenceEnd: 0, wordStart: 0, wordEnd: 0 };
+    const rawIndex = typeof boundary === "number" ? boundary : boundary.charIndex;
+    const index = Math.min(value.length - 1, Math.max(0, Number(rawIndex) || 0));
+    const words = wordRanges(value);
+    const word = nearestRange(words, index);
+    const explicitLength = Math.max(0, Number(boundary?.charLength) || 0);
+    const wordStart = words.length ? word.start : index;
+    const wordEnd = words.length
+      ? Math.max(word.end, explicitLength ? Math.min(value.length, index + explicitLength) : word.end)
+      : Math.min(value.length, index + Math.max(1, explicitLength));
+    const sentence = nearestRange(sentenceRanges(value), wordStart);
+    return {
+      sentenceStart: sentence.start,
+      sentenceEnd: sentence.end,
+      wordStart,
+      wordEnd,
+    };
+  }
+
+  function progressMarker(text, ratio) {
+    const value = String(text || "");
+    const words = wordRanges(value);
+    if (!words.length) return markerRange(value, 0);
+    const progress = Math.min(1, Math.max(0, Number(ratio) || 0));
+    const word = words[Math.min(words.length - 1, Math.floor(progress * words.length))];
+    return markerRange(value, { charIndex: word.start, charLength: word.end - word.start });
+  }
+
   function editorSource() {
     const title = document.getElementById("entry-name")?.value?.trim() || "World Book entry";
     const kind = document.getElementById("entry-kind")?.textContent?.trim() || "entry";
@@ -94,5 +160,12 @@
     return { id: `entry:${(code >>> 0).toString(36)}`, title, text };
   }
 
-  WB.NarrationText = { MAX_CHARS, narratableText, split, editorSource };
+  WB.NarrationText = {
+    MAX_CHARS,
+    narratableText,
+    split,
+    markerRange,
+    progressMarker,
+    editorSource,
+  };
 })();

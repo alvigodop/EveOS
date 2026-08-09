@@ -31,16 +31,16 @@
         <div class="narration-now-playing">
           <span>Now reading</span>
           <strong id="reader-source-title">Choose an entry or document</strong>
-          <small id="reader-status">Ready</small>
+          <small id="reader-status" aria-live="polite">Ready</small>
         </div>
-        <p id="reader-passage-preview" class="narration-passage-preview">The current passage will appear here.</p>
+        <p id="reader-passage-preview" class="narration-passage-preview" tabindex="0" aria-label="The current passage will appear here.">The current passage will appear here.</p>
         <input id="reader-progress" class="narration-progress" type="range" min="0" max="0" value="0" aria-label="Narration passage">
         <div class="narration-player-controls">
-          <button id="reader-previous-btn" type="button" class="button button-small">Previous</button>
+          <button id="reader-previous-btn" type="button" class="button">Previous</button>
           <button id="reader-play-btn" type="button" class="button button-primary">Play</button>
           <button id="reader-pause-btn" type="button" class="button">Pause</button>
           <button id="reader-stop-btn" type="button" class="button">Stop</button>
-          <button id="reader-next-btn" type="button" class="button button-small">Next</button>
+          <button id="reader-next-btn" type="button" class="button">Next</button>
         </div>
 
         <details class="narration-settings-card">

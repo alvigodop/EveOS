@@ -36,6 +36,51 @@
     return `${(value / 1024 ** 2).toFixed(1)} MB`;
   }
 
+  function renderPassage(value) {
+    const preview = byId("reader-passage-preview");
+    if (!preview) return;
+    const passage = String(value.passage || "");
+    if (!passage) {
+      preview.textContent = "The current passage will appear here.";
+      preview.dataset.highlight = "none";
+      preview.removeAttribute("aria-label");
+      return;
+    }
+
+    const marker = value.marker;
+    const active = ["generating", "playing", "paused"].includes(value.status);
+    if (!active || !marker) {
+      preview.textContent = passage;
+      preview.dataset.highlight = "none";
+      preview.setAttribute("aria-label", passage);
+      return;
+    }
+
+    const clamp = number => Math.min(passage.length, Math.max(0, Number(number) || 0));
+    const sentenceStart = clamp(marker.sentenceStart);
+    const sentenceEnd = Math.max(sentenceStart, clamp(marker.sentenceEnd));
+    const wordStart = Math.min(sentenceEnd, Math.max(sentenceStart, clamp(marker.wordStart)));
+    const wordEnd = Math.min(sentenceEnd, Math.max(wordStart, clamp(marker.wordEnd)));
+    const sentence = document.createElement("span");
+    sentence.className = "narration-highlight-sentence";
+    if (marker.kind === "estimated") sentence.classList.add("is-estimated");
+    sentence.append(document.createTextNode(passage.slice(sentenceStart, wordStart)));
+    if (wordEnd > wordStart) {
+      const word = document.createElement("mark");
+      word.className = "narration-highlight-word";
+      word.textContent = passage.slice(wordStart, wordEnd);
+      sentence.append(word);
+    }
+    sentence.append(document.createTextNode(passage.slice(wordEnd, sentenceEnd)));
+    preview.replaceChildren(
+      document.createTextNode(passage.slice(0, sentenceStart)),
+      sentence,
+      document.createTextNode(passage.slice(sentenceEnd)),
+    );
+    preview.dataset.highlight = marker.kind || "passage";
+    preview.setAttribute("aria-label", passage);
+  }
+
   async function refreshCache() {
     const output = byId("reader-cache-stats");
     if (!output) return;
@@ -255,7 +300,7 @@
   function renderState(event) {
     const value = event.detail || {};
     byId("reader-source-title").textContent = value.source?.title || "Choose an entry or document";
-    byId("reader-passage-preview").textContent = value.passage || "The current passage will appear here.";
+    renderPassage(value);
     const progress = byId("reader-progress");
     progress.max = Math.max(0, Number(value.passageCount || 0) - 1);
     progress.value = Math.max(0, Number(value.index || 0));

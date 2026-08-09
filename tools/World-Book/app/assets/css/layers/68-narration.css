@@ -1,6 +1,8 @@
 .narration-dialog {
-  width: min(1120px, calc(100vw - 28px));
+  width: min(1180px, calc(100vw - clamp(16px, 4vw, 40px)));
   max-width: none;
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
   padding: 0;
   border: 0;
   border-radius: 24px;
@@ -14,8 +16,15 @@
 }
 
 .narration-dialog-card {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   width: 100%;
-  max-height: min(88vh, 920px);
+  height: min(88vh, 920px);
+  height: min(88dvh, 920px);
+  max-height: calc(100vh - 20px);
+  max-height: calc(100dvh - 20px);
+  padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 24px;
@@ -23,11 +32,22 @@
   box-shadow: 0 28px 90px rgba(0, 0, 0, .28);
 }
 
+.narration-dialog-card > .dialog-heading {
+  min-width: 0;
+  margin: 0;
+  padding: clamp(14px, 2vw, 20px) clamp(16px, 2.4vw, 24px);
+  border-bottom: 1px solid var(--line);
+}
+
+.narration-dialog-card > .dialog-heading > div {
+  min-width: 0;
+}
+
 .narration-layout {
   display: grid;
   grid-template-columns: minmax(280px, .8fr) minmax(380px, 1.2fr);
-  min-height: 560px;
-  max-height: calc(88vh - 90px);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .narration-library-panel,
@@ -35,6 +55,7 @@
   min-width: 0;
   padding: clamp(16px, 2.4vw, 28px);
   overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .narration-library-panel {
@@ -156,12 +177,17 @@
 }
 
 .narration-inline-actions,
-.narration-player-controls,
 .narration-cache-row {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.narration-inline-actions > .button,
+.narration-inline-actions > .narration-upload-label {
+  flex: 1 1 132px;
+  min-height: 38px;
 }
 
 .narration-now-playing {
@@ -195,6 +221,29 @@
   font-family: Georgia, Cambria, serif;
   font-size: clamp(17px, 2vw, 22px);
   line-height: 1.72;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.narration-highlight-sentence {
+  padding: .08em .14em;
+  border-radius: .28em;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.narration-highlight-sentence.is-estimated {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+.narration-highlight-word {
+  margin: 0 .03em;
+  padding: .05em .12em;
+  border-radius: .24em;
+  color: var(--panel);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .narration-progress {
@@ -204,7 +253,19 @@
 }
 
 .narration-player-controls {
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(76px, 1fr));
+  gap: 8px;
+  width: min(100%, 660px);
+  margin-inline: auto;
+}
+
+.narration-player-controls > .button {
+  min-width: 0;
+  min-height: 42px;
+  padding: 9px clamp(8px, 1.2vw, 14px);
+  font-size: clamp(12px, 1.2vw, 14px);
+  white-space: nowrap;
 }
 
 .narration-settings-grid {
@@ -318,7 +379,7 @@
   line-height: 1.45;
 }
 
-@media (max-width: 780px) {
+@media (max-width: 820px) {
   .narration-layout {
     grid-template-columns: 1fr;
     overflow: auto;

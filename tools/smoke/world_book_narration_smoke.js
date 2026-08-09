@@ -117,14 +117,19 @@ const browserContext = {
     }
 };
 vm.runInNewContext(browser, browserContext, { filename: 'narration/browser.js' });
+let capturedBoundary = null;
 void new browserContext.window.WorldBook.BrowserNarrator().speak('Quiet', {
     rate: 1,
     pitch: 0,
     volume: 0,
     browserVoice: ''
-});
+}, boundary => { capturedBoundary = boundary; });
 expect(spokenUtterance?.pitch === 0 && spokenUtterance?.volume === 0,
     'browser narration replaces valid zero pitch/volume values with defaults');
+spokenUtterance?.onboundary?.({ charIndex: 2, charLength: 3, elapsedTime: 125, name: 'word' });
+expect(capturedBoundary?.charIndex === 2 && capturedBoundary?.charLength === 3
+    && capturedBoundary?.name === 'word',
+    'browser narration does not preserve word-boundary metadata for highlighting');
 
 const hostMessages = [];
 const hostListeners = {};

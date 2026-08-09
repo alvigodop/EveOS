@@ -35,6 +35,28 @@
     return btoa(binary);
   }
 
+  function normalizeAudioRecord(record) {
+    const value = record?.pcm;
+    let pcm = null;
+    if (value instanceof ArrayBuffer) pcm = value;
+    else if (ArrayBuffer.isView(value)) {
+      pcm = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+    }
+    const sampleRate = boundedNumber(record?.sampleRate, 8000, 96000, 24000);
+    if (!pcm || pcm.byteLength < 2 || pcm.byteLength % 2 !== 0) return null;
+    return { ...record, pcm, sampleRate };
+  }
+
+  function durationSeconds(record) {
+    const value = normalizeAudioRecord(record);
+    return value ? value.pcm.byteLength / 2 / value.sampleRate : 0;
+  }
+
+  function reportProgress(callback, ratio) {
+    if (typeof callback !== "function") return;
+    try { callback(Math.min(1, Math.max(0, Number(ratio) || 0))); } catch (_error) {}
+  }
+
   class GeminiNarrator {
     constructor() {
       this.socket = null;
@@ -43,6 +65,7 @@
       this.voice = "";
       this.context = null;
       this.source = null;
+      this.progressTimer = 0;
       this.nativePlayback = null;
       this.sessionId = `reader-${Date.now().toString(36)}`;
     }
@@ -153,7 +176,7 @@
       });
     }
 
-    async playNative(record, settings) {
+    async playNative(record, settings, onProgress) {
       const response = await WB.NarrationHost?.request?.({
         type: "eve-world-book-narration-play",
         sessionId: this.sessionId,
@@ -162,13 +185,22 @@
         volume: boundedNumber(settings.volume, 0, 1, 1),
       }, 8000);
       if (response?.ok !== true) return false;
-      const durationMs = Math.max(100, Math.ceil(record.pcm.byteLength / 2 / (record.sampleRate || 24000) * 1000));
+      const durationMs = Math.max(100, Math.ceil(durationSeconds(record) * 1000));
       return new Promise(resolve => {
+        const startedAt = performance.now();
+        const progressTimer = window.setInterval(() => {
+          reportProgress(onProgress, (performance.now() - startedAt) / durationMs);
+        }, 120);
+        reportProgress(onProgress, 0);
         this.nativePlayback = {
           record,
           settings,
+          onProgress,
           resolve,
+          progressTimer,
           timer: window.setTimeout(() => {
+            window.clearInterval(progressTimer);
+            reportProgress(onProgress, 1);
             this.nativePlayback = null;
             resolve(true);
           }, durationMs + 80),
@@ -176,18 +208,23 @@
       });
     }
 
-    async play(record, settings = {}) {
+    async play(record, settings = {}, onProgress) {
       this.stopPlayback();
+      const playable = normalizeAudioRecord(record);
+      if (!playable) {
+        throw new Error("Gemini narration audio is empty or corrupt. The passage will need to be generated again.");
+      }
+      record = playable;
       if (settings.routeToAudioflix === true) {
-        const routed = await this.playNative(record, settings);
+        const routed = await this.playNative(record, settings, onProgress);
         if (routed !== false) return routed;
       }
-      const context = this.context || new (window.AudioContext || window.webkitAudioContext)({ sampleRate: record.sampleRate || 24000 });
+      const context = this.context || new (window.AudioContext || window.webkitAudioContext)({ sampleRate: record.sampleRate });
       this.context = context;
       await context.resume();
       const bytes = new Uint8Array(record.pcm);
       const frameCount = Math.floor(bytes.byteLength / 2);
-      const buffer = context.createBuffer(1, frameCount, record.sampleRate || 24000);
+      const buffer = context.createBuffer(1, frameCount, record.sampleRate);
       const output = buffer.getChannelData(0);
       const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
       for (let index = 0; index < frameCount; index += 1) output[index] = view.getInt16(index * 2, true) / 32768;
@@ -197,9 +234,22 @@
       source.buffer = buffer;
       source.connect(gain).connect(context.destination);
       this.source = source;
+      const startedAt = context.currentTime;
+      const duration = frameCount / record.sampleRate;
+      reportProgress(onProgress, 0);
+      const progressTimer = window.setInterval(() => {
+        reportProgress(onProgress, (context.currentTime - startedAt) / duration);
+      }, 120);
+      this.progressTimer = progressTimer;
       return new Promise(resolve => {
         source.onended = () => {
-          if (this.source === source) this.source = null;
+          const completed = this.source === source;
+          if (completed) {
+            this.source = null;
+            reportProgress(onProgress, 1);
+          }
+          window.clearInterval(progressTimer);
+          if (this.progressTimer === progressTimer) this.progressTimer = 0;
           resolve();
         };
         source.start();
@@ -209,7 +259,9 @@
     pause() {
       if (this.nativePlayback) {
         window.clearTimeout(this.nativePlayback.timer);
+        window.clearInterval(this.nativePlayback.progressTimer);
         this.nativePlayback.timer = 0;
+        this.nativePlayback.progressTimer = 0;
         WB.NarrationHost?.post?.({ type: "eve-world-book-narration-stop", sessionId: this.sessionId });
         return Promise.resolve();
       }
@@ -219,7 +271,7 @@
       if (this.nativePlayback && !this.nativePlayback.timer) {
         const active = this.nativePlayback;
         this.nativePlayback = null;
-        this.playNative(active.record, active.settings)
+        this.playNative(active.record, active.settings, active.onProgress)
           .then(active.resolve)
           .catch(() => active.resolve(false));
         return;
@@ -229,8 +281,11 @@
     stopPlayback() {
       try { this.source?.stop?.(); } catch (_error) {}
       this.source = null;
+      window.clearInterval(this.progressTimer);
+      this.progressTimer = 0;
       if (this.nativePlayback) {
         window.clearTimeout(this.nativePlayback.timer);
+        window.clearInterval(this.nativePlayback.progressTimer);
         this.nativePlayback.resolve(false);
         this.nativePlayback = null;
       }
@@ -238,6 +293,9 @@
     }
     isGenerating() {
       return Boolean(this.pending);
+    }
+    isPlayableRecord(record) {
+      return Boolean(normalizeAudioRecord(record));
     }
     cancelGeneration() {
       if (!this.pending) return;
@@ -256,4 +314,5 @@
   }
 
   WB.GeminiNarrator = GeminiNarrator;
+  WB.GeminiNarrationAudio = { normalizeRecord: normalizeAudioRecord, durationSeconds };
 })();

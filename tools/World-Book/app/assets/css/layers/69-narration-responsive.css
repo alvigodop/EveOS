@@ -1,0 +1,71 @@
+@media (max-width: 620px) {
+  .narration-dialog {
+    width: calc(100vw - 12px);
+  }
+
+  .narration-dialog-card {
+    height: calc(100vh - 12px);
+    height: calc(100dvh - 12px);
+    max-height: none;
+    border-radius: 18px;
+  }
+
+  .narration-section-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .narration-upload-label {
+    width: 100%;
+    min-height: 40px;
+    text-align: center;
+  }
+
+  .narration-document-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .narration-document-actions > * {
+    flex: 1 1 110px;
+    text-align: center;
+  }
+
+  .narration-player-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .narration-player-controls > .button {
+    min-height: 44px;
+  }
+
+  #reader-next-btn {
+    grid-column: 1 / -1;
+  }
+
+  .narration-cache-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .narration-cache-row .button {
+    width: 100%;
+    min-height: 40px;
+  }
+}
+
+@media (max-height: 720px) and (min-width: 821px) {
+  .narration-dialog-card {
+    height: calc(100vh - 12px);
+    height: calc(100dvh - 12px);
+  }
+
+  .narration-library-panel,
+  .narration-player-panel {
+    padding-block: 14px;
+  }
+
+  .narration-passage-preview {
+    min-height: 130px;
+    margin-block: 12px;
+  }
+}

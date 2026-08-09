@@ -104,6 +104,17 @@
     return dbPromise;
   }
 
+  function isDatabaseRequest(value) {
+    if (!value || typeof value !== "object") return false;
+    if (typeof IDBRequest !== "undefined" && value instanceof IDBRequest) return true;
+    return "onsuccess" in value && "onerror" in value && "readyState" in value;
+  }
+
+  function operationResult(operation) {
+    if (!isDatabaseRequest(operation)) return operation ?? null;
+    return operation.result ?? null;
+  }
+
   async function transact(mode, callback) {
     const db = await openDb();
     if (!db) return null;
@@ -112,7 +123,7 @@
       const store = transaction.objectStore(STORE_NAME);
       let result;
       try { result = callback(store); } catch (error) { reject(error); return; }
-      transaction.oncomplete = () => resolve(result?.result ?? result ?? null);
+      transaction.oncomplete = () => resolve(operationResult(result));
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error || new Error("Narration cache transaction was aborted."));
     });
@@ -122,7 +133,9 @@
     const record = await transact("readonly", store => store.get(key));
     if (!record) return null;
     record.lastUsed = Date.now();
-    void transact("readwrite", store => store.put(record));
+    void transact("readwrite", store => store.put(record)).catch(error => {
+      console.warn("Narration cache access time could not be refreshed:", error);
+    });
     return record;
   }
 

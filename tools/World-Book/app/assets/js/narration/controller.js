@@ -20,6 +20,8 @@
       this.passages = [];
       this.index = 0;
       this.status = "idle";
+      this.activeEngine = "";
+      this.marker = null;
       this.runToken = 0;
       this.prefetches = new Map();
       this.resumeWaiters = new Set();
@@ -33,6 +35,8 @@
         index: this.index,
         passageCount: this.passages.length,
         passage: this.passages[this.index] || "",
+        engine: this.activeEngine,
+        marker: this.marker,
         ...extra,
       };
     }
@@ -54,6 +58,8 @@
       this.passages = passages;
       this.index = 0;
       this.status = "ready";
+      this.activeEngine = "";
+      this.marker = null;
       this.prefetches.clear();
       this.emit();
       return this.snapshot();
@@ -80,12 +86,20 @@
     async geminiRecord(index, settings) {
       const key = this.cacheKey(index, settings);
       const cached = await WB.NarrationStore.getAudio(key);
-      if (cached) return cached;
+      if (cached && this.gemini.isPlayableRecord(cached)) return cached;
+      if (cached) {
+        await WB.NarrationStore.deleteAudio(key).catch(error => {
+          console.warn("Invalid narration cache entry could not be removed:", error);
+        });
+      }
       if (this.prefetches.has(key)) return this.prefetches.get(key);
       const source = { ...(this.source || {}) };
       const passage = this.passages[index] || "";
       const cacheEpoch = this.cacheEpoch;
       const pending = this.gemini.synthesize(passage, settings).then(async result => {
+        if (!this.gemini.isPlayableRecord(result)) {
+          throw new Error("Gemini returned empty narration audio. Try this passage again.");
+        }
         if (cacheEpoch !== this.cacheEpoch) return result;
         return WB.NarrationStore.putAudio({
           key,
@@ -114,6 +128,8 @@
 
     async playPassage(index, settings, token) {
       const passage = this.passages[index];
+      this.activeEngine = settings.engine;
+      this.marker = { sentenceStart: 0, sentenceEnd: passage.length, wordStart: 0, wordEnd: 0, kind: "passage" };
       if (settings.engine === "gemini") {
         this.status = "generating";
         this.emit();
@@ -124,13 +140,19 @@
         this.status = "playing";
         this.emit({ cached: record.createdAt !== undefined });
         this.prefetch(index + 1, settings);
-        await this.gemini.play(record, settings);
+        await this.gemini.play(record, settings, ratio => {
+          if (token !== this.runToken) return;
+          this.marker = { ...WB.NarrationText.progressMarker(passage, ratio), kind: "estimated" };
+          this.emit({ cached: record.createdAt !== undefined });
+        });
         return;
       }
       this.status = "playing";
       this.emit();
-      await this.browser.speak(passage, settings, charIndex => {
-        if (token === this.runToken) this.emit({ charIndex, passageLength: passage.length });
+      await this.browser.speak(passage, settings, boundary => {
+        if (token !== this.runToken) return;
+        this.marker = { ...WB.NarrationText.markerRange(passage, boundary), kind: boundary.name || "word" };
+        this.emit({ boundary, passageLength: passage.length });
       });
     }
 
@@ -170,6 +192,7 @@
           if (!settings.enabled) throw new Error("World Book narration is disabled in Search Monitor.");
           await this.playPassage(this.index, settings, token);
           if (token !== this.runToken) return;
+          this.marker = null;
           this.index += 1;
           this.emit();
         }
@@ -220,6 +243,8 @@
       this.prefetches.clear();
       this.releasePauseWaiters();
       this.status = this.passages.length ? "ready" : "idle";
+      this.activeEngine = "";
+      this.marker = null;
       this.emit();
     }
 
@@ -227,6 +252,7 @@
       const next = Math.max(0, Math.min(this.passages.length - 1, Number(index) || 0));
       this.stop();
       this.index = next;
+      this.marker = null;
       this.emit();
       if (autoplay) this.play();
     }
