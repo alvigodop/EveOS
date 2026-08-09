@@ -2,10 +2,9 @@ import asyncio
 import json
 import datetime
 from ...api_configuration.gemini_config import MAIN_MODEL, create_gemini_config
+from ...api_configuration.model_registry import model_capabilities, resolve_live_model
 from ...session_management.session_manager import active_sessions
-from ...session_management.gemini_session_initializer import initialize_gemini_session
 from ...session_management.keep_alive_manager import KeepAliveManager
-from ...chat_history.chat_history_handler import load_chat_history
 from ..message_processor import send_to_gemini
 from ...response_processing.stream_handling.stream_controller import receive_from_gemini
 
@@ -15,42 +14,11 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
     """
     session_role = str(config_data.get("sessionRole") or "interactive").strip().lower()
     is_narration = session_role == "world_book_narration"
+    requested_model = str(config_data.get("model") or MAIN_MODEL).strip()
+    model_name = resolve_live_model(requested_model)
+    capabilities = model_capabilities("live", model_name)
+    setattr(connection_monitor, "model_name", model_name)
 
-    # Narration is an isolated rendering lane. It must not inherit conversational state.
-    chat_history = [] if is_narration else load_chat_history()
-    
-    # Build context from chat history
-    context = []
-
-    # FEW-SHOT PROMPT INJECTION: Prime the model with examples of correct behavior
-    # This prevents the "Instruction Dilution" where it forgets the system prompt after a few turns.
-    if not is_narration and config_data.get("inlineTranscriptionMode", True):
-        context.extend([
-            {
-                "role": "user",
-                "parts": [{"text": "system_transcription_check_protocol_initiate"}]
-            },
-            {
-                "role": "model",
-                "parts": [{"text": "<Transcription-Start>system_transcription_check_protocol_initiate</Transcription-End>\nProtocol acknowledged. I will perform inline transcription for every turn."}]
-            },
-            {
-                "role": "user",
-                "parts": [{"text": "Hello"}]
-            },
-            {
-                "role": "model",
-                "parts": [{"text": "<Transcription-Start>Hello</Transcription-End>\nHi there! How can I help you today?"}]
-            }
-        ])
-
-    for msg in chat_history[-10:]:  # Use last 10 messages for context
-        context.append({
-            "role": "user" if msg['role'] == 'user' else "model",
-            "parts": [{"text": msg['content']}]
-        })
-
-    # Create configuration with context if available
     setup_data = config_data.get("setup", {})
     generation_config = setup_data.get("generationConfig")
     safety_settings = setup_data.get("safetySettings")
@@ -65,8 +33,6 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
     elif isinstance(system_instruction_data, str):
         system_instruction = system_instruction_data
             
-    print(f"DEBUG: Parsed system_instruction text: {system_instruction}")
-    
     # Extract speech config
     speech_config = setup_data.get("speechConfig", {})
     voice_config = speech_config.get("voiceConfig", {}).get("prebuiltVoiceConfig", {})
@@ -76,27 +42,21 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
     # Extract response timeout
     response_timeout = config_data.get("responseTimeout")
     
-    # Extract inline transcription mode preference (at the top level of the message)
-    # Note: We now favor inline transcription to save quota and reduce latency.
-    inline_transcription_mode = config_data.get("inlineTranscriptionMode", True) 
-    
-    # FORCE Disable inline transcription for Gemini 2.5 to enable Local Transcription (Vosk)
-    # Since gemini-2.5 is configured for AUDIO-only response modalities, it won't send text.
-    # We need audio_processor to handle the transcription locally.
-    if is_narration:
-         inline_transcription_mode = True
-    elif "gemini-2.5" in config_data.get("model", MAIN_MODEL):
-         inline_transcription_mode = False
-         print(f"Connection {connection_id}: Forcing inline_transcription_mode=False for Gemini 2.5 to enable Local Vosk Transcription")
+    output_transcription_enabled = bool(config_data.get("outputTranscriptionEnabled", True))
+    native_output_transcription = bool(
+        not is_narration
+        and output_transcription_enabled
+        and capabilities.get("output_audio_transcription")
+    )
+    # This flag means a separate Vosk pass is unnecessary. Narration intentionally has no
+    # transcript, while unsupported/disabled models retain the existing local fallback.
+    inline_transcription_mode = is_narration or native_output_transcription
 
-    print(f"Connection {connection_id}: Inline transcription mode preference: {inline_transcription_mode}")
-
-    # Inline transcription logic removed in favor of native ["TEXT", "AUDIO"] modalities
-    # This was causing 1007 errors by bloating the system prompt and conflicting with native behavior.
-    
-    # Initialize the session
-    print(f"DEBUG: Final system_instruction being sent (preview): {system_instruction[:100] if system_instruction else 'None'}...")
-
+    print(
+        f"Connection {connection_id}: native output transcription "
+        f"{'enabled' if native_output_transcription else 'disabled'}; "
+        f"local fallback {'disabled' if inline_transcription_mode else 'enabled'}"
+    )
 
     config = create_gemini_config(
         voice_name=voice_name, 
@@ -104,14 +64,23 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
         safety_settings=safety_settings,
         context=system_instruction,
         speaking_rate=speaking_rate,
-        pitch=pitch
+        pitch=pitch,
+        model_name=model_name,
+        enable_input_transcription=False,
+        enable_output_transcription=native_output_transcription,
     )
     print(f"Created configuration with voice: {voice_name}")
-    print(f"DEBUG: Final system_instruction being sent: {system_instruction}")
-
-    # Determine model to use
-    model_name = config_data.get("model", MAIN_MODEL)
     print(f"Selected model: {model_name}")
+
+    if requested_model != model_name:
+        await connection_monitor.safe_send(json.dumps({
+            "type": "model_migrated",
+            "kind": "live",
+            "from": requested_model,
+            "to": model_name,
+            "text": f"Updated retired Live model {requested_model} to {model_name}.",
+            "is_system_message": True,
+        }))
 
     # Send a message to the client that we're connecting to Gemini
     await connection_monitor.safe_send(json.dumps({
@@ -164,9 +133,6 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
                 connection_monitor=connection_monitor,
                 connection_id=connection_id,
                 audio_processor=audio_processor,
-                voice_name=voice_name,
-                client=client,
-                initialize_gemini_session=initialize_gemini_session,
                 response_timeout=response_timeout,
                 inline_transcription_mode=inline_transcription_mode,
                 session_role=session_role
@@ -181,8 +147,11 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
                 
                 # Check for exceptions
                 for task in done:
-                    if task.exception():
-                        print(f"Task failed with exception for connection {connection_id}: {task.exception()}")
+                    if task.cancelled():
+                        continue
+                    task_error = task.exception()
+                    if task_error:
+                        print(f"Task failed with exception for connection {connection_id}: {task_error}")
                         # Cancel other tasks
                         for p in pending:
                             p.cancel()
@@ -192,18 +161,13 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
             finally:
                 # Stop and cancel keep-alive task when done
                 if 'keep_alive_manager' in locals():
-                    keep_alive_manager.stop()
+                    await keep_alive_manager.stop()
                 
-                # Cancel audio queue task
-                audio_queue_task.cancel()
-                
-                # Cancel any remaining tasks
-                if 'send_task' in locals() and not send_task.done():
-                    send_task.cancel()
-                if 'receive_task' in locals() and not receive_task.done():
-                    receive_task.cancel()
-                if 'monitor_task' in locals() and not monitor_task.done():
-                    monitor_task.cancel()
+                tasks_to_close = [audio_queue_task, send_task, receive_task, monitor_task]
+                for task in tasks_to_close:
+                    if task and not task.done():
+                        task.cancel()
+                await asyncio.gather(*tasks_to_close, return_exceptions=True)
                 
                 await error_handler.send_session_closed_message()
                 

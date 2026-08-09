@@ -178,8 +178,14 @@ async function sendAutoSetupMessage() {
         displayMessage(`System Message: Auto-restoring model with voice: ${savedVoice}`, true);
     }
 
-    // Retrieve saved configuration
-    const savedModel = localStorage.getItem('selectedModel') || 'gemini-2.5-flash-native-audio-latest';
+    // Resolve persisted ids through the shared registry before every connection. Preview
+    // aliases expire, and a stale value must not create an endless reconnect loop.
+    window.EveGeminiModelRegistry?.migrateStorage?.();
+    const savedModel = window.EveGeminiModelRegistry?.resolve?.(
+        'live',
+        localStorage.getItem('selectedModel')
+    ) || 'gemini-3.1-flash-live-preview';
+    try { localStorage.setItem('selectedModel', savedModel); } catch (error) { /* storage is optional */ }
     const temp = parseFloat(localStorage.getItem('generationTemperature') || '0.9');
     const topK = parseInt(localStorage.getItem('generationTopK') || '1', 10);
     const topP = parseFloat(localStorage.getItem('generationTopP') || '1.0');
@@ -240,7 +246,9 @@ async function sendAutoSetupMessage() {
         },
         // Pass the sequential audio play setting to the server
         sequentialAudioPlay: (typeof sequentialAudioPlay !== 'undefined') ? sequentialAudioPlay : false,
-        // NEW: Pass the transcription mode setting to the server (Now always using inline)
+        // Native output transcripts are independent from optional prompt injection.
+        outputTranscriptionEnabled: true,
+        // Retained for backward compatibility with the prompt-injection setting.
         inlineTranscriptionMode: (window.AudioProcessingControlsAgentic &&
             window.AudioProcessingControlsAgentic.TranscriptionModeState)
             ? window.AudioProcessingControlsAgentic.TranscriptionModeState.isInlineTranscriptionEnabled()

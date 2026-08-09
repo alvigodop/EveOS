@@ -1,26 +1,24 @@
-import json
-import base64
 import io
 import wave
+
+from google.genai import types
 from pydub import AudioSegment
-import google.generativeai as generative
+
 from main_server_files.api_configuration.gemini_config import TRANSCRIPTION_MODEL, TRANSCRIPTION_CONFIG
 from main_server_files.transcription.transcription_normalizer import get_hint_phrases, normalize_transcript
 
 async def transcribe_audio(audio_data, client):
     """Transcribe audio data using the Gemini API."""
     try:
+        if client is None:
+            print("Gemini transcription skipped: no configured client")
+            return None
+
         # Convert PCM to MP3 first
         mp3_data = await convert_pcm_to_mp3(audio_data)
         if not mp3_data:
             return None
 
-        # Create a transcription model with specific configuration
-        model = generative.GenerativeModel(
-            model_name=TRANSCRIPTION_MODEL,
-            generation_config=TRANSCRIPTION_CONFIG
-        )
-        
         # Create the prompt for transcription
         hints = ", ".join(get_hint_phrases())
         prompt = f"""Please transcribe the following audio accurately.
@@ -30,11 +28,13 @@ async def transcribe_audio(audio_data, client):
         If the audio is not clear enough to transcribe, respond with '<Not recognizable>'."""
         
         # Process the transcription
-        response = await model.generate_content_async(
+        response = await client.aio.models.generate_content(
+            model=TRANSCRIPTION_MODEL,
             contents=[
                 prompt,
-                {"mime_type": "audio/mp3", "data": base64.b64encode(mp3_data).decode()}
-            ]
+                types.Part.from_bytes(data=mp3_data, mime_type="audio/mp3"),
+            ],
+            config=types.GenerateContentConfig(**TRANSCRIPTION_CONFIG),
         )
         
         # *** ENHANCED ERROR HANDLING: Check for valid response structure ***

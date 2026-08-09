@@ -4,12 +4,15 @@
 
     window.SessionControlsAgentic = window.SessionControlsAgentic || {};
 
+    const LIVE_DEFAULT = window.EveGeminiModelRegistry?.defaults?.live || 'gemini-3.1-flash-live-preview';
+    const TEXT_BRAIN_DEFAULT = window.EveGeminiModelRegistry?.defaults?.textBrain || 'gemini-3.5-flash-lite';
+
     const STORAGE_FIELDS = {
         heartbeatInput: ['heartbeatIntervalSec', '60'],
         cleanupInput: ['cleanupInterval', '60'],
         responseTimeoutInput: ['responseTimeout', '75'],
-        modelSelect: ['selectedModel', 'gemini-2.5-flash-native-audio-latest'],
-        textBrainModelSelect: ['textBrainModel', 'gemini-2.5-flash-lite'],
+        modelSelect: ['selectedModel', LIVE_DEFAULT],
+        textBrainModelSelect: ['textBrainModel', TEXT_BRAIN_DEFAULT],
         temperatureInput: ['generationTemperature', '0.9'],
         topKInput: ['generationTopK', '1'],
         topPInput: ['generationTopP', '1'],
@@ -44,7 +47,16 @@
             systemInstructionInput: document.getElementById('systemInstructionInputSess'),
             safetyLevelSelect: document.getElementById('safetyLevelSelectSess'),
             speakingRateInput: document.getElementById('speakingRateInputSess'),
-            pitchInput: document.getElementById('pitchInputSess')
+            pitchInput: document.getElementById('pitchInputSess'),
+            liveModelSummary: document.getElementById('liveModelCapabilitySummary'),
+            textBrainModelSummary: document.getElementById('textBrainModelCapabilitySummary'),
+            usageReset: document.getElementById('geminiUsageReset'),
+            liveTokenTotal: document.getElementById('geminiLiveTokenTotal'),
+            liveTokenDetail: document.getElementById('geminiLiveTokenDetail'),
+            textBrainTokenTotal: document.getElementById('geminiTextBrainTokenTotal'),
+            textBrainTokenDetail: document.getElementById('geminiTextBrainTokenDetail'),
+            combinedTokenTotal: document.getElementById('geminiCombinedTokenTotal'),
+            combinedTokenDetail: document.getElementById('geminiCombinedTokenDetail')
         };
     }
 
@@ -77,6 +89,56 @@
         if (elements.credentialStatus) elements.credentialStatus.textContent = message;
     }
 
+    function formatCount(value) {
+        return Math.max(0, Number(value) || 0).toLocaleString();
+    }
+
+    function updateUsage(elements, providedTotals) {
+        const totals = providedTotals || window.EveGeminiUsageTelemetry?.getTotals?.() || {
+            live: { total: 0, turns: 0 },
+            textBrain: { total: 0, calls: 0 },
+            combined: { total: 0, prompt: 0, output: 0 }
+        };
+        if (elements.liveTokenTotal) elements.liveTokenTotal.textContent = formatCount(totals.live?.total);
+        if (elements.liveTokenDetail) {
+            const turns = Number(totals.live?.turns) || 0;
+            elements.liveTokenDetail.textContent = `${formatCount(turns)} ${turns === 1 ? 'turn' : 'turns'}`;
+        }
+        if (elements.textBrainTokenTotal) elements.textBrainTokenTotal.textContent = formatCount(totals.textBrain?.total);
+        if (elements.textBrainTokenDetail) {
+            const calls = Number(totals.textBrain?.calls) || 0;
+            elements.textBrainTokenDetail.textContent = `${formatCount(calls)} ${calls === 1 ? 'call' : 'calls'}`;
+        }
+        if (elements.combinedTokenTotal) elements.combinedTokenTotal.textContent = formatCount(totals.combined?.total);
+        if (elements.combinedTokenDetail) {
+            elements.combinedTokenDetail.textContent = `Input ${formatCount(totals.combined?.prompt)} / Output ${formatCount(totals.combined?.output)}`;
+        }
+    }
+
+    function updateModelSummaries(elements) {
+        const registry = window.EveGeminiModelRegistry;
+        const live = registry?.getModel?.('live', elements.modelSelect?.value);
+        const textBrain = registry?.getModel?.('textBrain', elements.textBrainModelSelect?.value);
+        if (elements.liveModelSummary) elements.liveModelSummary.textContent = live?.summary || 'Live voice and native audio transport.';
+        if (elements.textBrainModelSummary) elements.textBrainModelSummary.textContent = textBrain?.summary || 'Mode 2 context extraction model.';
+    }
+
+    function prepareModelControls(elements) {
+        const registry = window.EveGeminiModelRegistry;
+        registry?.migrateStorage?.();
+        registry?.populateSelect?.(
+            elements.modelSelect,
+            'live',
+            safeStorageGet('selectedModel', LIVE_DEFAULT)
+        );
+        registry?.populateSelect?.(
+            elements.textBrainModelSelect,
+            'textBrain',
+            safeStorageGet('textBrainModel', TEXT_BRAIN_DEFAULT)
+        );
+        updateModelSummaries(elements);
+    }
+
     async function refreshCredentialStatus(elements) {
         setCredentialStatus(elements, 'checking', 'Checking the encrypted local credential vault...');
         const control = window.GeminiServerControl;
@@ -98,6 +160,7 @@
     }
 
     function restoreSettings(elements) {
+        prepareModelControls(elements);
         Object.entries(STORAGE_FIELDS).forEach(function ([elementKey, storageConfig]) {
             if (elements[elementKey]) {
                 elements[elementKey].value = elementKey === 'systemInstructionInput' && window.GeminiInstructionState?.getBaseInstruction
@@ -115,6 +178,8 @@
             elements.apiKeyInput.value = safeStorageGet('geminiApiKey', '');
             elements.apiKeyInput.type = 'password';
         }
+        updateModelSummaries(elements);
+        updateUsage(elements);
     }
 
     function persistSettings(elements) {
@@ -125,7 +190,13 @@
                 window.GeminiInstructionState.setBaseInstruction(elements[elementKey].value);
                 return;
             }
-            safeStorageSet(storageConfig[0], elements[elementKey].value);
+            let value = elements[elementKey].value;
+            if (elementKey === 'modelSelect') {
+                value = window.EveGeminiModelRegistry?.resolve?.('live', value) || LIVE_DEFAULT;
+            } else if (elementKey === 'textBrainModelSelect') {
+                value = window.EveGeminiModelRegistry?.resolve?.('textBrain', value) || TEXT_BRAIN_DEFAULT;
+            }
+            safeStorageSet(storageConfig[0], value);
         });
     }
 
@@ -152,9 +223,9 @@
         elements.saveBtn.textContent = 'Saving...';
 
         try {
-            const previousTextBrainModel = safeStorageGet('textBrainModel', 'gemini-2.5-flash-lite');
+            const previousTextBrainModel = safeStorageGet('textBrainModel', TEXT_BRAIN_DEFAULT);
             persistSettings(elements);
-            const nextTextBrainModel = safeStorageGet('textBrainModel', 'gemini-2.5-flash-lite');
+            const nextTextBrainModel = safeStorageGet('textBrainModel', TEXT_BRAIN_DEFAULT);
             // The text-brain model rides on every request — switching it needs NO reconnect.
             // Say so explicitly, or a switch during a session reads as "stuck".
             if (nextTextBrainModel !== previousTextBrainModel) {
@@ -254,6 +325,13 @@
         elements.saveBtn.addEventListener('click', function () {
             saveSettings(elements, getWebSocket, displayMessage);
         });
+        [elements.modelSelect, elements.textBrainModelSelect].filter(Boolean).forEach(function (select) {
+            select.addEventListener('change', function () { updateModelSummaries(elements); });
+        });
+        elements.usageReset?.addEventListener('click', function () {
+            const totals = window.EveGeminiUsageTelemetry?.reset?.();
+            updateUsage(elements, totals);
+        });
         elements.dialog.addEventListener('cancel', function (event) {
             event.preventDefault();
             closeDialog(elements.dialog);
@@ -265,6 +343,11 @@
                 setCredentialStatus(elements, 'ready', 'An API key is secured in the local Windows credential vault.');
             }
         });
+        window.addEventListener('eve:gemini-usage', function (event) {
+            updateUsage(elements, event.detail);
+        });
+        prepareModelControls(elements);
+        updateUsage(elements);
         return true;
     };
 })();

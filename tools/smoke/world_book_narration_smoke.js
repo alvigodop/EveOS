@@ -49,8 +49,8 @@ expect(api.includes('/api/narration/document/download') && ui.includes('readerDo
     'reader library cannot recover imported source files');
 expect(gemini.includes('ws://127.0.0.1:9085') && gemini.includes('world_book_narration'),
     'World Book narration is not using the canonical isolated Gemini lane');
-expect(sessionLoop.includes('chat_history = [] if is_narration'),
-    'narration inherited conversational chat history');
+expect(!sessionLoop.includes('load_chat_history') && !sessionLoop.includes('chat_history ='),
+    'Live session setup can preload disk chat history into the isolated narration lane');
 expect(sessionRegistry.includes('session_role') && sessionRegistry.includes('== role'),
     'session eviction is not scoped by role');
 expect(bridge.includes('EveAudioflixNative') && bridge.includes('playVoice'),

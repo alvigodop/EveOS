@@ -1,8 +1,8 @@
 """
-Handles API-related errors, particularly quota limits and connection issues.
-Enhanced for preview model stability, especially gemini-2.5-flash-preview-native-audio-dialog.
-Added specific handling for "Deadline expired before operation could complete" errors.
-Updated with configurable timeout settings and enhanced monitoring.
+Handles Gemini API quota, deadline, transport, and model-availability errors.
+
+Retry policy is capability-agnostic: preview model identifiers are short-lived, so
+error handling must not encode behavior for one retired model name.
 """
 import asyncio
 import logging
@@ -64,7 +64,6 @@ class APIErrorHandler:
 
         # Determine if this is a preview model
         is_preview_model = any(keyword in model_name.lower() for keyword in ["preview", "experimental", "beta", "alpha"])
-        is_native_audio_dialog = "native-audio-dialog" in model_name.lower()
         max_retries = self.PREVIEW_MODEL_MAX_RETRIES if is_preview_model else self.MAX_RETRY_ATTEMPTS
 
         # Handle actual quota exceeded errors
@@ -92,11 +91,7 @@ class APIErrorHandler:
                 
                 await asyncio.sleep(delay)
                 
-                # Special handling for native-audio-dialog model
-                if is_native_audio_dialog:
-                    return True, f"Native audio dialog model connection issue (attempt {self.error_counts[connection_id]}/{max_retries}). These models are highly experimental and unstable. Retrying with exponential backoff..."
-                else:
-                    return True, f"Preview model connection issue ({error_msg}) (attempt {self.error_counts[connection_id]}/{max_retries}). Preview models can be unstable. Retrying..."
+                return True, f"Preview model connection issue ({error_msg}) (attempt {self.error_counts[connection_id]}/{max_retries}). Retrying with backoff..."
             else:
                 self._activate_circuit_breaker(model_name, current_time)
                 return False, f"Multiple connection failures for {model_name}. Preview model may be temporarily unavailable."
@@ -295,4 +290,4 @@ class APIErrorHandler:
         return status
 
 # Global error handler instance
-api_error_handler = APIErrorHandler() 
+api_error_handler = APIErrorHandler()

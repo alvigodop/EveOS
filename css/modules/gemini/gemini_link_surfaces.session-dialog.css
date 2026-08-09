@@ -375,6 +375,7 @@
     .gemini-session-dialog__save-note {
         display: none;
     }
+
 }
 
 @media (max-width: 390px) {
@@ -388,4 +389,5 @@
         display: grid;
         grid-template-columns: 1fr 1fr;
     }
+
 }

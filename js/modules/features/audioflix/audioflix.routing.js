@@ -159,7 +159,7 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
     function renderStatusCards(snapshot, playbackStatus) {
         const audioStatus = window.EveAudioflixAudio?.getStatus?.() || {};
         const geminiStatus = window.EveAudioflixGemini?.getStatus?.() || {};
-        const mode2Tokens = window.EveGeminiMode2?.getTokenTotals?.() || null;
+        const geminiUsage = window.EveGeminiUsageTelemetry?.getTotals?.() || null;
         const label = routeLabel(snapshot, audioStatus);
         const monitorOn = snapshot.geminiVoiceMonitorEnabled !== false;
         const monitorLabel = snapshot.geminiVoiceMonitorSinkLabel || 'Default monitor output';
@@ -248,11 +248,11 @@ window.EveAudioflixRouting = window.EveAudioflixRouting || {};
             <article class="audioflix-status-card">
                 <span>Conversation Mode</span>
                 <strong>${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Text Brain -> Live Voice' : 'Direct Live'}</strong>
-                <p class="audioflix-status-token-desc">${mode2Tokens?.calls
-                    ? `Text brain: ${mode2Tokens.textBrain.total} tokens across ${mode2Tokens.calls} call${mode2Tokens.calls === 1 ? '' : 's'}.`
+                <p class="audioflix-status-token-desc">${geminiUsage?.combined?.interactions
+                    ? `Gemini session: ${geminiUsage.combined.total.toLocaleString()} tokens (Live ${geminiUsage.live.total.toLocaleString()} / text brain ${geminiUsage.textBrain.total.toLocaleString()}).`
                     : (window.EveGeminiMode2?.ready
-                        ? 'Mode 2 relay is loaded: typed or spoken turns go to the text brain, then Live speaks the reply.'
-                        : 'Mode 2 is staged, but the Gemini text-brain relay is not loaded yet.')}</p>
+                        ? 'Token telemetry is ready. Mode 2 sends context through the text brain, then Live speaks the reply.'
+                        : 'Gemini token telemetry loads with Search Monitor.')}</p>
                 <button type="button" data-af-action="toggle-gemini-mode">${snapshot.geminiConversationMode === 'text-brain-live-voice' ? 'Use Direct Live' : 'Use Mode 2'}</button>
             </article>
             <article class="audioflix-status-card">

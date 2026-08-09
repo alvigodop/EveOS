@@ -35,6 +35,8 @@ const masterScriptList = [
 
     // 1. Client Core Control
     APP_ROOT + 'js/modules/gemini/comm/send_hist/chat_history_local_storage/localStorageHelper.js',
+    `${BASE_PATHS.CLIENT_CORE}/modelRegistry.js?v=0.1.1`,
+    `${BASE_PATHS.CLIENT_CORE}/usageTelemetry.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/svg_fixing/svgFixerLoader.js`,
@@ -45,15 +47,15 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/idleDetector.js`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=0.1.1`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.4`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.8`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.5`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.9`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
 
     // 2. Agentic Functions
     `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=0.1.5`,
     `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=0.1.1`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js`,
-    `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=0.2.3`,
+    `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=0.2.4`,
     `${BASE_PATHS.AGENTIC}/conv_mem/conv_mem.js`,
     `${BASE_PATHS.AGENTIC}/time_perc/time_perc.js`,
 
@@ -64,8 +66,8 @@ const masterScriptList = [
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/popout_chat_feature/popoutChatHandler.js?v=0.1.2`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_message_operations/textMessageSender.js`,
     // Mode 2: Text Brain -> Live Voice relay (loads after sendTextMessage/socket/waitForConnection)
-    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.config.js?v=0.1.1',
-    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.2.1',
+    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.config.js?v=0.1.2',
+    APP_ROOT + 'js/modules/gemini/mode2/textBrainRelay.js?v=0.2.2',
     `${BASE_PATHS.COMM_PANEL}/input_attachments/imageAttachmentHandler.js?v=0.1.0`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/text_input_handling/textInputHandler.js?v=0.2.0`,
 

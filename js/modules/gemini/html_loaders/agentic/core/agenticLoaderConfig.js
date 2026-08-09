@@ -20,7 +20,7 @@ const agenticUILoaderScripts = [
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioSettingsDialogUILoader.js`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/sonic_forge/sonicForgeManagerUILoader.js?v=0.1.0`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/narration/worldBookNarrationManagerUILoader.js?v=0.1.0`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sess_ctrl/sessionControlsUILoader.js?v=0.2.2`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sess_ctrl/sessionControlsUILoader.js?v=0.2.3`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/scr_cap/screenCaptureSettingsUILoader.js?v=0.3.0`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkUILoader.js`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkSettingsDialogUILoader.js`

@@ -8,6 +8,7 @@ console.log("socketMessageRouter.js loading...");
 
 (function () {
     const State = window.SocketGlobalState;
+    const LIVE_FALLBACK_MARKER = 'eveGeminiLiveFallbackAttempt';
 
     function pauseReconnectForCredentialError(statusMessage) {
         State.credentialRequired = true;
@@ -51,6 +52,86 @@ console.log("socketMessageRouter.js loading...");
         return true;
     }
 
+    function safeStorageGet(storage, key) {
+        try { return String(storage?.getItem?.(key) || ''); }
+        catch (error) { return ''; }
+    }
+
+    function safeStorageSet(storage, key, value) {
+        try {
+            storage?.setItem?.(key, String(value));
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function clearFallbackAttempt() {
+        try { window.sessionStorage?.removeItem?.(LIVE_FALLBACK_MARKER); }
+        catch (error) { /* session storage is optional */ }
+    }
+
+    function pauseReconnectForModelError(statusMessage) {
+        State.autoReconnectEnabled = false;
+        State.serverOfflinePauseActive = true;
+        if (State.reconnectTimeout) {
+            clearTimeout(State.reconnectTimeout);
+            State.reconnectTimeout = null;
+        }
+        if (State.continuousReconnectInterval) {
+            clearInterval(State.continuousReconnectInterval);
+            State.continuousReconnectInterval = null;
+        }
+        if (typeof updateConnectionStatus === 'function') {
+            updateConnectionStatus('error', statusMessage || 'Model Unavailable');
+        }
+    }
+
+    function handleModelAvailabilityFailure(event, data, messageText) {
+        if (!data.is_system_message) return false;
+        const failure = window.EveGeminiApiFailure?.classify?.(messageText);
+        if (failure?.kind !== 'model-unavailable') return false;
+        if (isMessageFromStaleSocket(event)) {
+            console.warn('[Gemini] Ignoring model failure from a stale socket.');
+            return true;
+        }
+
+        const registry = window.EveGeminiModelRegistry;
+        const stored = safeStorageGet(window.localStorage, 'selectedModel');
+        const selected = registry?.resolve?.('live', stored) || stored;
+        const fallback = registry?.getFallback?.('live', selected) || '';
+        const attempt = fallback ? `${selected}->${fallback}` : '';
+        const previousAttempt = safeStorageGet(window.sessionStorage, LIVE_FALLBACK_MARKER);
+
+        if (fallback && previousAttempt !== attempt) {
+            safeStorageSet(window.sessionStorage, LIVE_FALLBACK_MARKER, attempt);
+            safeStorageSet(window.localStorage, 'selectedModel', fallback);
+            const select = document.getElementById('modelSelectSess');
+            if (select) select.value = fallback;
+            State.apiPolicyBlocked = false;
+            State.apiKeyInvalid = false;
+            State.credentialRequired = false;
+            State.autoReconnectEnabled = true;
+            State.serverOfflinePauseActive = false;
+            if (typeof updateConnectionStatus === 'function') {
+                updateConnectionStatus('waiting', 'Trying Compatibility Model...');
+            }
+            if (typeof displayMessage === 'function') {
+                displayMessage(
+                    `System Message: ${selected} is unavailable for Live. Trying the registered compatibility model ${fallback}.`,
+                    true
+                );
+            }
+            return true;
+        }
+
+        pauseReconnectForModelError(failure.status);
+        if (typeof displayMessage === 'function') {
+            displayMessage(`System Message: ${failure.message} Choose another Live model in Session Controls, then reconnect.`, true);
+        }
+        return true;
+    }
+
     async function handleSocketMessage(event) {
         try {
             const data = JSON.parse(event.data);
@@ -65,6 +146,25 @@ console.log("socketMessageRouter.js loading...");
             if (data.pong) {
                 console.log("Received legacy pong from server");
                 State.lastPongReceived = Date.now();
+                return;
+            }
+
+            if (data.type === 'live_usage') {
+                window.EveGeminiUsageTelemetry?.recordLiveUsage?.(data);
+                return;
+            }
+
+            if (data.type === 'model_migrated') {
+                const kind = data.kind === 'text_brain' ? 'textBrain' : 'live';
+                const storageKey = kind === 'textBrain' ? 'textBrainModel' : 'selectedModel';
+                const resolved = window.EveGeminiModelRegistry?.resolve?.(kind, data.to) || String(data.to || '');
+                if (resolved) {
+                    try { localStorage.setItem(storageKey, resolved); } catch (error) { /* storage is optional */ }
+                    const selectId = kind === 'textBrain' ? 'textBrainModelSelectSess' : 'modelSelectSess';
+                    const select = document.getElementById(selectId);
+                    if (select) select.value = resolved;
+                }
+                if (data.text && typeof displayMessage === 'function') displayMessage(data.text, true);
                 return;
             }
 
@@ -91,14 +191,12 @@ console.log("socketMessageRouter.js loading...");
                 }
             } else if (data.text) {
                 const messageText = String(data.text || '').trim();
-                // Self-heal a dead / unsupported MODEL (distinct from a key restriction).
-                // Google retires preview Live models over time; a stale localStorage
-                // selection then fails forever with 1008 "not found / not supported for
-                // bidiGenerateContent". Reset to the known-good default and let reconnect
-                // proceed. Future-proof: matches the failure, not a hardcoded model list.
-                if (data.is_system_message
+                if (handleModelAvailabilityFailure(event, data, messageText)) return;
+                // Early-loader compatibility if the central failure classifier was not loaded.
+                if (!window.EveGeminiApiFailure && data.is_system_message
                     && /(not found for api version|not supported for bidigeneratecontent|is not found for|preview model issue)/i.test(messageText)) {
-                    const DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-latest';
+                    const DEFAULT_LIVE_MODEL = window.EveGeminiModelRegistry?.defaults?.live
+                        || 'gemini-3.1-flash-live-preview';
                     let stale = '';
                     try { stale = localStorage.getItem('selectedModel') || ''; } catch (e) { stale = ''; }
                     if (stale && stale !== DEFAULT_LIVE_MODEL) {
@@ -122,6 +220,7 @@ console.log("socketMessageRouter.js loading...");
                     State.apiKeyInvalid = false;
                     State.credentialStatusMessage = '';
                     State.geminiApiReady = true;
+                    clearFallbackAttempt();
                     if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connected', 'Connected');
                     if (typeof displayMessage === 'function') {
                         displayMessage("System Message: Gemini API initialized successfully", true);

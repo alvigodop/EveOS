@@ -1,9 +1,9 @@
 """Mode 2 text-brain handler.
 
 Handles `text_brain_request` WebSocket messages. The text brain is a large-context
-text model (see TEXT_BRAIN_MODEL) that holds the grand conversation history + EveOS
+text model selected through the model registry. It holds conversation history + EveOS
 context and produces the line the live voice model should speak. It is a plain
-request/response over the existing socket — it does NOT touch the live audio session,
+request/response over the existing socket - it does NOT touch the live audio session,
 so Mode 1 is unaffected.
 
 Client message shape:
@@ -24,17 +24,16 @@ import json
 import time
 import traceback
 
-import google.generativeai as generative
+from google.genai import types
 
 from main_server_files.api_configuration.gemini_config import (
-    TEXT_BRAIN_MODEL,
     TEXT_BRAIN_CONFIG,
     TEXT_BRAIN_SYSTEM_PREFIX,
-    resolve_text_brain_model,
 )
+from main_server_files.api_configuration.model_registry import resolve_text_brain_model
 
 
-async def handle_text_brain_request(data, connection_monitor):
+async def handle_text_brain_request(data, connection_monitor, client):
     """Run the text brain for one user turn and stream the reply back to the client."""
     request_id = data.get("requestId") or data.get("request_id")
     user_text = str(data.get("text") or "").strip()
@@ -50,20 +49,24 @@ async def handle_text_brain_request(data, connection_monitor):
         return
 
     try:
+        if client is None:
+            raise RuntimeError("Gemini client is not configured for the text brain")
+
         system_instruction = TEXT_BRAIN_SYSTEM_PREFIX
         if context:
             system_instruction = f"{system_instruction}\n\n[EVEOS CONTEXT]\n{context}"
 
         # Model is picked in Session Controls; validated against the allowlist (unknown -> default).
         selected_model = resolve_text_brain_model(data.get("model"))
-        model = generative.GenerativeModel(
-            model_name=selected_model,
-            generation_config=TEXT_BRAIN_CONFIG,
-            system_instruction=system_instruction,
-        )
-
         contents = _build_contents(history, user_text)
-        response = await model.generate_content_async(contents=contents)
+        response = await client.aio.models.generate_content(
+            model=selected_model,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                **TEXT_BRAIN_CONFIG,
+                system_instruction=system_instruction,
+            ),
+        )
 
         reply = _extract_text(response)
         usage = _extract_usage(response)
@@ -86,7 +89,7 @@ async def handle_text_brain_request(data, connection_monitor):
 
 
 def _build_contents(history, user_text):
-    """Map the client history (+ this turn) into google-generativeai content dicts."""
+    """Map client history and this turn into google-genai content dictionaries."""
     contents = []
     for turn in history if isinstance(history, list) else []:
         if not isinstance(turn, dict):
@@ -123,10 +126,17 @@ def _extract_usage(response):
     meta = getattr(response, "usage_metadata", None)
     if not meta:
         return {"prompt": 0, "output": 0, "total": 0}
+    prompt = int(getattr(meta, "prompt_token_count", 0) or 0)
+    output = int(getattr(meta, "candidates_token_count", 0) or 0)
+    cached = int(getattr(meta, "cached_content_token_count", 0) or 0)
+    thoughts = int(getattr(meta, "thoughts_token_count", 0) or 0)
+    total = int(getattr(meta, "total_token_count", 0) or (prompt + output + thoughts))
     return {
-        "prompt": int(getattr(meta, "prompt_token_count", 0) or 0),
-        "output": int(getattr(meta, "candidates_token_count", 0) or 0),
-        "total": int(getattr(meta, "total_token_count", 0) or 0),
+        "prompt": prompt,
+        "cached": cached,
+        "output": output,
+        "thoughts": thoughts,
+        "total": total,
     }
 
 

@@ -3,7 +3,7 @@ import time
 from ...media_processing.realtime_input_processor import process_realtime_input
 from ...command_processing.command_handler import process_command
 
-async def route_message(data, session, connection_monitor, audio_processor, connection_id):
+async def route_message(data, session, connection_monitor, audio_processor, connection_id, client=None):
     """
     Routes a parsed message to the appropriate handler based on its content/type.
     """
@@ -46,7 +46,8 @@ async def route_message(data, session, connection_monitor, audio_processor, conn
         elif message_type == "text_brain_request":
             print("Received Mode 2 text_brain_request")
             from ...text_brain.text_brain_handler import handle_text_brain_request
-            await handle_text_brain_request(data, connection_monitor)
+            request_client = client or getattr(audio_processor, "client", None)
+            await handle_text_brain_request(data, connection_monitor, request_client)
             return True
 
         # *** COMMAND MESSAGE HANDLING ***

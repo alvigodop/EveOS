@@ -10,9 +10,9 @@ semaphore_acquired = set()
 # Model-specific concurrent session limits based on Google's rate limits
 # Reference: https://ai.google.dev/gemini-api/docs/rate-limits
 MODEL_SESSION_LIMITS = {
-    "gemini-2.5-flash-preview-native-audio-dialog": 1,  # Free tier limit
-    "gemini-2.5-flash-experimental-native-audio-thinking-dialog": 1,  # Free tier limit
-    "default": 2  # Default limit for other models
+    "gemini-3.1-flash-live-preview": 2,
+    "gemini-2.5-flash-native-audio-preview-12-2025": 1,
+    "default": 2,
 }
 
 # Get the appropriate session limit for the current model

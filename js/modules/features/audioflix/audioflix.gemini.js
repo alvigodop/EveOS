@@ -219,6 +219,16 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
         announce('eve:audioflix-gemini-audio-seen', lastEvent);
     }
 
+    function describeSessionUsage() {
+        const totals = window.EveGeminiUsageTelemetry?.getTotals?.();
+        if (Number(totals?.combined?.interactions) > 0) {
+            return `Gemini session: ${totals.combined.total.toLocaleString()} tokens (Live ${totals.live.total.toLocaleString()} / text brain ${totals.textBrain.total.toLocaleString()}).`;
+        }
+        return window.EveGeminiMode2?.ready
+            ? 'Gemini token telemetry is ready; usage appears after the next Live or Mode 2 turn.'
+            : 'Gemini token telemetry loads with Search Monitor.';
+    }
+
     window.addEventListener('eve:gemini-audio-output', function (event) {
         handleGeminiAudio(event.detail || {});
     });
@@ -232,6 +242,7 @@ window.EveAudioflixGemini = window.EveAudioflixGemini || {};
         applyVoiceSink,
         playVoiceRouteTest,
         mirrorAudioChunk,
+        describeSessionUsage,
         getStatus: function () {
             const state = getState();
             return {

@@ -17,13 +17,11 @@ window.EveDataStore = window.EveDataStore || {};
     // only stops a pathological multi-MB state from flooding the socket).
     const LIVE_CONTEXT_MAX_CHARS = 600000;
     const LIVE_CONTEXT_CHUNK_DELAY_MS = 180;
-    // MODEL budget — the ceiling that actually matters. The live voice model (gemini-2.5-flash
-    // native audio) runs a ~128k-TOKEN session window shared by the system prompt, the whole
-    // conversation, and streamed audio (~25 tok/s in, ~150 tok/s out). A context snapshot must
-    // leave most of that window for the actual conversation, so the default budget is ~32k tokens
-    // (≈128k chars at ~4 chars/token — roughly a quarter of the window). The tier ladder steps
-    // detail down to fit; narrow scopes (card/tab) keep the high tiers. Tunable per model without
-    // a code change: localStorage 'geminiContextCharBudget' (clamped 20k..600k).
+    // Model budget is the ceiling that actually matters. Live context shares its session window
+    // with the system prompt, conversation, and streamed audio, so snapshots must leave ample
+    // room for the interaction itself. The conservative default is about 32k text tokens (128k
+    // characters at roughly four characters per token); the tier ladder reduces detail to fit.
+    // Tune per model with localStorage 'geminiContextCharBudget' (clamped 20k..600k).
     const LIVE_CONTEXT_DEFAULT_BUDGET_CHARS = 128000;
     function liveContextBudgetChars() {
         let override = 0;
@@ -31,11 +29,10 @@ window.EveDataStore = window.EveDataStore || {};
         const budget = override > 0 ? override : LIVE_CONTEXT_DEFAULT_BUDGET_CHARS;
         return Math.max(20000, Math.min(LIVE_CONTEXT_MAX_CHARS, budget));
     }
-    // Mode 2 budget — the snapshot goes to the TEXT BRAIN (gemini-2.5-flash, 1M-token window)
-    // instead of the live session, so it can afford much more detail. Capped at ~50k tokens
-    // (200k chars) anyway because the brain is stateless per turn: the snapshot rides along on
-    // EVERY request and the free tier meters tokens per minute. Override with localStorage
-    // 'geminiTextBrainContextCharBudget'.
+    // Mode 2 sends snapshots to the selected large-context text brain instead of Live, so it can
+    // afford more detail. It remains capped near 50k text tokens (200k characters) because the
+    // stateless snapshot rides along on every request and contributes to quota each time.
+    // Override with localStorage 'geminiTextBrainContextCharBudget'.
     const TEXT_BRAIN_CONTEXT_DEFAULT_BUDGET_CHARS = 200000;
     function textBrainContextBudgetChars() {
         let override = 0;

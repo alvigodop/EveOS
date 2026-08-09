@@ -3,7 +3,7 @@ import asyncio
 import websockets
 import time
 from ..chat_history.chat_history_handler import save_chat_history
-from ..transcription.transcription_handler import transcribe_audio
+from ..transcription.transcription_normalizer import normalize_transcript
 
 # Maximum audio buffer size (5MB)
 MAX_AUDIO_BUFFER_SIZE = 1024 * 1024 * 5
@@ -80,6 +80,27 @@ class GeminiResponseHandler:
                 # Removed artificial sleep to prevent delivery latency
         except Exception as e:
             print(f"Error sending text response: {e}")
+
+    async def process_transcription_response(self, text):
+        """Publish one completed native Live output transcript."""
+        if self.session_role == "world_book_narration" or self._screen_response_suppressed():
+            return None
+        normalized = normalize_transcript(str(text or "").strip())
+        if not normalized:
+            return None
+        try:
+            if self.connection_monitor.is_websocket_open():
+                await self.connection_monitor.safe_send(json.dumps({
+                    "text": normalized,
+                    "type": "transcription",
+                    "is_transcription": True,
+                    "source": "gemini_live_output_transcription",
+                }))
+                save_chat_history(normalized, is_user=False)
+                return normalized
+        except Exception as e:
+            print(f"Error sending native output transcription: {e}")
+        return None
 
     async def process_audio_response(self, audio_data):
         """Process audio response from Gemini."""

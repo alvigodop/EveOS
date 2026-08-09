@@ -1,9 +1,9 @@
 /**
  * gemini_context_model_budget_matrix_smoke.js
  *
- * Nova-pattern dummy-datapack test for the FULL Context Relay pipeline under the live model's
- * limited context window. The live voice model (gemini-2.5-flash native audio) runs a ~128k-token
- * session, so every send must stay inside the ~32k-token (128k-char) model budget — for EVERY
+ * Nova-pattern dummy-datapack test for the FULL Context Relay pipeline under EveOS's
+ * conservative Live transport budget. Every send must stay inside the ~32k-token
+ * (128k-char) safety budget regardless of the selected model's larger advertised window - for EVERY
  * scope (whole datapack / tab branch / card) at EVERY detail tier (brief/summary/deep/full),
  * with the tier ladder stepping down when the scoped snapshot is too big, valid JSON always, and
  * the silent Data Stream deltas staying tiny. Also proves the localStorage budget override.

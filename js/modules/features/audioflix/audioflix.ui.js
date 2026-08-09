@@ -377,10 +377,8 @@ window.EveAudioflix = window.EveAudioflix || {};
             const u = state(); counterSpan.textContent = `${(u.soundboard?.length || 0) + portedSounds.length} sounds · ${u.music?.length || 0} tracks · ${u.counters?.routedGeminiEvents || 0} Gemini events`;
         }
         const tokenDesc = overlay.querySelector('.audioflix-status-token-desc');
-        if (tokenDesc) {
-            const t = window.EveGeminiMode2?.getTokens?.() || { calls: 0, textBrain: { total: 0 } };
-            tokenDesc.textContent = t.calls ? `Text brain: ${t.textBrain.total} tokens across ${t.calls} calls.` : (window.EveGeminiMode2?.ready ? 'Mode 2 relay is loaded.' : 'Mode 2 is staged, but the Gemini text-brain relay is not loaded.');
-        }
+        if (tokenDesc) tokenDesc.textContent = window.EveAudioflixGemini?.describeSessionUsage?.()
+            || 'Gemini token telemetry loads with Search Monitor.';
     }
 
     window.addEventListener('eve:audioflix-playback', e => {
@@ -412,6 +410,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         rerender();
     });
     window.addEventListener('eve:audioflix-gemini-audio-seen', updateStatusDOM);
+    window.addEventListener('eve:gemini-usage', updateStatusDOM);
     window.addEventListener('eve:mode2-tokens', updateStatusDOM);
     function probeMissingDurations() {
         const all = [...(state().music || []), ...(state().soundboard || [])];

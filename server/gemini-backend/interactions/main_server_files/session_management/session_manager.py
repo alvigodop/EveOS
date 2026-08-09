@@ -26,8 +26,6 @@ from .core.session_cleanup import (
     cleanup_resources,
     periodic_cleanup
 )
-from .core.session_factory import create_gemini_session
-
 # Re-export key components for backward compatibility
 __all__ = [
     'active_sessions',
@@ -45,6 +43,5 @@ __all__ = [
     'semaphore_acquired',
     'cleanup_resources',
     'periodic_cleanup',
-    'create_gemini_session',
     'safe_send'
 ]

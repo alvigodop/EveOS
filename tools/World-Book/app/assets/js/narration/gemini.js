@@ -109,10 +109,11 @@
         : "Read supplied prose aloud exactly and naturally. Do not add commentary, headings, acknowledgments, summaries, or invented words. Preserve names and punctuation. Return audio only.";
       return {
         sessionRole: "world_book_narration",
-        model: "gemini-2.5-flash-native-audio-latest",
+        model: "gemini-3.1-flash-live-preview",
         responseTimeout: 90,
         sequentialAudioPlay: true,
         inlineTranscriptionMode: true,
+        outputTranscriptionEnabled: false,
         setup: {
           contents: [{ parts: [{ text: `You are World Book's narrator speaking with the voice of ${voice}.` }] }],
           tools: [],

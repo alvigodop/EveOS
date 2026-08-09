@@ -4,24 +4,19 @@ import websockets
 from .stream_error_logic import StreamErrorHandler
 from ..response_parser import _receive_responses
 from ...response_handler import GeminiResponseHandler
-from ....api_configuration.gemini_config import MODEL, TimeoutConfig, usage_monitor
-from ....error_handling.api_error_handler import api_error_handler
-from ....server_initialization.reconnection_handler import reconnect_to_gemini
+from ....api_configuration.gemini_config import TimeoutConfig, usage_monitor
 from ....status_monitoring.api_usage_monitor import api_usage_tracker
 
 class StreamSession:
     """
     Manages the lifecycle of the Gemini response stream.
     """
-    def __init__(self, session, websocket, connection_monitor, connection_id, audio_processor, voice_name, client, initialize_gemini_session, response_timeout=None, inline_transcription_mode=False, session_role="interactive"):
+    def __init__(self, session, websocket, connection_monitor, connection_id, audio_processor, response_timeout=None, inline_transcription_mode=False, session_role="interactive"):
         self.session = session
         self.websocket = websocket
         self.connection_monitor = connection_monitor
         self.connection_id = connection_id
         self.audio_processor = audio_processor
-        self.voice_name = voice_name
-        self.client = client
-        self.initialize_gemini_session = initialize_gemini_session
         self.response_timeout = response_timeout
         self.inline_transcription_mode = inline_transcription_mode
         self.session_role = session_role
@@ -90,6 +85,7 @@ class StreamSession:
                                 # True silence/timeout
                                 print(f"Watchdog timeout for connection {self.connection_id} (silence: {silence_duration:.1f}s)")
                                 receive_task.cancel()
+                                await asyncio.gather(receive_task, return_exceptions=True)
                                 await self._handle_idle_timeout(current_timeout)
                                 break
 
@@ -104,9 +100,9 @@ class StreamSession:
                             break
                         except websockets.exceptions.ConnectionClosed as e:
                             # Handle connection closures (deadlines etc)
-                             should_break = await self._handle_connection_closed(e)
-                             if should_break:
-                                 break
+                            should_break = await self._handle_connection_closed(e)
+                            if should_break:
+                                break
                         except asyncio.CancelledError:
                             print(f"Response receiving task cancelled")
                             break
@@ -130,7 +126,7 @@ class StreamSession:
                     "is_error": True
                 }))
         finally:
-            self._cleanup(request_index, request_start_time, receive_task)
+            await self._cleanup(request_index, request_start_time, receive_task)
 
     async def _handle_idle_timeout(self, current_timeout):
         # Check if we have accumulated audio data that needs processing
@@ -152,99 +148,53 @@ class StreamSession:
     async def _handle_connection_closed(self, e):
         print(f"Connection {self.connection_id} closed: {e}")
         error_msg = str(e)
-        
-        if "deadline expired before operation could complete" in error_msg.lower() or e.code == 1011:
-            should_retry, handler_msg = await self.error_handler.handle_deadline_error(e)
-            
-            if should_retry:
-                return await self._attempt_reconnect(handler_msg, error_type="deadline")
-            else:
-                await self._notify_stop(f"Backend connection unstable: {handler_msg}")
-                return True
+        is_deadline = "deadline expired before operation could complete" in error_msg.lower() or e.code == 1011
+        api_usage_tracker.log_error(
+            str(self.connection_id),
+            "deadline_error" if is_deadline else "connection_closed",
+            error_msg,
+            is_deadline_error=is_deadline,
+        )
+        if is_deadline:
+            self.error_handler.deadline_consecutive_errors += 1
+        self.error_handler.consecutive_errors += 1
+        await self._notify_stop(
+            "Gemini Live transport timed out. EveOS will rebuild the complete session."
+            if is_deadline else
+            "Gemini Live transport closed. EveOS will rebuild the complete session."
+        )
         return True
 
     async def _handle_generic_error(self, e):
-        should_retry, error_msg = await self.error_handler.handle_general_error(e)
-        
-        if should_retry:
-            print(f"Response Status: {error_msg}")
-            if self.connection_monitor.is_websocket_open():
-                await self.connection_monitor.safe_send(json.dumps({
-                    "text": f"Retrying after error (attempt {self.error_handler.consecutive_errors}/{self.error_handler.max_consecutive_errors}): {error_msg}",
-                    "is_system_message": True
-                }))
-            self.retry_attempt += 1
-            return False # Continue loop
-        else:
-            await self._notify_stop(f"Connection error: {error_msg}")
-            return True # Break loop
+        self.error_handler.consecutive_errors += 1
+        api_usage_tracker.log_error(
+            str(self.connection_id), "response_error", str(e), is_deadline_error=False
+        )
+        await self._notify_stop(
+            f"Gemini Live session ended ({str(e)[:160]}). EveOS will rebuild the complete session."
+        )
+        return True
 
     async def _handle_outer_loop_error(self, e):
-        # Similar to generic error but updates counters slightly differently in original code
-        # In original code it goes to same api_error_handler
-        # I'll reuse the general error handler logic for consistency, 
-        # but note that the original code treated this as "connection_error" in usage tracker
-        
         self.error_handler.consecutive_errors += 1
         print(f"Error in receive_from_gemini loop (consecutive: {self.error_handler.consecutive_errors}/{self.error_handler.max_consecutive_errors}): {e}")
-        
         api_usage_tracker.log_error(str(self.connection_id), "connection_error", str(e), is_deadline_error=False)
-        
-        should_retry, error_msg = await api_error_handler.handle_api_error(e, self.connection_id, MODEL)
-        
-        if should_retry and self.error_handler.consecutive_errors < self.error_handler.max_consecutive_errors:
-             print(f"Connection Status: {error_msg}")
-             if self.connection_monitor.is_websocket_open():
-                 await self.connection_monitor.safe_send(json.dumps({
-                     "text": f"Retrying connection (attempt {self.error_handler.consecutive_errors}/{self.error_handler.max_consecutive_errors}): {error_msg}",
-                     "is_system_message": True
-                 }))
-             self.retry_attempt += 1
-             return False
-        else:
-             await self._notify_stop(f"Connection failed after {self.error_handler.consecutive_errors} attempts: {error_msg}")
-             return True
-
-    async def _attempt_reconnect(self, handler_msg, error_type="deadline"):
-        if self.session_role == "world_book_narration":
-            await self._notify_stop("Narration transport closed. World Book will reconnect when playback resumes.")
-            return True
-        print(f"Connection Status: {handler_msg}")
-        if self.connection_monitor.is_websocket_open():
-            await self.connection_monitor.safe_send(json.dumps({
-                "text": f"Backend experiencing delays. {handler_msg}. Reconnecting...",
-                "is_system_message": True
-            }))
-        
-        print(f"Attempting to refresh session for connection {self.connection_id}...")
-        new_session = await reconnect_to_gemini(
-            self.client, 
-            self.voice_name, 
-            self.websocket, 
-            self.connection_monitor.safe_send, 
-            self.connection_id, 
-            self.initialize_gemini_session
+        await self._notify_stop(
+            f"Gemini Live receive loop ended ({str(e)[:160]}). EveOS will rebuild the complete session."
         )
-        
-        if new_session:
-            self.session = new_session
-            print(f"Session successfully refreshed for connection {self.connection_id}")
-            self.retry_attempt += 1
-            return False # Continue loop
-        else:
-            print(f"Reconnection failed for connection {self.connection_id}")
-            await self._notify_stop("Unable to re-establish connection to Gemini backend.")
-            return True # Break loop
+        return True
 
     async def _notify_stop(self, message):
         if self.connection_monitor.is_websocket_open():
             await self.connection_monitor.safe_send(json.dumps({
                 "text": message,
+                "type": "session_reconnect_required",
+                "retryable": True,
                 "is_system_message": True,
                 "is_error": True
             }))
 
-    def _cleanup(self, request_index, request_start_time, receive_task):
+    async def _cleanup(self, request_index, request_start_time, receive_task):
         # Log final usage statistics
         stats = usage_monitor.get_stats()
         print(f"\nConnection {self.connection_id} usage statistics:")
@@ -261,13 +211,7 @@ class StreamSession:
         # Cancel any remaining tasks
         if receive_task and not receive_task.done():
             receive_task.cancel()
-            try:
-                # We can't await here easily if we are in finally block which might care about return? 
-                # Actually finally block await is fine in async func.
-                # But we should be careful about suppressing other errors.
-                # Just schedule it or create a task? No, best to just cancel.
-                pass 
-            except Exception as e:
-                print(f"Error during final task cleanup: {e}")
+        if receive_task:
+            await asyncio.gather(receive_task, return_exceptions=True)
         
         print(f"Persistent response handler for connection {self.connection_id} terminated")

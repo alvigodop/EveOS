@@ -2,8 +2,7 @@
 # Keep this file aligned with imports under server/ and server_modules/.
 
 # Gemini Live, text-brain, and transcription paths.
-google-genai==1.46.0
-google-generativeai==0.8.5
+google-genai==2.13.0
 websockets==14.2
 pydub==0.25.1
 vosk==0.3.45
@@ -12,7 +11,7 @@ vosk==0.3.45
 numpy==1.24.4
 sounddevice==0.5.5
 
-# Audioflix URL resolver (YouTube, SoundCloud, etc. → direct audio stream).
+# Audioflix URL resolver (YouTube, SoundCloud, etc. to direct audio stream).
 yt-dlp
 
 # World Book Reader Library PDF extraction.

@@ -47,7 +47,9 @@ window.ModelSetupCore.createSetupMessage = function (selectedVoice, sequentialAu
         },
         // Pass the sequential audio play setting to the server
         sequentialAudioPlay: sequentialAudioPlay,
-        // NEW: Pass the transcription mode setting to the server (Now always using inline)
+        // Native output transcripts are independent from optional prompt injection.
+        outputTranscriptionEnabled: true,
+        // Retained for backward compatibility with the prompt-injection setting.
         inlineTranscriptionMode: (window.AudioProcessingControlsAgentic &&
             window.AudioProcessingControlsAgentic.TranscriptionModeState)
             ? window.AudioProcessingControlsAgentic.TranscriptionModeState.isInlineTranscriptionEnabled()

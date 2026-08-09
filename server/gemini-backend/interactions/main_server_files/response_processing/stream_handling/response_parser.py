@@ -2,25 +2,75 @@ import logging
 import asyncio
 import websockets
 import json
+import time
 from ...api_configuration.gemini_config import usage_monitor
 from ...status_monitoring.api_usage_monitor import api_usage_tracker
 
 # Configure logging for raw response data
 response_logger = logging.getLogger('gemini_responses')
 
+
+def _usage_value(metadata, *names):
+    for name in names:
+        value = getattr(metadata, name, None)
+        if value is not None:
+            return int(value or 0)
+    return 0
+
+
+def _usage_payload(metadata):
+    prompt = _usage_value(metadata, "prompt_token_count")
+    cached = _usage_value(metadata, "cached_content_token_count")
+    output = _usage_value(metadata, "response_token_count", "candidates_token_count")
+    tool = _usage_value(metadata, "tool_use_prompt_token_count")
+    thoughts = _usage_value(metadata, "thoughts_token_count")
+    total = _usage_value(metadata, "total_token_count") or (prompt + output + tool + thoughts)
+    return {
+        "prompt": prompt,
+        "cached": cached,
+        "output": output,
+        "tool": tool,
+        "thoughts": thoughts,
+        "total": total,
+    }
+
+
+def _merge_transcript(current, incoming):
+    chunk = str(incoming or "").strip()
+    if not chunk:
+        return current
+    if not current or chunk.startswith(current):
+        return chunk
+    if current.endswith(chunk):
+        return current
+    return f"{current} {chunk}".strip()
+
 async def _receive_responses(session, response_handler, connection_monitor, connection_id):
     """Helper function to handle receiving responses from Gemini session with enhanced error resilience and persistent session support"""
-    
+    turn_id = f"{connection_id}:{time.time_ns()}"
+    output_transcription = ""
+
+    async def finish_turn():
+        if output_transcription:
+            await response_handler.process_transcription_response(output_transcription)
+        await response_handler.handle_turn_complete()
+
     try:
         async for response in session.receive():
-            if response.server_content is None:
-                print(f'Unhandled server message!')
-                continue
-
             # Check if connection is still active before processing
             if not connection_monitor.is_websocket_open():
                 print(f"Connection {connection_id} closed during response processing")
                 break
+
+            usage_metadata = getattr(response, "usage_metadata", None)
+            if usage_metadata is not None:
+                usage = _usage_payload(usage_metadata)
+                await connection_monitor.safe_send(json.dumps({
+                    "type": "live_usage",
+                    "turnId": turn_id,
+                    "model": getattr(connection_monitor, "model_name", ""),
+                    "usage": usage,
+                }))
 
             # Log raw response structure for debugging
             try:
@@ -35,8 +85,15 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                 # Check if response has server_content with defensive checks
                 server_content = getattr(response, 'server_content', None)
                 if server_content is None:
-                    print(f"No server_content in response for connection {connection_id}")
+                    response_logger.debug(f"Metadata-only response for connection {connection_id}")
                     continue
+
+                native_transcription = getattr(server_content, "output_transcription", None)
+                if native_transcription is not None:
+                    output_transcription = _merge_transcript(
+                        output_transcription,
+                        getattr(native_transcription, "text", ""),
+                    )
 
                 # Process model_turn content if available
                 model_turn = getattr(server_content, 'model_turn', None)
@@ -54,7 +111,7 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                 turn_complete = getattr(server_content, 'turn_complete', None)
                 if turn_complete is not None and turn_complete:
                     print(f"Turn complete (explicit turn_complete) for connection {connection_id}")
-                    await response_handler.handle_turn_complete()
+                    await finish_turn()
                     return # Turn finished, return to session loop
                 
                 # Check for other completion indicators in model_turn
@@ -63,7 +120,7 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                     final_attr = getattr(model_turn, 'final', None)
                     if final_attr is not None and final_attr:
                         print(f"Turn complete (legacy final=True) for connection {connection_id}")
-                        await response_handler.handle_turn_complete()
+                        await finish_turn()
                         return
 
                     # Fallback: Check for other completion indicators
@@ -71,7 +128,7 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                     is_complete = getattr(model_turn, 'complete', None)
                     if is_finished or is_complete:
                         print(f"Turn complete (finished={is_finished}, complete={is_complete}) for connection {connection_id}")
-                        await response_handler.handle_turn_complete()
+                        await finish_turn()
                         return
                 else:
                     print(f"Non-model_turn content received for connection {connection_id}")

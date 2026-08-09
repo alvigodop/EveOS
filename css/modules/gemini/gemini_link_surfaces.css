@@ -7,5 +7,6 @@
 @import url('./gemini_link_surfaces.overrides.css?v=0.1.4');
 @import url('./gemini_link_surfaces.server-control.css?v=0.4.2');
 @import url('./gemini_link_surfaces.server-inspector.css?v=0.2.0');
-@import url('./gemini_link_surfaces.session-dialog.css?v=0.1.1');
+@import url('./gemini_link_surfaces.session-dialog.css?v=0.2.1');
+@import url('./gemini_link_surfaces.session-usage.css?v=0.1.0');
 @import url('./gemini_link_surfaces.viewport.css?v=0.3.8');

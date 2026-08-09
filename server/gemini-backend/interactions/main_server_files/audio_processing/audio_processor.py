@@ -11,13 +11,15 @@ from google import genai
 SEQUENTIAL_DELAY = 0.001    # Transmit as fast as possible, let client handle timing
 RETRY_DELAY = 0.005         # Faster retries
 QUEUE_TIMEOUT = 5.0        # Allow more time to drain the queue naturally at turn end
+AUDIO_QUEUE_MAX_CHUNKS = 96  # Backpressure pathological streams without dropping ordered audio
+AUDIO_QUEUE_LOG_STEP = 16
 
 class AudioProcessor:
     def __init__(self, websocket, connection_id, client=None, update_activity_callback=None):
         self.websocket = websocket
         self.connection_id = connection_id
         self.audio_data = b''
-        self.audio_queue = asyncio.Queue()
+        self.audio_queue = asyncio.Queue(maxsize=AUDIO_QUEUE_MAX_CHUNKS)
         self.is_sequential = False
         self.is_playing_audio = False
         self.client = client
@@ -56,39 +58,35 @@ class AudioProcessor:
                     print(f"Connection {self.connection_id} closed, stopping audio queue processing")
                     break
 
+                audio_data = await self.audio_queue.get()
+                self.is_playing_audio = True
                 try:
-                    audio_data = await self.audio_queue.get()
-                    self.is_playing_audio = True
-
                     base64_audio = base64.b64encode(audio_data).decode('utf-8')
-                    send_success = False
 
                     # Reduced retry attempts for faster processing
                     for attempt in range(2):
                         if self.websocket.state not in (websockets.protocol.State.CLOSED, websockets.protocol.State.CLOSING):
-                            send_success = await self.safe_send({
+                            if await self.safe_send({
                                 "audio": base64_audio,
                                 "sequential": True
-                            })
-                            if send_success:
-                                print(f"Sequential audio sent to client (attempt {attempt+1})")
+                            }):
                                 break
-                            else:
-                                print(f"Failed to send sequential audio (attempt {attempt+1}), retrying...")
-                                await asyncio.sleep(RETRY_DELAY)
+                            print(f"Failed to send sequential audio (attempt {attempt+1}), retrying...")
+                            await asyncio.sleep(RETRY_DELAY)
                         else:
                             print(f"WebSocket closed for connection {self.connection_id}, cannot send audio")
                             break
 
-                    # Reduced delay for faster sequential playback
                     await asyncio.sleep(SEQUENTIAL_DELAY)
-                    self.audio_queue.task_done()
-                    self.is_playing_audio = False
-
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     print(f"Error processing audio queue: {e}")
-                    self.is_playing_audio = False
                     await asyncio.sleep(RETRY_DELAY)
+                finally:
+                    # Every successful get must have one task_done, including failed sends and cancellation.
+                    self.audio_queue.task_done()
+                    self.is_playing_audio = False
 
         except asyncio.CancelledError:
             print("Audio queue processor cancelled")
@@ -105,8 +103,16 @@ class AudioProcessor:
         self.audio_data += audio_data
 
         if is_sequential:
+            queue_was_full = self.audio_queue.full()
+            if queue_was_full:
+                print(
+                    f"Connection {self.connection_id}: sequential audio queue reached "
+                    f"{AUDIO_QUEUE_MAX_CHUNKS} chunks; applying producer backpressure"
+                )
             await self.audio_queue.put(audio_data)
-            print(f"Added audio chunk to sequential queue, size: {self.audio_queue.qsize()}")
+            queue_size = self.audio_queue.qsize()
+            if queue_was_full or queue_size == 1 or queue_size % AUDIO_QUEUE_LOG_STEP == 0:
+                print(f"Sequential audio queue size for {self.connection_id}: {queue_size}")
         else:
             base64_audio = base64.b64encode(audio_data).decode('utf-8')
             send_success = False

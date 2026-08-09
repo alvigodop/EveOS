@@ -161,6 +161,7 @@ function makeRelayVm({ textBrainMode }) {
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js');
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.js');
         runScript(context, 'js/modules/gemini/mode2/textBrainRelay.config.js');
+        runScript(context, 'js/modules/gemini/client/usageTelemetry.js');
         runScript(context, 'js/modules/gemini/mode2/textBrainRelay.js');
         const api = context.window.EveDataStore._modularSync;
         const mode2 = context.window.EveGeminiMode2;

@@ -90,12 +90,9 @@ async function loadSessionControlsSettingsDialog() {
             </label>
             <div class="gemini-session-field-grid">
                 <label class="gemini-session-field gemini-session-field--wide">
-                    <span>Gemini model</span>
-                    <select id="modelSelectSess">
-                        <option value="gemini-2.5-flash-native-audio-latest">Gemini 2.5 Flash Native Audio &mdash; 128K context (recommended)</option>
-                        <option value="gemini-2.5-flash-preview-native-audio-dialog">Gemini 2.5 Flash Native Audio (preview) &mdash; 128K context</option>
-                        <option value="gemini-2.0-flash-live-001">Gemini 2.0 Flash Live &mdash; 1M context</option>
-                    </select>
+                    <span>Live voice model</span>
+                    <select id="modelSelectSess" aria-describedby="liveModelCapabilitySummary"></select>
+                    <small id="liveModelCapabilitySummary" class="gemini-session-model-summary" aria-live="polite"></small>
                 </label>
                 <label class="gemini-session-field">
                     <span>Safety level</span>
@@ -116,16 +113,11 @@ async function loadSessionControlsSettingsDialog() {
             <div class="gemini-session-field-grid">
                 <label class="gemini-session-field gemini-session-field--wide">
                     <span>Mode 2 text-brain model</span>
-                    <select id="textBrainModelSelectSess">
-                        <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite &mdash; 1M context (recommended &middot; fastest, highest free quota)</option>
-                        <option value="gemini-2.5-flash">Gemini 2.5 Flash &mdash; 1M context (smarter &middot; lower free quota)</option>
-                        <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite &mdash; 1M context</option>
-                        <option value="gemini-2.0-flash">Gemini 2.0 Flash &mdash; 1M context</option>
-                        <option value="gemini-2.5-pro">Gemini 2.5 Pro &mdash; 1M context (smartest &middot; very limited free quota)</option>
-                    </select>
+                    <select id="textBrainModelSelectSess" aria-describedby="textBrainModelCapabilitySummary"></select>
+                    <small id="textBrainModelCapabilitySummary" class="gemini-session-model-summary" aria-live="polite"></small>
                 </label>
             </div>
-            <p class="gemini-session-help">The text brain runs only in <strong>Mode 2</strong> (Text Brain &rarr; Live Voice). Because it has a <strong>1M-token window</strong> versus the live model's <strong>128K</strong>, it can absorb the full EveOS context relay and hand the live model just the facts it needs to speak &mdash; so the live session never gets overloaded. Heavier models are smarter but hit free-tier limits faster; on a 429 the relay cools down and replies directly.</p>
+            <p class="gemini-session-help">The text brain runs only in <strong>Mode 2</strong> (Text Brain &rarr; Live Voice). It holds the larger EveOS context and gives the Live model a compact extraction to speak. Heavier models can improve extraction quality but consume quota faster; on a 429 the relay cools down and replies directly.</p>
         </section>
 
         <section class="gemini-session-section" aria-labelledby="geminiVoiceHeading">
@@ -139,6 +131,34 @@ async function loadSessionControlsSettingsDialog() {
                 <label class="gemini-session-field"><span>Speaking rate</span><input type="number" id="speakingRateInputSess" min="0.25" max="4" step="0.05" value="1"></label>
                 <label class="gemini-session-field"><span>Pitch</span><input type="number" id="pitchInputSess" min="-20" max="20" step="1" value="0"></label>
             </div>
+        </section>
+
+        <section class="gemini-session-section gemini-session-section--usage" aria-labelledby="geminiUsageHeading">
+            <div class="gemini-session-section__heading">
+                <div>
+                    <span class="gemini-session-section__kicker">Session telemetry</span>
+                    <h3 id="geminiUsageHeading">Token usage</h3>
+                </div>
+                <button type="button" id="geminiUsageReset" class="gemini-session-button gemini-session-button--quiet">Reset</button>
+            </div>
+            <div class="gemini-session-usage-grid" aria-live="polite">
+                <article class="gemini-session-usage-card">
+                    <span>Live voice</span>
+                    <strong id="geminiLiveTokenTotal">0</strong>
+                    <small id="geminiLiveTokenDetail">0 turns</small>
+                </article>
+                <article class="gemini-session-usage-card">
+                    <span>Text brain</span>
+                    <strong id="geminiTextBrainTokenTotal">0</strong>
+                    <small id="geminiTextBrainTokenDetail">0 calls</small>
+                </article>
+                <article class="gemini-session-usage-card gemini-session-usage-card--combined">
+                    <span>Combined</span>
+                    <strong id="geminiCombinedTokenTotal">0</strong>
+                    <small id="geminiCombinedTokenDetail">Input 0 &middot; Output 0</small>
+                </article>
+            </div>
+            <p class="gemini-session-help">Counts are session-only diagnostics from Gemini usage metadata. They are not saved into the datapack or credential vault.</p>
         </section>
     </div>
 

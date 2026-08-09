@@ -34,7 +34,7 @@ window.ConnectionStatusCore = window.ConnectionStatusCore || {};
         currentConnectionStatus = { status: status, message: message };
 
         // Detect if we're dealing with a preview model based on the message
-        if (message && (message.includes('preview') || message.includes('experimental') || message.includes('native-audio-dialog'))) {
+        if (message && /preview|experimental/i.test(message)) {
             isPreviewModel = true;
         }
 

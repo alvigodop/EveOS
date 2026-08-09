@@ -4,8 +4,10 @@ const vm = require('vm');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const configPath = path.join(REPO_ROOT, 'js/modules/gemini/mode2/textBrainRelay.config.js');
+const telemetryPath = path.join(REPO_ROOT, 'js/modules/gemini/client/usageTelemetry.js');
 const relayPath = path.join(REPO_ROOT, 'js/modules/gemini/mode2/textBrainRelay.js');
 const configSource = fs.readFileSync(configPath, 'utf8');
+const telemetrySource = fs.readFileSync(telemetryPath, 'utf8');
 const source = fs.readFileSync(relayPath, 'utf8');
 
 async function main() {
@@ -42,7 +44,7 @@ async function main() {
                             requestId: payload.requestId,
                             text: 'This is the text brain reply.',
                             usage: { prompt: 12, output: 7, total: 19 },
-                            model: 'gemini-2.0-flash'
+                            model: 'gemini-3.5-flash-lite'
                         })
                 });
             }, 0);
@@ -89,9 +91,11 @@ async function main() {
             removeItem: (key) => { delete stores[key]; }
         }
     };
+    sandbox.window.CustomEvent = sandbox.CustomEvent;
     sandbox.globalThis = sandbox.window;
 
     vm.runInNewContext(configSource, sandbox, { filename: configPath });
+    vm.runInNewContext(telemetrySource, sandbox, { filename: telemetryPath });
     vm.runInNewContext(source, sandbox, { filename: relayPath });
 
     if (!sandbox.window.EveGeminiMode2.ready) throw new Error('relay did not mark ready');

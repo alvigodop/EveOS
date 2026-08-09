@@ -22,14 +22,13 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     let lastBrainCallAt = 0;
     let brainCooldownUntil = 0;
     let cooldownNoticeShown = false;
-    let cooldownModel = ''; // which model hit the wall — a different selection gets fresh quota
+    let cooldownModel = ''; // A different model selection gets its own quota cooldown.
     let lastInjectedContext = '';
     const pending = new Map(); // requestId -> { resolve, reject, timer }
-    const tokenTotals = { textBrain: { prompt: 0, output: 0, total: 0 }, calls: 0 };
-    // EveOS Context Relay slot: in Mode 2 "Send Selected Context" hands the snapshot HERE instead
-    // of the live session (whose window is ~128k tokens) — the text brain's 1M-token window is
-    // where the big context belongs. The brain is stateless per turn, so this slot rides along on
-    // EVERY text_brain_request until replaced or cleared.
+    // EveOS Context Relay slot: in Mode 2 "Send Selected Context" hands the snapshot here instead
+    // of the bounded Live session. The larger-context text model is the appropriate lane for rich
+    // workspace context. The brain is stateless per turn, so this slot rides along on every
+    // text_brain_request until replaced or cleared.
     let eveContext = { text: '', manifest: null, at: 0 };
     // Silent Data Stream deltas land here in Mode 2 (instead of the live session, which has no
     // use for them and a much smaller window). Ring-buffered: the brain sees the latest changes
@@ -41,9 +40,13 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     }
 
     // The text-brain model is chosen in Session Controls (persisted as 'textBrainModel'). Empty is
-    // fine — the backend validates against its allowlist and falls back to the default.
+    // fine: the backend validates against its allowlist and falls back to the default.
     function getSelectedTextBrainModel() {
-        try { return String(window.localStorage?.getItem('textBrainModel') || '').trim(); }
+        try {
+            const saved = window.localStorage?.getItem('textBrainModel');
+            return window.EveGeminiModelRegistry?.resolve?.('textBrain', saved)
+                || String(saved || '').trim();
+        }
         catch { return ''; }
     }
 
@@ -241,12 +244,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     }
 
     function accrueTokens(usage) {
-        if (!usage) return;
-        tokenTotals.textBrain.prompt += usage.prompt || 0;
-        tokenTotals.textBrain.output += usage.output || 0;
-        tokenTotals.textBrain.total += usage.total || 0;
-        tokenTotals.calls += 1;
-        window.dispatchEvent(new CustomEvent('eve:mode2-tokens', { detail: JSON.parse(JSON.stringify(tokenTotals)) }));
+        if (usage) window.EveGeminiUsageTelemetry.recordTextBrainUsage(usage);
     }
 
     function sendDirect(text) {
@@ -437,8 +435,9 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
         appendEveUpdate: appendEveUpdate,
         clearEveContext: clearEveContext,
         getEveContextStatus: getEveContextStatus,
-        getTokenTotals: function () { return JSON.parse(JSON.stringify(tokenTotals)); },
-        resetTokenTotals: function () { tokenTotals.textBrain = { prompt: 0, output: 0, total: 0 }; tokenTotals.calls = 0; },
+        getTokenTotals: () => window.EveGeminiUsageTelemetry.getMode2Totals(),
+        getTokens: () => window.EveGeminiUsageTelemetry.getMode2Totals(),
+        resetTokenTotals: () => window.EveGeminiUsageTelemetry.reset('textBrain'),
         // Clears throttle/cooldown gates (console tuning + smoke tests). Injection dedupe is NOT
         // cleared here — it resets when a new EveOS snapshot arrives (new facts, new injection).
         resetBrainGate: function () { lastBrainCallAt = 0; brainCooldownUntil = 0; cooldownNoticeShown = false; cooldownModel = ''; },

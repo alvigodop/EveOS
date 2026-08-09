@@ -5,7 +5,7 @@ window.EveGeminiMode2Config = Object.freeze({
     CONTEXT_LIMIT: 80000,
     MIN_BRAIN_INTERVAL_MS: 10000,
     INJECT_MAX_CHARS: 2400,
-    TEXT_BRAIN_DEFAULT_LABEL: 'gemini-2.5-flash-lite (default)',
+    TEXT_BRAIN_DEFAULT_LABEL: 'gemini-3.5-flash-lite (default)',
     EVE_UPDATE_MAX_COUNT: 24,
     EVE_UPDATE_MAX_CHARS: 80000,
     HISTORY_EXCLUDE_MARKERS: Object.freeze([

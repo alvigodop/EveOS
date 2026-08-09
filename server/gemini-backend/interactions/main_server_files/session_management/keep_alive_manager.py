@@ -37,7 +37,9 @@ class KeepAliveManager:
         except Exception as e:
             print(f"Keep-alive task ended for connection {self.connection_id}: {e}")
 
-    def stop(self):
-        """Stop the keep-alive task."""
+    async def stop(self):
+        """Stop the keep-alive task and wait until it has fully unwound."""
         if self.keep_alive_task and not self.keep_alive_task.done():
-            self.keep_alive_task.cancel() 
+            self.keep_alive_task.cancel()
+        if self.keep_alive_task:
+            await asyncio.gather(self.keep_alive_task, return_exceptions=True)

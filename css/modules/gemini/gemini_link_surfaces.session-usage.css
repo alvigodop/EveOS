@@ -1,0 +1,79 @@
+.gemini-session-model-summary {
+    display: block;
+    min-height: 2.8em;
+    color: rgba(190, 228, 242, 0.58);
+    font-size: 0.64rem;
+    font-weight: 560;
+    line-height: 1.4;
+}
+
+.gemini-session-usage-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.gemini-session-usage-card {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+    padding: 11px;
+    border: 1px solid rgba(103, 232, 249, 0.13);
+    border-radius: 12px;
+    background: rgba(2, 9, 14, 0.58);
+}
+
+.gemini-session-usage-card > span {
+    color: rgba(212, 239, 248, 0.54);
+    font-size: 0.59rem;
+    font-weight: 820;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.gemini-session-usage-card > strong {
+    overflow: hidden;
+    color: #ecfbff;
+    font-family: "Roboto Mono", Consolas, monospace;
+    font-size: 1.05rem;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+}
+
+.gemini-session-usage-card > small {
+    overflow-wrap: anywhere;
+    color: rgba(207, 234, 244, 0.46);
+    font-size: 0.58rem;
+    line-height: 1.35;
+}
+
+.gemini-session-usage-card--combined {
+    border-color: rgba(34, 211, 238, 0.3);
+    background:
+        radial-gradient(circle at top right, rgba(34, 211, 238, 0.12), transparent 52%),
+        rgba(2, 9, 14, 0.7);
+}
+
+.gemini-session-button--quiet {
+    color: rgba(226, 246, 253, 0.72);
+}
+
+@media (max-width: 560px) {
+    .gemini-session-usage-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .gemini-session-usage-card--combined {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 390px) {
+    .gemini-session-usage-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .gemini-session-usage-card--combined {
+        grid-column: auto;
+    }
+}
