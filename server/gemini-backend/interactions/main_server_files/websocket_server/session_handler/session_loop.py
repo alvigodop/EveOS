@@ -44,12 +44,11 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
     
     output_transcription_enabled = bool(config_data.get("outputTranscriptionEnabled", True))
     native_output_transcription = bool(
-        not is_narration
-        and output_transcription_enabled
+        output_transcription_enabled
         and capabilities.get("output_audio_transcription")
     )
-    # This flag means a separate Vosk pass is unnecessary. Narration intentionally has no
-    # transcript, while unsupported/disabled models retain the existing local fallback.
+    # Native output transcription is also used to verify World Book narration. This flag
+    # means a separate Vosk pass is unnecessary; unsupported models retain the local fallback.
     inline_transcription_mode = is_narration or native_output_transcription
 
     print(
@@ -110,8 +109,11 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
             
             # Notify the client that we're connected
             await connection_monitor.safe_send(json.dumps({
+                "type": "session_ready",
                 "text": f"Connected to {model_name}",
-                "is_system_message": True
+                "is_system_message": True,
+                "model": model_name,
+                "sessionRole": session_role,
             }))
             
             # Initialize audio processor with sequential preference

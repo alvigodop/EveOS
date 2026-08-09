@@ -9,6 +9,14 @@
     return `${(value / 1024 ** 2).toFixed(1)} MB`;
   }
 
+  function humanDuration(seconds) {
+    const value = Math.max(0, Number(seconds) || 0);
+    if (!value) return "duration unknown";
+    const minutes = Math.floor(value / 60);
+    const remainder = Math.round(value % 60).toString().padStart(2, "0");
+    return `${minutes}:${remainder}`;
+  }
+
   function relativeTime(timestamp) {
     if (!timestamp) return "unknown";
     const elapsed = Math.max(0, Date.now() - Number(timestamp));
@@ -18,11 +26,20 @@
     return `${Math.floor(elapsed / 86400000)}d ago`;
   }
 
+  function badge(label, status, title = label) {
+    const output = document.createElement("span");
+    output.className = "narration-cache-badge";
+    output.dataset.status = status;
+    output.textContent = label;
+    output.title = title;
+    return output;
+  }
+
   function confirm(button, key, label, action) {
     const prior = confirmations.get(key);
     if (!prior || Date.now() - prior > 5000) {
       confirmations.set(key, Date.now());
-      button.textContent = "Clear now";
+      button.textContent = label.startsWith("Clear") ? "Clear now" : "Remove now";
       window.setTimeout(() => {
         if (!button.isConnected || !confirmations.has(key)) return;
         confirmations.delete(key);
@@ -41,16 +58,51 @@
   }
 
   function passageRow(record, refresh) {
+    const inspection = WB.Narration.inspectCachedRecord(record);
+    const clipNumber = record.passageIndex + 1;
+    const clipTotal = record.passageCount || "?";
     const row = document.createElement("li");
     row.className = "narration-cache-passage";
+    row.dataset.readingStatus = inspection.reading.status;
+    row.title = `Clip ${clipNumber} of ${clipTotal} · ${inspection.reading.label}`;
+
     const copy = document.createElement("div");
     const title = document.createElement("strong");
-    title.textContent = `Passage ${record.passageIndex + 1} / ${record.voice || "Gemini"}`;
+    title.textContent = `Clip ${clipNumber} of ${clipTotal} / ${record.voice || "Gemini"}`;
     const detail = document.createElement("small");
-    detail.textContent = `${humanBytes(record.size)} / used ${relativeTime(record.lastUsed)} / ${record.narrationPolicy}`;
+    detail.textContent = [
+      WB.NarrationIntegrity.shortModel(record.model),
+      humanDuration(record.durationSec),
+      humanBytes(record.size),
+      `used ${relativeTime(record.lastUsed)}`,
+      record.narrationPolicy,
+    ].join(" / ");
+    const checks = document.createElement("div");
+    checks.className = "narration-cache-checks";
+    checks.append(
+      badge(inspection.reading.label, inspection.reading.status),
+      badge(inspection.source.label, inspection.source.status),
+      badge(
+        inspection.transcript.similarity === null
+          ? inspection.transcript.label
+          : `${inspection.transcript.label} (${Math.round(inspection.transcript.similarity * 100)}%)`,
+        inspection.transcript.status,
+      ),
+    );
     const preview = document.createElement("p");
     preview.textContent = record.passagePreview || "Legacy cached passage";
-    copy.append(title, detail, preview);
+    copy.append(title, detail, checks, preview);
+
+    const actions = document.createElement("div");
+    actions.className = "narration-cache-actions";
+    const goTo = document.createElement("button");
+    goTo.type = "button";
+    goTo.className = "button button-small";
+    goTo.textContent = "Go to";
+    goTo.title = `Go to clip ${clipNumber} in the active reader source`;
+    goTo.addEventListener("click", () => {
+      window.dispatchEvent(new CustomEvent("eve:world-book-narration-go-to", { detail: record }));
+    });
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "button button-small";
@@ -59,21 +111,31 @@
       await WB.Narration.deleteCachedAudio(record.key);
       await refresh();
     }));
-    row.append(copy, remove);
+    actions.append(goTo, remove);
+    row.append(copy, actions);
     return row;
   }
 
   function sourceCard(sourceId, records, refresh) {
     const card = document.createElement("details");
     card.className = "narration-cache-source";
+    card.open = String(WB.Narration.source?.id || "") === String(sourceId);
     const summary = document.createElement("summary");
     const copy = document.createElement("span");
     const title = document.createElement("strong");
     title.textContent = records[0]?.sourceTitle || "Unknown source";
+    const locatorText = WB.NarrationIntegrity.compactLocator(records[0]?.sourceLocator);
+    if (locatorText) {
+      const locator = document.createElement("small");
+      locator.className = "narration-cache-locator";
+      locator.textContent = locatorText;
+      locator.title = records[0].sourceLocator;
+      copy.append(title, locator);
+    } else copy.append(title);
     const size = records.reduce((sum, record) => sum + record.size, 0);
     const detail = document.createElement("small");
-    detail.textContent = `${records.length} passage${records.length === 1 ? "" : "s"} / ${humanBytes(size)}`;
-    copy.append(title, detail);
+    detail.textContent = `${records.length} clip${records.length === 1 ? "" : "s"} / ${humanBytes(size)}`;
+    copy.append(detail);
     const clear = document.createElement("button");
     clear.type = "button";
     clear.className = "button button-small";

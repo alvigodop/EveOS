@@ -1,6 +1,7 @@
 (function () {
   const WB = window.WorldBook = window.WorldBook || {};
   const WS_URL = "ws://127.0.0.1:9085";
+  const DEFAULT_MODEL = "gemini-3.1-flash-live-preview";
 
   function boundedNumber(value, min, max, fallback) {
     const number = Number(value);
@@ -57,6 +58,21 @@
     try { callback(Math.min(1, Math.max(0, Number(ratio) || 0))); } catch (_error) {}
   }
 
+  function mergeTranscript(current, incoming) {
+    const chunk = String(incoming || "").trim();
+    if (!chunk) return current;
+    if (!current || chunk.startsWith(current)) return chunk;
+    if (current.endsWith(chunk)) return current;
+    return `${current} ${chunk}`.trim();
+  }
+
+  function pcmFromRatio(record, ratio) {
+    const progress = Math.min(0.999999, Math.max(0, Number(ratio) || 0));
+    const frameCount = Math.floor(record.pcm.byteLength / 2);
+    const startFrame = Math.min(frameCount - 1, Math.floor(frameCount * progress));
+    return record.pcm.slice(startFrame * 2);
+  }
+
   class GeminiNarrator {
     constructor() {
       this.socket = null;
@@ -67,6 +83,7 @@
       this.source = null;
       this.progressTimer = 0;
       this.nativePlayback = null;
+      this.model = DEFAULT_MODEL;
       this.sessionId = `reader-${Date.now().toString(36)}`;
     }
 
@@ -109,11 +126,11 @@
         : "Read supplied prose aloud exactly and naturally. Do not add commentary, headings, acknowledgments, summaries, or invented words. Preserve names and punctuation. Return audio only.";
       return {
         sessionRole: "world_book_narration",
-        model: "gemini-3.1-flash-live-preview",
+        model: DEFAULT_MODEL,
         responseTimeout: 90,
         sequentialAudioPlay: true,
         inlineTranscriptionMode: true,
-        outputTranscriptionEnabled: false,
+        outputTranscriptionEnabled: true,
         setup: {
           contents: [{ parts: [{ text: `You are World Book's narrator speaking with the voice of ${voice}.` }] }],
           tools: [],
@@ -136,8 +153,13 @@
     onMessage(event) {
       let data;
       try { data = JSON.parse(event.data); } catch (_error) { return; }
+      if (data.type === "session_ready" && data.model) this.model = String(data.model);
+      if (data.type === "model_migrated" && data.to) this.model = String(data.to);
       if (data.audio && this.pending) {
         this.pending.chunks.push(base64Bytes(data.audio));
+      }
+      if (data.type === "transcription" && this.pending) {
+        this.pending.spokenText = mergeTranscript(this.pending.spokenText, data.text);
       }
       if (data.type === "turn_complete" && this.pending) this.finishPending();
       if ((data.is_error || data.type === "error") && this.pending) {
@@ -159,7 +181,13 @@
         if (seconds < minimumSeconds) {
           pending.reject(new Error("Gemini narration ended before the passage was complete. Try this passage again."));
         } else {
-          pending.resolve({ pcm, sampleRate: 24000 });
+          pending.resolve({
+            pcm,
+            sampleRate: 24000,
+            spokenText: pending.spokenText,
+            model: this.model || DEFAULT_MODEL,
+            durationSec: seconds,
+          });
         }
       }
     }
@@ -169,7 +197,14 @@
       await this.connect(settings);
       return new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => this.finishPending(new Error("Gemini narration timed out.")), 90000);
-        this.pending = { resolve, reject, chunks: [], timeout, textLength: String(text || "").length };
+        this.pending = {
+          resolve,
+          reject,
+          chunks: [],
+          spokenText: "",
+          timeout,
+          textLength: String(text || "").length,
+        };
         this.socket.send(JSON.stringify({
           source: "world_book_narration",
           realtime_input: { media_chunks: [{ mime_type: "text/plain", data: text }] },
@@ -177,28 +212,33 @@
       });
     }
 
-    async playNative(record, settings, onProgress) {
+    async playNative(record, settings, onProgress, startRatio = 0) {
+      const baseRatio = Math.min(0.999999, Math.max(0, Number(startRatio) || 0));
+      const routedPcm = pcmFromRatio(record, baseRatio);
       const response = await WB.NarrationHost?.request?.({
         type: "eve-world-book-narration-play",
         sessionId: this.sessionId,
-        audio: bytesBase64(record.pcm),
+        audio: bytesBase64(routedPcm),
         sampleRate: record.sampleRate || 24000,
         volume: boundedNumber(settings.volume, 0, 1, 1),
       }, 8000);
       if (response?.ok !== true) return false;
-      const durationMs = Math.max(100, Math.ceil(durationSeconds(record) * 1000));
+      const durationMs = Math.max(100, Math.ceil(durationSeconds(record) * (1 - baseRatio) * 1000));
       return new Promise(resolve => {
         const startedAt = performance.now();
         const progressTimer = window.setInterval(() => {
-          reportProgress(onProgress, (performance.now() - startedAt) / durationMs);
+          const ratio = baseRatio + ((performance.now() - startedAt) / durationMs) * (1 - baseRatio);
+          if (this.nativePlayback) this.nativePlayback.currentRatio = Math.min(1, ratio);
+          reportProgress(onProgress, ratio);
         }, 120);
-        reportProgress(onProgress, 0);
+        reportProgress(onProgress, baseRatio);
         this.nativePlayback = {
           record,
           settings,
           onProgress,
           resolve,
           progressTimer,
+          currentRatio: baseRatio,
           timer: window.setTimeout(() => {
             window.clearInterval(progressTimer);
             reportProgress(onProgress, 1);
@@ -209,15 +249,16 @@
       });
     }
 
-    async play(record, settings = {}, onProgress) {
+    async play(record, settings = {}, onProgress, startRatio = 0) {
       this.stopPlayback();
       const playable = normalizeAudioRecord(record);
       if (!playable) {
         throw new Error("Gemini narration audio is empty or corrupt. The passage will need to be generated again.");
       }
       record = playable;
+      const baseRatio = Math.min(0.999999, Math.max(0, Number(startRatio) || 0));
       if (settings.routeToAudioflix === true) {
-        const routed = await this.playNative(record, settings, onProgress);
+        const routed = await this.playNative(record, settings, onProgress, baseRatio);
         if (routed !== false) return routed;
       }
       const context = this.context || new (window.AudioContext || window.webkitAudioContext)({ sampleRate: record.sampleRate });
@@ -237,9 +278,10 @@
       this.source = source;
       const startedAt = context.currentTime;
       const duration = frameCount / record.sampleRate;
-      reportProgress(onProgress, 0);
+      const remainingDuration = Math.max(0.001, duration * (1 - baseRatio));
+      reportProgress(onProgress, baseRatio);
       const progressTimer = window.setInterval(() => {
-        reportProgress(onProgress, (context.currentTime - startedAt) / duration);
+        reportProgress(onProgress, baseRatio + ((context.currentTime - startedAt) / remainingDuration) * (1 - baseRatio));
       }, 120);
       this.progressTimer = progressTimer;
       return new Promise(resolve => {
@@ -253,16 +295,18 @@
           if (this.progressTimer === progressTimer) this.progressTimer = 0;
           resolve();
         };
-        source.start();
+        source.start(0, duration * baseRatio);
       });
     }
 
     pause() {
       if (this.nativePlayback) {
+        const active = this.nativePlayback;
         window.clearTimeout(this.nativePlayback.timer);
         window.clearInterval(this.nativePlayback.progressTimer);
         this.nativePlayback.timer = 0;
         this.nativePlayback.progressTimer = 0;
+        active.currentRatio = Math.min(1, Math.max(active.currentRatio || 0, 0));
         WB.NarrationHost?.post?.({ type: "eve-world-book-narration-stop", sessionId: this.sessionId });
         return Promise.resolve();
       }
@@ -272,7 +316,7 @@
       if (this.nativePlayback && !this.nativePlayback.timer) {
         const active = this.nativePlayback;
         this.nativePlayback = null;
-        this.playNative(active.record, active.settings, active.onProgress)
+        this.playNative(active.record, active.settings, active.onProgress, active.currentRatio)
           .then(active.resolve)
           .catch(() => active.resolve(false));
         return;

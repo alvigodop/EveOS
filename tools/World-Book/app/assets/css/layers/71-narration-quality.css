@@ -1,0 +1,170 @@
+.narration-player-panel {
+  position: relative;
+}
+
+.narration-library-toggle {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  margin: -4px 0 12px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.narration-library-toggle-icon {
+  color: var(--accent);
+  font-size: 11px;
+}
+
+.narration-layout.is-library-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.narration-layout.is-library-collapsed .narration-library-panel {
+  display: none;
+}
+
+.narration-timeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.narration-timeline .narration-progress {
+  min-width: 0;
+  margin: 0;
+}
+
+#reader-progress-label {
+  min-width: 112px;
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.narration-passage-preview.is-cache-target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.narration-cache-locator {
+  max-width: min(52vw, 560px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.narration-cache-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.narration-cache-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--panel);
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.narration-cache-badge[data-status="current"],
+.narration-cache-badge[data-status="match"],
+.narration-cache-badge[data-status="complete"] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  color: var(--accent);
+}
+
+.narration-cache-badge[data-status="reading"],
+.narration-cache-badge[data-status="selected"],
+.narration-cache-badge[data-status="paused"] {
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--line));
+  color: var(--text);
+  background: var(--accent-soft);
+}
+
+.narration-cache-badge[data-status="drift"],
+.narration-cache-badge[data-status="changed"] {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.narration-cache-badge[data-status="diverged"] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.narration-cache-passage[data-reading-status="reading"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.narration-cache-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.narration-cache-actions .button,
+.narration-cache-source > summary > .button {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+@media (max-width: 820px) {
+  .narration-library-toggle {
+    margin-top: 0;
+  }
+
+  .narration-layout.is-library-collapsed .narration-player-panel {
+    min-height: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .narration-timeline {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  #reader-progress-label {
+    min-width: 0;
+    text-align: left;
+  }
+
+  .narration-cache-passage {
+    grid-template-columns: 1fr;
+  }
+
+  .narration-cache-actions {
+    justify-content: stretch;
+  }
+
+  .narration-cache-actions .button {
+    flex: 1 1 112px;
+  }
+
+  .narration-cache-source > summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .narration-cache-source > summary > .button {
+    width: 100%;
+  }
+}

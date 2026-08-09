@@ -42,10 +42,12 @@ async function main() {
             asset('assets', 'css', 'layers', '30-focus-links.css'),
             asset('assets', 'css', 'layers', '68-narration.css'),
             asset('assets', 'css', 'layers', '69-narration-responsive.css'),
+            asset('assets', 'css', 'layers', '71-narration-quality.css'),
         ]) await page.addStyleTag({ path: css });
 
-        await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'store.js') });
         await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'text.js') });
+        await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'integrity.js') });
+        await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'store.js') });
         await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'gemini.js') });
 
         const cache = await page.evaluate(async () => {
@@ -121,13 +123,48 @@ async function main() {
         await page.evaluate(() => {
             const controller = new EventTarget();
             controller.browser = { voices() { return []; } };
-            for (const method of ['load', 'play', 'pause', 'stop', 'next', 'previous', 'seek', 'clearAudioCache', 'clearSourceCache']) {
+            controller.source = { id: 'virtual:marker', title: 'Marker smoke' };
+            controller.passages = ['First sentence. Second bright word here.'];
+            for (const method of ['load', 'play', 'pause', 'stop', 'next', 'previous', 'seek', 'clearAudioCache', 'clearSourceCache', 'deleteCachedAudio']) {
                 controller[method] = () => {};
             }
+            const calls = { seeks: [], focuses: [] };
+            controller.snapshot = () => ({ status: 'playing' });
+            controller.seekProgress = (value, autoplay) => calls.seeks.push({ value: Number(value), autoplay });
+            controller.focusCachedPassage = record => {
+                calls.focuses.push(record.key);
+                return { ok: true, message: `Moved to clip ${Number(record.passageIndex) + 1}.` };
+            };
+            controller.inspectCachedRecord = () => ({
+                reading: { status: 'reading', label: 'Reading now' },
+                source: { status: 'current', label: 'Source is current' },
+                transcript: { status: 'match', label: 'Transcript matches source', similarity: 1 },
+            });
+            window.WorldBook.NarrationStore.inventory = async () => [{
+                key: 'cache:marker:0',
+                sourceId: 'virtual:marker',
+                sourceTitle: 'Info',
+                sourceLocator: 'World Book Manager / Characters / Leon / Info',
+                passageIndex: 0,
+                passageCount: 3,
+                passagePreview: 'First sentence. Second bright word here.',
+                voice: 'Aoede',
+                model: 'models/gemini-2.5-flash-native-audio-latest',
+                durationSec: 8.5,
+                size: 2048,
+                lastUsed: Date.now(),
+                narrationPolicy: 'verbatim',
+            }];
+            window.WorldBook.API = {
+                async getReaderDocuments() { return { documents: [] }; },
+                readerDocumentDownloadUrl() { return '#'; },
+            };
             window.WorldBook.Narration = controller;
-            window.WorldBook.API = {};
             window.__readerSmokeController = controller;
+            window.__readerSmokeCalls = calls;
         });
+        await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'cache-ui.js') });
+        await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'layout.js') });
         await page.addScriptTag({ path: asset('assets', 'js', 'narration', 'ui.js') });
         const highlight = await page.evaluate(() => {
             const passage = 'First sentence. Second bright word here.';
@@ -142,6 +179,8 @@ async function main() {
                 index: 0,
                 passageCount: 1,
                 passage,
+                passageRatio: 0.5,
+                overallRatio: 0.5,
                 engine: 'browser',
                 marker: { ...marker, kind: 'word' },
             } }));
@@ -150,13 +189,62 @@ async function main() {
                 text: preview.textContent,
                 sentence: preview.querySelector('.narration-highlight-sentence')?.textContent || '',
                 word: preview.querySelector('.narration-highlight-word')?.textContent || '',
+                progress: Number(document.getElementById('reader-progress').value),
+                progressLabel: document.getElementById('reader-progress-label').textContent,
             };
         });
         expect(highlight.text === 'First sentence. Second bright word here.', 'highlight rendering changed passage text');
         expect(highlight.sentence.trim() === 'Second bright word here.', 'active sentence was not highlighted');
         expect(highlight.word === 'bright', 'active word was not highlighted');
+        expect(highlight.progress === 500 && /50%/.test(highlight.progressLabel),
+            `continuous narration progress was not rendered: ${JSON.stringify(highlight)}`);
+
+        const seek = await page.evaluate(() => {
+            const progress = document.getElementById('reader-progress');
+            progress.value = '725';
+            progress.dispatchEvent(new Event('change', { bubbles: true }));
+            return window.__readerSmokeCalls.seeks.at(-1);
+        });
+        expect(seek?.value === 725 && seek.autoplay === true,
+            `progress scrubbing did not seek the active source: ${JSON.stringify(seek)}`);
+
+        const cacheUi = await page.evaluate(async () => {
+            await window.WorldBook.NarrationCacheUI.refresh();
+            const row = document.querySelector('.narration-cache-passage');
+            const source = document.querySelector('.narration-cache-source');
+            const goTo = row.querySelector('.narration-cache-actions .button');
+            goTo.click();
+            return {
+                title: row.title,
+                details: row.textContent,
+                locator: source.querySelector('.narration-cache-locator')?.textContent || '',
+                focusCalls: window.__readerSmokeCalls.focuses.slice(),
+            };
+        });
+        expect(/Clip 1 of 3/.test(cacheUi.title) && /Reading now/.test(cacheUi.title),
+            `cached clip hover status is incomplete: ${cacheUi.title}`);
+        expect(/gemini-2.5-flash-native-audio-latest/.test(cacheUi.details)
+            && /Transcript matches source/.test(cacheUi.details),
+            'cache manager omitted model or transcript integrity metadata');
+        expect(/Characters > Leon > Info/.test(cacheUi.locator),
+            `duplicate-title cache source lacks a useful path: ${cacheUi.locator}`);
+        expect(cacheUi.focusCalls.includes('cache:marker:0'), 'Go to did not focus the cached clip');
 
         await page.evaluate(() => document.getElementById('reader-library-dialog').showModal());
+        const collapse = await page.evaluate(() => {
+            window.WorldBook.NarrationLayout.apply(false, false);
+            document.getElementById('reader-library-toggle').click();
+            const collapsed = {
+                active: document.querySelector('.narration-layout').classList.contains('is-library-collapsed'),
+                expanded: document.getElementById('reader-library-toggle').getAttribute('aria-expanded'),
+                libraryDisplay: getComputedStyle(document.getElementById('reader-library-panel')).display,
+            };
+            document.getElementById('reader-library-toggle').click();
+            collapsed.restored = !document.querySelector('.narration-layout').classList.contains('is-library-collapsed');
+            return collapsed;
+        });
+        expect(collapse.active && collapse.expanded === 'false' && collapse.libraryDisplay === 'none'
+            && collapse.restored, `private-document panel did not collapse accessibly: ${JSON.stringify(collapse)}`);
         for (const viewport of [
             { width: 1280, height: 900 },
             { width: 760, height: 760 },
@@ -191,6 +279,24 @@ async function main() {
             expect(layout.minButtonHeight >= 39, `reader controls were undersized at ${viewport.width}px`);
             expect(layout.minButtonWidth >= 64, `reader controls became too narrow at ${viewport.width}px`);
             expect(!layout.overlaps, `reader controls overlapped at ${viewport.width}px`);
+
+            const collapsedLayout = await page.evaluate(() => {
+                window.WorldBook.NarrationLayout.apply(true, false);
+                const card = document.querySelector('.narration-dialog-card');
+                const player = document.querySelector('.narration-player-panel');
+                const cardRect = card.getBoundingClientRect();
+                const playerRect = player.getBoundingClientRect();
+                const result = {
+                    libraryHidden: getComputedStyle(document.getElementById('reader-library-panel')).display === 'none',
+                    horizontalOverflow: card.scrollWidth > card.clientWidth + 1,
+                    playerInsideCard: playerRect.left >= cardRect.left - 1 && playerRect.right <= cardRect.right + 1,
+                };
+                window.WorldBook.NarrationLayout.apply(false, false);
+                return result;
+            });
+            expect(collapsedLayout.libraryHidden && !collapsedLayout.horizontalOverflow
+                && collapsedLayout.playerInsideCard,
+                `collapsed reader layout failed at ${viewport.width}px: ${JSON.stringify(collapsedLayout)}`);
         }
 
         expect(pageErrors.length === 0, `reader browser errors: ${pageErrors.join('; ')}`);

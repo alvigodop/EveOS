@@ -142,6 +142,15 @@
     return markerRange(value, { charIndex: word.start, charLength: word.end - word.start });
   }
 
+  function offsetForRatio(text, ratio) {
+    const value = String(text || "");
+    const ranges = wordRanges(value);
+    if (!ranges.length) return Math.min(value.length, Math.max(0, Math.floor(value.length * (Number(ratio) || 0))));
+    const progress = Math.min(1, Math.max(0, Number(ratio) || 0));
+    if (progress >= 1) return value.length;
+    return ranges[Math.min(ranges.length - 1, Math.floor(progress * ranges.length))].start;
+  }
+
   function editorSource() {
     const title = document.getElementById("entry-name")?.value?.trim() || "World Book entry";
     const kind = document.getElementById("entry-kind")?.textContent?.trim() || "entry";
@@ -157,7 +166,13 @@
       code ^= identity.charCodeAt(index);
       code = Math.imul(code, 16777619);
     }
-    return { id: `entry:${(code >>> 0).toString(36)}`, title, text };
+    return {
+      id: `entry:${(code >>> 0).toString(36)}`,
+      title,
+      text,
+      kind,
+      locator: breadcrumb || path || `World Book / ${title}`,
+    };
   }
 
   WB.NarrationText = {
@@ -166,6 +181,7 @@
     split,
     markerRange,
     progressMarker,
+    offsetForRatio,
     editorSource,
   };
 })();

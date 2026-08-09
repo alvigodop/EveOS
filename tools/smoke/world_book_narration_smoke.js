@@ -16,6 +16,8 @@ const controller = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration
 const browser = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'browser.js');
 const gemini = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'gemini.js');
 const store = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'store.js');
+const integrity = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'integrity.js');
+const layout = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'layout.js');
 const cacheUi = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'cache-ui.js');
 const api = read('tools', 'World-Book', 'app', 'assets', 'js', 'api.js');
 const ui = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'ui.js');
@@ -26,31 +28,59 @@ const agenticConfig = read('js', 'modules', 'gemini', 'html_loaders', 'agentic',
     'agenticLoaderConfig.js');
 const sessionLoop = read('server', 'gemini-backend', 'interactions', 'main_server_files',
     'websocket_server', 'session_handler', 'session_loop.py');
+const responseHandler = read('server', 'gemini-backend', 'interactions', 'main_server_files',
+    'response_processing', 'response_handler.py');
 const sessionRegistry = read('server', 'gemini-backend', 'interactions', 'main_server_files',
     'session_management', 'core', 'session_registry.py');
 
 expect(bootstrap.indexOf('narration/cache-ui.js') < bootstrap.indexOf('narration/ui.js'),
     'reader cache UI must load before narration UI');
-expect(dialog.includes('reader-file-input') && dialog.includes('reader-cache-list'),
+expect(bootstrap.indexOf('narration/text.js') < bootstrap.indexOf('narration/integrity.js')
+    && bootstrap.indexOf('narration/integrity.js') < bootstrap.indexOf('narration/store.js')
+    && bootstrap.indexOf('narration/layout.js') < bootstrap.indexOf('narration/ui.js'),
+    'reader support modules are not loaded in dependency order');
+expect(dialog.includes('reader-file-input') && dialog.includes('reader-cache-list')
+    && dialog.includes('reader-library-toggle') && dialog.includes('reader-progress-label')
+    && dialog.includes('max="1000"'),
     'reader library import/cache controls are missing');
-expect(controller.includes('world-book-narration-v1') && controller.includes('sourceTitle'),
+expect(controller.includes('world-book-narration-v2') && controller.includes('world-book-narration-v1')
+    && controller.includes('sourceTitle'),
     'narration cache identity is not source/policy aware');
+expect(controller.includes('seekProgress') && controller.includes('overallRatio')
+    && controller.includes('focusCachedPassage'),
+    'continuous source seeking or cached-clip navigation is missing');
 expect(controller.includes('cacheEpoch') && controller.includes('const source = { ...(this.source || {}) }'),
     'in-flight narration cache writes are not bound to their original source');
 expect(controller.includes('this.gemini.cancelGeneration();') && controller.includes('this.gemini.stopPlayback();'),
     'stopping narration does not terminate generation and active playback together');
 expect(store.includes('clearSource') && store.includes('inventory'),
     'source-aware cache management is missing');
+expect(store.includes('sourceLocator') && store.includes('sourceHash') && store.includes('spokenText')
+    && store.includes('durationSec') && store.includes('model'),
+    'cache inventory does not retain narration provenance and integrity metadata');
 expect(store.includes('isHostEvent') && store.includes('transaction.onabort'),
     'narration host/cache failure boundaries are incomplete');
-expect(cacheUi.includes('Clear source') && cacheUi.includes('passagePreview'),
+expect(cacheUi.includes('Clear source') && cacheUi.includes('passagePreview')
+    && cacheUi.includes('Go to') && cacheUi.includes('shortModel')
+    && cacheUi.includes('compactLocator') && cacheUi.includes('inspectCachedRecord'),
     'cache inventory UI is incomplete');
+expect(layout.includes('is-library-collapsed') && layout.includes('aria-expanded')
+    && layout.includes('localStorage.setItem'),
+    'reader private-document collapse state is not accessible or persistent');
 expect(api.includes('/api/narration/document/download') && ui.includes('readerDocumentDownloadUrl'),
     'reader library cannot recover imported source files');
 expect(gemini.includes('ws://127.0.0.1:9085') && gemini.includes('world_book_narration'),
     'World Book narration is not using the canonical isolated Gemini lane');
+expect(gemini.includes('outputTranscriptionEnabled: true') && gemini.includes('spokenText')
+    && gemini.includes('startRatio') && gemini.includes('session_ready'),
+    'Gemini narration lacks transcript capture, model provenance, or offset playback');
 expect(!sessionLoop.includes('load_chat_history') && !sessionLoop.includes('chat_history ='),
     'Live session setup can preload disk chat history into the isolated narration lane');
+expect(sessionLoop.includes('"type": "session_ready"') && sessionLoop.includes('output_transcription'),
+    'narration sessions do not expose their resolved model or native transcript capability');
+expect(responseHandler.includes('"type": "transcription"')
+    && responseHandler.includes('self.session_role != "world_book_narration"'),
+    'narration transcripts are not returned privately without polluting chat history');
 expect(sessionRegistry.includes('session_role') && sessionRegistry.includes('== role'),
     'session eviction is not scoped by role');
 expect(bridge.includes('EveAudioflixNative') && bridge.includes('playVoice'),
@@ -99,6 +129,20 @@ function editorSource(pathValue) {
 
 expect(editorSource('one/shared.md').id !== editorSource('two/shared.md').id,
     'same-title entries in different World Book paths share a narration cache identity');
+expect(editorSource('one/shared.md').locator !== editorSource('two/shared.md').locator,
+    'same-title entries in different World Book paths lack distinct reader locators');
+
+const integrityContext = { window: { WorldBook: {} }, Uint16Array, Math };
+vm.runInNewContext(integrity, integrityContext, { filename: 'narration/integrity.js' });
+const integrityApi = integrityContext.window.WorldBook.NarrationIntegrity;
+expect(integrityApi.compareTranscript('Leon protects Febe.', 'Leon protects Febe.').status === 'match',
+    'matching narration transcripts are not verified');
+expect(integrityApi.compareTranscript('Leon protects Febe.', 'Unrelated generated words here.').status === 'diverged',
+    'divergent narration transcripts are not flagged');
+expect(integrityApi.compareTranscript('Leon protects Febe.', '').status === 'unknown',
+    'missing legacy transcripts are presented as verified');
+expect(integrityApi.compactLocator('World / Main / Leon / Info').endsWith('Main > Leon > Info'),
+    'duplicate-title source paths are not compacted into useful breadcrumbs');
 
 let spokenUtterance = null;
 class SpeechSynthesisUtterance {

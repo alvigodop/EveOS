@@ -3,6 +3,7 @@
   const controller = WB.Narration;
   const deleting = new Map();
   let recognition = null;
+  let lastCacheState = "";
 
   const byId = id => document.getElementById(id);
 
@@ -11,6 +12,7 @@
     if (!dialog) return;
     if (typeof dialog.showModal === "function" && !dialog.open) dialog.showModal();
     else dialog.setAttribute("open", "");
+    WB.NarrationLayout.apply(WB.NarrationLayout.preference(), false);
     void refreshDocuments();
     void refreshCache();
   }
@@ -159,7 +161,13 @@
     try {
       const payload = await WB.API.getReaderDocument(id);
       const record = payload.document || {};
-      controller.load({ id: `reader:${record.id}`, title: record.title, text: record.text });
+      controller.load({
+        id: `reader:${record.id}`,
+        title: record.title,
+        text: record.text,
+        kind: "private document",
+        locator: `Private documents / ${record.title || "Untitled document"}`,
+      });
       status("Ready", "ready");
     } catch (error) {
       status(error.message || "Document could not be opened.", "error");
@@ -302,12 +310,31 @@
     byId("reader-source-title").textContent = value.source?.title || "Choose an entry or document";
     renderPassage(value);
     const progress = byId("reader-progress");
-    progress.max = Math.max(0, Number(value.passageCount || 0) - 1);
-    progress.value = Math.max(0, Number(value.index || 0));
+    progress.max = 1000;
+    progress.value = Math.round(Math.min(1, Math.max(0, Number(value.overallRatio) || 0)) * 1000);
     const label = value.passageCount ? `${Number(value.index || 0) + 1} of ${value.passageCount}` : "Ready";
+    const percent = Math.round(Math.min(1, Math.max(0, Number(value.passageRatio) || 0)) * 100);
+    const progressLabel = byId("reader-progress-label");
+    if (progressLabel) progressLabel.textContent = value.passageCount ? `Clip ${label} / ${percent}%` : "Ready";
     status(value.error || `${label} / ${String(value.status || "idle")}`, value.error ? "error" : value.status);
     byId("reader-play-btn").textContent = value.status === "paused" ? "Resume" : "Play";
-    if (["complete", "ready"].includes(value.status)) void refreshCache();
+    const cacheState = `${value.source?.id || ""}:${value.index || 0}:${value.status || "idle"}`;
+    if (cacheState !== lastCacheState) {
+      lastCacheState = cacheState;
+      if (byId("reader-cache-list")?.closest("details")?.open || ["complete", "ready"].includes(value.status)) {
+        void refreshCache();
+      }
+    }
+  }
+
+  function goToCachedPassage(event) {
+    const result = controller.focusCachedPassage(event.detail || {});
+    status(result.message, result.ok ? "ready" : "warning");
+    if (!result.ok) return;
+    byId("reader-passage-preview")?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    byId("reader-passage-preview")?.classList.add("is-cache-target");
+    window.setTimeout(() => byId("reader-passage-preview")?.classList.remove("is-cache-target"), 1200);
+    void refreshCache();
   }
 
   function loadEditorSelection() {
@@ -358,7 +385,17 @@
     byId("reader-stop-btn")?.addEventListener("click", () => controller.stop());
     byId("reader-next-btn")?.addEventListener("click", () => controller.next());
     byId("reader-previous-btn")?.addEventListener("click", () => controller.previous());
-    byId("reader-progress")?.addEventListener("change", event => controller.seek(event.currentTarget.value, false));
+    byId("reader-progress")?.addEventListener("input", event => {
+      const output = byId("reader-progress-label");
+      if (output) output.textContent = `${Math.round((Number(event.currentTarget.value) || 0) / 10)}% of source`;
+    });
+    byId("reader-progress")?.addEventListener("change", event => {
+      const state = controller.snapshot();
+      controller.seekProgress(event.currentTarget.value, state.status === "playing");
+    });
+    document.querySelector(".narration-cache-manager")?.addEventListener("toggle", event => {
+      if (event.currentTarget.open) void refreshCache();
+    });
     byId("reader-clear-cache-btn")?.addEventListener("click", async event => {
       const button = event.currentTarget;
       if (button.dataset.confirm !== "1") {
@@ -390,6 +427,8 @@
     controller.addEventListener("state", renderState);
     window.addEventListener("message", applyExternalSettings);
     window.addEventListener("message", event => void applyExternalCommand(event));
+    window.addEventListener("eve:world-book-narration-go-to", goToCachedPassage);
+    WB.NarrationLayout.bind();
     WB.NarrationHost?.post?.({ type: "eve-world-book-narration-ready" });
   }
 

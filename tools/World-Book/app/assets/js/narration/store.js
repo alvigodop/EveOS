@@ -140,7 +140,12 @@
   }
 
   async function putAudio(record) {
-    const value = { ...record, createdAt: Date.now(), lastUsed: Date.now(), size: record.pcm?.byteLength || 0 };
+    const value = {
+      ...record,
+      createdAt: Number(record.createdAt) || Date.now(),
+      lastUsed: Date.now(),
+      size: record.pcm?.byteLength || 0,
+    };
     await transact("readwrite", store => store.put(value));
     await prune();
     return value;
@@ -167,10 +172,20 @@
         key: String(row.key || ""),
         sourceId: String(row.sourceId || "unknown"),
         sourceTitle: String(row.sourceTitle || "Unknown source"),
+        sourceLocator: String(row.sourceLocator || ""),
+        sourceKind: String(row.sourceKind || ""),
+        sourceRevision: String(row.sourceRevision || ""),
+        sourceHash: String(row.sourceHash || ""),
+        sourceText: String(row.sourceText || ""),
         passageIndex: Math.max(0, Number(row.passageIndex) || 0),
+        passageCount: Math.max(0, Number(row.passageCount) || 0),
         passagePreview: String(row.passagePreview || ""),
         voice: String(row.voice || ""),
+        model: String(row.model || ""),
+        spokenText: String(row.spokenText || ""),
+        durationSec: Math.max(0, Number(row.durationSec) || 0),
         narrationPolicy: String(row.narrationPolicy || "legacy"),
+        cachePolicyVersion: String(row.cachePolicyVersion || "legacy"),
         size: Math.max(0, Number(row.size) || 0),
         createdAt: Number(row.createdAt) || 0,
         lastUsed: Number(row.lastUsed) || 0,

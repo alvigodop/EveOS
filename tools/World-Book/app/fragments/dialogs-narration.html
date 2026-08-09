@@ -10,7 +10,7 @@
     </div>
 
     <div class="narration-layout">
-      <section class="narration-library-panel">
+      <section id="reader-library-panel" class="narration-library-panel">
         <div class="narration-section-heading">
           <div><strong>Private documents</strong><small>Stored locally and included in full recovery backups.</small></div>
           <label class="button button-small narration-upload-label">Import document<input id="reader-file-input" type="file" accept=".pdf,.docx,.txt,.md,.markdown,.html,.htm" hidden></label>
@@ -28,13 +28,22 @@
       </section>
 
       <section class="narration-player-panel">
+        <button id="reader-library-toggle" class="button button-small narration-library-toggle" type="button"
+          aria-controls="reader-library-panel" aria-expanded="true" title="Hide private documents">
+          <span class="narration-library-toggle-icon" aria-hidden="true">&#9664;</span>
+          <span class="narration-library-toggle-label">Hide private documents</span>
+        </button>
         <div class="narration-now-playing">
           <span>Now reading</span>
           <strong id="reader-source-title">Choose an entry or document</strong>
           <small id="reader-status" aria-live="polite">Ready</small>
         </div>
         <p id="reader-passage-preview" class="narration-passage-preview" tabindex="0" aria-label="The current passage will appear here.">The current passage will appear here.</p>
-        <input id="reader-progress" class="narration-progress" type="range" min="0" max="0" value="0" aria-label="Narration passage">
+        <div class="narration-timeline">
+          <input id="reader-progress" class="narration-progress" type="range" min="0" max="1000" value="0"
+            aria-label="Narration progress through the current source">
+          <output id="reader-progress-label" for="reader-progress">Ready</output>
+        </div>
         <div class="narration-player-controls">
           <button id="reader-previous-btn" type="button" class="button">Previous</button>
           <button id="reader-play-btn" type="button" class="button button-primary">Play</button>

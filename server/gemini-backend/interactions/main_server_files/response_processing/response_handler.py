@@ -83,7 +83,7 @@ class GeminiResponseHandler:
 
     async def process_transcription_response(self, text):
         """Publish one completed native Live output transcript."""
-        if self.session_role == "world_book_narration" or self._screen_response_suppressed():
+        if self._screen_response_suppressed():
             return None
         normalized = normalize_transcript(str(text or "").strip())
         if not normalized:
@@ -95,8 +95,10 @@ class GeminiResponseHandler:
                     "type": "transcription",
                     "is_transcription": True,
                     "source": "gemini_live_output_transcription",
+                    "sessionRole": self.session_role,
                 }))
-                save_chat_history(normalized, is_user=False)
+                if self.session_role != "world_book_narration":
+                    save_chat_history(normalized, is_user=False)
                 return normalized
         except Exception as e:
             print(f"Error sending native output transcription: {e}")
