@@ -8,6 +8,12 @@ window.EveAudioflixSoundLabSdk = window.EveAudioflixSoundLabSdk || {};
 
     const SESSION_KEY = 'eveAudioflixSoundLabApiKey';
     let sdkPromise = null;
+    let statusPromise = null;
+    let credentialStatus = {
+        state: 'unknown',
+        configured: false,
+        message: 'Checking the secure Gemini credential vault...'
+    };
 
     function load() {
         if (window.EveAudioflixGenAI?.GoogleGenAI) return Promise.resolve(window.EveAudioflixGenAI);
@@ -54,8 +60,68 @@ window.EveAudioflixSoundLabSdk = window.EveAudioflixSoundLabSdk || {};
             if (key) sessionStorage.setItem(SESSION_KEY, key);
             else sessionStorage.removeItem(SESSION_KEY);
         } catch {}
+        credentialStatus = key ? {
+            state: 'direct', configured: true, message: 'Available in this browser tab'
+        } : { state: 'unknown', configured: false, message: 'Checking the secure Gemini credential vault...' };
         return !!key;
     }
 
-    Object.assign(ns, { ready: true, load, getApiKey, setApiKey });
+    function getCredentialStatus() {
+        if (getApiKey()) {
+            return { state: 'direct', configured: true, message: 'Available in this browser tab' };
+        }
+        const runtimeState = window.GeminiServerControlRuntime?.stateApi?.state;
+        if (runtimeState?.credentialsConfigured === true) {
+            return { state: 'vault', configured: true, message: 'Available through the secure Gemini backend' };
+        }
+        return Object.assign({}, credentialStatus);
+    }
+
+    function publishCredentialStatus(next) {
+        credentialStatus = Object.assign({}, next);
+        window.dispatchEvent(new CustomEvent('eve:sonic-forge-credential-status', {
+            detail: Object.assign({}, credentialStatus)
+        }));
+        return credentialStatus;
+    }
+
+    async function refreshCredentialStatus(force) {
+        const current = getCredentialStatus();
+        if (current.state === 'direct' || (current.configured && force !== true)) {
+            return publishCredentialStatus(current);
+        }
+        if (statusPromise && force !== true) return statusPromise;
+        const baseUrl = window.GeminiServerControlRuntime?.stateApi?.state?.baseUrl
+            || window.EveOSLocalControl?.baseUrl?.()
+            || 'http://127.0.0.1:9082';
+        if (!window.GeminiCredentialBridge?.getStatus) {
+            return publishCredentialStatus({
+                state: 'missing', configured: false,
+                message: 'Set a Gemini API key in Search Monitor Session Controls'
+            });
+        }
+        statusPromise = window.GeminiCredentialBridge.getStatus(baseUrl)
+            .then((payload) => publishCredentialStatus(payload?.configured ? {
+                state: 'vault', configured: true,
+                message: 'Available through the secure Gemini backend'
+            } : {
+                state: 'missing', configured: false,
+                message: 'Set a Gemini API key in Search Monitor Session Controls'
+            }))
+            .catch(() => publishCredentialStatus({
+                state: 'offline', configured: false,
+                message: 'Start the local Gemini backend or save a key in this tab'
+            }))
+            .finally(() => { statusPromise = null; });
+        return statusPromise;
+    }
+
+    Object.assign(ns, {
+        ready: true,
+        load,
+        getApiKey,
+        setApiKey,
+        getCredentialStatus,
+        refreshCredentialStatus
+    });
 })();

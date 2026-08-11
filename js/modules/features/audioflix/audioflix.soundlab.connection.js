@@ -25,19 +25,18 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
         async function attempt(attemptToken) {
             const isCurrent = () => attemptToken === token;
             const apiKey = options.getApiKey?.();
-            if (!apiKey) {
-                throw new Error('Save a Gemini API key in Search Monitor > Session Controls before connecting.');
-            }
             options.publish?.({
                 phase: 'connecting',
                 connectionState: 'connecting',
-                message: 'Connecting Sonic Forge...',
+                message: apiKey
+                    ? 'Connecting Sonic Forge...'
+                    : 'Connecting Sonic Forge through the secure Gemini backend...',
                 filteredPrompt: ''
             });
             await options.ensureAudio?.();
-            const sdk = await options.loadSdk?.();
+            const sdk = apiKey ? await options.loadSdk?.() : null;
             if (!isCurrent()) throw new Error('Sonic Forge connection cancelled.');
-            const ai = new sdk.GoogleGenAI({ apiKey, apiVersion: options.apiVersion });
+            const ai = apiKey ? new sdk.GoogleGenAI({ apiKey, apiVersion: options.apiVersion }) : null;
             let timeout = 0;
             let expired = false;
             let setupComplete = false;
@@ -57,73 +56,74 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
             });
 
             try {
+                const callbacks = {
+                    onmessage(message) {
+                        if (!isCurrent()) return;
+                        if (message?.setupComplete) {
+                            setupComplete = true;
+                            resolveSetup?.(true);
+                        }
+                        options.onMessage?.(message);
+                    },
+                    onerror(event) {
+                        if (!isCurrent()) return;
+                        const failure = classify(event);
+                        lastFailure = failure;
+                        const error = new Error(failure.message || 'Lyria transport error.');
+                        if (!setupComplete) {
+                            resolveSetup?.({ error });
+                            transportReject?.(error);
+                        }
+                        options.publish?.({
+                            phase: 'error',
+                            connectionState: 'error',
+                            message: error.message
+                        });
+                    },
+                    onclose(event) {
+                        if (!isCurrent()) return;
+                        const classified = classify(event);
+                        const failure = classified.kind === 'unknown'
+                            && lastFailure
+                            && lastFailure.kind !== 'unknown' ? lastFailure : classified;
+                        const code = Number(event?.code) || 0;
+                        const reason = String(event?.reason || '').trim();
+                        const message = failure.kind !== 'unknown'
+                            ? failure.message
+                            : (setupComplete
+                                ? (reason || 'Sonic Forge disconnected.')
+                                : `Lyria closed before setup completed${code ? ` (code ${code})` : ''}${reason ? `: ${reason}` : '.'}`);
+                        if (!setupComplete) {
+                            const error = new Error(message);
+                            resolveSetup?.({ error });
+                            transportReject?.(error);
+                        }
+                        if (!connectedSession || session === connectedSession) session = null;
+                        pendingSocket = null;
+                        const manual = intentionalClose;
+                        intentionalClose = false;
+                        options.onClose?.({ manual, setupComplete, failure, code, reason, message });
+                    }
+                };
                 const withSocket = window.EveGeminiApiFailure?.connectWithNormalizedWebSocket
                     || ((callback) => callback());
-                const connection = withSocket(() => ai.live.music.connect({
-                    model: options.model,
-                    callbacks: {
-                        onmessage(message) {
-                            if (!isCurrent()) return;
-                            if (message?.setupComplete) {
-                                setupComplete = true;
-                                resolveSetup?.(true);
-                            }
-                            options.onMessage?.(message);
-                        },
-                        onerror(event) {
-                            if (!isCurrent()) return;
-                            const failure = classify(event);
-                            lastFailure = failure;
-                            const error = new Error(failure.message || 'Lyria transport error.');
-                            if (!setupComplete) {
-                                resolveSetup?.({ error });
-                                transportReject?.(error);
-                            }
-                            options.publish?.({
-                                phase: 'error',
-                                connectionState: 'error',
-                                message: error.message
-                            });
-                        },
-                        onclose(event) {
-                            if (!isCurrent()) return;
-                            const classified = classify(event);
-                            const failure = classified.kind === 'unknown'
-                                && lastFailure
-                                && lastFailure.kind !== 'unknown' ? lastFailure : classified;
-                            const code = Number(event?.code) || 0;
-                            const reason = String(event?.reason || '').trim();
-                            const message = failure.kind !== 'unknown'
-                                ? failure.message
-                                : (setupComplete
-                                    ? (reason || 'Sonic Forge disconnected.')
-                                    : `Lyria closed before setup completed${code ? ` (code ${code})` : ''}${reason ? `: ${reason}` : '.'}`);
-                            if (!setupComplete) {
-                                const error = new Error(message);
-                                resolveSetup?.({ error });
-                                transportReject?.(error);
-                            }
-                            if (!connectedSession || session === connectedSession) session = null;
-                            pendingSocket = null;
-                            const manual = intentionalClose;
-                            intentionalClose = false;
-                            options.onClose?.({
-                                manual,
-                                setupComplete,
-                                failure,
-                                code,
-                                reason,
-                                message
-                            });
-                        }
-                    }
-                }), {
-                    onSocket(socket) {
-                        attemptSocket = socket;
-                        if (isCurrent()) pendingSocket = socket;
-                        else try { socket?.close?.(); } catch {}
-                    }
-                });
+                const socketHook = (socket) => {
+                    attemptSocket = socket;
+                    if (isCurrent()) pendingSocket = socket;
+                    else try { socket?.close?.(); } catch {}
+                };
+                const connection = apiKey
+                    ? withSocket(() => ai.live.music.connect({ model: options.model, callbacks }), {
+                        onSocket: socketHook
+                    })
+                    : options.connectProxy?.({
+                        model: options.model,
+                        callbacks,
+                        onSocket: socketHook
+                    });
+                if (!connection?.then) {
+                    throw new Error('The secure Sonic Forge backend relay is unavailable.');
+                }
                 connection.then((lateSession) => {
                     if (expired || !isCurrent()) {
                         try { lateSession?.close?.(); } catch {}

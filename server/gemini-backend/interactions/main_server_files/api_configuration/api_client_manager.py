@@ -8,7 +8,7 @@ from .api_key_manager import get_api_key, validate_api_key
 from .api_initialization import print_api_initialization, print_api_status
 from .gemini_config import configure_gemini_api, create_gemini_client
 
-def initialize_api_client(api_key=None):
+def initialize_api_client(api_key=None, api_version="v1beta"):
     """
     Initialize and configure the Gemini API client.
     Args:
@@ -32,7 +32,7 @@ def initialize_api_client(api_key=None):
         configure_gemini_api(api_key)
         
         # Create and return the client
-        return create_gemini_client(api_key)
+        return create_gemini_client(api_key, api_version=api_version)
     except Exception as e:
         print(f"\n====== WARNING: API CLIENT INITIALIZATION FAILED ======")
         print(f"Error details: {str(e)}")

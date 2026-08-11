@@ -10,7 +10,15 @@
     const DEFAULTS = Object.freeze({
         live: 'gemini-3.1-flash-live-preview',
         textBrain: 'gemini-3.5-flash-lite',
-        transcription: 'gemini-3.6-flash'
+        transcription: 'gemini-3.6-flash',
+        music: 'models/lyria-realtime-exp'
+    });
+
+    const API_VERSIONS = Object.freeze({
+        live: 'v1beta',
+        textBrain: 'v1beta',
+        transcription: 'v1beta',
+        music: 'v1alpha'
     });
 
     const MODELS = Object.freeze({
@@ -79,6 +87,18 @@
                 summary: 'Compatibility fallback for audio-file transcription.',
                 capabilities: Object.freeze({ audioInput: true, textGeneration: true })
             })
+        ]),
+        music: Object.freeze([
+            Object.freeze({
+                id: 'models/lyria-realtime-exp',
+                label: 'Lyria Realtime Experimental',
+                summary: 'Continuous realtime music generation with weighted prompts and live steering.',
+                capabilities: Object.freeze({
+                    realtimeMusic: true,
+                    weightedPrompts: true,
+                    liveSteering: true
+                })
+            })
         ])
     });
 
@@ -100,7 +120,8 @@
         transcription: Object.freeze({
             'gemini-2.0-flash': DEFAULTS.transcription,
             'gemini-2.5-flash': DEFAULTS.transcription
-        })
+        }),
+        music: Object.freeze({})
     });
 
     const STORAGE_BINDINGS = Object.freeze({
@@ -175,6 +196,7 @@
 
     window.EveGeminiModelRegistry = Object.freeze({
         defaults: DEFAULTS,
+        apiVersions: API_VERSIONS,
         models: MODELS,
         migrations: MIGRATIONS,
         resolve: resolve,

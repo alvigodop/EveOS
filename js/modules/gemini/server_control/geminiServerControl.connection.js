@@ -84,6 +84,15 @@
             publish();
             return false;
         }
+        if (window.SocketGlobalState?.sessionOwnershipTransferred) {
+            state.connectionPhase = 'ownership-transferred';
+            state.message = 'Gemini is active in another EveOS window. Click the connection status here to reclaim it.';
+            if (typeof window.updateConnectionStatus === 'function') {
+                window.updateConnectionStatus('disconnected', 'Active in Another EveOS Window');
+            }
+            publish();
+            return false;
+        }
         if (!state.running) {
             if (!window.webSocket || window.webSocket.readyState >= WebSocket.CLOSING) {
                 state.connectionPhase = state.desiredRunning ? 'recovering' : 'offline';

@@ -35,7 +35,7 @@ const masterScriptList = [
 
     // 1. Client Core Control
     APP_ROOT + 'js/modules/gemini/comm/send_hist/chat_history_local_storage/localStorageHelper.js',
-    `${BASE_PATHS.CLIENT_CORE}/modelRegistry.js?v=0.1.1`,
+    `${BASE_PATHS.CLIENT_CORE}/modelRegistry.js?v=0.2.0`,
     `${BASE_PATHS.CLIENT_CORE}/usageTelemetry.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js`,
@@ -48,7 +48,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=0.1.1`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=0.2.5`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.2.9`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0.3.0`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js`,
 
     // 2. Agentic Functions

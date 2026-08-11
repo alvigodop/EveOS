@@ -323,7 +323,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         window.EveAudioflixState?.recordPlay?.(safeItem);
         return true;
     }
-
     const playTestSignal = window.EveAudioflixAudioTest?.createController?.({
         playItem,
         state,
@@ -333,25 +332,34 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     const layerController = window.EveAudioflixAudioLayers.createController({
         state, tryNativePlayback, getDecodedBuffer, encodeBufferToBase64, playUrlItem,
         canPlayUrl: (item) => urlPlayback?.canHandle?.(item),
-        shouldPreferUrl: (item) => urlPlayback?.shouldPreferBrowser?.(item)
+        shouldPreferUrl: (item) => urlPlayback?.shouldPreferBrowser?.(item),
+        stopUrlPlayback: (id) => {
+            const item = urlPlayback?.getPlaybackState?.()?.item;
+            return String(item?.id || item?.url || '') === String(id || '') && urlPlayback?.stop?.();
+        },
+        stopNativeItem: (id) => window.EveAudioflixNative?.clearVoices?.(id)
     });
     const layerPlay = layerController.layerPlay;
-
-    function stopItemLayers(itemId) {
-        layerController.stopItemLayers(itemId);
-        if (currentItem?.id === itemId) {
+    async function stopItemLayers(itemId) {
+        const pending = layerController.stopItemLayers(itemId);
+        const currentId = String(currentItem?.id || currentItem?.url || '');
+        if (currentId && currentId === String(itemId || '')) {
+            const stoppedItem = currentItem;
             musicCapture?.stop();
-            urlPlayback?.stop?.().catch?.(() => {});
-            stopNativePlayback(false).catch(() => {});
-            const player = ensureAudio();
-            player.pause();
-            try { player.currentTime = 0; } catch {}
+            await urlPlayback?.stop?.().catch?.(() => {});
+            await stopNativePlayback(false).catch(() => {});
+            if (audio) {
+                audio.pause();
+                try { audio.currentTime = 0; } catch {}
+            }
+            currentItem = null;
             lastStatus = 'Stopped';
-            dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
-            dispatch('eve:audioflix-progress', { item: currentItem, currentTime: 0, duration: Number(player.duration || 0) || 0, paused: true });
+            dispatch('eve:audioflix-playback', { status: lastStatus, item: stoppedItem });
+            dispatch('eve:audioflix-progress', { item: stoppedItem, currentTime: 0, duration: 0, paused: true });
         }
+        await Promise.allSettled(pending);
+        return true;
     }
-
     async function stopAll() {
         const stoppedItem = currentItem;
         const pending = layerController.stopAll();
@@ -368,7 +376,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         dispatch('eve:audioflix-playback', { status: lastStatus, item: stoppedItem });
         dispatch('eve:audioflix-progress', { item: stoppedItem, currentTime: 0, duration: 0, paused: true });
     }
-
     async function pause() {
         if (urlPlayback?.isActive?.()) return urlPlayback.pause();
         if (activeNativeMode) {
@@ -380,7 +387,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         }
         ensureAudio().pause();
     }
-
     async function seek(seconds) {
         const target = Math.max(0, Number(seconds || 0) || 0);
         if (urlPlayback?.isActive?.()) return urlPlayback.seek(target);

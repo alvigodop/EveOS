@@ -8,33 +8,69 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
 
     function createController(deps) {
         const activeLayers = new Map();
+        const itemEpochs = new Map();
+        let globalEpoch = 0;
+
+        const itemId = (item) => String(item?.id || item?.url || '');
+        const epoch = (id) => Number(itemEpochs.get(id) || 0);
+        const isCancelled = (id, itemEpoch, startEpoch) => (
+            epoch(id) !== itemEpoch || globalEpoch !== startEpoch
+        );
+
+        async function cancelStartedUrl(id) {
+            try { await deps.stopUrlPlayback?.(id); } catch {}
+        }
 
         async function layerPlay(item) {
             if (!item?.url) return false;
             let safeItem = typeof item === 'object' ? { ...item } : { url: item };
+            const id = itemId(safeItem);
+            const itemStartEpoch = epoch(id);
+            const globalStartEpoch = globalEpoch;
+            const cancelled = () => isCancelled(id, itemStartEpoch, globalStartEpoch);
 
-            if (deps.shouldPreferUrl?.(safeItem)) return deps.playUrlItem(safeItem);
+            if (deps.shouldPreferUrl?.(safeItem)) {
+                const played = await deps.playUrlItem(safeItem);
+                if (!cancelled()) return played;
+                await cancelStartedUrl(id);
+                return false;
+            }
             if (window.EveAudioflixAudioSource?.needsResolution?.(safeItem.url)) {
                 try {
                     safeItem = await window.EveAudioflixAudioSource.resolveItem(safeItem);
                 } catch (error) {
-                    if (deps.canPlayUrl?.(safeItem)) return deps.playUrlItem(safeItem);
+                    if (cancelled()) return false;
+                    if (deps.canPlayUrl?.(safeItem)) {
+                        const played = await deps.playUrlItem(safeItem);
+                        if (!cancelled()) return played;
+                        await cancelStartedUrl(id);
+                        return false;
+                    }
                     console.warn('[Audioflix] Failed to resolve stream URL for layer:', error);
                     return false;
                 }
             }
+            if (cancelled()) return false;
 
-            if (await deps.tryNativePlayback(safeItem)) return true;
+            if (await deps.tryNativePlayback(safeItem)) {
+                if (!cancelled()) return true;
+                await deps.stopNativeItem?.(id);
+                return false;
+            }
             if (window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) {
                 try {
                     const buffer = await deps.getDecodedBuffer(safeItem.url);
-                    const id = safeItem.id || safeItem.url;
+                    if (cancelled()) return false;
                     const ok = await window.EveAudioflixNative.playVoice(deps.encodeBufferToBase64(buffer), {
                         sampleRate: buffer.sampleRate,
                         channels: 1,
                         volume: safeItem.volume ?? 1,
                         voiceId: id
                     });
+                    if (cancelled()) {
+                        if (ok) await window.EveAudioflixNative?.clearVoices?.(id);
+                        return false;
+                    }
                     if (ok) {
                         window.EveAudioflixAudio?.getWaveformController?.()?.playBufferWaveform?.(buffer);
                         activeLayers.set(id, [{ stop: () => window.EveAudioflixNative?.clearVoices?.(id) }]);
@@ -55,11 +91,21 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             if (sinkId && typeof player.setSinkId === 'function') {
                 try { await player.setSinkId(sinkId); } catch { }
             }
-            const id = safeItem.id || safeItem.url;
+            if (cancelled()) return false;
             if (!activeLayers.has(id)) activeLayers.set(id, []);
             activeLayers.get(id).push(player);
             player.addEventListener('ended', () => removeLayer(id, player));
-            await player.play();
+            try {
+                await player.play();
+            } catch (error) {
+                removeLayer(id, player);
+                throw error;
+            }
+            if (cancelled()) {
+                stopLayer(player);
+                removeLayer(id, player);
+                return false;
+            }
             return true;
         }
 
@@ -81,13 +127,17 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
         }
 
         function stopItemLayers(itemId) {
-            const layers = activeLayers.get(itemId) || [];
+            const id = String(itemId || '');
+            itemEpochs.set(id, epoch(id) + 1);
+            const layers = activeLayers.get(id) || [];
             const pending = layers.map(stopLayer).filter((result) => result?.then);
-            activeLayers.delete(itemId);
+            activeLayers.delete(id);
             return pending;
         }
 
         function stopAll() {
+            globalEpoch += 1;
+            itemEpochs.clear();
             const pending = [];
             activeLayers.forEach((layers) => layers.forEach((layer) => {
                 const result = stopLayer(layer);

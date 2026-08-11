@@ -1,7 +1,6 @@
 import json
 import os
 import socket
-import sys
 from google import genai
 from google.genai import types
 
@@ -85,12 +84,12 @@ def _env_enabled(name, default=True):
     return str(raw).strip().lower() not in {"0", "false", "off", "no"}
 
 def install_live_websocket_ipv4_patch():
-    """Force Gemini Live's WebSocket connector through IPv4 when enabled.
+    """Force Gemini Live and Live Music WebSockets through IPv4 when enabled.
 
     Google can reject IP-restricted API keys when the Live WebSocket exits over
     an IPv6 address that is not on the key allowlist. The google-genai client
     currently drops low-level WebSocket kwargs passed through HttpOptions, so we
-    patch only the module-level Live connector used by this backend.
+    patch only the module-level connectors used by this backend.
     """
     global _LIVE_IPV4_PATCHED
     if _LIVE_IPV4_PATCHED or not _env_enabled("EVEOS_GEMINI_FORCE_IPV4", True):
@@ -98,21 +97,31 @@ def install_live_websocket_ipv4_patch():
 
     try:
         import google.genai.live as live_module
+        import google.genai.live_music as live_music_module
 
-        original_connect = live_module.ws_connect
-        if getattr(live_module, "_eveos_ipv4_ws_connect", False):
-            _LIVE_IPV4_PATCHED = True
-            return True
+        if not getattr(live_module, "_eveos_ipv4_ws_connect", False):
+            original_connect = live_module.ws_connect
 
-        def eveos_ipv4_ws_connect(*args, **kwargs):
-            kwargs.setdefault("family", socket.AF_INET)
-            return original_connect(*args, **kwargs)
+            def eveos_ipv4_ws_connect(*args, **kwargs):
+                kwargs.setdefault("family", socket.AF_INET)
+                return original_connect(*args, **kwargs)
 
-        eveos_ipv4_ws_connect.__name__ = "eveos_ipv4_ws_connect"
-        live_module.ws_connect = eveos_ipv4_ws_connect
-        live_module._eveos_ipv4_ws_connect = True
+            eveos_ipv4_ws_connect.__name__ = "eveos_ipv4_ws_connect"
+            live_module.ws_connect = eveos_ipv4_ws_connect
+            live_module._eveos_ipv4_ws_connect = True
+
+        if not getattr(live_music_module, "_eveos_ipv4_ws_connect", False):
+            original_music_connect = live_music_module.connect
+
+            def eveos_ipv4_music_connect(*args, **kwargs):
+                kwargs.setdefault("family", socket.AF_INET)
+                return original_music_connect(*args, **kwargs)
+
+            eveos_ipv4_music_connect.__name__ = "eveos_ipv4_music_connect"
+            live_music_module.connect = eveos_ipv4_music_connect
+            live_music_module._eveos_ipv4_ws_connect = True
         _LIVE_IPV4_PATCHED = True
-        print("[OK] Gemini Live WebSocket IPv4 routing enabled")
+        print("[OK] Gemini Live and Live Music WebSocket IPv4 routing enabled")
         return True
     except Exception as exc:
         print(f"[WARN] Gemini Live IPv4 routing patch unavailable: {exc}")
@@ -128,17 +137,15 @@ def configure_gemini_api(api_key):
         raise ValueError("A Gemini API key is required")
     print("\n[OK] Gemini credentials accepted for client initialization")
 
-def create_gemini_client(api_key):
-    """Create and configure a Gemini client with enhanced timeout settings."""
+def create_gemini_client(api_key, api_version="v1beta"):
+    """Create a Gemini client for one explicit API contract."""
     try:
         print("\nConfiguring Gemini client with enhanced timeout settings...")
         install_live_websocket_ipv4_patch()
         client = genai.Client(
             api_key=api_key,
             http_options={
-                'api_version': 'v1beta',  # Using v1beta for access to preview models/features. 
-                # Note: v1beta is subject to breaking changes and not recommended for production if stability is critical. 
-                # For a stable production environment, consider using 'v1'.
+                'api_version': api_version,
                 'timeout': TimeoutConfig.CLIENT_TIMEOUT_MS,
             }
         )
@@ -153,8 +160,7 @@ def create_gemini_client(api_key):
         print("2. No internet connection")
         print("3. Requested model not available")
         print("4. Gemini API service is down or overloaded")
-        print("\nThe server will now exit. Press any key to close this window...")
-        sys.exit(1)
+        raise RuntimeError("Gemini client initialization failed") from e
 
 def create_gemini_config(
     voice_name="Aoede",

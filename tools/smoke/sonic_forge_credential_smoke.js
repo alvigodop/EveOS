@@ -3,15 +3,14 @@
  *
  * Sonic Forge must still have a credential after Session Controls secures one.
  *
- * Sonic Forge talks to Lyria from the page, so it needs the key in the browser. Its only sources
- * are sessionStorage and localStorage['geminiApiKey'] -- the encrypted vault deliberately never
- * hands a key back. Session Controls clears that localStorage entry once the vault sync succeeds,
- * and it is right to: a persisted browser key shadows the vault and reconnects with a stale one.
+ * A same-tab Session Controls save may temporarily hand the key to Sonic Forge through
+ * sessionStorage. A fresh tab must instead recognize the encrypted vault and use the local Gemini
+ * backend proxy; the vault deliberately never hands the raw key back to browser code.
  *
  * The consequence was that saving the key CORRECTLY is what broke Sonic Forge. It then reported
  * "Set it in Search Monitor Session Controls" to someone who had just done exactly that, and
- * Generate failed. The handoff to sessionStorage closes the gap without re-introducing the
- * shadowing problem, because sessionStorage is per-tab and dies with it.
+ * Generate failed. The temporary handoff plus secure backend proxy closes both paths without
+ * re-introducing a persisted browser key that can shadow the vault.
  */
 const fs = require('fs');
 const os = require('os');
@@ -76,6 +75,11 @@ async function main() {
             localStorage.removeItem('geminiApiKey');
             out.afterClear = S.getApiKey();
 
+            window.EveOSLocalControl = { baseUrl: () => 'http://127.0.0.1:9082' };
+            window.GeminiCredentialBridge = {
+                getStatus: async () => ({ ok: true, configured: true })
+            };
+
             out.errors = window.__errors;
             return out;
         });
@@ -90,6 +94,24 @@ async function main() {
         assert(result.sessionWins === 'vaulted-key',
             `sessionStorage wins over a stale persisted key (got ${result.sessionWins})`);
         assert(result.afterClear === '', 'clearing still works, so signing out takes effect');
+
+        const vaultStatus = await page.evaluate(async () => {
+            const S = window.EveAudioflixSoundLabSdk;
+            await S.refreshCredentialStatus(true);
+            return { status: S.getCredentialStatus(), exposedKey: S.getApiKey() };
+        });
+        assert(vaultStatus.status.state === 'vault' && vaultStatus.status.configured === true,
+            'a fresh tab recognizes the configured secure Gemini vault');
+        assert(vaultStatus.exposedKey === '', 'vault recognition never exposes the raw key');
+
+        const clearedVault = await page.evaluate(async () => {
+            window.GeminiCredentialBridge.getStatus = async () => ({ ok: true, configured: false });
+            const S = window.EveAudioflixSoundLabSdk;
+            await S.refreshCredentialStatus(true);
+            return S.getCredentialStatus();
+        });
+        assert(clearedVault.state === 'missing' && clearedVault.configured === false,
+            'a forced refresh clears stale vault-ready UI after credentials are removed');
 
         console.log('sonic forge credential OK — survives the vault sync, session beats stale local');
         console.log('SONIC_FORGE_CREDENTIAL_SMOKE_OK');

@@ -18,6 +18,41 @@ function geminiConnectionDisabledByUser() {
     }
 }
 
+function isInteractiveOwnershipTransfer(event) {
+    return Number(event?.code) === 4001
+        && /replaced by a newer interactive eveos connection/i.test(String(event?.reason || ''));
+}
+
+function pauseForInteractiveOwnershipTransfer(event) {
+    const State = window.SocketGlobalState;
+    State.sessionOwnershipTransferred = true;
+    State.sessionOwnershipTransferReason = String(event?.reason || 'Interactive session moved');
+    State.serverOfflinePauseActive = true;
+    State.reconnectAttempts = 0;
+
+    if (State.reconnectTimeout) {
+        clearTimeout(State.reconnectTimeout);
+        State.reconnectTimeout = null;
+    }
+    if (State.continuousReconnectInterval) {
+        clearTimeout(State.continuousReconnectInterval);
+        State.continuousReconnectInterval = null;
+    }
+
+    if (typeof updateConnectionStatus === 'function') {
+        updateConnectionStatus('disconnected', 'Active in Another EveOS Window');
+    }
+    if (typeof displayMessage === 'function') {
+        displayMessage(
+            'System Message: Gemini moved to a newer EveOS window. Auto reconnect is paused here; click the connection status to reclaim it.',
+            true
+        );
+    }
+    window.dispatchEvent?.(new CustomEvent('eve:gemini-session-transferred', {
+        detail: { reason: State.sessionOwnershipTransferReason }
+    }));
+}
+
 window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
     const State = window.SocketGlobalState;
     console.log("WebSocket closed:", event);
@@ -39,6 +74,11 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
     if (typeof stopApplicationLevelPingPong === 'function') stopApplicationLevelPingPong();
 
     window.webSocket = null;
+
+    if (isInteractiveOwnershipTransfer(event)) {
+        pauseForInteractiveOwnershipTransfer(event);
+        return;
+    }
 
     if (geminiConnectionDisabledByUser()) {
         State.autoReconnectEnabled = false;

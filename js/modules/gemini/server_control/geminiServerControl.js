@@ -303,6 +303,11 @@ async function recoverServerIfNeeded(reason) {
         // auto-reconnect so a manual disconnect sticks until you click connect again.
         setClientLink: function (connected) {
             if (connected) {
+                if (window.SocketGlobalState) {
+                    window.SocketGlobalState.sessionOwnershipTransferred = false;
+                    window.SocketGlobalState.sessionOwnershipTransferReason = '';
+                    window.SocketGlobalState.serverOfflinePauseActive = false;
+                }
                 setManualStop(false);
                 setDesiredServerState(true);
                 setConnectionPreference(true);

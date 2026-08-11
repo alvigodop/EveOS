@@ -113,6 +113,14 @@ console.log("serverStatusChecker.js loading...");
     }
 
     async function startContinuousReconnectAttempts() {
+        if (State.sessionOwnershipTransferred) {
+            State.serverOfflinePauseActive = true;
+            if (typeof updateConnectionStatus === 'function') {
+                updateConnectionStatus('disconnected', 'Active in Another EveOS Window');
+            }
+            return;
+        }
+
         if (isServerDesiredRunning()) {
             State.autoReconnectEnabled = true;
             State.serverOfflinePauseActive = false;
@@ -150,7 +158,9 @@ console.log("serverStatusChecker.js loading...");
         const maxStatusChecks = State.serverStartupMaxChecks || 10;
 
         const runCheck = async () => {
-            if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
+            if (State.sessionOwnershipTransferred
+                || !State.autoReconnectEnabled
+                || State.serverOfflinePauseActive) {
                 if (State.continuousReconnectInterval) {
                     clearTimeout(State.continuousReconnectInterval);
                     State.continuousReconnectInterval = null;

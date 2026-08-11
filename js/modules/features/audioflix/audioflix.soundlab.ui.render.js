@@ -222,7 +222,9 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
 
     function renderHero(soundLab, engineStatus) {
         const route = window.EveAudioflixState?.ensure?.();
-        const hasCredential = !!window.EveAudioflixSoundLabEngine?.getApiKey?.();
+        const credential = window.EveAudioflixSoundLabSdk?.getCredentialStatus?.() || {
+            state: 'unknown', configured: false, message: 'Checking the secure Gemini credential vault...'
+        };
         const routeLabel = route?.nativeBridgeEnabled
             ? `Native: ${route.nativeOutputLabel || 'selected output'}`
             : (route?.preferredSinkLabel || 'Browser default output');
@@ -236,9 +238,10 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 </div>
             </div>
             <div class="sonic-forge-transport">
-                <div class="sonic-forge-credential-note ${hasCredential ? 'is-ready' : 'is-missing'}">
+                <div class="sonic-forge-credential-note ${credential.configured ? 'is-ready' : 'is-missing'}"
+                    data-sf-credential data-state="${esc(credential.state)}">
                     <span>Gemini Link credential</span>
-                    <b>${hasCredential ? 'Available from Session Controls' : 'Set it in Search Monitor Session Controls'}</b>
+                    <b>${esc(credential.message)}</b>
                 </div>
                 <div class="sonic-forge-button-row">
                     <button type="button" data-af-action="${engineStatus.connected ? 'soundlab-disconnect' : 'soundlab-connect'}"

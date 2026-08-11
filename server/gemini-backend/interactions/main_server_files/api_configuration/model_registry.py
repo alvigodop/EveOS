@@ -13,6 +13,8 @@ from copy import deepcopy
 LIVE_DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 TEXT_BRAIN_DEFAULT_MODEL = "gemini-3.5-flash-lite"
 TRANSCRIPTION_DEFAULT_MODEL = "gemini-3.6-flash"
+MUSIC_DEFAULT_MODEL = "models/lyria-realtime-exp"
+MUSIC_API_VERSION = "v1alpha"
 
 
 LIVE_MODELS = {
@@ -71,6 +73,18 @@ TRANSCRIPTION_MODELS = {
 }
 
 
+MUSIC_MODELS = {
+    MUSIC_DEFAULT_MODEL: {
+        "label": "Lyria Realtime Experimental",
+        "capabilities": {
+            "realtime_music": True,
+            "weighted_prompts": True,
+            "live_steering": True,
+        },
+    },
+}
+
+
 LEGACY_MODEL_MIGRATIONS = {
     "live": {
         "gemini-2.5-flash-native-audio-latest": LIVE_DEFAULT_MODEL,
@@ -90,6 +104,7 @@ LEGACY_MODEL_MIGRATIONS = {
         "gemini-2.0-flash": TRANSCRIPTION_DEFAULT_MODEL,
         "gemini-2.5-flash": TRANSCRIPTION_DEFAULT_MODEL,
     },
+    "music": {},
 }
 
 
@@ -97,12 +112,14 @@ _REGISTRIES = {
     "live": LIVE_MODELS,
     "text_brain": TEXT_BRAIN_MODELS,
     "transcription": TRANSCRIPTION_MODELS,
+    "music": MUSIC_MODELS,
 }
 
 _DEFAULTS = {
     "live": LIVE_DEFAULT_MODEL,
     "text_brain": TEXT_BRAIN_DEFAULT_MODEL,
     "transcription": TRANSCRIPTION_DEFAULT_MODEL,
+    "music": MUSIC_DEFAULT_MODEL,
 }
 
 
@@ -125,6 +142,10 @@ def resolve_text_brain_model(name: object) -> str:
 
 def resolve_transcription_model(name: object) -> str:
     return resolve_model("transcription", name)
+
+
+def resolve_music_model(name: object) -> str:
+    return resolve_model("music", name)
 
 
 def model_capabilities(kind: str, name: object) -> dict:

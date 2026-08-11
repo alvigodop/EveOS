@@ -22,11 +22,14 @@ from main_server_files.api_configuration.gemini_config import (  # noqa: E402
 )
 from main_server_files.api_configuration.model_registry import (  # noqa: E402
     LIVE_DEFAULT_MODEL,
+    MUSIC_DEFAULT_MODEL,
+    MUSIC_API_VERSION,
     TEXT_BRAIN_DEFAULT_MODEL,
     TRANSCRIPTION_DEFAULT_MODEL,
     model_capabilities,
     model_options,
     resolve_live_model,
+    resolve_music_model,
     resolve_text_brain_model,
     resolve_transcription_model,
 )
@@ -39,12 +42,16 @@ def assert_model_contract() -> None:
     assert LIVE_DEFAULT_MODEL == "gemini-3.1-flash-live-preview"
     assert TEXT_BRAIN_DEFAULT_MODEL == "gemini-3.5-flash-lite"
     assert TRANSCRIPTION_DEFAULT_MODEL == "gemini-3.6-flash"
+    assert MUSIC_DEFAULT_MODEL == "models/lyria-realtime-exp"
+    assert MUSIC_API_VERSION == "v1alpha"
     assert resolve_live_model("gemini-2.5-flash-native-audio-latest") == LIVE_DEFAULT_MODEL
     assert resolve_text_brain_model("gemini-2.5-pro") == "gemini-3.6-flash"
     assert resolve_transcription_model("gemini-2.0-flash") == TRANSCRIPTION_DEFAULT_MODEL
     assert resolve_live_model("unknown") == LIVE_DEFAULT_MODEL
+    assert resolve_music_model("unknown") == MUSIC_DEFAULT_MODEL
     assert len(model_options("live")) == 2
     assert model_capabilities("live", LIVE_DEFAULT_MODEL)["output_audio_transcription"] is True
+    assert model_capabilities("music", MUSIC_DEFAULT_MODEL)["live_steering"] is True
 
     forbidden_sampling = {"temperature", "top_k", "top_p"}
     assert not forbidden_sampling.intersection(TEXT_BRAIN_CONFIG)
@@ -75,6 +82,19 @@ def assert_source_contract() -> None:
     assert "await client.aio.live.connect" not in session_loop
     assert "outputTranscriptionEnabled" in session_loop
     assert "enable_input_transcription=False" in session_loop
+
+    handler = (
+        INTERACTIONS / "main_server_files/websocket_server/gemini_session_handler.py"
+    ).read_text(encoding="utf-8")
+    assert 'session_role == "sonic_forge"' in handler
+    assert "execute_sonic_forge_session" in handler
+    assert "api_version=MUSIC_API_VERSION" in handler
+
+    gemini_config = (
+        INTERACTIONS / "main_server_files/api_configuration/gemini_config.py"
+    ).read_text(encoding="utf-8")
+    assert "import google.genai.live_music as live_music_module" in gemini_config
+    assert "live_music_module.connect = eveos_ipv4_music_connect" in gemini_config
 
     retired = [
         "main_server_files/server_initialization/reconnection_handler.py",

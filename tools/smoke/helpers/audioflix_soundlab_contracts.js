@@ -17,6 +17,7 @@ function staticContracts() {
     const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
     const steering = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.steering.js'), 'utf8');
     const connection = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.connection.js'), 'utf8');
+    const proxy = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.proxy.js'), 'utf8');
     const effects = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.effects.js'), 'utf8');
     const nativeCapture = fs.readFileSync(
         path.join(AUDIOFLIX, 'audioflix.soundlab.native-capture.js'),
@@ -46,6 +47,7 @@ function staticContracts() {
         'audioflix.soundlab.state.js',
         'audioflix.capture.processor.src.js',
         'audioflix.soundlab.sdk.js',
+        'audioflix.soundlab.proxy.js',
         'audioflix.soundlab.playback.js',
         'audioflix.soundlab.effects.js',
         'audioflix.soundlab.native-capture.js',
@@ -115,6 +117,12 @@ function staticContracts() {
         'Lyria connection has a deadline, closes late sessions, and normalizes its SDK WebSocket'
     );
     assert(!connection.includes('setupReject'), 'transport failure cannot leave a rejected setup promise');
+    assert(
+        connection.includes('connectProxy')
+            && proxy.includes("sessionRole: 'sonic_forge'")
+            && !proxy.includes("apiKey: options"),
+        'fresh tabs can use the secure Sonic Forge backend without receiving its API key'
+    );
     assert(!engine.includes('fade.gain.linearRampToValueAtTime'), 'PCM chunks are not faded independently');
     assert(playback.includes('source.connect(output)'), 'Lyria chunks share one continuous playback bus');
     const browserDecode = engine.match(/pcm16ToAudioBuffer\(context, chunk\.data,[\s\S]*?\n\s*}\);/)?.[0] || '';
@@ -221,7 +229,7 @@ function assertResult(result) {
             && !Object.hasOwn(result.musicConfig, 'scale'),
         'default steering omits unsupported transport fields and the unspecified scale'
     );
-    assert(result.apiVersion === 'v1alpha', 'Lyria uses the deployed Live Music WebSocket endpoint');
+    assert(result.apiVersion === 'v1alpha', 'Lyria uses the documented Live Music WebSocket endpoint');
     assert(
         /ip allowlist/i.test(result.restrictedMessage),
         'Lyria exposes actionable IP restriction diagnostics instead of a generic disconnect'
@@ -229,7 +237,8 @@ function assertResult(result) {
     assert(result.leakedCredential === false, 'session credential never enters datapack state');
     assert(
         !result.hasCredentialEditor && !result.hasClearKey
-            && result.credentialNotice.includes('Session Controls'),
+            && /Gemini Link credential/i.test(result.credentialNotice)
+            && /(secure Gemini credential vault|Session Controls|Available)/i.test(result.credentialNotice),
         'Sonic Forge exposes Gemini Link credential status without a second key editor'
     );
     assert(result.hasTitle && result.hasRecording && result.hasImport, 'workbench renders all core tools');
@@ -272,6 +281,10 @@ function assertResult(result) {
         Math.max(...result.transformedLevels) < 1300000
             && Math.max(...result.transformedLevels) / Math.min(...result.transformedLevels) <= 1.21,
         'native PCM volume and extreme stereo imbalance are corrected before routing'
+    );
+    assert(
+        result.urlSafeBytes.join(',') === '255,255',
+        'Sonic Forge decodes the Python relay Base64URL PCM form without atob failures'
     );
     assert(
         result.renderedGenerated === true

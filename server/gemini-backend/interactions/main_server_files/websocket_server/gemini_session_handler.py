@@ -1,6 +1,7 @@
 from .session_handler.connection_setup import setup_connection_resources, acquire_session_slot
 from .session_handler.config_manager import handle_initial_config
 from .session_handler.session_loop import execute_session_loop
+from .session_handler.sonic_forge_session import execute_sonic_forge_session
 import websockets
 import asyncio
 import json
@@ -11,6 +12,7 @@ from main_server_files.session_management.session_manager import (
 )
 from main_server_files.api_configuration.api_client_manager import initialize_api_client
 from main_server_files.api_configuration.api_key_manager import persist_api_key
+from main_server_files.api_configuration.model_registry import MUSIC_API_VERSION
 
 async def gemini_session_handler(websocket, client):
     """Handles the interaction with Gemini API within a websocket session.
@@ -93,7 +95,23 @@ async def gemini_session_handler(websocket, client):
                 }))
             return
 
-        # 4. EXECUTE MAIN SESSION LOOP
+        # 4. EXECUTE THE ROLE-SPECIFIC SESSION LOOP
+        if session_role == "sonic_forge":
+            music_client = initialize_api_client(session_api_key, api_version=MUSIC_API_VERSION)
+            if not music_client:
+                await connection_monitor.safe_send(json.dumps({
+                    "type": "sonic_forge_error",
+                    "message": "Sonic Forge could not load the Gemini credential vault.",
+                }))
+                return
+            await execute_sonic_forge_session(
+                websocket,
+                music_client,
+                connection_monitor,
+                config_data.get("model"),
+            )
+            return
+
         await execute_session_loop(
             websocket, 
             client, 

@@ -3,7 +3,6 @@
 // source of truth; this module reaches it through a `ctx` accessor facade (getters/setters over those
 // closure locals), so the renderers there keep reading the same variables unchanged.
 window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
-
 (function () {
     'use strict';
 
@@ -13,7 +12,6 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
         const localizeActions = window.EveAudioflixUiActionsLocalize.create(ctx);
         const nexusActions = window.EveAudioflixUiActionsNexus.create(ctx);
         const spotifyActions = window.EveAudioflixSpotifyUi.createActions(ctx);
-
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
             if (action?.startsWith('soundlab-')) {
@@ -22,7 +20,11 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 return;
             }
             const item = id ? (ctx.findItem(type, id) || ctx.portedSounds.find(s => s.id === id)) : null;
-            if (action === 'stop-item') return ctx.stopRepeater(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id), window.EveAudioflixAudio?.stopItemLayers?.(id), window.EveAudioflixAudio?.pause?.();
+            if (action === 'stop-item') {
+                ctx.stopRepeater(id);
+                await window.EveAudioflixNative?.clearVoices?.('hk:' + id);
+                return window.EveAudioflixAudio?.stopItemLayers?.(id);
+            }
             if (action === 'toggle-repeater') {
                 if (ctx.activeRepeaters[id]) ctx.stopRepeater(id);
                 else ctx.startRepeater(item, Math.max(100, parseFloat(document.getElementById('audioflix-rep-interval')?.value || 1.0) * 1000), parseInt(document.getElementById('audioflix-rep-count')?.value || 0, 10));
@@ -438,10 +440,8 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             // Localization / remaining nexus-panel actions live in a sibling module.
             if (await localizeActions(actionTarget, action)) return;
         }
-
         // Form submissions live in a sibling module (same ctx) to keep this file under the cap.
         const handleForm = window.EveAudioflixUiForms.create(ctx);
-
         return { handleAction, handleForm };
     };
 

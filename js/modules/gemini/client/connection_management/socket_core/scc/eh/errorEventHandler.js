@@ -14,7 +14,7 @@ window.SocketConnectionCore.EventHandlers.handleError = function (event) {
     } catch (error) {
         desiredRunning = false;
     }
-    if (desiredRunning) {
+    if (desiredRunning && !State.sessionOwnershipTransferred) {
         State.autoReconnectEnabled = true;
         State.serverOfflinePauseActive = false;
     }

@@ -44,6 +44,8 @@ window.SocketGlobalState = {
     serverOfflinePollInterval: 15000,
     serverOfflinePauseActive: false,
     lastReconnectPauseNoticeAt: 0,
+    sessionOwnershipTransferred: false,
+    sessionOwnershipTransferReason: '',
     credentialRequired: false,
     apiPolicyBlocked: false,
     apiKeyInvalid: false,

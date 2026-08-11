@@ -111,6 +111,16 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         if (buffer) buffer.textContent = `${Number(status?.bufferedSeconds || 0).toFixed(1)}s buffered`;
     }
 
+    function updateCredential(status) {
+        const note = root?.querySelector?.('[data-sf-credential]');
+        if (!note) return;
+        note.dataset.state = status?.state || 'unknown';
+        note.classList.toggle('is-ready', status?.configured === true);
+        note.classList.toggle('is-missing', status?.configured !== true);
+        const message = note.querySelector('b');
+        if (message) message.textContent = status?.message || 'Checking the secure Gemini credential vault...';
+    }
+
     function updateRecording(status) {
         if (!root) return;
         const message = root.querySelector('[data-sf-recording-status]');
@@ -170,6 +180,14 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         window.EveAudioflixSoundLabRecording?.subscribe?.(updateRecording);
         window.EveAudioflixSoundLabMidi?.subscribe?.(updateMidi);
         window.EveAudioflixSoundLabRendered?.subscribe?.(updateRendered);
+        window.addEventListener('eve:sonic-forge-credential-status', (event) => {
+            updateCredential(event.detail || {});
+        });
+        window.addEventListener('eve:gemini-server-status', (event) => {
+            if (event.detail?.credentialsConfigured === true) {
+                window.EveAudioflixSoundLabSdk?.refreshCredentialStatus?.(true);
+            }
+        });
         window.addEventListener('eve:sonic-forge-paid-features-changed', (event) => {
             updatePaidFeatures(event.detail?.enabled === true);
         });
@@ -226,6 +244,8 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         syncTimelineTimer();
         subscribe();
         updateEngine(window.EveAudioflixSoundLabEngine?.getStatus?.() || {});
+        updateCredential(window.EveAudioflixSoundLabSdk?.getCredentialStatus?.() || {});
+        window.EveAudioflixSoundLabSdk?.refreshCredentialStatus?.().catch?.(() => {});
         updateRecording(window.EveAudioflixSoundLabRecording?.getStatus?.() || {});
         updateMidi(window.EveAudioflixSoundLabMidi?.getStatus?.() || {});
         updateRendered(window.EveAudioflixSoundLabRendered?.getStatus?.() || {});

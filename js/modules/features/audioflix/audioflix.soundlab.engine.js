@@ -5,8 +5,8 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     const ns = window.EveAudioflixSoundLabEngine;
     if (ns.ready) return;
 
-    const MODEL = 'models/lyria-realtime-exp';
-    const API_VERSION = 'v1alpha';
+    const MODEL = window.EveGeminiModelRegistry?.defaults?.music || 'models/lyria-realtime-exp';
+    const API_VERSION = window.EveGeminiModelRegistry?.apiVersions?.music || 'v1alpha';
     const SAMPLE_RATE = 48000;
     const listeners = new Set();
     let context = null, streamGain = null, mixBus = null, analyser = null;
@@ -272,6 +272,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
             apiVersion: API_VERSION,
             getApiKey,
             loadSdk: () => window.EveAudioflixSoundLabSdk.load(),
+            connectProxy: (options) => window.EveAudioflixSoundLabProxy?.connect?.(options),
             ensureAudio,
             publish,
             onMessage: handleMessage,

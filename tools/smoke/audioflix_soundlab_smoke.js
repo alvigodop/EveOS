@@ -241,6 +241,9 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
             }
             let binary = '';
             pcmBytes.forEach((value) => { binary += String.fromCharCode(value); });
+            const urlSafeBytes = Array.from(
+                window.EveAudioflixSoundLabCodec.decodeBase64('__8')
+            );
             const transformed = window.EveAudioflixSoundLabCodec.decodeBase64(
                 window.EveAudioflixSoundLabCodec.transformPcm16Base64(btoa(binary), {
                     channels: 2,
@@ -409,6 +412,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
                 hasSessionTimer: !!host.querySelector('[data-sf-session-time]'),
                 timeline: window.EveAudioflixSoundLabEngine.getTimeline(),
                 transformedLevels,
+                urlSafeBytes,
                 renderedGenerated,
                 renderedStatus,
                 renderedRequest: window.__renderedRequest,

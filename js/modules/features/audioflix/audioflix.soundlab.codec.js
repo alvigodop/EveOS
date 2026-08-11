@@ -7,8 +7,14 @@ window.EveAudioflixSoundLabCodec = window.EveAudioflixSoundLabCodec || {};
     if (ns.ready) return;
 
     function decodeBase64(base64) {
-        const clean = String(base64 || '').replace(/\s+/g, '');
-        const binary = atob(clean);
+        // google-genai's Python JSON serializer emits bytes as unpadded Base64URL,
+        // while the browser SDK returns conventional Base64. Accept both wire forms.
+        const clean = String(base64 || '')
+            .replace(/\s+/g, '')
+            .replace(/-/g, '+')
+            .replace(/_/g, '/');
+        const padded = clean + '='.repeat((4 - (clean.length % 4)) % 4);
+        const binary = atob(padded);
         const bytes = new Uint8Array(binary.length);
         for (let index = 0; index < binary.length; index += 1) {
             bytes[index] = binary.charCodeAt(index);
