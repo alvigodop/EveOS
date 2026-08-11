@@ -60,7 +60,9 @@ assert(registry.getCapabilities('live', registry.defaults.live).outputAudioTrans
 assert(registry.getCapabilities('live', registry.defaults.live).proactiveAudio === false,
     'unsupported default Live capability is not advertised');
 assert(registry.defaults.music === 'models/lyria-realtime-exp', 'current Lyria model is centralized');
-assert(registry.apiVersions.music === 'v1alpha', 'Lyria RealTime stays on its documented API contract');
+assert(registry.apiVersions.music === 'v1beta', 'Lyria RealTime uses the current SDK API contract');
+assert(registry.apiVersionFallbacks.music.join(',') === 'v1alpha',
+    'Lyria keeps one ordered compatibility endpoint without a retry loop');
 assert(registry.apiVersions.live === 'v1beta', 'Live conversation keeps its independent API contract');
 assert(registry.getModels('music').length === 1, 'experimental music model allowlist stays bounded');
 assert(registry.getCapabilities('music', registry.defaults.music).liveSteering === true,

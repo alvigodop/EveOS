@@ -47,6 +47,9 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
         path.join(AUDIOFLIX, 'audioflix.soundlab.knob-input.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.ui.js')
     ].map((file) => `<script src="${fileUrl(file)}"></script>`).join('');
+    const connectionScenario = fileUrl(path.join(
+        __dirname, 'helpers', 'audioflix_soundlab_connection_scenario.js'
+    ));
     fs.writeFileSync(fixture, `<!doctype html><html><body>
         <main id="host"></main>
         <script>
@@ -79,6 +82,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
             addEventListener('unhandledrejection', event => window.__soundLabErrors.push(String(event.reason)));
         </script>
         ${modules}
+        <script src="${connectionScenario}"></script>
     </body></html>`);
 
     const browser = await chromium.launch({ headless: true });
@@ -285,76 +289,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
                 prompt: 'bounded render smoke'
             });
             const renderedStatus = window.EveAudioflixSoundLabRendered.getStatus();
-            const NativeWebSocket = window.WebSocket;
-            window.WebSocket = class SmokeWebSocket {
-                constructor(url) { window.__soundLabSocketUrl = String(url); }
-            };
-            const fakeSession = {
-                setWeightedPrompts: async () => true,
-                setMusicGenerationConfig: async (value) => {
-                    window.__soundLabMusicConfig = value?.musicGenerationConfig;
-                    return true;
-                },
-                play: async () => { throw new Error('play transport rejected'); },
-                close: () => queueMicrotask(() => window.__soundLabFirstCallbacks?.onclose({
-                    code: 1000,
-                    reason: 'Intentional disconnect'
-                }))
-            };
-            window.__soundLabConnectCalls = 0;
-            window.EveAudioflixGenAI = {
-                GoogleGenAI: class {
-                    constructor(options) {
-                        window.__soundLabApiVersion = options?.apiVersion;
-                        this.live = { music: { connect: (options) => {
-                            window.__soundLabConnectCalls += 1;
-                            window.__soundLabFirstCallbacks = options.callbacks;
-                            new WebSocket('wss://generativelanguage.googleapis.com//ws/test');
-                            queueMicrotask(() => options.callbacks.onmessage({ setupComplete: {} }));
-                            return Promise.resolve(fakeSession);
-                        } } };
-                    }
-                }
-            };
-            const connected = await Promise.all([
-                window.EveAudioflixSoundLabEngine.connect(),
-                window.EveAudioflixSoundLabEngine.connect()
-            ]);
-            const normalizedSocketUrl = window.__soundLabSocketUrl;
-            const singleFlightConnect = connected[0] === connected[1]
-                && window.__soundLabConnectCalls === 1;
-            const musicConfig = window.__soundLabMusicConfig;
-            let playFailure = '';
-            try {
-                await window.EveAudioflixSoundLabEngine.play();
-            } catch (error) {
-                playFailure = String(error?.message || error);
-            }
-            const playFailureStatus = window.EveAudioflixSoundLabEngine.getStatus();
-            await window.EveAudioflixSoundLabEngine.disconnect();
-            await new Promise((resolve) => setTimeout(resolve, 0));
-            const intentionalDisconnectStatus = window.EveAudioflixSoundLabEngine.getStatus();
-            window.EveAudioflixGenAI = {
-                GoogleGenAI: class {
-                    constructor(options) {
-                        this.live = { music: { connect: (connectOptions) => {
-                            queueMicrotask(() => connectOptions.callbacks.onclose({
-                                code: 1008,
-                                reason: 'The provided API key has an IP address restriction. The originating IP address is not allowed.'
-                            }));
-                            return new Promise(() => {});
-                        } } };
-                    }
-                }
-            };
-            let restrictedMessage = '';
-            try {
-                await window.EveAudioflixSoundLabEngine.connect();
-            } catch (error) {
-                restrictedMessage = String(error?.message || error);
-            }
-            window.WebSocket = NativeWebSocket;
-            delete window.EveAudioflixGenAI;
+            const connectionResult = await window.runAudioflixSoundLabConnectionScenario();
             const sessionKeyBeforeClear = sessionStorage.getItem('eveAudioflixSoundLabApiKey');
             window.EveAudioflixSoundLabEngine.setApiKey('');
             window.EveAudioflixSoundLabUi.setVisible(false);
@@ -383,14 +318,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
                 volumeAfterCommit,
                 sessionKeyBeforeClear,
                 sessionKeyAfterClear: sessionStorage.getItem('eveAudioflixSoundLabApiKey'),
-                normalizedSocketUrl,
-                singleFlightConnect,
-                musicConfig,
-                playFailure,
-                playFailureStatus,
-                intentionalDisconnectStatus,
-                apiVersion: window.__soundLabApiVersion,
-                restrictedMessage,
+                ...connectionResult,
                 leakedCredential: serialized.includes('soundlab-session-test'),
                 hasTitle: host.querySelector('h2')?.textContent === 'Sonic Forge',
                 hasCredentialEditor: !!host.querySelector('[data-sf-field="api-key"]'),

@@ -18,7 +18,14 @@
         live: 'v1beta',
         textBrain: 'v1beta',
         transcription: 'v1beta',
-        music: 'v1alpha'
+        music: 'v1beta'
+    });
+
+    // Google documents Lyria RealTime on v1beta, but some enabled projects still
+    // expose the experimental music WebSocket on v1alpha. This is an ordered,
+    // bounded compatibility path, not a general retry list.
+    const API_VERSION_FALLBACKS = Object.freeze({
+        music: Object.freeze(['v1alpha'])
     });
 
     const MODELS = Object.freeze({
@@ -197,6 +204,7 @@
     window.EveGeminiModelRegistry = Object.freeze({
         defaults: DEFAULTS,
         apiVersions: API_VERSIONS,
+        apiVersionFallbacks: API_VERSION_FALLBACKS,
         models: MODELS,
         migrations: MIGRATIONS,
         resolve: resolve,

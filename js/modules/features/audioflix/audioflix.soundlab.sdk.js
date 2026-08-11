@@ -34,7 +34,7 @@ window.EveAudioflixSoundLabSdk = window.EveAudioflixSoundLabSdk || {};
             }, { once: true });
             if (!existing) {
                 script.dataset.audioflixGenaiSdk = '1';
-                script.src = new URL('js/vendor/audioflix-genai.js?v=2.13.0', document.baseURI).href;
+                script.src = new URL('js/vendor/audioflix-genai.js?v=2.16.0', document.baseURI).href;
                 document.head.appendChild(script);
             }
         }).catch((error) => {

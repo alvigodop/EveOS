@@ -2,7 +2,7 @@
 # Keep this file aligned with imports under server/ and server_modules/.
 
 # Gemini Live, text-brain, and transcription paths.
-google-genai==2.13.0
+google-genai==2.17.0
 websockets==14.2
 pydub==0.25.1
 vosk==0.3.45

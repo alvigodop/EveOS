@@ -10,6 +10,7 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
         let session = null;
         let connectPromise = null;
         let token = 0;
+        let transportToken = 0;
         let pendingSocket = null;
         let intentionalClose = false;
 
@@ -22,8 +23,15 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
             }
         };
 
-        async function attempt(attemptToken) {
-            const isCurrent = () => attemptToken === token;
+        const endpointVersionUnavailable = (error) => {
+            const detail = String(error?.message || error || '').toLowerCase();
+            return /(?:http|status(?: code)?)\s*404\b/.test(detail)
+                || /websocket connection[^.]*\b404\b/.test(detail);
+        };
+
+        async function attemptVersion(attemptToken, apiVersion) {
+            const versionToken = ++transportToken;
+            const isCurrent = () => attemptToken === token && versionToken === transportToken;
             const apiKey = options.getApiKey?.();
             options.publish?.({
                 phase: 'connecting',
@@ -36,7 +44,7 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
             await options.ensureAudio?.();
             const sdk = apiKey ? await options.loadSdk?.() : null;
             if (!isCurrent()) throw new Error('Sonic Forge connection cancelled.');
-            const ai = apiKey ? new sdk.GoogleGenAI({ apiKey, apiVersion: options.apiVersion }) : null;
+            const ai = apiKey ? new sdk.GoogleGenAI({ apiKey, apiVersion }) : null;
             let timeout = 0;
             let expired = false;
             let setupComplete = false;
@@ -74,11 +82,13 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
                             resolveSetup?.({ error });
                             transportReject?.(error);
                         }
-                        options.publish?.({
-                            phase: 'error',
-                            connectionState: 'error',
-                            message: error.message
-                        });
+                        if (setupComplete) {
+                            options.publish?.({
+                                phase: 'error',
+                                connectionState: 'error',
+                                message: error.message
+                            });
+                        }
                     },
                     onclose(event) {
                         if (!isCurrent()) return;
@@ -100,9 +110,11 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
                         }
                         if (!connectedSession || session === connectedSession) session = null;
                         pendingSocket = null;
-                        const manual = intentionalClose;
-                        intentionalClose = false;
-                        options.onClose?.({ manual, setupComplete, failure, code, reason, message });
+                        if (setupComplete) {
+                            const manual = intentionalClose;
+                            intentionalClose = false;
+                            options.onClose?.({ manual, setupComplete, failure, code, reason, message });
+                        }
                     }
                 };
                 const withSocket = window.EveGeminiApiFailure?.connectWithNormalizedWebSocket
@@ -143,7 +155,10 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
                     phase: 'ready',
                     connectionState: 'ready',
                     connected: true,
-                    message: 'Connected. Press play to generate.'
+                    apiVersion,
+                    message: apiVersion === options.apiVersion
+                        ? 'Connected. Press play to generate.'
+                        : `Connected through the ${apiVersion} Lyria compatibility endpoint.`
                 });
                 return session;
             } catch (error) {
@@ -152,21 +167,49 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
                 try { attemptSocket?.close?.(); } catch {}
                 if (session === connectedSession) session = null;
                 if (pendingSocket === attemptSocket) pendingSocket = null;
-                if (isCurrent()) {
-                    options.publish?.({
-                        phase: 'error',
-                        connectionState: 'error',
-                        connected: false,
-                        playing: false,
-                        message: error?.message || 'Could not connect.'
-                    });
-                }
                 throw error;
             } finally {
                 window.clearTimeout(timeout);
                 resolveSetup = null;
                 transportReject = null;
             }
+        }
+
+        async function attempt(attemptToken) {
+            const apiKey = options.getApiKey?.();
+            const versions = [...new Set([
+                options.apiVersion,
+                ...(apiKey ? (options.apiVersionFallbacks || []) : [])
+            ].filter(Boolean))];
+            let lastError = null;
+            for (let index = 0; index < versions.length; index += 1) {
+                try {
+                    return await attemptVersion(attemptToken, versions[index]);
+                } catch (error) {
+                    lastError = error;
+                    const canFallback = attemptToken === token
+                        && index + 1 < versions.length
+                        && endpointVersionUnavailable(error);
+                    if (!canFallback) break;
+                    options.publish?.({
+                        phase: 'connecting',
+                        connectionState: 'connecting',
+                        connected: false,
+                        playing: false,
+                        message: `Current Lyria endpoint unavailable; trying ${versions[index + 1]} compatibility...`
+                    });
+                }
+            }
+            if (attemptToken === token) {
+                options.publish?.({
+                    phase: 'error',
+                    connectionState: 'error',
+                    connected: false,
+                    playing: false,
+                    message: lastError?.message || 'Could not connect.'
+                });
+            }
+            throw lastError || new Error('Could not connect.');
         }
 
         async function connect() {
@@ -185,6 +228,7 @@ window.EveAudioflixSoundLabConnection = window.EveAudioflixSoundLabConnection ||
         function disconnect() {
             intentionalClose = true;
             token += 1;
+            transportToken += 1;
             connectPromise = null;
             const closingSocket = pendingSocket;
             const closingSession = session;

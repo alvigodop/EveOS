@@ -116,6 +116,24 @@ async function main() {
     await Promise.allSettled(nativeMediaController.stopItemLayers('native-media'));
     assert(nativeMediaStops === 1, 'Stop owns and terminates a successful native media layer');
 
+    const delayedNativeStart = deferred();
+    let delayedNativeStops = 0;
+    const delayedNativeController = window.EveAudioflixAudioLayers.createController({
+        state: () => ({}),
+        shouldPreferUrl: () => false,
+        tryNativePlayback: () => delayedNativeStart.promise,
+        stopNativeItem: async () => { delayedNativeStops += 1; }
+    });
+    const pendingNativeMedia = delayedNativeController.layerPlay({
+        id: 'delayed-native-media', type: 'sound', url: 'delayed.wav'
+    });
+    delayedNativeController.stopItemLayers('delayed-native-media');
+    delayedNativeStart.resolve(true);
+    assert(await pendingNativeMedia === false,
+        'Stop invalidates a native media layer whose start request is still pending');
+    assert(delayedNativeStops === 1,
+        'a native media layer that starts after Stop is terminated immediately');
+
     const actionWindow = {
         EveAudioflixUiActions: {},
         EveAudioflixUiActionsLocalize: { create: () => async () => false },

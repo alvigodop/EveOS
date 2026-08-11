@@ -109,6 +109,9 @@ async function main() {
     assert(vaultLoad >= 0 && roleBranch > vaultLoad,
         'the backend opens the encrypted vault before entering the Sonic Forge role');
     assert(relay.includes('client.aio.live.music.connect'), 'the relay uses the current async music API');
+    assert(relay.includes('execute_sonic_forge_with_fallback')
+        && relay.includes('is_music_api_endpoint_unavailable'),
+    'the secure relay owns one bounded API-version compatibility fallback');
     assert(relay.includes('model_dump(by_alias=True'), 'relay responses preserve browser-facing aliases');
 
     console.log('SONIC_FORGE_VAULT_PROXY_SMOKE_OK');

@@ -32,6 +32,16 @@ _CONFIG_FIELDS = {
 }
 
 
+def is_music_api_endpoint_unavailable(error: object) -> bool:
+    """True only when the selected Live Music API-version endpoint is absent."""
+    detail = str(error or "").lower()
+    return (
+        "http 404" in detail
+        or "status code 404" in detail
+        or "websocket connection: 404" in detail
+    )
+
+
 async def _send(monitor, payload: dict) -> None:
     if monitor.is_websocket_open():
         await monitor.safe_send(json.dumps(payload))
@@ -108,7 +118,13 @@ async def _responses(music_session, monitor) -> None:
         })
 
 
-async def execute_sonic_forge_session(websocket, client, monitor, model_name) -> None:
+async def execute_sonic_forge_session(
+    websocket,
+    client,
+    monitor,
+    model_name,
+    api_version: str = "",
+) -> None:
     """Run one bounded Lyria relay until either side closes."""
     model = resolve_music_model(model_name)
     try:
@@ -117,6 +133,7 @@ async def execute_sonic_forge_session(websocket, client, monitor, model_name) ->
                 "type": "sonic_forge_ready",
                 "sessionRole": "sonic_forge",
                 "model": model,
+                "apiVersion": api_version,
             })
             tasks = {
                 asyncio.create_task(_commands(websocket, music_session)),
@@ -132,9 +149,58 @@ async def execute_sonic_forge_session(websocket, client, monitor, model_name) ->
                 task.result()
     except websockets.exceptions.ConnectionClosed:
         return
-    except Exception as error:
-        await _send(monitor, {
-            "type": "sonic_forge_error",
-            "message": str(error) or "Sonic Forge backend session failed.",
-        })
+    except Exception:
         raise
+
+
+async def _close_music_client(client) -> None:
+    """Close both transports because Lyria uses the SDK's async client."""
+    try:
+        await client.aio.aclose()
+    except Exception:
+        pass
+    try:
+        client.close()
+    except Exception:
+        pass
+
+
+async def execute_sonic_forge_with_fallback(
+    websocket,
+    monitor,
+    model_name,
+    api_versions,
+    client_factory,
+) -> str:
+    """Open one Lyria endpoint, falling back once only when an endpoint is absent."""
+    versions = tuple(dict.fromkeys(version for version in api_versions if version))
+    last_error = None
+    for index, api_version in enumerate(versions):
+        music_client = client_factory(api_version)
+        if not music_client:
+            last_error = RuntimeError("Sonic Forge could not load the Gemini credential vault.")
+            break
+        try:
+            await execute_sonic_forge_session(
+                websocket,
+                music_client,
+                monitor,
+                model_name,
+                api_version=api_version,
+            )
+            return api_version
+        except Exception as error:
+            last_error = error
+            if not (
+                index + 1 < len(versions)
+                and is_music_api_endpoint_unavailable(error)
+            ):
+                break
+        finally:
+            await _close_music_client(music_client)
+
+    await _send(monitor, {
+        "type": "sonic_forge_error",
+        "message": str(last_error) or "Sonic Forge backend session failed.",
+    })
+    return ""

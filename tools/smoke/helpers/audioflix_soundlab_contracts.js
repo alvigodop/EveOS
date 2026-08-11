@@ -12,6 +12,11 @@ const assert = (condition, message) => {
 };
 
 function staticContracts() {
+    const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+    const sdkEntry = fs.readFileSync(
+        path.join(ROOT, 'tools', 'bundles', 'audioflix-genai.entry.mjs'),
+        'utf8'
+    );
     const html = fs.readFileSync(path.join(ROOT, 'EveOS.html'), 'utf8');
     const ui = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.js'), 'utf8');
     const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
@@ -113,8 +118,10 @@ function staticContracts() {
         connection.includes('Promise.race([connection, transportFailure, deadline])')
             && connection.includes('expired')
             && connection.includes('EveGeminiApiFailure?.connectWithNormalizedWebSocket')
+            && connection.includes('endpointVersionUnavailable')
+            && engine.includes('apiVersionFallbacks: window.EveGeminiModelRegistry?.apiVersionFallbacks?.music')
             && failureApi.includes('connectWithNormalizedWebSocket'),
-        'Lyria connection has a deadline, closes late sessions, and normalizes its SDK WebSocket'
+        'Lyria connection has a deadline, bounded endpoint fallback, and normalized SDK WebSocket'
     );
     assert(!connection.includes('setupReject'), 'transport failure cannot leave a rejected setup promise');
     assert(
@@ -122,6 +129,11 @@ function staticContracts() {
             && proxy.includes("sessionRole: 'sonic_forge'")
             && !proxy.includes("apiKey: options"),
         'fresh tabs can use the secure Sonic Forge backend without receiving its API key'
+    );
+    const sdkVersion = String(packageJson.dependencies?.['@google/genai'] || '').replace(/^[^\d]*/, '');
+    assert(
+        sdkVersion && sdkEntry.includes(`sdkVersion: '${sdkVersion}'`),
+        'the browser SDK bundle metadata matches the pinned @google/genai dependency'
     );
     assert(!engine.includes('fade.gain.linearRampToValueAtTime'), 'PCM chunks are not faded independently');
     assert(playback.includes('source.connect(output)'), 'Lyria chunks share one continuous playback bus');
@@ -229,11 +241,23 @@ function assertResult(result) {
             && !Object.hasOwn(result.musicConfig, 'scale'),
         'default steering omits unsupported transport fields and the unspecified scale'
     );
-    assert(result.apiVersion === 'v1alpha', 'Lyria uses the documented Live Music WebSocket endpoint');
+    assert(result.apiVersion === 'v1beta', 'Lyria uses the current SDK Live Music API contract');
+    assert(
+        result.restrictedApiVersions.join(',') === 'v1beta',
+        'credential rejection stops after the primary endpoint and never enters compatibility fallback'
+    );
+    assert(
+        result.fallbackApiVersions.join(',') === 'v1beta,v1alpha'
+            && result.fallbackSelectedVersion === 'v1alpha'
+            && result.fallbackConnectCalls === 2,
+        'HTTP 404 selects the single ordered Lyria compatibility endpoint without looping'
+    );
     assert(
         /ip allowlist/i.test(result.restrictedMessage),
         'Lyria exposes actionable IP restriction diagnostics instead of a generic disconnect'
     );
+    assert(result.recoveredAfterFailure,
+        'a failed Lyria setup releases its transport owner and the next connect can recover');
     assert(result.leakedCredential === false, 'session credential never enters datapack state');
     assert(
         !result.hasCredentialEditor && !result.hasClearKey

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import json
 import sys
 from pathlib import Path
@@ -18,16 +19,19 @@ from main_server_files.api_configuration.gemini_config import (  # noqa: E402
     TEXT_BRAIN_CONFIG,
     TRANSCRIPTION_CONFIG,
     TimeoutConfig,
+    create_gemini_client,
     create_gemini_config,
 )
 from main_server_files.api_configuration.model_registry import (  # noqa: E402
     LIVE_DEFAULT_MODEL,
     MUSIC_DEFAULT_MODEL,
     MUSIC_API_VERSION,
+    MUSIC_API_FALLBACK_VERSIONS,
     TEXT_BRAIN_DEFAULT_MODEL,
     TRANSCRIPTION_DEFAULT_MODEL,
     model_capabilities,
     model_options,
+    music_api_versions,
     resolve_live_model,
     resolve_music_model,
     resolve_text_brain_model,
@@ -43,7 +47,9 @@ def assert_model_contract() -> None:
     assert TEXT_BRAIN_DEFAULT_MODEL == "gemini-3.5-flash-lite"
     assert TRANSCRIPTION_DEFAULT_MODEL == "gemini-3.6-flash"
     assert MUSIC_DEFAULT_MODEL == "models/lyria-realtime-exp"
-    assert MUSIC_API_VERSION == "v1alpha"
+    assert MUSIC_API_VERSION == "v1beta"
+    assert MUSIC_API_FALLBACK_VERSIONS == ("v1alpha",)
+    assert music_api_versions() == ("v1beta", "v1alpha")
     assert resolve_live_model("gemini-2.5-flash-native-audio-latest") == LIVE_DEFAULT_MODEL
     assert resolve_text_brain_model("gemini-2.5-pro") == "gemini-3.6-flash"
     assert resolve_transcription_model("gemini-2.0-flash") == TRANSCRIPTION_DEFAULT_MODEL
@@ -68,11 +74,21 @@ def assert_model_contract() -> None:
     assert "input_audio_transcription" not in live_config
     assert live_config["response_modalities"] == ["AUDIO"]
 
+    music_client = create_gemini_client("test-key", api_version=MUSIC_API_VERSION)
+    try:
+        options = music_client._api_client._http_options
+        assert options.api_version == MUSIC_API_VERSION
+        assert options.timeout == TimeoutConfig.CLIENT_TIMEOUT_MS
+        assert type(music_client.aio.live.music).__name__ == "AsyncLiveMusic"
+    finally:
+        music_client.close()
+
 
 def assert_source_contract() -> None:
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
-    assert "google-genai==2.13.0" in requirements
+    assert "google-genai==2.17.0" in requirements
     assert "google-generativeai" not in requirements
+    assert importlib.metadata.version("google-genai") == "2.17.0"
 
     session_loop = (
         INTERACTIONS
@@ -87,8 +103,8 @@ def assert_source_contract() -> None:
         INTERACTIONS / "main_server_files/websocket_server/gemini_session_handler.py"
     ).read_text(encoding="utf-8")
     assert 'session_role == "sonic_forge"' in handler
-    assert "execute_sonic_forge_session" in handler
-    assert "api_version=MUSIC_API_VERSION" in handler
+    assert "music_api_versions()" in handler
+    assert "execute_sonic_forge_with_fallback" in handler
 
     gemini_config = (
         INTERACTIONS / "main_server_files/api_configuration/gemini_config.py"

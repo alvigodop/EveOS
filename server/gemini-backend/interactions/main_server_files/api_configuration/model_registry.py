@@ -14,7 +14,8 @@ LIVE_DEFAULT_MODEL = "gemini-3.1-flash-live-preview"
 TEXT_BRAIN_DEFAULT_MODEL = "gemini-3.5-flash-lite"
 TRANSCRIPTION_DEFAULT_MODEL = "gemini-3.6-flash"
 MUSIC_DEFAULT_MODEL = "models/lyria-realtime-exp"
-MUSIC_API_VERSION = "v1alpha"
+MUSIC_API_VERSION = "v1beta"
+MUSIC_API_FALLBACK_VERSIONS = ("v1alpha",)
 
 
 LIVE_MODELS = {
@@ -159,10 +160,19 @@ def model_options(kind: str) -> tuple[str, ...]:
     return tuple(_REGISTRIES[kind].keys())
 
 
+def music_api_versions() -> tuple[str, ...]:
+    """Return the bounded primary-to-compatibility Lyria API contract."""
+    return tuple(dict.fromkeys((MUSIC_API_VERSION, *MUSIC_API_FALLBACK_VERSIONS)))
+
+
 def public_registry() -> dict:
     """Serializable registry shape used by diagnostics and parity smokes."""
     return {
         "defaults": dict(_DEFAULTS),
+        "api_versions": {
+            "music": MUSIC_API_VERSION,
+            "music_fallbacks": list(MUSIC_API_FALLBACK_VERSIONS),
+        },
         "models": deepcopy(_REGISTRIES),
         "migrations": deepcopy(LEGACY_MODEL_MIGRATIONS),
     }

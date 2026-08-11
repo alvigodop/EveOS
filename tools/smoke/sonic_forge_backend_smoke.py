@@ -12,13 +12,18 @@ ROOT = Path(__file__).resolve().parents[2]
 INTERACTIONS = ROOT / "server" / "gemini-backend" / "interactions"
 sys.path.insert(0, str(INTERACTIONS))
 
-from main_server_files.api_configuration.model_registry import MUSIC_DEFAULT_MODEL  # noqa: E402
+from main_server_files.api_configuration.model_registry import (  # noqa: E402
+    MUSIC_DEFAULT_MODEL,
+    music_api_versions,
+)
 from main_server_files.websocket_server.session_handler.sonic_forge_session import (  # noqa: E402
     _commands,
     _config,
     _prompts,
     _responses,
     execute_sonic_forge_session,
+    execute_sonic_forge_with_fallback,
+    is_music_api_endpoint_unavailable,
 )
 
 
@@ -90,10 +95,13 @@ class FakeMonitor:
 
 
 class FakeMusicContext:
-    def __init__(self, session):
+    def __init__(self, session, error=None):
         self.session = session
+        self.error = error
 
     async def __aenter__(self):
+        if self.error:
+            raise self.error
         return self.session
 
     async def __aexit__(self, *_args):
@@ -101,13 +109,33 @@ class FakeMusicContext:
 
 
 class FakeMusicConnector:
-    def __init__(self, session):
+    def __init__(self, session, error=None):
         self.session = session
+        self.error = error
         self.model = None
 
     def connect(self, model):
         self.model = model
-        return FakeMusicContext(self.session)
+        return FakeMusicContext(self.session, self.error)
+
+
+class FakeAsyncClient:
+    def __init__(self, session, error=None):
+        self.closed = False
+        self.live = type("Live", (), {})()
+        self.live.music = FakeMusicConnector(session, error)
+
+    async def aclose(self):
+        self.closed = True
+
+
+class FakeMusicClient:
+    def __init__(self, session, error=None):
+        self.closed = False
+        self.aio = FakeAsyncClient(session, error)
+
+    def close(self):
+        self.closed = True
 
 
 async def main() -> None:
@@ -167,6 +195,74 @@ async def main() -> None:
     assert_true(connector.model == MUSIC_DEFAULT_MODEL, "unknown music models resolve safely")
     assert_true(ready_monitor.sent[0]["type"] == "sonic_forge_ready",
                 "the relay announces readiness only after its music context opens")
+
+    assert_true(
+        is_music_api_endpoint_unavailable(
+            RuntimeError("server rejected WebSocket connection: HTTP 404")
+        ),
+        "a missing API-version endpoint is eligible for compatibility fallback",
+    )
+    assert_true(
+        not is_music_api_endpoint_unavailable(
+            RuntimeError("received 1008: API key not valid")
+        ),
+        "credential failures never activate API-version fallback",
+    )
+
+    versions_created = []
+    fallback_clients = []
+
+    def fallback_factory(api_version):
+        versions_created.append(api_version)
+        error = (
+            RuntimeError("server rejected WebSocket connection: HTTP 404")
+            if api_version == "v1beta"
+            else None
+        )
+        client = FakeMusicClient(FakeMusicSession(response=False), error)
+        fallback_clients.append(client)
+        return client
+
+    fallback_monitor = FakeMonitor()
+    selected_version = await execute_sonic_forge_with_fallback(
+        FakeWebSocket([json.dumps({"type": "sonic_forge_command", "action": "close"})]),
+        fallback_monitor,
+        MUSIC_DEFAULT_MODEL,
+        music_api_versions(),
+        fallback_factory,
+    )
+    assert_true(versions_created == ["v1beta", "v1alpha"],
+                "backend fallback is ordered and bounded to one compatibility attempt")
+    assert_true(selected_version == "v1alpha",
+                "backend reports the endpoint that actually opened")
+    assert_true(all(client.closed for client in fallback_clients),
+                "every fallback synchronous client is deterministically closed")
+    assert_true(all(client.aio.closed for client in fallback_clients),
+                "every fallback async client is deterministically closed")
+    assert_true(fallback_monitor.sent[0].get("apiVersion") == "v1alpha",
+                "ready telemetry exposes the selected compatibility endpoint")
+
+    blocked_versions = []
+
+    def blocked_factory(api_version):
+        blocked_versions.append(api_version)
+        return FakeMusicClient(
+            FakeMusicSession(response=False),
+            RuntimeError("received 1008: API key not valid"),
+        )
+
+    blocked_monitor = FakeMonitor()
+    blocked_result = await execute_sonic_forge_with_fallback(
+        FakeWebSocket([]),
+        blocked_monitor,
+        MUSIC_DEFAULT_MODEL,
+        music_api_versions(),
+        blocked_factory,
+    )
+    assert_true(blocked_result == "" and blocked_versions == ["v1beta"],
+                "backend does not retry invalid credentials against another endpoint")
+    assert_true(blocked_monitor.sent[-1]["type"] == "sonic_forge_error",
+                "a final bounded failure reaches the browser once")
 
     print("SONIC_FORGE_BACKEND_SMOKE_OK")
 
