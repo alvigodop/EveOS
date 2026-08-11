@@ -63,9 +63,19 @@ async function main() {
             out.skipAtTolerance = B.shouldSkipRealtime();
             out.quietWindowMs = B.getQuietUntil() - Date.now();
 
+            // After the first quiet window, one failed recovery probe should re-arm a longer
+            // window instead of opening another three-request burst against a known-dead bridge.
+            const firstQuietUntil = B.getQuietUntil();
+            const recoveryProbeAt = firstQuietUntil + 1;
+            out.skipAfterQuietExpires = B.shouldSkipRealtime(recoveryProbeAt);
+            B.noteRealtimeResult(false, recoveryProbeAt);
+            out.skipAfterFailedRecoveryProbe = B.shouldSkipRealtime(recoveryProbeAt);
+            out.recoveryQuietWindowMs = B.getQuietUntil() - recoveryProbeAt;
+            out.outageLevelAfterRecoveryFailure = B.getOutageLevel();
+
             // A success while quiet clears it immediately: a recovered bridge is not shunned.
-            B.noteRealtimeResult(true);
-            out.skipAfterSuccess = B.shouldSkipRealtime();
+            B.noteRealtimeResult(true, recoveryProbeAt + 1);
+            out.skipAfterSuccess = B.shouldSkipRealtime(recoveryProbeAt + 1);
 
             // And a single failure after recovery does NOT re-arm instantly.
             B.noteRealtimeResult(false);
@@ -85,6 +95,14 @@ async function main() {
             `a sustained failure streak goes quiet (tolerance ${result.tolerance})`);
         assert(result.quietWindowMs > 0 && result.quietWindowMs <= 10000,
             `the quiet window is short enough to notice recovery (got ${result.quietWindowMs}ms)`);
+        assert(result.skipAfterQuietExpires === false,
+            'one recovery probe is allowed after the quiet window expires');
+        assert(result.skipAfterFailedRecoveryProbe === true
+                && result.outageLevelAfterRecoveryFailure === 2,
+            'a failed recovery probe re-arms backoff without another request burst');
+        assert(result.recoveryQuietWindowMs > result.quietWindowMs
+                && result.recoveryQuietWindowMs <= result.quietWindowMs * 2 + 50,
+            `repeated outage windows escalate in a bounded way (got ${result.recoveryQuietWindowMs}ms)`);
 
         assert(result.skipAfterSuccess === false,
             'a success clears the quiet window at once rather than leaving the bridge shunned');

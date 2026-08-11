@@ -22,41 +22,62 @@ window.EveAudioflixNativeBackoff = window.EveAudioflixNativeBackoff || {};
     // that a dead bridge stops gating playback within ~120ms of audio.
     const FAIL_TOLERANCE = 3;
     const QUIET_MS = 3000;
+    const MAX_QUIET_MS = 30000;
 
     let failStreak = 0;
     let quietUntil = 0;
+    let outageLevel = 0;
 
-    function shouldSkipRealtime() {
-        return Date.now() < quietUntil;
+    function shouldSkipRealtime(now = Date.now()) {
+        return now < quietUntil;
     }
 
-    function noteRealtimeResult(ok) {
+    function armQuietWindow(now) {
+        outageLevel += 1;
+        const multiplier = Math.pow(2, Math.max(0, outageLevel - 1));
+        quietUntil = now + Math.min(MAX_QUIET_MS, QUIET_MS * multiplier);
+        failStreak = 0;
+    }
+
+    function noteRealtimeResult(ok, now = Date.now()) {
         if (ok) {
             failStreak = 0;
             quietUntil = 0;
+            outageLevel = 0;
             return;
         }
+
+        if (now < quietUntil) return;
+
+        // Once an outage has opened a quiet window, its first failed recovery probe is enough to
+        // re-arm a longer window. Requiring the initial three-failure tolerance every time caused
+        // recurring request bursts against a server that was already known to be unavailable.
+        if (outageLevel > 0) {
+            armQuietWindow(now);
+            return;
+        }
+
         failStreak += 1;
         if (failStreak >= FAIL_TOLERANCE) {
-            quietUntil = Date.now() + QUIET_MS;
-            // Re-arm rather than latch: after the window one attempt decides again, so a bridge
-            // that recovers is picked up on the next chunk instead of staying shunned.
-            failStreak = 0;
+            armQuietWindow(now);
         }
     }
 
     function reset() {
         failStreak = 0;
         quietUntil = 0;
+        outageLevel = 0;
     }
 
     Object.assign(ns, {
         ready: true,
         FAIL_TOLERANCE,
         QUIET_MS,
+        MAX_QUIET_MS,
         shouldSkipRealtime,
         noteRealtimeResult,
         reset,
-        getQuietUntil: () => quietUntil
+        getQuietUntil: () => quietUntil,
+        getOutageLevel: () => outageLevel
     });
 })();

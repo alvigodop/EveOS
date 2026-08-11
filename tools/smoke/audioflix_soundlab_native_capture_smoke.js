@@ -34,6 +34,8 @@ const assert = (condition, message) => {
             let sourceDisconnects = 0;
             let nodeDisconnects = 0;
             let stopCalls = 0;
+            let sendCalls = 0;
+            let fallbackNode = null;
             const publications = [];
             const source = {
                 connect() { sourceConnects += 1; },
@@ -46,15 +48,22 @@ const assert = (condition, message) => {
             const context = {
                 sampleRate: 48000,
                 destination: makeNode(),
-                createScriptProcessor: () => makeNode({ onaudioprocess: null }),
+                createScriptProcessor: () => {
+                    fallbackNode = makeNode({ onaudioprocess: null });
+                    return fallbackNode;
+                },
                 createGain: () => makeNode({ gain: { value: 1 } })
             };
 
+            window.EveAudioflixSoundLabCodec = {
+                float32ToPcm16Base64: () => 'pcm'
+            };
             window.EveAudioflixNative = {
                 warm: () => {
                     if (warmMode === 'immediate') return Promise.resolve(true);
                     return new Promise((resolve) => { resolveWarm = resolve; });
                 },
+                sendGeminiChunk: async () => { sendCalls += 1; return false; },
                 stopStream: async () => { stopCalls += 1; }
             };
 
@@ -76,6 +85,16 @@ const assert = (condition, message) => {
 
             warmMode = 'immediate';
             const restarted = await capture.start();
+            // Exercise the capture sender directly through the fallback callback. A failed native
+            // send must not be duplicated by this layer; candidate routing/backoff owns retries.
+            const audioEvent = {
+                inputBuffer: {
+                    numberOfChannels: 2,
+                    getChannelData: () => new Float32Array(4096).fill(0.1)
+                }
+            };
+            for (let index = 0; index < 5; index += 1) fallbackNode.onaudioprocess(audioEvent);
+            await new Promise((resolve) => setTimeout(resolve, 0));
             const afterRestart = {
                 active: capture.isActive(),
                 sourceConnects,
@@ -92,6 +111,7 @@ const assert = (condition, message) => {
                 sourceDisconnects,
                 nodeDisconnects,
                 stopCalls,
+                sendCalls,
                 publications
             };
         });
@@ -110,6 +130,8 @@ const assert = (condition, message) => {
                 && result.afterRestart.publications.at(-1)?.nativeProcessedRoute === true,
             'native capture can start cleanly after a cancelled warmup'
         );
+        assert(result.sendCalls === 5,
+            'each queued PCM block is attempted once; the capture layer does not duplicate failed sends');
         assert(
             result.finalActive === false
                 && result.sourceDisconnects === 1

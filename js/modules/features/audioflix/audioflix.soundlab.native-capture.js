@@ -75,16 +75,10 @@ window.EveAudioflixSoundLabNativeCapture = window.EveAudioflixSoundLabNativeCapt
         async function send(block) {
             const payload = window.EveAudioflixSoundLabCodec?.float32ToPcm16Base64?.(block, 1);
             if (!payload) return false;
-            let ok = await window.EveAudioflixNative?.sendGeminiChunk?.(payload, {
+            const ok = await window.EveAudioflixNative?.sendGeminiChunk?.(payload, {
                 sampleRate: context.sampleRate,
                 channels: CHANNELS
             });
-            if (ok !== true) {
-                ok = await window.EveAudioflixNative?.sendGeminiChunk?.(payload, {
-                    sampleRate: context.sampleRate,
-                    channels: CHANNELS
-                });
-            }
             if (ok) sent += 1;
             return ok === true;
         }

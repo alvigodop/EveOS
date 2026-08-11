@@ -20,14 +20,24 @@ const messagingLogScripts = [
     `${MESSAGING_LOG_BASE_PATH}/message_counting/messageCounter.js`
 ];
 
+let messagingLogScriptsSettled = 0;
+let messagingLogInitialized = false;
+
+function settleMessagingLogScript(scriptPath, loaded) {
+    messagingLogScriptsSettled += 1;
+    if (!loaded) console.error(`Messaging Log dependency failed to load: ${scriptPath}`);
+    if (messagingLogScriptsSettled === messagingLogScripts.length) initializeMessagingLogModule();
+}
+
 // Load all Messaging Log scripts
 function loadMessagingLogScripts() {
     const fragment = document.createDocumentFragment();
     messagingLogScripts.forEach(scriptPath => {
         const script = document.createElement('script');
         script.src = scriptPath;
-        script.defer = true;
-        script.onload = initializeMessagingLogModule;
+        script.async = false;
+        script.onload = () => settleMessagingLogScript(scriptPath, true);
+        script.onerror = () => settleMessagingLogScript(scriptPath, false);
         fragment.appendChild(script);
     });
     document.head.appendChild(fragment);
@@ -35,6 +45,13 @@ function loadMessagingLogScripts() {
 
 // Initialize Messaging Log functionality after scripts load
 function initializeMessagingLogModule() {
+    if (messagingLogInitialized) return true;
+
+    if (typeof showIncomingMessage !== 'function' || typeof displayMessage !== 'function') {
+        console.error('Messaging Log could not initialize because required handlers are unavailable.');
+        return false;
+    }
+
     console.log("Initializing Messaging Log module...");
 
     // Ensure the global namespace exists
@@ -57,11 +74,11 @@ function initializeMessagingLogModule() {
         console.log("messageCounter linked to MessagingLog namespace.");
     }
 
+    messagingLogInitialized = true;
+    window.MessagingLog.initialized = true;
     console.log("Messaging Log module initialized");
+    return true;
 }
 
 // Load scripts
 loadMessagingLogScripts();
-
-// Initialize after a short delay to ensure scripts are loaded
-setTimeout(initializeMessagingLogModule, 500); 
