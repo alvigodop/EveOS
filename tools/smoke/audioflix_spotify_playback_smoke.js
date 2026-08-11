@@ -22,7 +22,8 @@ const assert = (condition, message) => {
 
 (async () => {
     const uiActions = fs.readFileSync(UI_ACTIONS, 'utf8');
-    assert(uiActions.includes('EveAudioflixAudio?.playItem?.(item)'), 'regular card play uses the shared Audioflix controller');
+    assert(/EveAudioflixAudio\?\.playItem\?\.\(\{\s*\.\.\.item,\s*type:\s*type\s*\|\|\s*item\.type\s*\}\)/.test(uiActions),
+        'regular card play uses the shared Audioflix controller with its UI media type');
     assert(uiActions.includes('EveAudioflixAudio?.playItem?.(first)'), 'frontend group play uses the shared Audioflix controller');
     const fixture = path.join(os.tmpdir(), `eveos-spotify-playback-${process.pid}.html`);
     const scripts = [

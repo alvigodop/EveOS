@@ -82,7 +82,7 @@ def play_media(payload: dict, np_module, enqueue, project_root: Path) -> dict:
     if path.suffix.lower() != ".wav":
         raise RuntimeError("Native Audioflix clips support WAV today; this item will use browser playback.")
     sample_rate, samples = _mono_wav_samples(path, np_module)
-    result = enqueue(str(payload.get("deviceId") or ""), sample_rate, samples, "media")
+    result = enqueue(str(payload.get("deviceId") or ""), sample_rate, samples, "media", str(payload.get("itemId") or payload.get("url") or path))
     result["path"] = str(path)
     result["title"] = str(payload.get("title") or path.name)
     return result

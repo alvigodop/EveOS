@@ -267,14 +267,13 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         return payload?.ok === true;
     }
 
-    async function clearVoices(voiceId) {
-        if (isBridgeOffline()) return true;
-        const current = state();
-        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
+    async function clearVoices(voiceId, options = {}) {
+        const current = state(), allDevices = options.allDevices === true || (!!voiceId && options.allDevices !== false);
+        if ((current.nativeBridgeEnabled !== true || !current.nativeOutputId) && !allDevices) return false;
         const payload = await fetchJson('/api/audioflix/clear-voices', {
             method: 'POST',
-            body: JSON.stringify({ deviceId: current.nativeOutputId, sampleRate: 24000, voiceId: voiceId || null }),
-            timeout: DEFAULT_TIMEOUT_MS
+            body: JSON.stringify({ deviceId: current.nativeOutputId || '', sampleRate: 24000, voiceId: voiceId || null, allDevices }),
+            timeout: DEFAULT_TIMEOUT_MS, probe: true
         }).catch(() => null);
         return payload?.ok === true;
     }
@@ -282,14 +281,13 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     // Stop ONLY the live Gemini streaming lane (play-pcm) — leaves soundboard voices untouched.
     // Used by the audio player's pause/stop so silencing a Gemini reply over CABLE can't wipe
     // soundboard sounds mixing on the same output.
-    async function stopStream() {
-        if (isBridgeOffline()) return true;
-        const current = state();
-        if (current.nativeBridgeEnabled !== true || !current.nativeOutputId) return false;
+    async function stopStream(options = {}) {
+        const current = state(), allDevices = options.allDevices === true;
+        if ((current.nativeBridgeEnabled !== true || !current.nativeOutputId) && !allDevices) return false;
         const payload = await fetchJson('/api/audioflix/stop-stream', {
             method: 'POST',
-            body: JSON.stringify({ deviceId: current.nativeOutputId, sampleRate: 24000 }),
-            timeout: DEFAULT_TIMEOUT_MS
+            body: JSON.stringify({ deviceId: current.nativeOutputId || '', sampleRate: 24000, allDevices, itemId: options.itemId || null }),
+            timeout: DEFAULT_TIMEOUT_MS, probe: true
         }).catch(() => null);
         return payload?.ok === true;
     }
@@ -319,6 +317,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
             method: 'POST',
             body: JSON.stringify({
                 deviceId: current.nativeOutputId,
+                itemId: safeItem.id || safeItem.url,
                 url: safeItem.url,
                 title: safeItem.title || '',
                 volume: safeItem.volume ?? 1,

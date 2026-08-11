@@ -12,6 +12,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
         const localizeActions = window.EveAudioflixUiActionsLocalize.create(ctx);
         const nexusActions = window.EveAudioflixUiActionsNexus.create(ctx);
         const spotifyActions = window.EveAudioflixSpotifyUi.createActions(ctx);
+        const stopItemPlayback = (id) => Promise.allSettled([window.EveAudioflixAudio?.stopItemLayers?.(id), window.EveAudioflixNative?.clearVoices?.(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id)]);
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
             if (action?.startsWith('soundlab-')) {
@@ -22,15 +23,14 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             const item = id ? (ctx.findItem(type, id) || ctx.portedSounds.find(s => s.id === id)) : null;
             if (action === 'stop-item') {
                 ctx.stopRepeater(id);
-                await window.EveAudioflixNative?.clearVoices?.('hk:' + id);
-                return window.EveAudioflixAudio?.stopItemLayers?.(id);
+                return stopItemPlayback(id).then(() => true);
             }
             if (action === 'toggle-repeater') {
                 if (ctx.activeRepeaters[id]) ctx.stopRepeater(id);
                 else ctx.startRepeater(item, Math.max(100, parseFloat(document.getElementById('audioflix-rep-interval')?.value || 1.0) * 1000), parseInt(document.getElementById('audioflix-rep-count')?.value || 0, 10));
                 return;
             }
-            if (action === 'layer-play') return item && window.EveAudioflixAudio?.layerPlay?.(item);
+            if (action === 'layer-play') return item && window.EveAudioflixAudio?.layerPlay?.({ ...item, type: type || item.type });
             if (action === 'internal-view') { if (item) try { await window.EveAudioflixAudio?.openInternalView?.(item); } catch (err) { ctx.playbackStatus = err.message || 'Internal player failed'; ctx.rerender(); } return; }
             if (action === 'item-info') {
                 // Modal-only swap: nothing outside the settings panel changes, so do not rebuild
@@ -374,7 +374,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 return;
             }
             if (action === 'pause') { window.EveAudioflixAudio?.pause?.(); return; }
-            if (action === 'play') { if (item) try { await window.EveAudioflixAudio?.playItem?.(item); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; ctx.rerender(); } return; }
+            if (action === 'play') { if (item) try { ctx.stopRepeater(id); await stopItemPlayback(id); await window.EveAudioflixAudio?.playItem?.({ ...item, type: type || item.type }); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; ctx.rerender(); } return; }
             if (action === 'remove') { window.EveAudioflixState?.removeItem?.(type, id); ctx.rerender(); return; }
             if (action === 'select-output') { try { await window.EveAudioflixAudio?.selectOutput?.(); } catch (err) { ctx.playbackStatus = err.message || 'Output selection failed'; } ctx.rerender(); return; }
             if (action === 'unlock-output-names') {

@@ -88,7 +88,7 @@ class _PcmPlayer:
         self.q, self.pending, self.closed, self.last_used = queue.Queue(maxsize=4096), None, False, time.monotonic()
         # Set by clear_stream() (any thread); honored + reset inside the audio callback so we can
         # drop the in-flight chunk without racing the callback's slicing of self.pending.
-        self.flush_pending = False
+        self.flush_pending, self.stream_id = False, None
         # One-shot "voices" (soundboard layers) are mixed together in the callback so
         # multiple/overlapping presses sum cleanly instead of fighting over one FIFO
         # queue (which interleaved chunks and sounded choppy).
@@ -182,12 +182,14 @@ class _PcmPlayer:
             self.voices = [] if vid is None else [v for v in self.voices if v.get("vid") != vid]
             return before - len(self.voices)
 
-    def clear_stream(self) -> int:
+    def clear_stream(self, expected_id=None) -> int:
         """Stop the live streaming lane (the Gemini play-pcm channel). Drains the FIFO from this
         thread and flags the callback to drop the in-flight chunk on its next tick. The voices
         mixer is a separate lane (clear_voices) and is left alone. This is the piece that actually
         silences a Gemini reply playing out over CABLE — clear_voices never touched this queue,
         which is why pausing only flipped the icon while the sound kept draining."""
+        if expected_id is not None and self.stream_id != expected_id:
+            return 0
         dropped = 0
         while True:
             try:
@@ -195,11 +197,12 @@ class _PcmPlayer:
                 dropped += 1
             except queue.Empty:
                 break
-        self.flush_pending = True
+        self.flush_pending, self.stream_id = True, None
         return dropped
 
-    def enqueue(self, samples) -> None:
+    def enqueue(self, samples, stream_id=None) -> None:
         self.last_used = time.monotonic()
+        self.stream_id = stream_id
         samples = _resample_mono(samples, self.source_rate, self.sample_rate)
         try:
             self.q.put_nowait(samples)
@@ -259,7 +262,7 @@ def _player_for(device_id: str, sample_rate: int, channels: int) -> _PcmPlayer:
         return player
 
 
-def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str) -> dict:
+def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str, stream_id=None) -> dict:
     if sd is None or np is None:
         raise RuntimeError("Native playback requires the optional sounddevice and numpy packages.")
     if not device_id:
@@ -278,7 +281,7 @@ def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str) -> dict:
             raise
         player = _player_for("default", sample_rate, 1)
         used_device, fell_back = "default", True
-    player.enqueue(mono)
+    player.enqueue(mono, stream_id)
     return {
         "ok": True,
         "kind": kind,
@@ -299,7 +302,7 @@ def play_pcm(payload: dict) -> dict:
     channels = max(1, int(payload.get("channels") or 1))
     if channels > 1:
         samples = samples.reshape((-1, channels))[:, 0]
-    return _enqueue_mono(device_id, int(payload.get("sampleRate") or 24000), samples, "pcm")
+    return _enqueue_mono(device_id, int(payload.get("sampleRate") or 24000), samples, "pcm", payload.get("streamId"))
 
 
 def play_tone(payload: dict) -> dict:
@@ -371,10 +374,11 @@ def clear_voices(payload: dict) -> dict:
         return {"ok": False, "message": "Native playback unavailable."}
     device_id = str(payload.get("deviceId") or "")
     vid = payload.get("voiceId")
+    all_devices = payload.get("allDevices") is True
     with _LOCK:
-        players = [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
+        players = list(_PLAYERS.values()) if all_devices else [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
     cleared = sum(p.clear_voices(vid) for p in players)
-    return {"ok": True, "cleared": cleared}
+    return {"ok": True, "cleared": cleared, "allDevices": all_devices}
 
 
 def stop_stream(payload: dict) -> dict:
@@ -385,10 +389,12 @@ def stop_stream(payload: dict) -> dict:
     if sd is None or np is None:
         return {"ok": False, "message": "Native playback unavailable."}
     device_id = str(payload.get("deviceId") or "")
+    all_devices = payload.get("allDevices") is True
     with _LOCK:
-        players = [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
-    dropped = sum(p.clear_stream() for p in players)
-    return {"ok": True, "streamDropped": dropped}
+        players = list(_PLAYERS.values()) if all_devices else [p for k, p in _PLAYERS.items() if k.startswith(device_id + ":")]
+    stream_id = payload.get("itemId")
+    dropped = sum(p.clear_stream(stream_id) for p in players)
+    return {"ok": True, "streamDropped": dropped, "allDevices": all_devices, "itemId": stream_id}
 
 def get_voice_debug() -> dict:
     """Return a lock-safe snapshot without exposing mutable player internals."""

@@ -26,19 +26,15 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             () => waveformController?.getContext?.()
         );
     }
-
     function encodeBufferToBase64(audioBuffer, startAt = 0) {
         return window.EveAudioflixAudioCodec.encodeBufferToBase64(audioBuffer, startAt);
     }
-
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
     }
-
     function dispatch(name, detail) {
         window.dispatchEvent(new CustomEvent(name, { detail }));
     }
-
     urlPlayback = window.EveAudioflixUrlPlayback?.createController?.({
         onPlayback(detail) {
             currentItem = detail.item || currentItem;
@@ -65,7 +61,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         urlPlayback?.setRate?.(safe);
         return safe;
     }
-
     // Native buffered playback (voice + stream lanes) lives in its own module. The native state
     // stays here (getPlaybackState/pause/seek read it directly), reached via this accessor bag.
     const nativeRuntime = {
@@ -79,7 +74,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     };
     const { nativeProgress, finishNative, startNativeBuffer, stopNativePlayback } =
         window.EveAudioflixAudioNative.createController({
-            runtime: nativeRuntime, dispatch, getCurrentItem: () => currentItem, encodeBufferToBase64
+            runtime: nativeRuntime, dispatch, getCurrentItem: () => currentItem, encodeBufferToBase64,
+            playBufferWaveform: (...args) => waveformController?.playBufferWaveform?.(...args),
+            stopWaveform: () => waveformController?.stop?.()
         });
 
     function getPlaybackState() {
@@ -279,7 +276,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
                 currentItem = safeItem;
                 lastStatus = `Native route playing ${safeItem.title || 'audio'} -> ${state().nativeOutputLabel || 'selected output'}`;
                 dispatch('eve:audioflix-playback', { status: lastStatus, item: safeItem, native: true });
-                waveformController?.playBufferWaveform?.(audioBuffer);
                 await startNativeBuffer(audioBuffer, safeItem, 0);
                 nativeFallbackNoticeShown = false;
                 window.EveAudioflixState?.recordPlay?.(safeItem);
@@ -337,11 +333,12 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             const item = urlPlayback?.getPlaybackState?.()?.item;
             return String(item?.id || item?.url || '') === String(id || '') && urlPlayback?.stop?.();
         },
-        stopNativeItem: (id) => window.EveAudioflixNative?.clearVoices?.(id)
+        stopNativeItem: (id) => window.EveAudioflixNative?.stopStream?.({ allDevices: true, itemId: id })
     });
     const layerPlay = layerController.layerPlay;
     async function stopItemLayers(itemId) {
-        const pending = layerController.stopItemLayers(itemId);
+        waveformController?.stop?.();
+        const pending = [...layerController.stopItemLayers(itemId), window.EveAudioflixNative?.stopStream?.({ allDevices: true, itemId: String(itemId || '') })];
         const currentId = String(currentItem?.id || currentItem?.url || '');
         if (currentId && currentId === String(itemId || '')) {
             const stoppedItem = currentItem;
@@ -363,6 +360,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
     async function stopAll() {
         const stoppedItem = currentItem;
         const pending = layerController.stopAll();
+        waveformController?.stop?.();
         musicCapture?.stop();
         if (audio) {
             audio.pause();
@@ -398,7 +396,9 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             const buffer = activeNativeBuffer;
             await stopNativePlayback(true);
             nativePausedAt = next;
-            if (wasPlaying) await startNativeBuffer(buffer, currentItem, next, mode);
+            if (wasPlaying) {
+                await startNativeBuffer(buffer, currentItem, next, mode);
+            }
             else nativeProgress(next, duration, true);
             return true;
         }

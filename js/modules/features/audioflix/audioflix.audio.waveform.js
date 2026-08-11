@@ -13,6 +13,9 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         let outputGain = null;
         let captureNode = null;
         let captureSink = null;
+        let bufferSource = null;
+        let bufferAnalyser = null;
+        let bufferSink = null;
         let onFrames = null;
         let workletModule = null;
         let canvas = null;
@@ -180,15 +183,16 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
         }
 
         function draw() {
-            if (!canvas || !canvasContext || !analyser) {
+            const visualAnalyser = bufferAnalyser || analyser;
+            if (!canvas || !canvasContext || !visualAnalyser) {
                 animationFrame = 0;
                 return;
             }
             fitCanvas();
             const width = canvas.width;
             const height = canvas.height;
-            const data = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteTimeDomainData(data);
+            const data = new Uint8Array(visualAnalyser.frequencyBinCount);
+            visualAnalyser.getByteTimeDomainData(data);
             canvasContext.clearRect(0, 0, width, height);
             const gradient = canvasContext.createLinearGradient(0, 0, width, 0);
             gradient.addColorStop(0, '#00d4ff');
@@ -208,38 +212,74 @@ window.EveAudioflixAudioWaveform = window.EveAudioflixAudioWaveform || {};
             animationFrame = window.requestAnimationFrame(draw);
         }
 
-        function stop() {
+        function stopDrawing() {
             if (animationFrame) window.cancelAnimationFrame(animationFrame);
             animationFrame = 0;
+        }
+
+        function releaseBufferWaveform(expectedSource) {
+            if (expectedSource && bufferSource !== expectedSource) return;
+            const staleSource = bufferSource;
+            bufferSource = null;
+            if (staleSource) {
+                staleSource.onended = null;
+                try { staleSource.stop(); } catch (error) { /* already ended */ }
+                try { staleSource.disconnect(); } catch (error) { /* already detached */ }
+            }
+            if (bufferAnalyser) {
+                try { bufferAnalyser.disconnect(); } catch (error) { /* already detached */ }
+                bufferAnalyser = null;
+            }
+            if (bufferSink) {
+                try { bufferSink.disconnect(); } catch (error) { /* already detached */ }
+                bufferSink = null;
+            }
+        }
+
+        function stop() {
+            stopDrawing();
+            releaseBufferWaveform();
         }
 
         function start() {
             try {
                 ensureGraph();
                 if (context?.state === 'suspended') context.resume();
-                stop();
+                stopDrawing();
                 draw();
             } catch (error) {
                 console.warn('[Audioflix] waveform unavailable for this source:', error);
             }
         }
 
-        function playBufferWaveform(audioBuffer) {
+        function playBufferWaveform(audioBuffer, startAt = 0) {
             if (!audioBuffer) return;
             const ctx = safeGraph();
             if (!ctx || !analyser) return;
             try {
                 if (ctx.state === 'suspended') ctx.resume();
-                const bufferSource = ctx.createBufferSource();
-                bufferSource.buffer = audioBuffer;
-                bufferSource.connect(analyser);
-                bufferSource.onended = () => {
-                    try { bufferSource.disconnect(); } catch (e) {}
-                    if (!activePlayer || activePlayer.paused) stop();
+                releaseBufferWaveform();
+                bufferAnalyser = ctx.createAnalyser();
+                bufferAnalyser.fftSize = analyser.fftSize;
+                bufferSink = ctx.createGain();
+                bufferSink.gain.value = 0;
+                bufferAnalyser.connect(bufferSink);
+                bufferSink.connect(ctx.destination);
+
+                const nextSource = ctx.createBufferSource();
+                bufferSource = nextSource;
+                nextSource.buffer = audioBuffer;
+                nextSource.connect(bufferAnalyser);
+                nextSource.onended = () => {
+                    releaseBufferWaveform(nextSource);
+                    if (!activePlayer || activePlayer.paused) stopDrawing();
                 };
-                bufferSource.start(0);
+                const duration = Math.max(0, Number(audioBuffer.duration || 0));
+                const offset = Math.max(0, Math.min(Number(startAt || 0), Math.max(0, duration - 0.001)));
+                nextSource.start(0, offset);
                 start();
             } catch (e) {
+                releaseBufferWaveform();
                 console.warn('[Audioflix] could not play buffer waveform:', e);
             }
         }

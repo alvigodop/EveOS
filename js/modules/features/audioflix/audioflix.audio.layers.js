@@ -53,7 +53,10 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             if (cancelled()) return false;
 
             if (await deps.tryNativePlayback(safeItem)) {
-                if (!cancelled()) return true;
+                if (!cancelled()) {
+                    activeLayers.set(id, [{ stop: () => deps.stopNativeItem?.(id, safeItem) }]);
+                    return true;
+                }
                 await deps.stopNativeItem?.(id);
                 return false;
             }

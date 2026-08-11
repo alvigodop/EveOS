@@ -66,6 +66,7 @@ window.EveAudioflixAudioNative = window.EveAudioflixAudioNative || {};
                     replace: true
                 });
                 if (accepted !== true) throw new Error('Native bridge unreachable for voice playback');
+                deps.playBufferWaveform?.(buffer, startAt);
                 rt.controller = window.EveAudioflixAudioBridge?.createTimeline?.(timelineOptions) || null;
                 return true;
             }
@@ -93,6 +94,7 @@ window.EveAudioflixAudioNative = window.EveAudioflixAudioNative || {};
         }
 
         async function stopNativePlayback(keepPosition = false) {
+            deps.stopWaveform?.();
             if (!rt.mode) return;
             const mode = rt.mode;
             const controller = rt.controller;
