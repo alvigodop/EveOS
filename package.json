@@ -1,6 +1,6 @@
 {
   "name": "eveos",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Local-first browser workspace and knowledge system",
   "scripts": {

@@ -108,14 +108,14 @@ async function main() {
             '/js/modules/features/api-search/comick.js?v=0.2.7',
             '/js/modules/features/api-search/components/api-manager-utils.js?v=0.4.9',
             '/js/modules/features/api-search/components/api-manager-prefs.js?v=0.4.9',
-            '/js/modules/features/api-search/components/api-manager-providers.js?v=0.5.0',
+            '/js/modules/features/api-search/components/api-manager-providers.js?v=0.6.0',
             '/js/modules/features/api-search/components/api-manager-ui-core.js?v=0.5.1',
             '/js/modules/features/api-search/components/api-manager-ui-unidex.results.js?v=0.1.0',
             '/js/modules/features/api-search/components/api-manager-orchestrator.shared.js?v=0.1.0',
             '/js/modules/features/api-search/components/api-manager-orchestrator.api.js?v=0.1.0',
             '/js/modules/features/api-search/components/api-manager-orchestrator.knowledge.js?v=0.1.0',
             '/js/modules/features/api-search/components/api-manager-orchestrator.run.js?v=0.1.0',
-            '/js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.5.0',
+            '/js/modules/features/api-search/components/api-manager-orchestrator.js?v=0.6.0',
             '/js/modules/features/api-search/index.js?v=0.4.9'
         ];
 

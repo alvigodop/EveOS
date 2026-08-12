@@ -2,10 +2,10 @@
 
 **A local-first workspace for bookmarks, libraries, research, media, and personal knowledge.**
 
-> **Current public milestone: EveOS 0.5**
+> **Current public milestone: EveOS 0.6**
 >
-> The 0.5 release marks EveOS's next stage as a user-controlled knowledge, media, and
-> agent workspace.
+> The 0.6 release brings World Book and its audiobook-style Reader Library into the
+> same user-controlled knowledge, media, and agent workspace.
 
 EveOS turns a large collection of links into a browsable environment of tabs, cards,
 folders, notes, metadata, maps, search views, and media tools. It is designed around a
@@ -15,8 +15,8 @@ Core workspace data can live in files you control instead of existing only insid
 hosted account. Optional online providers and AI tools are available when wanted, but
 they are not the foundation of the archive.
 
-> **Project scale:** around **350,000 lines of first-party code and test automation**
-> across more than 2,200 source and test files.
+> **Project scale:** around **375,000 lines of first-party code and test automation**
+> across more than 2,400 source and test files.
 
 ![EveOS dashboard with a synthetic demo datapack](docs/screenshots/eveos-dashboard.png)
 
@@ -57,7 +57,7 @@ you create are not intentionally locked to one hosted EveOS account.
 | **Matrix Workshop** | A visual workspace with datapack-aware phone, cover-atlas, and navigation tools. |
 | **Audioflix** | Soundboard, music library, playlist imports, local media paths, routing controls, and Spotify-backed playback. |
 | **Sonic Forge** | Shape live generative music with weighted prompts, steering controls, scenes, visualizers, MIDI, and recording tools. |
-| **World Book** | Maintain private structured lore, read live or imported documents aloud, and recover source documents without publishing them to Git. |
+| **World Book & Reader Library** | Maintain private structured lore, navigate connected sources, and hear live files, entries, snapshots, or private imported documents without publishing them to Git. |
 | **Gemini Link** | Optional live conversation, screen observation, scoped EveOS context relay, and data-stream controls. |
 | **Recovery and history** | Datapack exports, modular state, guarded synchronization, and time-oriented inspection tools. |
 
@@ -77,6 +77,15 @@ datapack from the Unidex layer.
 
 Audioflix combines saved sounds and music with routed playback. Sonic Forge adds a live
 generative-audio workbench while reusing credentials managed by Gemini Link.
+
+### Build a private world, then listen to it
+
+![World Book Reader Library with a synthetic local-first document](docs/screenshots/eveos-reader-library.png)
+
+World Book remains a self-contained local service managed by EveOS. Reader Library adds
+continuous progress, passage navigation, browser or Gemini narration, private document
+imports, generated-audio cache controls, and recovery-aware source tracking. The
+screenshot uses synthetic text and contains no private World Book or datapack content.
 
 ## Getting Started
 
@@ -156,6 +165,7 @@ server/                Local HTTP runtime and Gemini backend
 server_modules/        Backend helpers and service boundaries
 tools/smoke/           Focused browser and runtime regression coverage
 tools/audit/           Repository integrity and safety checks
+tools/World-Book/      Self-contained lore workspace and Reader Library service
 docs/                  Technical documentation and public screenshots
 ```
 
@@ -165,13 +175,14 @@ dashboard are split into dedicated module families rather than one monolithic sc
 
 ## Project Size
 
-The "around 350,000 lines" figure is a physical line count of first-party JavaScript,
+The "around 375,000 lines" figure is a physical line count of first-party JavaScript,
 CSS, HTML, Python, PowerShell, and batch files:
 
-- **354,160 physical lines**
-- **2,296 first-party source and test files**
-- about **287,800 runtime-code lines**
-- about **57,600 smoke-test lines**
+- **378,116 physical lines**
+- **2,433 first-party source and test files**
+- about **291,200 core runtime-code lines**
+- about **62,200 smoke-test lines**
+- about **15,500 World Book and Reader Library lines**
 
 The count excludes generated datapacks, dependencies, build output, coverage output,
 Playwright artifacts, and third-party or vendor bundles. It is a snapshot, not a
@@ -193,7 +204,7 @@ If you are evaluating or modifying it:
 ## A Passion Project
 
 EveOS is a passion project. It is not a product, a startup, or anything with a roadmap
-promised to anyone — it is built because building it is the point.
+promised to anyone - it is built because building it is the point.
 
 That shapes the whole repository. Features exist because they were interesting or
 genuinely useful to their author, not because they tested well. Some corners are polished
