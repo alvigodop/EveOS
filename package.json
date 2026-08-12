@@ -6,6 +6,7 @@
   "scripts": {
     "test": "npm run verify",
     "build:audioflix-genai": "esbuild tools/bundles/audioflix-genai.entry.mjs --bundle --format=iife --platform=browser --target=es2020 --minify --outfile=js/vendor/audioflix-genai.js",
+    "docs:capture-dashboard": "node tools/docs/capture-readme-dashboard.js",
     "audit": "node tools/audit/eveos-repo-audit.js",
     "audit:smoke-registry": "node tools/audit/smoke-registry-audit.js",
     "audit:python": "python -m compileall -q server server_modules tools",
