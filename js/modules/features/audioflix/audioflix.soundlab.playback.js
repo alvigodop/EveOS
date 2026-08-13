@@ -22,7 +22,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
     const MAX_REBUFFER_SECONDS = 6;
     const INITIAL_START_DELAY_SECONDS = 0.35;
     const RECOVERY_START_DELAY_SECONDS = 0.18;
-    const SCHEDULE_LEAD_SECONDS = 0.12;
+    const MIN_CONTINUATION_LEAD_SECONDS = 0.015;
     const SCHEDULE_WINDOW_SECONDS = 8;
     const STATUS_INTERVAL_SECONDS = 0.25;
 
@@ -48,6 +48,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
         let lastNoticeAt = 0;
         let lastNoticeKey = '';
         let queueGeneration = 0;
+        let sessionCache = null;
 
         const getContext = () => options.context?.() || null;
         const getOutput = () => options.output?.() || null;
@@ -75,6 +76,19 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             return Number.isFinite(precise) ? precise / 1000 : Date.now() / 1000;
         };
 
+        function ensureSessionCache() {
+            if (sessionCache || !window.EveAudioflixSoundLabSessionCache?.create) return sessionCache;
+            sessionCache = window.EveAudioflixSoundLabSessionCache.create({
+                context: getContext,
+                output: getOutput,
+                onExhausted: (generation) => {
+                    if (generation !== queueGeneration) return;
+                    if (!pending.length && !sources.size && isPlaying()) openUnderrun();
+                }
+            });
+            return sessionCache;
+        }
+
         function notify(patch, force = false) {
             const timestamp = now();
             const key = `${patch?.buffering === true}:${String(patch?.message || '')}`;
@@ -95,6 +109,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
 
         function timeline() {
             const live = startedAt ? Math.max(0, now() - startedAt) : 0;
+            const cache = sessionCache?.metrics?.() || {};
             return {
                 elapsedSeconds: elapsedSeconds + live,
                 generatedSeconds,
@@ -105,7 +120,9 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 lowWaterSeconds: Number.isFinite(lowWaterSeconds) ? lowWaterSeconds : 0,
                 highWaterSeconds,
                 rebufferTargetSeconds: requiredBufferSeconds(),
-                targetBufferSeconds: targetSeconds()
+                targetBufferSeconds: targetSeconds(),
+                sessionCacheBytes: Number(cache.bytes || 0),
+                sessionCacheBridges: Number(cache.bridges || 0)
             };
         }
 
@@ -228,7 +245,17 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             while (pending.length && nextStartTime < context.currentTime + SCHEDULE_WINDOW_SECONDS) {
                 const buffer = pending.shift();
                 const source = context.createBufferSource();
-                const start = Math.max(nextStartTime, context.currentTime + SCHEDULE_LEAD_SECONDS);
+                const cache = ensureSessionCache();
+                const handoff = cache?.prepareHandoff?.(nextStartTime);
+                if (handoff?.exhausted) {
+                    pending.unshift(buffer);
+                    openUnderrun();
+                    return false;
+                }
+                const fallbackStart = nextStartTime > context.currentTime
+                    ? nextStartTime
+                    : context.currentTime + MIN_CONTINUATION_LEAD_SECONDS;
+                const start = Number(handoff?.startAt) || fallbackStart;
                 const sourceGeneration = queueGeneration;
                 source.buffer = buffer;
                 source.connect(output);
@@ -238,13 +265,18 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                     if (sourceGeneration !== queueGeneration) return;
                     updateWatermarks();
                     if (pending.length) schedule();
-                    if (!pending.length && !sources.size && isPlaying()) {
+                    if (!pending.length && !sources.size && isPlaying()
+                        && !sessionCache?.isCovering?.()) {
                         openUnderrun();
                     }
                 };
                 sources.add(source);
                 source.start(start);
                 nextStartTime = start + buffer.duration;
+                cache?.remember?.(buffer);
+            }
+            if (!pending.length && sources.size) {
+                ensureSessionCache()?.arm?.(nextStartTime, queueGeneration);
             }
             const buffered = updateWatermarks();
             notify({
@@ -272,6 +304,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
 
         function clear() {
             queueGeneration += 1;
+            sessionCache?.clear?.();
             sources.forEach((source) => {
                 try { source.stop(); } catch {}
             });
@@ -309,6 +342,9 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             },
             timeline,
             metrics: () => ({
+                sessionCache: sessionCache?.metrics?.() || {
+                    mode: 'memory-tail', bytes: 0, tailSeconds: 0, bridges: 0, bridgedSeconds: 0
+                },
                 jitterMs: jitterMs(),
                 underruns,
                 lowWaterSeconds: Number.isFinite(lowWaterSeconds) ? lowWaterSeconds : 0,

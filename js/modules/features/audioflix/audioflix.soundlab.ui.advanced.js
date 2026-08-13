@@ -180,6 +180,8 @@ window.EveAudioflixSoundLabUiAdvanced = window.EveAudioflixSoundLabUiAdvanced ||
             <div class="sonic-forge-metric-grid" data-sf-diagnostics>
                 <span><b data-sf-metric="jitter">${Number(playback.jitterMs || 0).toFixed(0)} ms</b><small>arrival jitter</small></span>
                 <span><b data-sf-metric="underruns">${Number(playback.underruns || 0)}</b><small>underruns</small></span>
+                <span><b data-sf-metric="cache">${Number(playback.sessionCache?.bytes || 0) ? `${Math.round(playback.sessionCache.bytes / 1024)} KB` : 'Ready'}</b><small>session tail cache</small></span>
+                <span><b data-sf-metric="bridges">${Number(playback.sessionCache?.bridges || 0)}</b><small>micro-gaps covered</small></span>
                 <span><b data-sf-metric="native">${Number(native.queuedMs || 0).toFixed(0)} ms</b><small>native queue</small></span>
                 <span><b data-sf-metric="drops">${Number(native.dropped || 0)}</b><small>route drops</small></span>
             </div>

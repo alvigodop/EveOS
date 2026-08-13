@@ -34,6 +34,7 @@ async function main() {
     const fixture = path.join(os.tmpdir(), `sf-under-${process.pid}.html`);
     fs.writeFileSync(fixture, `<!doctype html><meta charset="utf-8"><body>
         <script>window.__errors=[];addEventListener('error',e=>window.__errors.push(e.message));</script>
+        <script src="${fileUrl(path.join(AUDIOFLIX, 'audioflix.soundlab.session-cache.js'))}"></script>
         <script src="${fileUrl(path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'))}"></script>
     </body>`);
 

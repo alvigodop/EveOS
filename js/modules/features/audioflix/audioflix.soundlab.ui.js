@@ -52,9 +52,12 @@ window.EveAudioflixSoundLabUi = window.EveAudioflixSoundLabUi || {};
         const timeline = window.EveAudioflixSoundLabEngine?.getTimeline?.() || {};
         output.textContent = `${formatTime(timeline.elapsedSeconds)} live / ${formatTime(timeline.generatedSeconds)} generated`;
         const diagnostics = window.EveAudioflixSoundLabEngine?.getDiagnostics?.() || {};
+        const cache = diagnostics.playback?.sessionCache || {};
         const values = {
             jitter: `${Number(diagnostics.playback?.jitterMs || 0).toFixed(0)} ms`,
             underruns: String(Number(diagnostics.playback?.underruns || 0)),
+            cache: Number(cache.bytes || 0) ? `${Math.round(cache.bytes / 1024)} KB` : 'Ready',
+            bridges: String(Number(cache.bridges || 0)),
             native: `${Number(diagnostics.native?.queuedMs || 0).toFixed(0)} ms`,
             drops: String(Number(diagnostics.native?.dropped || 0))
         };

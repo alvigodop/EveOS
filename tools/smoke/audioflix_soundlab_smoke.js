@@ -25,6 +25,7 @@ const fileUrl = (value) => `file:///${value.replace(/\\/g, '/')}`;
         path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),
         path.join(GEMINI_SOCKET, 'geminiApiFailure.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.sdk.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.session-cache.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.effects.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.native-capture.js'),

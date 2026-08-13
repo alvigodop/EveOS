@@ -4,9 +4,18 @@ const ROOT = path.resolve(__dirname, '..', '..');
 let clock = 0;
 global.window = {
     performance: { now: () => clock * 1000 },
-    EveAudioflixSoundLabPlayback: {}
+    EveAudioflixSoundLabPlayback: {},
+    EveAudioflixSoundLabSessionCache: {}
 };
 
+require(path.join(
+    ROOT,
+    'js',
+    'modules',
+    'features',
+    'audioflix',
+    'audioflix.soundlab.session-cache.js'
+));
 require(path.join(
     ROOT,
     'js',
@@ -89,6 +98,16 @@ assert(
     'rebuffer diagnostics expose the adaptive target'
 );
 assert(playback.metrics().rebufferTargetSeconds === 4.5, 'adaptive target remains observable');
+
+const expectedTail = starts.at(-1) + 1;
+context.currentTime = expectedTail - 0.05;
+clock = context.currentTime;
+playback.enqueue(oneSecond());
+assert(starts.length === 9, 'a chunk arriving near the tail is scheduled immediately');
+assert(
+    Math.abs(starts.at(-1) - expectedTail) < 0.0001,
+    'the safety lead cannot insert silence into an otherwise contiguous stream'
+);
 
 playback.stop();
 assert(notices.at(-1)?.buffering === false, 'stop cleanup cannot reopen an underrun');

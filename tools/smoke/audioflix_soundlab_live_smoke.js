@@ -29,6 +29,7 @@ if (!apiKey) {
         path.join(AUDIOFLIX, 'audioflix.soundlab.codec.js'),
         GEMINI_FAILURE,
         path.join(AUDIOFLIX, 'audioflix.soundlab.sdk.js'),
+        path.join(AUDIOFLIX, 'audioflix.soundlab.session-cache.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.steering.js'),
         path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js')

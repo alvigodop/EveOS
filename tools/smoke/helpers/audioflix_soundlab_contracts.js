@@ -35,6 +35,10 @@ function staticContracts() {
     const genConfig = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.config.js'), 'utf8');
     const rendered = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.rendered.js'), 'utf8');
     const playback = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'), 'utf8');
+    const sessionCache = fs.readFileSync(
+        path.join(AUDIOFLIX, 'audioflix.soundlab.session-cache.js'),
+        'utf8'
+    );
     const failureApi = fs.readFileSync(path.join(GEMINI_SOCKET, 'geminiApiFailure.js'), 'utf8');
     const credentials = fs.readFileSync(
         path.join(ROOT, 'js', 'modules', 'gemini', 'server_control', 'geminiCredentialWorkflow.js'),
@@ -53,6 +57,7 @@ function staticContracts() {
         'audioflix.capture.processor.src.js',
         'audioflix.soundlab.sdk.js',
         'audioflix.soundlab.proxy.js',
+        'audioflix.soundlab.session-cache.js',
         'audioflix.soundlab.playback.js',
         'audioflix.soundlab.effects.js',
         'audioflix.soundlab.native-capture.js',
@@ -71,6 +76,11 @@ function staticContracts() {
         'audioflix.soundlab.ui.js',
         'geminiApiFailure.js'
     ].forEach((name) => assert(html.includes(name), `${name} is loaded by EveOS`));
+    assert(
+        html.indexOf('audioflix.soundlab.session-cache.js')
+            < html.indexOf('audioflix.soundlab.playback.js'),
+        'the session cache loads before the Sonic Forge scheduler'
+    );
     // "Auto" must mean the key is ABSENT from the payload, not a number the model then obeys.
     // Asserted at the source level because a wrong default here is silent: the generation would
     // simply keep following a pinned value the UI claims is automatic.
@@ -139,6 +149,13 @@ function staticContracts() {
     );
     assert(!engine.includes('fade.gain.linearRampToValueAtTime'), 'PCM chunks are not faded independently');
     assert(playback.includes('source.connect(output)'), 'Lyria chunks share one continuous playback bus');
+    assert(
+        playback.includes('prepareHandoff?.(nextStartTime)')
+            && playback.includes('arm?.(nextStartTime, queueGeneration)')
+            && sessionCache.includes("mode: 'memory-tail'")
+            && !/(localStorage|sessionStorage|indexedDB)/.test(sessionCache),
+        'Sonic Forge uses a bounded, reload-ephemeral tail cache at the live queue boundary'
+    );
     const browserDecode = engine.match(/pcm16ToAudioBuffer\(context, chunk\.data,[\s\S]*?\n\s*}\);/)?.[0] || '';
     assert(
         browserDecode && !browserDecode.includes('stereoBalance: true'),
