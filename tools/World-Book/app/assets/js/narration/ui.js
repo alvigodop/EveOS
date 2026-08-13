@@ -359,7 +359,17 @@
     const data = event.data;
     if (!WB.NarrationHost?.isHostEvent?.(event) || data?.type !== "eve-world-book-narration-command") return;
     if (data.action === "open-reader") showDialog();
+    if (data.action === "play") {
+      try { controller.play(); } catch (error) { status(error.message || "Choose something to read first.", "warning"); }
+    }
+    if (data.action === "pause") controller.pause();
     if (data.action === "stop") controller.stop();
+    if (data.action === "previous") controller.previous();
+    if (data.action === "next") controller.next();
+    if (data.action === "seek-progress") {
+      const value = Math.max(0, Math.min(1000, Number(data.data?.value) || 0));
+      controller.seekProgress(value, data.data?.autoplay === true);
+    }
     if (data.action === "clear-cache") {
        await controller.clearAudioCache();
       status("Generated narration audio cleared.", "ready");
@@ -371,6 +381,9 @@
     byId("reader-library-btn")?.addEventListener("click", showDialog);
     byId("read-aloud-btn")?.addEventListener("click", loadEditorSelection);
     document.querySelector("[data-reader-close]")?.addEventListener("click", closeDialog);
+    byId("reader-detach-btn")?.addEventListener("click", () => {
+      WB.NarrationHost?.post?.({ type: "eve-world-book-narration-detach" });
+    });
     byId("reader-file-input")?.addEventListener("change", event => {
       const file = event.currentTarget.files?.[0];
       event.currentTarget.value = "";

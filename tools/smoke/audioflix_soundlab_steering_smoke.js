@@ -56,8 +56,11 @@ const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mill
         getSession: () => session,
         getPrompts: () => prompts,
         getConfig: () => config,
+        isPlaying: () => true,
         publish: (status) => errors.push(status),
-        delayMs: 100
+        delayMs: 100,
+        transitionSteps: 2,
+        transitionDurationMs: 20
     });
 
     steering.queue();
@@ -79,21 +82,36 @@ const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, mill
     config = Object.assign({}, config, { brightness: 0.5 });
     steering.queue();
     await wait(170);
-    assert(calls.length === 4, 'a soft control change sends one new snapshot');
+    assert(calls.length === 3, 'a soft control change sends only the full configuration lane');
+    assert(calls.at(-1)[0] === 'config', 'soft controls do not resend unchanged prompts');
 
     config = Object.assign({}, config, { bpm: 104 });
     steering.queue();
     await wait(170);
     assert(
-        calls.slice(-3).map((call) => call[0]).join(',') === 'prompts,config,reset',
-        'BPM changes apply prompts and full config before one hard context reset'
+        calls.slice(-2).map((call) => call[0]).join(',') === 'config,reset',
+        'BPM changes apply the full config before one hard context reset'
     );
 
+    const configCallsBeforePrompt = calls.filter((call) => call[0] === 'config').length;
     prompts = [{ text: 'stable ambient motif with piano', weight: 1 }];
     steering.queue();
-    await wait(170);
-    assert(calls.slice(-2).map((call) => call[0]).join(',') === 'prompts,config',
-        'prompt refinement steers without resetting musical context');
+    await wait(230);
+    const promptRamp = calls.slice(-3);
+    assert(promptRamp.every((call) => call[0] === 'prompts'),
+        'prompt refinement uses intermediate prompt weights without resending config');
+    assert(promptRamp[0][1].weightedPrompts.length === 2,
+        'the transition briefly blends the prior and incoming prompt');
+    const firstIncomingWeight = promptRamp[0][1].weightedPrompts
+        .find((prompt) => prompt.text === 'stable ambient motif with piano')?.weight;
+    assert(firstIncomingWeight > 0.01 && firstIncomingWeight < 1,
+        'a newly added prompt ramps up from the minimum weight instead of arriving at full strength');
+    assert(promptRamp[0][1].weightedPrompts.every((prompt) => prompt.weight !== 0),
+        'intermediate prompt weights never send the forbidden zero value');
+    assert(calls.filter((call) => call[0] === 'config').length === configCallsBeforePrompt,
+        'prompt-only steering leaves the generation configuration untouched');
+    assert(promptRamp.at(-1)[1].weightedPrompts[0].text === 'stable ambient motif with piano',
+        'the ramp finishes on the exact newest prompt snapshot');
     assert(errors.length === 0, 'steering completes without publishing errors');
     console.log('AUDIOFLIX_SOUNDLAB_STEERING_SMOKE_OK');
 })().catch((error) => {

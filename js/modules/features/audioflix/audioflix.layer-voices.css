@@ -1,0 +1,52 @@
+.audioflix-layer-voices {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 3px;
+    max-height: 150px;
+    overflow: auto;
+}
+
+.audioflix-layer-voices:empty,
+.audioflix-layer-voices[data-count="0"] {
+    display: none;
+}
+
+.audioflix-layer-voice {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    min-height: var(--af-layer-height, 22px);
+    padding: 1px 7px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 202, 95, 0.22);
+    border-radius: 7px;
+    background: linear-gradient(90deg,
+        rgba(255, 202, 95, 0.28) 0 var(--af-layer-progress),
+        rgba(255, 255, 255, 0.045) var(--af-layer-progress) 100%);
+    color: rgba(255, 243, 198, 0.82);
+    font-size: clamp(0.5rem, calc(var(--af-layer-height) - 8px), 0.68rem);
+    line-height: 1;
+}
+
+.audioflix-layer-voice span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.audioflix-layer-voice b,
+.audioflix-layer-voice em {
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+}
+
+.audioflix-layer-voice em {
+    color: rgba(0, 212, 255, 0.78);
+}
+
+@media (max-width: 620px) {
+    .audioflix-layer-voice em {
+        display: none;
+    }
+}

@@ -10,12 +10,110 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
         const activeLayers = new Map();
         const itemEpochs = new Map();
         let globalEpoch = 0;
+        let layerSequence = 0;
+        let progressTimer = 0;
 
         const itemId = (item) => String(item?.id || item?.url || '');
         const epoch = (id) => Number(itemEpochs.get(id) || 0);
         const isCancelled = (id, itemEpoch, startEpoch) => (
             epoch(id) !== itemEpoch || globalEpoch !== startEpoch
         );
+        const now = () => Date.now();
+        const durationOf = (record) => {
+            const playerDuration = Number(record?.player?.duration);
+            if (Number.isFinite(playerDuration) && playerDuration > 0) return playerDuration;
+            const knownDuration = Number(record?.duration);
+            return Number.isFinite(knownDuration) && knownDuration > 0 ? knownDuration : 0;
+        };
+        const currentTimeOf = (record, at = now()) => {
+            const playerTime = Number(record?.player?.currentTime);
+            if (Number.isFinite(playerTime) && playerTime >= 0) return playerTime;
+            const elapsed = Math.max(0, (at - Number(record?.startedAt || at)) / 1000);
+            const duration = durationOf(record);
+            return duration ? Math.min(duration, elapsed) : elapsed;
+        };
+        const layerSnapshot = (record, at = now()) => {
+            const duration = durationOf(record);
+            const currentTime = currentTimeOf(record, at);
+            return {
+                id: record.id,
+                sequence: record.sequence,
+                itemId: record.itemId,
+                title: record.title,
+                currentTime,
+                duration,
+                remaining: duration ? Math.max(0, duration - currentTime) : 0,
+                progress: duration ? Math.min(1, currentTime / duration) : 0,
+                native: record.native === true
+            };
+        };
+        const itemSnapshot = (id) => (activeLayers.get(String(id || '')) || [])
+            .map(record => layerSnapshot(record));
+
+        function emit(id) {
+            const detail = { itemId: String(id || ''), voices: itemSnapshot(id) };
+            if (typeof deps.dispatch === 'function') deps.dispatch('eve:audioflix-layer-voices', detail);
+            else if (typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') {
+                window.dispatchEvent(new window.CustomEvent('eve:audioflix-layer-voices', { detail }));
+            }
+            return detail;
+        }
+
+        function stopProgressTimer() {
+            if (progressTimer && typeof window.clearInterval === 'function') window.clearInterval(progressTimer);
+            progressTimer = 0;
+        }
+
+        function removeLayer(id, record) {
+            const layers = activeLayers.get(id);
+            if (!layers) return;
+            const index = layers.indexOf(record);
+            if (index >= 0) layers.splice(index, 1);
+            if (!layers.length) activeLayers.delete(id);
+            emit(id);
+            if (!activeLayers.size) stopProgressTimer();
+        }
+
+        function progressTick() {
+            const at = now();
+            activeLayers.forEach((records, id) => {
+                records.slice().forEach(record => {
+                    const duration = durationOf(record);
+                    if (record.native && duration && currentTimeOf(record, at) >= duration) {
+                        removeLayer(id, record);
+                    }
+                });
+                if (activeLayers.has(id)) emit(id);
+            });
+            if (!activeLayers.size) stopProgressTimer();
+        }
+
+        function ensureProgressTimer() {
+            if (!progressTimer && typeof window.setInterval === 'function') {
+                progressTimer = window.setInterval(progressTick, 180);
+            }
+        }
+
+        function makeRecord(id, item, values = {}) {
+            layerSequence += 1;
+            return {
+                id: `${id}::layer:${layerSequence}`,
+                sequence: layerSequence,
+                itemId: id,
+                title: String(item?.title || 'Layered sound'),
+                startedAt: now(),
+                duration: Number(values.duration ?? item?.duration) || 0,
+                ...values
+            };
+        }
+
+        function addLayer(id, record) {
+            if (!activeLayers.has(id)) activeLayers.set(id, []);
+            activeLayers.get(id).push(record);
+            ensureProgressTimer();
+            emit(id);
+            return record;
+        }
 
         async function cancelStartedUrl(id) {
             try { await deps.stopUrlPlayback?.(id); } catch {}
@@ -54,7 +152,10 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
 
             if (await deps.tryNativePlayback(safeItem)) {
                 if (!cancelled()) {
-                    activeLayers.set(id, [{ stop: () => deps.stopNativeItem?.(id, safeItem) }]);
+                    addLayer(id, makeRecord(id, safeItem, {
+                        native: true,
+                        stop: () => deps.stopNativeItem?.(id, safeItem)
+                    }));
                     return true;
                 }
                 await deps.stopNativeItem?.(id);
@@ -64,19 +165,24 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 try {
                     const buffer = await deps.getDecodedBuffer(safeItem.url);
                     if (cancelled()) return false;
+                    const record = makeRecord(id, safeItem, {
+                        native: true,
+                        duration: Number(buffer.duration) || 0
+                    });
                     const ok = await window.EveAudioflixNative.playVoice(deps.encodeBufferToBase64(buffer), {
                         sampleRate: buffer.sampleRate,
                         channels: 1,
                         volume: safeItem.volume ?? 1,
-                        voiceId: id
+                        voiceId: record.id
                     });
                     if (cancelled()) {
-                        if (ok) await window.EveAudioflixNative?.clearVoices?.(id);
+                        if (ok) await window.EveAudioflixNative?.clearVoices?.(record.id);
                         return false;
                     }
                     if (ok) {
                         window.EveAudioflixAudio?.getWaveformController?.()?.playBufferWaveform?.(buffer);
-                        activeLayers.set(id, [{ stop: () => window.EveAudioflixNative?.clearVoices?.(id) }]);
+                        record.stop = () => window.EveAudioflixNative?.clearVoices?.(record.id);
+                        addLayer(id, record);
                         return true;
                     }
                 } catch (error) {
@@ -92,73 +198,80 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             window.EveAudioflixAudio?.getWaveformController?.()?.attachPlayer?.(player);
             const sinkId = deps.state().preferredSinkId;
             if (sinkId && typeof player.setSinkId === 'function') {
-                try { await player.setSinkId(sinkId); } catch { }
+                try { await player.setSinkId(sinkId); } catch {}
             }
             if (cancelled()) return false;
-            if (!activeLayers.has(id)) activeLayers.set(id, []);
-            activeLayers.get(id).push(player);
-            player.addEventListener('ended', () => removeLayer(id, player));
+            const record = makeRecord(id, safeItem, {
+                player,
+                stop() {
+                    player.pause();
+                    player.currentTime = 0;
+                }
+            });
+            addLayer(id, record);
+            player.addEventListener('loadedmetadata', () => emit(id));
+            player.addEventListener('durationchange', () => emit(id));
+            player.addEventListener('timeupdate', () => emit(id));
+            player.addEventListener('ended', () => removeLayer(id, record));
             try {
                 await player.play();
             } catch (error) {
-                removeLayer(id, player);
+                removeLayer(id, record);
                 throw error;
             }
             if (cancelled()) {
-                stopLayer(player);
-                removeLayer(id, player);
+                stopLayer(record);
+                removeLayer(id, record);
                 return false;
             }
             return true;
         }
 
-        function removeLayer(id, player) {
-            const layers = activeLayers.get(id);
-            if (!layers) return;
-            const index = layers.indexOf(player);
-            if (index >= 0) layers.splice(index, 1);
-            if (!layers.length) activeLayers.delete(id);
-        }
-
         function stopLayer(layer) {
             try {
                 if (typeof layer?.stop === 'function') return layer.stop();
-                layer?.pause?.();
-                if (layer) layer.currentTime = 0;
-            } catch { }
+                layer?.player?.pause?.();
+                if (layer?.player) layer.player.currentTime = 0;
+            } catch {}
             return null;
         }
 
-        function stopItemLayers(itemId) {
-            const id = String(itemId || '');
+        function stopItemLayers(value) {
+            const id = String(value || '');
             itemEpochs.set(id, epoch(id) + 1);
             const layers = activeLayers.get(id) || [];
-            const pending = layers.map(stopLayer).filter((result) => result?.then);
+            const pending = layers.map(stopLayer).filter(result => result?.then);
             activeLayers.delete(id);
+            emit(id);
+            if (!activeLayers.size) stopProgressTimer();
             return pending;
         }
 
         function stopAll() {
             globalEpoch += 1;
             itemEpochs.clear();
+            const ids = [...activeLayers.keys()];
             const pending = [];
-            activeLayers.forEach((layers) => layers.forEach((layer) => {
+            activeLayers.forEach(layers => layers.forEach(layer => {
                 const result = stopLayer(layer);
                 if (result?.then) pending.push(result);
             }));
             activeLayers.clear();
+            stopProgressTimer();
+            ids.forEach(emit);
             return pending;
         }
 
-        function updateVolume(itemId, volume) {
+        function updateVolume(value, volume) {
+            const id = String(value || '');
             const safe = Math.max(0, Math.min(1, Number(volume || 0)));
-            (activeLayers.get(itemId) || []).forEach((layer) => {
-                if (layer && typeof layer.volume !== 'undefined') layer.volume = safe;
+            (activeLayers.get(id) || []).forEach(layer => {
+                if (layer?.player && typeof layer.player.volume !== 'undefined') layer.player.volume = safe;
+                if (layer?.native) window.EveAudioflixNative?.setVoiceVolume?.(layer.id, safe);
             });
-            window.EveAudioflixNative?.setVoiceVolume?.(itemId, safe);
         }
 
-        return { layerPlay, stopItemLayers, stopAll, updateVolume };
+        return { layerPlay, stopItemLayers, stopAll, updateVolume, getSnapshot: itemSnapshot };
     }
 
     Object.assign(ns, { ready: true, createController });

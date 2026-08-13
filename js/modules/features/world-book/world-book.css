@@ -345,6 +345,13 @@
     .notes-world-book-detach-label {
         display: none;
     }
+
+    [data-world-book-reader-controls] {
+        max-width: 92px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 }
 
 @media (max-width: 980px) {
@@ -388,7 +395,8 @@
     }
 
     .notes-world-book-sigil,
-    [data-world-book-server-toggle] {
+    [data-world-book-server-toggle],
+    [data-world-book-reader-controls] {
         display: none;
     }
 

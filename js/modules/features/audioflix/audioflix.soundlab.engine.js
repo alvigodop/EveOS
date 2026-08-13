@@ -1,5 +1,4 @@
 window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
-
 (function () {
     'use strict';
     const ns = window.EveAudioflixSoundLabEngine;
@@ -168,6 +167,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
                 getSession: () => connection?.getSession?.(),
                 getPrompts: weightedPrompts,
                 getConfig: musicConfig,
+                isPlaying: () => status.playing === true,
                 publish
             });
         }

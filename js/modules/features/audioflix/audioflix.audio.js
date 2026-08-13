@@ -326,7 +326,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         setStatus(value) { lastStatus = value; }
     }) || (async () => false);
     const layerController = window.EveAudioflixAudioLayers.createController({
-        state, tryNativePlayback, getDecodedBuffer, encodeBufferToBase64, playUrlItem,
+        state, dispatch, tryNativePlayback, getDecodedBuffer, encodeBufferToBase64, playUrlItem,
         canPlayUrl: (item) => urlPlayback?.canHandle?.(item),
         shouldPreferUrl: (item) => urlPlayback?.shouldPreferBrowser?.(item),
         stopUrlPlayback: (id) => {

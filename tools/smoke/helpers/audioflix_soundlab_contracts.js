@@ -110,9 +110,11 @@ function staticContracts() {
     );
     assert(
         engine.includes('EveAudioflixSoundLabSteering.create')
-            && steering.includes('nextSignature === appliedSignature')
+            && steering.includes('nextPromptSignature !== appliedPromptSignature')
+            && steering.includes('nextConfigSignature !== appliedConfigSignature')
+            && steering.includes('applyPromptTransition')
             && steering.includes('hardTransition(config)'),
-        'Lyria steering is coalesced, deduplicated, and resets only for hard transitions'
+        'Lyria steering is coalesced, lane-deduplicated, smoothly ramped, and resets only for hard transitions'
     );
     assert(
         connection.includes('Promise.race([connection, transportFailure, deadline])')

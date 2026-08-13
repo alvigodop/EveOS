@@ -22,6 +22,9 @@ const cacheUi = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 
 const api = read('tools', 'World-Book', 'app', 'assets', 'js', 'api.js');
 const ui = read('tools', 'World-Book', 'app', 'assets', 'js', 'narration', 'ui.js');
 const bridge = read('js', 'modules', 'features', 'world-book', 'world-book.narration.bridge.js');
+const companion = read('js', 'modules', 'features', 'world-book', 'world-book.narration.companion.js');
+const eveHtml = read('EveOS.html');
+const overlaySource = read('js', 'modules', 'features', 'world-book', 'world-book.overlay.js');
 const manager = read('js', 'modules', 'gemini', 'html_loaders', 'agentic', 'narration',
     'worldBookNarrationManagerUILoader.js');
 const agenticConfig = read('js', 'modules', 'gemini', 'html_loaders', 'agentic', 'core',
@@ -41,7 +44,7 @@ expect(bootstrap.indexOf('narration/text.js') < bootstrap.indexOf('narration/int
     'reader support modules are not loaded in dependency order');
 expect(dialog.includes('reader-file-input') && dialog.includes('reader-cache-list')
     && dialog.includes('reader-library-toggle') && dialog.includes('reader-progress-label')
-    && dialog.includes('max="1000"'),
+    && dialog.includes('reader-detach-btn') && dialog.includes('max="1000"'),
     'reader library import/cache controls are missing');
 expect(controller.includes('world-book-narration-v2') && controller.includes('world-book-narration-v1')
     && controller.includes('sourceTitle'),
@@ -87,6 +90,23 @@ expect(bridge.includes('EveAudioflixNative') && bridge.includes('playVoice'),
     'Audioflix narration routing bridge is missing');
 expect(bridge.includes('pendingCommands') && bridge.includes('readyTargets'),
     'World Book commands are not queued behind the iframe readiness handshake');
+expect(bridge.includes('activeReaderTarget') && bridge.includes('commandTargets()'),
+    'Reader commands can reach multiple loaded World Book controllers');
+expect(companion.includes('documentPictureInPicture.requestWindow') && companion.includes('window.open(')
+    && companion.includes('mountInline()'),
+    'detached Reader controls lack Picture-in-Picture, popup, or in-page fallback coverage');
+expect(companion.includes("command('seek-progress'") && companion.includes('open-reader-companion')
+    && companion.includes('Audioflix native output'),
+    'detached Reader controls are not linked to progress navigation and Audioflix routing');
+expect(eveHtml.indexOf('world-book.narration.companion.js')
+    < eveHtml.indexOf('world-book.narration.bridge.js'),
+    'the Reader companion does not load before its host bridge');
+expect(overlaySource.includes('data-world-book-reader-controls')
+    && overlaySource.includes('openCompanion'),
+    'the EveOS World Book header cannot open the detached Reader companion directly');
+expect(companion.includes("document.querySelector('[data-world-book-reader-companion]')")
+    && !overlaySource.includes('data-world-book-reader-companion'),
+    'the in-page companion fallback collides with the World Book header control');
 expect(manager.includes('same protected API key saved in Session Controls'),
     'Search Monitor does not explain the shared credential contract');
 expect(!manager.includes('type="password"') && !manager.includes('geminiApiKey'),
@@ -200,6 +220,12 @@ hostListeners.message.forEach(listener => listener({
 }));
 expect(hostMessages.some(message => message.type === 'eve-world-book-narration-command'
     && message.action === 'clear-cache'), 'queued World Book command was not delivered after readiness');
+hostWindow.EveWorldBookNarrationBridge.broadcastCommand('seek-progress', {
+    data: { value: 425, autoplay: true }
+});
+expect(hostMessages.some(message => message.action === 'seek-progress'
+    && message.data?.value === 425 && message.data?.autoplay === true),
+    'detached Reader command payloads are lost by the host bridge');
 hostListeners['eve:world-book-frame-loading'].forEach(listener => listener({ detail: { target: worldBookTarget } }));
 expect(hostWindow.EveWorldBookNarrationBridge.broadcastCommand('open-reader') === 0,
     'a navigating World Book target retained a stale ready state');

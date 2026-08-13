@@ -5,7 +5,6 @@
 window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
 (function () {
     'use strict';
-
     const ns = window.EveAudioflixUiActions;
     if (ns.ready) return;
     ns.create = function create(ctx) {
@@ -72,6 +71,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); ctx.playbackStatus = 'Opening Localhost EveOS in a new tab...'; ctx.rerender(); return; }
             if (action === 'toggle-local-badge') { actionTarget.closest('.audioflix-local-badge')?.classList.toggle('is-minimized'); return; }
             if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; ctx.rerender(); return; }
+            if (action === 'open-reader-companion') { window.EveWorldBookNarrationBridge?.openCompanion?.(); return; }
             if (action === 'toggle-settings') { ctx.settingsOpen = !ctx.settingsOpen; ctx.rerender(); return; }
             if (action === 'toggle-group') { const gName = actionTarget.dataset.afGroup; if (gName) { ctx.collapsedGroups = { ...ctx.collapsedGroups, [gName]: !ctx.collapsedGroups[gName] }; ctx.rerender(); } return; }
             if (action === 'toggle-fullscreen') { ctx.fullscreenOn = !ctx.fullscreenOn; ctx.overlay?.classList.toggle('is-fullscreen', ctx.fullscreenOn); ctx.rerender(); return; }

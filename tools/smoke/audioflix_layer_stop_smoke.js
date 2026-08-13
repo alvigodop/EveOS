@@ -31,6 +31,7 @@ function tick() {
 async function main() {
     const players = [];
     const clearedVoices = [];
+    const playedVoiceIds = [];
     let playVoiceResult = Promise.resolve(true);
 
     class FakeAudio {
@@ -52,7 +53,10 @@ async function main() {
         EveAudioflixAudio: { getWaveformController: () => null },
         EveAudioflixNative: {
             shouldSuppressBrowserPlayback: () => true,
-            playVoice: () => playVoiceResult,
+            playVoice: (_audio, options) => {
+                playedVoiceIds.push(options?.voiceId || '');
+                return playVoiceResult;
+            },
             clearVoices: async (id) => { clearedVoices.push(id); }
         }
     };
@@ -88,7 +92,39 @@ async function main() {
     nativeController.stopItemLayers('delayed-voice');
     voice.resolve(true);
     assert(await pendingVoice === false, 'Stop cancels a layer while native playback starts');
-    assert(clearedVoices.includes('delayed-voice'), 'late native playback is explicitly cleared');
+    assert(clearedVoices.some((id) => id.startsWith('delayed-voice::layer:')),
+        'late native playback is explicitly cleared by its unique layer voice id');
+
+    playVoiceResult = Promise.resolve(true);
+    const layerEvents = [];
+    const layeredNativeController = window.EveAudioflixAudioLayers.createController({
+        state: () => ({}),
+        shouldPreferUrl: () => false,
+        tryNativePlayback: async () => false,
+        getDecodedBuffer: async () => ({ sampleRate: 48000, duration: 12 }),
+        encodeBufferToBase64: () => 'pcm',
+        dispatch: (name, detail) => {
+            if (name === 'eve:audioflix-layer-voices') layerEvents.push(detail);
+        }
+    });
+    await layeredNativeController.layerPlay({ id: 'layer-stack', title: 'Stack', url: 'stack.mp3' });
+    await layeredNativeController.layerPlay({ id: 'layer-stack', title: 'Stack', url: 'stack.mp3' });
+    const activeStack = layeredNativeController.getSnapshot('layer-stack');
+    assert(activeStack.length === 2, 'two Layer Play presses retain two independent active voices');
+    assert(activeStack[0].id !== activeStack[1].id,
+        'each layered native play receives a distinct voice identity');
+    assert(activeStack[0].sequence !== activeStack[1].sequence,
+        'each layer keeps a stable internal transport sequence');
+    assert(activeStack.every((voice) => voice.duration === 12 && voice.remaining > 0),
+        'each active voice reports duration and remaining time');
+    assert(layerEvents.at(-1)?.voices?.length === 2,
+        'the UI receives the complete layered voice stack');
+    const stackVoiceIds = playedVoiceIds.filter((id) => id.startsWith('layer-stack::layer:'));
+    await Promise.allSettled(layeredNativeController.stopItemLayers('layer-stack'));
+    assert(stackVoiceIds.length === 2 && stackVoiceIds.every((id) => clearedVoices.includes(id)),
+        'Stop clears every independently routed native layer');
+    assert(layerEvents.at(-1)?.voices?.length === 0,
+        'Stop immediately clears the visual layer stack');
 
     window.EveAudioflixNative.shouldSuppressBrowserPlayback = () => false;
     const browserController = window.EveAudioflixAudioLayers.createController({
@@ -268,6 +304,52 @@ async function main() {
     assert(backendProbe.status === 0, `native all-device stop failed: ${backendProbe.stderr || backendProbe.stdout}`);
 
     const actions = fs.readFileSync(ACTIONS, 'utf8');
+    const layerUi = fs.readFileSync(path.join(ROOT, 'js', 'modules', 'features', 'audioflix',
+        'audioflix.ui.layer-voices.js'), 'utf8');
+    const layerCss = fs.readFileSync(path.join(ROOT, 'js', 'modules', 'features', 'audioflix',
+        'audioflix.layer-voices.css'), 'utf8');
+    const renderSource = fs.readFileSync(path.join(ROOT, 'js', 'modules', 'features', 'audioflix',
+        'audioflix.ui.render.js'), 'utf8');
+    assert(layerUi.includes('eve:audioflix-layer-voices') && layerUi.includes('voice.remaining')
+        && layerUi.includes('const number = index + 1') && !layerUi.includes('Number(voice.sequence)'),
+        'layer timeline UI does not retain per-play progress with compact per-sound numbering');
+    assert(layerCss.includes('--af-layer-height') && renderSource.includes('data-af-layer-voices'),
+        'sound cards do not host the compact shrinking layer timeline stack');
+
+    const layerUiListeners = {};
+    const layerHost = {
+        dataset: { afLayerVoices: 'numbering-check' },
+        style: { setProperty() {} },
+        innerHTML: ''
+    };
+    const layerUiWindow = {
+        EveAudioflixLayerVoices: {},
+        addEventListener(name, listener) { layerUiListeners[name] = listener; }
+    };
+    const layerUiDocument = {
+        querySelectorAll(selector) {
+            return selector === '[data-af-layer-voices]' ? [layerHost] : [];
+        }
+    };
+    const layerUiSandbox = { window: layerUiWindow, document: layerUiDocument, Map, console };
+    vm.createContext(layerUiSandbox);
+    vm.runInContext(layerUi, layerUiSandbox, { filename: 'audioflix.ui.layer-voices.js' });
+    layerUiListeners['eve:audioflix-layer-voices']({ detail: {
+        itemId: 'numbering-check',
+        voices: [
+            { sequence: 41, currentTime: 1, duration: 8, remaining: 7, progress: 0.125 },
+            { sequence: 99, currentTime: 2, duration: 8, remaining: 6, progress: 0.25 }
+        ]
+    } });
+    assert(layerHost.innerHTML.includes('Layer 1') && layerHost.innerHTML.includes('Layer 2')
+        && !layerHost.innerHTML.includes('Layer 41') && !layerHost.innerHTML.includes('Layer 99'),
+        'visible numbering starts at one for each sound instead of exposing global transport IDs');
+    layerUiListeners['eve:audioflix-layer-voices']({ detail: {
+        itemId: 'numbering-check',
+        voices: [{ sequence: 99, currentTime: 3, duration: 8, remaining: 5, progress: 0.375 }]
+    } });
+    assert(layerHost.innerHTML.includes('Layer 1') && !layerHost.innerHTML.includes('Layer 2'),
+        'remaining layered voices compact their visible numbering after an earlier voice finishes');
     const start = actions.indexOf("if (action === 'stop-item')");
     const end = actions.indexOf("if (action === 'toggle-repeater')", start);
     const stopBlock = actions.slice(start, end);

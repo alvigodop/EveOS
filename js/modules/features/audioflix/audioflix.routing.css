@@ -306,4 +306,45 @@
         flex: 1 1 130px;
     }
 }
+.audioflix-reader-route-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 12px;
+    border: 1px solid rgba(83, 218, 228, 0.24);
+    border-radius: 12px;
+    background: rgba(4, 25, 30, 0.72);
+}
+
+.audioflix-reader-route-card span,
+.audioflix-reader-route-card small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.audioflix-reader-route-card span {
+    color: #5de7f0;
+    font-size: 0.66rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.audioflix-reader-route-card small {
+    margin-top: 3px;
+    color: rgba(222, 244, 246, 0.62);
+}
+
+.audioflix-reader-route-card button {
+    min-height: 34px;
+    white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+    .audioflix-reader-route-card {
+        grid-template-columns: 1fr;
+    }
+}
 

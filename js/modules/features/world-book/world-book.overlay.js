@@ -204,6 +204,7 @@ window.EveWorldBook = window.EveWorldBook || {};
                     <div class="notes-world-book-actions">
                         <span class="notes-world-book-status-pill" data-world-book-status-pill data-state="checking">Checking</span>
                         <button type="button" data-world-book-server-toggle>Start World Book</button>
+                        <button type="button" data-world-book-reader-controls title="Open compact Reader controls">Reader controls</button>
                         <button type="button" class="notes-world-book-detach"
                             data-world-book-detach aria-label="Detach World Book into a window"
                             title="Detach World Book into a window">
@@ -245,6 +246,9 @@ window.EveWorldBook = window.EveWorldBook || {};
         overlay.querySelector('[data-world-book-close]').addEventListener('click', ns.close);
         overlay.querySelector('[data-world-book-server-toggle]').addEventListener('click', toggleServer);
         overlay.querySelector('[data-world-book-offline-start]').addEventListener('click', toggleServer);
+        overlay.querySelector('[data-world-book-reader-controls]').addEventListener('click', () => {
+            window.EveWorldBookNarrationBridge?.openCompanion?.();
+        });
         overlay.querySelector('[data-world-book-detach]').addEventListener('click', ns.detach);
         overlay.querySelector('[data-world-book-header-toggle]').addEventListener('click', () => setHeaderHidden(true));
         overlay.querySelector('[data-world-book-header-restore]').addEventListener('click', () => setHeaderHidden(false));
