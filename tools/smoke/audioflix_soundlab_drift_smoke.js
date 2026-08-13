@@ -34,7 +34,8 @@ function assert(condition, message) {
 async function main() {
     const modules = [
         'audioflix.soundlab.config.js',
-        'audioflix.soundlab.drift.js'
+        'audioflix.soundlab.drift.js',
+        'audioflix.soundlab.ui.events.js'
     ].map((name) => `<script src="${fileUrl(path.join(AUDIOFLIX, name))}"></script>`).join('\n');
 
     const fixture = path.join(os.tmpdir(), `sf-drift-${process.pid}.html`);
@@ -67,6 +68,7 @@ async function main() {
                 const rng = [];
                 const rig = {
                     pushRandom: (...values) => rng.push(...values),
+                    mutate: (patch) => { state = Object.assign({}, state, patch); },
                     get state() { return state; },
                     reasons,
                     get steers() { return steers; }
@@ -114,6 +116,23 @@ async function main() {
             }
             const anchoredGuidance = anchorRig.state.config.guidance;
 
+            // A manual move while variation is active becomes the new center immediately. It must
+            // not wait for a lane restart or snap back toward the value captured when play began.
+            const rebaseRig = makeRig({ params: gentle, prompts: gentle });
+            rebaseRig.api.sync();
+            rebaseRig.mutate({
+                config: Object.assign({}, rebaseRig.state.config, { guidance: 5.2 }),
+                prompts: rebaseRig.state.prompts.map((prompt) => (
+                    prompt.id === 'a' ? Object.assign({}, prompt, { weight: 1.6 }) : prompt
+                ))
+            });
+            const configRebased = rebaseRig.api.rebase({ kind: 'config', key: 'guidance', value: 5.2 });
+            const promptRebased = rebaseRig.api.rebase({ kind: 'prompt', id: 'a', value: 1.6 });
+            rebaseRig.pushRandom(0, 0.75);
+            const rebasedConfigStep = rebaseRig.api.stepParams();
+            rebaseRig.pushRandom(0, 0.75);
+            const rebasedPromptStep = rebaseRig.api.stepPrompts();
+
             // --- prompts lane ---
             const promptRig = makeRig({ params: off, prompts: on });
             let weightOutOfRange = false;
@@ -157,6 +176,47 @@ async function main() {
             const idleParams = idleRig.api.stepParams();
             const idlePrompts = idleRig.api.stepPrompts();
 
+            // The real knob/input bridge must forward manual values to the drift owner. Testing
+            // only rebase() would miss a disconnected UI module and recreate the visible snapback.
+            const uiRebases = [];
+            const uiState = {
+                config: { guidance: 4 },
+                prompts: [{ id: 'manual', text: 'manual', weight: 1 }]
+            };
+            window.EveAudioflixSoundLabState = {
+                ensure: () => uiState,
+                update: (patch) => Object.assign(uiState, patch),
+                updatePrompt: (id, patch) => {
+                    uiState.prompts = uiState.prompts.map((prompt) => (
+                        prompt.id === id ? Object.assign({}, prompt, patch) : prompt
+                    ));
+                }
+            };
+            window.EveAudioflixSoundLabEngine = {
+                rebaseDrift: (change) => uiRebases.push(change),
+                queueSteering: () => {}
+            };
+            const knob = document.createElement('input');
+            knob.type = 'range';
+            knob.min = '0';
+            knob.max = '6';
+            knob.step = '0.1';
+            knob.value = '5.4';
+            knob.dataset.sfField = 'config';
+            knob.dataset.sfConfig = 'guidance';
+            document.body.append(knob);
+            window.EveAudioflixSoundLabUiEvents.handleInput(knob);
+            const weight = document.createElement('input');
+            weight.type = 'range';
+            weight.min = '0';
+            weight.max = '2';
+            weight.step = '0.01';
+            weight.value = '1.7';
+            weight.dataset.sfField = 'prompt-weight';
+            weight.dataset.sfPrompt = 'manual';
+            document.body.append(weight);
+            window.EveAudioflixSoundLabUiEvents.handleInput(weight);
+
             return {
                 errors: window.__errors,
                 touched: [...touched].sort(),
@@ -166,6 +226,10 @@ async function main() {
                 bpmUnchanged: afterParams.bpm === 96,
                 scaleUnchanged: afterParams.scale === 'C_MAJOR_A_MINOR',
                 anchoredGuidance,
+                configRebased,
+                promptRebased,
+                rebasedConfigStep,
+                rebasedPromptStep,
                 paramSteers: paramsRig.steers,
                 paramReasons: [...new Set(paramsRig.reasons)],
                 weightOutOfRange,
@@ -174,6 +238,7 @@ async function main() {
                 idleParams,
                 idlePrompts,
                 idleSteers: idleRig.steers,
+                uiRebases,
                 reportedKinds,
                 reportedShape,
                 fastInterval: D.intervalFor(1),
@@ -204,6 +269,10 @@ async function main() {
             `the walk is anchored, not cumulative — 60 upward nudges left guidance at ${result.anchoredGuidance}`);
         assert(result.anchoredGuidance > 4,
             `the walk still moved off the anchor, got ${result.anchoredGuidance}`);
+        assert(result.configRebased && result.rebasedConfigStep.value > 5.2,
+            `manual guidance becomes the new automatic center (got ${result.rebasedConfigStep?.value})`);
+        assert(result.promptRebased && result.rebasedPromptStep.weight > 1.6,
+            `manual prompt weight becomes the new automatic center (got ${result.rebasedPromptStep?.weight})`);
 
         // Each accepted step re-steers, and does so under its own reason.
         assert(result.paramSteers > 0, 'a drift step queues steering so Lyria hears it');
@@ -219,6 +288,10 @@ async function main() {
         // Disabled lanes are inert.
         assert(result.idleParams === null && result.idlePrompts === null && result.idleSteers === 0,
             'a disabled lane performs no work and queues no steering');
+        assert(result.uiRebases.length === 2
+            && result.uiRebases[0].kind === 'config' && result.uiRebases[0].value === 5.4
+            && result.uiRebases[1].kind === 'prompt' && result.uiRebases[1].value === 1.7,
+        `manual UI controls rebase both active lanes (${JSON.stringify(result.uiRebases)})`);
 
         // Each applied step must be reported with enough detail to patch one control.
         assert(result.reportedKinds.join(',') === 'config,prompt',

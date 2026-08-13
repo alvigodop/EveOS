@@ -148,13 +148,18 @@ function staticContracts() {
         'the browser SDK bundle metadata matches the pinned @google/genai dependency'
     );
     assert(!engine.includes('fade.gain.linearRampToValueAtTime'), 'PCM chunks are not faded independently');
-    assert(playback.includes('source.connect(output)'), 'Lyria chunks share one continuous playback bus');
     assert(
-        playback.includes('prepareHandoff?.(nextStartTime)')
-            && playback.includes('arm?.(nextStartTime, queueGeneration)')
-            && sessionCache.includes("mode: 'memory-tail'")
+        playback.includes('source.connect(sourceGain || output)')
+            && playback.includes('sourceGain?.connect?.(output)'),
+        'Lyria chunks use per-source handoff gain while sharing one continuous playback bus'
+    );
+    assert(
+        playback.includes('prepareHandoff?.(nextStartTime, sourceGain)')
+            && playback.includes('arm?.(nextStartTime, queueGeneration, lastSourceGain)')
+            && sessionCache.includes("mode: 'memory-reservoir'")
+            && playback.includes('CACHE_RECOVERY_RESERVE_SECONDS = 2')
             && !/(localStorage|sessionStorage|indexedDB)/.test(sessionCache),
-        'Sonic Forge uses a bounded, reload-ephemeral tail cache at the live queue boundary'
+        'Sonic Forge uses a bounded, reload-ephemeral PCM reservoir at the live queue boundary'
     );
     const browserDecode = engine.match(/pcm16ToAudioBuffer\(context, chunk\.data,[\s\S]*?\n\s*}\);/)?.[0] || '';
     assert(

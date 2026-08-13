@@ -98,6 +98,28 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
             });
         }
 
+        function rebase(change) {
+            if (change?.kind === 'config' && PARAM_RANGE[change.key]) {
+                if (!drift().params.enabled) return false;
+                if (!paramAnchors) captureParamAnchors();
+                const range = PARAM_RANGE[change.key];
+                let value = clamp(Number(change.value), range.min, range.max);
+                if (!Number.isFinite(value)) return false;
+                if (range.round) value = Math.round(value);
+                paramAnchors[change.key] = value;
+                return true;
+            }
+            if (change?.kind === 'prompt' && change.id) {
+                if (!drift().prompts.enabled) return false;
+                if (!promptAnchors) capturePromptAnchors();
+                const value = clamp(Number(change.value), MIN_PROMPT_WEIGHT, MAX_PROMPT_WEIGHT);
+                if (!Number.isFinite(value)) return false;
+                promptAnchors.set(change.id, value);
+                return true;
+            }
+            return false;
+        }
+
         function stepParams() {
             const lane = drift().params;
             if (!lane.enabled) return null;
@@ -179,6 +201,7 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
         return {
             sync,
             stop,
+            rebase,
             stepParams,
             stepPrompts,
             isRunning: () => !!(paramTimer || promptTimer),

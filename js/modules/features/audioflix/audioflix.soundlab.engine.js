@@ -415,9 +415,9 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         queueSteering,
         syncDrift,
         stopDrift,
+        rebaseDrift: (change) => ensureDrift().rebase?.(change),
         getDrift: () => ensureDrift(),
-        // Exposed so tests can assert the exact payload shape (notably that an auto parameter is
-        // absent) without needing a live Lyria session.
+        // Exposed so tests can assert auto parameters stay absent without a live Lyria session.
         buildMusicConfig: (scene) => musicConfig(scene),
         applyOutputRoute,
         applyEffects,

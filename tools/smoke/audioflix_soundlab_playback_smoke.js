@@ -31,9 +31,13 @@ const assert = (condition, message) => {
 
 const starts = [];
 const sourceNodes = [];
+const playbackSources = [];
+const cacheSources = [];
+const cacheStarts = [];
 const notices = [];
 const gain = {
     cancelScheduledValues() {},
+    cancelAndHoldAtTime() {},
     setValueAtTime() {},
     linearRampToValueAtTime() {}
 };
@@ -46,14 +50,27 @@ const context = {
             connect() {},
             disconnect() {},
             stop() { this.onended?.(); },
-            start(at) {
+            start(at, offset, duration) {
                 this.startedAt = at;
-                starts.push(at);
+                if (arguments.length === 1) {
+                    starts.push(at);
+                    playbackSources.push(this);
+                } else {
+                    cacheStarts.push(at);
+                    cacheSources.push(this);
+                }
             },
             onended: null
         };
         sourceNodes.push(source);
         return source;
+    },
+    createGain() {
+        return {
+            gain: Object.assign({}, gain),
+            connect() {},
+            disconnect() {}
+        };
     }
 };
 const output = { gain };
@@ -82,7 +99,11 @@ assert(
 
 clock = starts[2] + 1;
 context.currentTime = clock;
-sourceNodes.slice(0, 3).forEach((source) => source.onended?.());
+playbackSources.slice(0, 3).forEach((source) => source.onended?.());
+assert(playback.metrics().underruns === 0, 'the continuity reservoir covers the first dry boundary');
+clock += 3.1;
+context.currentTime = clock;
+cacheSources.at(-1).onended?.();
 assert(playback.metrics().underruns === 1, 'a drained queue records one underrun');
 
 playback.enqueue(oneSecond());
@@ -108,6 +129,20 @@ assert(
     Math.abs(starts.at(-1) - expectedTail) < 0.0001,
     'the safety lead cannot insert silence into an otherwise contiguous stream'
 );
+
+const guardedTail = starts.at(-1) + 1;
+context.currentTime = guardedTail + 0.05;
+clock = context.currentTime;
+playbackSources.at(-1).onended?.();
+playback.enqueue(oneSecond());
+assert(starts.length === 9, 'one late chunk waits behind the active continuity cache');
+assert(
+    notices.some((notice) => /Continuity cache active; rebuilding 1\.0 \/ 2\.0s/.test(notice.message || '')),
+    'cache recovery reports the fresh-material reserve'
+);
+playback.enqueue(oneSecond());
+assert(starts.length === 11, 'two fresh seconds crossfade back from the cache as one reserve');
+assert(cacheStarts.length > 0, 'the fake context exercised the continuity replay lane');
 
 playback.stop();
 assert(notices.at(-1)?.buffering === false, 'stop cleanup cannot reopen an underrun');

@@ -50,6 +50,7 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
             activePresetId: ''
         }, 'audioflix-soundlab-config');
         updateOutput(target, value);
+        engine()?.rebaseDrift?.({ kind: 'config', key, value });
         engine()?.queueSteering?.({ resetContext: key === 'bpm' || key === 'scale' });
         return true;
     }
@@ -68,7 +69,10 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
         const key = field.replace('prompt-', '');
         if (current && current[key] === patch[key]) return true;
         labState()?.updatePrompt?.(id, patch);
-        if (field === 'prompt-weight') updateOutput(target, patch.weight);
+        if (field === 'prompt-weight') {
+            updateOutput(target, patch.weight);
+            engine()?.rebaseDrift?.({ kind: 'prompt', id, value: patch.weight });
+        }
         if (field !== 'prompt-cc') engine()?.queueSteering?.();
         return true;
     }

@@ -71,8 +71,9 @@ const cache = window.EveAudioflixSoundLabSessionCache.create({
 const twoSecondStereo = audioBuffer(2, 96000, 48000);
 assert(cache.remember(twoSecondStereo), 'a live PCM tail is retained');
 let metrics = cache.metrics();
-assert(metrics.usableTailSeconds <= 0.201, 'the cache loops only a bounded fraction of a chunk');
-assert(metrics.bytes <= 48000 * 0.2 * 2 * 4, 'the RAM cache has a strict byte ceiling');
+assert(metrics.mode === 'memory-reservoir', 'the cache uses recent real PCM, not a tiny loop');
+assert(metrics.usableTailSeconds === 2, 'the available real PCM remains usable for continuity');
+assert(metrics.bytes <= 48000 * 3.1 * 2 * 4, 'the RAM cache has a strict usable-byte ceiling');
 assert(metrics.retainedBytes === 96000 * 2 * 4, 'the cache reuses one decoded chunk without copying PCM');
 
 assert(cache.arm(2, 7), 'a cached guard is armed at the scheduled stream tail');
@@ -89,12 +90,12 @@ assert(metrics.bridges === 1 && metrics.bridgedSeconds > 0, 'covered micro-gaps 
 assert(exhausted === 0, 'a successful cache handoff does not report an underrun');
 
 cache.arm(6, 7);
-context.currentTime = 6.5;
+context.currentTime = 8;
 handoff = cache.prepareHandoff(6);
 assert(handoff.exhausted && handoff.startAt === 0, 'an expired guard requests deep rebuffering');
 
 cache.arm(8, 9);
-context.currentTime = 8.5;
+context.currentTime = 10.1;
 sources.at(-1).onended();
 assert(exhausted === 1, 'an unfilled cache guard reports one bounded underrun');
 

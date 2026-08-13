@@ -44,8 +44,10 @@ async function main() {
 
             const first = tone(1, 220);
             const firstSource = context.createBufferSource();
+            const firstGain = context.createGain();
             firstSource.buffer = first;
-            firstSource.connect(output);
+            firstSource.connect(firstGain);
+            firstGain.connect(output);
             firstSource.start(0);
 
             const cache = window.EveAudioflixSoundLabSessionCache.create({
@@ -53,14 +55,16 @@ async function main() {
                 output: () => output
             });
             cache.remember(first);
-            cache.arm(1, 1);
+            cache.arm(1, 1, firstGain);
 
             let handoff = null;
             const suspended = context.suspend(1.08).then(() => {
-                handoff = cache.prepareHandoff(1);
                 const nextSource = context.createBufferSource();
+                const nextGain = context.createGain();
+                handoff = cache.prepareHandoff(1, nextGain);
                 nextSource.buffer = tone(1, 220);
-                nextSource.connect(output);
+                nextSource.connect(nextGain);
+                nextGain.connect(output);
                 nextSource.start(handoff.startAt);
                 return context.resume();
             });
@@ -76,6 +80,16 @@ async function main() {
                 return Math.sqrt(sum / Math.max(1, end - start));
             }
 
+            function peak(startSeconds, endSeconds) {
+                const start = Math.round(startSeconds * sampleRate);
+                const end = Math.round(endSeconds * sampleRate);
+                let value = 0;
+                for (let index = start; index < end; index += 1) {
+                    value = Math.max(value, Math.abs(values[index]));
+                }
+                return value;
+            }
+
             let minimumBoundaryRms = Infinity;
             const windowFrames = 256;
             const boundaryStart = Math.round(0.99 * sampleRate);
@@ -89,19 +103,31 @@ async function main() {
             }
             return {
                 covered: handoff?.covered === true,
+                baselineRms: rms(0.7, 0.9),
                 bridgeRms: rms(1, 1.075),
                 resumedRms: rms(1.11, 1.3),
                 minimumBoundaryRms,
+                boundaryPeak: peak(0.99, 1.13),
                 metrics: cache.metrics()
             };
         });
 
         assert(result.covered, 'the intentionally late chunk uses the session cache');
-        assert(result.bridgeRms > 0.04, `cached tail covers the late interval (${result.bridgeRms})`);
-        assert(result.resumedRms > 0.15, `the live stream resumes after the bridge (${result.resumedRms})`);
         assert(
-            result.minimumBoundaryRms > 0.015,
-            `no silent render window appears at the chunk boundary (${result.minimumBoundaryRms})`
+            result.bridgeRms > result.baselineRms * 0.65,
+            `cached PCM stays near normal level (${result.bridgeRms} vs ${result.baselineRms})`
+        );
+        assert(
+            result.resumedRms > result.baselineRms * 0.65,
+            `the live stream resumes without a weak handoff (${result.resumedRms})`
+        );
+        assert(
+            result.minimumBoundaryRms > result.baselineRms * 0.25,
+            `no deep volume hole appears at either crossfade (${result.minimumBoundaryRms})`
+        );
+        assert(
+            result.boundaryPeak < 0.7,
+            `the crossfade stays below the clipping/level-doubling ceiling (${result.boundaryPeak})`
         );
         assert(result.metrics.bridges === 1, 'the rendered bridge is reflected in diagnostics');
         console.log('AUDIOFLIX_SOUNDLAB_SESSION_CACHE_BROWSER_SMOKE_OK', JSON.stringify(result));

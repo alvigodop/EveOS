@@ -14,7 +14,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
     // adaptive terms below exist so that cost is not also permanent.
     const REBUFFER_SECONDS = 4;
     const MAX_ADAPTIVE_REBUFFER_SECONDS = 2;
-    // Jitter is measured per chunk arrival; allow a few standard deviations of it, capped.
+    // Jitter is measured per chunk arrival; allow a bounded high-percentile cushion.
     const MAX_JITTER_ALLOWANCE_SECONDS = 1.5;
     const JITTER_SAFETY_FACTOR = 3;
     // Play this long without a dropout and the escalation is forgiven.
@@ -25,6 +25,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
     const MIN_CONTINUATION_LEAD_SECONDS = 0.015;
     const SCHEDULE_WINDOW_SECONDS = 8;
     const STATUS_INTERVAL_SECONDS = 0.25;
+    const CACHE_RECOVERY_RESERVE_SECONDS = 2;
+    const CACHE_EXPIRY_MARGIN_SECONDS = 0.2;
 
     function create(options) {
         const sources = new Set();
@@ -49,6 +51,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
         let lastNoticeKey = '';
         let queueGeneration = 0;
         let sessionCache = null;
+        let lastSourceGain = null;
 
         const getContext = () => options.context?.() || null;
         const getOutput = () => options.output?.() || null;
@@ -83,7 +86,10 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 output: getOutput,
                 onExhausted: (generation) => {
                     if (generation !== queueGeneration) return;
-                    if (!pending.length && !sources.size && isPlaying()) openUnderrun();
+                    if (!sources.size && isPlaying()) {
+                        openUnderrun();
+                        schedule();
+                    }
                 }
             });
             return sessionCache;
@@ -128,10 +134,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
 
         function jitterMs() {
             if (!arrivalErrorMs.length) return 0;
-            const mean = arrivalErrorMs.reduce((sum, value) => sum + value, 0) / arrivalErrorMs.length;
-            const variance = arrivalErrorMs.reduce((sum, value) => sum + ((value - mean) ** 2), 0)
-                / arrivalErrorMs.length;
-            return Math.sqrt(variance);
+            const ordered = arrivalErrorMs.slice().sort((left, right) => left - right);
+            return ordered[Math.max(0, Math.ceil(ordered.length * 0.9) - 1)] || 0;
         }
 
         function requiredBufferSeconds() {
@@ -242,13 +246,30 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 fadeIn(nextStartTime, firstStart ? 0.08 : 0.12);
             }
 
+            const cacheState = ensureSessionCache()?.metrics?.() || {};
+            if (streamStarted && cacheState.bridging
+                && available < CACHE_RECOVERY_RESERVE_SECONDS
+                && Number(cacheState.remainingSeconds || 0) > CACHE_EXPIRY_MARGIN_SECONDS) {
+                notify({
+                    buffering: false,
+                    bufferedSeconds: available,
+                    message: `Continuity cache active; rebuilding ${available.toFixed(1)} / ${CACHE_RECOVERY_RESERVE_SECONDS.toFixed(1)}s...`
+                });
+                return false;
+            }
+
             while (pending.length && nextStartTime < context.currentTime + SCHEDULE_WINDOW_SECONDS) {
                 const buffer = pending.shift();
                 const source = context.createBufferSource();
+                const sourceGain = context.createGain?.() || null;
                 const cache = ensureSessionCache();
-                const handoff = cache?.prepareHandoff?.(nextStartTime);
+                source.connect(sourceGain || output);
+                sourceGain?.connect?.(output);
+                const handoff = cache?.prepareHandoff?.(nextStartTime, sourceGain);
                 if (handoff?.exhausted) {
                     pending.unshift(buffer);
+                    try { source.disconnect(); } catch {}
+                    try { sourceGain?.disconnect?.(); } catch {}
                     openUnderrun();
                     return false;
                 }
@@ -258,10 +279,10 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 const start = Number(handoff?.startAt) || fallbackStart;
                 const sourceGeneration = queueGeneration;
                 source.buffer = buffer;
-                source.connect(output);
                 source.onended = () => {
                     sources.delete(source);
                     try { source.disconnect(); } catch {}
+                    try { sourceGain?.disconnect?.(); } catch {}
                     if (sourceGeneration !== queueGeneration) return;
                     updateWatermarks();
                     if (pending.length) schedule();
@@ -273,10 +294,11 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 sources.add(source);
                 source.start(start);
                 nextStartTime = start + buffer.duration;
+                lastSourceGain = sourceGain;
                 cache?.remember?.(buffer);
             }
             if (!pending.length && sources.size) {
-                ensureSessionCache()?.arm?.(nextStartTime, queueGeneration);
+                ensureSessionCache()?.arm?.(nextStartTime, queueGeneration, lastSourceGain);
             }
             const buffered = updateWatermarks();
             notify({
@@ -291,7 +313,10 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             if (!buffer) return 0;
             const arrivedAt = now();
             if (lastArrivalAt && lastBufferDuration) {
-                arrivalErrorMs.push(Math.abs((arrivedAt - lastArrivalAt - lastBufferDuration) * 1000));
+                arrivalErrorMs.push(Math.max(
+                    0,
+                    (arrivedAt - lastArrivalAt - lastBufferDuration) * 1000
+                ));
                 if (arrivalErrorMs.length > 24) arrivalErrorMs.shift();
             }
             lastArrivalAt = arrivedAt;
@@ -318,6 +343,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             lastUnderrunAt = 0;
             lastNoticeAt = 0;
             lastNoticeKey = '';
+            lastSourceGain = null;
             const gain = getOutput()?.gain;
             const context = getContext();
             if (gain && context) {
@@ -343,7 +369,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             timeline,
             metrics: () => ({
                 sessionCache: sessionCache?.metrics?.() || {
-                    mode: 'memory-tail', bytes: 0, tailSeconds: 0, bridges: 0, bridgedSeconds: 0
+                    mode: 'memory-reservoir', bytes: 0, tailSeconds: 0, bridges: 0, bridgedSeconds: 0
                 },
                 jitterMs: jitterMs(),
                 underruns,

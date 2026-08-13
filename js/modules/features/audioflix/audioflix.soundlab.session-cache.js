@@ -6,21 +6,18 @@ window.EveAudioflixSoundLabSessionCache = window.EveAudioflixSoundLabSessionCach
     const ns = window.EveAudioflixSoundLabSessionCache;
     if (ns.ready) return;
 
-    const TAIL_SECONDS = 0.2;
+    const CACHE_SECONDS = 3.1;
     const MAX_RETAINED_CHUNK_SECONDS = 4;
-    const MAX_BRIDGE_SECONDS = 0.45;
+    const MAX_BRIDGE_SECONDS = 3;
     const HANDOFF_LEAD_SECONDS = 0.015;
-    const CROSSFADE_SECONDS = 0.03;
-    const BOUNDARY_GAIN = 0.1;
-    const PEAK_HOLD_GAIN = 0.65;
-    const END_HOLD_GAIN = 0.16;
+    const CROSSFADE_SECONDS = 0.065;
 
     function create(options = {}) {
-        // One decoded chunk is held in RAM only; its final 200 ms conceals short delivery jitter.
-        let tail = null;
-        let tailStart = 0;
-        let tailBytes = 0;
-        let retainedBytes = 0;
+        // Recent decoded chunks stay in memory for this generation session only. Replaying real PCM
+        // avoids both silence and the audible seam created by looping one 200 ms fragment.
+        let reservoir = [];
+        let reservoirSeconds = 0;
+        let reservoirBytes = 0;
         let guard = null;
         let bridges = 0;
         let bridgedSeconds = 0;
@@ -28,122 +25,172 @@ window.EveAudioflixSoundLabSessionCache = window.EveAudioflixSoundLabSessionCach
 
         const getContext = () => options.context?.() || null;
         const getOutput = () => options.output?.() || null;
+        const byteSize = (buffer) => (
+            Math.max(1, Number(buffer?.length || 0))
+            * Math.max(1, Number(buffer?.numberOfChannels || 1))
+            * Float32Array.BYTES_PER_ELEMENT
+        );
 
         function disconnect(entry) {
             entries.delete(entry);
-            try { entry?.source?.disconnect?.(); } catch {}
+            (entry?.sources || []).forEach((source) => {
+                try { source.disconnect?.(); } catch {}
+            });
             try { entry?.gainNode?.disconnect?.(); } catch {}
         }
 
         function stopEntry(entry, at) {
             if (!entry) return;
             entry.cancelled = true;
-            try { entry.source.stop(at); } catch {}
+            (entry.sources || []).forEach((source) => {
+                try { source.stop(at); } catch {}
+            });
         }
 
-        function cancel() {
+        function setGain(param, at, value) {
+            if (!param) return;
+            try {
+                param.cancelScheduledValues?.(at);
+                param.setValueAtTime?.(value, at);
+            } catch {}
+        }
+
+        function restorePrevious(entry, at) {
+            const param = entry?.previousGain?.gain || entry?.previousGain;
+            if (!param) return;
+            try {
+                if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(at);
+                else param.cancelScheduledValues?.(at);
+                param.setValueAtTime?.(1, at);
+            } catch {}
+        }
+
+        function cancel(restore = true) {
             const entry = guard;
             guard = null;
             if (!entry) return false;
-            const context = getContext();
-            stopEntry(entry, Number(context?.currentTime || 0));
+            const at = Number(getContext()?.currentTime || 0);
+            if (restore && at < entry.tailAt) restorePrevious(entry, at);
+            stopEntry(entry, at);
             disconnect(entry);
             return true;
         }
 
+        function trimReservoir() {
+            // Keep one partial leading chunk when needed. AudioBuffers are immutable references, so
+            // the actual retained ceiling is CACHE_SECONDS plus one bounded source chunk.
+            while (reservoir.length > 1
+                && reservoirSeconds - Number(reservoir[0]?.duration || 0) >= CACHE_SECONDS) {
+                const removed = reservoir.shift();
+                reservoirSeconds -= Number(removed?.duration || 0);
+                reservoirBytes -= byteSize(removed);
+            }
+        }
+
         function remember(buffer) {
             const duration = Number(buffer?.duration || 0);
-            if (!duration || duration > MAX_RETAINED_CHUNK_SECONDS) {
-                tail = null;
-                tailStart = 0;
-                tailBytes = 0;
-                retainedBytes = 0;
-                return false;
-            }
-            const sampleRate = Number(buffer.sampleRate || getContext()?.sampleRate || 48000);
-            const channels = Math.max(1, Number(buffer.numberOfChannels || 1));
-            const frames = Math.max(1, Number(buffer.length || Math.round(duration * sampleRate)));
-            const tailFrames = Math.min(frames, Math.round(sampleRate * TAIL_SECONDS));
-            tail = buffer;
-            tailStart = Math.max(0, duration - (tailFrames / sampleRate));
-            tailBytes = frames * channels * Float32Array.BYTES_PER_ELEMENT;
-            retainedBytes = tailBytes;
-            tailBytes = tailFrames * channels * Float32Array.BYTES_PER_ELEMENT;
+            if (!duration || duration > MAX_RETAINED_CHUNK_SECONDS) return false;
+            reservoir.push(buffer);
+            reservoirSeconds += duration;
+            reservoirBytes += byteSize(buffer);
+            trimReservoir();
             return true;
         }
 
-        function arm(tailAt, generation) {
-            if (guard && guard.generation === generation
-                && Math.abs(guard.tailAt - Number(tailAt || 0)) < 0.0001) {
-                return true;
+        function slicesForBridge(overlap) {
+            const span = Math.min(reservoirSeconds, MAX_BRIDGE_SECONDS + overlap);
+            if (!span || !reservoir.length) return [];
+            let remaining = span;
+            const slices = [];
+            for (let index = reservoir.length - 1; index >= 0 && remaining > 0; index -= 1) {
+                const buffer = reservoir[index];
+                const duration = Number(buffer?.duration || 0);
+                const take = Math.min(duration, remaining);
+                slices.unshift({ buffer, offset: duration - take, duration: take });
+                remaining -= take;
             }
+            return slices;
+        }
+
+        function arm(tailAt, generation, previousGain) {
+            const boundary = Number(tailAt || 0);
+            if (guard && guard.generation === generation
+                && Math.abs(guard.tailAt - boundary) < 0.0001) return true;
             cancel();
             const context = getContext();
             const output = getOutput();
-            const boundary = Number(tailAt || 0);
-            if (!context?.createBufferSource || !context?.createGain || !output || !tail || !boundary) {
-                return false;
-            }
+            if (!context?.createBufferSource || !context?.createGain || !output || !boundary) return false;
 
-            const source = context.createBufferSource();
+            const overlap = Math.min(CROSSFADE_SECONDS, reservoirSeconds / 4);
+            const slices = slicesForBridge(overlap);
+            if (!slices.length) return false;
+            const startAt = Math.max(Number(context.currentTime || 0), boundary - overlap);
             const gainNode = context.createGain();
             const gain = gainNode.gain;
-            const overlap = Math.min(CROSSFADE_SECONDS, (tail.duration - tailStart) / 2);
-            const startAt = Math.max(Number(context.currentTime || 0), boundary - overlap);
-            const offset = Math.max(tailStart, tail.duration - Math.max(0, boundary - startAt));
-            const stopAt = boundary + MAX_BRIDGE_SECONDS;
-            source.buffer = tail;
-            source.loop = true;
-            source.loopStart = tailStart;
-            source.loopEnd = tail.duration;
-            source.connect(gainNode);
+            const sources = [];
+            let cursor = startAt;
+
             gainNode.connect(output);
-            gain.cancelScheduledValues(startAt);
-            gain.setValueAtTime(0.0001, startAt);
-            gain.linearRampToValueAtTime(BOUNDARY_GAIN, boundary);
-            gain.linearRampToValueAtTime(PEAK_HOLD_GAIN, boundary + CROSSFADE_SECONDS);
-            gain.linearRampToValueAtTime(END_HOLD_GAIN, stopAt);
+            setGain(gain, startAt, 0.0001);
+            gain.linearRampToValueAtTime?.(1, boundary);
+            const previousParam = previousGain?.gain || previousGain;
+            if (previousParam) {
+                setGain(previousParam, startAt, 1);
+                previousParam.linearRampToValueAtTime?.(0.0001, boundary);
+            }
+
+            slices.forEach((slice) => {
+                const source = context.createBufferSource();
+                source.buffer = slice.buffer;
+                source.connect(gainNode);
+                source.start(cursor, slice.offset, slice.duration);
+                cursor += slice.duration;
+                sources.push(source);
+            });
 
             const entry = {
-                source,
+                sources,
                 gainNode,
+                previousGain,
                 startAt,
                 tailAt: boundary,
-                stopAt,
+                stopAt: cursor,
                 generation,
                 cancelled: false
             };
             guard = entry;
             entries.add(entry);
-            source.onended = () => {
+            sources.at(-1).onended = () => {
                 const exhausted = guard === entry && !entry.cancelled;
                 if (guard === entry) guard = null;
                 disconnect(entry);
                 if (exhausted) options.onExhausted?.(entry.generation);
             };
-            source.start(startAt, offset);
-            source.stop(stopAt);
             return true;
         }
 
-        function releaseAt(entry, handoffAt, fadeSeconds = CROSSFADE_SECONDS) {
+        function releaseAt(entry, handoffAt, incomingGain) {
             const context = getContext();
-            const gain = entry?.gainNode?.gain;
             const now = Number(context?.currentTime || 0);
-            const stopAt = handoffAt + Math.max(0.001, fadeSeconds);
+            const fadeEnd = handoffAt + CROSSFADE_SECONDS;
+            const guardGain = entry?.gainNode?.gain;
+            const incoming = incomingGain?.gain || incomingGain;
             entry.cancelled = true;
             guard = null;
-            if (gain?.cancelAndHoldAtTime) {
-                gain.cancelAndHoldAtTime(now);
-            } else if (gain) {
-                gain.cancelScheduledValues(now);
-                gain.setValueAtTime(PEAK_HOLD_GAIN, now);
-            }
-            gain?.linearRampToValueAtTime?.(0.0001, stopAt);
-            try { entry.source.stop(stopAt + 0.005); } catch {}
+            try {
+                if (guardGain?.cancelAndHoldAtTime) guardGain.cancelAndHoldAtTime(handoffAt);
+                else setGain(guardGain, handoffAt, 1);
+                guardGain?.linearRampToValueAtTime?.(0.0001, fadeEnd);
+                setGain(incoming, handoffAt, 0.0001);
+                incoming?.linearRampToValueAtTime?.(1, fadeEnd);
+            } catch {}
+            (entry.sources || []).forEach((source) => {
+                try { source.stop(fadeEnd + 0.005); } catch {}
+            });
+            if (fadeEnd <= now) disconnect(entry);
         }
 
-        function prepareHandoff(expectedStart) {
+        function prepareHandoff(expectedStart, incomingGain) {
             const context = getContext();
             const now = Number(context?.currentTime || 0);
             const expected = Number(expectedStart || 0);
@@ -157,10 +204,8 @@ window.EveAudioflixSoundLabSessionCache = window.EveAudioflixSoundLabSessionCach
                 };
             }
             if (now < entry.tailAt) {
-                if (now >= entry.startAt) {
-                    releaseAt(entry, now, Math.min(0.008, Math.max(0.001, expected - now)));
-                }
-                else cancel();
+                if (now >= entry.startAt) releaseAt(entry, expected, incomingGain);
+                else cancel(true);
                 return { startAt: expected, bridgedSeconds: 0, covered: false, exhausted: false };
             }
             if (now < entry.stopAt - CROSSFADE_SECONDS) {
@@ -168,45 +213,41 @@ window.EveAudioflixSoundLabSessionCache = window.EveAudioflixSoundLabSessionCach
                 const coveredSeconds = Math.max(0, startAt - entry.tailAt);
                 bridges += 1;
                 bridgedSeconds += coveredSeconds;
-                releaseAt(entry, startAt);
+                releaseAt(entry, startAt, incomingGain);
                 return { startAt, bridgedSeconds: coveredSeconds, covered: true, exhausted: false };
             }
-            cancel();
-            return {
-                startAt: 0,
-                bridgedSeconds: 0,
-                covered: false,
-                exhausted: true
-            };
+            cancel(false);
+            return { startAt: 0, bridgedSeconds: 0, covered: false, exhausted: true };
         }
 
         function clear() {
             guard = null;
-            const context = getContext();
-            const at = Number(context?.currentTime || 0);
+            const at = Number(getContext()?.currentTime || 0);
             entries.forEach((entry) => {
                 stopEntry(entry, at);
                 disconnect(entry);
             });
             entries.clear();
-            tail = null;
-            tailStart = 0;
-            tailBytes = 0;
-            retainedBytes = 0;
+            reservoir = [];
+            reservoirSeconds = 0;
+            reservoirBytes = 0;
             bridges = 0;
             bridgedSeconds = 0;
         }
 
         function metrics() {
-            const context = getContext();
-            const now = Number(context?.currentTime || 0);
+            const now = Number(getContext()?.currentTime || 0);
+            const usable = Math.min(CACHE_SECONDS, reservoirSeconds);
+            const channels = Math.max(1, Number(reservoir.at(-1)?.numberOfChannels || 1));
+            const sampleRate = Math.max(1, Number(reservoir.at(-1)?.sampleRate || 48000));
             return {
-                mode: 'memory-tail',
-                tailSeconds: Number(tail?.duration || 0),
-                usableTailSeconds: tail ? Math.max(0, tail.duration - tailStart) : 0,
-                bytes: tailBytes,
-                retainedBytes,
+                mode: 'memory-reservoir',
+                tailSeconds: reservoirSeconds,
+                usableTailSeconds: usable,
+                bytes: Math.round(usable * sampleRate * channels * Float32Array.BYTES_PER_ELEMENT),
+                retainedBytes: reservoirBytes,
                 armed: !!guard,
+                bridging: !!guard && now >= guard.tailAt,
                 activeSources: entries.size,
                 remainingSeconds: guard ? Math.max(0, guard.stopAt - now) : 0,
                 bridges,
@@ -221,6 +262,7 @@ window.EveAudioflixSoundLabSessionCache = window.EveAudioflixSoundLabSessionCach
             cancel,
             clear,
             isCovering: () => !!guard,
+            isBridging: () => !!guard && Number(getContext()?.currentTime || 0) >= guard.tailAt,
             metrics
         };
     }
@@ -228,6 +270,6 @@ window.EveAudioflixSoundLabSessionCache = window.EveAudioflixSoundLabSessionCach
     Object.assign(ns, {
         ready: true,
         create,
-        constants: { TAIL_SECONDS, MAX_BRIDGE_SECONDS, MAX_RETAINED_CHUNK_SECONDS }
+        constants: { CACHE_SECONDS, MAX_BRIDGE_SECONDS, MAX_RETAINED_CHUNK_SECONDS }
     });
 })();
