@@ -7,8 +7,8 @@ const EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || 
 
 // List of individual UI loader scripts for External Dependencies components
 const externalDependenciesLoaderScripts = [
-    `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/ext_scripts/externalStylesheetsAndScriptsUILoader.js`,
-    `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/loc_style/localStylesheetUILoader.js`
+    `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/ext_scripts/externalStylesheetsAndScriptsUILoader.js?v=8e8cf71cddbe`,
+    `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/loc_style/localStylesheetUILoader.js?v=ad1adc053d56`
     // Add other external dependency loader scripts here in the future
 ];
 
@@ -18,7 +18,7 @@ const externalDependenciesLoaderScripts = [
 function loadLocalStylesheetLoaderScript() {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/loc_style/localStylesheetUILoader.js`;
+        script.src = `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/loc_style/localStylesheetUILoader.js?v=ad1adc053d56`;
         script.defer = true;
         script.onload = () => {
             console.log("localStylesheetUILoader.js loaded.");
@@ -38,7 +38,7 @@ function loadLocalStylesheetLoaderScript() {
 function loadExternalScriptsLoaderScript() {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/ext_scripts/externalStylesheetsAndScriptsUILoader.js`;
+        script.src = `${EXTERNAL_DEPENDENCIES_HTML_LOADERS_BASE_PATH}/ext_scripts/externalStylesheetsAndScriptsUILoader.js?v=8e8cf71cddbe`;
         script.defer = true;
         script.onload = () => {
             console.log("externalStylesheetsAndScriptsUILoader.js loaded.");

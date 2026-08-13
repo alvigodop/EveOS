@@ -10,8 +10,8 @@
 
     // Define the modules to load in order
     const modules = [
-        "monitor_status_check.js",
-        "monitor_server_actions.js"
+        "monitor_status_check.js?v=d2fec59cf250",
+        "monitor_server_actions.js?v=cdb410b064ef"
     ];
 
     console.log("Loading Monitor Checker modules...");

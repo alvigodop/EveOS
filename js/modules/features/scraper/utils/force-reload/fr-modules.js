@@ -45,8 +45,8 @@
                 // So init.js DEFINED window.ForceReload.registerAndInitializeModules.
                 // And THIS file is redefining it?
                 // NO. This file should NOT redefine it if it's already defined by init.js.
-                // This file is a facade, mostly for compatibility if something loads `fr-modules.js` but NOT the sub-modules?
-                // But `rl-config.js` loads sub-modules.
+                // This file is a facade, mostly for compatibility if something loads `fr-modules.js?v=2ea65adf9332` but NOT the sub-modules?
+                // But `rl-config.js?v=fc521bbe4d61` loads sub-modules.
 
                 // If I define it here, I overwrite init.js version.
                 // I should simply NOT define it if it exists.

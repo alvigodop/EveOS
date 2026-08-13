@@ -4,34 +4,34 @@
     const ns = window.EveBookmarkFocus;
 
     const MODAL_ID = 'bookmarkFocusModal';
-    const POPUP_BOOTSTRAP_STYLE = 'js/modules/features/scraper/ui/popup-manager/popup-manager.css?v=1.0.1';
+    const POPUP_BOOTSTRAP_STYLE = 'js/modules/features/scraper/ui/popup-manager/popup-manager.css?v=990758239421';
     const POPUP_BOOTSTRAP_SCRIPTS = [
         {
-            src: 'js/modules/features/scraper/ui/popup-manager/components/popup-history.js',
+            src: 'js/modules/features/scraper/ui/popup-manager/components/popup-history.js?v=a7658d1e0b25',
             isReady: () => !!window.PopupHistory
         },
         {
-            src: 'js/modules/features/scraper/ui/popup-manager/components/popup-confirmation.js',
+            src: 'js/modules/features/scraper/ui/popup-manager/components/popup-confirmation.js?v=929ddedf76c4',
             isReady: () => !!window.PopupConfirmation
         },
         {
-            src: 'js/modules/features/scraper/ui/popup-manager/components/viewer/pv-ui.js?v=1.0.1',
+            src: 'js/modules/features/scraper/ui/popup-manager/components/viewer/pv-ui.js?v=48fec472371c',
             isReady: () => !!window.PVUI
         },
         {
-            src: 'js/modules/features/scraper/ui/popup-manager/components/viewer/pv-loader.js?v=1.0.1',
+            src: 'js/modules/features/scraper/ui/popup-manager/components/viewer/pv-loader.js?v=af0a3a4c8868',
             isReady: () => !!window.PVLoader
         },
         {
-            src: 'js/modules/features/scraper/ui/popup-manager/components/viewer/pv-state.js',
+            src: 'js/modules/features/scraper/ui/popup-manager/components/viewer/pv-state.js?v=e0d416eb62e5',
             isReady: () => !!window.PVState
         },
         {
-            src: 'js/modules/features/scraper/ui/popup-manager/components/popup-viewer.js?v=1.0.1',
+            src: 'js/modules/features/scraper/ui/popup-manager/components/popup-viewer.js?v=38f824a09e8c',
             isReady: () => !!window.PopupViewer
         },
         {
-            src: 'js/modules/features/scraper/ui/popup-manager/popup-manager.js?v=1.0.2',
+            src: 'js/modules/features/scraper/ui/popup-manager/popup-manager.js?v=57d629880622',
             isReady: () => !!(window.PopupManager && typeof window.PopupManager.openPopup === 'function')
         }
     ];

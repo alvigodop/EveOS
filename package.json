@@ -6,8 +6,11 @@
   "scripts": {
     "test": "npm run verify",
     "build:audioflix-genai": "esbuild tools/bundles/audioflix-genai.entry.mjs --bundle --format=iife --platform=browser --target=es2020 --minify --outfile=js/vendor/audioflix-genai.js",
+    "build:asset-versions": "node tools/audit/sync-runtime-asset-versions.js --write",
     "docs:capture-dashboard": "node tools/docs/capture-readme-dashboard.js",
     "audit": "node tools/audit/eveos-repo-audit.js",
+    "audit:asset-versions": "node tools/audit/sync-runtime-asset-versions.js",
+    "audit:runtime-assets": "node tools/audit/runtime-asset-reachability-audit.js",
     "audit:smoke-registry": "node tools/audit/smoke-registry-audit.js",
     "audit:python": "python -m compileall -q server server_modules tools",
     "smoke:audioflix-spotify-match": "python tools/smoke/audioflix_spotify_match_smoke.py",
@@ -19,13 +22,14 @@
     "smoke:search-monitor": "node tools/smoke/gemini_model_registry_smoke.js && node tools/smoke/gemini_live_model_fallback_smoke.js && node tools/smoke/gemini_usage_telemetry_smoke.js && node tools/smoke/gemini_session_ownership_smoke.js && node tools/smoke/gemini_messaging_log_init_smoke.js && python tools/smoke/gemini_runtime_contract_smoke.py && node tools/smoke/search_monitor_peer_panel_smoke.js",
     "smoke:gemini-audio": "python tools/smoke/gemini_audio_queue_smoke.py && node tools/smoke/gemini_audio_worklet_smoke.js && node tools/smoke/gemini_interim_lead_smoke.js && node tools/smoke/audioflix_realtime_backoff_smoke.js",
     "smoke:server-security": "python tools/smoke/server_proxy_security_smoke.py",
+    "smoke:runtime-cache": "node tools/smoke/runtime_asset_cache_smoke.js && node tools/smoke/runtime_asset_recovery_smoke.js",
     "smoke:audioflix-spotify-playback": "node tools/smoke/audioflix_spotify_playback_smoke.js",
     "smoke:audioflix-volume": "node tools/smoke/audioflix_volume_views_smoke.js",
     "smoke:audioflix-playback": "node tools/smoke/audioflix_layer_stop_smoke.js",
     "smoke:audioflix-spotify": "npm run smoke:audioflix-spotify-match && npm run smoke:audioflix-spotify-playback",
     "smoke:audioflix-soundlab": "node tools/smoke/audioflix_soundlab_smoke.js && node tools/smoke/audioflix_soundlab_auto_params_smoke.js && node tools/smoke/audioflix_soundlab_drift_smoke.js && node tools/smoke/audioflix_soundlab_transparency_smoke.js && node tools/smoke/audioflix_soundlab_underrun_smoke.js && node tools/smoke/audioflix_soundlab_playback_smoke.js && node tools/smoke/audioflix_soundlab_advanced_smoke.js && node tools/smoke/audioflix_soundlab_native_capture_smoke.js && node tools/smoke/audioflix_soundlab_visualizer_smoke.js && node tools/smoke/audioflix_soundlab_prompt_focus_smoke.js && node tools/smoke/audioflix_soundlab_steering_smoke.js && node tools/smoke/sonic_forge_manager_smoke.js && node tools/smoke/sonic_forge_credential_smoke.js && node tools/smoke/sonic_forge_vault_proxy_smoke.js && python tools/smoke/sonic_forge_backend_smoke.py",
     "smoke:gemini-context": "node tools/smoke/gemini_selective_context_smoke.js && node tools/smoke/gemini_deep_nesting_payload_smoke.js && node tools/smoke/gemini_context_detail_tiers_smoke.js && node tools/smoke/gemini_context_chunked_transport_smoke.js && node tools/smoke/gemini_mode2_context_routing_smoke.js",
-    "verify": "npm run build:audioflix-genai && npm run audit && npm run audit:python && npm run audit:smoke-registry && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:control-plane && npm run smoke:regressions && npm run smoke:world-book && npm run smoke:search-monitor && npm run smoke:gemini-audio && npm run smoke:server-security && npm run smoke:audioflix-spotify && npm run smoke:audioflix-volume && npm run smoke:audioflix-playback && npm run smoke:audioflix-soundlab && npm run smoke:gemini-context"
+    "verify": "npm run build:audioflix-genai && npm run build:asset-versions && npm run audit:asset-versions && npm run audit:runtime-assets && npm run audit && npm run audit:python && npm run audit:smoke-registry && npm run smoke:runtime-cache && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:control-plane && npm run smoke:regressions && npm run smoke:world-book && npm run smoke:search-monitor && npm run smoke:gemini-audio && npm run smoke:server-security && npm run smoke:audioflix-spotify && npm run smoke:audioflix-volume && npm run smoke:audioflix-playback && npm run smoke:audioflix-soundlab && npm run smoke:gemini-context"
   },
   "engines": {
     "node": ">=20"

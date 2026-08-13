@@ -7,14 +7,14 @@ const CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') +
 
 // List of scripts to be loaded for Chat Log Display components (includes both UI loaders and handlers)
 const chatLogDisplayScripts = [
-    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/main_chat/mainChatLogUILoader.js`,
-    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/logCopyRuntime.js?v=0.1.0`,
-    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/prev_conv/previousConversationLogDisplayLoader.js`,
-    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/toggle_hist/toggleConversationHistoryButtonUILoader.js`,
-    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/sys_log/systemLogDisplayUILoader.js`,
-    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/logs/sys_log/server_reboot_button/serverRebootButtonHandler.js',
-    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/hist_toggle/conversation_history_ui/previousConversationClearHandler.js?v=0.1.1',
-    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/hist_toggle/conversation_history_ui/conversationHistoryToggler.js' // Add the handler script
+    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/main_chat/mainChatLogUILoader.js?v=5e482b6a052f`,
+    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/logCopyRuntime.js?v=4ef10c50d114`,
+    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/prev_conv/previousConversationLogDisplayLoader.js?v=224c49910a10`,
+    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/toggle_hist/toggleConversationHistoryButtonUILoader.js?v=8d3d716beedc`,
+    `${CHAT_LOG_DISPLAY_HTML_LOADERS_BASE_PATH}/sys_log/systemLogDisplayUILoader.js?v=278b34ce00e1`,
+    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/logs/sys_log/server_reboot_button/serverRebootButtonHandler.js?v=9e7bfdb6ff94',
+    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/hist_toggle/conversation_history_ui/previousConversationClearHandler.js?v=316ce84da1c4',
+    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/hist_toggle/conversation_history_ui/conversationHistoryToggler.js?v=0a5b38918cbb' // Add the handler script
     // Add other scripts for Chat Log Display components here in the future
 ];
 

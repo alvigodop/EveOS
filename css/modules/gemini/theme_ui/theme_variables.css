@@ -1,4 +1,4 @@
 /* Gemini Theme Variables Facade */
-@import url("./theme_variables.palettes.css");
-@import url("./theme_variables.layout.css");
-@import url("./theme_variables.overrides.css");
+@import url("./theme_variables.palettes.css?v=9405200250f8");
+@import url("./theme_variables.layout.css?v=d56ad6e2af56");
+@import url("./theme_variables.overrides.css?v=d143c2092b7d");

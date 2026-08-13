@@ -7,7 +7,7 @@ const SYSTEM_MESSAGE_TOGGLE_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT 
 
 // List of individual UI loader scripts for System Message Toggle UI components
 const systemMessageToggleUILoaderScripts = [
-    `${SYSTEM_MESSAGE_TOGGLE_UI_HTML_LOADERS_BASE_PATH}/toggle_sw/systemMessageToggleSwitchUILoader.js`
+    `${SYSTEM_MESSAGE_TOGGLE_UI_HTML_LOADERS_BASE_PATH}/toggle_sw/systemMessageToggleSwitchUILoader.js?v=438e4d63b9b5`
     // Add other UI loader scripts for System Message Toggle UI components here in the future
 ];
 

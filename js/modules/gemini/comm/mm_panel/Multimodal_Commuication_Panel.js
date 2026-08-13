@@ -11,10 +11,10 @@ const MM_PANEL_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/c
 // List of Multimodal Communication Panel scripts to load
 const mmPanelScriptsToLoad = [
     // Screen Share MM Communication Panel
-    `${MM_PANEL_BASE_PATH}/scr_share/Screen_Share_MM_Commuication_Panel.js?v=0.2.0`,
+    `${MM_PANEL_BASE_PATH}/scr_share/Screen_Share_MM_Commuication_Panel.js?v=6896906201c8`,
 
     // Voice Input MM Communication Panel
-    `${MM_PANEL_BASE_PATH}/voice_input/Voice_Input_MM_Commuication_Panel.js`
+    `${MM_PANEL_BASE_PATH}/voice_input/Voice_Input_MM_Commuication_Panel.js?v=f935fadeaaec`
 ];
 
 // Function to load all Multimodal Communication Panel scripts

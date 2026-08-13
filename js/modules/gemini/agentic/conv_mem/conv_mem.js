@@ -12,17 +12,17 @@ const CONVERSATION_MEMORY_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modul
 // List of conversation memory related scripts to load
 const conversationMemoryScripts = [
     // Core state management
-    `${CONVERSATION_MEMORY_BASE_PATH}/chat_history_state/chatHistoryState.js`,
-    `${CONVERSATION_MEMORY_BASE_PATH}/chat_history_management/historyStateResetter.js`,
+    `${CONVERSATION_MEMORY_BASE_PATH}/chat_history_state/chatHistoryState.js?v=eddf7a3276ce`,
+    `${CONVERSATION_MEMORY_BASE_PATH}/chat_history_management/historyStateResetter.js?v=5f3c8ac82a7b`,
 
     // Memory and context control
-    `${CONVERSATION_MEMORY_BASE_PATH}/context_memory_toggle_handler/contextMemoryToggleHandler.js`,
+    `${CONVERSATION_MEMORY_BASE_PATH}/context_memory_toggle_handler/contextMemoryToggleHandler.js?v=fbe9b809e6db`,
 
     // History sending operations
-    `${CONVERSATION_MEMORY_BASE_PATH}/chat_history_sending_operations/chatHistorySender.js`,
-    `${CONVERSATION_MEMORY_BASE_PATH}/loaded_history_context_sending/loadedHistoryContextSender.js`,
-    `${CONVERSATION_MEMORY_BASE_PATH}/initial_context_sending/initialContextSender.js`,
-    `${CONVERSATION_MEMORY_BASE_PATH}/current_chat_context_sending/currentChatContextSender.js`
+    `${CONVERSATION_MEMORY_BASE_PATH}/chat_history_sending_operations/chatHistorySender.js?v=6deeeb1043b0`,
+    `${CONVERSATION_MEMORY_BASE_PATH}/loaded_history_context_sending/loadedHistoryContextSender.js?v=f4115dfef1e2`,
+    `${CONVERSATION_MEMORY_BASE_PATH}/initial_context_sending/initialContextSender.js?v=65b8f2517ebb`,
+    `${CONVERSATION_MEMORY_BASE_PATH}/current_chat_context_sending/currentChatContextSender.js?v=f3e1dc0324a7`
 ];
 
 // Load all conversation memory related scripts

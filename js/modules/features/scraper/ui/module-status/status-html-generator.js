@@ -76,7 +76,7 @@
             // Line 47 closes the `p` tags but NOT the div? 
             // Line 47 in original: `</p></div>;` -> Yes it closes the div!
             // So line 247 `html += '</div>'` is indeed mysterious in the original.
-            // Let's re-read original `status-view.js`.
+            // Let's re-read original `status-view.js?v=1aa56d61f29c`.
             // Line 29: `<div style="...">`
             // Line 47: `</div>`
             // Line 247: `html += '</div>';` 

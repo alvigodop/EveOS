@@ -13,7 +13,7 @@ async function loadLocalStylesheet() {
         // Create the link element directly instead of fetching HTML
         const linkElement = document.createElement('link');
         linkElement.rel = 'stylesheet';
-        linkElement.href = `${normalizedRoot}css/main.css`;
+        linkElement.href = `${normalizedRoot}css/main.css?v=fbd0d7c67bf2`;
 
         // Get the document head where local stylesheet should be inserted
         const headElement = document.head;

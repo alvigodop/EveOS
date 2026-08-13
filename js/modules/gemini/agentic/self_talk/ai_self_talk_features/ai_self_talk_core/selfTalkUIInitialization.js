@@ -1,7 +1,7 @@
 /**
  * selfTalkUIInitialization.js
  * Orchestrates the initialization of AI Self-Talk UI components.
- * Delegates actual logic to `selfTalkToggleHandler.js` and `selfTalkSettingsHandler.js`.
+ * Delegates actual logic to `selfTalkToggleHandler.js?v=83d358572fc1` and `selfTalkSettingsHandler.js?v=fa8f48a0fafc`.
  */
 
 window.AiSelfTalkAgentic = window.AiSelfTalkAgentic || {};

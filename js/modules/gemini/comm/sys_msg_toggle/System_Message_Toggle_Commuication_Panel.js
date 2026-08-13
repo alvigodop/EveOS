@@ -7,7 +7,7 @@ const SYSTEM_MESSAGE_TOGGLE_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/mod
 
 // Define the scripts to load for system message toggle functionality
 const systemMessageToggleScripts = [
-    `${SYSTEM_MESSAGE_TOGGLE_BASE_PATH}/system_message_visibility_handler/systemMessageVisibilityHandler.js`, // Manages the toggle for showing or hiding system messages.
+    `${SYSTEM_MESSAGE_TOGGLE_BASE_PATH}/system_message_visibility_handler/systemMessageVisibilityHandler.js?v=22f964257a66`, // Manages the toggle for showing or hiding system messages.
 ];
 
 // Create a namespace for System Message Toggle functionality

@@ -8,8 +8,8 @@ const UI_COMPONENT_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js
 
 // List of individual UI component loader scripts
 const uiComponentLoaderScripts = [
-    `${UI_COMPONENT_HTML_LOADERS_BASE_PATH}/btn/screenShareButtonLoader.js`,
-    `${UI_COMPONENT_HTML_LOADERS_BASE_PATH}/vid_canv/video_canvas_elements_loader.js`,
+    `${UI_COMPONENT_HTML_LOADERS_BASE_PATH}/btn/screenShareButtonLoader.js?v=6ce18e34a523`,
+    `${UI_COMPONENT_HTML_LOADERS_BASE_PATH}/vid_canv/video_canvas_elements_loader.js?v=c9920ebf39e1`,
     // Add other general UI component loaders here in the future
 ];
 

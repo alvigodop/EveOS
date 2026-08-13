@@ -9,11 +9,11 @@
     const SOCKET_HEARTBEAT_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/client/connection_management/heartbeat_core';
 
     const scripts = [
-        `${SOCKET_HEARTBEAT_PATH}/ping_pong/socketCleanup.js`,
-        `${SOCKET_HEARTBEAT_PATH}/ping_pong/pingPongHandlers.js`,
-        `${SOCKET_HEARTBEAT_PATH}/ping_pong/connectionHealthMonitor.js`,
-        `${SOCKET_HEARTBEAT_PATH}/ping_pong/socketEventWrappers.js`,
-        `${SOCKET_HEARTBEAT_PATH}/ping_pong/nativePingPongCoordinator.js`
+        `${SOCKET_HEARTBEAT_PATH}/ping_pong/socketCleanup.js?v=a67fff08079b`,
+        `${SOCKET_HEARTBEAT_PATH}/ping_pong/pingPongHandlers.js?v=e70d668b32c3`,
+        `${SOCKET_HEARTBEAT_PATH}/ping_pong/connectionHealthMonitor.js?v=c079f08dda12`,
+        `${SOCKET_HEARTBEAT_PATH}/ping_pong/socketEventWrappers.js?v=a39480ab375b`,
+        `${SOCKET_HEARTBEAT_PATH}/ping_pong/nativePingPongCoordinator.js?v=79efb966e971`
     ];
 
     function loadScript(src) {

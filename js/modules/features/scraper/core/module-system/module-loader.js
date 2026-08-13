@@ -128,7 +128,7 @@ if (typeof CustomEvent === 'function' && typeof document.dispatchEvent === 'func
         detail: {
             moduleName: 'ModuleLoader',
             module: ModuleLoader,
-            source: 'module-loader.js'
+            source: 'module-loader.js?v=80dbc0f5fb10'
         }
     });
     document.dispatchEvent(event);

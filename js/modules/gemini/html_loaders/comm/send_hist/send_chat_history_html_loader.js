@@ -7,13 +7,13 @@ const SEND_CHAT_HISTORY_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '
 
 // List of individual UI loader scripts for Send Chat History UI components
 const sendChatHistoryUILoaderScripts = [
-    `${SEND_CHAT_HISTORY_UI_HTML_LOADERS_BASE_PATH}/send_btn/sendHistoryButtonUILoader.js`
+    `${SEND_CHAT_HISTORY_UI_HTML_LOADERS_BASE_PATH}/send_btn/sendHistoryButtonUILoader.js?v=e60ae6c7b4a3`
     // Add other UI loader scripts for Send Chat History UI components here in the future
 ];
 
 // List of required JavaScript files that provide the functionality
 const sendChatHistoryFunctionalityScripts = [
-    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/send_hist/chat_history_sending_operations/chatHistorySender.js'
+    (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/send_hist/chat_history_sending_operations/chatHistorySender.js?v=2f8ee5d0ffb7'
 ];
 
 /**

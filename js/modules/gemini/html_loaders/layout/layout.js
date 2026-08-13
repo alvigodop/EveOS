@@ -7,14 +7,14 @@ const LAYOUT_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/mo
 
 // List of individual UI loader scripts for Layout UI components
 const layoutUILoaderScripts = [
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/mdl_wrap/mdlLayoutWrapperUILoader.js`,
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/header/pageHeaderUILoader.js`,
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/conn_stat/connectionStatusIndicatorUILoader.js`,
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/main_area/mainContentAreaContainerUILoader.js`,
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/vid_sect/videoSectionUILoader.js`,
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/agentic_sect/agenticFunctionsSectionContainerUILoader.js`,
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/chat_cont/chatContainerUILoader.js`,
-    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/input_sect/textInputSectionContainerUILoader.js`
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/mdl_wrap/mdlLayoutWrapperUILoader.js?v=0d06fb3cc73b`,
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/header/pageHeaderUILoader.js?v=9f7ec21a9f51`,
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/conn_stat/connectionStatusIndicatorUILoader.js?v=484117a9c62c`,
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/main_area/mainContentAreaContainerUILoader.js?v=ce5835c72664`,
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/vid_sect/videoSectionUILoader.js?v=d3ee55c53b2f`,
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/agentic_sect/agenticFunctionsSectionContainerUILoader.js?v=88f3d2aa62e2`,
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/chat_cont/chatContainerUILoader.js?v=4358087613f6`,
+    `${LAYOUT_UI_HTML_LOADERS_BASE_PATH}/input_sect/textInputSectionContainerUILoader.js?v=7bc21100a932`
     // Add other UI loader scripts for Layout UI components here in the future
 ];
 

@@ -7,8 +7,8 @@ const MULTIMODAL_COMMUNICATION_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT 
 
 // List of individual UI loader scripts for Multimodal Communication components
 const multimodalCommunicationUILoaderScripts = [
-    `${MULTIMODAL_COMMUNICATION_HTML_LOADERS_BASE_PATH}/scr_share/screen_share_mm_html_loaders.js`,
-    `${MULTIMODAL_COMMUNICATION_HTML_LOADERS_BASE_PATH}/voice_input/voice_input_mm_html_loader.js`
+    `${MULTIMODAL_COMMUNICATION_HTML_LOADERS_BASE_PATH}/scr_share/screen_share_mm_html_loaders.js?v=54728bf1b6b1`,
+    `${MULTIMODAL_COMMUNICATION_HTML_LOADERS_BASE_PATH}/voice_input/voice_input_mm_html_loader.js?v=15deb4d3c06a`
 ];
 
 /**

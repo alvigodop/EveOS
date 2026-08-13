@@ -22,9 +22,9 @@ window.UnidexViewModules = window.UnidexViewModules || {};
             const normalized = String(href || '')
                 .replace(/\\/g, '/')
                 .toLowerCase();
-            return normalized.includes('/js/modules/ui/dashboard/unidex-view.css')
-                || normalized.endsWith('/unidex-view.css')
-                || normalized.includes('/unidex-view.css?');
+            return normalized.includes('/js/modules/ui/dashboard/unidex-view.css?v=1bc1d2625977')
+                || normalized.endsWith('/unidex-view.css?v=1bc1d2625977')
+                || normalized.includes('/unidex-view.css?&v=1bc1d2625977');
         }
 
         function promoteUnidexStylesheet() {

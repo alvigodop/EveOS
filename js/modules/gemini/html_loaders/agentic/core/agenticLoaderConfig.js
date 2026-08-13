@@ -9,21 +9,21 @@ const AGENTIC_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modu
 
 // List of individual agentic UI loader scripts
 const agenticUILoaderScripts = [
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/time_perc/timePerceptionUILoader.js`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/conv_mem/conversationMemoryUILoader.js`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkScopeRuntime.js?v=0.2.5`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUIState.js?v=0.1.0`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUICard.js?v=0.1.0`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUILoader.js?v=0.6.2`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkAssistRuntime.js?v=0.2.2`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioProcessingControlsUILoader.js`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioSettingsDialogUILoader.js`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sonic_forge/sonicForgeManagerUILoader.js?v=0.1.0`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/narration/worldBookNarrationManagerUILoader.js?v=0.1.0`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sess_ctrl/sessionControlsUILoader.js?v=0.2.3`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/scr_cap/screenCaptureSettingsUILoader.js?v=0.3.0`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkUILoader.js`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkSettingsDialogUILoader.js`
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/time_perc/timePerceptionUILoader.js?v=098e92d2fb30`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/conv_mem/conversationMemoryUILoader.js?v=4d4da6e85f17`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkScopeRuntime.js?v=73f1e22453eb`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUIState.js?v=fc2b58d51f24`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUICard.js?v=32441bda75e1`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkUILoader.js?v=fd8367415eba`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/gemini_link/geminiLiveLinkAssistRuntime.js?v=395de93167df`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioProcessingControlsUILoader.js?v=f8d0e38da1f1`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioSettingsDialogUILoader.js?v=c2faf304f639`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sonic_forge/sonicForgeManagerUILoader.js?v=3d44b5033621`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/narration/worldBookNarrationManagerUILoader.js?v=f4fdb689b0d6`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sess_ctrl/sessionControlsUILoader.js?v=ebe3064e147f`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/scr_cap/screenCaptureSettingsUILoader.js?v=fdccecf8ddde`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkUILoader.js?v=abd2a89d80ac`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkSettingsDialogUILoader.js?v=f69967fb2fec`
 ];
 
 // Export to global scope if needed for other modules, though primarily used by scriptLoader

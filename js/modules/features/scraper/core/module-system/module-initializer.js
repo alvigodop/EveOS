@@ -86,10 +86,10 @@ const ModuleInitializer = {
 
         // Special module registration map
         const moduleSourceMap = {
-            'GlobalFix': 'js/modules/core/global-fix.js',
-            'ModuleLoader': 'js/modules/core/module-loader.js',
-            'CORSProxyManager': 'js/modules/utils/cors-proxy-manager.js',
-            'ErrorSuppressor': 'js/modules/utils/error-suppressor.js'
+            'GlobalFix': 'js/modules/features/scraper/core/fixes/global-fix.js?v=03e1788212c3',
+            'ModuleLoader': 'js/modules/features/scraper/core/module-system/module-loader.js?v=80dbc0f5fb10',
+            'CORSProxyManager': 'js/modules/features/scraper/utils/cors-proxy/cors-proxy-manager.js?v=f55b45e9c8d8',
+            'ErrorSuppressor': 'js/modules/features/scraper/utils/error-handling/suppressor/error-suppressor.js?v=9db927220799'
         };
 
         // Check if modules exist in ModuleRegistry but not in window

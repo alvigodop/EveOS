@@ -8,9 +8,9 @@ const SCREEN_CAPTURE_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/ge
 
 // List of screen capture related scripts to load
 const screenCaptureScripts = [
-    `${SCREEN_CAPTURE_BASE_PATH}/screen_sharing_state/screenSharingState.js`,      // Technical state management
-    `${SCREEN_CAPTURE_BASE_PATH}/media_stream_state/mediaStreamState.js`, // Manages the global state for the active media stream (camera/screen).
-    `${SCREEN_CAPTURE_BASE_PATH}/screen_capture_frame_state/screenCaptureFrameState.js`  // Frame buffer management
+    `${SCREEN_CAPTURE_BASE_PATH}/screen_sharing_state/screenSharingState.js?v=321ef7edf6db`,      // Technical state management
+    `${SCREEN_CAPTURE_BASE_PATH}/media_stream_state/mediaStreamState.js?v=c2e88d9a2158`, // Manages the global state for the active media stream (camera/screen).
+    `${SCREEN_CAPTURE_BASE_PATH}/screen_capture_frame_state/screenCaptureFrameState.js?v=59790a850a04`  // Frame buffer management
 ];
 
 // Load all screen capture related scripts

@@ -11,13 +11,13 @@ const MESSAGING_LOG_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gem
 // List of Messaging Log scripts to load
 // List of Messaging Log scripts to load
 const messagingLogScripts = [
-    `${MESSAGING_LOG_BASE_PATH}/msg_disp/messaging_ui_core/messagingUiLoader.js`,
-    `${MESSAGING_LOG_BASE_PATH}/msg_disp/audio_player/audioPlayerComponentCreator.js`,
-    `${MESSAGING_LOG_BASE_PATH}/msg_disp/audio_player/audioAutoPlayHandler.js`,
-    `${MESSAGING_LOG_BASE_PATH}/msg_disp/audio_player/audioPlayerEventHandler.js`,
-    `${MESSAGING_LOG_BASE_PATH}/msg_disp/incomingMessageHandler.js`,
-    `${MESSAGING_LOG_BASE_PATH}/msg_disp/messageDisplayHandler.js`,
-    `${MESSAGING_LOG_BASE_PATH}/message_counting/messageCounter.js`
+    `${MESSAGING_LOG_BASE_PATH}/msg_disp/messaging_ui_core/messagingUiLoader.js?v=7863278d5dff`,
+    `${MESSAGING_LOG_BASE_PATH}/msg_disp/audio_player/audioPlayerComponentCreator.js?v=c060d0bed766`,
+    `${MESSAGING_LOG_BASE_PATH}/msg_disp/audio_player/audioAutoPlayHandler.js?v=8f07713e242b`,
+    `${MESSAGING_LOG_BASE_PATH}/msg_disp/audio_player/audioPlayerEventHandler.js?v=53e2b4e7ce27`,
+    `${MESSAGING_LOG_BASE_PATH}/msg_disp/incomingMessageHandler.js?v=c541e16fa11e`,
+    `${MESSAGING_LOG_BASE_PATH}/msg_disp/messageDisplayHandler.js?v=e8cbea78c75c`,
+    `${MESSAGING_LOG_BASE_PATH}/message_counting/messageCounter.js?v=aca5eaa37845`
 ];
 
 let messagingLogScriptsSettled = 0;

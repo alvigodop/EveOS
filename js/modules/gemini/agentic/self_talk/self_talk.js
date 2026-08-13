@@ -12,13 +12,13 @@ const AI_SELF_TALK_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemi
 // List of AI self-talk related scripts to load
 const aiSelfTalkScripts = [
     // Core self-talk functionality
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkState.js`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkDefinitions.js`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkExecution.js`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkToggleHandler.js`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkSettingsHandler.js?v=0.1.1`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkUIInitialization.js`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/aiSelfTalkCoordinator.js`
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkState.js?v=d66f87c6eacc`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkDefinitions.js?v=275891a5993d`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkExecution.js?v=48c10d5b775b`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkToggleHandler.js?v=83d358572fc1`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkSettingsHandler.js?v=fa8f48a0fafc`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkUIInitialization.js?v=e24f53d8fe5c`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/aiSelfTalkCoordinator.js?v=d5bfddd26418`
 ];
 
 // Load all AI self-talk related scripts

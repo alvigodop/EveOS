@@ -362,7 +362,7 @@
    .cache-item-date, .cache-item-body, .cache-item-row, .cache-item-label,
    .cache-item-value, .cache-item-categories, .cache-category-tag) 
    are now imported from cache-visualization.css */
-@import 'cache-visualization.css';
+@import 'cache-visualization.css?v=870cc78ade91';
 
 /* Note: Status badge styles (.status-badge, .status-badge.cached, .status-badge.not-cached,
    .status-badge.outdated, .entry-status, .status-info) are now consolidated in ui/badges.css */

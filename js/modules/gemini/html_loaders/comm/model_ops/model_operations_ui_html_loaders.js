@@ -7,8 +7,8 @@ const MODEL_OPERATIONS_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || ''
 
 // List of individual UI loader scripts for Model Operations UI components
 const modelOperationsUILoaderScripts = [
-    `${MODEL_OPERATIONS_UI_HTML_LOADERS_BASE_PATH}/reinit_btn/reinitiateModelButtonUILoader.js`,
-    `${MODEL_OPERATIONS_UI_HTML_LOADERS_BASE_PATH}/new_chat_btn/newChatButtonUILoader.js`
+    `${MODEL_OPERATIONS_UI_HTML_LOADERS_BASE_PATH}/reinit_btn/reinitiateModelButtonUILoader.js?v=ca276cb7f837`,
+    `${MODEL_OPERATIONS_UI_HTML_LOADERS_BASE_PATH}/new_chat_btn/newChatButtonUILoader.js?v=cc61e8a73c31`
     // Add other UI loader scripts for Model Operations UI components here in the future
 ];
 

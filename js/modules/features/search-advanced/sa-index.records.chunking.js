@@ -88,7 +88,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             if (workerDisabled || typeof window.Worker !== 'function') return null;
             if (worker) return worker;
             try {
-                worker = new Worker('js/modules/features/search-advanced/sa-index.records.worker.js?v=0.1.0');
+                worker = new Worker('js/modules/features/search-advanced/sa-index.records.worker.js?v=218f333bf162');
                 worker.onmessage = function (event) {
                     const data = event && event.data ? event.data : {};
                     const entry = pending.get(data.requestId);

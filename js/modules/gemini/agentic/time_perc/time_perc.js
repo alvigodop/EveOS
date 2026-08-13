@@ -7,9 +7,9 @@ const TIME_PERCEPTION_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/g
 
 // List of time perception related scripts to load
 const timePerceptionScripts = [
-    `${TIME_PERCEPTION_BASE_PATH}/time_perception/timeDisplayManager.js`,
-    `${TIME_PERCEPTION_BASE_PATH}/time_formatters/timeFormatter.js`,
-    `${TIME_PERCEPTION_BASE_PATH}/timestamp_parser/timestampParser.js`
+    `${TIME_PERCEPTION_BASE_PATH}/time_perception/timeDisplayManager.js?v=3225759b38aa`,
+    `${TIME_PERCEPTION_BASE_PATH}/time_formatters/timeFormatter.js?v=97aca6837e80`,
+    `${TIME_PERCEPTION_BASE_PATH}/timestamp_parser/timestampParser.js?v=57e18f9c43e3`
 ];
 
 // Load all time perception related scripts

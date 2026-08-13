@@ -1,7 +1,7 @@
 /* Popup Manager CSS */
 
 /* Import extracted modular styles */
-@import 'data-popup.css';
+@import 'data-popup.css?v=1623fa1148bc';
 
 /* Popup Styles - .popup class */
 .popup {

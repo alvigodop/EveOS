@@ -10,7 +10,7 @@ const START_NEW_CHAT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/ge
 
 const startNewChatScriptsToLoad = [
     // New Chat Operations
-    `${START_NEW_CHAT_BASE_PATH}/new_chat_operations/newChatHandler.js?v=0.1.1`
+    `${START_NEW_CHAT_BASE_PATH}/new_chat_operations/newChatHandler.js?v=1aa347c6a29b`
 ];
 
 function loadStartNewChatScripts() {

@@ -1,4 +1,4 @@
 /* API Card Settings CSS Facade */
-@import url('./card-settings.controls.css');
-@import url('./card-settings.unidex.css');
-@import url('./card-settings.scraper.css');
+@import url('./card-settings.controls.css?v=9d36216be487');
+@import url('./card-settings.unidex.css?v=b4603b115e42');
+@import url('./card-settings.scraper.css?v=44ac52287f83');

@@ -7,7 +7,7 @@ const CLEAR_CHAT_COMM_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/g
 
 // List of Clear Chat Communication Panel scripts to load
 const clearChatCommunicationPanelScriptsToLoad = [
-    `${CLEAR_CHAT_COMM_BASE_PATH}/chat_clearing_operations/chatClearHandler.js`, // Handles clearing of current chat, past chats, or all chat data.
+    `${CLEAR_CHAT_COMM_BASE_PATH}/chat_clearing_operations/chatClearHandler.js?v=63aad16e4f53`, // Handles clearing of current chat, past chats, or all chat data.
     // System log operations now moved to Clear_System_Log_Commuication_Panel
 ];
 

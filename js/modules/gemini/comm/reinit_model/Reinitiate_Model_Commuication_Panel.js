@@ -12,10 +12,10 @@ const MODEL_REINIT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemi
 // Scripts to load for model reinitialization functionality
 const modelReinitScripts = [
     // Core Model Initialization
-    `${MODEL_REINIT_BASE_PATH}/model_initialization/modelInitializer.js`,
-    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/setupMessageCreator.js?v=0.2.0`,
-    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/sessionFlowManager.js`,
-    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/initialSetupMessageHandler.js`
+    `${MODEL_REINIT_BASE_PATH}/model_initialization/modelInitializer.js?v=3d845021b7ca`,
+    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/setupMessageCreator.js?v=c43635653b34`,
+    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/sessionFlowManager.js?v=255324737a47`,
+    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/initialSetupMessageHandler.js?v=ad74d78c005a`
 ];
 
 // Function to load all model reinitialization scripts

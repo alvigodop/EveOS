@@ -160,7 +160,7 @@ window.PastChatsUI.Actions = {
         const clearButton = document.createElement('button');
         clearButton.className = 'mdl-button mdl-js-button mdl-button--raised mdl-button--accent';
         clearButton.innerHTML = '<i class="material-icons" style="vertical-align: middle; margin-right: 4px;">clear_all</i>Clear';
-        // Assuming global clearPreviousChat exists from 'previousConversationClearHandler.js' or similar
+        // Assuming global clearPreviousChat exists from 'previousConversationClearHandler.js?v=316ce84da1c4' or similar
         clearButton.onclick = () => {
             if (typeof clearPreviousChat === 'function') {
                 clearPreviousChat();

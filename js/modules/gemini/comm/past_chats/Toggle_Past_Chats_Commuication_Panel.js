@@ -10,14 +10,14 @@ const TOGGLE_PAST_CHATS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules
 
 const togglePastChatsScriptsToLoad = [
     // Past Chats State
-    `${TOGGLE_PAST_CHATS_BASE_PATH}/past_chats_state/pastChatsState.js`,
+    `${TOGGLE_PAST_CHATS_BASE_PATH}/past_chats_state/pastChatsState.js?v=4d020601d0dc`,
 
     // Past Chats UI
-    `${TOGGLE_PAST_CHATS_BASE_PATH}/past_chats_ui/pastChatManager.js`,
-    `${TOGGLE_PAST_CHATS_BASE_PATH}/past_chats_ui/pastChatsVisibilityToggler.js`,
+    `${TOGGLE_PAST_CHATS_BASE_PATH}/past_chats_ui/pastChatManager.js?v=40c5ffb7d4dc`,
+    `${TOGGLE_PAST_CHATS_BASE_PATH}/past_chats_ui/pastChatsVisibilityToggler.js?v=828be9fcc917`,
 
     // Previous Chat Display Management
-    `${TOGGLE_PAST_CHATS_BASE_PATH}/previous_chat_display_management/previousChatEditor.js?v=0.1.1`
+    `${TOGGLE_PAST_CHATS_BASE_PATH}/previous_chat_display_management/previousChatEditor.js?v=27dc0ee14e29`
 ];
 
 function loadTogglePastChatsScripts() {

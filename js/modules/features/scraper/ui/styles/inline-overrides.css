@@ -8,7 +8,7 @@
  */
 
 /* Import extracted modular styles */
-@import '../popup-manager/popup-confirmation.css';
+@import '../popup-manager/popup-confirmation.css?v=5abbf3295d5a';
 
 /* ============================================
    TOOLBAR & LAYOUT STYLING

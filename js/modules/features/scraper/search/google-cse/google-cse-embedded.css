@@ -4,12 +4,12 @@
  */
 
 /* Import shared styles */
-@import '../../utils/styles/loading-indicators.css';
-@import '../shared/search-forms.css';
+@import '../../utils/styles/loading-indicators.css?v=eab0cc37aa8d';
+@import '../shared/search-forms.css?v=145885da8e0c';
 
 /* Import modular component styles */
-@import 'google-cse-layout.css';
-@import 'google-cse-results.css';
+@import 'google-cse-layout.css?v=b7aca49f49b4';
+@import 'google-cse-results.css?v=6a6d8d738182';
 
 /* [CRITICAL] Emergency visibility overrides - these ensure search boxes always display */
 /* These are duplicated here intentionally as a failsafe */

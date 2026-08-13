@@ -7,7 +7,7 @@
  */
 
 /* Import extracted modular styles */
-@import 'cse-fallback.css';
+@import 'cse-fallback.css?v=fba2e29835b7';
 
 /* Emergency Module Status Popup */
 #emergencyModuleStatusPopup {

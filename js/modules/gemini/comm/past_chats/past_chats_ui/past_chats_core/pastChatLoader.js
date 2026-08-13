@@ -6,8 +6,8 @@
 const PAST_CHATS_CORE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/comm/past_chats/past_chats_ui/past_chats_core';
 
 const pastChatsScripts = [
-    `${PAST_CHATS_CORE_PATH}/pastChatRenderer.js`,
-    `${PAST_CHATS_CORE_PATH}/pastChatActionHandler.js?v=0.1.1`
+    `${PAST_CHATS_CORE_PATH}/pastChatRenderer.js?v=123e729b61ec`,
+    `${PAST_CHATS_CORE_PATH}/pastChatActionHandler.js?v=3fec323edc3c`
 ];
 
 function loadPastChatsScripts() {

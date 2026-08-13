@@ -9,10 +9,10 @@ let pageInitializationStarted = false;
 const COMPONENT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/client/page_initialization/page_initialization_core';
 
 const pageInitScripts = [
-    `${COMPONENT_BASE_PATH}/svgLifecycle.js`,
-    `${COMPONENT_BASE_PATH}/displayLoader.js?v=0.1.14`,
-    `${COMPONENT_BASE_PATH}/connectivityStartup.js?v=0.1.3`,
-    `${COMPONENT_BASE_PATH}/initializationCoordinator.js?v=0.1.1`
+    `${COMPONENT_BASE_PATH}/svgLifecycle.js?v=1e452628edcd`,
+    `${COMPONENT_BASE_PATH}/displayLoader.js?v=9c2da1c6001a`,
+    `${COMPONENT_BASE_PATH}/connectivityStartup.js?v=f701e021de2c`,
+    `${COMPONENT_BASE_PATH}/initializationCoordinator.js?v=607f60fce0b3`
 ];
 
 function loadPageInitScripts() {

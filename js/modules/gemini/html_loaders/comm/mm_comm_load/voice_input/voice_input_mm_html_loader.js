@@ -7,8 +7,8 @@ const VOICE_INPUT_MM_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + '
 
 // List of individual UI loader scripts for Voice Input MM components
 const voiceInputMMUILoaderScripts = [
-    `${VOICE_INPUT_MM_HTML_LOADERS_BASE_PATH}/btn/startButtonUILoader.js`,
-    `${VOICE_INPUT_MM_HTML_LOADERS_BASE_PATH}/btn/stopButtonUILoader.js`
+    `${VOICE_INPUT_MM_HTML_LOADERS_BASE_PATH}/btn/startButtonUILoader.js?v=3875d1671528`,
+    `${VOICE_INPUT_MM_HTML_LOADERS_BASE_PATH}/btn/stopButtonUILoader.js?v=455f8dbf736c`
 ];
 
 /**

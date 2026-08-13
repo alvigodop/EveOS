@@ -1,7 +1,7 @@
 /* Modularized wrapper. Keep import order stable. */
-@import 'loading-animations.css';
-@import 'loading-indicator-light.css';
-@import 'loading-indicator.core.css';
-@import 'loading-indicator.layout.css';
-@import 'loading-indicator.compact-status.css';
-@import 'loading-indicator.details-message.css';
+@import 'loading-animations.css?v=a4671b779a04';
+@import 'loading-indicator-light.css?v=e78f1d32ee84';
+@import 'loading-indicator.core.css?v=cbff231ee1f2';
+@import 'loading-indicator.layout.css?v=09caa0fb1c51';
+@import 'loading-indicator.compact-status.css?v=99ab4fd8d0df';
+@import 'loading-indicator.details-message.css?v=b3209aeec739';

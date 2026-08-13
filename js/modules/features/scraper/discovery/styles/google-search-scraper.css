@@ -5,18 +5,18 @@
  */
 
 /* Import shared component styles */
-@import '../../utils/styles/loading-indicators.css';
-@import '../../core/styles/dark-mode.css';
-@import '../../ui/search-controls/toggle-switches.css';
-@import '../../search/shared/search-forms.css';
+@import '../../utils/styles/loading-indicators.css?v=eab0cc37aa8d';
+@import '../../core/styles/dark-mode.css?v=59ae3a9f0cfe';
+@import '../../ui/search-controls/toggle-switches.css?v=a5045300eb90';
+@import '../../search/shared/search-forms.css?v=145885da8e0c';
 
 /* Import extracted modular styles */
-@import 'google-knowledge-panel.css';
-@import 'empty-states.css';
-@import 'google-search-errors.css';
-@import 'google-result-items.css';
-@import 'google-style-interface.css';
-@import 'wiki-search-results.css';
+@import 'google-knowledge-panel.css?v=460c03f0cbe5';
+@import 'empty-states.css?v=ed609dc57d29';
+@import 'google-search-errors.css?v=370a648ca465';
+@import 'google-result-items.css?v=651618014060';
+@import 'google-style-interface.css?v=a30e9960d9be';
+@import 'wiki-search-results.css?v=1b6aef4053bb';
 
 /* Google Search Scraper CSS */
 

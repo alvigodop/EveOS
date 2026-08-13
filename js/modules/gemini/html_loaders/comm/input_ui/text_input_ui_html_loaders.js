@@ -7,9 +7,9 @@ const TEXT_INPUT_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'j
 
 // List of individual UI loader scripts for Text Input UI components
 const textInputUILoaderScripts = [
-    `${TEXT_INPUT_UI_HTML_LOADERS_BASE_PATH}/input_field/text_input_field_loader.js`,
-    `${TEXT_INPUT_UI_HTML_LOADERS_BASE_PATH}/send_btn/sendButtonUILoader.js`,
-    `${TEXT_INPUT_UI_HTML_LOADERS_BASE_PATH}/pop_btn/popoutButtonUILoader.js`
+    `${TEXT_INPUT_UI_HTML_LOADERS_BASE_PATH}/input_field/text_input_field_loader.js?v=d408f9f5de93`,
+    `${TEXT_INPUT_UI_HTML_LOADERS_BASE_PATH}/send_btn/sendButtonUILoader.js?v=72a18418d62b`,
+    `${TEXT_INPUT_UI_HTML_LOADERS_BASE_PATH}/pop_btn/popoutButtonUILoader.js?v=e31aa00a17c6`
     // Add other UI loader scripts for Text Input UI components here in the future
 ];
 

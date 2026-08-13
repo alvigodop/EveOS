@@ -6,8 +6,8 @@
  */
 
 /* Import extracted modular styles */
-@import 'google-cse-pagination.css';
-/* @import 'google-cse-dark.css'; - DISABLED to keep CSE always light */
+@import 'google-cse-pagination.css?v=7dff66ffe440';
+/* @import 'google-cse-dark.css?v=f45d2ad163f2'; - DISABLED to keep CSE always light */
 
 /* Style search results to match our theme */
 #google-results-container .gsc-control-cse {

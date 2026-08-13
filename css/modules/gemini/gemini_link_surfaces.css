@@ -1,12 +1,12 @@
 /* Gemini Link Surfaces CSS Facade */
-@import url('./gemini_link_surfaces.monitor.css?v=0.2.0');
-@import url('./gemini_link_surfaces.monitor-relay.css?v=0.1.0');
-@import url('./gemini_link_surfaces.context-relay.css?v=0.2.1');
-@import url('./gemini_link_surfaces.agentic.css');
-@import url('./gemini_link_surfaces.command.css?v=0.1.0');
-@import url('./gemini_link_surfaces.overrides.css?v=0.1.4');
-@import url('./gemini_link_surfaces.server-control.css?v=0.4.2');
-@import url('./gemini_link_surfaces.server-inspector.css?v=0.2.0');
-@import url('./gemini_link_surfaces.session-dialog.css?v=0.2.1');
-@import url('./gemini_link_surfaces.session-usage.css?v=0.1.0');
-@import url('./gemini_link_surfaces.viewport.css?v=0.3.8');
+@import url('./gemini_link_surfaces.monitor.css?v=105b9c105fe4');
+@import url('./gemini_link_surfaces.monitor-relay.css?v=311f5868d6e1');
+@import url('./gemini_link_surfaces.context-relay.css?v=4487c80a4531');
+@import url('./gemini_link_surfaces.agentic.css?v=1a186803ecaa');
+@import url('./gemini_link_surfaces.command.css?v=4862be4bceeb');
+@import url('./gemini_link_surfaces.overrides.css?v=637c58e7885a');
+@import url('./gemini_link_surfaces.server-control.css?v=39ab27fe0de8');
+@import url('./gemini_link_surfaces.server-inspector.css?v=da1782d6ba52');
+@import url('./gemini_link_surfaces.session-dialog.css?v=905b97f51aca');
+@import url('./gemini_link_surfaces.session-usage.css?v=6fcd3a374aa1');
+@import url('./gemini_link_surfaces.viewport.css?v=8794ab868c9e');

@@ -8,12 +8,12 @@ const HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemi
 
 // List of top-level HTML loader aggregator scripts
 const htmlLoaderAggregatorScripts = [
-    `${HTML_LOADERS_BASE_PATH}/ext_dep/ext_dep.js`, // External dependencies should load first
-    `${HTML_LOADERS_BASE_PATH}/layout/layout.js`, // Layout UI group aggregator
-    `${HTML_LOADERS_BASE_PATH}/agentic/agentic.js?v=0.2.12`,
-    `${HTML_LOADERS_BASE_PATH}/comm/comm.js?v=0.1.1`,
-    `${HTML_LOADERS_BASE_PATH}/chat_disp/chat_disp.js?v=0.1.1`, // Added new group aggregator
-    `${HTML_LOADERS_BASE_PATH}/audio_worklet/audio_worklet.js` // Audio worklet components group aggregator
+    `${HTML_LOADERS_BASE_PATH}/ext_dep/ext_dep.js?v=bab48b0bba0b`, // External dependencies should load first
+    `${HTML_LOADERS_BASE_PATH}/layout/layout.js?v=48b5a5d31035`, // Layout UI group aggregator
+    `${HTML_LOADERS_BASE_PATH}/agentic/agentic.js?v=0e4629c6aee5`,
+    `${HTML_LOADERS_BASE_PATH}/comm/comm.js?v=e5ce16870cac`,
+    `${HTML_LOADERS_BASE_PATH}/chat_disp/chat_disp.js?v=b898bd562f74`, // Added new group aggregator
+    `${HTML_LOADERS_BASE_PATH}/audio_worklet/audio_worklet.js?v=b08645d3954c` // Audio worklet components group aggregator
 ];
 
 /**

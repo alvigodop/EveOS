@@ -16,9 +16,9 @@ async function loadPcmProcessorScript() {
 
         /*
         // Programmatically create the script element
-        // Equivalent to: <script src="client/pcm-processor.js"></script>
+        // Equivalent to: <script src="client/pcm-processor.js?v=0ae66e01d23d"></script>
         const script = document.createElement('script');
-        script.src = "client/pcm-processor.js";
+        script.src = "client/pcm-processor.js?v=0ae66e01d23d";
 
         return new Promise((resolve, reject) => {
             script.onload = () => {

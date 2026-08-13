@@ -37,7 +37,7 @@ window.AudioContextInitializer.AudioWorkletHelper = {
             const processorCode = window.AudioWorkletCode.getProcessorCode();
 
             // On file:// neither obvious route works, which is why this kept falling back to the
-            // legacy player: addModule('js/.../pcm-processor.js') is a fetch from an opaque origin
+            // legacy player: addModule(<PCM processor asset>) is a fetch from an opaque origin
             // and Chromium refuses it outright ("Cross origin requests are only supported for
             // protocol schemes: ... http, https"), while a blob: URL inherits the null origin and
             // fails as blob:null -- the attempt this code was originally written around. A data:
@@ -51,7 +51,7 @@ window.AudioContextInitializer.AudioWorkletHelper = {
             if (processorCode) {
                 moduleUrls.push('data:application/javascript,' + encodeURIComponent(processorCode));
             }
-            moduleUrls.push('js/modules/gemini/client/pcm-processor.js');
+            moduleUrls.push('js/modules/gemini/client/pcm-processor.js?v=0ae66e01d23d');
 
             let moduleLoaded = false;
             let lastModuleError = null;

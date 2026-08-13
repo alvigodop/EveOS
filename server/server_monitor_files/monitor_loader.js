@@ -15,18 +15,18 @@
     // 1. Inject CSS
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = `${basePath}/css/monitor_styles.css`;
+    link.href = `${basePath}/css/monitor_styles.css?v=77a8cb7adc40`;
     document.head.appendChild(link);
     console.log("Monitor styles injected.");
 
     // 2. Load Logic Script
     // 2. Load Modules
     const modules = [
-        'monitor_state.js',
-        'monitor_ui.js',
-        'monitor_checker_modules/monitor_checker_loader.js',
-        'monitor_commands.js',
-        'monitor_logic.js'
+        'monitor_state.js?v=f0a677160697',
+        'monitor_ui.js?v=548e7df7bb82',
+        'monitor_checker_modules/monitor_checker_loader.js?v=ea57a8dfa23b',
+        'monitor_commands.js?v=60951edd6a70',
+        'monitor_logic.js?v=5f0c1e643ce3'
     ];
 
     function loadScript(index) {

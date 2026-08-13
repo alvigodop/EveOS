@@ -97,23 +97,19 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         super().end_headers()
 
     def _send_cache_control(self):
-        """Pick a cache policy so localhost loads fast without serving stale code.
+        """Keep APIs private and force localhost assets to revalidate before reuse.
 
-        - API responses are always dynamic -> never cache.
-        - Versioned static assets (URL carries `?v=`) are safe to cache hard: the version IS the
-          cache-buster, so bumping it changes the URL and forces a fresh fetch. This is what makes
-          repeat loads fast — the hundreds of `?v=` JS/CSS files come straight from the browser
-          cache instead of being re-downloaded every time (the old `no-store` defeated the app's
-          own `?v=` design).
-        - Everything else (EveOS.html, the manifest, any unversioned file) is cached but always
-          revalidated (304 when unchanged) so edits and manifest version bumps show up immediately.
+        Committed asset URLs carry generated content fingerprints for deterministic file://
+        loading. Local development can change a file before those fingerprints are rebuilt, so
+        localhost deliberately revalidates every static response instead of trusting a stale URL.
         """
         path = self.path or ""
         if path.startswith("/api/"):
             self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
-        elif "?v=" in path or "&v=" in path:
-            self.send_header("Cache-Control", "public, max-age=86400")
         else:
+            # Content fingerprints make file:// loads deterministic. Localhost still
+            # revalidates every asset so an unsynchronized development edit cannot
+            # leave an existing browser tab pinned to yesterday's implementation.
             self.send_header("Cache-Control", "no-cache")
     
     def do_OPTIONS(self):

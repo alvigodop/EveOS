@@ -9,6 +9,45 @@
 (function () {
     'use strict';
 
+    const BROWSER_EMULATOR_MODULES = [
+        'js/modules/features/scraper/utils/browser-emulator/core.js?v=b71beac60ee3',
+        'js/modules/features/scraper/utils/browser-emulator/be-config.js?v=c8d45491d36b',
+        'js/modules/features/scraper/utils/browser-emulator/be-utils.js?v=9a6fcb0f3ca2',
+        'js/modules/features/scraper/utils/browser-emulator/be-proxy-manager.js?v=c97feebfeb58',
+        'js/modules/features/scraper/utils/browser-emulator/be-render-orchestrator.js?v=ef31e9ae4837',
+        'js/modules/features/scraper/utils/browser-emulator/be-init.js?v=338ce92b79ee',
+        'js/modules/features/scraper/utils/browser-emulator/proxy-strategy.js?v=02e1ba81bb18',
+        'js/modules/features/scraper/utils/browser-emulator/iframe-strategy.js?v=a4bd03ef8f3e',
+        'js/modules/features/scraper/utils/browser-emulator/local-strategy.js?v=12f1bc1816dd'
+    ];
+
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.async = false;
+            script.onload = resolve;
+            script.onerror = () => reject(new Error(`Unable to recover ${src}`));
+            document.head.appendChild(script);
+        });
+    }
+
+    function recoverBrowserEmulator() {
+        if (window.__eveBrowserEmulatorRecoveryPromise) {
+            return window.__eveBrowserEmulatorRecoveryPromise;
+        }
+
+        window.__eveBrowserEmulatorRecoveryPromise = BROWSER_EMULATOR_MODULES.reduce(
+            (pending, src) => pending.then(() => loadScript(src)),
+            Promise.resolve()
+        ).catch((error) => {
+            window.__eveBrowserEmulatorRecoveryPromise = null;
+            console.error('GSCEmulator: BrowserEmulator recovery failed', error);
+            return false;
+        });
+        return window.__eveBrowserEmulatorRecoveryPromise;
+    }
+
     const GSCEmulator = {
         version: '1.0.0',
 
@@ -30,14 +69,8 @@
             // If BrowserEmulator doesn't exist, try to load it
             if (!hasBrowserEmulator) {
                 console.warn('GSCEmulator: BrowserEmulator not found, attempting to load it');
-                // This will load asynchronously, so subsequent checks will still fail
-                // until the script is loaded
-                if (!document.querySelector('script[src*="browser-emulator.js"]')) {
-                    const script = document.createElement('script');
-                    script.src = 'js/modules/utils/browser-emulator.js';
-                    script.async = true;
-                    document.head.appendChild(script);
-                }
+                // Recovery is asynchronous; the caller's next readiness check observes it.
+                recoverBrowserEmulator();
                 return false;
             }
 

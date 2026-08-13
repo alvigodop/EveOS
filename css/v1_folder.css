@@ -1,5 +1,5 @@
-@import url("./v1_folder.parts/part-01.css");
-@import url("./v1_folder.parts/part-02.css");
-@import url("./v1_folder.parts/part-03.css");
+@import url("./v1_folder.parts/part-01.css?v=291add173e91");
+@import url("./v1_folder.parts/part-02.css?v=37868c882a18");
+@import url("./v1_folder.parts/part-03.css?v=ed1b170588d0");
 
 /* Modularized: source rules moved into ordered part files above. */

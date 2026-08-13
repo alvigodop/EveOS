@@ -7,7 +7,7 @@ const CLEAR_CHAT_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'j
 
 // List of individual UI loader scripts for Clear Chat UI components
 const clearChatUILoaderScripts = [
-    `${CLEAR_CHAT_UI_HTML_LOADERS_BASE_PATH}/clear_btn/clearChatButtonUILoader.js`
+    `${CLEAR_CHAT_UI_HTML_LOADERS_BASE_PATH}/clear_btn/clearChatButtonUILoader.js?v=c28b3e726e71`
     // Add other UI loader scripts for Clear Chat UI components here in the future
 ];
 

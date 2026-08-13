@@ -7,7 +7,7 @@ const CLEAR_SYSTEM_LOG_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || ''
 
 // List of individual UI loader scripts for Clear System Log UI components
 const clearSystemLogUILoaderScripts = [
-    `${CLEAR_SYSTEM_LOG_UI_HTML_LOADERS_BASE_PATH}/clear_btn/clearSystemLogButtonUILoader.js`
+    `${CLEAR_SYSTEM_LOG_UI_HTML_LOADERS_BASE_PATH}/clear_btn/clearSystemLogButtonUILoader.js?v=46b818fbfe07`
     // Add other UI loader scripts for Clear System Log UI components here in the future
 ];
 

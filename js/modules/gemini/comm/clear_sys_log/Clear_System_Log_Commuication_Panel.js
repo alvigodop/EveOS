@@ -8,7 +8,7 @@ const CLEAR_SYSTEM_LOG_COMM_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/mod
 
 // List of Clear System Log Communication Panel scripts to load
 const clearSystemLogCommunicationPanelScriptsToLoad = [
-    `${CLEAR_SYSTEM_LOG_COMM_BASE_PATH}/system_log_operations/systemLogManager.js`, // Manages operations for the system log, such as clearing it.
+    `${CLEAR_SYSTEM_LOG_COMM_BASE_PATH}/system_log_operations/systemLogManager.js?v=acb9da7166b2`, // Manages operations for the system log, such as clearing it.
 ];
 
 // Initialize the namespace structure ONCE.

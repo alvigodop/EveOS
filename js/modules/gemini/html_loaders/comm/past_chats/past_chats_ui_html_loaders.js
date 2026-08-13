@@ -7,7 +7,7 @@ const PAST_CHATS_UI_HTML_LOADERS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'j
 
 // List of individual UI loader scripts for Past Chats UI components
 const pastChatsUILoaderScripts = [
-    `${PAST_CHATS_UI_HTML_LOADERS_BASE_PATH}/toggle_btn/togglePastChatsButtonUILoader.js`
+    `${PAST_CHATS_UI_HTML_LOADERS_BASE_PATH}/toggle_btn/togglePastChatsButtonUILoader.js?v=9bb28051ab84`
     // Add other UI loader scripts for Past Chats UI components here in the future
 ];
 

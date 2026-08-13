@@ -91,14 +91,14 @@
 }
 
 /* Import modular component styles */
-@import 'google-search-internal.css';
+@import 'google-search-internal.css?v=d8dc0a868554';
 /* Extracted Google Search Styles */
-@import 'wiki-listing.css';
+@import 'wiki-listing.css?v=0e06f7642491';
 /* Extracted Wiki Listing Styles */
-@import 'domain-entry.css';
-@import 'wikipedia-section.css';
+@import 'domain-entry.css?v=5581f3cca303';
+@import 'wikipedia-section.css?v=062d0a12af51';
 /* Reuse existing modular file via import */
-@import 'fandom-search.css';
+@import 'fandom-search.css?v=1304814a27d4';
 /* Reuse existing modular file via import */
 
 /* Placeholder for removed duplicate blocks */

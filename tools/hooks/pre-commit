@@ -1,7 +1,8 @@
 #!/bin/sh
-# EveOS pre-commit secret guard.
-# Blocks commits that stage a hardcoded credential. Keys belong in the user's Settings
-# (config.expandedSearch), resolved at runtime — never committed. Enable once per clone with:
+# EveOS pre-commit runtime integrity and secret guard.
+# Blocks commits with stale runtime fingerprints, disconnected browser assets, or a
+# hardcoded credential. Keys belong in the user's Settings
+# (config.expandedSearch), resolved at runtime -- never committed. Enable once per clone with:
 #   git config core.hooksPath tools/hooks
 #
 # Patterns mirror tools/audit/eveos-repo-audit.js. Emergency bypass (discouraged): git commit --no-verify
@@ -16,10 +17,22 @@ hits=$(git diff --cached --no-color -U0 --diff-filter=ACM \
 
 if [ -n "$hits" ]; then
     echo "COMMIT BLOCKED: a hardcoded secret was found in staged changes:" >&2
-    echo "$hits" | sed -E 's/(AIza[0-9A-Za-z_-]{4})[0-9A-Za-z_-]+/\1…<redacted>/g' >&2
+    echo "$hits" | sed -E 's/(AIza[0-9A-Za-z_-]{4})[0-9A-Za-z_-]+/\1...<redacted>/g' >&2
     echo "" >&2
     echo "Move the credential to the user's Settings (config.expandedSearch) and resolve it" >&2
     echo "at runtime. To override in a genuine false positive: git commit --no-verify" >&2
+    exit 1
+fi
+
+if ! node tools/audit/sync-runtime-asset-versions.js >/dev/null; then
+    echo "COMMIT BLOCKED: runtime asset fingerprints are stale." >&2
+    echo "Run npm run build:asset-versions, review the generated references, then stage them." >&2
+    exit 1
+fi
+
+if ! node tools/audit/runtime-asset-reachability-audit.js >/dev/null; then
+    echo "COMMIT BLOCKED: a browser runtime asset is disconnected from EveOS." >&2
+    echo "Run npm run audit:runtime-assets for the disconnected file list." >&2
     exit 1
 fi
 

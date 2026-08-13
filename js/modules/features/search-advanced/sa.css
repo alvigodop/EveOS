@@ -1,7 +1,7 @@
 /* Search Advanced CSS Facade */
-@import url('./sa.layout.css');
-@import url('./sa.controls.css');
-@import url('./sa.results.css');
-@import url('./sa.meta.css');
-@import url('./sa.debug-drilldowns.css');
-@import url('./sa.datapack-view.css');
+@import url('./sa.layout.css?v=a380fa2f8ef9');
+@import url('./sa.controls.css?v=0e4ff6097e39');
+@import url('./sa.results.css?v=6659349df828');
+@import url('./sa.meta.css?v=b69f6f74416e');
+@import url('./sa.debug-drilldowns.css?v=41c8bf906929');
+@import url('./sa.datapack-view.css?v=d824a287de08');

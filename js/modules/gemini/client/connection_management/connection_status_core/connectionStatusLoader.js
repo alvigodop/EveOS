@@ -9,9 +9,9 @@
     const COMPONENT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/client/connection_management/connection_status_core';
 
     const scripts = [
-        `${COMPONENT_BASE_PATH}/connectionState.js`,
-        `${COMPONENT_BASE_PATH}/connectionUIUpdater.js`,
-        `${COMPONENT_BASE_PATH}/connectionStatusCoordinator.js`
+        `${COMPONENT_BASE_PATH}/connectionState.js?v=cdfdd45ef7a6`,
+        `${COMPONENT_BASE_PATH}/connectionUIUpdater.js?v=264c569702f1`,
+        `${COMPONENT_BASE_PATH}/connectionStatusCoordinator.js?v=8c03e5e17fe3`
     ];
 
     function loadScript(src) {

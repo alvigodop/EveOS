@@ -1,0 +1,4 @@
+# Keep executable hooks portable even when Windows Git uses core.autocrlf=true.
+tools/hooks/* text eol=lf
+*.sh text eol=lf
+*.bat text eol=crlf

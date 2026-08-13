@@ -107,7 +107,7 @@
             detail: {
                 moduleName: 'GlobalFix',
                 module: GlobalFixFacade,
-                source: 'global-fix.js'
+                source: 'global-fix.js?v=03e1788212c3'
             }
         });
         document.dispatchEvent(event);

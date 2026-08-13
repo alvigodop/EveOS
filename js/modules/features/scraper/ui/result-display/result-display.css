@@ -1,21 +1,21 @@
 /* Result Display CSS */
 
 /* Import shared highlight styles */
-@import '../styles/shared-highlight.css';
+@import '../styles/shared-highlight.css?v=584497ada25c';
 
 /* Import modular component styles - these contain extracted duplicate code */
-@import '../styles/article-cards.css';
-@import 'result-card.css';
+@import '../styles/article-cards.css?v=fe8d62990254';
+@import 'result-card.css?v=9a00b2fa2510';
 /* Extracted Result Card Styles */
-@import 'result-grid.css';
+@import 'result-grid.css?v=33a731240cb7';
 /* Extracted Grid Layout Styles */
-@import 'result-container.css';
+@import 'result-container.css?v=3e5bd83d8737';
 /* Extracted Container Styles */
-@import '../styles/badges.css';
-@import 'cached-results.css';
-@import '../search-controls/toggle-switches.css';
-@import '../styles/control-center.css';
-@import '../styles/domain-manager.css';
+@import '../styles/badges.css?v=80fc677172fc';
+@import 'cached-results.css?v=8ce31c3c1d33';
+@import '../search-controls/toggle-switches.css?v=a5045300eb90';
+@import '../styles/control-center.css?v=bb1c9c86d6ab';
+@import '../styles/domain-manager.css?v=63b4ff592979';
 
 /* 
  * NOTE: The following styles have been modularized:

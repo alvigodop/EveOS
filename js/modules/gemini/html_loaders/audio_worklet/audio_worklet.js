@@ -6,7 +6,7 @@ const AUDIO_WORKLET_COMPONENTS_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/
 
 // Audio worklet components HTML loader scripts
 const audioWorkletComponentsScripts = [
-    'pcm_proc/pcmProcessorScriptUILoader.js'
+    'pcm_proc/pcmProcessorScriptUILoader.js?v=f6b485ced297'
 ];
 
 // Function to load audio worklet components HTML loader scripts with error protection

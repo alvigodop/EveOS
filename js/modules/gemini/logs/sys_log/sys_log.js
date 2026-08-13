@@ -6,9 +6,9 @@ console.log("js/modules/gemini/Log_Interface_Display/Messaging_System_Log/Messag
 const MESSAGING_SYSTEM_LOG_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/logs/sys_log';
 
 const messagingSystemLogScripts = [
-    `${MESSAGING_SYSTEM_LOG_BASE_PATH}/system_status_operations/systemStatusUpdater.js`, // Periodically updates system status messages (e.g., connection active).
-    `${MESSAGING_SYSTEM_LOG_BASE_PATH}/error_handling_ui/quotaErrorHandler.js`, // Handles UI display for API quota errors or deadline exceeded issues.
-    `${MESSAGING_SYSTEM_LOG_BASE_PATH}/server_reboot_button/serverRebootButtonHandler.js` // Handles the server reboot button functionality.
+    `${MESSAGING_SYSTEM_LOG_BASE_PATH}/system_status_operations/systemStatusUpdater.js?v=4c73389f98a2`, // Periodically updates system status messages (e.g., connection active).
+    `${MESSAGING_SYSTEM_LOG_BASE_PATH}/error_handling_ui/quotaErrorHandler.js?v=a7f9d7310c06`, // Handles UI display for API quota errors or deadline exceeded issues.
+    `${MESSAGING_SYSTEM_LOG_BASE_PATH}/server_reboot_button/serverRebootButtonHandler.js?v=9e7bfdb6ff94` // Handles the server reboot button functionality.
 ];
 
 // Initialize the namespace structure ONCE.
