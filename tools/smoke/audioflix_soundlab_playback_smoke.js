@@ -5,9 +5,18 @@ let clock = 0;
 global.window = {
     performance: { now: () => clock * 1000 },
     EveAudioflixSoundLabPlayback: {},
+    EveAudioflixSoundLabConcealment: {},
     EveAudioflixSoundLabSessionCache: {}
 };
 
+require(path.join(
+    ROOT,
+    'js',
+    'modules',
+    'features',
+    'audioflix',
+    'audioflix.soundlab.concealment.js'
+));
 require(path.join(
     ROOT,
     'js',
@@ -100,7 +109,7 @@ assert(
 clock = starts[2] + 1;
 context.currentTime = clock;
 playbackSources.slice(0, 3).forEach((source) => source.onended?.());
-assert(playback.metrics().underruns === 0, 'the continuity reservoir covers the first dry boundary');
+assert(playback.metrics().underruns === 0, 'bounded concealment covers the first dry boundary');
 clock += 3.1;
 context.currentTime = clock;
 cacheSources.at(-1).onended?.();
@@ -143,6 +152,10 @@ assert(
 playback.enqueue(oneSecond());
 assert(starts.length === 11, 'two fresh seconds crossfade back from the cache as one reserve');
 assert(cacheStarts.length > 0, 'the fake context exercised the continuity replay lane');
+assert(
+    playback.metrics().continuityPressure === 1,
+    'a concealed late boundary deepens the next forward buffer instead of repeatedly using cache'
+);
 
 playback.stop();
 assert(notices.at(-1)?.buffering === false, 'stop cleanup cannot reopen an underrun');

@@ -4,6 +4,14 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const CONCEALMENT = path.join(
+    ROOT,
+    'js',
+    'modules',
+    'features',
+    'audioflix',
+    'audioflix.soundlab.concealment.js'
+);
 const CACHE = path.join(
     ROOT,
     'js',
@@ -20,6 +28,7 @@ const assert = (condition, message) => {
 async function main() {
     const fixture = path.join(os.tmpdir(), `sf-session-cache-${process.pid}.html`);
     fs.writeFileSync(fixture, `<!doctype html><meta charset="utf-8">
+        <script src="${fileUrl(CONCEALMENT)}"></script>
         <script src="${fileUrl(CACHE)}"></script>`);
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
@@ -61,11 +70,12 @@ async function main() {
             const suspended = context.suspend(1.08).then(() => {
                 const nextSource = context.createBufferSource();
                 const nextGain = context.createGain();
-                handoff = cache.prepareHandoff(1, nextGain);
-                nextSource.buffer = tone(1, 220);
+                const next = tone(1, 220);
+                handoff = cache.prepareHandoff(1, nextGain, next);
+                nextSource.buffer = next;
                 nextSource.connect(nextGain);
                 nextGain.connect(output);
-                nextSource.start(handoff.startAt);
+                nextSource.start(handoff.startAt, handoff.offsetSeconds || 0);
                 return context.resume();
             });
             const rendered = await context.startRendering();
@@ -99,7 +109,8 @@ async function main() {
                 for (let index = start; index < start + windowFrames; index += 1) {
                     sum += values[index] ** 2;
                 }
-                minimumBoundaryRms = Math.min(minimumBoundaryRms, Math.sqrt(sum / windowFrames));
+                const windowRms = Math.sqrt(sum / windowFrames);
+                minimumBoundaryRms = Math.min(minimumBoundaryRms, windowRms);
             }
             return {
                 covered: handoff?.covered === true,
@@ -113,6 +124,12 @@ async function main() {
         });
 
         assert(result.covered, 'the intentionally late chunk uses the session cache');
+        assert(
+            result.metrics.alignedHandoffs === 1
+                && result.metrics.alignedSeconds > 0
+                && result.metrics.alignedSeconds <= 0.015,
+            'the live handoff phase-aligns through only a bounded incoming prefix'
+        );
         assert(
             result.bridgeRms > result.baselineRms * 0.65,
             `cached PCM stays near normal level (${result.bridgeRms} vs ${result.baselineRms})`

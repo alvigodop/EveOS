@@ -1,7 +1,18 @@
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-global.window = { EveAudioflixSoundLabSessionCache: {} };
+global.window = {
+    EveAudioflixSoundLabConcealment: {},
+    EveAudioflixSoundLabSessionCache: {}
+};
+require(path.join(
+    ROOT,
+    'js',
+    'modules',
+    'features',
+    'audioflix',
+    'audioflix.soundlab.concealment.js'
+));
 require(path.join(
     ROOT,
     'js',
@@ -52,7 +63,11 @@ const context = {
         const source = {
             connect() {},
             disconnect() {},
-            start(at) { this.startedAt = at; },
+            start(at, offset, duration) {
+                this.startedAt = at;
+                this.offset = offset;
+                this.duration = duration;
+            },
             stop(at) { this.stoppedAt = at; },
             onended: null
         };
@@ -71,12 +86,22 @@ const cache = window.EveAudioflixSoundLabSessionCache.create({
 const twoSecondStereo = audioBuffer(2, 96000, 48000);
 assert(cache.remember(twoSecondStereo), 'a live PCM tail is retained');
 let metrics = cache.metrics();
-assert(metrics.mode === 'memory-reservoir', 'the cache uses recent real PCM, not a tiny loop');
-assert(metrics.usableTailSeconds === 2, 'the available real PCM remains usable for continuity');
-assert(metrics.bytes <= 48000 * 3.1 * 2 * 4, 'the RAM cache has a strict usable-byte ceiling');
+assert(metrics.mode === 'memory-concealment', 'the cache uses bounded overlap-add concealment');
+assert(metrics.usableTailSeconds === 1.25, 'only a short recent tail remains usable for concealment');
+assert(metrics.bytes <= 48000 * 1.25 * 2 * 4, 'the RAM cache has a strict usable-byte ceiling');
 assert(metrics.retainedBytes === 96000 * 2 * 4, 'the cache reuses one decoded chunk without copying PCM');
 
 assert(cache.arm(2, 7), 'a cached guard is armed at the scheduled stream tail');
+const openingGrains = sources.slice();
+assert(openingGrains.length > 8, 'a bridge is assembled from short overlapping grains');
+assert(
+    openingGrains.every((source) => source.duration <= 0.18 && source.loop !== true),
+    'concealment cannot replay or loop a whole recognizable phrase'
+);
+assert(
+    new Set(openingGrains.slice(1).map((source) => source.offset.toFixed(4))).size > 4,
+    'grain offsets vary across the recent tail instead of repeating one fixed fragment'
+);
 context.currentTime = 1.95;
 let handoff = cache.prepareHandoff(2);
 assert(handoff.startAt === 2 && !handoff.covered, 'an on-time chunk preserves the exact boundary');
@@ -90,12 +115,12 @@ assert(metrics.bridges === 1 && metrics.bridgedSeconds > 0, 'covered micro-gaps 
 assert(exhausted === 0, 'a successful cache handoff does not report an underrun');
 
 cache.arm(6, 7);
-context.currentTime = 8;
+context.currentTime = 8.7;
 handoff = cache.prepareHandoff(6);
 assert(handoff.exhausted && handoff.startAt === 0, 'an expired guard requests deep rebuffering');
 
 cache.arm(8, 9);
-context.currentTime = 10.1;
+context.currentTime = 10.7;
 sources.at(-1).onended();
 assert(exhausted === 1, 'an unfilled cache guard reports one bounded underrun');
 

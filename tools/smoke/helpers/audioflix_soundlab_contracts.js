@@ -35,6 +35,10 @@ function staticContracts() {
     const genConfig = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.config.js'), 'utf8');
     const rendered = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.rendered.js'), 'utf8');
     const playback = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.playback.js'), 'utf8');
+    const concealment = fs.readFileSync(
+        path.join(AUDIOFLIX, 'audioflix.soundlab.concealment.js'),
+        'utf8'
+    );
     const sessionCache = fs.readFileSync(
         path.join(AUDIOFLIX, 'audioflix.soundlab.session-cache.js'),
         'utf8'
@@ -57,6 +61,7 @@ function staticContracts() {
         'audioflix.capture.processor.src.js',
         'audioflix.soundlab.sdk.js',
         'audioflix.soundlab.proxy.js',
+        'audioflix.soundlab.concealment.js',
         'audioflix.soundlab.session-cache.js',
         'audioflix.soundlab.playback.js',
         'audioflix.soundlab.effects.js',
@@ -77,9 +82,11 @@ function staticContracts() {
         'geminiApiFailure.js'
     ].forEach((name) => assert(html.includes(name), `${name} is loaded by EveOS`));
     assert(
-        html.indexOf('audioflix.soundlab.session-cache.js')
+        html.indexOf('audioflix.soundlab.concealment.js')
+            < html.indexOf('audioflix.soundlab.session-cache.js')
+            && html.indexOf('audioflix.soundlab.session-cache.js')
             < html.indexOf('audioflix.soundlab.playback.js'),
-        'the session cache loads before the Sonic Forge scheduler'
+        'concealment, session cache, and Sonic Forge scheduler load in dependency order'
     );
     // "Auto" must mean the key is ABSENT from the payload, not a number the model then obeys.
     // Asserted at the source level because a wrong default here is silent: the generation would
@@ -154,12 +161,13 @@ function staticContracts() {
         'Lyria chunks use per-source handoff gain while sharing one continuous playback bus'
     );
     assert(
-        playback.includes('prepareHandoff?.(nextStartTime, sourceGain)')
+        playback.includes('prepareHandoff?.(nextStartTime, sourceGain, buffer)')
             && playback.includes('arm?.(nextStartTime, queueGeneration, lastSourceGain)')
-            && sessionCache.includes("mode: 'memory-reservoir'")
+            && sessionCache.includes("mode: 'memory-concealment'")
+            && concealment.includes('alternateScore >= Math.max(0.82, bestScore - 0.08)')
             && playback.includes('CACHE_RECOVERY_RESERVE_SECONDS = 2')
             && !/(localStorage|sessionStorage|indexedDB)/.test(sessionCache),
-        'Sonic Forge uses a bounded, reload-ephemeral PCM reservoir at the live queue boundary'
+        'Sonic Forge uses bounded, reload-ephemeral granular concealment at the live queue boundary'
     );
     const browserDecode = engine.match(/pcm16ToAudioBuffer\(context, chunk\.data,[\s\S]*?\n\s*}\);/)?.[0] || '';
     assert(

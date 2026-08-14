@@ -45,6 +45,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
         let underrunOpen = false;
         let consecutiveUnderruns = 0;
         let lastUnderrunAt = 0;
+        let continuityPressure = 0;
+        let lastContinuityAt = 0;
         let lowWaterSeconds = Infinity;
         let highWaterSeconds = 0;
         let lastNoticeAt = 0;
@@ -71,7 +73,10 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 MAX_JITTER_ALLOWANCE_SECONDS,
                 (jitterMs() / 1000) * JITTER_SAFETY_FACTOR
             );
-            const experience = Math.min(MAX_ADAPTIVE_REBUFFER_SECONDS, consecutiveUnderruns * 0.5);
+            const experience = Math.min(
+                MAX_ADAPTIVE_REBUFFER_SECONDS,
+                (consecutiveUnderruns * 0.5) + (continuityPressure * 0.5)
+            );
             return Math.min(MAX_REBUFFER_SECONDS, requested + jitter + experience);
         };
         const now = () => {
@@ -90,6 +95,11 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                         openUnderrun();
                         schedule();
                     }
+                },
+                onBridge: (seconds, generation) => {
+                    if (generation !== queueGeneration || !(seconds > 0)) return;
+                    continuityPressure = Math.min(4, continuityPressure + 1);
+                    lastContinuityAt = Number(getContext()?.currentTime || 0);
                 }
             });
             return sessionCache;
@@ -128,7 +138,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 rebufferTargetSeconds: requiredBufferSeconds(),
                 targetBufferSeconds: targetSeconds(),
                 sessionCacheBytes: Number(cache.bytes || 0),
-                sessionCacheBridges: Number(cache.bridges || 0)
+                sessionCacheBridges: Number(cache.bridges || 0),
+                continuityPressure
             };
         }
 
@@ -142,7 +153,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             if (!hasStarted) return targetSeconds();
             const adaptive = Math.min(
                 MAX_ADAPTIVE_REBUFFER_SECONDS,
-                consecutiveUnderruns * 0.5
+                (consecutiveUnderruns * 0.5) + (continuityPressure * 0.5)
             );
             // jitterMs() was computed and then thrown away: the one measurement that says how late
             // chunks actually run was not informing the cushion at all. A steady stream now recovers
@@ -164,6 +175,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 underruns = 0;
                 underrunOpen = false;
                 consecutiveUnderruns = 0;
+                continuityPressure = 0;
+                lastContinuityAt = 0;
                 lowWaterSeconds = Infinity;
                 highWaterSeconds = 0;
                 stopped = false;
@@ -213,9 +226,14 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             // consecutiveUnderruns only ever reset on stop, so within one session each dropout
             // permanently lengthened the next recovery (4.5s, 5s, 5.5s...) and never came back down.
             // A sustained clean run now clears it, making the adaptation two-way.
-            if (consecutiveUnderruns > 0 && streamStarted && !underrunOpen) {
+            if ((consecutiveUnderruns > 0 || continuityPressure > 0)
+                && streamStarted && !underrunOpen) {
                 const now = Number(getContext()?.currentTime || 0);
-                if (now - lastUnderrunAt >= CLEAN_RUN_SECONDS) consecutiveUnderruns = 0;
+                const lastPressureAt = Math.max(lastUnderrunAt, lastContinuityAt);
+                if (now - lastPressureAt >= CLEAN_RUN_SECONDS) {
+                    consecutiveUnderruns = 0;
+                    continuityPressure = 0;
+                }
             }
             return buffered;
         }
@@ -263,9 +281,10 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 const source = context.createBufferSource();
                 const sourceGain = context.createGain?.() || null;
                 const cache = ensureSessionCache();
+                source.buffer = buffer;
                 source.connect(sourceGain || output);
                 sourceGain?.connect?.(output);
-                const handoff = cache?.prepareHandoff?.(nextStartTime, sourceGain);
+                const handoff = cache?.prepareHandoff?.(nextStartTime, sourceGain, buffer);
                 if (handoff?.exhausted) {
                     pending.unshift(buffer);
                     try { source.disconnect(); } catch {}
@@ -277,8 +296,11 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                     ? nextStartTime
                     : context.currentTime + MIN_CONTINUATION_LEAD_SECONDS;
                 const start = Number(handoff?.startAt) || fallbackStart;
+                const offset = Math.max(0, Math.min(
+                    Number(handoff?.offsetSeconds || 0),
+                    Math.max(0, Number(buffer.duration || 0) - MIN_CONTINUATION_LEAD_SECONDS)
+                ));
                 const sourceGeneration = queueGeneration;
-                source.buffer = buffer;
                 source.onended = () => {
                     sources.delete(source);
                     try { source.disconnect(); } catch {}
@@ -292,8 +314,9 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                     }
                 };
                 sources.add(source);
-                source.start(start);
-                nextStartTime = start + buffer.duration;
+                if (offset > 0) source.start(start, offset);
+                else source.start(start);
+                nextStartTime = start + Math.max(0, buffer.duration - offset);
                 lastSourceGain = sourceGain;
                 cache?.remember?.(buffer);
             }
@@ -340,6 +363,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             hasStarted = false;
             underrunOpen = false;
             consecutiveUnderruns = 0;
+            continuityPressure = 0;
+            lastContinuityAt = 0;
             lastUnderrunAt = 0;
             lastNoticeAt = 0;
             lastNoticeKey = '';
@@ -369,7 +394,7 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
             timeline,
             metrics: () => ({
                 sessionCache: sessionCache?.metrics?.() || {
-                    mode: 'memory-reservoir', bytes: 0, tailSeconds: 0, bridges: 0, bridgedSeconds: 0
+                    mode: 'memory-concealment', bytes: 0, tailSeconds: 0, bridges: 0, bridgedSeconds: 0
                 },
                 jitterMs: jitterMs(),
                 underruns,
@@ -377,7 +402,8 @@ window.EveAudioflixSoundLabPlayback = window.EveAudioflixSoundLabPlayback || {};
                 highWaterSeconds,
                 queuedSeconds: bufferedSeconds(),
                 rebufferTargetSeconds: requiredBufferSeconds(),
-                targetBufferSeconds: targetSeconds()
+                targetBufferSeconds: targetSeconds(),
+                continuityPressure
             })
         };
     }
