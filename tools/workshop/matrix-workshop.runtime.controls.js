@@ -25,7 +25,7 @@
             updateLineChangeRate(lineChangeRate);
             updateLineChangeRange();
 
-            columns = canvas.width / fontSize;
+            columns = viewWidth / fontSize;
             rainDrops = Array(Math.ceil(columns)).fill(1);
             rainDropsChars = Array(Math.ceil(columns)).fill().map(() =>
                 alphabet.charAt(Math.floor(Math.random() * alphabet.length))

@@ -92,6 +92,9 @@ const assert = (condition, message) => {
                 guidance: state.config.guidance,
                 temperature: state.config.temperature,
                 topK: state.config.topK,
+                // Read the declared defaults rather than restating them: this assertion was pinned
+                // to topK 40 and would have silently gone stale the moment the default moved.
+                declared: window.EveAudioflixSoundLabConfig?.DEFAULTS || {},
                 customPrompt: custom.prompts[0].text,
                 customBpm: custom.config.bpm,
                 customGuidance: custom.config.guidance
@@ -105,10 +108,13 @@ const assert = (condition, message) => {
         assert(
             result.anchorWeight === 1
                 && result.supportWeight === 0.3
-                && result.guidance === 4
-                && result.temperature === 1.1
-                && result.topK === 40,
-            'legacy factory defaults migrate to stable realtime generation defaults'
+                && result.guidance === result.declared.guidance
+                && result.temperature === result.declared.temperature
+                && result.topK === result.declared.topK,
+            `legacy factory defaults migrate to the declared realtime defaults `
+                + `(guidance ${result.declared.guidance}, temperature ${result.declared.temperature},`
+                + ` topK ${result.declared.topK}); got guidance ${result.guidance},`
+                + ` temperature ${result.temperature}, topK ${result.topK}`
         );
         assert(
             result.customPrompt === 'custom jazz trio'

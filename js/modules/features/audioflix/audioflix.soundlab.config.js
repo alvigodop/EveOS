@@ -47,7 +47,24 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
         // Legacy configs are migrated through the state normalizer.
         guidance: 4,
         temperature: 1.1,
-        topK: 40,
+        // guidance and temperature stay on Google's documented defaults (4.0 / 1.1). topK is
+        // deliberately tightened from the documented 40: it is a sampling-BREADTH control, and a
+        // narrower pool keeps the model off low-probability tokens, which is what "clean" sounds
+        // like here. 32 is the value this project itself ran before standardising on the API
+        // baseline, so it is known-good rather than guessed.
+        //
+        // Not 1. Greedy sampling is the most repetitive setting there is, and repetition is a
+        // failure mode this codebase has already had to fix once (see the Sonic Forge cache
+        // repetition work) -- topK 1 would walk straight back into it.
+        //
+        // Worth knowing: choppiness is not topK's doing. Google documents GUIDANCE as the control
+        // that "makes transitions more abrupt" as it rises. If transitions still feel harsh, 4.0 is
+        // the number to lower, not this one.
+        //
+        // Leaving temperature at 1.1 also matters mechanically: {temperature: 0.9, topK: 32} is a
+        // retired default that usesLegacyDefaultConfig() actively migrates away, so recreating that
+        // exact pair here would make fresh configs fight the migration.
+        topK: 32,
         seed: 0,
         scale: 'SCALE_UNSPECIFIED',
         musicGenerationMode: 'QUALITY',

@@ -11,12 +11,37 @@
         let frameCount = 0;
         let lastFpsTime = Date.now();
 
-        canvas.height = window.innerHeight;
-        canvas.width = window.innerWidth;
-        gridCanvas.height = window.innerHeight;
-        gridCanvas.width = window.innerWidth;
-        interactiveParticleCanvas.height = window.innerHeight;
-        interactiveParticleCanvas.width = window.innerWidth;
+        // Canvas dimensions in CSS pixels. Every drawing and bounds check works in this space; the
+        // backing store is separately scaled by the device pixel ratio below.
+        let viewWidth = window.innerWidth;
+        let viewHeight = window.innerHeight;
+
+        // Sizing a canvas purely from innerWidth/innerHeight gives it a 1:1 backing store, so on any
+        // high-DPI display the browser upscales the result and the glyphs come out soft. Size the
+        // buffer in device pixels, pin the CSS box to the layout size, then scale the context so all
+        // existing draw calls keep speaking CSS pixels and need no coordinate maths of their own.
+        function sizeCanvas(element, context) {
+            const ratio = Math.max(1, window.devicePixelRatio || 1);
+            element.width = Math.round(viewWidth * ratio);
+            element.height = Math.round(viewHeight * ratio);
+            element.style.width = `${viewWidth}px`;
+            element.style.height = `${viewHeight}px`;
+            // setTransform, not scale: this runs again on every resize and scale() would compound.
+            context.setTransform(ratio, 0, 0, ratio, 0, 0);
+        }
+
+        function sizeAllCanvases() {
+            viewWidth = window.innerWidth;
+            viewHeight = window.innerHeight;
+            sizeCanvas(canvas, ctx);
+            sizeCanvas(gridCanvas, gridCtx);
+            sizeCanvas(interactiveParticleCanvas, interactiveCtx);
+            if (typeof bouncyDotsCanvas !== 'undefined' && typeof bouncyDotsCtx !== 'undefined') {
+                sizeCanvas(bouncyDotsCanvas, bouncyDotsCtx);
+            }
+        }
+
+        sizeAllCanvases();
 
         let katakana = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヰヱヲン';
         let latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -25,7 +50,7 @@
         let alphabet = katakana + latin + nums;
 
         let fontSize = 16;
-        let columns = canvas.width / fontSize;
+        let columns = viewWidth / fontSize;
 
         let rainDrops = [];
         let rainDropsChars = [];
@@ -161,7 +186,7 @@
         function animateInteractiveParticles() {
             if (!interactiveParticlesEnabled) return;
 
-            interactiveCtx.clearRect(0, 0, interactiveParticleCanvas.width, interactiveParticleCanvas.height);
+            interactiveCtx.clearRect(0, 0, viewWidth, viewHeight);
 
             for (let i = 0; i < interactiveParticlesArray.length; i++) {
                 let particle = interactiveParticlesArray[i];
@@ -181,7 +206,7 @@
             interactiveParticlesEnabled = checked;
             interactiveParticleCanvas.style.display = checked ? 'block' : 'none';
             if (!checked) {
-                interactiveCtx.clearRect(0, 0, interactiveParticleCanvas.width, interactiveParticleCanvas.height);
+                interactiveCtx.clearRect(0, 0, viewWidth, viewHeight);
                 interactiveParticlesArray = [];
             }
         }

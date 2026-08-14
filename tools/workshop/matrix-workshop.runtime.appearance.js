@@ -1,6 +1,6 @@
 // Matrix appearance, character, toolbar, and canvas controls.
         function createGradient(context) {
-            const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+            const gradient = context.createLinearGradient(0, 0, viewWidth, viewHeight);
             if (gradientMode && gradientColors) {
                 gradientColors.forEach((color, index) => {
                     gradient.addColorStop(index / (gradientColors.length - 1), color);
@@ -80,16 +80,13 @@
         startAnimation();
 
         function resizeCanvases() {
-            canvas.height = window.innerHeight;
-            canvas.width = window.innerWidth;
-            gridCanvas.height = window.innerHeight;
-            gridCanvas.width = window.innerWidth;
-            interactiveParticleCanvas.height = window.innerHeight;
-            interactiveParticleCanvas.width = window.innerWidth;
-            bouncyDotsCanvas.height = window.innerHeight;
-            bouncyDotsCanvas.width = window.innerWidth;
+            // Re-derives viewWidth/viewHeight and re-applies the device-pixel-ratio transform to
+            // every canvas. Resizing a canvas resets its context state, so the transform has to be
+            // reinstated here or everything reverts to blurry 1:1 after the first resize -- and
+            // dragging a window between a laptop screen and an external monitor changes the ratio.
+            sizeAllCanvases();
             buildDotGrid();
-            columns = canvas.width / fontSize;
+            columns = viewWidth / fontSize;
             rainDrops = Array(Math.ceil(columns)).fill(1);
             rainDropsChars = Array(Math.ceil(columns)).fill().map(() =>
                 alphabet.charAt(Math.floor(Math.random() * alphabet.length))
@@ -180,7 +177,7 @@
 
         function updateFontSize(newSize) {
             fontSize = parseInt(newSize);
-            columns = canvas.width / fontSize;
+            columns = viewWidth / fontSize;
             rainDrops = Array(Math.ceil(columns)).fill(1);
             rainDropsChars = Array(Math.ceil(columns)).fill().map(() => alphabet.charAt(Math.floor(Math.random() * alphabet.length)));
         }

@@ -8,8 +8,10 @@
         // --- Full-Screen Canvas Mode ---
         const bouncyDotsCanvas = document.getElementById('bouncyDotsCanvas');
         const bouncyDotsCtx = bouncyDotsCanvas.getContext('2d');
-        bouncyDotsCanvas.width = canvas.width;
-        bouncyDotsCanvas.height = canvas.height;
+        // Loads after core.js, so it misses that first sizeAllCanvases() pass and sizes itself.
+        // Copying canvas.width directly would copy the DEVICE-pixel buffer size into a canvas with
+        // no matching transform, doubling the dot grid's coordinate space on any high-DPI screen.
+        sizeCanvas(bouncyDotsCanvas, bouncyDotsCtx);
 
         const DOT_SPACING = 40;
         const DOT_BASE_SIZE = 2;
@@ -21,10 +23,10 @@
 
         function buildDotGrid() {
             dotGrid = [];
-            const cols = Math.ceil(bouncyDotsCanvas.width / DOT_SPACING);
-            const rows = Math.ceil(bouncyDotsCanvas.height / DOT_SPACING);
-            const offsetX = (bouncyDotsCanvas.width - (cols - 1) * DOT_SPACING) / 2;
-            const offsetY = (bouncyDotsCanvas.height - (rows - 1) * DOT_SPACING) / 2;
+            const cols = Math.ceil(viewWidth / DOT_SPACING);
+            const rows = Math.ceil(viewHeight / DOT_SPACING);
+            const offsetX = (viewWidth - (cols - 1) * DOT_SPACING) / 2;
+            const offsetY = (viewHeight - (rows - 1) * DOT_SPACING) / 2;
 
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
@@ -51,7 +53,7 @@
         function animateBouncyDots() {
             if (!bouncyDotsEnabled || bouncyDotsMode !== 'fullscreen') return;
 
-            bouncyDotsCtx.clearRect(0, 0, bouncyDotsCanvas.width, bouncyDotsCanvas.height);
+            bouncyDotsCtx.clearRect(0, 0, viewWidth, viewHeight);
 
             for (let i = 0; i < dotGrid.length; i++) {
                 const dot = dotGrid[i];
@@ -215,7 +217,7 @@
                 bouncyPhoneWidget.style.display = 'none';
             } else {
                 bouncyDotsCanvas.style.display = 'none';
-                bouncyDotsCtx.clearRect(0, 0, bouncyDotsCanvas.width, bouncyDotsCanvas.height);
+                bouncyDotsCtx.clearRect(0, 0, viewWidth, viewHeight);
                 bouncyPhoneWidget.style.display = 'block';
                 initializePhoneDots();
             }
@@ -229,7 +231,7 @@
                 switchBouncyDotsMode(bouncyDotsMode);
             } else {
                 bouncyDotsCanvas.style.display = 'none';
-                bouncyDotsCtx.clearRect(0, 0, bouncyDotsCanvas.width, bouncyDotsCanvas.height);
+                bouncyDotsCtx.clearRect(0, 0, viewWidth, viewHeight);
                 bouncyPhoneWidget.style.display = 'none';
             }
         }

@@ -251,7 +251,7 @@
                 updateMenuButtonColor(color);
 
                 // Refresh the matrix
-                columns = canvas.width / fontSize;
+                columns = viewWidth / fontSize;
                 rainDrops = Array(Math.ceil(columns)).fill(1);
                 rainDropsChars = Array(Math.ceil(columns)).fill().map(() => getRandomSelectedChar());
 

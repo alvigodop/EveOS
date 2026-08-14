@@ -362,19 +362,22 @@
         </div>
     </div>
 
-    <audio id="backgroundSound" loop>
-        <source src="rain.mp3" type="audio/mpeg" />
-        Your browser does not support the audio element.
-    </audio>
+    <!--
+        The background <audio> element that used to live here was removed. It came across from the
+        original merge source along with a Sound Effects panel that was never ported, so nothing in
+        the runtime ever referenced it, no sound controls exist, and rain.mp3 was never added to the
+        repo. Its only remaining effect was a 404 on every page load. Reinstating sound means
+        bringing back the controls and the asset together, not just the tag.
+    -->
 
-    <script src="matrix-workshop.runtime.core.js?v=677c87746d23"></script>
-    <script src="matrix-workshop.runtime.bouncy.js?v=9d624f5d0b8a"></script>
+    <script src="matrix-workshop.runtime.core.js?v=72612ccc316b"></script>
+    <script src="matrix-workshop.runtime.bouncy.js?v=5d6c4e920d5d"></script>
     <script src="matrix-workshop.runtime.slideshow.js?v=4e7ed5eec09e"></script>
-    <script src="matrix-workshop.runtime.rain.js?v=2a25feb62aca"></script>
-    <script src="matrix-workshop.runtime.appearance.js?v=ceb1951c3ca8"></script>
-    <script src="matrix-workshop.runtime.controls.js?v=d100b42dea16"></script>
-    <script src="matrix-workshop.runtime.settings.js?v=ebc6a19f382b"></script>
-    <script src="matrix-workshop.runtime.movement.js?v=5f8b314b4ed8"></script>
+    <script src="matrix-workshop.runtime.rain.js?v=3de69dc89315"></script>
+    <script src="matrix-workshop.runtime.appearance.js?v=46610904eb3b"></script>
+    <script src="matrix-workshop.runtime.controls.js?v=ce604661d4cd"></script>
+    <script src="matrix-workshop.runtime.settings.js?v=90a60c56e476"></script>
+    <script src="matrix-workshop.runtime.movement.js?v=37c85e74c349"></script>
     <script src="matrix-datapack-phone.bridge.js?v=d645af33fb76"></script>
     <script src="matrix-datapack-phone.slideshow.js?v=c83501921874"></script>
     <script src="matrix-datapack-phone.render.matrix.js?v=d08e009589d5"></script>

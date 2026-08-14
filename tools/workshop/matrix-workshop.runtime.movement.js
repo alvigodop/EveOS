@@ -156,7 +156,7 @@
             fontSize = Math.round(baseFontSize * scaleFactor);
 
             // Recalculate columns and reinitialize
-            columns = canvas.width / fontSize;
+            columns = viewWidth / fontSize;
             rainDrops = Array(Math.ceil(columns)).fill(1);
             rainDropsChars = Array(Math.ceil(columns)).fill().map(() => getRandomSelectedChar());
             initializeColumns();
