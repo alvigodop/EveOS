@@ -7,7 +7,7 @@ window.EveAudioflixPlaylistImportUi = window.EveAudioflixPlaylistImportUi || {};
 
     function modeSelector(mode) {
         const button = (value, label) => `<button type="button" class="audioflix-scope-pill${mode === value ? ' is-active' : ''}" data-af-action="select-playlist-mode" data-af-mode="${value}">${label}</button>`;
-        return `<div class="audioflix-playlist-mode-row"><span>Import Mode:</span>${button('youtube', 'YouTube Playlist')}${button('wpl', 'WPL Playlist')}${button('spotify', 'Spotify Playlist')}</div>`;
+        return `<div class="audioflix-playlist-mode-row"><span>Import Mode:</span>${button('youtube', 'YouTube Playlist')}${button('wpl', 'WPL Playlist')}${button('spotify', 'Spotify Playlist')}${button('instagram', 'Instagram Reels')}</div>`;
     }
 
     function render({ mode = 'youtube', esc, values = {}, state = {} }) {
@@ -21,6 +21,13 @@ window.EveAudioflixPlaylistImportUi = window.EveAudioflixPlaylistImportUi || {};
             const folderValue = esc(values.spotifyFolder || '');
             const status = esc(values.spotifyStatus || '');
             return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="spotify">${selector}<label class="audioflix-wide-field"><span>Spotify playlist URL, embed URL, or iframe snippet</span><textarea name="url" rows="3" required placeholder="https://open.spotify.com/playlist/...">${urlValue}</textarea></label><label><span>Audioflix Folder</span><input name="folder" value="${folderValue}" placeholder="Spotify Playlists"><small>Organizes imported tracks in EveOS. Use Localize afterward to attach files on disk.</small></label><button type="submit" data-af-action="submit-form">Import Spotify Playlist</button><button type="button" data-af-action="spotify-session-import">Open Saved Session</button><small class="audioflix-wide-field">Private playlists use a separate saved EveOS Edge profile. Sign in there once; it does not share the login from your normal Edge window. Extraction needs a running local EveOS server.</small>${status ? `<output class="audioflix-import-status">${status}</output>` : ''}</form>`;
+        }
+        if (mode === 'instagram') {
+            const urlValue = esc(values.instagramUrl || '');
+            const groupValue = esc(values.instagramGroup || '');
+            const folderValue = esc(values.instagramFolder || 'IG Reel Playlists');
+            const status = esc(values.instagramStatus || '');
+            return `<form class="audioflix-form audioflix-instagram-import" data-af-form="import-playlist" data-af-mode="instagram">${selector}<label class="audioflix-wide-field"><span>Reel URLs or text collection</span><textarea name="url" rows="6" required placeholder="Paste one Instagram Reel URL per line">${urlValue}</textarea><small>Reel, post, and TV links are accepted. Duplicate URLs are removed.</small></label><button type="button" data-af-action="instagram-collection-file">Choose .txt collection</button><label><span>Group title</span><input name="group" value="${groupValue}" required placeholder="Late-night Reels"></label><label><span>Audioflix Folder</span><input name="folder" value="${folderValue}" placeholder="IG Reel Playlists"></label><button type="submit" data-af-action="submit-form">Import Reel Collection</button>${status ? `<output class="audioflix-import-status">${status}</output>` : ''}</form>`;
         }
 
         const count = (state.musicPlaylists || []).filter((entry) => entry.provider !== 'wpl').length;

@@ -88,13 +88,14 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
         function captureParamAnchors() {
             const current = getState()?.config || {};
             paramAnchors = {};
-            PARAM_KEYS.forEach((key) => { paramAnchors[key] = Number(current[key]); });
+            PARAM_KEYS.filter((key) => current.lockedParams?.[key] !== true)
+                .forEach((key) => { paramAnchors[key] = Number(current[key]); });
         }
 
         function capturePromptAnchors() {
             promptAnchors = new Map();
             (getState()?.prompts || []).forEach((prompt) => {
-                promptAnchors.set(prompt.id, Number(prompt.weight));
+                if (prompt.locked !== true) promptAnchors.set(prompt.id, Number(prompt.weight));
             });
         }
 
@@ -125,7 +126,9 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
             if (!lane.enabled) return null;
             const current = getState()?.config || {};
             if (!paramAnchors) captureParamAnchors();
-            const key = PARAM_KEYS[Math.floor(random() * PARAM_KEYS.length)];
+            const keys = PARAM_KEYS.filter((key) => current.lockedParams?.[key] !== true);
+            if (!keys.length) return null;
+            const key = keys[Math.floor(random() * keys.length)];
             // Belt and braces: the safe-to-modulate list is the authority, not this module's keys.
             if (config()?.isSafeToModulate?.(key) === false) return null;
             const range = PARAM_RANGE[key];
@@ -147,7 +150,7 @@ window.EveAudioflixSoundLabDrift = window.EveAudioflixSoundLabDrift || {};
             const lane = drift().prompts;
             if (!lane.enabled) return null;
             const prompts = getState()?.prompts || [];
-            const active = prompts.filter((prompt) => Number(prompt.weight) > 0);
+            const active = prompts.filter((prompt) => Number(prompt.weight) > 0 && prompt.locked !== true);
             if (!active.length) return null;
             if (!promptAnchors) capturePromptAnchors();
             const target = active[Math.floor(random() * active.length)];

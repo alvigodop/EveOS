@@ -189,7 +189,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         if (prepared?.status) lastStatus = prepared.status;
         if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
         let playableItem = requestedItem;
-        if (window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url)) {
+        if (window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url) && window.EveAudioflixUrlProviders?.providerFor?.(requestedItem.url) !== 'instagram') {
             try { playableItem = await window.EveAudioflixAudioSource.resolveItem(requestedItem); }
             catch { /* Provider playback remains available when the resolver is offline. */ }
         }

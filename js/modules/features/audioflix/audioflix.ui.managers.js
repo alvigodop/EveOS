@@ -24,6 +24,9 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
             if (conn.provider === 'spotify') {
                 return window.EveAudioflixSpotifyUi?.renderLinkForm?.(g, conn, { esc, state }) || '';
             }
+            if (conn.provider === 'instagram') {
+                return window.EveAudioflixInstagramUi?.renderLinkForm?.(g, conn, { esc, state }) || '';
+            }
             const isWpl = conn.provider === 'wpl';
             const current = conn.url === 'wpl://local' ? '' : (conn.url || '');
             return `<form class="audioflix-form" data-af-form="playlist-link-form" data-af-group="${esc(g)}" style="margin-top:6px;"><label class="audioflix-wide-field"><span>${isWpl ? 'Linked .wpl file path' : 'Linked playlist URL'}</span><input name="link" value="${esc(current)}" placeholder="${isWpl ? 'C:\\path\\to\\playlist.wpl' : 'https://youtube.com/playlist?list=...'}" required></label><button type="submit" data-af-action="submit-form">Save Link</button><button type="button" class="audioflix-add-toggle" data-af-action="toggle-playlist-link-form" data-af-group="${esc(g)}" style="margin-left:8px;">Cancel</button></form>`;
@@ -46,10 +49,14 @@ window.EveAudioflixUiManagers = window.EveAudioflixUiManagers || {};
                 const dir = isM ? (window.EveAudioflixLocalize?.getScopeDirOwn?.('group', g) || '') : '';
                 // Imported-playlist groups show BOTH the source URL and (if localized) the folder path.
                 // A .wpl link is a disk path, not something an <a href> can open — show it as text.
-                const isWebLink = /^https?:\/\//i.test(conn?.url || '');
+                const isInstagram = conn?.provider === 'instagram';
+                const isWebLink = !isInstagram && /^https?:\/\//i.test(conn?.url || '');
                 const linkText = conn?.url && conn.url !== 'wpl://local' ? conn.url : '';
+                const instagramCount = isInstagram ? String(linkText).split(/\r?\n/).filter(Boolean).length : 0;
                 const linkLine = linkText
-                    ? (isWebLink
+                    ? (isInstagram
+                        ? `<div style="font-size:0.75rem; color:#f4a261; margin-top:2px;">${instagramCount} linked Instagram Reel${instagramCount === 1 ? '' : 's'}</div>`
+                        : isWebLink
                         ? `<a href="${esc(linkText)}" target="_blank" rel="noopener" style="display:block; font-size:0.75rem; color:#8ab4f8; text-decoration:none; margin-top:2px; word-break:break-all;">${esc(linkText)}</a>`
                         : `<div style="font-size:0.75rem; color:#8ab4f8; margin-top:2px; word-break:break-all;">🔗 ${esc(linkText)}</div>`)
                     : (conn ? `<div style="font-size:0.75rem; color:#f59e0b; margin-top:2px;">🔗 No source link saved — sync needs one.</div>` : '');

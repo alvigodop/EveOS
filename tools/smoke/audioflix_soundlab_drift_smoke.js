@@ -148,6 +148,34 @@ async function main() {
                 });
             }
 
+            // A lock is stronger than Automatic Variation. The lane may keep moving the other
+            // controls, but a locked sampler knob or prompt weight must remain byte-for-byte fixed.
+            const lockRig = makeRig({ params: on, prompts: on }, {
+                config: {
+                    bpm: 96,
+                    scale: 'C_MAJOR_A_MINOR',
+                    guidance: 4,
+                    temperature: 1.1,
+                    topK: 40,
+                    lockedParams: { guidance: true }
+                },
+                prompts: [
+                    { id: 'locked', text: 'anchor', weight: 1, locked: true },
+                    { id: 'free', text: 'moving texture', weight: 0.5, locked: false }
+                ]
+            });
+            let lockedParamSelected = false;
+            let lockedPromptSelected = false;
+            for (let i = 0; i < 200; i += 1) {
+                lockRig.pushRandom(Math.random(), Math.random());
+                const paramStep = lockRig.api.stepParams();
+                const promptStep = lockRig.api.stepPrompts();
+                if (paramStep?.key === 'guidance') lockedParamSelected = true;
+                if (promptStep?.id === 'locked') lockedPromptSelected = true;
+            }
+            const lockedGuidance = lockRig.state.config.guidance;
+            const lockedPromptWeight = lockRig.state.prompts.find((prompt) => prompt.id === 'locked')?.weight;
+
             // --- every applied step is reported, so the UI can follow it ---
             // A state write re-renders nothing, so without this the controls show stale numbers
             // while the audio really is moving — the feature looks broken when it is working.
@@ -234,6 +262,10 @@ async function main() {
                 paramReasons: [...new Set(paramsRig.reasons)],
                 weightOutOfRange,
                 mutedTouched,
+                lockedParamSelected,
+                lockedPromptSelected,
+                lockedGuidance,
+                lockedPromptWeight,
                 promptSteers: promptRig.steers,
                 idleParams,
                 idlePrompts,
@@ -284,6 +316,10 @@ async function main() {
         assert(!result.weightOutOfRange,
             'a drifted weight never hits 0 (silence) nor exceeds the slider maximum');
         assert(!result.mutedTouched, 'a prompt already at weight 0 is left alone, not revived');
+        assert(!result.lockedParamSelected && result.lockedGuidance === 4,
+            'Automatic Variation never selects or changes a locked sampler knob');
+        assert(!result.lockedPromptSelected && result.lockedPromptWeight === 1,
+            'Automatic Variation never selects or changes a locked prompt');
 
         // Disabled lanes are inert.
         assert(result.idleParams === null && result.idlePrompts === null && result.idleSteers === 0,

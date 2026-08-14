@@ -34,11 +34,11 @@ window.EveAudioflixNativeLocalize = window.EveAudioflixNativeLocalize || {};
 
         // Download one online track to a local folder (yt-dlp -> mp3, needs the server). Long timeout:
         // a full download + ffmpeg convert can take a while.
-        async function localizeTrack(track, targetDir) {
+        async function localizeTrack(track, targetDir, options = {}) {
             if (!track?.url || !targetDir) return { ok: false, error: 'Missing track URL or target folder.' };
             return fetchJson('/api/audioflix/localize', {
                 method: 'POST',
-                body: JSON.stringify({ track, targetDir }),
+                body: JSON.stringify({ track, targetDir, mediaFormat: options.mediaFormat === 'video' ? 'video' : 'audio' }),
                 timeout: 180000,
                 probe: true
             });

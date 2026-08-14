@@ -91,6 +91,7 @@ const assert = (condition, message) => {
                 supportWeight: state.prompts[1].weight,
                 guidance: state.config.guidance,
                 temperature: state.config.temperature,
+                topK: state.config.topK,
                 customPrompt: custom.prompts[0].text,
                 customBpm: custom.config.bpm,
                 customGuidance: custom.config.guidance
@@ -105,7 +106,8 @@ const assert = (condition, message) => {
             result.anchorWeight === 1
                 && result.supportWeight === 0.3
                 && result.guidance === 4
-                && result.temperature === 0.9,
+                && result.temperature === 1.1
+                && result.topK === 40,
             'legacy factory defaults migrate to stable realtime generation defaults'
         );
         assert(

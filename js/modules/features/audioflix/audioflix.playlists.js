@@ -18,6 +18,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
 
     const DEFAULT_FOLDER = 'Youtube Playlists';
     const DEFAULT_SPOTIFY_FOLDER = 'Spotify Playlists';
+    const DEFAULT_INSTAGRAM_FOLDER = 'IG Reel Playlists';
 
     const text = (value, fallback = '') => String(value ?? '').trim().replace(/^["']+|["']+$/g, '').trim() || fallback;
     const sameName = (left, right) => text(left).toLowerCase() === text(right).toLowerCase();
@@ -139,8 +140,8 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         });
     }
 
-    async function fetchUpstream(url, force, provider = 'youtube') {
-        const payload = await providers()?.fetchPlaylist?.(provider, url, force);
+    async function fetchUpstream(url, force, provider = 'youtube', options = {}) {
+        const payload = await providers()?.fetchPlaylist?.(provider, url, force, options);
         if (!payload || payload.ok !== true) {
             const reason = payload?.reason || payload?.message
                 || 'Playlist sync needs the EveOS server (a file:// page cannot read the playlist directly). Start start-server.bat and open EveOS on localhost.';
@@ -167,10 +168,11 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         const existing = connections().find((entry) => entry.provider === provider && entry.url === clean);
         if (existing) return syncPlaylist(existing.id, true, options.folder);
 
-        const upstream = await fetchUpstream(clean, true, provider);
+        const upstream = await fetchUpstream(clean, true, provider, { title: options.group });
         if (!upstream.ok) return upstream;
 
-        const defaultFolder = provider === 'spotify' ? DEFAULT_SPOTIFY_FOLDER : DEFAULT_FOLDER;
+        const defaultFolder = provider === 'spotify' ? DEFAULT_SPOTIFY_FOLDER
+            : provider === 'instagram' ? DEFAULT_INSTAGRAM_FOLDER : DEFAULT_FOLDER;
         const connection = {
             id: newId(),
             url: clean,
@@ -197,7 +199,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         // A .wpl is a file on disk, not a web playlist — sending its path to the URL lister only
         // ever failed, so route it back through the WPL reader.
         if (connection.provider === 'wpl') return syncWplPlaylist(connection, targetFolder);
-        const upstream = await fetchUpstream(connection.url, force, connection.provider);
+        const upstream = await fetchUpstream(connection.url, force, connection.provider, { title: connection.title });
         if (!upstream.ok) return upstream;
 
         const folderToUse = text(targetFolder) || connection.folder;
@@ -328,6 +330,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         ready: true,
         DEFAULT_FOLDER,
         DEFAULT_SPOTIFY_FOLDER,
+        DEFAULT_INSTAGRAM_FOLDER,
         DEFAULT_WPL_FOLDER,
         diffPlaylist,
         connections,

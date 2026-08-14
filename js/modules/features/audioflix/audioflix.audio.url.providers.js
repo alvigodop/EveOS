@@ -18,6 +18,7 @@ window.EveAudioflixUrlProviders = window.EveAudioflixUrlProviders || {};
         const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
         if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube';
         if (host === 'open.spotify.com' && /^\/track\/[A-Za-z0-9]+/.test(parsed.pathname)) return 'spotify';
+        if ((host === 'instagram.com' || host.endsWith('.instagram.com')) && /^\/(?:reel|reels|p|tv)\/[A-Za-z0-9_-]+/.test(parsed.pathname)) return 'instagram';
         if (host === 'soundcloud.com' || host.endsWith('.soundcloud.com')) return 'soundcloud';
         if (host === 'vimeo.com' || host.endsWith('.vimeo.com')) return 'vimeo';
         return /^https?:$/.test(parsed.protocol) ? 'direct' : '';

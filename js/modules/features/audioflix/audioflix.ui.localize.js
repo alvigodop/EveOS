@@ -41,6 +41,7 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
             const modeField = scope === 'group'
                 ? `<label style="display:flex; flex-direction:column; gap:2px; font-size:0.8rem; color:#cbd5e1; margin-top:4px;"><span>Group localization mode</span><select name="mode" style="padding:4px 6px; border-radius:8px;"><option value="link">Reuse — folder copies stay 1st; already-local songs get a shortcut (no duplicate files)</option><option value="smart">Fresh — folder copies stay 1st; every other song downloads into this group's path</option><option value="dup">Duplicate — own copy of every song here (track keeps both physical paths)</option></select></label>`
                 : '';
+            const formatField = `<label style="display:flex; flex-direction:column; gap:2px; font-size:0.8rem; color:#cbd5e1;"><span>Saved media</span><select name="mediaFormat"><option value="audio">Music audio (MP3 when ffmpeg is available)</option><option value="video">Source video (MP4 for YouTube or Instagram)</option></select></label>`;
             const btnLabel = forceOnly ? `Re-localize (${count})` : (scope === 'group' ? 'Localize Group' : `Start Localizing (${count})`);
             const note = (canRun || scope === 'group')
                 ? `${scopeLabel} — ${stats.notLocal} new${stats.alreadyLocal ? `, ${stats.alreadyLocal} already local` : ''}`
@@ -76,6 +77,7 @@ window.EveAudioflixUiLocalize = window.EveAudioflixUiLocalize || {};
             return `<form class="audioflix-form audioflix-localize-panel-form" data-af-form="localize-form" data-af-scope="${esc(scope)}" data-af-key="${esc(key)}" style="display:flex; flex-direction:column; gap:8px; padding:12px; border-radius:12px; background:rgba(0,0,0,0.25);">
                 <label class="audioflix-wide-field" style="width:100%;"><span>Target Local Folder Path (on PC)</span><input name="targetDir" required value="${esc(lastDir)}" placeholder="e.g. C:\\Music\\EveOS or /home/you/Music" style="width:100%; box-sizing:border-box;"></label>
                 ${modeField}
+                ${formatField}
                 ${forceField}
                 ${missingWarning}
                 ${portStatusBadge}

@@ -83,7 +83,8 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             text: text(source.text, index === 0 ? 'ambient instrumental music' : '', 280),
             weight: clamp(source.weight, 0, 2, index === 0 ? 1 : 0.5),
             color: /^#[0-9a-f]{6}$/i.test(String(source.color || '')) ? source.color : COLORS[index % COLORS.length],
-            cc: Math.round(clamp(source.cc, 0, 127, 16 + index))
+            cc: Math.round(clamp(source.cc, 0, 127, 16 + index)),
+            locked: source.locked === true
         };
     }
 
@@ -231,13 +232,15 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
     function usesLegacyDefaultConfig(config) {
         const source = config && typeof config === 'object' ? config : null;
         if (!source) return false;
-        const legacy = {
+        const candidates = [{
             bpm: 96, density: 0.55, brightness: 0.48, guidance: 3.2,
-            temperature: 1.1, topK: 40, seed: 0,
-            scale: 'SCALE_UNSPECIFIED', musicGenerationMode: 'QUALITY',
-            muteBass: false, muteDrums: false, onlyBassAndDrums: false
-        };
-        return Object.entries(legacy).every(([key, value]) => source[key] === value);
+            temperature: 1.1, topK: 40
+        }, {
+            bpm: 96, density: 0.42, brightness: 0.45, guidance: 4,
+            temperature: 0.9, topK: 32
+        }];
+        return candidates.some((legacy) => Object.entries(legacy)
+            .every(([key, value]) => source[key] === value));
     }
 
     function normalizeVisualizerMode(value) {
@@ -248,7 +251,17 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
     function normalize(raw) {
         const source = raw && typeof raw === 'object' ? raw : {};
         const prompts = usesLegacyDefaultPrompts(source.prompts) ? DEFAULT_PROMPTS : source.prompts;
-        const config = usesLegacyDefaultConfig(source.config) ? stableDefaults() : source.config;
+        const defaults = stableDefaults();
+        const config = usesLegacyDefaultConfig(source.config)
+            ? Object.assign({}, source.config, {
+                bpm: defaults.bpm,
+                density: defaults.density,
+                brightness: defaults.brightness,
+                guidance: defaults.guidance,
+                temperature: defaults.temperature,
+                topK: defaults.topK
+            })
+            : source.config;
         return {
             schemaVersion: 3,
             prompts: cleanPrompts(prompts),
@@ -269,7 +282,7 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             sceneMorphSeconds: clamp(source.sceneMorphSeconds, 0.5, 20, 4),
             activePresetId: text(source.activePresetId, '', 80),
             controlView: ['sliders', 'knobs'].includes(source.controlView) ? source.controlView : 'sliders',
-            promptControlView: ['sliders', 'knobs'].includes(source.promptControlView)
+            promptControlView: ['sliders', 'knobs', 'focus'].includes(source.promptControlView)
                 ? source.promptControlView : 'knobs',
             visualizerMode: normalizeVisualizerMode(source.visualizerMode),
             masterVolume: clamp(source.masterVolume, 0, 1, 0.78),
@@ -292,9 +305,10 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
             || typeof root.soundLab !== 'object'
             || root.soundLab.schemaVersion !== 3
             || !['sliders', 'knobs'].includes(root.soundLab.controlView)
-            || !['sliders', 'knobs'].includes(root.soundLab.promptControlView)
+            || !['sliders', 'knobs', 'focus'].includes(root.soundLab.promptControlView)
             || !MODES.includes(root.soundLab.visualizerMode)
             || Number(root.soundLab.bufferSeconds) < DEFAULT_BUFFER_SECONDS
+            || typeof root.soundLab.config?.lockedParams !== 'object'
             || typeof root.soundLab.showPaidApiFeatures !== 'boolean') {
             root.soundLab = normalize(root.soundLab);
         }
@@ -407,7 +421,8 @@ window.EveAudioflixSoundLabState = window.EveAudioflixSoundLabState || {};
         cleanModulation,
         cleanConfig,
         toWireConfig,
-        autoParamKeys: () => AUTO_PARAM_KEYS.slice(),
+        autoParamKeys: () => CFG().autoParamKeys(),
+        lockableParamKeys: () => CFG().lockableParamKeys(),
         cleanScene,
         snapshotScene: () => cleanScene(ensure()),
         scales: SCALES.slice(),

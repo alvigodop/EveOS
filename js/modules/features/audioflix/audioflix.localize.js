@@ -277,8 +277,8 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     // call client-side meant that server capability was unreachable from the UI — the download only
     // ever ran from a script. An owned local file still wins: localizeScope recalibrates first, so a
     // track that already has the real file on disk never reaches this function at all.
-    async function downloadInto(N, it, dir) {
-        const res = await N.localizeTrack({ id: it.id, title: it.title, url: it.url }, dir);
+    async function downloadInto(N, it, dir, mediaFormat = 'audio') {
+        const res = await N.localizeTrack({ id: it.id, title: it.title, url: it.url }, dir, { mediaFormat });
         return (res?.ok && res.filePath) ? { ok: true, path: res.filePath } : { ok: false, error: res?.error || res?.message || 'download failed' };
     }
 
@@ -287,7 +287,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     //             (no second copy on disk); the rest download into the group path (2nd class).
     //   'smart' — no shortcuts: folder copies skipped, every other online song downloads here.
     //   'dup'   — ignore classes: own copy of every song here (folder file still plays first).
-    async function localizeGroup(groupKey, dir, onProgress, mode = 'link') {
+    async function localizeGroup(groupKey, dir, onProgress, mode = 'link', mediaFormat = 'audio') {
         const N = window.EveAudioflixNative;
         const source = `group:${groupKey}`;
         const members = collectScope('group', groupKey);
@@ -312,7 +312,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
                 continue;
             }
             if (!isHttp(it.url)) { skipped += 1; continue; }
-            const dl = await downloadInto(N, it, dir);
+            const dl = await downloadInto(N, it, dir, mediaFormat);
             if (dl.ok) { addLocalization(it, source, dl.path, 'file'); done += 1; }
             else { failed += 1; lastError = dl.error; }
         }
@@ -322,7 +322,7 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
     // Download every candidate in the scope to targetDir, tagging each with a scope-appropriate
     // localization. `force` re-downloads already-local tracks (relocalize). Group scope dispatches
     // to the class-aware path (`mode`).
-    async function localizeScope(scope, key, targetDir, onProgress, force = false, mode = 'link') {
+    async function localizeScope(scope, key, targetDir, onProgress, force = false, mode = 'link', mediaFormat = 'audio') {
         const N = window.EveAudioflixNative;
         if (!N?.localizeTrack) return { ok: false, reason: 'Localization needs the EveOS localhost server running.' };
         const dir = text(targetDir);
@@ -332,14 +332,14 @@ window.EveAudioflixLocalize = window.EveAudioflixLocalize || {};
         // download is a YouTube match rather than the Spotify master) and avoids re-fetching other
         // dual-source tracks that are already present under a newly selected directory.
         await recalibrateScopePath(scope, key, dir);
-        if (scope === 'group') return localizeGroup(key, dir, onProgress, mode);
+        if (scope === 'group') return localizeGroup(key, dir, onProgress, mode, mediaFormat);
         const items = localizeCandidates(scope, key, force);
         if (!items.length) return { ok: true, done: 0, failed: 0, total: 0, targetDir: dir, note: 'Nothing to localize.' };
         let done = 0, failed = 0, lastError = '';
         for (let i = 0; i < items.length; i += 1) {
             const it = items[i];
             onProgress?.({ index: i + 1, total: items.length, title: it.title });
-            const dl = await downloadInto(N, it, dir);
+            const dl = await downloadInto(N, it, dir, mediaFormat);
             if (dl.ok) { addLocalization(it, sourceForScope(scope, key, it), dl.path, 'file'); done += 1; }
             else { failed += 1; lastError = dl.error; }
         }

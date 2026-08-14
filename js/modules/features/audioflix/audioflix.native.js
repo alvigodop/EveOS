@@ -409,8 +409,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     // Localization transport (probe / download / link / scan) lives in a sibling module.
     const { probeLocalFile, localizeTrack, linkLocalFile, scanLocalized, readWplFile } =
         window.EveAudioflixNativeLocalize.create({ fetchJson, DEVICE_SCAN_TIMEOUT_MS, isBridgeOffline });
-    const { listSpotifyPlaylist, openSpotifySession } =
-        window.EveAudioflixNativeSpotify.create({ fetchJson });
+    const { listSpotifyPlaylist, openSpotifySession } = window.EveAudioflixNativeSpotify.create({ fetchJson });
+    const { listInstagramCollection, resolveInstagramVideo } = window.EveAudioflixNativeInstagram.create({ fetchJson });
 
     Object.assign(ns, {
         ready: true,
@@ -430,7 +430,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         playMediaItem,
         resolveUrl,
         listPlaylist,
-        listSpotifyPlaylist,
+        listSpotifyPlaylist, listInstagramCollection, resolveInstagramVideo,
         openSpotifySession,
         localizeTrack,
         scanLocalized,

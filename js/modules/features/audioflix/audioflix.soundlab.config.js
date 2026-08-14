@@ -20,6 +20,9 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
     // so omitting them means "use the API default", not "decide musically" — offering an auto pill
     // there would misdescribe what it does. Drift (soundlab.drift) automates them instead.
     const AUTO_PARAM_KEYS = ['bpm', 'density', 'brightness'];
+    const LOCKABLE_PARAM_KEYS = [
+        'bpm', 'density', 'brightness', 'guidance', 'temperature', 'topK'
+    ];
 
     // bpm and scale changes force resetContext() (an audible discontinuity), so they must never be
     // driven continuously. Exported so the steering layer and its tests share one list instead of
@@ -39,21 +42,20 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
         bpm: 96,
         density: 0.42,
         brightness: 0.45,
-        // Lyria's own documented defaults are guidance 4.0, temperature 1.1, topK 40. Ours are
-        // deliberately TIGHTER than the model's (0.9 / 32) for more predictable output, and
-        // sonic_forge_manager_smoke pins them as the "stable realtime generation defaults" a legacy
-        // config migrates to. Loosening them toward the API defaults is a taste call, not a fix —
-        // both are reachable from the sliders.
+        // Google's documented realtime defaults are the neutral baseline. Presets can tighten
+        // these values deliberately without a fresh install silently biasing Lyria.
+        // Legacy configs are migrated through the state normalizer.
         guidance: 4,
-        temperature: 0.9,
-        topK: 32,
+        temperature: 1.1,
+        topK: 40,
         seed: 0,
         scale: 'SCALE_UNSPECIFIED',
         musicGenerationMode: 'QUALITY',
         muteBass: false,
         muteDrums: false,
         onlyBassAndDrums: false,
-        autoParams: { bpm: false, density: false, brightness: false }
+        autoParams: { bpm: false, density: false, brightness: false },
+        lockedParams: {}
     };
 
     function clamp(value, min, max, fallback) {
@@ -68,8 +70,20 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
         return out;
     }
 
+    function cleanLockedParams(value) {
+        const source = value && typeof value === 'object' ? value : {};
+        const out = {};
+        LOCKABLE_PARAM_KEYS.forEach((key) => { out[key] = source[key] === true; });
+        return out;
+    }
+
     function cleanConfig(config) {
         const source = config && typeof config === 'object' ? config : {};
+        const lockedParams = cleanLockedParams(source.lockedParams);
+        const autoParams = cleanAutoParams(source.autoParams);
+        AUTO_PARAM_KEYS.forEach((key) => {
+            if (lockedParams[key]) autoParams[key] = false;
+        });
         return {
             bpm: Math.round(clamp(source.bpm, 60, 200, DEFAULTS.bpm)),
             density: clamp(source.density, 0, 1, DEFAULTS.density),
@@ -84,7 +98,8 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
             muteBass: source.muteBass === true,
             muteDrums: source.muteDrums === true,
             onlyBassAndDrums: source.onlyBassAndDrums === true,
-            autoParams: cleanAutoParams(source.autoParams)
+            autoParams,
+            lockedParams
         };
     }
 
@@ -97,6 +112,7 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
         const auto = clean.autoParams;
         const wire = Object.assign({}, clean);
         delete wire.autoParams;
+        delete wire.lockedParams;
         AUTO_PARAM_KEYS.forEach((key) => { if (auto[key]) delete wire[key]; });
         return wire;
     }
@@ -108,8 +124,10 @@ window.EveAudioflixSoundLabConfig = window.EveAudioflixSoundLabConfig || {};
         MODES: MODES.slice(),
         cleanConfig,
         cleanAutoParams,
+        cleanLockedParams,
         toWireConfig,
         autoParamKeys: () => AUTO_PARAM_KEYS.slice(),
+        lockableParamKeys: () => LOCKABLE_PARAM_KEYS.slice(),
         resetOnChangeKeys: () => RESET_ON_CHANGE_KEYS.slice(),
         isAutoable: (key) => AUTO_PARAM_KEYS.includes(String(key || '')),
         // Guard for anything that wants to move a parameter continuously: a key that forces a

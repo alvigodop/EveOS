@@ -54,7 +54,8 @@ window.EveAudioflixSoundLabScenes = window.EveAudioflixSoundLabScenes || {};
                 text: String((amount < 0.5 ? from : to).text || ''),
                 weight: lerp(pair.left?.weight || 0, pair.right?.weight || 0, amount),
                 color: String((amount < 0.5 ? from : to).color || '#20e3b2'),
-                cc: Math.round(lerp(from.cc || 16 + index, to.cc || 16 + index, amount))
+                cc: Math.round(lerp(from.cc || 16 + index, to.cc || 16 + index, amount)),
+                locked: (amount < 0.5 ? from : to).locked === true
             };
         }).filter((prompt) => prompt.text && prompt.weight > 0.001);
     }

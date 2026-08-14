@@ -1,0 +1,112 @@
+.audioflix-instagram-stage {
+    width: min(760px, calc(100vw - 32px));
+}
+
+.audioflix-instagram-inspector {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    background:
+        radial-gradient(circle at 12% 4%, rgba(255, 52, 104, 0.14), transparent 32%),
+        radial-gradient(circle at 92% 90%, rgba(126, 56, 255, 0.13), transparent 36%),
+        #080c10;
+}
+
+.audioflix-instagram-inspector nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.audioflix-instagram-inspector nav button.is-active {
+    border-color: rgba(255, 79, 139, 0.82);
+    background: linear-gradient(115deg, rgba(255, 49, 117, 0.2), rgba(114, 54, 255, 0.2));
+    color: #ffd9e8;
+}
+
+.audioflix-instagram-inspector > p {
+    overflow-wrap: anywhere;
+    color: rgba(235, 241, 245, 0.62);
+    font-size: 0.72rem;
+}
+
+.audioflix-instagram-inspector > p a {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: #ff9ac2;
+}
+
+.audioflix-instagram-canvas {
+    position: relative;
+    display: grid;
+    place-items: center;
+    min-height: 360px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 14px;
+    background: #000;
+}
+
+.audioflix-instagram-canvas iframe,
+.audioflix-instagram-video {
+    display: block;
+    width: 100%;
+    height: min(72vh, 680px);
+    border: 0;
+    background: #000;
+}
+
+.audioflix-instagram-canvas.is-focus iframe {
+    width: min(100%, 430px);
+    min-height: 640px;
+    transform: scale(1.025);
+    transform-origin: center top;
+}
+
+.audioflix-instagram-canvas.is-direct video {
+    object-fit: contain;
+}
+
+.audioflix-instagram-import textarea,
+.audioflix-instagram-link-form textarea {
+    min-height: 130px;
+    resize: vertical;
+}
+
+.audioflix-instagram-source-list {
+    display: grid;
+    gap: 6px;
+    max-height: 270px;
+    overflow: auto;
+    margin: 10px 0;
+    padding: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    list-style: none;
+}
+
+.audioflix-instagram-source-list > li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.audioflix-instagram-source-list a {
+    overflow: hidden;
+    color: #ff9ac2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+    .audioflix-instagram-canvas,
+    .audioflix-instagram-canvas.is-focus iframe {
+        min-height: 520px;
+    }
+
+    .audioflix-instagram-source-list > li {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+}

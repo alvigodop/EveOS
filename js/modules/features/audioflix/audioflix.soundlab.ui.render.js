@@ -20,34 +20,46 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
         return value === true ? ' checked' : '';
     }
 
+    const CONTROL_COLORS = {
+        bpm: '#20e3b2', density: '#67b7ff', brightness: '#ffca5f',
+        guidance: '#ff6f91', temperature: '#c798ff', topK: '#9fe870'
+    };
+
     // `auto` is only passed for the parameters Lyria can infer from the text direction — bpm,
     // density and brightness. When on, the slider is disabled and its value is not sent at all, so
     // the readout shows "auto" rather than a number that is no longer in effect.
-    function rangeField(label, key, value, min, max, step, detail, controlView, auto) {
-        const knob = controlView === 'knobs';
+    function rangeField(label, key, value, min, max, step, detail, controlView, auto, locked) {
+        const knob = controlView === 'knobs' || controlView === 'focus';
         const autoable = auto !== undefined;
         const isAuto = auto === true;
+        const isLocked = locked === true;
         const progress = Math.max(0, Math.min(1, (Number(value) - min) / (max - min || 1)));
         const input = `<input type="range" min="${min}" max="${max}" step="${step}" value="${esc(value)}"
-            data-sf-field="config" data-sf-config="${esc(key)}" aria-label="${esc(label)}"${isAuto ? ' disabled' : ''}>`;
+            data-sf-field="config" data-sf-config="${esc(key)}" aria-label="${esc(label)}"${isAuto || isLocked ? ' disabled' : ''}>`;
         const autoToggle = autoable ? `<button type="button" class="sonic-forge-auto${isAuto ? ' is-active' : ''}"
             data-af-action="soundlab-toggle-auto" data-sf-auto="${esc(key)}"
             title="Let the model choose ${esc(label.toLowerCase())} from your prompt"
-            aria-pressed="${isAuto ? 'true' : 'false'}">auto</button>` : '';
-        return `<label class="sonic-forge-control${knob ? ' is-knob' : ''}${isAuto ? ' is-auto' : ''}">
-            <span><b>${esc(label)}</b>${autoToggle}<output data-sf-output="${esc(key)}">${isAuto ? 'auto' : esc(value)}</output></span>
+            aria-pressed="${isAuto ? 'true' : 'false'}"${isLocked ? ' disabled' : ''}>auto</button>` : '';
+        const lockToggle = `<button type="button" class="sonic-forge-lock${isLocked ? ' is-active' : ''}"
+            data-af-action="soundlab-toggle-lock" data-sf-lock="${esc(key)}"
+            title="${isLocked ? 'Unlock this value for automatic movement' : 'Keep this value fixed while Auto runs'}"
+            aria-pressed="${isLocked ? 'true' : 'false'}">${isLocked ? 'locked' : 'lock'}</button>`;
+        return `<label class="sonic-forge-control${knob ? ' is-knob' : ''}${isAuto ? ' is-auto' : ''}${isLocked ? ' is-locked' : ''}"
+            style="--sf-mint:${CONTROL_COLORS[key] || '#20e3b2'}">
+            <span><b>${esc(label)}</b><span class="sonic-forge-control-flags">${autoToggle}${lockToggle}</span><output data-sf-output="${esc(key)}">${isAuto ? 'auto' : esc(value)}</output></span>
             ${knob ? `<span class="sonic-forge-knob-shell" style="--sf-knob:${progress}">${input}</span>` : input}
             ${detail ? `<small>${esc(detail)}</small>` : ''}
         </label>`;
     }
 
     function renderPrompt(prompt, index, canRemove, controlView) {
-        const knob = controlView === 'knobs';
+        const knob = controlView === 'knobs' || controlView === 'focus';
         const progress = Math.max(0, Math.min(1, Number(prompt.weight) / 2));
+        const locked = prompt.locked === true;
         const weightInput = `<input type="range" min="0" max="2" step="0.01" value="${esc(prompt.weight)}"
             data-sf-field="prompt-weight" data-sf-prompt="${esc(prompt.id)}"
-            aria-label="Direction ${index + 1} weight">`;
-        return `<article class="sonic-forge-prompt" style="--prompt-color:${esc(prompt.color)}">
+            aria-label="Direction ${index + 1} weight"${locked ? ' disabled' : ''}>`;
+        return `<article class="sonic-forge-prompt${locked ? ' is-locked' : ''}" style="--prompt-color:${esc(prompt.color)}">
             <div class="sonic-forge-prompt-top">
                 <span class="sonic-forge-prompt-number">${String(index + 1).padStart(2, '0')}</span>
                 <input type="color" value="${esc(prompt.color)}" data-sf-field="prompt-color"
@@ -62,7 +74,10 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
             </div>
             <div class="sonic-forge-prompt-mix">
                 <label class="sonic-forge-prompt-weight${knob ? ' is-knob' : ''}">
-                    <span>Weight <output data-sf-prompt-weight="${esc(prompt.id)}">${Number(prompt.weight).toFixed(2)}</output></span>
+                    <span>Weight <button type="button" class="sonic-forge-lock${locked ? ' is-active' : ''}"
+                        data-af-action="soundlab-toggle-prompt-lock" data-sf-prompt="${esc(prompt.id)}"
+                        aria-pressed="${locked ? 'true' : 'false'}">${locked ? 'locked' : 'lock'}</button>
+                        <output data-sf-prompt-weight="${esc(prompt.id)}">${Number(prompt.weight).toFixed(2)}</output></span>
                     ${knob
                         ? `<span class="sonic-forge-knob-shell is-prompt" style="--sf-knob:${progress};--sf-mint:${esc(prompt.color)}">${weightInput}</span>`
                         : weightInput}
@@ -90,10 +105,11 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 </div>
                 <div class="sonic-forge-header-actions">
                     <div class="sonic-forge-view-toggle" role="group" aria-label="Prompt mixer control view">
-                        ${['sliders', 'knobs'].map((view) => `<button type="button"
+                        ${['sliders', 'knobs', 'focus'].map((view) => `<button type="button"
                             class="${soundLab.promptControlView === view ? 'is-active' : ''}"
                             data-af-action="soundlab-prompt-view" data-sf-view="${view}">${view}</button>`).join('')}
                     </div>
+                    <button type="button" data-af-action="soundlab-promptdj-starter">PromptDJ Starter</button>
                     <button type="button" data-af-action="soundlab-add-prompt" ${prompts.length >= 16 ? 'disabled' : ''}>
                         + Direction
                     </button>
@@ -110,6 +126,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
     function renderConfig(soundLab) {
         const config = soundLab.config || {};
         const auto = config.autoParams || {};
+        const locked = config.lockedParams || {};
         const scales = window.EveAudioflixSoundLabState?.scales || [];
         return `<section class="sonic-forge-block sonic-forge-generation">
             <header><div><span class="sonic-forge-eyebrow">Steering</span><h3>Generation Controls</h3>
@@ -121,12 +138,12 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 </div>
             </header>
             <div class="sonic-forge-controls-grid is-${esc(soundLab.controlView)}">
-                ${rangeField('Tempo', 'bpm', config.bpm, 60, 200, 1, 'BPM', soundLab.controlView, auto.bpm)}
-                ${rangeField('Density', 'density', config.density, 0, 1, 0.01, '', soundLab.controlView, auto.density)}
-                ${rangeField('Brightness', 'brightness', config.brightness, 0, 1, 0.01, '', soundLab.controlView, auto.brightness)}
-                ${rangeField('Guidance', 'guidance', config.guidance, 0, 6, 0.1, '', soundLab.controlView)}
-                ${rangeField('Temperature', 'temperature', config.temperature, 0, 3, 0.05, '', soundLab.controlView)}
-                ${rangeField('Top K', 'topK', config.topK, 1, 1000, 1, '', soundLab.controlView)}
+                ${rangeField('Tempo', 'bpm', config.bpm, 60, 200, 1, 'BPM', soundLab.controlView, auto.bpm, locked.bpm)}
+                ${rangeField('Density', 'density', config.density, 0, 1, 0.01, '', soundLab.controlView, auto.density, locked.density)}
+                ${rangeField('Brightness', 'brightness', config.brightness, 0, 1, 0.01, '', soundLab.controlView, auto.brightness, locked.brightness)}
+                ${rangeField('Guidance', 'guidance', config.guidance, 0, 6, 0.1, '', soundLab.controlView, undefined, locked.guidance)}
+                ${rangeField('Temperature', 'temperature', config.temperature, 0, 3, 0.05, '', soundLab.controlView, undefined, locked.temperature)}
+                ${rangeField('Top K', 'topK', config.topK, 1, 1000, 1, '', soundLab.controlView, undefined, locked.topK)}
                 <label class="sonic-forge-control sonic-forge-select">
                     <span><b>Scale</b>${config.scale === 'SCALE_UNSPECIFIED'
                         ? '<span class="sonic-forge-auto is-active" aria-hidden="true">auto</span>' : ''}</span>
@@ -152,6 +169,7 @@ window.EveAudioflixSoundLabUiRender = window.EveAudioflixSoundLabUiRender || {};
                 <label><input type="checkbox" data-sf-field="config" data-sf-config="muteDrums"${checked(config.muteDrums)}> Mute drums</label>
                 <label><input type="checkbox" data-sf-field="config" data-sf-config="onlyBassAndDrums"${checked(config.onlyBassAndDrums)}> Bass + drums only</label>
             </div>
+            <p class="sonic-forge-note">Neutral baseline: Guidance 4, Temperature 1.1, Top K 40. Lock any knob to keep Auto drift from moving it.</p>
         </section>`;
     }
 

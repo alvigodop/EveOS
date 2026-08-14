@@ -74,7 +74,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 if (session?.kind === 'direct') { session.player.pause(); session.player.removeAttribute('src'); session.player.load(); }
                 else if (session?.kind === 'youtube') session.player.destroy?.();
                 else if (session?.kind === 'soundcloud') session.player.pause?.();
-                else if (session?.kind === 'vimeo' || session?.kind === 'spotify') await session.player.destroy?.();
+                else if (['vimeo', 'spotify', 'instagram'].includes(session?.kind)) await session.player.destroy?.();
             } catch { }
             playback.paused = true;
             emitProgress();
@@ -295,8 +295,6 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             }, 250);
         }
 
-        // SoundCloud + Vimeo are third-party iframe widgets rather than audio we control; both
-        // live in a sibling module and write back through this controller's playback state.
         const { playSoundCloud, playVimeo } = window.EveAudioflixUrlWidgets.create({
             ensureStage, setStageStatus, emitPlayback, emitProgress, loadScript, SCRIPT_TIMEOUT_MS,
             view: {
@@ -304,14 +302,12 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                 get playback() { return playback; }
             }
         });
-        const spotifyFactory = window.EveAudioflixSpotifyPlayback?.create;
-        const spotifyAdapter = typeof spotifyFactory === 'function' && spotifyFactory({
-            ensureStage, setStageStatus, emitPlayback, emitProgress,
-            view: { get active() { return active; }, set active(v) { active = v; }, get playback() { return playback; } }
-        });
-        const playSpotify = spotifyAdapter?.playSpotify || (async () => {
-            throw new Error('Spotify playback support is not loaded yet.');
-        });
+        const providerView = { get active() { return active; }, set active(v) { active = v; }, get playback() { return playback; } };
+        const providerDeps = { ensureStage, setStageStatus, emitPlayback, emitProgress, view: providerView };
+        const spotifyAdapter = window.EveAudioflixSpotifyPlayback?.create?.(providerDeps);
+        const instagramAdapter = window.EveAudioflixInstagramPlayback?.create?.({ ...providerDeps, isInternalView: () => requestedInternalView });
+        const playSpotify = spotifyAdapter?.playSpotify || (async () => { throw new Error('Spotify playback support is not loaded yet.'); });
+        const playInstagram = instagramAdapter?.playInstagram || (async () => { throw new Error('Instagram playback support is not loaded yet.'); });
 
         async function play(item, playOptions = {}) {
             const provider = providerFor(item?.url);
@@ -332,6 +328,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             try {
                 if (provider === 'youtube') await playYouTube(item);
                 else if (provider === 'spotify') await playSpotify(item);
+                else if (provider === 'instagram') await playInstagram(item);
                 else if (provider === 'soundcloud') await playSoundCloud(item);
                 else if (provider === 'vimeo') await playVimeo(item);
                 else await playDirect(item);
@@ -344,7 +341,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
                     if (session?.kind === 'direct') session.player.pause?.();
                     else if (session?.kind === 'youtube') session.player.destroy?.();
                     else if (session?.kind === 'soundcloud') session.player.pause?.();
-                    else if (session?.kind === 'vimeo' || session?.kind === 'spotify') await session.player.destroy?.();
+                    else if (['vimeo', 'spotify', 'instagram'].includes(session?.kind)) await session.player.destroy?.();
                 } catch { }
                 playback.paused = true;
                 emitProgress();
@@ -367,7 +364,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (active.kind === 'direct') await active.player.play();
             else if (active.kind === 'youtube') active.player.playVideo?.();
             else if (active.kind === 'soundcloud') active.player.play?.();
-            else if (active.kind === 'vimeo' || active.kind === 'spotify') await active.player.play?.();
+            else if (['vimeo', 'spotify', 'instagram'].includes(active.kind)) await active.player.play?.();
             playback.paused = false;
             emitProgress();
             return true;
@@ -378,7 +375,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (active.kind === 'direct') active.player.pause();
             else if (active.kind === 'youtube') active.player.pauseVideo?.();
             else if (active.kind === 'soundcloud') active.player.pause?.();
-            else if (active.kind === 'vimeo' || active.kind === 'spotify') await active.player.pause?.();
+            else if (['vimeo', 'spotify', 'instagram'].includes(active.kind)) await active.player.pause?.();
             playback.paused = true;
             emitPlayback('Paused');
             emitProgress();
@@ -391,7 +388,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             if (active.kind === 'direct') active.player.currentTime = target;
             else if (active.kind === 'youtube') active.player.seekTo?.(target, true);
             else if (active.kind === 'soundcloud') active.player.seekTo?.(target * 1000);
-            else if (active.kind === 'vimeo' || active.kind === 'spotify') await active.player.setCurrentTime?.(target);
+            else if (['vimeo', 'spotify', 'instagram'].includes(active.kind)) await active.player.setCurrentTime?.(target);
             playback.currentTime = target;
             emitProgress();
             return true;
@@ -402,7 +399,7 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             const safe = Math.max(0, Math.min(1, Number(volume || 0)));
             if (active.kind === 'direct') active.player.volume = safe;
             else if (active.kind === 'youtube' || active.kind === 'soundcloud') active.player.setVolume?.(Math.round(safe * 100));
-            else if (active.kind === 'vimeo' || active.kind === 'spotify') active.player.setVolume?.(safe)?.catch?.(() => {});
+            else if (['vimeo', 'spotify', 'instagram'].includes(active.kind)) active.player.setVolume?.(safe)?.catch?.(() => {});
             // Both views must agree: only the card slider persisted, so panel levels never stuck.
             if (playback.item) playback.item.volume = safe;
             if (playback.item?.id) window.EveAudioflixState?.setItemVolume?.(playback.item.type || 'music', playback.item.id, safe);

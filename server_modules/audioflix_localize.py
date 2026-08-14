@@ -23,7 +23,7 @@ from pathlib import Path
 
 logger = logging.getLogger("EveOSAudioflixLocalize")
 
-_AUDIO_EXTS = {".mp3", ".m4a", ".webm", ".opus", ".ogg", ".wav", ".flac", ".aac"}
+_AUDIO_EXTS = {".mp3", ".mp4", ".m4a", ".webm", ".opus", ".ogg", ".wav", ".flac", ".aac"}
 _dl_lock = threading.Lock()  # serialize downloads: yt-dlp + ffmpeg are heavy, one at a time is fine
 
 # Reuse the resolver module's lazy yt-dlp loader so we don't double-import.
@@ -74,16 +74,18 @@ def _prepare_dir(target_dir: str):
     return path, None
 
 
-def _download(yt_dlp, url: str, outtmpl: str, want_mp3: bool) -> dict:
+def _download(yt_dlp, url: str, outtmpl: str, want_mp3: bool, media_format: str = "audio") -> dict:
     opts = {
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
         "outtmpl": outtmpl,
-        "format": "bestaudio/best",
+        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" if media_format == "video" else "bestaudio/best",
         "overwrites": True,
     }
-    if want_mp3:
+    if media_format == "video":
+        opts["merge_output_format"] = "mp4"
+    elif want_mp3:
         opts["postprocessors"] = [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "192"}]
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=True)
@@ -94,6 +96,9 @@ def _download(yt_dlp, url: str, outtmpl: str, want_mp3: bool) -> dict:
             filepath = ydl.prepare_filename(info)
             if want_mp3:
                 filepath = str(Path(filepath).with_suffix(".mp3"))
+        if media_format == "video" and (not filepath or not Path(filepath).exists()):
+            candidates = sorted(Path(outtmpl).parent.glob(Path(outtmpl).name.replace(".%(ext)s", ".*")))
+            filepath = str(next((item for item in candidates if item.suffix.lower() == ".mp4"), candidates[-1] if candidates else ""))
         return {"filepath": filepath, "title": (info or {}).get("title") or "", "duration": (info or {}).get("duration") or 0}
 
 
@@ -104,6 +109,7 @@ def localize_one(payload: dict) -> dict:
     tid = track.get("id")
     url = str(track.get("url") or "").strip()
     title = track.get("title") or "track"
+    media_format = "video" if payload.get("mediaFormat") == "video" else "audio"
 
     if not _is_http(url):
         return {"ok": False, "id": tid, "error": "Track has no online URL to localize."}
@@ -142,17 +148,18 @@ def localize_one(payload: dict) -> dict:
     outtmpl = str(path / (base + ".%(ext)s"))
 
     with _dl_lock:
-        # Prefer mp3; if ffmpeg is missing the postprocessor raises, so fall back to the raw best
-        # audio container rather than failing the whole localization.
-        for want_mp3 in (True, False):
+        # Video has one MP4 merge attempt. Audio prefers MP3, then falls back to its source container
+        # when ffmpeg is unavailable rather than failing the whole localization.
+        attempts = (False,) if media_format == "video" else (True, False)
+        for want_mp3 in attempts:
             try:
-                res = _download(yt_dlp, url, outtmpl, want_mp3)
+                res = _download(yt_dlp, url, outtmpl, want_mp3, media_format)
                 fp = res.get("filepath")
                 if fp and Path(fp).exists():
                     ext = Path(fp).suffix.lstrip(".").lower()
                     logger.info("Localized %s -> %s", url[:70], fp)
                     return {"ok": True, "id": tid, "filePath": str(fp), "ext": ext,
-                            "mp3": ext == "mp3", "duration": res.get("duration") or 0}
+                            "mp3": ext == "mp3", "mediaFormat": media_format, "duration": res.get("duration") or 0}
             except Exception as exc:  # noqa: BLE001
                 last = str(exc)[:300]
                 if want_mp3 and ("ffmpeg" in last.lower() or "postprocess" in last.lower()):

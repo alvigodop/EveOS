@@ -25,7 +25,7 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                 }
                 else if (fName === 'import-playlist') {
                     const PL = window.EveAudioflixPlaylists;
-                    const url = data.get('url'), folder = data.get('folder');
+                    const url = data.get('url'), folder = data.get('folder'), group = data.get('group');
                     const mode = form.dataset.afMode || ctx.playlistImportMode || 'youtube';
                     if (PL && url) {
                         if (mode === 'wpl') {
@@ -48,13 +48,15 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                             ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
                                 [`${mode}Url`]: url || '',
                                 [`${mode}Folder`]: folder || '',
+                                [`${mode}Group`]: group || '',
                                 [`${mode}Status`]: mode === 'spotify'
                                     ? 'Reading Spotify playlist through the saved local session...'
+                                    : mode === 'instagram' ? 'Preparing Reel collection and enriching available metadata...'
                                     : 'Reading YouTube playlist...'
                             });
                             ctx.playbackStatus = ctx.importFormValues[`${mode}Status`];
                             ctx.rerender();
-                            PL.importPlaylist(url, folder ? { folder } : {}).then(res => {
+                            PL.importPlaylist(url, { folder: folder || '', group: group || '' }).then(res => {
                                 ctx.playbackStatus = res.ok
                                     ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
                                     : (res.reason || 'Playlist import failed.');
@@ -107,12 +109,13 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                     const targetDir = data.get('targetDir');
                     const force = data.get('force') === '1' || data.get('force') === 'on';
                     const mode = ['dup', 'smart', 'link'].includes(String(data.get('mode') || '')) ? String(data.get('mode')) : 'link';
+                    const mediaFormat = data.get('mediaFormat') === 'video' ? 'video' : 'audio';
                     const L = window.EveAudioflixLocalize;
                     if (L && targetDir) {
                         ctx.playbackStatus = 'Localizing candidate tracks...'; ctx.rerender();
                         L.localizeScope(scope, key, targetDir, (p) => {
                             ctx.playbackStatus = `Localizing ${p.index}/${p.total}: ${p.title}`;
-                        }, force, mode).then(res => {
+                        }, force, mode, mediaFormat).then(res => {
                             ctx.playbackStatus = res.ok
                                 ? (scope === 'group'
                                     ? `Group localized — ${res.done} downloaded, ${res.shortcut || 0} shortcut${res.shortcut === 1 ? '' : 's'}, ${res.skipped || 0} kept${res.failed ? `, ${res.failed} failed` : ''}.`

@@ -34,10 +34,10 @@ window.EveAudioflixPlaylistProviders = window.EveAudioflixPlaylistProviders || {
         return url ? { ok: true, url } : { ok: false, reason: 'Enter a playlist source.' };
     }
 
-    async function fetchPlaylist(id, value, force) {
+    async function fetchPlaylist(id, value, force, options = {}) {
         const adapter = get(id);
         if (!adapter?.fetchPlaylist) return { ok: false, reason: `Playlist provider "${id}" cannot sync.` };
-        return adapter.fetchPlaylist(value, force);
+        return adapter.fetchPlaylist(value, force, options);
     }
 
     function entryPatch(id, entry) {

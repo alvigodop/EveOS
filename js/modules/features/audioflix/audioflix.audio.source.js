@@ -6,8 +6,8 @@ window.EveAudioflixAudioSource = window.EveAudioflixAudioSource || {};
     const ns = window.EveAudioflixAudioSource;
     if (ns.ready) return;
 
-    const DIRECT_AUDIO_RE = /\.(mp3|wav|ogg|oga|flac|aac|m4a|webm|opus)(?:$|[?#])/i;
-    const PLATFORM_RE = /^https?:\/\/(?:www\.|music\.)?(?:youtube\.com|youtu\.be|soundcloud\.com|bandcamp\.com|vimeo\.com|open\.spotify\.com)\b/i;
+    const DIRECT_AUDIO_RE = /\.(mp3|mp4|wav|ogg|oga|flac|aac|m4a|webm|opus)(?:$|[?#])/i;
+    const PLATFORM_RE = /^https?:\/\/(?:www\.|music\.)?(?:youtube\.com|youtu\.be|soundcloud\.com|bandcamp\.com|vimeo\.com|open\.spotify\.com|instagram\.com)\b/i;
     const PROVIDER_NATIVE_RE = /^https?:\/\/open\.spotify\.com\/track\/[A-Za-z0-9]+(?:[/?#]|$)/i;
 
     function getOriginalPlatformUrl(item) {

@@ -158,8 +158,37 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
             labState()?.update?.({ controlView }, 'audioflix-soundlab-control-view');
             return { rerender: true };
         } else if (action === 'soundlab-prompt-view') {
-            const promptControlView = target.dataset.sfView === 'sliders' ? 'sliders' : 'knobs';
+            const requested = target.dataset.sfView;
+            const promptControlView = ['sliders', 'knobs', 'focus'].includes(requested) ? requested : 'knobs';
             labState()?.update?.({ promptControlView }, 'audioflix-soundlab-prompt-view');
+            return { rerender: true };
+        } else if (action === 'soundlab-toggle-lock') {
+            const key = target.dataset.sfLock;
+            const current = labState()?.ensure?.()?.config || {};
+            const lockable = labState()?.lockableParamKeys?.() || [];
+            if (!lockable.includes(key)) return null;
+            const lockedParams = Object.assign({}, current.lockedParams, {
+                [key]: current.lockedParams?.[key] !== true
+            });
+            const autoParams = Object.assign({}, current.autoParams);
+            if (lockedParams[key] && key in autoParams) autoParams[key] = false;
+            labState()?.update?.({
+                config: Object.assign({}, current, { lockedParams, autoParams })
+            }, 'audioflix-soundlab-lock-param');
+            engine()?.queueSteering?.();
+            return { rerender: true };
+        } else if (action === 'soundlab-toggle-prompt-lock') {
+            const id = target.dataset.sfPrompt;
+            const prompt = labState()?.ensure?.()?.prompts?.find?.((entry) => entry.id === id);
+            if (!prompt) return null;
+            labState()?.updatePrompt?.(id, { locked: prompt.locked !== true });
+            return { rerender: true };
+        } else if (action === 'soundlab-promptdj-starter') {
+            const starter = window.EveAudioflixSoundLabReferenceScenes?.promptDjStarter?.();
+            if (!starter) return null;
+            const next = labState()?.update?.(starter, 'audioflix-soundlab-promptdj-starter');
+            engine()?.applyScene?.(next);
+            await engine()?.applySteering?.({ resetContext: true });
             return { rerender: true };
         } else if (action === 'soundlab-toggle-auto') {
             // Flip one parameter between a pinned number and model-inferred. Steering strips auto'd
@@ -169,7 +198,7 @@ window.EveAudioflixSoundLabUiEvents = window.EveAudioflixSoundLabUiEvents || {};
             const key = target.dataset.sfAuto;
             const current = labState()?.ensure?.()?.config || {};
             const autoParams = Object.assign({}, current.autoParams);
-            if (!(key in autoParams)) return null;
+            if (!(key in autoParams) || current.lockedParams?.[key] === true) return null;
             autoParams[key] = !autoParams[key];
             labState()?.update?.({ config: Object.assign({}, current, { autoParams }) }, 'audioflix-soundlab-auto-param');
             engine()?.queueSteering?.();

@@ -1,0 +1,95 @@
+.sonic-forge-control-flags {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.sonic-forge .sonic-forge-lock {
+    min-height: 22px;
+    padding: 2px 7px;
+    border-color: rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    color: rgba(235, 247, 249, 0.62);
+    font-size: 0.62rem;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.sonic-forge .sonic-forge-lock.is-active {
+    border-color: color-mix(in srgb, var(--sf-mint, #20e3b2), transparent 34%);
+    background: color-mix(in srgb, var(--sf-mint, #20e3b2), transparent 84%);
+    color: color-mix(in srgb, var(--sf-mint, #20e3b2), white 30%);
+}
+
+.sonic-forge-control.is-locked .sonic-forge-knob-shell,
+.sonic-forge-prompt.is-locked .sonic-forge-knob-shell {
+    filter: saturate(0.72);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--sf-mint, #20e3b2), transparent 36%);
+}
+
+.sonic-forge-prompt-grid.is-focus {
+    grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+    padding: clamp(12px, 2vw, 22px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 16% 12%, rgba(32, 227, 178, 0.13), transparent 31%),
+        radial-gradient(circle at 84% 83%, rgba(103, 183, 255, 0.12), transparent 34%),
+        #050c10;
+}
+
+.sonic-forge-prompt-grid.is-focus .sonic-forge-prompt {
+    min-height: 260px;
+    display: grid;
+    align-content: space-between;
+    padding: 16px;
+    background:
+        radial-gradient(circle at 50% 72%, color-mix(in srgb, var(--prompt-color), transparent 74%), transparent 46%),
+        linear-gradient(155deg, color-mix(in srgb, var(--prompt-color), transparent 90%), rgba(0, 0, 0, 0.3));
+    box-shadow:
+        inset 0 0 0 1px color-mix(in srgb, var(--prompt-color), transparent 68%),
+        0 18px 38px rgba(0, 0, 0, 0.24);
+}
+
+.sonic-forge-prompt-grid.is-focus .sonic-forge-prompt-top {
+    grid-template-columns: auto 28px minmax(0, 1fr) auto;
+}
+
+.sonic-forge-prompt-grid.is-focus .sonic-forge-prompt-mix {
+    grid-template-columns: 1fr;
+}
+
+.sonic-forge-prompt-grid.is-focus .sonic-forge-knob-shell.is-prompt {
+    width: 118px;
+    height: 118px;
+    margin: 10px auto;
+    background:
+        radial-gradient(circle at 42% 32%, color-mix(in srgb, var(--prompt-color), white 26%) 0 8%, transparent 9%),
+        radial-gradient(circle at 50% 45%, #17252c 0 42%, #071014 44% 55%, transparent 57%),
+        conic-gradient(from 225deg,
+            var(--prompt-color) calc(var(--sf-knob) * 270deg),
+            rgba(255, 255, 255, 0.1) 0 270deg,
+            transparent 0);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--prompt-color), transparent 72%);
+}
+
+.sonic-forge-prompt-grid.is-focus .sonic-forge-knob-shell.is-prompt::after {
+    top: 17px;
+    height: 38px;
+    transform-origin: 1px 42px;
+}
+
+.sonic-forge-prompt-grid.is-focus .sonic-forge-cc {
+    display: none;
+}
+
+@media (max-width: 620px) {
+    .sonic-forge-prompt-grid.is-focus {
+        grid-template-columns: 1fr;
+    }
+
+    .sonic-forge-prompt-grid.is-focus .sonic-forge-prompt {
+        min-height: 230px;
+    }
+}

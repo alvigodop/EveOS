@@ -10,7 +10,10 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
     ns.create = function create(ctx) {
         const localizeActions = window.EveAudioflixUiActionsLocalize.create(ctx);
         const nexusActions = window.EveAudioflixUiActionsNexus.create(ctx);
-        const spotifyActions = window.EveAudioflixSpotifyUi.createActions(ctx);
+        const providerActions = [
+            window.EveAudioflixSpotifyUi?.createActions?.(ctx),
+            window.EveAudioflixInstagramUi?.createActions?.(ctx)
+        ].filter(Boolean);
         const stopItemPlayback = (id) => Promise.allSettled([window.EveAudioflixAudio?.stopItemLayers?.(id), window.EveAudioflixNative?.clearVoices?.(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id)]);
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
@@ -421,8 +424,6 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             }
             if (action === 'clear-gemini-events') { window.EveAudioflixState?.clearGeminiAudioEvents?.(); ctx.playbackStatus = 'Gemini event counter cleared'; ctx.rerender(); return; }
             if (action === 'trigger-wpl-file-picker') {
-                // The input is owned by ui.picker and lives outside the panel, so a rerender that
-                // lands while the OS dialog is open can't orphan it mid-pick.
                 window.EveAudioflixUiPicker?.instance?.open?.();
                 return;
             }
@@ -435,15 +436,13 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.rerender();
                 return;
             }
-            if (await spotifyActions(actionTarget, action)) return;
+            for (const handler of providerActions) if (await handler(actionTarget, action)) return;
             if (await nexusActions(actionTarget, action)) return;
             // Localization / remaining nexus-panel actions live in a sibling module.
             if (await localizeActions(actionTarget, action)) return;
         }
-        // Form submissions live in a sibling module (same ctx) to keep this file under the cap.
         const handleForm = window.EveAudioflixUiForms.create(ctx);
         return { handleAction, handleForm };
     };
-
     ns.ready = true;
 })();

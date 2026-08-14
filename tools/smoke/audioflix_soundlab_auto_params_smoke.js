@@ -27,7 +27,8 @@ async function main() {
     const modules = [
         'audioflix.soundlab.config.js',
         'audioflix.soundlab.drift.js',
-        'audioflix.soundlab.state.js'
+        'audioflix.soundlab.state.js',
+        'audioflix.soundlab.reference-scenes.js'
     ].map((name) => `<script src="${fileUrl(path.join(AUDIOFLIX, name))}"></script>`).join('\n');
 
     const fixture = path.join(os.tmpdir(), `sf-auto-${process.pid}.html`);
@@ -54,8 +55,20 @@ async function main() {
             // A round trip through the state normalizer must preserve the flags, or a datapack
             // save/restore would silently un-auto every control.
             const stored = window.EveAudioflixSoundLabState.normalize({
-                config: { bpm: 150, autoParams: { bpm: true, density: false, brightness: true } }
+                config: {
+                    bpm: 150,
+                    autoParams: { bpm: true, density: false, brightness: true },
+                    lockedParams: { bpm: true, guidance: true }
+                },
+                prompts: [{ id: 'fixed', text: 'fixed direction', weight: 1, locked: true }]
             });
+            const locked = cfg.cleanConfig({
+                bpm: 128,
+                autoParams: { bpm: true },
+                lockedParams: { bpm: true }
+            });
+            const lockedWire = cfg.toWireConfig(locked);
+            const starter = window.EveAudioflixSoundLabReferenceScenes.promptDjStarter();
             return {
                 errors: window.__errors,
                 pinnedKeys: Object.keys(pinned).sort(),
@@ -76,7 +89,19 @@ async function main() {
                 modulateScale: cfg.isSafeToModulate('scale'),
                 modulateGuidance: cfg.isSafeToModulate('guidance'),
                 autoableGuidance: cfg.isAutoable('guidance'),
-                storedAuto: stored.config.autoParams
+                storedAuto: stored.config.autoParams,
+                storedLocks: stored.config.lockedParams,
+                storedPromptLocked: stored.prompts[0].locked,
+                lockedAutoBpm: locked.autoParams.bpm,
+                lockedWireHasBpm: Object.hasOwn(lockedWire, 'bpm'),
+                starter: {
+                    promptControlView: starter.promptControlView,
+                    guidance: starter.config.guidance,
+                    temperature: starter.config.temperature,
+                    topK: starter.config.topK,
+                    anchorText: starter.prompts[0].text,
+                    anchorLocked: starter.prompts[0].locked
+                }
             };
         });
 
@@ -116,9 +141,22 @@ async function main() {
         assert(result.modulateGuidance === true, 'sampler controls remain safe to modulate');
 
         // Persistence.
-        assert(result.storedAuto.bpm === true && result.storedAuto.brightness === true
-            && result.storedAuto.density === false,
-            'auto flags survive the state normalizer, so a datapack restore keeps them');
+        assert(result.storedAuto.brightness === true && result.storedAuto.density === false,
+            'unlocked auto flags survive the state normalizer, so a datapack restore keeps them');
+        assert(result.storedAuto.bpm === false && result.lockedAutoBpm === false,
+            'locking an autoable knob pins it instead of leaving a contradictory Auto state');
+        assert(result.storedLocks.bpm && result.storedLocks.guidance && result.storedPromptLocked,
+            'parameter and prompt locks survive state normalization');
+        assert(result.lockedWireHasBpm, 'a locked bpm remains present in the Lyria payload');
+        assert(
+            result.starter.promptControlView === 'focus'
+                && result.starter.guidance === 4
+                && result.starter.temperature === 1.1
+                && result.starter.topK === 40
+                && result.starter.anchorText === 'Bossa Nova'
+                && result.starter.anchorLocked,
+            'PromptDJ starter uses official Lyria defaults and a locked anchor direction'
+        );
 
         console.log('auto params OK — omitted keys:', result.autoable.join(', '));
         console.log('AUDIOFLIX_SOUNDLAB_AUTO_PARAMS_SMOKE_OK');
