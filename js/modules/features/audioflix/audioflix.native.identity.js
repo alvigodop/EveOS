@@ -58,10 +58,17 @@ window.EveAudioflixNativeIdentity = window.EveAudioflixNativeIdentity || {};
         rejectedUntil.clear();
     }
 
+    function invalidate(base) {
+        if (!base) return;
+        verified.delete(base);
+        rejectedUntil.set(base, Date.now() + 1500);
+    }
+
     Object.assign(ns, {
         ready: true,
         BRIDGE_SERVICE,
         isEveOsBridge,
+        invalidate,
         reset,
         isVerified: (base) => verified.has(base)
     });

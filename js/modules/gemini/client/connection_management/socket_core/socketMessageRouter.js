@@ -136,6 +136,62 @@ console.log("socketMessageRouter.js loading...");
         try {
             const data = JSON.parse(event.data);
 
+            if (data.type === 'session_resumption_update') {
+                if (data.resumable && data.handle) {
+                    window.EveGeminiSessionResumption?.store?.(data.handle);
+                } else if (data.resumable === false) {
+                    window.EveGeminiSessionResumption?.clear?.();
+                }
+                return;
+            }
+
+            if (data.type === 'session_go_away') {
+                const canResume = data.resumeAvailable === true
+                    && window.EveGeminiSessionResumption?.markPending?.() === true;
+                State.plannedSessionRotation = true;
+                State.resumptionFallbackPending = !canResume;
+                State.shouldReplayContextAfterReconnect = !canResume;
+                if (typeof updateConnectionStatus === 'function') {
+                    updateConnectionStatus('waiting', canResume
+                        ? 'Preparing Gemini Session Resume...'
+                        : 'Preparing Fresh Gemini Session...');
+                }
+                return;
+            }
+
+            if (data.type === 'session_resumption_rejected') {
+                window.EveGeminiSessionResumption?.clear?.();
+                State.plannedSessionRotation = true;
+                State.resumptionFallbackPending = true;
+                State.shouldReplayContextAfterReconnect = true;
+                if (typeof updateConnectionStatus === 'function') {
+                    updateConnectionStatus('waiting', 'Starting Fresh Gemini Session...');
+                }
+                if (data.text && typeof displayMessage === 'function') displayMessage(data.text, true);
+                return;
+            }
+
+            if (data.type === 'session_ready') {
+                State.credentialRequired = false;
+                State.apiPolicyBlocked = false;
+                State.apiKeyInvalid = false;
+                State.credentialStatusMessage = '';
+                State.geminiApiReady = true;
+                State.plannedSessionRotation = false;
+                State.resumptionFallbackPending = false;
+                clearFallbackAttempt();
+                if (data.resumed === true) {
+                    window.EveGeminiSessionResumption?.completeResume?.();
+                    State.shouldReplayContextAfterReconnect = false;
+                }
+                if (typeof updateConnectionStatus === 'function') updateConnectionStatus('connected', 'Connected');
+                if (data.text && typeof displayMessage === 'function') displayMessage(data.text, true);
+                if (data.resumed !== true && typeof window.scheduleGeminiPostReconnectContextReplay === 'function') {
+                    window.scheduleGeminiPostReconnectContextReplay('gemini-api-ready');
+                }
+                return;
+            }
+
             // Handle application-level pong messages
             if (data.type === "application_pong" || data.message === State.APPLICATION_PONG_MESSAGE) {
                 if (typeof handleApplicationPong === 'function') handleApplicationPong();

@@ -92,7 +92,10 @@ class StreamSession:
                     if receive_task.done() and not receive_task.cancelled():
                         # Check result of receive task
                         try:
-                            await receive_task
+                            result = await receive_task
+                            if result == "rotate":
+                                print(f"Gemini requested planned session rotation for connection {self.connection_id}")
+                                break
                             await self._handle_success()
                             continue
                         except websockets.exceptions.ConnectionClosedOK:
@@ -147,6 +150,10 @@ class StreamSession:
 
     async def _handle_connection_closed(self, e):
         print(f"Connection {self.connection_id} closed: {e}")
+        if getattr(self.connection_monitor, "planned_session_rotation", False):
+            return True
+        if await self._prepare_resumable_rotation(e):
+            return True
         error_msg = str(e)
         is_deadline = "deadline expired before operation could complete" in error_msg.lower() or e.code == 1011
         api_usage_tracker.log_error(
@@ -166,6 +173,8 @@ class StreamSession:
         return True
 
     async def _handle_generic_error(self, e):
+        if await self._prepare_resumable_rotation(e):
+            return True
         self.error_handler.consecutive_errors += 1
         api_usage_tracker.log_error(
             str(self.connection_id), "response_error", str(e), is_deadline_error=False
@@ -175,7 +184,30 @@ class StreamSession:
         )
         return True
 
+    async def _prepare_resumable_rotation(self, error):
+        handle = str(getattr(self.connection_monitor, "session_resumption_handle", "") or "")
+        message = str(error or "")
+        code = getattr(error, "code", None) or getattr(getattr(error, "rcvd", None), "code", None)
+        is_1008 = code == 1008 or "received 1008" in message.lower()
+        blocked_markers = (
+            "api key", "ip address restriction", "unauthorized", "permission denied",
+            "quota", "resource exhausted", "invalid argument", "model not found",
+            "not supported for bidigeneratecontent",
+        )
+        if not (handle and is_1008) or any(marker in message.lower() for marker in blocked_markers):
+            return False
+        setattr(self.connection_monitor, "planned_session_rotation", True)
+        if self.connection_monitor.is_websocket_open():
+            await self.connection_monitor.safe_send(json.dumps({
+                "type": "session_go_away",
+                "resumeAvailable": True,
+                "reason": "Gemini closed an otherwise resumable Live session.",
+            }))
+        return True
+
     async def _handle_outer_loop_error(self, e):
+        if await self._prepare_resumable_rotation(e):
+            return True
         self.error_handler.consecutive_errors += 1
         print(f"Error in receive_from_gemini loop (consecutive: {self.error_handler.consecutive_errors}/{self.error_handler.max_consecutive_errors}): {e}")
         api_usage_tracker.log_error(str(self.connection_id), "connection_error", str(e), is_deadline_error=False)

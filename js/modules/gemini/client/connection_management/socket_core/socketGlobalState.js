@@ -46,6 +46,8 @@ window.SocketGlobalState = {
     lastReconnectPauseNoticeAt: 0,
     sessionOwnershipTransferred: false,
     sessionOwnershipTransferReason: '',
+    plannedSessionRotation: false,
+    resumptionFallbackPending: false,
     credentialRequired: false,
     apiPolicyBlocked: false,
     apiKeyInvalid: false,
@@ -75,6 +77,8 @@ window.SocketGlobalState = {
         this.credentialStatusMessage = '';
         this.serverOfflinePauseActive = false;
         this.lastReconnectPauseNoticeAt = 0;
+        this.plannedSessionRotation = false;
+        this.resumptionFallbackPending = false;
     }
 };
 

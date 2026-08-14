@@ -55,10 +55,12 @@ function pauseForInteractiveOwnershipTransfer(event) {
 
 window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
     const State = window.SocketGlobalState;
+    const plannedRotation = State.plannedSessionRotation === true;
+    const cleanFallback = State.resumptionFallbackPending === true;
     console.log("WebSocket closed:", event);
     State.isConnecting = false;
     State.geminiApiReady = false;
-    State.shouldReplayContextAfterReconnect = true;
+    State.shouldReplayContextAfterReconnect = cleanFallback || !plannedRotation;
 
     // Clean up native WebSocket monitoring FIRST
     if (window.webSocket && window.webSocket._connectionHealthInterval) {
@@ -104,6 +106,24 @@ window.SocketConnectionCore.EventHandlers.handleClose = function (event) {
                     ? 'API Key Restricted'
                     : (State.apiKeyInvalid ? 'API Key Invalid' : 'API Key Required')));
         }
+        return;
+    }
+
+    if (plannedRotation && State.autoReconnectEnabled) {
+        State.plannedSessionRotation = false;
+        State.resumptionFallbackPending = false;
+        State.reconnectAttempts = 0;
+        State.lastConnectionAttempt = 0;
+        if (typeof updateConnectionStatus === 'function') {
+            updateConnectionStatus('connecting', cleanFallback
+                ? 'Starting Fresh Gemini Session...'
+                : 'Resuming Gemini Session...');
+        }
+        if (State.reconnectTimeout) clearTimeout(State.reconnectTimeout);
+        State.reconnectTimeout = setTimeout(() => {
+            State.reconnectTimeout = null;
+            window.attemptConnection?.();
+        }, 150);
         return;
     }
 

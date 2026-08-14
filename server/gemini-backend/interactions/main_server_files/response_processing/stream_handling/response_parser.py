@@ -62,6 +62,34 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                 print(f"Connection {connection_id} closed during response processing")
                 break
 
+            resumption_update = getattr(response, "session_resumption_update", None)
+            if resumption_update is not None:
+                handle = str(getattr(resumption_update, "new_handle", "") or "")
+                resumable = bool(getattr(resumption_update, "resumable", False))
+                if resumable and handle:
+                    setattr(connection_monitor, "session_resumption_handle", handle)
+                elif not resumable:
+                    setattr(connection_monitor, "session_resumption_handle", "")
+                await connection_monitor.safe_send(json.dumps({
+                    "type": "session_resumption_update",
+                    "handle": handle,
+                    "resumable": resumable,
+                    "lastConsumedClientMessageIndex": getattr(
+                        resumption_update, "last_consumed_client_message_index", None
+                    ),
+                }))
+
+            go_away = getattr(response, "go_away", None)
+            if go_away is not None:
+                time_left = getattr(go_away, "time_left", None)
+                seconds_left = time_left.total_seconds() if hasattr(time_left, "total_seconds") else None
+                setattr(connection_monitor, "planned_session_rotation", True)
+                await connection_monitor.safe_send(json.dumps({
+                    "type": "session_go_away",
+                    "timeLeftSeconds": seconds_left,
+                    "resumeAvailable": bool(getattr(connection_monitor, "session_resumption_handle", "")),
+                }))
+
             usage_metadata = getattr(response, "usage_metadata", None)
             if usage_metadata is not None:
                 usage = _usage_payload(usage_metadata)
@@ -112,7 +140,7 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                 if turn_complete is not None and turn_complete:
                     print(f"Turn complete (explicit turn_complete) for connection {connection_id}")
                     await finish_turn()
-                    return # Turn finished, return to session loop
+                    return "rotate" if getattr(connection_monitor, "planned_session_rotation", False) else None
                 
                 # Check for other completion indicators in model_turn
                 if model_turn is not None:
@@ -121,7 +149,7 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                     if final_attr is not None and final_attr:
                         print(f"Turn complete (legacy final=True) for connection {connection_id}")
                         await finish_turn()
-                        return
+                        return "rotate" if getattr(connection_monitor, "planned_session_rotation", False) else None
 
                     # Fallback: Check for other completion indicators
                     is_finished = getattr(model_turn, 'finished', None)
@@ -129,7 +157,7 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                     if is_finished or is_complete:
                         print(f"Turn complete (finished={is_finished}, complete={is_complete}) for connection {connection_id}")
                         await finish_turn()
-                        return
+                        return "rotate" if getattr(connection_monitor, "planned_session_rotation", False) else None
                 else:
                     print(f"Non-model_turn content received for connection {connection_id}")
 
@@ -165,6 +193,8 @@ async def _receive_responses(session, response_handler, connection_monitor, conn
                 except Exception as fallback_error:
                     print(f"Fallback audio completion failed: {fallback_error}")
                 
+        if getattr(connection_monitor, "planned_session_rotation", False):
+            return "rotate"
     except websockets.exceptions.ConnectionClosedOK:
         # This is a normal connection closure (code 1000), not an error
         print(f"Connection {connection_id} closed normally during response receiving")

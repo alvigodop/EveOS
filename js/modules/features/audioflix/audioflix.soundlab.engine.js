@@ -13,8 +13,7 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     let effectsRack = null, playback = null, nativeCapture = null, modulation = null;
     let connection = null, continuity = null, steering = null;
     let liveMasterVolume = 1;
-    let nativeSendChain = Promise.resolve(), generation = 0;
-    let transientScene = null;
+    let nativeSendChain = Promise.resolve(), nativeQueued = 0, generation = 0, transientScene = null;
     let modulationMetrics = { low: 0, mid: 0, high: 0, rms: 0, active: false };
     let status = {
         phase: 'idle',
@@ -30,7 +29,6 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
         nativeProcessedRoute: false,
         filteredPrompt: ''
     };
-
     const soundState = () => window.EveAudioflixSoundLabState?.ensure?.() || {};
     const audioflixState = () => window.EveAudioflixState?.ensure?.() || {};
 
@@ -48,11 +46,9 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
     function getApiKey() {
         return window.EveAudioflixSoundLabSdk?.getApiKey?.() || '';
     }
-
     function setApiKey(value) {
         return window.EveAudioflixSoundLabSdk?.setApiKey?.(value) || false;
     }
-
     function setMasterVolume(value, persist = true) {
         const safe = Math.max(0, Math.min(1, Number(value) || 0));
         liveMasterVolume = safe;
@@ -192,19 +188,23 @@ window.EveAudioflixSoundLabEngine = window.EveAudioflixSoundLabEngine || {};
 
     function routeNativeChunk(data) {
         if (!window.EveAudioflixNative?.sendGeminiChunk) return;
-        const token = generation;
-        nativeSendChain = nativeSendChain.then(async () => {
-            if (token !== generation || audioflixState().nativeBridgeEnabled !== true) return;
-            const routed = window.EveAudioflixSoundLabCodec.transformPcm16Base64(data, {
-                channels: 2,
-                gain: liveMasterVolume,
-                stereoBalance: true
-            });
-            await window.EveAudioflixNative.sendGeminiChunk(routed, {
-                sampleRate: SAMPLE_RATE,
-                channels: 2
-            });
-        }).catch(() => {});
+        const token = generation, queuedAt = Date.now();
+        if (nativeQueued >= 12) return;
+        nativeQueued += 1;
+        nativeSendChain = nativeSendChain.catch(() => {}).then(async () => {
+            try {
+                if (token !== generation || Date.now() - queuedAt > 1200
+                    || audioflixState().nativeBridgeEnabled !== true) return;
+                const routed = window.EveAudioflixSoundLabCodec.transformPcm16Base64(data, {
+                    channels: 2, gain: liveMasterVolume, stereoBalance: true
+                });
+                await window.EveAudioflixNative.sendGeminiChunk(routed, {
+                    sampleRate: SAMPLE_RATE, channels: 2
+                });
+            } finally {
+                nativeQueued = Math.max(0, nativeQueued - 1);
+            }
+        });
     }
 
     function handleMessage(message) {

@@ -69,10 +69,12 @@ def assert_model_contract() -> None:
         model_name="gemini-2.5-flash-native-audio-latest",
         enable_input_transcription=False,
         enable_output_transcription=True,
+        session_resumption_handle="smoke-resume-handle",
     )
     assert "output_audio_transcription" in live_config
     assert "input_audio_transcription" not in live_config
     assert live_config["response_modalities"] == ["AUDIO"]
+    assert live_config["session_resumption"].handle == "smoke-resume-handle"
 
     music_client = create_gemini_client("test-key", api_version=MUSIC_API_VERSION)
     try:
@@ -98,6 +100,8 @@ def assert_source_contract() -> None:
     assert "await client.aio.live.connect" not in session_loop
     assert "outputTranscriptionEnabled" in session_loop
     assert "enable_input_transcription=False" in session_loop
+    assert "sessionResumptionHandle" in session_loop
+    assert '"type": "session_resumption_rejected"' in session_loop
 
     handler = (
         INTERACTIONS / "main_server_files/websocket_server/gemini_session_handler.py"
@@ -111,6 +115,14 @@ def assert_source_contract() -> None:
     ).read_text(encoding="utf-8")
     assert "import google.genai.live_music as live_music_module" in gemini_config
     assert "live_music_module.connect = eveos_ipv4_music_connect" in gemini_config
+    assert 'base_config["session_resumption"]' in gemini_config
+
+    lifecycle = (
+        INTERACTIONS
+        / "main_server_files/response_processing/stream_handling/core/stream_lifecycle.py"
+    ).read_text(encoding="utf-8")
+    assert '"type": "session_go_away"' in lifecycle
+    assert "blocked_markers" in lifecycle
 
     retired = [
         "main_server_files/server_initialization/reconnection_handler.py",
@@ -177,6 +189,14 @@ async def assert_parser_contract() -> None:
     )
     responses = [
         SimpleNamespace(
+            session_resumption_update=SimpleNamespace(
+                new_handle="smoke-handle",
+                resumable=True,
+                last_consumed_client_message_index=3,
+            ),
+            server_content=None,
+        ),
+        SimpleNamespace(
             usage_metadata=usage_one,
             server_content=SimpleNamespace(
                 output_transcription=SimpleNamespace(text="EveOS keeps"),
@@ -185,6 +205,7 @@ async def assert_parser_contract() -> None:
             ),
         ),
         SimpleNamespace(
+            go_away=SimpleNamespace(time_left=None),
             usage_metadata=usage_two,
             server_content=SimpleNamespace(
                 output_transcription=SimpleNamespace(text="EveOS keeps one transcript"),
@@ -195,7 +216,7 @@ async def assert_parser_contract() -> None:
     ]
     monitor = FakeConnectionMonitor()
     handler = FakeResponseHandler()
-    await _receive_responses(FakeSession(responses), handler, monitor, "smoke")
+    result = await _receive_responses(FakeSession(responses), handler, monitor, "smoke")
 
     assert len(handler.parts) == 3
     assert handler.transcripts == ["EveOS keeps one transcript"]
@@ -204,6 +225,10 @@ async def assert_parser_contract() -> None:
     assert len(usage_messages) == 2
     assert len({message["turnId"] for message in usage_messages}) == 1
     assert usage_messages[-1]["usage"]["total"] == 17
+    assert result == "rotate"
+    assert monitor.session_resumption_handle == "smoke-handle"
+    assert any(message.get("type") == "session_resumption_update" for message in monitor.messages)
+    assert any(message.get("type") == "session_go_away" for message in monitor.messages)
 
 
 def main() -> None:

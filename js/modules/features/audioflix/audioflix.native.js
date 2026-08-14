@@ -7,9 +7,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
 
     const DEFAULT_TIMEOUT_MS = 1600;
     const DEVICE_SCAN_TIMEOUT_MS = 7500;
-    const PCM_SEND_TIMEOUT_MS = 2500;
-    const MEDIA_PLAY_TIMEOUT_MS = 5000;
-
+    const PCM_SEND_TIMEOUT_MS = 900;
+    const PCM_MAX_AGE_MS = 1200, MEDIA_PLAY_TIMEOUT_MS = 5000;
     let deviceCache = null;
     let lastStatus = { ok: false, message: 'Native bridge not checked yet.', devices: [], attempts: [] };
     // After a probe where NO base answered, remember the bridge is down so every native call doesn't
@@ -23,11 +22,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
     }
-
     function update(patch, reason) {
         return window.EveAudioflixState?.update?.(patch, reason) || state();
     }
-
     function candidateBases() {
         let saved = state().nativeBridgeBase;
         // Always prefer 127.0.0.1: "localhost" resolves to ::1 first on Windows, so against an
@@ -82,7 +79,8 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
         // ...but a bridge failing EVERY chunk must stop gating playback. See native.backoff.js.
         if (options.realtime === true && BACKOFF()?.shouldSkipRealtime?.()) return { ok: false, cachedDown: true };
         const attempts = [];
-        for (const base of candidateBases()) {
+        const bases = options.realtime === true ? candidateBases().slice(0, 1) : candidateBases();
+        for (const base of bases) {
             // Only a base that proved it is EveOS may carry data; no module = fail closed.
             const I = window.EveAudioflixNativeIdentity;
             if (!I || !(await I.isEveOsBridge(base))) { attempts.push({ base, message: 'Unverified bridge.' }); continue; }
@@ -106,6 +104,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 attempts.push({ base, status: payload.status, message: payload.message });
                 lastStatus = Object.assign({}, payload, { attempts });
             } catch (error) {
+                if (options.realtime === true) window.EveAudioflixNativeIdentity?.invalidate?.(base);
                 attempts.push({
                     base,
                     message: error?.name === 'AbortError'
@@ -234,7 +233,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 audio,
                 deviceId: current.nativeOutputId,
                 sampleRate: detail.sampleRate || 24000,
-                channels: detail.channels || 1
+                channels: detail.channels || 1,
+                sentAtMs: Date.now(),
+                maxAgeMs: PCM_MAX_AGE_MS
             }),
             timeout: PCM_SEND_TIMEOUT_MS,
             realtime: true

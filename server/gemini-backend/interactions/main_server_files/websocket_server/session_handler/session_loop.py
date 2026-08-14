@@ -18,6 +18,9 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
     model_name = resolve_live_model(requested_model)
     capabilities = model_capabilities("live", model_name)
     setattr(connection_monitor, "model_name", model_name)
+    resume_handle = str(config_data.get("sessionResumptionHandle") or "").strip()[:16384]
+    setattr(connection_monitor, "session_resumption_handle", resume_handle)
+    setattr(connection_monitor, "planned_session_rotation", False)
 
     setup_data = config_data.get("setup", {})
     generation_config = setup_data.get("generationConfig")
@@ -67,6 +70,7 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
         model_name=model_name,
         enable_input_transcription=False,
         enable_output_transcription=native_output_transcription,
+        session_resumption_handle=resume_handle or None,
     )
     print(f"Created configuration with voice: {voice_name}")
     print(f"Selected model: {model_name}")
@@ -114,6 +118,7 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
                 "is_system_message": True,
                 "model": model_name,
                 "sessionRole": session_role,
+                "resumed": bool(resume_handle),
             }))
             
             # Initialize audio processor with sequential preference
@@ -171,9 +176,25 @@ async def execute_session_loop(websocket, client, connection_monitor, audio_proc
                         task.cancel()
                 await asyncio.gather(*tasks_to_close, return_exceptions=True)
                 
-                await error_handler.send_session_closed_message()
+                if not getattr(connection_monitor, "planned_session_rotation", False):
+                    await error_handler.send_session_closed_message()
                 
     except Exception as e:
+        hard_failure_markers = (
+            "api key", "ip address restriction", "unauthorized", "permission denied",
+            "quota", "resource exhausted", "model not found",
+            "not supported for bidigeneratecontent",
+        )
+        recoverable_resume_failure = resume_handle and not any(
+            marker in str(e).lower() for marker in hard_failure_markers
+        )
+        if recoverable_resume_failure and connection_monitor.is_websocket_open():
+            await connection_monitor.safe_send(json.dumps({
+                "type": "session_resumption_rejected",
+                "text": "The saved Gemini Live session could not be resumed; reconnecting cleanly.",
+                "is_system_message": True,
+            }))
+            return
         # Use handle_session_error instead of handle_gemini_connection_error
         await error_handler.handle_session_error(e, model_name)
         return

@@ -21,6 +21,7 @@ except Exception:  # pragma: no cover - optional runtime dependency
     sd = None
 
 _PLAYERS: dict[str, "_PcmPlayer"] = {}
+_PLAYER_LOCKS: dict[str, threading.Lock] = {}
 _LOCK = threading.Lock()
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,6 +37,7 @@ def refresh_portaudio_devices() -> None:
             except Exception:
                 pass
         _PLAYERS.clear()
+        _PLAYER_LOCKS.clear()
         sd._terminate()
         sd._initialize()
 
@@ -243,7 +245,10 @@ def _player_for(device_id: str, sample_rate: int, channels: int) -> _PcmPlayer:
     key = f"{device_id}:{sample_rate}:{channels}"
     index = int(str(device_id).split(":", 1)[1])
     with _LOCK:
-        player = _PLAYERS.get(key)
+        open_lock = _PLAYER_LOCKS.setdefault(device_id, threading.Lock())
+    with open_lock:
+        with _LOCK:
+            player = _PLAYERS.get(key)
         # Recreate if missing, closed, OR its stream has died. A dead stream silently swallowed
         # soundboard voices — they queued onto it but never played — so reviving here self-heals the
         # next play even if a stream ever stops (callback error, device hiccup, sample-rate switch).
@@ -258,11 +263,12 @@ def _player_for(device_id: str, sample_rate: int, channels: int) -> _PcmPlayer:
                 except Exception:
                     pass
             player = _PcmPlayer(index, sample_rate, channels)
-            _PLAYERS[key] = player
+            with _LOCK:
+                _PLAYERS[key] = player
         return player
 
 
-def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str, stream_id=None) -> dict:
+def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str, stream_id=None, expires_at_ms=None) -> dict:
     if sd is None or np is None:
         raise RuntimeError("Native playback requires the optional sounddevice and numpy packages.")
     if not device_id:
@@ -281,6 +287,8 @@ def _enqueue_mono(device_id: str, sample_rate: int, samples, kind: str, stream_i
             raise
         player = _player_for("default", sample_rate, 1)
         used_device, fell_back = "default", True
+    if expires_at_ms is not None and (time.time() * 1000) > expires_at_ms:
+        return {"ok": False, "stale": True, "message": "Expired PCM chunk was not queued."}
     player.enqueue(mono, stream_id)
     return {
         "ok": True,
@@ -298,11 +306,19 @@ def play_pcm(payload: dict) -> dict:
     audio, device_id = str(payload.get("audio") or ""), str(payload.get("deviceId") or "")
     if not audio:
         return {"ok": False, "message": "Missing PCM audio payload."}
+    sent_at_ms = float(payload.get("sentAtMs") or 0)
+    max_age_ms = max(100.0, min(5000.0, float(payload.get("maxAgeMs") or 1200)))
+    expires_at_ms = sent_at_ms + max_age_ms if sent_at_ms > 0 else None
+    if expires_at_ms is not None and (time.time() * 1000) > expires_at_ms:
+        return {"ok": False, "stale": True, "message": "Expired PCM chunk was not decoded."}
     samples = np.frombuffer(base64.b64decode(audio), dtype="<i2").astype("float32") / 32768.0
     channels = max(1, int(payload.get("channels") or 1))
     if channels > 1:
         samples = samples.reshape((-1, channels))[:, 0]
-    return _enqueue_mono(device_id, int(payload.get("sampleRate") or 24000), samples, "pcm", payload.get("streamId"))
+    return _enqueue_mono(
+        device_id, int(payload.get("sampleRate") or 24000), samples, "pcm",
+        payload.get("streamId"), expires_at_ms,
+    )
 
 
 def play_tone(payload: dict) -> dict:

@@ -215,6 +215,7 @@ async function sendAutoSetupMessage() {
     const setup_client_message = {
         model: savedModel,
         apiKey: geminiApiKey,
+        sessionResumptionHandle: window.EveGeminiSessionResumption?.pendingHandle?.() || null,
         responseTimeout: responseTimeout, // Passed to server session loop
         setup: {
             contents: [{

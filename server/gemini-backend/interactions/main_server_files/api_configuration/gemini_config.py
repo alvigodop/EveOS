@@ -172,6 +172,7 @@ def create_gemini_config(
     model_name=None,
     enable_input_transcription=False,
     enable_output_transcription=True,
+    session_resumption_handle=None,
 ):
     """Create configuration for Gemini session with optional context and overrides."""
     
@@ -237,6 +238,10 @@ def create_gemini_config(
         )
     except Exception as compression_error:  # pragma: no cover - depends on installed SDK
         print(f"[GeminiConfig] Context window compression unavailable: {compression_error}", flush=True)
+
+    base_config["session_resumption"] = types.SessionResumptionConfig(
+        handle=session_resumption_handle or None
+    )
 
     return base_config
 

@@ -47,8 +47,9 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/idleDetector.js?v=6af683b6306a`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=c0f7922138af`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=783e71af7bc3`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=117c019d6ae6`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=0e3ca3a14273`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiSessionResumption.js?v=14014db741b6`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=fca60cb7616e`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=42b3f57437a9`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js?v=78e959ad2d9b`,
 
     // 2. Agentic Functions

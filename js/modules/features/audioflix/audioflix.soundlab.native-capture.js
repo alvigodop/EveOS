@@ -8,6 +8,7 @@ window.EveAudioflixSoundLabNativeCapture = window.EveAudioflixSoundLabNativeCapt
 
     const PREBUFFER_MS = 360;
     const MAX_BACKLOG_MS = 1800;
+    const MAX_CHUNK_AGE_MS = 1200;
     const CHANNELS = 2;
 
     function create(options) {
@@ -60,11 +61,12 @@ window.EveAudioflixSoundLabNativeCapture = window.EveAudioflixSoundLabNativeCapt
         function enqueue(block) {
             const copy = block instanceof Float32Array ? block : new Float32Array(block || 0);
             if (!copy.length) return;
-            queue.push(copy);
-            queuedMs += (copy.length / (context.sampleRate * CHANNELS)) * 1000;
+            const durationMs = (copy.length / (context.sampleRate * CHANNELS)) * 1000;
+            queue.push({ block: copy, queuedAt: Date.now(), durationMs });
+            queuedMs += durationMs;
             while (queuedMs > MAX_BACKLOG_MS && queue.length > 1) {
                 const removed = queue.shift();
-                queuedMs -= (removed.length / (context.sampleRate * CHANNELS)) * 1000;
+                queuedMs -= removed.durationMs;
                 dropped += 1;
             }
             if (priming && queuedMs < PREBUFFER_MS) return;
@@ -88,9 +90,13 @@ window.EveAudioflixSoundLabNativeCapture = window.EveAudioflixSoundLabNativeCapt
             pumping = true;
             try {
                 while (active && queue.length) {
-                    const block = queue.shift();
-                    queuedMs -= (block.length / (context.sampleRate * CHANNELS)) * 1000;
-                    if (!(await send(block))) dropped += 1;
+                    const entry = queue.shift();
+                    queuedMs -= entry.durationMs;
+                    if (Date.now() - entry.queuedAt > MAX_CHUNK_AGE_MS) {
+                        dropped += 1;
+                        continue;
+                    }
+                    if (!(await send(entry.block))) dropped += 1;
                 }
             } finally {
                 pumping = false;
@@ -169,7 +175,9 @@ window.EveAudioflixSoundLabNativeCapture = window.EveAudioflixSoundLabNativeCapt
             clearQueue();
             detach();
             if (drain) {
-                for (const block of tail) await send(block);
+                for (const entry of tail) {
+                    if (Date.now() - entry.queuedAt <= MAX_CHUNK_AGE_MS) await send(entry.block);
+                }
             } else {
                 await window.EveAudioflixNative?.stopStream?.().catch(() => {});
             }
