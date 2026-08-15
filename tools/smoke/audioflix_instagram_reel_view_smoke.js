@@ -81,6 +81,37 @@ function main() {
     assert(/height:\s*calc\(100% \+ \d+px\)/.test(innerRule),
         'the embed runs taller than the crop, which is what pushes the like bar out of view');
 
+    // ---- a reel must play with no server at all ----
+    // Focus and Full Embed are Instagram's own iframe and need nothing; only Direct Video needs the
+    // resolver. Playback used to refuse outright without it, which made every reel dead on file://.
+    assert(!/Start EveOS localhost to resolve hidden Reel audio/.test(js),
+        'playback no longer refuses outright when there is no localhost');
+    assert(!/if \(!isInternalView\(\)\)/.test(js),
+        'the internal-view gate is gone; the embed renders on any surface, exactly as Spotify does');
+    const resolve = js.slice(js.indexOf('async function resolveDirect('));
+    const resolveBody = resolve.slice(0, resolve.indexOf('\n        }'));
+    assert(/return null/.test(resolveBody) && /catch \(error\)/.test(resolveBody),
+        'a missing resolver yields null rather than throwing, so callers can fall back');
+    assert(/const direct = await resolveDirect\(item\);/.test(playBody)
+        && /showFocus\(canvas, item, url\)/.test(playBody),
+        'the plain player falls back to the embed when the resolver is absent');
+    assert(/is-available/.test(js) && /is-available/.test(css),
+        'Direct Video advertises whether it is reachable, so an offline resolver reads as one'
+        + ' unavailable mode rather than a broken player');
+
+    // ---- the way into the reel view must survive a media failure ----
+    // The button used to be wired AFTER the media load. A resolver that answered but could not
+    // produce a stream threw right past that line, leaving the button painted and dead: clicking it
+    // did nothing, which looked like the reel view simply had no controls.
+    const wireIndex = playBody.indexOf('wireOpenButton(');
+    const mediaIndex = playBody.indexOf('await resolveDirect(');
+    assert(wireIndex !== -1 && mediaIndex !== -1 && wireIndex < mediaIndex,
+        'the Open Reel view button is wired before any media work, so a failed load cannot orphan it');
+
+    // ---- an empty canvas must not reserve a second black panel ----
+    assert(/\.audioflix-instagram-canvas:empty\s*\{[^}]*min-height:\s*0/.test(css),
+        'an empty canvas collapses instead of showing a permanently black second panel');
+
     // ---- the retired selector must not linger and quietly re-style Focus ----
     assert(!/is-focus iframe/.test(css),
         'the old is-focus iframe rule is gone, so it cannot fight the crop');

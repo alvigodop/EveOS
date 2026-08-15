@@ -19,7 +19,16 @@ EmergencyFallbacksCore._ensureStorageManager = function () {
     // so a plain truthiness check is ALWAYS satisfied and this fallback could never fire -- the one
     // situation it exists for, the real module failing to load, was exactly the one it slept through.
     // Probe for the shape we actually depend on instead.
-    if (typeof window.StorageManager !== 'object' || typeof window.StorageManager.get !== 'function') {
+    const missing = typeof window.StorageManager !== 'object'
+        || typeof window.StorageManager.get !== 'function';
+
+    // ...but "missing" is not the same as "not loaded YET". Auto-recovery runs 2s after boot while
+    // the deferred phase can take 40s+, so a shape probe alone installed this stub on every single
+    // load, ~40s before the real module arrived. That window matters: the stub reads and writes
+    // localStorage with RAW keys, while the real manager prefixes every key by category context, so
+    // anything persisting through the stub lands somewhere the real manager will never look for it.
+    // Only stand in once the loader has confirmed nothing further is coming.
+    if (missing && window.__eveAllScriptsLoaded === true) {
         console.warn('Creating emergency StorageManager');
         window.StorageManager = {
             _initialized: true,

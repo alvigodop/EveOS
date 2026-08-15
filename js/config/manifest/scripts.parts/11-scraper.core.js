@@ -73,7 +73,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/core/content-inferrer/components/ci-domains.js?v=8e42ba823d8a",
     "js/modules/features/scraper/core/content-inferrer/components/category-inference.js?v=6848b242dba5",
     "js/modules/features/scraper/core/content-inferrer/content-inferrer.js?v=4534c3438951",
-    "js/modules/features/scraper/core/emergency-fallbacks/components/ef-core.js?v=458fe961758d",
+    "js/modules/features/scraper/core/emergency-fallbacks/components/ef-core.js?v=d6b730ba75a3",
     "js/modules/features/scraper/core/emergency-fallbacks/components/ef-content.js?v=7145a8c72956",
     "js/modules/features/scraper/core/emergency-fallbacks/components/ef-repair.js?v=dbb79c6b15ed",
     "js/modules/features/scraper/core/emergency-fallbacks/emergency-fallbacks.js?v=086349913bce",

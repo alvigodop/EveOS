@@ -384,6 +384,9 @@
                             await loadDeferredScriptsInBatches(deferredScripts);
                             performance.mark('eve:deferred-scripts:end');
                             const deferredMeasure = performance.measure('eve:deferred-scripts', 'eve:deferred-scripts:start', 'eve:deferred-scripts:end');
+                            // Emergency fallbacks must not stand in for a module that simply has not
+                            // loaded yet: the deferred phase can take 40s+, while auto-recovery fires at 2s.
+                            window.__eveAllScriptsLoaded = true;
                             if (window.ScraperInit && typeof ScraperInit.init === 'function') ScraperInit.init();
                             console.log(`All scripts loaded (deferred phase ${Math.round(deferredMeasure ? deferredMeasure.duration : 0)}ms).`);
                         } catch (deferredError) {

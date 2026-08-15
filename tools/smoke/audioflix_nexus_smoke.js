@@ -35,6 +35,7 @@ function makeCtx(stored) {
 function load(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.recovery.js')
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');
     return ctx.window.EveAudioflixNexus;

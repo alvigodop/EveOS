@@ -52,6 +52,7 @@ function makeContext() {
     const ctx = makeContext();
     run(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
+    run(ctx, 'js/modules/features/audioflix/audioflix.state.recovery.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.state.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.links.js');
     const links = ctx.window.EveAudioflixLinks;

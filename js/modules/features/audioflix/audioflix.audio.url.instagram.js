@@ -9,7 +9,7 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
     const embedUrl = (url) => `${canonical(url)}embed/?utm_source=ig_embed`;
 
     function create(deps) {
-        const { ensureStage, setStageStatus, emitPlayback, emitProgress, view, isInternalView } = deps;
+        const { ensureStage, setStageStatus, emitPlayback, emitProgress, view } = deps;
         let timer = 0;
 
         function clearTimer() {
@@ -34,10 +34,26 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             emitProgress();
         }
 
-        async function showDirectVideo(host, item) {
+        /** The resolver, when there is one. Returns null instead of throwing so callers can fall back.
+         *
+         * Direct Video is the only mode that needs EveOS localhost: it asks the bridge to extract the
+         * real media URL. Focus and Full Embed are Instagram's own iframe and need nothing at all,
+         * which is why they work straight from file://. */
+        async function resolveDirect(item) {
+            try {
+                const result = await window.EveAudioflixNative?.resolveInstagramVideo?.(item?.url);
+                return (result?.ok && result.videoUrl) ? result : null;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        async function showDirectVideo(host, item, preResolved) {
             setStageStatus('Resolving the Reel video through EveOS localhost...');
-            const result = await window.EveAudioflixNative?.resolveInstagramVideo?.(item.url);
-            if (!result?.ok || !result.videoUrl) throw new Error(result?.reason || 'The Reel video could not be resolved.');
+            const result = preResolved || await resolveDirect(item);
+            if (!result) {
+                throw new Error('Direct Video needs the EveOS localhost resolver. Focus and Full Embed play without it.');
+            }
             host.replaceChildren();
             const video = document.createElement('video');
             video.className = 'audioflix-instagram-video';
@@ -153,9 +169,6 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
         async function playInstagram(item) {
             const url = canonical(item?.url);
             if (!url) throw new Error('This item is not a valid Instagram Reel or post URL.');
-            if (!isInternalView()) {
-                throw new Error('Start EveOS localhost to resolve hidden Reel audio, or open the internal player to view the Reel.');
-            }
             clearTimer();
             const host = ensureStage(item, 'Instagram Reel', true);
             host.className = 'audioflix-provider-stage audioflix-instagram-stage';
@@ -166,18 +179,48 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
                 + '<button type="button" data-reel-open>Open Reel view</button></div>'
                 + '<div class="audioflix-instagram-canvas is-direct"></div>';
             const canvas = host.querySelector('.audioflix-instagram-canvas');
-            await showDirectVideo(canvas, item);
 
             const failed = (error) => {
                 setStageStatus(error.message || 'The Reel view could not load.', true);
                 emitPlayback(error.message || 'The Reel view could not load.', true);
             };
 
+            // Wire the button BEFORE any media work. Loading used to happen first, so a resolver that
+            // answered but could not produce a stream threw straight past this line: the button was
+            // painted and never connected, and clicking it did nothing at all. Whatever the media
+            // does, the way into the reel view has to survive it.
+            wireOpenButton(host, item, url, failed);
+
+            // Direct Video is preferred when the resolver is up: it is the only mode with a real play
+            // bar and seeking. Without it the Instagram embed still plays, so a missing or unhelpful
+            // resolver means "no scrub bar", not "no playback" -- this used to refuse outright.
+            const direct = await resolveDirect(item);
+            if (direct) {
+                await showDirectVideo(canvas, item, direct);
+            } else {
+                canvas.className = 'audioflix-instagram-canvas is-focus';
+                showFocus(canvas, item, url);
+                setStageStatus('Playing the Reel through Instagram. Start EveOS localhost, or localize'
+                    + ' this track, for a seek bar.');
+            }
+        }
+
+        function wireOpenButton(host, item, url, failed) {
             host.querySelector('[data-reel-open]').addEventListener('click', () => {
                 clearTimer();
                 host.replaceChildren(buildInspector(url));
                 const reelCanvas = host.querySelector('.audioflix-instagram-canvas');
                 const buttons = [...host.querySelectorAll('[data-reel-mode]')];
+                // Say up front whether Direct Video is reachable. Focus and Full Embed always are,
+                // so an offline resolver should read as "this one mode is unavailable", not as a
+                // broken player. Re-checked per open, since the server can come up mid-session.
+                const directButton = host.querySelector('[data-reel-mode="direct"]');
+                resolveDirect(item).then((available) => {
+                    directButton.classList.toggle('is-available', !!available);
+                    directButton.title = available
+                        ? 'Resolved through EveOS localhost - real seeking and timeline'
+                        : 'Needs EveOS localhost. Focus and Full Embed play without it.';
+                });
                 buttons.forEach((button) => button.addEventListener('click',
                     () => activateMode(button.dataset.reelMode, reelCanvas, buttons, item, url).catch(failed)));
                 // Closing rebuilds the plain player rather than un-hiding it, so the reel view never

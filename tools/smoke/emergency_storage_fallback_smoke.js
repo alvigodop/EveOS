@@ -28,13 +28,14 @@ function assert(condition, message) {
 /** Stands in for Chromium's built-in StorageManager interface. */
 function NativeStorageManager() {}
 
-function loadCore(preexisting) {
+function loadCore(preexisting, scriptsLoaded = true) {
     const warnings = [];
     const sandbox = {
         console: { log() {}, warn: (m) => warnings.push(String(m)), error() {} },
         localStorage: { getItem: () => null, setItem() {}, removeItem() {} }
     };
     sandbox.window = sandbox;
+    sandbox.window.__eveAllScriptsLoaded = scriptsLoaded;
     if (preexisting !== undefined) sandbox.window.StorageManager = preexisting;
     vm.createContext(sandbox);
     vm.runInContext(fs.readFileSync(EF_CORE, 'utf8'), sandbox);
@@ -80,6 +81,22 @@ function main() {
     env.core._ensureStorageManager();
     assert(env.sandbox.window.StorageManager?._isEmergencyImplementation === true,
         'an entirely absent StorageManager is still covered');
+
+    // ---- and the timing rule, which is what makes the probe safe to have ----
+    // The deferred script phase can run 40s+, while auto-recovery fires at 2s. A shape probe alone
+    // therefore installed this stub on EVERY load, long before the real module arrived. That is not
+    // harmless: the stub keys localStorage raw, while the real manager prefixes by category, so a
+    // write landing in that window is filed where the real manager will never read it.
+    env = loadCore(NativeStorageManager, false);
+    env.core._ensureStorageManager();
+    assert(typeof env.sandbox.window.StorageManager === 'function',
+        'while scripts are still loading the stub does NOT stand in for a module yet to arrive');
+    assert(env.warnings.length === 0, 'and says nothing, because nothing is wrong yet');
+
+    env = loadCore(undefined, false);
+    env.core._ensureStorageManager();
+    assert(env.sandbox.window.StorageManager === undefined,
+        'even a completely absent manager waits for the loader to finish before being replaced');
 
     console.log('emergency storage fallback OK — fires against the native global, spares the real one');
     console.log('EMERGENCY_STORAGE_FALLBACK_SMOKE_OK');

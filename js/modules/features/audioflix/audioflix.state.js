@@ -23,21 +23,21 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return null;
     }
 
+    // Delegated to the recovery guard. Reading here used to swallow a parse failure and return {},
+    // so damaged data read as an empty library and the next save wrote that emptiness over the only
+    // copy. If the guard is somehow absent we refuse to persist at all rather than risk repeating
+    // that: not saving is recoverable, overwriting the library is not.
     function fallbackRead() {
-        try {
-            const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-            return parsed && typeof parsed === 'object' ? parsed : {};
-        } catch {
-            return {};
-        }
+        return window.EveAudioflixStateRecovery?.read(STORAGE_KEY)?.state || {};
     }
 
-    function fallbackWrite(state) {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-        } catch (error) {
-            console.warn('[Audioflix] fallback state write failed:', error);
+    function fallbackWrite(state, options) {
+        const guard = window.EveAudioflixStateRecovery;
+        if (!guard) {
+            console.warn('[Audioflix] recovery guard missing — not persisting, to avoid data loss.');
+            return { written: false, reason: 'recovery guard not loaded' };
         }
+        return guard.write(STORAGE_KEY, state, options);
     }
 
     function text(value, fallback) {
