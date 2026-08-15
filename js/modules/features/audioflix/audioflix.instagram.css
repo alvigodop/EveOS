@@ -184,6 +184,64 @@
     object-fit: contain;
 }
 
+/* Each reel owns its URL field, so the row is index | (title over input) | open. */
+.audioflix-instagram-source-list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.audioflix-instagram-source-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 9px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 10px;
+    background: rgba(2, 6, 23, 0.42);
+}
+
+.audioflix-instagram-source-index {
+    min-width: 22px;
+    color: rgba(235, 241, 245, 0.5);
+    font-size: 0.74rem;
+    text-align: right;
+}
+
+.audioflix-instagram-source-body {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.audioflix-instagram-source-body strong {
+    overflow: hidden;
+    font-size: 0.82rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.audioflix-instagram-source-body input {
+    width: 100%;
+    font-size: 0.72rem;
+}
+
+.audioflix-instagram-source-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 8px;
+}
+
+.audioflix-instagram-add textarea {
+    min-height: 46px;
+}
+
 .audioflix-instagram-import textarea,
 .audioflix-instagram-link-form textarea {
     min-height: 130px;

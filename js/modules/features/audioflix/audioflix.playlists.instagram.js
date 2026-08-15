@@ -83,8 +83,23 @@ window.EveAudioflixInstagramPlaylists = window.EveAudioflixInstagramPlaylists ||
         };
     }
 
+    // "Instagram Reel 7" is what BOTH sides produce when they have no real name: the client-side
+    // import numbers them, and the backend falls back to the same shape. Letting that through a
+    // patch would let a refresh overwrite a genuine name -- or one the user typed -- with a
+    // placeholder, so it is filtered out rather than trusted.
+    const PLACEHOLDER_TITLE = /^instagram\s+reel\s*\d*$/i;
+
+    function realTitle(value) {
+        const title = text(value);
+        return title && !PLACEHOLDER_TITLE.test(title) ? title : '';
+    }
+
     function entryPatch(entry) {
+        // title was missing here entirely, which is why "Refresh metadata" never renamed anything:
+        // the backend resolved real titles and the reconcile threw them away.
+        const title = realTitle(entry?.title);
         return {
+            ...(title ? { title } : {}),
             image: text(entry?.image || entry?.thumbnail),
             sourceProvider: 'instagram',
             playlistPosition: Number(entry?.position || 0) || 0

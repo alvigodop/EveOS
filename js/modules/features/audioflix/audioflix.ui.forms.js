@@ -96,7 +96,10 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                 else if (fName === 'playlist-link-form') {
                     const groupName = form.dataset.afGroup;
                     const PL = window.EveAudioflixPlaylists;
-                    const res = PL?.setPlaylistLink?.(groupName, data.get('link'));
+                    // getAll, not get: the Instagram panel gives each reel its own URL field, and
+                    // get() would silently save the first row and drop every other line.
+                    const lines = data.getAll('link').map((v) => String(v || '').trim()).filter(Boolean);
+                    const res = PL?.setPlaylistLink?.(groupName, lines.join(String.fromCharCode(10)));
                     if (res?.ok) ctx.playlistLinkFormOpen = { open: false, group: '' };
                     ctx.playbackStatus = res?.ok
                         ? `Link for "${groupName}" saved — sync will use it from now on.`

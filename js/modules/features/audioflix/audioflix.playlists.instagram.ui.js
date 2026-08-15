@@ -11,8 +11,40 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
         const tracks = (state().music || [])
             .filter((item) => item.playlistId === connection.id)
             .sort((a, b) => Number(a.playlistPosition || 0) - Number(b.playlistPosition || 0));
-        const rows = tracks.map((item, index) => `<li><span>${index + 1}. ${esc(item.title || 'Instagram Reel')}</span><a href="${esc(item.url || '')}" target="_blank" rel="noopener">Open Reel</a></li>`).join('');
-        return `<section class="audioflix-instagram-source" style="margin-top:6px;"><header><div><strong>Reel collection source</strong><small>${tracks.length} imported item${tracks.length === 1 ? '' : 's'}</small></div><button type="button" data-af-action="instagram-sync" data-af-group="${esc(group)}">Refresh metadata</button></header><form class="audioflix-form audioflix-instagram-link-form" data-af-form="playlist-link-form" data-af-group="${esc(group)}"><label class="audioflix-wide-field"><span>Editable Reel URLs</span><textarea name="link" rows="6" required>${esc(connection.url || '')}</textarea><small>One URL per line. Saving updates the source; Refresh metadata reconciles the items.</small></label><button type="submit" data-af-action="submit-form">Save Source</button><button type="button" data-af-action="toggle-playlist-link-form" data-af-group="${esc(group)}">Close</button></form><ol class="audioflix-instagram-source-list">${rows}</ol></section>`;
+
+        // One row per reel, each owning its own URL field. A single bulk textarea meant the list
+        // and the addresses were two parallel things you had to line up by counting, and editing
+        // the seventh URL meant finding the seventh line. The field lives with the reel it points
+        // at, and the form collects every row in order on save.
+        const rows = tracks.map((item, index) => `<li class="audioflix-instagram-source-row">`
+            + `<span class="audioflix-instagram-source-index">${index + 1}</span>`
+            + `<div class="audioflix-instagram-source-body">`
+            + `<strong title="${esc(item.title || '')}">${esc(item.title || 'Untitled Reel')}</strong>`
+            + `<input type="url" name="link" value="${esc(item.url || '')}"`
+            + ` aria-label="URL for ${esc(item.title || 'this reel')}" spellcheck="false"></div>`
+            + `<a href="${esc(item.url || '')}" target="_blank" rel="noopener">Open</a></li>`).join('');
+
+        // Rows can only edit what already exists, so appending stays available as its own field.
+        // It is named `link` too, which puts anything typed here after the rows on save.
+        const addField = `<label class="audioflix-wide-field audioflix-instagram-add">`
+            + `<span>Add more Reels</span>`
+            + `<textarea name="link" rows="2" placeholder="One URL per line"></textarea></label>`;
+
+        const named = tracks.filter((item) => !/^instagram\s+reel\s*\d*$/i.test(String(item.title || '').trim())).length;
+        const naming = named === tracks.length
+            ? 'All items named.'
+            : `${tracks.length - named} still unnamed — Refresh metadata pulls real names from Instagram (needs EveOS localhost).`;
+
+        return `<section class="audioflix-instagram-source" style="margin-top:6px;">`
+            + `<header><div><strong>Reel collection source</strong>`
+            + `<small>${tracks.length} imported item${tracks.length === 1 ? '' : 's'} · ${esc(naming)}</small></div>`
+            + `<button type="button" data-af-action="instagram-sync" data-af-group="${esc(group)}">Refresh metadata</button></header>`
+            + `<form class="audioflix-form audioflix-instagram-link-form" data-af-form="playlist-link-form" data-af-group="${esc(group)}">`
+            + `<ol class="audioflix-instagram-source-list">${rows}</ol>${addField}`
+            + `<div class="audioflix-instagram-source-actions">`
+            + `<button type="submit" data-af-action="submit-form">Save Source</button>`
+            + `<button type="button" data-af-action="toggle-playlist-link-form" data-af-group="${esc(group)}">Close</button>`
+            + `</div></form></section>`;
     }
 
     function createActions(ctx) {
