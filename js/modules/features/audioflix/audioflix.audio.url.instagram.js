@@ -16,6 +16,10 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
     // remains is the media itself.
     const EMBED_HEADER = 104;
     const EMBED_FOOTER = 168;
+    // Reels are not all the same shape, and the measurement only arrives after the embed renders.
+    // Remembering it per reel means the second open is the right size immediately instead of
+    // snapping from a default -- the same trick ReelDeck uses when it has "learned" a source.
+    const learnedHeights = new Map();
 
     /** Size `stage` to the media once Instagram says how tall it rendered. Returns a detach fn. */
     function trackEmbedHeight(frame, stage) {
@@ -29,7 +33,14 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             if (!data || data.type !== 'MEASURE' || !Number.isFinite(total) || total <= 0) return;
             const media = total - EMBED_HEADER - EMBED_FOOTER;
             if (media < 120) return;   // nonsense; keep the ratio fallback rather than a sliver
+            learnedHeights.set(frame.src, Math.round(media));
             stage.style.height = Math.round(media) + 'px';
+            stage.style.aspectRatio = 'auto';
+        }
+        // Apply what we already know before the first message arrives.
+        const learned = learnedHeights.get(frame.src);
+        if (learned) {
+            stage.style.height = learned + 'px';
             stage.style.aspectRatio = 'auto';
         }
         window.addEventListener('message', onMessage);
@@ -56,11 +67,28 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             timer = 0;
         }
 
+        // Transport for an embed we do not own. A cross-origin iframe cannot be clicked into or
+        // driven by script, so this is the closest honest equivalent: Stop blanks the frame, which
+        // genuinely silences it, and Play reloads the reel so it is live again. Play cannot force
+        // Instagram's player to start -- that click has to be yours -- so the state is reported
+        // truthfully rather than flipped to "playing" and left lying about it.
         function makeFramePlayer(frame) {
             const original = frame.src;
+            const mark = (paused) => {
+                view.playback.paused = paused;
+                emitProgress();
+            };
             return {
-                async play() { if (!frame.src || frame.src === 'about:blank') frame.src = original; },
-                async pause() { frame.src = 'about:blank'; },
+                async play() {
+                    if (!frame.getAttribute('src') || frame.getAttribute('src') === 'about:blank') {
+                        frame.src = original;
+                    }
+                    mark(false);
+                },
+                async pause() {
+                    frame.src = 'about:blank';
+                    mark(true);
+                },
                 async destroy() { clearTimer(); frame.remove(); },
                 async setCurrentTime() {},
                 async setVolume() {}
@@ -193,6 +221,21 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
                     if (index === 0) button.className = 'is-active';
                     nav.append(button);
                 });
+            // Manual shape override. The measurement is the primary source, but it only arrives
+            // once the embed renders and some reels never report a usable one -- ReelDeck ships the
+            // same escape hatch for exactly that reason.
+            const ratios = document.createElement('span');
+            ratios.className = 'audioflix-instagram-ratios';
+            [['tall', '9:16'], ['square', '1:1'], ['wide', '16:9']].forEach(([shape, label]) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.dataset.reelRatio = shape;
+                button.textContent = label;
+                button.title = `Force a ${label} frame`;
+                ratios.append(button);
+            });
+            nav.append(ratios);
+
             const close = document.createElement('button');
             close.type = 'button';
             close.setAttribute('data-reel-close', '');
@@ -295,6 +338,17 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
                     clearTimer();
                     stopActive();
                     playInstagram(item).catch(failed);
+                });
+                host.querySelectorAll('[data-reel-ratio]').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const stage = host.querySelector('.audioflix-instagram-focus-stage');
+                        if (!stage) return;
+                        // Overrides the measurement on purpose: an explicit choice should stick.
+                        stage.style.height = 'auto';
+                        stage.style.aspectRatio = { tall: '9 / 16', square: '1 / 1', wide: '16 / 9' }[button.dataset.reelRatio];
+                        host.querySelectorAll('[data-reel-ratio]').forEach((other) => other.classList.remove('is-active'));
+                        button.classList.add('is-active');
+                    });
                 });
                 activateMode('focus', reelCanvas, buttons, item, url).catch(failed);
             });

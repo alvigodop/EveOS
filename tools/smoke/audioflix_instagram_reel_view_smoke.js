@@ -33,8 +33,10 @@ function main() {
     const css = fs.readFileSync(path.join(A, 'audioflix.instagram.css'), 'utf8');
 
     // ---- the internal player must NOT open straight into the reel inspector ----
-    const play = js.slice(js.indexOf('async function playInstagram('));
-    const playBody = play.slice(0, play.indexOf('\n        }\n'));
+    // Sliced to the next declaration, not to a brace: a brace heuristic shifts whenever lines move,
+    // which silently changes what this covers and makes unrelated edits fail the wrong assertion.
+    const playBody = js.slice(js.indexOf('async function playInstagram('),
+        js.indexOf('function wireOpenButton('));
     assert(playBody.includes('data-reel-open'),
         'the plain player offers a button to open the reel view');
     assert(playBody.includes('showDirectVideo('),
@@ -163,6 +165,42 @@ function main() {
     // ---- the retired selector must not linger and quietly re-style Focus ----
     assert(!/is-focus iframe/.test(css),
         'the old is-focus iframe rule is gone, so it cannot fight the crop');
+
+    // ---- the frame must size to its content, or it draws on top of the player ----
+    // .audioflix-provider-frame is normally locked to aspect-ratio 16/9, so its height comes from
+    // its width. Instagram content is far taller -- a toolbar above a portrait video, or the whole
+    // inspector -- and the excess overflowed the box and painted over everything below it.
+    assert(/\.audioflix-provider-frame\.audioflix-instagram-stage/.test(css),
+        'the override is scoped to the provider frame the class actually lands on');
+    const frameRule = css.slice(css.indexOf('.audioflix-provider-frame.audioflix-instagram-stage'));
+    const frameBody = frameRule.slice(0, frameRule.indexOf('}'));
+    assert(/aspect-ratio:\s*auto/.test(frameBody) && /height:\s*auto/.test(frameBody),
+        'the frame follows its content instead of a fixed ratio, so nothing overflows onto siblings');
+    assert(/min-height:\s*0/.test(frameBody),
+        'the inherited minimum is cleared too, or a short view still reserves a 200px box');
+
+    // ---- transport must tell the truth about a player we do not control ----
+    // A cross-origin iframe cannot be clicked into, so Play cannot force Instagram to start. Stop
+    // CAN silence it by blanking the frame. Reporting "playing" regardless would be a lie.
+    const playerBody = js.slice(js.indexOf('function makeFramePlayer('), js.indexOf('function setActive('));
+    assert(/about:blank/.test(playerBody), 'Stop blanks the frame, which genuinely silences it');
+    assert(/mark\(true\)/.test(playerBody) && /mark\(false\)/.test(playerBody),
+        'both transitions report playback state rather than leaving the transport stale');
+    // The COMPARISON is the part that matters: frame.src resolves to an absolute URL and never
+    // equals 'about:blank', so comparing it means play() can never tell it was stopped.
+    assert(/getAttribute\('src'\) === 'about:blank'/.test(playerBody),
+        'the blanked state is compared via the attribute; frame.src resolves and never matches');
+
+    // ---- a shape override exists, because measurement is not always available ----
+    // Scoped to the assignment: the querySelector mentions the attribute too, so a loose match
+    // passes even when no button is ever given it.
+    assert(/dataset\.reelRatio = shape/.test(js) && /audioflix-instagram-ratios/.test(css),
+        'the reel view offers a manual shape override for reels that never report a usable height');
+    assert(/\[data-reel-ratio\]'\)\.forEach/.test(js), 'and the override buttons are wired');
+    // Scoped to the write: the Map declaration and the read both mention the name, so matching it
+    // alone passes even when nothing is ever stored.
+    assert(/learnedHeights\.set\(/.test(js) && /learnedHeights\.get\(/.test(js),
+        'a measured height is stored AND reused, so reopening a reel is the right shape at once');
 
     console.log('instagram reel view OK — plain player first, three distinct modes, crop clips chrome');
     console.log('AUDIOFLIX_INSTAGRAM_REEL_VIEW_SMOKE_OK');

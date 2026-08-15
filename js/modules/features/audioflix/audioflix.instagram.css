@@ -1,5 +1,15 @@
+/* This class sits on .audioflix-provider-frame, which is normally locked to aspect-ratio 16/9 --
+   its height is derived from its width. Instagram content is far taller than that: a toolbar above
+   a portrait video, or the whole inspector. The excess overflowed the box and drew on top of
+   everything below it, which is why the reel view appeared to overlap the player and push it behind.
+   Reels vary in shape, so the box has to follow its content rather than a ratio. */
+.audioflix-provider-frame.audioflix-instagram-stage,
 .audioflix-instagram-stage {
     width: min(760px, calc(100vw - 32px));
+    aspect-ratio: auto;
+    height: auto;
+    min-height: 0;
+    overflow: visible;
 }
 
 .audioflix-instagram-inspector {
@@ -171,6 +181,24 @@
 .audioflix-instagram-inspector nav [data-reel-mode="direct"].is-available::after {
     background: #7ef1aa;
     box-shadow: 0 0 10px rgba(126, 241, 170, 0.5);
+}
+
+/* Shape override, kept visually quieter than the mode buttons: it is a correction, not a mode. */
+.audioflix-instagram-ratios {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 4px;
+}
+
+.audioflix-instagram-ratios button {
+    padding: 3px 7px;
+    font-size: 0.66rem;
+    opacity: 0.72;
+}
+
+.audioflix-instagram-ratios button.is-active {
+    border-color: rgba(255, 79, 139, 0.7);
+    opacity: 1;
 }
 
 .audioflix-instagram-close {
