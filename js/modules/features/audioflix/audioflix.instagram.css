@@ -47,22 +47,41 @@
     color: #ff9ac2;
 }
 
+/* No min-height. A floor here is a floor under every reel, so a landscape one gets padded out to a
+   portrait-sized box and sits as a small strip in the middle of it -- which is the black surround
+   that kept coming back. The canvas hugs whatever it holds; :empty below covers the nothing case. */
 .audioflix-instagram-canvas {
     position: relative;
     display: grid;
     place-items: center;
-    min-height: 360px;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 14px;
     background: #000;
 }
 
-.audioflix-instagram-canvas iframe,
-.audioflix-instagram-video {
+/* The iframe cannot tell us its shape, so it keeps a bounded height. */
+.audioflix-instagram-canvas iframe {
     display: block;
     width: 100%;
     height: min(72vh, 680px);
+    border: 0;
+    background: #000;
+}
+
+/* The video element can, so it is left to. Both axes auto with a ceiling on each is what lets the
+   element's own box match the reel: the browser fits it inside both bounds while keeping the
+   intrinsic ratio. Pinning width to 100% instead keeps the box wide no matter the reel, so a
+   portrait one claims the full width and paints itself letterboxed inside it -- measured at
+   758x518 for a 1080x1920 reel, against 292x518 here, which is its real shape.
+   Not fit-content on the canvas: an element whose width comes from a child whose width comes from
+   the parent is circular, and it collapses to zero before the media loads. */
+.audioflix-instagram-video {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: min(72vh, 680px);
     border: 0;
     background: #000;
 }
@@ -117,9 +136,8 @@
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* An empty canvas must take no room. It reserves 360px unconditionally, so whenever the media
-   failed to load the plain player showed a second, permanently black box under the button -- which
-   read as "two panels opened" when only one had anything in it. */
+/* An empty canvas must take no room at all -- otherwise a failed load left a permanently black box
+   under the button, which read as "two panels opened" when only one had anything in it. */
 .audioflix-instagram-canvas:empty {
     min-height: 0;
     border: 0;

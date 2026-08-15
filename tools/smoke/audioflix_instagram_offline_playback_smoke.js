@@ -63,21 +63,44 @@ function main() {
     assert(back.duration === 31, 'the duration comes back with it, so the seek bar has a length');
     assert(back.ok === true, 'it is shaped like a resolver reply, so the player path is shared');
 
+    // ---- the reel's real shape is what stops the box being guessed ----
+    // Reels are not all portrait. A 9/16 default drops a landscape reel into a box built for a
+    // phone screen, which is the black surround that kept coming back.
+    cache.remember(reel, { videoUrl: 'https://cdn.example/a.mp4', width: 1080, height: 608 });
+    const wide = cache.shape(reel);
+    assert(wide && wide.width === 1080 && wide.height === 608, 'the resolved dimensions are kept');
+    cache.rememberShape(reel, 1920, 1080);
+    assert(cache.shape(reel).width === 1920,
+        'a shape learned from a playing element overrides the resolver, being the better source');
+    cache.rememberShape(reel, 0, 500);
+    cache.rememberShape(reel, 'wide', 500);
+    const afterJunk = cache.shape(reel);
+    assert(afterJunk && afterJunk.width === 1920 && afterJunk.height === 1080,
+        'a nonsense dimension never replaces a good one');
+
     // ---- an expired link must be droppable, or a dead URL is retried forever ----
     cache.forget(reel);
     assert(cache.recall(reel) === null, 'a link proven dead is gone');
+    // The link expires; the shape does not. Falling back to the embed is exactly when the shape
+    // matters most, so dropping it here would send the box back to guessing at the worst moment.
+    const survived = cache.shape(reel);
+    assert(survived && survived.width === 1920,
+        'the shape outlives the dead link, so the embed fallback is still the right shape');
 
     // ---- junk must never be stored, or recall hands the player an unplayable src ----
-    cache.remember(reel, { videoUrl: '' });
-    cache.remember(reel, {});
-    cache.remember(reel, null);
+    // On a URL of its own: `reel` deliberately keeps a shape-only entry after forget(), so reusing
+    // it here could not tell "nothing was written" apart from "the shape is still there".
+    const junkReel = 'https://www.instagram.com/reel/Junk_1/';
+    cache.remember(junkReel, { videoUrl: '' });
+    cache.remember(junkReel, {});
+    cache.remember(junkReel, null);
     cache.remember('', { videoUrl: 'https://cdn.example/b.mp4' });
-    assert(cache.recall(reel) === null, 'an empty or missing video URL is not remembered');
+    assert(cache.recall(junkReel) === null, 'an empty or missing video URL is not remembered');
     // Checked against the STORED blob, not just recall. recall() filters empties as well, so a bad
     // write here reads back as null anyway and the guard above passes while junk quietly
     // accumulates against the same quota the music library depends on.
     const stored = JSON.parse(store.getItem(cache.KEY) || '{}');
-    assert(!(reel in stored), 'nothing was written at all for an unusable resolve');
+    assert(!(junkReel in stored), 'nothing was written at all for an unusable resolve');
     assert(!('' in stored),
         'and a reel with no URL is not filed under the empty key, where it would be handed to the'
         + ' next caller that happens to resolve to nothing');
@@ -151,6 +174,41 @@ function main() {
         + ' Play and Stop bound to a video that can never start');
     assert(/return false;/.test(directBody.slice(verifyAt, activeAt)),
         'a failed verification reports back, so the caller can fall through to the embed');
+
+    // ---- the box must follow the reel's real shape, not a guess ----
+    const shapeBody = sliceFn(js, 'function applyKnownShape(');
+    assert(/EveAudioflixInstagramCache\?\.shape\?\.\(/.test(shapeBody),
+        'the stage reaches for the reel\'s real dimensions');
+    assert(/stage\.style\.aspectRatio = `\$\{known\.width\} \/ \$\{known\.height\}`/.test(shapeBody),
+        'the real dimensions set the ratio directly, with no header/footer arithmetic in between');
+    assert(/known\.height > known\.width \? 'min\(100%, 430px\)' : '100%'/.test(shapeBody),
+        'portrait is held to phone width and landscape is given the room; a single width leaves a'
+        + ' landscape reel as a small strip in the middle of the panel');
+
+    const focusBody = sliceFn(js, 'function showFocus(');
+    assert(/applyKnownShape\(stage, url\) \? function \(\) \{\} : trackEmbedHeight\(/.test(focusBody),
+        'real dimensions win over MEASURE, and the listener is only attached when there is nothing'
+        + ' better -- MEASURE reports the embed TOTAL, so using it means guessing the chrome back off');
+
+    assert(/rememberShape\?\.\(\s*canonical\(item\?\.url\), video\.videoWidth, video\.videoHeight\)/.test(js),
+        'a playing element teaches the cache its true shape, the most accurate source available');
+
+    // ---- and no fixed height may be imposed on something whose shape varies ----
+    const css = fs.readFileSync(path.join(A, 'audioflix.instagram.css'), 'utf8');
+    const canvasRule = css.slice(css.indexOf('.audioflix-instagram-canvas {'));
+    assert(!/min-height/.test(canvasRule.slice(0, canvasRule.indexOf('}'))),
+        'the canvas sets no min-height; a floor there pads every short reel out to a tall box,'
+        + ' which is the black surround around the video');
+    const videoRule = css.slice(css.indexOf('.audioflix-instagram-video {'));
+    const videoScoped = videoRule.slice(0, videoRule.indexOf('}'));
+    // BOTH axes auto under a ceiling on each. Measured across four shapes at 760px wide, this is
+    // what keeps the element's box equal to the reel's own: 758x427 landscape, 292x518 portrait,
+    // 518x518 square, 758x316 ultrawide. Pinning width to 100% keeps the box wide whatever the
+    // reel, so a portrait one measures 758x518 and paints itself letterboxed inside that.
+    assert(/width:\s*auto/.test(videoScoped) && /height:\s*auto/.test(videoScoped),
+        'neither axis is pinned, so the browser fits the element to the reel\'s real ratio');
+    assert(/max-width:\s*100%/.test(videoScoped) && /max-height:/.test(videoScoped),
+        'both axes are bounded, or a tall reel runs off the panel instead of fitting inside it');
 
     const playable = sliceFn(js, 'function firstPlayable(');
     assert(/'loadedmetadata'/.test(playable) && /'error'/.test(playable),

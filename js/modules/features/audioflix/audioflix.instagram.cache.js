@@ -46,13 +46,24 @@ window.EveAudioflixInstagramCache = window.EveAudioflixInstagramCache || {};
         }
     }
 
+    const size = (value) => (Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : 0);
+
     /** Store the resolved video for `url`. Silently ignores anything unusable. */
     function remember(url, result) {
         const id = key(url);
         const videoUrl = String(result?.videoUrl || '').trim();
         if (!id || !videoUrl) return;
         const map = load();
-        map[id] = { videoUrl, duration: Number(result?.duration || 0) || 0, at: Date.now() };
+        map[id] = {
+            videoUrl,
+            duration: Number(result?.duration || 0) || 0,
+            // The reel's real shape. Every other source for this is a guess: the embed is
+            // cross-origin so it cannot be measured, and reels are not all portrait -- assuming
+            // 9/16 letterboxes a landscape one inside a box built for a phone screen.
+            width: size(result?.width),
+            height: size(result?.height),
+            at: Date.now()
+        };
         const ids = Object.keys(map);
         if (ids.length > LIMIT) {
             ids.sort((a, b) => (map[a]?.at || 0) - (map[b]?.at || 0))
@@ -66,17 +77,54 @@ window.EveAudioflixInstagramCache = window.EveAudioflixInstagramCache || {};
     function recall(url) {
         const entry = load()[key(url)];
         const videoUrl = String(entry?.videoUrl || '').trim();
-        return videoUrl ? { ok: true, videoUrl, duration: Number(entry?.duration || 0) || 0 } : null;
+        return videoUrl ? {
+            ok: true,
+            videoUrl,
+            duration: Number(entry?.duration || 0) || 0,
+            width: size(entry?.width),
+            height: size(entry?.height)
+        } : null;
     }
 
-    /** Drop `url`, for when its link is proven dead rather than merely old. */
-    function forget(url) {
-        const map = load();
+    /** The reel's shape alone, which outlives its video link.
+     *
+     * Kept separate from recall() on purpose: the video URL expires, the dimensions do not. When a
+     * link dies and the embed has to be used again, the shape is still known, so the box is still
+     * the right shape instead of falling back to a guess. */
+    function shape(url) {
+        const entry = load()[key(url)];
+        const width = size(entry?.width);
+        const height = size(entry?.height);
+        return (width && height) ? { width, height } : null;
+    }
+
+    /** Record a shape learned from a playing video, which is the most accurate source there is. */
+    function rememberShape(url, width, height) {
         const id = key(url);
-        if (!(id in map)) return;
-        delete map[id];
+        if (!id || !size(width) || !size(height)) return;
+        const map = load();
+        const entry = map[id] || { videoUrl: '', duration: 0, at: Date.now() };
+        map[id] = { ...entry, width: size(width), height: size(height) };
         save(map);
     }
 
-    Object.assign(ns, { ready: true, remember, recall, forget, KEY, LIMIT });
+    /** Drop the video link for `url`, for when it is proven dead rather than merely old.
+     *
+     * The SHAPE is kept. Only the link expires, and having to fall back to the embed is exactly
+     * when the shape matters most -- discarding it here would send the box back to guessing at the
+     * one moment it no longer has to. */
+    function forget(url) {
+        const map = load();
+        const id = key(url);
+        const entry = map[id];
+        if (!entry) return;
+        if (size(entry.width) && size(entry.height)) {
+            map[id] = { videoUrl: '', duration: 0, width: entry.width, height: entry.height, at: entry.at || Date.now() };
+        } else {
+            delete map[id];
+        }
+        save(map);
+    }
+
+    Object.assign(ns, { ready: true, remember, recall, shape, rememberShape, forget, KEY, LIMIT });
 })();

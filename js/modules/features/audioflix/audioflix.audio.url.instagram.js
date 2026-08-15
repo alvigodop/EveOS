@@ -21,7 +21,26 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
     // snapping from a default -- the same trick ReelDeck uses when it has "learned" a source.
     const learnedHeights = new Map();
 
-    /** Size `stage` to the media once Instagram says how tall it rendered. Returns a detach fn. */
+    /** Apply the reel's real shape to `stage`, if it is known. True when it was.
+     *
+     * This is the honest source. MEASURE only reports the embed's TOTAL height, so turning that
+     * into the media's height means subtracting a header and footer whose sizes have to be guessed
+     * -- and a 9/16 default is simply wrong for a landscape reel, which is what left the video
+     * letterboxed in a box built for a portrait one. Real dimensions need no arithmetic. */
+    function applyKnownShape(stage, url) {
+        const known = window.EveAudioflixInstagramCache?.shape?.(url);
+        if (!known) return false;
+        stage.style.aspectRatio = `${known.width} / ${known.height}`;
+        stage.style.height = 'auto';
+        // Portrait needs holding back to phone width; landscape should use the room it has, or it
+        // sits as a small strip in the middle of a large empty box.
+        stage.style.width = known.height > known.width ? 'min(100%, 430px)' : '100%';
+        return true;
+    }
+
+    /** Size `stage` to the media once Instagram says how tall it rendered. Returns a detach fn.
+     *
+     * Only used when the real dimensions are unknown -- it is the fallback, not the default. */
     function trackEmbedHeight(frame, stage) {
         function onMessage(event) {
             if (frame.contentWindow && event.source !== frame.contentWindow) return;
@@ -36,6 +55,12 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             learnedHeights.set(frame.src, Math.round(media));
             stage.style.height = Math.round(media) + 'px';
             stage.style.aspectRatio = 'auto';
+            // The measured media height against the stage width says which way the reel is oriented
+            // -- the one piece of shape information the embed does give up. A landscape reel held at
+            // phone width sits as a small strip in the middle of the panel, so it gets the room.
+            // Widening changes the embed's layout, which produces a fresh MEASURE, so this settles.
+            const width = stage.getBoundingClientRect().width || 0;
+            if (width && media < width * 0.95 && stage.style.width !== '100%') stage.style.width = '100%';
         }
         // Apply what we already know before the first message arrives.
         const learned = learnedHeights.get(frame.src);
@@ -158,6 +183,13 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             const proxied = offline ? '' : window.EveAudioflixNative?.getProxyUrl?.(result.videoUrl);
             video.src = proxied || result.videoUrl;
             video.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
+            // The element knows its own dimensions once it has metadata, which beats anything the
+            // resolver reported and everything the embed can be made to admit. Recording it means
+            // the box is the right shape even later, when only the embed is available.
+            video.addEventListener('loadedmetadata', () => {
+                window.EveAudioflixInstagramCache?.rememberShape?.(
+                    canonical(item?.url), video.videoWidth, video.videoHeight);
+            }, { once: true });
             host.append(video);
             // Prove the media opens BEFORE handing it the transport. A remembered link that has
             // expired would otherwise leave Play and Stop wired to a video that can never start.
@@ -217,7 +249,9 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             cover.className = 'audioflix-instagram-cover';
             stage.append(crop, cover);
             canvas.append(stage);
-            const untrack = trackEmbedHeight(frame, stage);
+            // Real dimensions beat a measurement that has to be guessed back into shape, so the
+            // MEASURE listener is only attached when there is nothing better.
+            const untrack = applyKnownShape(stage, url) ? function () {} : trackEmbedHeight(frame, stage);
             const player = makeFramePlayer(frame);
             const teardown = player.destroy;
             player.destroy = async () => { untrack(); return teardown(); };
