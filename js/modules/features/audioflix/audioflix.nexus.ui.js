@@ -46,9 +46,10 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
             });
         }
 
-        function rowHtml(it, type, selectedIds) {
+        function rowHtml(it, type, selectedIds, linkedIds) {
             const meta = [it.artist, it.folder || it.card || it.category].filter(Boolean).join(' · ');
             const dupBadge = window.EveAudioflixDuplicates?.isDuplicate?.(type, it.id) ? ' <span style="color:#f87171; font-size:0.7rem;">👯 dup</span>' : '';
+            const linkBadge = (type === 'music' && linkedIds?.has?.(it.id)) ? ' <span style="color:#38bdf8; font-size:0.7rem;" title="Linked to current surface">🔗 linked</span>' : '';
             const audioStatus = window.EveAudioflixAudio?.getStatus?.();
             const isCurrent = audioStatus?.item?.id === it.id;
             const isPlaying = isCurrent && (audioStatus?.playback?.playing || (audioStatus?.playback && !audioStatus?.playback?.paused)) && audioStatus?.status !== 'Idle' && audioStatus?.status !== 'Paused';
@@ -61,7 +62,7 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
             const checkbox = type === 'music'
                 ? `<input class="audioflix-nexus-select" type="checkbox" data-af-id="${esc(it.id)}"${selected ? ' checked' : ''} aria-label="Select ${esc(it.title)}">`
                 : '';
-            return `<div class="audioflix-nexus-row${selected ? ' is-selected' : ''}">${checkbox}${actionBtn}<div style="flex:1; min-width:0;"><strong style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ${isPlaying ? 'color:#38bdf8;' : ''}">${esc(it.title)}${dupBadge}</strong><span style="font-size:0.75rem; color:#94a3b8;">${esc(meta) || '—'}</span></div><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Settings / manage duplicate">⚙</button></div>`;
+            return `<div class="audioflix-nexus-row${selected ? ' is-selected' : ''}">${checkbox}${actionBtn}<div style="flex:1; min-width:0;"><strong style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; ${isPlaying ? 'color:#38bdf8;' : ''}">${esc(it.title)}${dupBadge}${linkBadge}</strong><span style="font-size:0.75rem; color:#94a3b8;">${esc(meta) || '—'}</span></div><button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(it.id)}" title="Settings / manage duplicate">⚙</button></div>`;
         }
 
         function renderResults(type, preparedList) {
@@ -70,7 +71,12 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
             lastMatchCounts[type === 'sound' ? 'sound' : 'music'] = list.length;
             if (st.query) X().recordSearch(st.query, type, list.length);
             const selectedIds = new Set(st.selectedIds || []);
-            const shown = list.slice(0, 80).map((it) => rowHtml(it, type, selectedIds)).join('');
+            const currentScope = window.EveAudioflixLinks?.inferCurrentScope?.();
+            const linkedCapture = (type === 'music' && currentScope && window.EveAudioflixLinks?.captureForScope)
+                ? window.EveAudioflixLinks.captureForScope(currentScope, { directOnly: true })
+                : null;
+            const linkedIds = new Set((linkedCapture?.items || []).map((it) => it.id));
+            const shown = list.slice(0, 80).map((it) => rowHtml(it, type, selectedIds, linkedIds)).join('');
             const more = list.length > 80 ? `<div style="padding:6px 8px; color:#94a3b8; font-size:0.75rem;">Showing first 80 of ${list.length}.</div>` : '';
             return (shown || '<div style="color:#94a3b8; padding:10px;">No matches.</div>') + more;
         }

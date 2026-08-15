@@ -65,6 +65,91 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             setStageStatus('Playing the Reel video through EveOS localhost.');
         }
 
+        /** The embed cropped down to just the video: no avatar, no like bar, no comment box. */
+        function showFocus(canvas, item, url) {
+            canvas.replaceChildren();
+            // The Instagram embed cannot be asked for a bare video, so the chrome is cropped instead:
+            // the iframe is pulled up past the profile header and run taller than its box, and the
+            // box clips it. Same approach ReelDeck uses; the offsets live in the stylesheet.
+            const crop = document.createElement('div');
+            crop.className = 'audioflix-instagram-crop';
+            const frame = document.createElement('iframe');
+            frame.className = 'audioflix-instagram-embed';
+            frame.src = embedUrl(url);
+            frame.title = item.title || 'Instagram Reel';
+            frame.loading = 'eager';
+            frame.setAttribute('scrolling', 'no');
+            frame.allow = 'autoplay; encrypted-media; picture-in-picture';
+            frame.setAttribute('allowfullscreen', '');
+            crop.append(frame);
+            canvas.append(crop);
+            setActive(makeFramePlayer(frame), item, true);
+            setStageStatus('Focus view - video only.');
+        }
+
+        function showFullEmbed(canvas, item, url) {
+            canvas.replaceChildren();
+            const frame = document.createElement('iframe');
+            frame.className = 'audioflix-instagram-embed';
+            frame.src = embedUrl(url);
+            frame.title = item.title || 'Instagram Reel';
+            frame.loading = 'eager';
+            frame.allow = 'autoplay; encrypted-media; picture-in-picture';
+            frame.setAttribute('allowfullscreen', '');
+            canvas.append(frame);
+            setActive(makeFramePlayer(frame), item, true);
+            setStageStatus('Full Instagram embed view.');
+        }
+
+        async function activateMode(mode, canvasEl, buttons, item, url) {
+            clearTimer();
+            buttons.forEach((button) => button.classList.toggle('is-active', button.dataset.reelMode === mode));
+            canvasEl.className = `audioflix-instagram-canvas is-${mode}`;
+            if (mode === 'direct') return showDirectVideo(canvasEl, item);
+            if (mode === 'focus') return showFocus(canvasEl, item, url);
+            return showFullEmbed(canvasEl, item, url);
+        }
+
+        /** Reel view shell: the three modes, the source line, a close control, and the canvas. */
+        function buildInspector(url) {
+            const section = document.createElement('section');
+            section.className = 'audioflix-instagram-inspector';
+
+            const nav = document.createElement('nav');
+            [['focus', 'Focus'], ['direct', 'Direct Video'], ['embed', 'Full Embed']]
+                .forEach(([mode, label], index) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.dataset.reelMode = mode;
+                    button.textContent = label;
+                    if (index === 0) button.className = 'is-active';
+                    nav.append(button);
+                });
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.setAttribute('data-reel-close', '');
+            close.className = 'audioflix-instagram-close';
+            close.setAttribute('aria-label', 'Close Reel view');
+            close.title = 'Close Reel view';
+            close.textContent = '×';
+            nav.append(close);
+
+            const source = document.createElement('p');
+            source.append(document.createTextNode('This reel is: '));
+            const link = document.createElement('a');
+            link.href = url;
+            link.target = '_blank';
+            link.rel = 'noopener';
+            link.textContent = url;
+            source.append(link);
+
+            const canvas = document.createElement('div');
+            canvas.className = 'audioflix-instagram-canvas is-focus';
+
+            section.append(nav, source, canvas);
+            return section;
+        }
+
         async function playInstagram(item) {
             const url = canonical(item?.url);
             if (!url) throw new Error('This item is not a valid Instagram Reel or post URL.');
@@ -74,34 +159,33 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             clearTimer();
             const host = ensureStage(item, 'Instagram Reel', true);
             host.className = 'audioflix-provider-stage audioflix-instagram-stage';
-            host.innerHTML = `<section class="audioflix-instagram-inspector"><nav><button type="button" data-reel-mode="focus" class="is-active">Focus</button><button type="button" data-reel-mode="direct">Direct Video</button><button type="button" data-reel-mode="embed">Full Embed</button></nav><p>This reel is: <a href="${url}" target="_blank" rel="noopener">${url}</a></p><div class="audioflix-instagram-canvas is-focus"></div></section>`;
+            // The reel inspector is no longer what the internal player opens into. A linked reel is a
+            // track first, so the plain player comes up and plays it; watching the reel is a second,
+            // deliberate step behind this button, and closable again from inside.
+            host.innerHTML = '<div class="audioflix-instagram-default">'
+                + '<button type="button" data-reel-open>Open Reel view</button></div>'
+                + '<div class="audioflix-instagram-canvas is-direct"></div>';
             const canvas = host.querySelector('.audioflix-instagram-canvas');
-            const buttons = [...host.querySelectorAll('[data-reel-mode]')];
-            const activate = async (mode) => {
-                clearTimer();
-                buttons.forEach((button) => button.classList.toggle('is-active', button.dataset.reelMode === mode));
-                if (mode === 'direct') {
-                    canvas.className = 'audioflix-instagram-canvas is-direct';
-                    await showDirectVideo(canvas, item);
-                    return;
-                }
-                canvas.className = `audioflix-instagram-canvas is-${mode}`;
-                canvas.replaceChildren();
-                const frame = document.createElement('iframe');
-                frame.src = embedUrl(url);
-                frame.title = item.title || 'Instagram Reel';
-                frame.loading = 'eager';
-                frame.allow = 'autoplay; encrypted-media; picture-in-picture';
-                frame.setAttribute('allowfullscreen', '');
-                canvas.append(frame);
-                setActive(makeFramePlayer(frame), item, true);
-                setStageStatus(mode === 'focus' ? 'Focused Instagram Reel view.' : 'Full Instagram embed view.');
-            };
-            buttons.forEach((button) => button.addEventListener('click', () => activate(button.dataset.reelMode).catch((error) => {
+            await showDirectVideo(canvas, item);
+
+            const failed = (error) => {
                 setStageStatus(error.message || 'The Reel view could not load.', true);
                 emitPlayback(error.message || 'The Reel view could not load.', true);
-            })));
-            await activate('focus');
+            };
+
+            host.querySelector('[data-reel-open]').addEventListener('click', () => {
+                clearTimer();
+                host.replaceChildren(buildInspector(url));
+                const reelCanvas = host.querySelector('.audioflix-instagram-canvas');
+                const buttons = [...host.querySelectorAll('[data-reel-mode]')];
+                buttons.forEach((button) => button.addEventListener('click',
+                    () => activateMode(button.dataset.reelMode, reelCanvas, buttons, item, url).catch(failed)));
+                // Closing rebuilds the plain player rather than un-hiding it, so the reel view never
+                // leaves an iframe alive in the background still holding audio.
+                host.querySelector('[data-reel-close]').addEventListener('click',
+                    () => playInstagram(item).catch(failed));
+                activateMode('focus', reelCanvas, buttons, item, url).catch(failed);
+            });
         }
 
         return { playInstagram };

@@ -35,7 +35,9 @@ window.EveAudioflixUiActionsNexus = window.EveAudioflixUiActionsNexus || {};
             if (action === 'nexus-link-scope' || action === 'nexus-unlink-scope') {
                 const selectedIds = view.selectedIds || [];
                 if (!selectedIds.length) {
-                    ctx.playbackStatus = 'Select at least one track to link.';
+                    const warnMsg = 'Select at least one track to link.';
+                    ctx.playbackStatus = warnMsg;
+                    if (typeof window.showToast === 'function') window.showToast(warnMsg, 'warning');
                     ctx.rerender();
                     return true;
                 }
@@ -44,20 +46,60 @@ window.EveAudioflixUiActionsNexus = window.EveAudioflixUiActionsNexus || {};
                     ? window.EveAudioflixLinks?.add?.(selectedIds, scope, 'music')
                     : window.EveAudioflixLinks?.remove?.(selectedIds, scope, 'music');
                 const changed = action === 'nexus-link-scope' ? result?.added : result?.removed;
-                ctx.playbackStatus = result?.ok
-                    ? `${Number(changed) || 0} track reference(s) ${action === 'nexus-link-scope' ? 'attached to' : 'detached from'} ${result.label || 'the current surface'}.`
-                    : (result?.reason || 'Could not update EveOS audio links.');
+                let message = '';
+                let toastType = 'info';
+                if (result?.ok && Number(changed) > 0) {
+                    message = `${Number(changed)} track reference(s) ${action === 'nexus-link-scope' ? 'attached to' : 'detached from'} ${result.label || 'the current surface'}.`;
+                    toastType = 'success';
+                } else if (result?.reason) {
+                    message = result.reason;
+                    toastType = result?.ok ? 'info' : 'warning';
+                } else {
+                    message = `${Number(changed) || 0} track reference(s) updated.`;
+                }
+                ctx.playbackStatus = message;
+                if (typeof window.showToast === 'function') {
+                    window.showToast(message, toastType);
+                }
+                if (result?.ok) {
+                    ctx.nexusState = Object.assign({}, view, { selectedIds: [] });
+                }
                 ctx.rerender();
                 return true;
             }
             if (action !== 'nexus-apply-bulk') return false;
 
-            const bulk = Object.assign({}, view.bulk || {});
+            const selectedIds = view.selectedIds || [];
+            if (!selectedIds.length) {
+                const warnMsg = 'Select at least one track to organize.';
+                ctx.playbackStatus = warnMsg;
+                if (typeof window.showToast === 'function') window.showToast(warnMsg, 'warning');
+                ctx.rerender();
+                return true;
+            }
+
+            const manager = actionTarget?.closest?.('.audioflix-bulk-manager');
+            const groupActionInput = manager?.querySelector?.('[data-af-bulk-field="groupAction"]')?.value;
+            const groupInput = manager?.querySelector?.('[data-af-bulk-field="group"]')?.value;
+            const classifierActionInput = manager?.querySelector?.('[data-af-bulk-field="classifierAction"]')?.value;
+            const classifierInput = manager?.querySelector?.('[data-af-bulk-field="classifier"]')?.value;
+            const folderActionInput = manager?.querySelector?.('[data-af-bulk-field="folderAction"]')?.value;
+            const folderInput = manager?.querySelector?.('[data-af-bulk-field="folder"]')?.value;
+
+            const bulk = Object.assign({
+                groupAction: groupActionInput || 'add',
+                group: groupInput !== undefined ? groupInput : '',
+                classifierAction: classifierActionInput || 'add',
+                classifier: classifierInput !== undefined ? classifierInput : '',
+                folderAction: folderActionInput !== undefined ? folderActionInput : '',
+                folder: folderInput !== undefined ? folderInput : ''
+            }, view.bulk || {});
+
             const changes = {
-                addGroups: bulk.groupAction === 'add' && bulk.group ? [bulk.group] : [],
-                removeGroups: bulk.groupAction === 'remove' && bulk.group ? [bulk.group] : [],
-                addClassifiers: bulk.classifierAction === 'add' && bulk.classifier ? [bulk.classifier] : [],
-                removeClassifiers: bulk.classifierAction === 'remove' && bulk.classifier ? [bulk.classifier] : [],
+                addGroups: (bulk.groupAction === 'add' && bulk.group) ? [bulk.group] : [],
+                removeGroups: (bulk.groupAction === 'remove' && bulk.group) ? [bulk.group] : [],
+                addClassifiers: (bulk.classifierAction === 'add' && bulk.classifier) ? [bulk.classifier] : [],
+                removeClassifiers: (bulk.classifierAction === 'remove' && bulk.classifier) ? [bulk.classifier] : [],
                 folderAction: bulk.folderAction || '',
                 folder: bulk.folder || ''
             };
@@ -65,17 +107,32 @@ window.EveAudioflixUiActionsNexus = window.EveAudioflixUiActionsNexus || {};
                 || changes.addClassifiers.length || changes.removeClassifiers.length
                 || changes.folderAction;
             if (!hasChange) {
-                ctx.playbackStatus = 'Choose at least one group, classifier, or folder operation.';
+                const warnMsg = 'Choose at least one group, classifier, or folder operation.';
+                ctx.playbackStatus = warnMsg;
+                if (typeof window.showToast === 'function') window.showToast(warnMsg, 'warning');
                 ctx.rerender();
                 return true;
             }
 
-            const result = window.EveAudioflixBulk?.applyMusicChanges?.(view.selectedIds || [], changes);
-            ctx.playbackStatus = result?.ok
-                ? `${result.changed} of ${result.selected} selected track(s) updated in one transaction.`
-                : (result?.reason || 'Bulk organization failed.');
+            const result = window.EveAudioflixBulk?.applyMusicChanges?.(selectedIds, changes);
+            let message = '';
+            let toastType = 'info';
             if (result?.ok) {
-                ctx.nexusState = Object.assign({}, view, { selectedIds: [] });
+                if (Number(result.changed) > 0) {
+                    message = `${result.changed} of ${result.selected} selected track(s) updated in one transaction.`;
+                    toastType = 'success';
+                } else {
+                    message = result.reason || 'Those tracks already match the requested organization.';
+                    toastType = 'info';
+                }
+                ctx.nexusState = Object.assign({}, view, { selectedIds: [], bulk: {} });
+            } else {
+                message = result?.reason || 'Bulk organization failed.';
+                toastType = 'warning';
+            }
+            ctx.playbackStatus = message;
+            if (typeof window.showToast === 'function') {
+                window.showToast(message, toastType);
             }
             ctx.rerender();
             return true;

@@ -38,6 +38,8 @@ window.EveAudioflixNexusBulkUi = window.EveAudioflixNexusBulkUi || {};
             };
             const currentScopeLabel = window.EveAudioflixLinks?.scopeLabel?.(currentScope)
                 || String(currentScope.workspaceId || 'Current tab');
+            const linkedCapture = window.EveAudioflixLinks?.captureForScope?.(currentScope, { directOnly: true });
+            const linkedCount = Array.isArray(linkedCapture?.items) ? linkedCapture.items.length : 0;
             return `<section class="audioflix-bulk-manager">
                 <div class="audioflix-bulk-head">
                     <div><strong>Bulk organize</strong><span><b data-af-bulk-selected-count>${selectedCount}</b> selected / <b data-af-bulk-match-count>${Number(matchCount) || 0}</b> matches</span></div>
@@ -69,7 +71,7 @@ window.EveAudioflixNexusBulkUi = window.EveAudioflixNexusBulkUi || {};
                     <button type="button" class="is-primary" data-af-action="nexus-apply-bulk">Apply to selected</button>
                 </div>
                 <div class="audioflix-bulk-scope">
-                    <div><strong>Link to EveOS</strong><span>${esc(currentScopeLabel)}</span></div>
+                    <div><strong>Link to EveOS</strong><span>${esc(currentScopeLabel)} · <b data-af-linked-count>${linkedCount}</b> linked</span></div>
                     <div>
                         <button type="button" class="is-primary" data-af-action="nexus-link-scope">Attach selected</button>
                         <button type="button" data-af-action="nexus-unlink-scope">Detach selected</button>

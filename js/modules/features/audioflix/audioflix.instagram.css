@@ -57,11 +57,48 @@
     background: #000;
 }
 
-.audioflix-instagram-canvas.is-focus iframe {
+/* Focus mode: video only.
+   Instagram's embed has no parameter for "just the player", so the surrounding chrome is cropped
+   away instead. The iframe is offset upward past the avatar/username header and run far taller than
+   its container, and .audioflix-instagram-crop clips both ends -- so the profile row at the top and
+   the like/comment/share bar at the bottom fall outside the visible box. Previously this mode only
+   narrowed the same full embed, which is why every bit of that chrome was still on screen. */
+.audioflix-instagram-crop {
+    position: relative;
     width: min(100%, 430px);
-    min-height: 640px;
-    transform: scale(1.025);
-    transform-origin: center top;
+    height: min(72vh, 680px);
+    overflow: hidden;
+    border-radius: 12px;
+    background: #000;
+}
+
+.audioflix-instagram-crop .audioflix-instagram-embed {
+    position: absolute;
+    left: 0;
+    top: -104px;
+    width: 100%;
+    height: calc(100% + 520px);
+}
+
+/* Default view: the plain internal player, with the reel view one deliberate click away. */
+.audioflix-instagram-default {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 12px 0;
+}
+
+.audioflix-instagram-default button {
+    border-color: rgba(255, 79, 139, 0.55);
+    background: linear-gradient(115deg, rgba(255, 49, 117, 0.16), rgba(114, 54, 255, 0.16));
+    color: #ffd9e8;
+    font-size: 0.74rem;
+}
+
+.audioflix-instagram-close {
+    margin-left: auto;
+    min-width: 30px;
+    font-size: 0.95rem;
+    line-height: 1;
 }
 
 .audioflix-instagram-canvas.is-direct video {
@@ -101,9 +138,14 @@
 }
 
 @media (max-width: 620px) {
-    .audioflix-instagram-canvas,
-    .audioflix-instagram-canvas.is-focus iframe {
+    .audioflix-instagram-canvas {
         min-height: 520px;
+    }
+
+    /* The crop keeps a fixed height so the offsets that hide the chrome stay aligned; letting it
+       grow with min-height would slide the like bar back into view on a narrow screen. */
+    .audioflix-instagram-crop {
+        height: min(64vh, 560px);
     }
 
     .audioflix-instagram-source-list > li {
