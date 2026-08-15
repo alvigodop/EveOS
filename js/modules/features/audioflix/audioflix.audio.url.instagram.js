@@ -109,27 +109,66 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
         async function resolveDirect(item) {
             try {
                 const result = await window.EveAudioflixNative?.resolveInstagramVideo?.(item?.url);
-                return (result?.ok && result.videoUrl) ? result : null;
+                if (!(result?.ok && result.videoUrl)) return null;
+                // Kept for later. This is the only moment the real video URL is ever visible, and
+                // with it a Reel stays playable after the server goes away.
+                window.EveAudioflixInstagramCache?.remember?.(canonical(item?.url), result);
+                return result;
             } catch (error) {
                 return null;
             }
         }
 
-        async function showDirectVideo(host, item, preResolved) {
-            setStageStatus('Resolving the Reel video through EveOS localhost...');
-            const result = preResolved || await resolveDirect(item);
+        /** True once the element has real media, false if the source is rejected or never opens.
+         *
+         * A remembered link is signed and expires on Instagram's schedule. An expired one usually
+         * errors immediately, but can also simply hang, so the wait is bounded -- falling back to the
+         * embed a few seconds late is recoverable, waiting forever is not. */
+        function firstPlayable(video) {
+            return new Promise((resolve) => {
+                video.addEventListener('loadedmetadata', () => resolve(true), { once: true });
+                video.addEventListener('error', () => resolve(false), { once: true });
+                setTimeout(() => resolve(false), 8000);
+            });
+        }
+
+        async function showDirectVideo(host, item, preResolved, options = {}) {
+            setStageStatus(options.offline
+                ? 'Playing this Reel from the video URL remembered from an earlier session...'
+                : 'Resolving the Reel video through EveOS localhost...');
+            const live = preResolved || await resolveDirect(item);
+            // A remembered link keeps Direct Video working in the reel view with no server too,
+            // rather than only on the plain player -- the same mode should not behave differently
+            // depending on which surface opened it.
+            const result = live || window.EveAudioflixInstagramCache?.recall?.(canonical(item?.url));
             if (!result) {
                 throw new Error('Direct Video needs the EveOS localhost resolver. Focus and Full Embed play without it.');
             }
+            // Anything not resolved live is a remembered link: no server to proxy through, and it
+            // has to prove it still opens before it is trusted with the transport.
+            const offline = options.offline === true || !live;
             host.replaceChildren();
             const video = document.createElement('video');
             video.className = 'audioflix-instagram-video';
             video.controls = true;
             video.playsInline = true;
             video.autoplay = true;
-            video.src = window.EveAudioflixNative?.getProxyUrl?.(result.videoUrl) || result.videoUrl;
+            // Offline there is no proxy to route through, and none is needed: a media element loads
+            // a cross-origin URL without CORS, which is precisely why this works with no server.
+            const proxied = offline ? '' : window.EveAudioflixNative?.getProxyUrl?.(result.videoUrl);
+            video.src = proxied || result.videoUrl;
             video.volume = Math.max(0, Math.min(1, Number(item.volume ?? 1)));
             host.append(video);
+            // Prove the media opens BEFORE handing it the transport. A remembered link that has
+            // expired would otherwise leave Play and Stop wired to a video that can never start.
+            if (offline && !(await firstPlayable(video))) {
+                video.removeAttribute('src');
+                video.remove();
+                // Proven dead rather than merely old: stop reaching for it, so the wait is paid
+                // once instead of on every play.
+                window.EveAudioflixInstagramCache?.forget?.(canonical(item?.url));
+                return false;
+            }
             const player = {
                 play: () => video.play(), pause: () => video.pause(), destroy: () => { clearTimer(); video.pause(); video.removeAttribute('src'); video.load(); },
                 setCurrentTime: (value) => { video.currentTime = Number(value || 0); },
@@ -145,7 +184,10 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
                 emitProgress();
             }, 250);
             await video.play().catch(() => {});
-            setStageStatus('Playing the Reel video through EveOS localhost.');
+            setStageStatus(options.offline
+                ? 'Playing this Reel offline — Play, Stop and the seek bar are the real thing.'
+                : 'Playing the Reel video through EveOS localhost.');
+            return true;
         }
 
         /** The embed reduced to just the video: no avatar, no like bar, no comment box.
@@ -300,12 +342,24 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
                 await showDirectVideo(canvas, item, direct);
                 return;
             }
-            // No resolver: the Instagram embed is the only player there is, so it renders here and
-            // the track is playable straight from file://. Only the mode switcher waits behind the
-            // button -- withholding playback too just made a reel that could not be played at all.
+            // No resolver -- but a Reel played once while localhost was up left its real video URL
+            // behind, and a media element loads that cross-origin without CORS. So Play genuinely
+            // starts this Reel and Stop genuinely stops it, with no server running at all. The
+            // embed cannot do that: it is cross-origin, ignores autoplay, and offers no play API.
+            const remembered = window.EveAudioflixInstagramCache?.recall?.(url);
+            if (remembered) {
+                canvas.className = 'audioflix-instagram-canvas is-direct';
+                const playing = await showDirectVideo(canvas, item, remembered, { offline: true });
+                if (mine !== generation) return;
+                if (playing) return;
+                canvas.className = 'audioflix-instagram-canvas is-focus';
+            }
+            // Nothing remembered: the Instagram embed is the only player there is, so it renders
+            // here and the track is at least watchable straight from file://. Play cannot start it
+            // -- that tap has to be yours -- which is exactly what the remembered URL above avoids.
             showFocus(canvas, item, url);
-            setStageStatus('Playing through Instagram. Start EveOS localhost, or localize this'
-                + ' track, for a seek bar.');
+            setStageStatus('Playing through Instagram — tap the Reel itself to start it. Play once'
+                + ' with EveOS localhost up and it will start from Play on its own after that.');
         }
 
         function wireOpenButton(host, item, url, failed) {
