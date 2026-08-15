@@ -31,7 +31,7 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
         const known = window.EveAudioflixInstagramCache?.shape?.(url);
         if (!known) return false;
         stage.style.aspectRatio = `${known.width} / ${known.height}`;
-        stage.style.height = 'auto';
+        stage.style.height = 'auto'; stage.dataset.shaped = '1';
         // Portrait needs holding back to phone width; landscape should use the room it has, or it
         // sits as a small strip in the middle of a large empty box.
         stage.style.width = known.height > known.width ? 'min(100%, 430px)' : '100%';
@@ -53,7 +53,7 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             const media = total - EMBED_HEADER - EMBED_FOOTER;
             if (media < 120) return;   // nonsense; keep the ratio fallback rather than a sliver
             learnedHeights.set(frame.src, Math.round(media));
-            stage.style.height = Math.round(media) + 'px';
+            stage.style.height = Math.round(media) + 'px'; stage.dataset.shaped = '1';
             stage.style.aspectRatio = 'auto';
             // The measured media height against the stage width says which way the reel is oriented
             // -- the one piece of shape information the embed does give up. A landscape reel held at
@@ -65,7 +65,7 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
         // Apply what we already know before the first message arrives.
         const learned = learnedHeights.get(frame.src);
         if (learned) {
-            stage.style.height = learned + 'px';
+            stage.style.height = learned + 'px'; stage.dataset.shaped = '1';
             stage.style.aspectRatio = 'auto';
         }
         window.addEventListener('message', onMessage);

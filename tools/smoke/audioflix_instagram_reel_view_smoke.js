@@ -109,6 +109,19 @@ function main() {
     assert(/background:\s*#[0-9a-f]{3,8}/i.test(coverRule),
         'the cover is opaque, or the chrome shows straight through it');
     assert(/audioflix-instagram-cover/.test(js), 'focus mode actually renders the cover');
+
+    // ...but it must stand down once the height is real. The cover is a patch for a GUESSED stage
+    // height: with a real one the crop ends where the video ends and the like bar is clipped by
+    // overflow, so an opaque strip pinned to the bottom has nothing left to hide and instead sits
+    // on the last 52px of the video -- the black band across the bottom of the picture.
+    assert(/\.audioflix-instagram-focus-stage\[data-shaped="1"\] \.audioflix-instagram-cover \{\s*display: none/.test(css),
+        'the cover is hidden once the stage carries a real height, or it hides video instead of chrome');
+    assert(/stage\.dataset\.shaped = '1';/.test(js),
+        'the stage is marked when a real height is applied; without the mark the rule never matches');
+    const shapedMarks = js.match(/stage\.dataset\.shaped = '1';/g) || [];
+    assert(shapedMarks.length >= 3,
+        'every path that sets a real height marks it -- known dimensions, a fresh MEASURE, and a'
+        + ' remembered one; miss any and that path keeps the strip over the video');
     const inner = css.slice(css.indexOf('.audioflix-instagram-crop .audioflix-instagram-embed {'));
     const innerRule = inner.slice(0, inner.indexOf('}'));
     assert(/top:\s*-\d+px/.test(innerRule),

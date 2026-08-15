@@ -136,6 +136,14 @@
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* ...but only while the stage height is still a guess. Once the height is real the crop already
+   ends exactly where the video ends, so the like bar is clipped by overflow rather than painted
+   over, and this strip has nothing left to hide -- it would sit on the bottom 52px of the picture
+   instead, which is the black band across the foot of the video. So it retires once shaped. */
+.audioflix-instagram-focus-stage[data-shaped="1"] .audioflix-instagram-cover {
+    display: none;
+}
+
 /* An empty canvas must take no room at all -- otherwise a failed load left a permanently black box
    under the button, which read as "two panels opened" when only one had anything in it. */
 .audioflix-instagram-canvas:empty {
