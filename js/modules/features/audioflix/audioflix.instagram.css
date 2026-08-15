@@ -58,17 +58,29 @@
 }
 
 /* Focus mode: video only.
-   Instagram's embed has no parameter for "just the player", so the surrounding chrome is cropped
-   away instead. The iframe is offset upward past the avatar/username header and run far taller than
-   its container, and .audioflix-instagram-crop clips both ends -- so the profile row at the top and
-   the like/comment/share bar at the bottom fall outside the visible box. Previously this mode only
-   narrowed the same full embed, which is why every bit of that chrome was still on screen. */
-.audioflix-instagram-crop {
+   Ported from ReelDeck's focus stage. A fixed pixel height cannot work here: the visible window has
+   to end where the video ends, and the video's height follows the reel's aspect ratio, so the stage
+   is sized by aspect-ratio and the crop fills it. The embed is then offset up past the profile
+   header and run taller than the box.
+   The bottom is covered rather than cropped. The embed is cross-origin, so its internal layout
+   cannot be measured and no offset reliably lands on the end of the video -- an opaque strip over
+   the residual "View more / likes / comment" band is what actually removes it. Cropping alone left
+   all of that on screen. */
+.audioflix-instagram-focus-stage {
     position: relative;
     width: min(100%, 430px);
-    height: min(72vh, 680px);
+    aspect-ratio: 9 / 16;
+    min-height: 190px;
+    max-height: 82vh;
     overflow: hidden;
     border-radius: 12px;
+    background: #000;
+}
+
+.audioflix-instagram-crop {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
     background: #000;
 }
 
@@ -77,7 +89,19 @@
     left: 0;
     top: -104px;
     width: 100%;
-    height: calc(100% + 520px);
+    height: calc(100% + var(--audioflix-embed-extra, 520px));
+}
+
+/* The strip that hides what the crop cannot reach. Opaque on purpose. */
+.audioflix-instagram-cover {
+    position: absolute;
+    z-index: 10;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 52px;
+    background: #08080c;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* An empty canvas must take no room. It reserves 360px unconditionally, so whenever the media

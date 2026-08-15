@@ -69,17 +69,32 @@ function main() {
         'the direct video exposes its controls, which is what makes it the "video plus play bar" mode');
 
     // ---- the crop has to actually clip, or Focus is just a narrower full embed again ----
+    const stage = css.slice(css.indexOf('.audioflix-instagram-focus-stage {'));
+    const stageRule = stage.slice(0, stage.indexOf('}'));
+    assert(/aspect-ratio:\s*9\s*\/\s*16/.test(stageRule),
+        'the focus stage is sized by aspect ratio, so the window ends where the video does;'
+        + ' a fixed pixel height cannot track the reel and left the bottom chrome showing');
     const crop = css.slice(css.indexOf('.audioflix-instagram-crop {'));
     const cropRule = crop.slice(0, crop.indexOf('}'));
     assert(/overflow:\s*hidden/.test(cropRule), 'the crop clips its overflow');
-    assert(/height:\s*min\(/.test(cropRule),
-        'the crop has a fixed height; a growing box would slide the like bar back into view');
+
+    // The cover is not decoration. The embed is cross-origin, so its internal height cannot be
+    // measured and no offset reliably lands on the end of the video -- without an opaque strip the
+    // "View more / likes / comment" band stays on screen no matter how the crop is tuned.
+    const cover = css.slice(css.indexOf('.audioflix-instagram-cover {'));
+    const coverRule = cover.slice(0, cover.indexOf('}'));
+    assert(/position:\s*absolute/.test(coverRule) && /bottom:\s*0/.test(coverRule),
+        'the cover is pinned to the bottom of the stage');
+    assert(/background:\s*#[0-9a-f]{3,8}/i.test(coverRule),
+        'the cover is opaque, or the chrome shows straight through it');
+    assert(/audioflix-instagram-cover/.test(js), 'focus mode actually renders the cover');
     const inner = css.slice(css.indexOf('.audioflix-instagram-crop .audioflix-instagram-embed {'));
     const innerRule = inner.slice(0, inner.indexOf('}'));
     assert(/top:\s*-\d+px/.test(innerRule),
         'the embed is offset upward, which is what hides the profile header');
-    assert(/height:\s*calc\(100% \+ \d+px\)/.test(innerRule),
-        'the embed runs taller than the crop, which is what pushes the like bar out of view');
+    assert(/height:\s*calc\(100% \+ var\(--audioflix-embed-extra, \d+px\)\)/.test(innerRule),
+        'the embed runs taller than the crop, via a tunable custom property, which is what pushes'
+        + ' the like bar down out of the cropped window');
 
     // ---- a reel must play with no server at all ----
     // Focus and Full Embed are Instagram's own iframe and need nothing; only Direct Video needs the
@@ -92,12 +107,29 @@ function main() {
     const resolveBody = resolve.slice(0, resolve.indexOf('\n        }'));
     assert(/return null/.test(resolveBody) && /catch \(error\)/.test(resolveBody),
         'a missing resolver yields null rather than throwing, so callers can fall back');
-    assert(/const direct = await resolveDirect\(item\);/.test(playBody)
-        && /showFocus\(canvas, item, url\)/.test(playBody),
-        'the plain player falls back to the embed when the resolver is absent');
+    assert(/const direct = await resolveDirect\(item\);/.test(playBody),
+        'the plain player still tries the resolver, so a running server gives a real play bar');
+    assert(/showFocus\(/.test(js), 'the embed fallback exists for the reel view to use');
     assert(/is-available/.test(js) && /is-available/.test(css),
         'Direct Video advertises whether it is reachable, so an offline resolver reads as one'
         + ' unavailable mode rather than a broken player');
+
+    // ---- async work must not write into a view the user already left ----
+    // resolveDirect takes seconds on file://. Clicking through during that wait used to let the
+    // stale continuation render an embed into a DETACHED canvas: an invisible iframe that kept
+    // playing and could not be closed, because nothing pointed at it any more.
+    assert(/let generation = 0;/.test(js), 'view changes are tracked by a generation token');
+    assert(/if \(mine !== generation\) return;/.test(js),
+        'async continuations check the view has not moved on before touching the DOM');
+    assert(/function stopActive\(\)/.test(js) && /destroy\?\.\(\)/.test(js),
+        'closing tears the player down explicitly rather than just dropping the reference');
+    const closeHandler = js.slice(js.indexOf("[data-reel-close]')"));
+    assert(closeHandler.slice(0, 320).includes('stopActive()'),
+        'the close control stops the reel rather than leaving it playing behind the plain player');
+
+    // ---- opening a reel must not stack panels ----
+    assert(!/showFocus\(canvas, item, url\)/.test(playBody),
+        'the plain player embeds nothing by itself; the reel view is a deliberate second step');
 
     // ---- the way into the reel view must survive a media failure ----
     // The button used to be wired AFTER the media load. A resolver that answered but could not
