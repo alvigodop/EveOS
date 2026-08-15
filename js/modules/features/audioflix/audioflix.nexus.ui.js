@@ -11,6 +11,26 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
     const ns = window.EveAudioflixNexusUi;
     if (ns.ready) return;
 
+    // The results list scrolls inside itself (max-height + overflow-y), so restoring the outer
+    // panel's scroll does nothing for it. Every rerender rebuilt it at the top -- and playing a
+    // track rerenders -- so pressing Play on anything below the fold threw you back to the top of
+    // the list. Keyed by type, because music and sounds each have their own container.
+    ns.captureScroll = function captureScroll(root) {
+        const seen = new Map();
+        (root ? root.querySelectorAll('[data-af-nexus-results]') : []).forEach((element) => {
+            seen.set(element.dataset.afNexusResults, element.scrollTop);
+        });
+        return seen;
+    };
+
+    ns.restoreScroll = function restoreScroll(root, seen) {
+        if (!root || !seen) return;
+        root.querySelectorAll('[data-af-nexus-results]').forEach((element) => {
+            const top = seen.get(element.dataset.afNexusResults);
+            if (top) element.scrollTop = top;
+        });
+    };
+
     let expandedSections = { artist: false, group: false, folder: false, duration: false, classifier: false };
     const lastMatchCounts = { music: 0, sound: 0 };
 

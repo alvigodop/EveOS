@@ -69,6 +69,9 @@
 .audioflix-instagram-focus-stage {
     position: relative;
     width: min(100%, 430px);
+    /* Fallback only. The real height is set inline from Instagram's own MEASURE message, because a
+       ratio guessed here is wrong for every reel that is not that shape -- which is exactly how the
+       "View more / likes / comment" band kept showing under the video. */
     aspect-ratio: 9 / 16;
     min-height: 190px;
     max-height: 82vh;
@@ -111,6 +114,31 @@
     min-height: 0;
     border: 0;
     background: none;
+}
+
+/* Plain view toolbar: the single way into the reel view, on its own row above the media rather
+   than a button floating over an empty panel. */
+.audioflix-instagram-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+}
+
+.audioflix-instagram-bar-label {
+    color: rgba(235, 241, 245, 0.72);
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.audioflix-instagram-bar button {
+    border-color: rgba(255, 79, 139, 0.55);
+    background: linear-gradient(115deg, rgba(255, 49, 117, 0.16), rgba(114, 54, 255, 0.16));
+    color: #ffd9e8;
+    font-size: 0.74rem;
+    white-space: nowrap;
 }
 
 /* Default view: the plain internal player, with the reel view one deliberate click away. */

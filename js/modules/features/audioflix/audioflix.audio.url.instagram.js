@@ -8,6 +8,35 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
     const canonical = (value) => window.EveAudioflixInstagramPlaylists?.parseUrls?.(value)?.[0] || '';
     const embedUrl = (url) => `${canonical(url)}embed/?utm_source=ig_embed`;
 
+    // Instagram's embed reports its own rendered height to the parent -- {type:'MEASURE',
+    // details:{height}}. That is the only honest source for where the video ends: the iframe is
+    // cross-origin, so nothing inside it can be measured directly, and a guessed aspect ratio is
+    // wrong for every reel that is not the shape guessed. HEADER is the avatar/username row above
+    // the media, FOOTER the "View more / likes / comment" band below it; subtract both and what
+    // remains is the media itself.
+    const EMBED_HEADER = 104;
+    const EMBED_FOOTER = 168;
+
+    /** Size `stage` to the media once Instagram says how tall it rendered. Returns a detach fn. */
+    function trackEmbedHeight(frame, stage) {
+        function onMessage(event) {
+            if (frame.contentWindow && event.source !== frame.contentWindow) return;
+            let data = event.data;
+            if (typeof data === 'string') {
+                try { data = JSON.parse(data); } catch (error) { return; }
+            }
+            const total = Number(data && data.details && data.details.height);
+            if (!data || data.type !== 'MEASURE' || !Number.isFinite(total) || total <= 0) return;
+            const media = total - EMBED_HEADER - EMBED_FOOTER;
+            if (media < 120) return;   // nonsense; keep the ratio fallback rather than a sliver
+            stage.style.height = Math.round(media) + 'px';
+            stage.style.aspectRatio = 'auto';
+        }
+        window.addEventListener('message', onMessage);
+        // Must not outlive the frame, or every reel ever opened leaves a listener behind.
+        return function untrack() { window.removeEventListener('message', onMessage); };
+    }
+
     function create(deps) {
         const { ensureStage, setStageStatus, emitPlayback, emitProgress, view } = deps;
         let timer = 0;
@@ -118,7 +147,11 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             cover.className = 'audioflix-instagram-cover';
             stage.append(crop, cover);
             canvas.append(stage);
-            setActive(makeFramePlayer(frame), item, true);
+            const untrack = trackEmbedHeight(frame, stage);
+            const player = makeFramePlayer(frame);
+            const teardown = player.destroy;
+            player.destroy = async () => { untrack(); return teardown(); };
+            setActive(player, item, true);
             setStageStatus('Focus view - video only.');
         }
 
@@ -192,13 +225,18 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             stopActive();
             const mine = ++generation;
             const host = ensureStage(item, 'Instagram Reel', true);
-            host.className = 'audioflix-provider-stage audioflix-instagram-stage';
-            // A chain, not a pile: opening a reel gives the plain player and one button. Nothing
-            // embeds itself here. Rendering the reel automatically stacked a second media box under
-            // the button on open, which is what read as several panels appearing at once.
-            host.innerHTML = '<div class="audioflix-instagram-default">'
+            // classList.add, never className=. `host` is the .audioflix-provider-frame element, and
+            // view.open() finds it again by that exact class every time it is called. Overwriting
+            // className stripped it, so the NEXT open returned null and ensureStage died on
+            // null.replaceChildren() -- which is why the close button appeared to do nothing: it
+            // re-enters playInstagram, and that is where the throw landed.
+            host.classList.add('audioflix-instagram-stage');
+            // One box, not three. A toolbar row carrying the single way into the reel view, and
+            // the media underneath it -- rather than a button floating over an empty panel.
+            host.innerHTML = '<div class="audioflix-instagram-bar">'
+                + '<span class="audioflix-instagram-bar-label">Instagram Reel</span>'
                 + '<button type="button" data-reel-open>Open Reel view</button></div>'
-                + '<div class="audioflix-instagram-canvas is-direct"></div>';
+                + '<div class="audioflix-instagram-canvas is-focus"></div>';
             const canvas = host.querySelector('.audioflix-instagram-canvas');
 
             const failed = (error) => {
@@ -215,11 +253,16 @@ window.EveAudioflixInstagramPlayback = window.EveAudioflixInstagramPlayback || {
             // another track. Writing into `canvas` now would render into a detached node.
             if (mine !== generation) return;
             if (direct) {
+                canvas.className = 'audioflix-instagram-canvas is-direct';
                 await showDirectVideo(canvas, item, direct);
                 return;
             }
-            setStageStatus('Reel ready. Open Reel view to play it - without EveOS localhost,'
-                + ' the Instagram player is the only one available.');
+            // No resolver: the Instagram embed is the only player there is, so it renders here and
+            // the track is playable straight from file://. Only the mode switcher waits behind the
+            // button -- withholding playback too just made a reel that could not be played at all.
+            showFocus(canvas, item, url);
+            setStageStatus('Playing through Instagram. Start EveOS localhost, or localize this'
+                + ' track, for a seek bar.');
         }
 
         function wireOpenButton(host, item, url, failed) {

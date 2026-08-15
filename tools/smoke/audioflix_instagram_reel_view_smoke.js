@@ -128,8 +128,24 @@ function main() {
         'the close control stops the reel rather than leaving it playing behind the plain player');
 
     // ---- opening a reel must not stack panels ----
-    assert(!/showFocus\(canvas, item, url\)/.test(playBody),
-        'the plain player embeds nothing by itself; the reel view is a deliberate second step');
+    // The chain is about the INSPECTOR, not playback. Without a resolver the Instagram embed is the
+    // only player there is, so the plain view renders it and the track plays from file://; what
+    // waits behind the button is the mode switcher.
+    assert(!/buildInspector\(/.test(playBody),
+        'the plain player does not build the reel inspector; that is the deliberate second step');
+    assert(/showFocus\(canvas, item, url\)/.test(playBody),
+        'the plain player still renders a player, so a reel is playable without a server');
+
+    // ---- the crop is sized from Instagram's own measurement, not a guessed ratio ----
+    assert(/function trackEmbedHeight\(/.test(js) && /'MEASURE'/.test(js),
+        'the embed height comes from the MEASURE message Instagram posts; a guessed ratio is wrong'
+        + ' for every reel that is not that shape, which is how the like bar kept showing');
+    assert(/EMBED_HEADER/.test(js) && /EMBED_FOOTER/.test(js),
+        'the reported total is reduced by the header and the action band to leave just the media');
+    assert(/removeEventListener\('message'/.test(js),
+        'the measurement listener is detached, so reels do not each leave one behind');
+    const focusFn = js.slice(js.indexOf('function showFocus('), js.indexOf('function showFullEmbed('));
+    assert(focusFn.includes('untrack()'), 'destroying the focus player detaches its listener');
 
     // ---- the way into the reel view must survive a media failure ----
     // The button used to be wired AFTER the media load. A resolver that answered but could not
