@@ -70,6 +70,25 @@ function main() {
     assert(/video\.controls = true/.test(js),
         'the direct video exposes its controls, which is what makes it the "video plus play bar" mode');
 
+    // ---- switching to localhost must UPGRADE the transport, not inherit the embed's ----
+    // The two modes need genuinely different players. The embed one can only blank and reload the
+    // frame, because a cross-origin iframe cannot be driven by script. A same-origin <video> can be
+    // played, paused and seeked for real. Reusing the frame player here would look harmless and
+    // silently cost localhost mode its seeking, which is the whole reason to run the resolver.
+    const directBody = js.slice(js.indexOf('async function showDirectVideo('));
+    const directScoped = directBody.slice(0, directBody.indexOf('\n        function '));
+    assert(!/makeFramePlayer\(/.test(directScoped),
+        'localhost mode builds its own player rather than reusing the embed transport, which can'
+        + ' only blank and reload and would drop real seeking');
+    assert(/play: \(\) => video\.play\(\)/.test(directScoped)
+        && /pause: \(\) => video\.pause\(\)/.test(directScoped),
+        'Play and Stop drive the real element on localhost, so they do what they say');
+    assert(/setCurrentTime: \(value\) => \{ video\.currentTime/.test(directScoped),
+        'seeking reaches the element; without it the restored play bar would scrub nothing');
+    assert(/view\.playback\.paused = video\.paused/.test(directScoped),
+        'the reported state follows the element rather than being assumed, so the control matches'
+        + ' what is actually happening once localhost is up');
+
     // ---- the crop has to actually clip, or Focus is just a narrower full embed again ----
     const stage = css.slice(css.indexOf('.audioflix-instagram-focus-stage {'));
     const stageRule = stage.slice(0, stage.indexOf('}'));
