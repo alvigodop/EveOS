@@ -18,7 +18,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/data-state/data-state.apply.shared.js?v=d01769c754ff",
     "js/modules/features/data-state/data-state.apply.scoped.helpers.js?v=bbb58778cbc5",
     "js/modules/features/data-state/data-state.apply.scoped.folder.js?v=5f43aff8fa7a",
-    "js/modules/features/data-state/data-state.apply.scoped.variants.js?v=fd167b8c385a",
+    "js/modules/features/data-state/data-state.apply.scoped.variants.js?v=3e9d3a8433f5",
     "js/modules/features/data-state/data-state.apply.scoped.js?v=4915b0d4e5f2",
     "js/modules/features/data-state/data-state.apply.js?v=42c2329caf41",
     "js/modules/features/data-state/data-state.core.js?v=ff295c7fc94d",

@@ -3,8 +3,8 @@
  *
  * The Audioflix duplicate detector + merge engine (audioflix.state.duplicates.js), exercised
  * against the real state store in a VM (state.groups + state, then duplicates):
- *   1. Detection: two music tracks sharing a title form one duplicate cluster; per-item lookups
- *      and the isDuplicate flag agree; the shared engine also flags soundboard duplicates.
+ *   1. Detection: matching titles are soft duplicates while shared source identity is hard.
+ *      Per-item lookups and the isDuplicate flag agree for music and soundboard entries.
  *   2. Dual-source merge: merging an ONLINE-url track and a FILE-path track of the same title
  *      leaves ONE survivor carrying BOTH (url = online, localPath = the file); the other is gone.
  *   3. Keep both: dismissDuplicate suppresses the notice for that pair without deleting anything.
@@ -68,12 +68,36 @@ const LOCAL = 'C:/Users/drift/Music/night-drive.mp3';
         });
         const { D } = loadAll(ctx);
         const clusters = D.findDuplicates('music');
-        assert(clusters.length === 1, 'one music duplicate cluster expected');
-        assert(clusters[0].items.length === 2, 'cluster holds both tracks');
+        assert(clusters.length === 1, 'one music duplicate pair expected');
+        assert(clusters[0].items.length === 2, 'pair holds both tracks');
+        assert(clusters[0].level === 'soft', 'title-only match is intentionally soft');
+        assert(D.duplicateLevelFor('music', 'a') === 'soft', 'card-level marker reports soft');
         assert(D.duplicatesFor('music', 'a').map((it) => it.id).join() === 'b', 'a matches b');
         assert(D.isDuplicate('music', 'a') && D.isDuplicate('music', 'b'), 'both flagged as dup');
         assert(D.isDuplicate('sound', 's1'), 'shared engine flags soundboard dup too');
         console.log('detection OK (music cluster + soundboard shared engine)');
+    }
+
+    // --- 1b. Duration differences remain soft; a shared URL/provider identity is hard. ---
+    {
+        const ctx = makeCtx({
+            music: [
+                { id: 'full', title: 'Signal', url: 'https://media.example/full', duration: 240 },
+                { id: 'clip', title: 'Signal', url: 'https://media.example/clip', duration: 45 },
+                { id: 'mirror', title: 'Signal mirror', url: 'https://media.example/full', duration: 240 },
+                { id: 'provider-a', title: 'Provider A', url: 'https://one.example/a', sourceProvider: 'instagram', sourceId: 'abc' },
+                { id: 'provider-b', title: 'Provider B', url: 'https://two.example/b', sourceProvider: 'instagram', sourceId: 'abc' }
+            ]
+        });
+        const { D } = loadAll(ctx);
+        const fullInfo = D.duplicateInfoFor('music', 'full');
+        const clipInfo = fullInfo.find((entry) => entry.item.id === 'clip');
+        const mirrorInfo = fullInfo.find((entry) => entry.item.id === 'mirror');
+        assert(clipInfo?.level === 'soft', 'same title with a clipped duration remains a soft duplicate');
+        assert(clipInfo?.reason.includes('different duration'), 'soft match explains its duration difference');
+        assert(mirrorInfo?.level === 'hard' && mirrorInfo.reason.includes('matching URL'), 'shared URL is a hard duplicate');
+        assert(D.duplicateLevelFor('music', 'provider-a') === 'hard', 'shared provider identity is hard even across URL aliases');
+        console.log('duplicate severity OK (soft duration match, hard source identity)');
     }
 
     // --- 2. Dual-source merge: online + file-path -> one track carrying both ---

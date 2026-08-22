@@ -5,7 +5,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 window.EveModuleManifestScriptChunks.push([
     // Modal Modules
     "js/modules/modals/templates/tpl-core.js?v=ca96bf0f74a4",
-    "js/modules/modals/templates/tpl-settings.backup.js?v=e5a4615b89f6",
+    "js/modules/modals/templates/tpl-settings.backup.js?v=bc728e9e62cc",
     "js/modules/modals/templates/tpl-settings.js?v=44858505d6ec",
     "js/modules/modals/templates/tpl-bulk.js?v=97345b20a002",
     "js/modules/modals/templates/tpl-emoji.js?v=772c72038d40",
@@ -15,7 +15,8 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-core.js?v=853abd6152ba",
     "js/modules/modals/emoji-picker.js?v=6984d0b289de",
     "js/modules/modals/modal-settings.ratings.js?v=178b9460bbb9",
-    "js/modules/modals/modal-settings.modular.ui.js?v=3b221d50b540",
+    "js/modules/modals/modal-settings.modular.ui.js?v=89212c404965",
+    "js/modules/modals/modal-settings.audioflix-backup.js?v=202735e5fc48",
     "js/modules/modals/modal-settings.duplicates.js?v=32e96ac69523",
     "js/modules/modals/modal-settings.modular.browser.helpers.files.js?v=0697dec880f1",
     "js/modules/modals/modal-settings.modular.browser.helpers.normalize.js?v=31643869b261",
@@ -25,7 +26,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-settings.modular.store.actions.js?v=3ba669112db0",
     "js/modules/modals/modal-settings.modular.store.js?v=7e96028adf97",
     "js/modules/modals/modal-settings.modular.js?v=cdd0fb662a73",
-    "js/modules/modals/modal-settings.js?v=3cb9259848b1",
+    "js/modules/modals/modal-settings.js?v=0d8bafee7b17",
     "js/modules/modals/modal-bulk.runtime.shared.js?v=4428a1848fce",
     "js/modules/modals/modal-bulk.runtime.ui.js?v=4ff9645da483",
     "js/modules/modals/modal-bulk.runtime.js?v=8e44033c883f",

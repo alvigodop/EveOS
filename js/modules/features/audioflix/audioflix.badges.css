@@ -14,6 +14,12 @@
     color: #f87171;
 }
 
+.audioflix-dup-badge.is-soft {
+    background: rgba(245, 158, 11, 0.16);
+    border-color: rgba(245, 158, 11, 0.42);
+    color: #fbbf24;
+}
+
 .audioflix-local-badge {
     display: inline-flex;
     align-items: center;

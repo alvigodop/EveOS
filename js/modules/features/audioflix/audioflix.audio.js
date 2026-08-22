@@ -1,7 +1,6 @@
 window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 (function () {
     'use strict';
-
     const ns = window.EveAudioflixAudio;
     if (ns.ready) return;
 
@@ -117,11 +116,10 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             dispatch('eve:audioflix-progress', getPlaybackState());
         });
         audio.addEventListener('ended', function () {
-            // Natural end: let the routed device play out its remaining cushion instead of having
-            // the tail cleared (that truncation is what sounded like a freeze at the end).
-            musicCapture?.stop({ drain: true });
+            const endedItem = currentItem;
+            const settle = Promise.resolve(musicCapture?.stop({ drain: true })).catch(() => false);
             lastStatus = 'Ended';
-            dispatch('eve:audioflix-playback', { status: lastStatus, item: currentItem });
+            dispatch('eve:audioflix-playback', { status: lastStatus, item: endedItem, settle });
             dispatch('eve:audioflix-progress', getPlaybackState());
         });
         ['loadedmetadata', 'durationchange', 'timeupdate', 'seeked'].forEach((eventName) => {
@@ -173,6 +171,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
 
     async function playUrlItem(item, playOptions = {}) {
         if (!urlPlayback?.canHandle?.(item)) throw new Error('This linked track needs the EveOS resolver server.');
+        await musicCapture?.stop?.().catch(() => false);
         if (audio) audio.pause();
         await stopNativePlayback(false);
         currentItem = item;
@@ -200,7 +199,6 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         }
         return opened;
     }
-
     async function playItem(item) {
         // Resume an existing provider controller before any async preparation can consume the
         // originating click gesture. This matters for protected iframe players such as Spotify.
@@ -300,13 +298,14 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         waveformController?.attachPlayer?.(player);
         currentItem = safeItem;
         player.volume = activeStreamVolume = window.EveAudioflixState.normalizeVolume(safeItem.volume, 1);
-        // Music on the native EveOS route plays through the element (instant, seekable, no
-        // whole-track decode) with local output silenced and its live PCM streamed to the bridge.
-        const nativeMusic = safeItem.type === 'music'
-            && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.() && await musicCapture?.start();
-        if (!nativeMusic) musicCapture?.stop();
-        activeBrowserRouteLabel = nativeMusic ? (state().nativeOutputLabel || 'native route') : (await routeBrowserStream(safeItem) || '');
         if (player.src !== safeItem.url) player.src = safeItem.url;
+        // Direct sinks remain media-thread driven in background tabs. PCM capture is the fallback.
+        const directRoute = await routeBrowserStream(safeItem) || '';
+        const nativeMusic = safeItem.type === 'music' && !directRoute
+            && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()
+            && await musicCapture?.start(player, safeItem.id);
+        if (!nativeMusic) await musicCapture?.stop?.().catch(() => false);
+        activeBrowserRouteLabel = nativeMusic ? (state().nativeOutputLabel || 'native route') : directRoute;
         try {
             await player.play();
         } catch (error) {
@@ -342,7 +341,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         const currentId = String(currentItem?.id || currentItem?.url || '');
         if (currentId && currentId === String(itemId || '')) {
             const stoppedItem = currentItem;
-            musicCapture?.stop();
+            await musicCapture?.stop?.().catch(() => false);
             await urlPlayback?.stop?.().catch?.(() => {});
             await stopNativePlayback(false).catch(() => {});
             if (audio) {
@@ -361,7 +360,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         const stoppedItem = currentItem;
         const pending = layerController.stopAll();
         waveformController?.stop?.();
-        musicCapture?.stop();
+        await musicCapture?.stop?.().catch(() => false);
         if (audio) {
             audio.pause();
             try { audio.currentTime = 0; audio.removeAttribute('src'); audio.load(); } catch {}
@@ -383,6 +382,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
             nativeProgress(nativePausedAt, activeNativeBuffer?.duration || 0, true);
             return;
         }
+        await musicCapture?.stop?.().catch(() => false);
         ensureAudio().pause();
     }
     async function seek(seconds) {

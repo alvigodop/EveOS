@@ -22,6 +22,7 @@ window.EveSettingsTemplates.backupPanel = `
                         <option value="card">Card Backup</option>
                         <option value="folder">Folder Backup</option>
                         <option value="bookmark">Bookmark Backup</option>
+                        <option value="audioflix">Audioflix Backup</option>
                         <option value="modular">Active Data Pack (Primary)</option>
                         <option value="layer">Copy Between Packs (Advanced)</option>
                     </select>
@@ -160,6 +161,30 @@ window.EveSettingsTemplates.backupPanel = `
                     </div>
                     <div style="font-size:0.78rem; opacity:0.75; margin-top:8px;">
                         Pick <strong>Root Bookmarks Only</strong> for bookmarks outside folders, or choose a specific folder to back up a single bookmark from there.
+                    </div>
+                </div>
+
+                <div class="backup-panel" data-backup-panel="audioflix">
+                    <h4 style="margin:0 0 10px 0;">Audioflix Backup</h4>
+                    <div style="font-size:0.8rem; opacity:0.82; margin-bottom:12px;">
+                        Export or merge one user-owned Audioflix library at a time. Imports never replace the other tab or wipe existing entries.
+                    </div>
+                    <div class="btn-action-row">
+                        <button onclick="exportAudioflixTabBackup('soundboard')" class="btn-backup">Export Soundboard</button>
+                        <label class="btn-restore">
+                            Import Soundboard
+                            <input type="file" style="display:none;" accept=".json,application/json" onchange="importAudioflixTabBackup(this, 'soundboard')">
+                        </label>
+                    </div>
+                    <div class="btn-action-row" style="margin-top:8px;">
+                        <button onclick="exportAudioflixTabBackup('music')" class="btn-backup">Export Music Library</button>
+                        <label class="btn-restore">
+                            Import Music Library
+                            <input type="file" style="display:none;" accept=".json,application/json" onchange="importAudioflixTabBackup(this, 'music')">
+                        </label>
+                    </div>
+                    <div id="audioflixBackupStatus" style="font-size:0.78rem; opacity:0.78; margin-top:10px;">
+                        Audioflix state is also included in full EveOS backups. Sonic Forge sessions, generated audio, and credentials are intentionally excluded.
                     </div>
                 </div>
 

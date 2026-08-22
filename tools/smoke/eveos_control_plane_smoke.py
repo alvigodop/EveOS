@@ -234,7 +234,32 @@ def helper_http_smoke():
         eveos_control_helper.world_book_control.stop_server = original_world_stop
 
 
+def malformed_health_response_smoke():
+    original_connection = eveos_web_control.http.client.HTTPConnection
+
+    class BrokenConnection:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def request(self, *_args, **_kwargs):
+            pass
+
+        def getresponse(self):
+            raise http.client.BadStatusLine("GET /api/status HTTP/1.1\r\n")
+
+        def close(self):
+            pass
+
+    try:
+        eveos_web_control.http.client.HTTPConnection = BrokenConnection
+        assert_true(eveos_web_control._health_payload() is None,
+                    "malformed health responses must be treated as an offline probe")
+    finally:
+        eveos_web_control.http.client.HTTPConnection = original_connection
+
+
 def main():
+    malformed_health_response_smoke()
     with tempfile.TemporaryDirectory(prefix="eveos-control-smoke-") as temp_dir:
         lifecycle_smoke(Path(temp_dir))
     helper_http_smoke()

@@ -196,7 +196,11 @@ window.EveAudioflixAudioOutput = window.EveAudioflixAudioOutput || {};
         let routed = null;
         try { routed = await resolvePlaybackSink(); } catch { routed = null; }
         if (routed?.deviceId) {
-            try { await applySink(routed.deviceId); nativeSinkNoticeShown = false; return routed.label || ''; }
+            try {
+                await applySink(routed.deviceId);
+                nativeSinkNoticeShown = false;
+                return routed.label || 'selected browser output';
+            }
             catch { /* Fall back to default browser audio output when custom sink ID is rejected/unpermitted */ }
         } else if (routed?.source === 'native-unmatched' && !nativeSinkNoticeShown) {
             nativeSinkNoticeShown = true;

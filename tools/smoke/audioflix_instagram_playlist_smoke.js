@@ -28,6 +28,7 @@ global.window = {
                     sourceId: index === 0 ? 'Alpha_1' : 'Beta-2',
                     title: index === 0 ? 'Sunset Drive' : 'Night Train',
                     artist: index === 0 ? 'drift' : 'nova',
+                    album: 'Road Trip Reels',
                     image: `https://cdn.example/${index}.jpg`,
                     duration: 12 + index,
                     position: index + 1,
@@ -118,6 +119,8 @@ global.CustomEvent = class CustomEvent {};
     assert(store.music.every((track) => track.sourceProvider === 'instagram'), 'all tracks retain provider identity');
     assert(store.musicGroupMap[store.music[1].id]?.includes('Road Trip Reels'), 'tracks join the collection group');
     assert(store.music[1].playlistPosition === 2 && store.music[1].image, 'position and artwork metadata survive import');
+    assert(store.music[0].artist === 'drift' && store.music[0].album === 'Road Trip Reels', 'artist and collection metadata survive import');
+    assert(store.music[0].duration === 12 && store.music[0].sourceId === 'Alpha_1', 'duration and stable Reel identity survive import');
 
     const retried = await window.EveAudioflixPlaylists.importPlaylist(source, { folder: 'Moved Reels' });
     assert(retried.ok && retried.added === 0, 're-import synchronizes instead of duplicating tracks');

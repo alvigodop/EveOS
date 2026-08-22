@@ -38,6 +38,10 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
         let priming = true;
         let pumping = false;
         let dropped = 0;
+        let streamId = '';
+        let activeItemId = '';
+        let pumpPromise = Promise.resolve();
+        let stopPromise = null;
 
         function reset() {
             pending = [];
@@ -59,25 +63,28 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             if (window.EveAudioflixNative?.isBridgeOffline?.()) return false;
             const payload = window.EveAudioflixAudioBridge?.encodePcm?.(chunk, 0, chunk.length, getVolume());
             if (!payload) return true;
-            const detail = { sampleRate: rate, channels: 1 };
+            const detail = { sampleRate: rate, channels: 1, streamId };
             let ok = await window.EveAudioflixNative?.sendGeminiChunk?.(payload, detail);
             // One retry: a single transient failure would otherwise punch a hole in the audio.
             if (ok !== true) ok = await window.EveAudioflixNative?.sendGeminiChunk?.(payload, detail);
             return ok === true;
         }
 
-        async function pump() {
-            if (pumping) return;
+        function pump() {
+            if (pumping) return pumpPromise;
             pumping = true;
-            try {
-                while (active && pending.length) {
-                    const chunk = pending.shift();
-                    pendingMs -= (chunk.length / rate) * 1000;
-                    if (!(await send(chunk))) dropped += 1;
+            pumpPromise = (async () => {
+                try {
+                    while (active && pending.length) {
+                        const chunk = pending.shift();
+                        pendingMs -= (chunk.length / rate) * 1000;
+                        if (!(await send(chunk))) dropped += 1;
+                    }
+                } finally {
+                    pumping = false;
                 }
-            } finally {
-                pumping = false;
-            }
+            })();
+            return pumpPromise;
         }
 
         let activePlayer = null;
@@ -104,7 +111,7 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             enqueue(mono);
             if (priming && pendingMs < PREBUFFER_MS) return;
             priming = false;
-            pump();
+            pump().catch(() => { dropped += 1; });
         }
 
         // `drain` = the track finished on its own. The cushion we deliberately build up means the
@@ -112,40 +119,68 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
         // chop the tail off (heard as a freeze/cut right at the end). So on a natural end we flush
         // whatever is still pending and leave the device to play its queue out. A user-initiated
         // stop still clears immediately — silence should be instant when you press stop.
-        function stop(options) {
-            if (!active) return false;
+        async function stop(options) {
+            if (stopPromise) return stopPromise;
+            if (!active && !streamId && !pending.length && !pumping) return false;
             const drain = options?.drain === true;
+            const endingStreamId = streamId;
+            const endingItemId = activeItemId;
+            const bufferedMs = pendingMs;
             active = false;
             activePlayer = null;
             const waveform = getWaveform();
             waveform?.setFrameTap?.(null);
             waveform?.setSpeakerMuted?.(false);
-            if (drain) {
-                const tail = pending.slice();
-                reset();
-                (async () => {
-                    for (const chunk of tail) await send(chunk);
-                })().catch(() => {});
-            } else {
-                reset();
-                window.EveAudioflixNative?.stopStream?.().catch(() => {});
-            }
-            return true;
+            stopPromise = (async () => {
+                try {
+                    await pumpPromise.catch(() => {});
+                    if (drain) {
+                        const tail = pending.slice();
+                        reset();
+                        for (const chunk of tail) await send(chunk);
+                        // The native device still owns the prebuffer already accepted by the
+                        // bridge. Hold queue handoff until that tail has played so the next track
+                        // cannot flush or overlap it.
+                        const settleMs = Math.min(MAX_BACKLOG_MS + 100, Math.max(PREBUFFER_MS, bufferedMs) + 80);
+                        await new Promise((resolve) => setTimeout(resolve, settleMs));
+                    } else {
+                        reset();
+                        await window.EveAudioflixNative?.stopStream?.({
+                            allDevices: true,
+                            itemId: endingStreamId || endingItemId
+                        }).catch(() => false);
+                    }
+                    return true;
+                } finally {
+                    streamId = '';
+                    activeItemId = '';
+                    stopPromise = null;
+                }
+            })();
+            return stopPromise;
         }
 
         // Async: the preferred tap is an AudioWorklet, whose module must be fetched once. Awaiting
         // it here means even the FIRST track gets the jank-immune audio-thread tap.
-        async function start(player) {
+        async function start(player, itemId) {
+            if (stopPromise) await stopPromise.catch(() => {});
+            if (active || streamId) await stop().catch(() => {});
             const waveform = getWaveform();
             if (!waveform?.setFrameTap) return false;
             reset();
             dropped = 0;
             activePlayer = player || null;
+            activeItemId = String(itemId || 'music');
+            streamId = `music:${activeItemId}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 7)}`;
             if (player && typeof waveform.ensureGraph === 'function') {
                 waveform.ensureGraph(player);
             }
             const tapRate = await waveform.setFrameTap(onFrames);
-            if (!tapRate) return false;
+            if (!tapRate) {
+                streamId = '';
+                activeItemId = '';
+                return false;
+            }
             rate = tapRate;
             // AWAIT the device pre-open. Firing this off without waiting meant the first chunks
             // could reach the bridge while WASAPI was still cold-opening (100-300ms), starving the
@@ -169,6 +204,8 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             if (warmed !== true) {
                 await waveform.setFrameTap(null);
                 activePlayer = null;
+                streamId = '';
+                activeItemId = '';
                 return false;
             }
             active = true;
@@ -176,7 +213,12 @@ window.EveAudioflixAudioCapture = window.EveAudioflixAudioCapture || {};
             return true;
         }
 
-        return { start, stop, isActive: () => active, getStats: () => ({ rate, pendingMs, dropped, priming }) };
+        return {
+            start,
+            stop,
+            isActive: () => active,
+            getStats: () => ({ rate, pendingMs, dropped, priming, streamId, activeItemId })
+        };
     };
 
     ns.ready = true;

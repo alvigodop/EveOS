@@ -77,10 +77,20 @@ window.EveDataStore = window.EveDataStore || {};
         // doesn't reassign window.eveState.config (the object Audioflix reads), so write it to the
         // canonical location explicitly, then let the module re-normalize, persist, and re-render.
         // Accept the new top-level key OR the legacy nested location from older backups.
-        const restoredAudioflix = (state.audioflix && typeof state.audioflix === 'object')
+        const hasTopLevelAudioflix = Object.prototype.hasOwnProperty.call(state, 'audioflix')
+            && state.audioflix && typeof state.audioflix === 'object';
+        const legacyConfig = state.bookmarks?.config;
+        const hasLegacyAudioflix = !!legacyConfig
+            && Object.prototype.hasOwnProperty.call(legacyConfig, 'audioflix')
+            && legacyConfig.audioflix && typeof legacyConfig.audioflix === 'object';
+        const restoredAudioflix = hasTopLevelAudioflix
             ? state.audioflix
-            : (state.bookmarks && state.bookmarks.config && state.bookmarks.config.audioflix);
+            : (hasLegacyAudioflix ? legacyConfig.audioflix : null);
         try {
+            // Backups created before Audioflix existed do not contain an Audioflix section. That is
+            // different from an explicitly empty Audioflix backup and must never erase a current
+            // soundboard/music library during restore.
+            if (!restoredAudioflix) return true;
             const stopPromise = window.EveAudioflixAudio?.stopAll?.();
             stopPromise?.catch?.((error) => {
                 console.warn('[DataState] Previous Audioflix playback did not stop cleanly:', error);

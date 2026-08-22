@@ -85,6 +85,7 @@ def _extract_one(pair) -> dict:
             "sourceId": _code(url),
             "title": _display_title(info, position),
             "artist": info.get("uploader") or info.get("channel") or "",
+            "album": info.get("album") or info.get("series") or "",
             "url": url,
             "image": info.get("thumbnail") or "",
             "duration": info.get("duration") or 0,

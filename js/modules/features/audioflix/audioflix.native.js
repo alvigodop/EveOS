@@ -1,7 +1,6 @@
 window.EveAudioflixNative = window.EveAudioflixNative || {};
 (function () {
     'use strict';
-
     const ns = window.EveAudioflixNative;
     if (ns.ready) return;
 
@@ -234,6 +233,7 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                 deviceId: current.nativeOutputId,
                 sampleRate: detail.sampleRate || 24000,
                 channels: detail.channels || 1,
+                streamId: detail.streamId || null,
                 sentAtMs: Date.now(),
                 maxAgeMs: PCM_MAX_AGE_MS
             }),

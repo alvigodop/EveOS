@@ -204,6 +204,11 @@ class _PcmPlayer:
 
     def enqueue(self, samples, stream_id=None) -> None:
         self.last_used = time.monotonic()
+        # A new browser track owns a new stream id. Discard any queued tail from the prior
+        # owner before accepting it so rapid queue transitions cannot replay or overlap stale
+        # PCM. Repeated chunks from the same stream keep the continuous FIFO intact.
+        if stream_id is not None and self.stream_id not in (None, stream_id):
+            self.clear_stream()
         self.stream_id = stream_id
         samples = _resample_mono(samples, self.source_rate, self.sample_rate)
         try:

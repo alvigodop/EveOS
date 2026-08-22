@@ -94,7 +94,7 @@ def _health_payload() -> dict | None:
         if payload.get("ok") is not True or payload.get("service") != "eveos-local-server":
             return None
         return payload
-    except (OSError, ValueError, UnicodeError):
+    except (OSError, ValueError, UnicodeError, http.client.HTTPException):
         return None
     finally:
         if connection is not None:

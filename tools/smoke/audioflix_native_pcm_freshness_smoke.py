@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import queue
 import sys
 import time
 from pathlib import Path
@@ -67,6 +68,27 @@ def main() -> None:
         })
         assert fresh_payload.get('ok') is True
         assert len(player.blocks) == 1
+
+        # A native output can outlive the browser element that fed it. Prove ownership moves
+        # atomically between tracks so an old queued tail cannot overlap the next song.
+        stream_player = playback._PcmPlayer.__new__(playback._PcmPlayer)
+        stream_player.last_used = 0.0
+        stream_player.stream_id = None
+        stream_player.source_rate = 24000
+        stream_player.sample_rate = 24000
+        stream_player.q = queue.Queue(maxsize=8)
+        stream_player.flush_pending = False
+        playback._PcmPlayer.enqueue(stream_player, np.ones(8, dtype='float32'), 'track:alpha')
+        playback._PcmPlayer.enqueue(stream_player, np.ones(8, dtype='float32'), 'track:alpha')
+        assert stream_player.q.qsize() == 2
+        playback._PcmPlayer.enqueue(stream_player, np.ones(8, dtype='float32'), 'track:beta')
+        assert stream_player.stream_id == 'track:beta'
+        assert stream_player.q.qsize() == 1
+        assert stream_player.flush_pending is True
+        assert playback._PcmPlayer.clear_stream(stream_player, 'track:alpha') == 0
+        assert stream_player.q.qsize() == 1
+        assert playback._PcmPlayer.clear_stream(stream_player, 'track:beta') == 1
+        assert stream_player.q.empty()
     finally:
         playback.sd, playback.np = original_sd, original_np
         playback._player_for = original_player_for

@@ -158,6 +158,7 @@ function openSettings() {
     if (typeof refreshCardBackupList === 'function') refreshCardBackupList();
     if (typeof refreshFolderBackupList === 'function') refreshFolderBackupList();
     if (typeof refreshBookmarkBackupList === 'function') refreshBookmarkBackupList();
+    if (typeof refreshAudioflixBackupPanel === 'function') refreshAudioflixBackupPanel();
     if (typeof refreshIntegratedDuplicateSensorControls === 'function') refreshIntegratedDuplicateSensorControls();
     if (typeof renderEditHistoryPanel === 'function') renderEditHistoryPanel();
 

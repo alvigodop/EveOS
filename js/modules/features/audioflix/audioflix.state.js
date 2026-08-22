@@ -229,6 +229,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             });
         }
         window.dispatchEvent(new CustomEvent('eve:audioflix-state-changed', { detail: { reason } }));
+        return state;
     }
 
     function scheduleSave(reason) {
@@ -419,6 +420,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         ready: true,
         ensure,
         update,
+        flush: persistNow,
         replaceState,
         replaceDatapackState,
         addItem,

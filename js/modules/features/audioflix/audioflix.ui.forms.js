@@ -125,6 +125,10 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                                     : `Localized ${res.done}/${res.total} to ${res.targetDir}${res.failed ? ` (${res.failed} failed — ${res.lastError})` : ''}.`)
                                 : (res.reason || 'Localization failed.');
                             ctx.localizeFormOpen = { open: false, scope: 'library', key: '' };
+                            // Localization changes URLs/paths that the active card and backup layer
+                            // both depend on. Flush immediately so the new offline path is visible
+                            // and recoverable without requiring a page reload.
+                            window.EveAudioflixState?.flush?.('audioflix-localize-complete');
                             ctx.rerender();
                         });
                     }

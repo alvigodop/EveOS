@@ -143,21 +143,48 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         };
     }
 
-    // Nuanced duplicate report: exact-name clusters, look-alike (same alphanumerics, different
-    // wording), and shared-artist clusters. Feeds the "manage dups" section of the search panel.
+    // Shared hard/soft duplicate report plus same-artist discovery. Destructive certainty belongs
+    // to the duplicate engine; Nexus only indexes and explains its result.
     function dupReport(type, list) {
         const arr = list || items(type);
-        const byName = {}, bySim = {}, byArtist = {};
+        const byArtist = {};
         arr.forEach((it) => {
-            const n = norm(it.title); if (n) (byName[n] = byName[n] || []).push(it);
-            const sk = simKey(it.title); if (sk) (bySim[sk] = bySim[sk] || []).push(it);
             const a = norm(it.artist); if (a) (byArtist[a] = byArtist[a] || []).push(it);
         });
-        const clusters = (o) => Object.values(o).filter((g) => g.length > 1);
+        const allowed = new Set(arr.map((item) => item.id));
+        const pairs = (window.EveAudioflixDuplicates?.findDuplicates?.(type) || [])
+            .filter((pair) => pair.items.every((item) => allowed.has(item.id)));
+        const hard = pairs.filter((pair) => pair.level === 'hard').map((pair) => pair.items);
+        const soft = pairs.filter((pair) => pair.level === 'soft').map((pair) => pair.items);
         return {
-            exact: clusters(byName),
-            similar: clusters(bySim).filter((g) => new Set(g.map((x) => norm(x.title))).size > 1),
+            hard,
+            soft,
+            // Compatibility names for older UI/smokes.
+            exact: hard,
+            similar: soft,
             sameArtist: Object.entries(byArtist).filter(([, g]) => g.length > 1).map(([artist, group]) => ({ artist, items: group }))
+        };
+    }
+
+    function integrityReport() {
+        const snapshot = state();
+        const soundIds = new Set((snapshot.soundboard || []).map((item) => item.id));
+        const musicIds = new Set((snapshot.music || []).map((item) => item.id));
+        const staleSoundBindings = Object.keys(snapshot.soundGroupMap || {}).filter((id) => !soundIds.has(id));
+        const staleMusicBindings = Object.keys(snapshot.musicGroupMap || {}).filter((id) => !musicIds.has(id));
+        const playlistIds = new Set((snapshot.musicPlaylists || []).map((entry) => entry.id));
+        const orphanPlaylistLinks = (snapshot.music || []).filter((item) => item.playlistId && !playlistIds.has(item.playlistId));
+        let recoveryEntries = 0;
+        try {
+            const stored = JSON.parse(localStorage.getItem('eveAudioflixFallbackState') || '{}');
+            recoveryEntries = (stored.soundboard?.length || 0) + (stored.music?.length || 0);
+        } catch (_) {}
+        return {
+            items: soundIds.size + musicIds.size,
+            recoveryEntries,
+            staleBindings: staleSoundBindings.length + staleMusicBindings.length,
+            orphanPlaylistLinks: orphanPlaylistLinks.length,
+            protected: recoveryEntries > 0 || (soundIds.size + musicIds.size) === 0
         };
     }
 
@@ -181,5 +208,5 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         }, 350);
     }
 
-    Object.assign(ns, { ready: true, items, groupsOf, search, filter, facets, dupReport, durationMatch, aroundMinute, recordSearch, getArtist });
+    Object.assign(ns, { ready: true, items, groupsOf, search, filter, facets, dupReport, integrityReport, durationMatch, aroundMinute, recordSearch, getArtist });
 })();

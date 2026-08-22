@@ -175,8 +175,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                         shuffle: prev.shuffle === true,
                         loop: prev.loop === true
                     };
-                    const first = items.find(it => it.id === ids[0]) || items[0];
-                    try { await window.EveAudioflixAudio?.playItem?.(first); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; }
+                    try { await ctx.playQueueIndex(0); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; }
                     ctx.rerender();
                 }
                 return;
@@ -215,7 +214,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 const prev = ctx.activeMusicQueue || {};
                 // Keep the shuffle/loop preferences armed for the next Play Group.
                 ctx.activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: prev.shuffle === true, loop: prev.loop === true };
-                window.EveAudioflixAudio?.pause?.();
+                await window.EveAudioflixAudio?.stopAll?.();
                 ctx.rerender();
                 return;
             }

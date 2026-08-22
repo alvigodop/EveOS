@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const UI_ACTIONS = path.join(ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.ui.actions.js');
+const UI_MAIN = path.join(ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.ui.js');
 const PROVIDER_CSS = `file:///${path.join(
     ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.provider.css'
 ).replace(/\\/g, '/')}`;
@@ -22,9 +23,13 @@ const assert = (condition, message) => {
 
 (async () => {
     const uiActions = fs.readFileSync(UI_ACTIONS, 'utf8');
+    const uiMain = fs.readFileSync(UI_MAIN, 'utf8');
     assert(/EveAudioflixAudio\?\.playItem\?\.\(\{\s*\.\.\.item,\s*type:\s*type\s*\|\|\s*item\.type\s*\}\)/.test(uiActions),
         'regular card play uses the shared Audioflix controller with its UI media type');
-    assert(uiActions.includes('EveAudioflixAudio?.playItem?.(first)'), 'frontend group play uses the shared Audioflix controller');
+    assert(uiActions.includes('await ctx.playQueueIndex(0)'),
+        'frontend group play enters the serialized queue controller');
+    assert(uiMain.includes('await window.EveAudioflixAudio?.playItem?.(track)'),
+        'serialized queue playback delegates to the shared Audioflix controller');
     const fixture = path.join(os.tmpdir(), `eveos-spotify-playback-${process.pid}.html`);
     const scripts = [
         'audioflix.audio.source.js',

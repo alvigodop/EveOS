@@ -83,8 +83,8 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const rep = ctx.getActiveRepeaters()[item.id], repBadge = rep ? `<span class="audioflix-repeater-badge" title="Repeater active">🔁 Rep</span>` : '';
             const keyBadge = (isF && type === 'sound' && item.hotkey) ? `<span class="audioflix-hotkey-badge" title="Hotkey: press ${esc(item.hotkey)}">${esc(item.hotkey)}</span>` : '';
             const delBtn = (!isF && !item.isPorted) ? `<button type="button" class="audioflix-icon-btn danger" data-af-action="remove" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}">${ctx.closeSvg}</button>` : '';
-            const isDup = window.EveAudioflixDuplicates?.isDuplicate?.(type, item.id);
-            const dupBadge = isDup ? `<span class="audioflix-dup-badge" title="Duplicate item detected">👯 Dup</span>` : '';
+            const dupLevel = window.EveAudioflixDuplicates?.duplicateLevelFor?.(type, item.id) || '';
+            const dupBadge = dupLevel ? `<span class="audioflix-dup-badge${dupLevel === 'soft' ? ' is-soft' : ''}" title="${dupLevel === 'soft' ? 'Possible same-title or clipped version' : 'Matching source identity detected'}">👯 ${dupLevel === 'soft' ? 'Soft dup' : 'Dup'}</span>` : '';
             // Playlist provenance is shown in the track's settings panel; only mirror it onto the
             // card when the user opts in (keeps the grid clean by default).
             const showMarkers = state().showPlaylistMarkersOnCard === true;

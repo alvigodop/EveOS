@@ -100,7 +100,11 @@ window.EveAudioflixInstagramPlaylists = window.EveAudioflixInstagramPlaylists ||
         const title = realTitle(entry?.title);
         return {
             ...(title ? { title } : {}),
+            artist: text(entry?.artist || entry?.uploader || entry?.author),
+            album: text(entry?.album),
             image: text(entry?.image || entry?.thumbnail),
+            duration: Number(entry?.duration || 0) || 0,
+            sourceId: text(entry?.sourceId || entry?.id),
             sourceProvider: 'instagram',
             playlistPosition: Number(entry?.position || 0) || 0
         };

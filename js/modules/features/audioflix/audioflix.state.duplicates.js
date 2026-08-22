@@ -56,61 +56,71 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         (typeof queueMicrotask === 'function') ? queueMicrotask(clear) : setTimeout(clear, 0);
     }
 
-    // Find all duplicate groups for a given item type ('music' or 'sound')
+    function normalizedPath(value) {
+        const clean = normalize(value).replace(/^file:\/\/+/, '').replace(/\\/g, '/');
+        return clean && !/^https?:\/\//.test(clean) ? clean.replace(/\/+$/, '') : '';
+    }
+
+    function sourceIdentity(item) {
+        const provider = normalize(item?.sourceProvider);
+        const sourceId = normalize(item?.sourceId);
+        return provider && sourceId ? `${provider}:${sourceId}` : '';
+    }
+
+    function pairClassification(a, b) {
+        const reasons = [];
+        const urlA = /^https?:\/\//i.test(text(a?.url)) ? normalize(a.url).replace(/\/$/, '') : '';
+        const urlB = /^https?:\/\//i.test(text(b?.url)) ? normalize(b.url).replace(/\/$/, '') : '';
+        const pathA = normalizedPath(a?.localPath) || normalizedPath(a?.url);
+        const pathB = normalizedPath(b?.localPath) || normalizedPath(b?.url);
+        const sourceA = sourceIdentity(a);
+        const sourceB = sourceIdentity(b);
+
+        if (urlA && urlA === urlB) reasons.push('matching URL');
+        if (pathA && pathA === pathB) reasons.push('matching local path');
+        if (sourceA && sourceA === sourceB) reasons.push('matching provider identity');
+        if (reasons.length) return { level: 'hard', reasons };
+
+        const titleA = normalize(stripMediaExt(a?.title));
+        const titleB = normalize(stripMediaExt(b?.title));
+        const baseA = fileBaseName(a?.url) || fileBaseName(a?.localPath);
+        const baseB = fileBaseName(b?.url) || fileBaseName(b?.localPath);
+        if (titleA && titleA === titleB) {
+            const durationA = Number(a?.duration || 0);
+            const durationB = Number(b?.duration || 0);
+            reasons.push(durationA > 0 && durationB > 0 && Math.abs(durationA - durationB) > 1
+                ? 'matching title, different duration'
+                : 'matching title');
+        }
+        if (baseA && baseA === baseB) reasons.push('same file name');
+        return reasons.length ? { level: 'soft', reasons } : null;
+    }
+
+    // Find all duplicate pairs for a given item type ('music' or 'sound'). A hard match has shared
+    // source identity; title/file-name similarity alone is intentionally soft so edits, remixes and
+    // clipped versions are never presented as certain destructive duplicates.
     function findDuplicates(type = 'sound') {
         const key = type === 'music' ? 'music' : 'soundboard';
         const memoKey = type === 'music' ? 'music' : 'sound';
         if (memo[memoKey]) return memo[memoKey];
         const items = state()[key] || [];
-        const titleMap = new Map();
-        const urlMap = new Map();
-        const baseMap = new Map();
-
-        items.forEach((item) => {
-            // Titles are keyed with stacked media extensions stripped: the same song imported two
-            // ways often differs only by a trailing ".wmv"/".mp3" glued onto the title, which used
-            // to hide a real duplicate.
-            const titleKey = normalize(stripMediaExt(item.title));
-            const urlKey = normalize(item.url);
-
-            if (titleKey) {
-                if (!titleMap.has(titleKey)) titleMap.set(titleKey, []);
-                titleMap.get(titleKey).push(item);
+        const pairs = [];
+        for (let left = 0; left < items.length; left += 1) {
+            for (let right = left + 1; right < items.length; right += 1) {
+                const classification = pairClassification(items[left], items[right]);
+                if (!classification) continue;
+                pairs.push({
+                    level: classification.level,
+                    reason: classification.reasons.join(' + '),
+                    reasons: classification.reasons,
+                    items: [items[left], items[right]]
+                });
             }
-            if (urlKey && urlKey !== titleKey) {
-                if (!urlMap.has(urlKey)) urlMap.set(urlKey, []);
-                urlMap.get(urlKey).push(item);
-            }
-            // Same file name in two different folders (or with \ vs / separators) is the other way
-            // the same track shows up twice — e.g. a ported copy and a WPL-imported copy.
-            const baseKey = fileBaseName(item.url) || fileBaseName(item.localPath);
-            if (baseKey) {
-                if (!baseMap.has(baseKey)) baseMap.set(baseKey, []);
-                baseMap.get(baseKey).push(item);
-            }
-        });
+        }
 
-        const duplicateClusters = [];
-        const seenItemIds = new Set();
-
-        const addCluster = (clusterItems, reason) => {
-            if (clusterItems.length < 2) return;
-            const unvisited = clusterItems.filter(it => !seenItemIds.has(it.id));
-            if (unvisited.length < 1) return;
-            clusterItems.forEach(it => seenItemIds.add(it.id));
-            duplicateClusters.push({
-                reason,
-                items: clusterItems
-            });
-        };
-
-        titleMap.forEach((cluster) => addCluster(cluster, 'matching title'));
-        urlMap.forEach((cluster) => addCluster(cluster, 'matching URL / path'));
-        baseMap.forEach((cluster) => addCluster(cluster, 'same file name'));
-
-        memo[memoKey] = duplicateClusters;
+        memo[memoKey] = pairs.sort((a, b) => (a.level === b.level ? 0 : (a.level === 'hard' ? -1 : 1)));
         scheduleMemoClear();
-        return duplicateClusters;
+        return memo[memoKey];
     }
 
     // Get duplicate matches specifically for a single item ID. Pairs the user chose to "keep both"
@@ -118,10 +128,33 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
     function duplicatesFor(type, itemId) {
         if (!itemId) return [];
         const clusters = findDuplicates(type);
-        const match = clusters.find(c => c.items.some(it => it.id === itemId));
-        if (!match) return [];
         const dismissed = dismissedSet();
-        return match.items.filter(it => it.id !== itemId && !dismissed.has(pairKey(itemId, it.id)));
+        const seen = new Set();
+        return clusters.flatMap((cluster) => {
+            if (!cluster.items.some((entry) => entry.id === itemId)) return [];
+            return cluster.items.filter((entry) => entry.id !== itemId);
+        })
+            .filter((it) => {
+                if (it.id === itemId || seen.has(it.id) || dismissed.has(pairKey(itemId, it.id))) return false;
+                seen.add(it.id);
+                return true;
+            });
+    }
+
+    function duplicateInfoFor(type, itemId) {
+        if (!itemId) return [];
+        const dismissed = dismissedSet();
+        return findDuplicates(type).flatMap((pair) => {
+            if (!pair.items.some((item) => item.id === itemId)) return [];
+            const match = pair.items.find((item) => item.id !== itemId);
+            if (!match || dismissed.has(pairKey(itemId, match.id))) return [];
+            return [{ item: match, level: pair.level, reason: pair.reason, reasons: pair.reasons }];
+        });
+    }
+
+    function duplicateLevelFor(type, itemId) {
+        const info = duplicateInfoFor(type, itemId);
+        return info.some((entry) => entry.level === 'hard') ? 'hard' : (info.length ? 'soft' : '');
     }
 
     // "Keep both": record that this pair is intentionally separate, then drop the memo so the badge
@@ -232,6 +265,8 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         ready: true,
         findDuplicates,
         duplicatesFor,
+        duplicateInfoFor,
+        duplicateLevelFor,
         isDuplicate,
         mergeDuplicates,
         dismissDuplicate

@@ -5,13 +5,11 @@ window.EveAudioflix = window.EveAudioflix || {};
     if (ns.ready) return;
     let overlay = null, activeTab = 'soundboard', lastTab = 'soundboard', playbackStatus = 'Idle', routingOpen = false, fullscreenOn = false, settingsOpen = false, addFormOpen = { sound: false, music: false }, portsOpen = false, groupsOpen = { sound: false, music: false }, foldersOpen = { music: false }, portedSounds = [], fsPortFolders = [], deadServerPorts = new Set(), collapsedGroups = {}, activeRepeaters = {}, activeInfoItem = null, activeInfoType = null;
     let activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: false, loop: false };
-    let queueTransition = Promise.resolve();
+    let queueTransition = Promise.resolve(), queueAdvanceKey = '';
     const shared = window.EveAudioflixUiShared;
     if (!shared?.ready) throw new Error('Audioflix UI shared module loaded out of order.');
     const { shuffleQueue, hotkeyComboIssue, playSvg, closeSvg, stopSvg, layerPlaySvg, viewSvg, cogSvg } = shared;
-    // True only when the bridge ACCEPTED the hotkey bindings (system-wide RegisterHotKey is live).
-    // The in-app matcher stands down only then: gating on mere configuration left ZERO hotkeys on
-    // file:// with the server off.
+    // Stand down the in-app matcher only after the bridge accepts system-wide hotkeys.
     let nativeHotkeysLive = false;
     const state = () => window.EveAudioflixState?.ensure?.() || {};
     const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,8 +18,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     const internalViewButton = (item, type, wide = false) => type === 'music' && /^https?:\/\//i.test(String(item?.url || '')) ? `<button type="button" class="${wide ? 'audioflix-info-close-action' : 'audioflix-icon-btn'}" data-af-action="internal-view" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Open inside EveOS">${wide ? 'Internal View' : viewSvg}</button>` : '';
     const groupKey = (item, type) => String((type === 'music' ? (item.folder || item.card) : item.category) || '').trim() || 'Ungrouped';
     const formatDuration = (sec) => sec === undefined ? 'Loading...' : (sec === null || isNaN(sec) ? 'Unavailable' : (sec === Infinity ? 'Stream' : (sec / 60 >= 1 ? `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}` : `${Math.floor(sec)}.${String(Math.floor((sec % 1) * 100)).padStart(2, '0')}s`)));
-    let importFormOpen = false;
-    let playlistImportMode = 'youtube';
+    let importFormOpen = false, playlistImportMode = 'youtube';
     let importFormValues = { wplUrl: '', wplFolder: '', wplFileContent: '' };
     let localizeFormOpen = { open: false, scope: 'library', key: '' };
     let syncPlaylistFormOpen = { open: false, group: '' };
@@ -128,8 +125,6 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
     });
     const ensureOverlay = () => uiOverlay();
-    // Queue View asks the audio layer for prev/next/jump; the queue itself (order, shuffle, loop)
-    // lives here, so hand the audio layer a bridge back into it rather than duplicating the rules.
     const queueTrackAt = (index) => (state().music || []).find((m) => m.id === activeMusicQueue.items[index]);
     const playQueueIndex = async (index) => {
         if (!activeMusicQueue.items?.length) return;
@@ -141,7 +136,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                 if (activeMusicQueue.shuffle === true) {
                     const currentId = activeMusicQueue.items[activeMusicQueue.currentIndex];
                     const rest = shuffleQueue(activeMusicQueue.items.filter(id => id !== currentId));
-                    activeMusicQueue.items = [currentId, ...rest];
+                    activeMusicQueue.items = [...rest, currentId];
                 }
             } else {
                 activeMusicQueue.isPlaying = false;
@@ -153,14 +148,14 @@ window.EveAudioflix = window.EveAudioflix || {};
         activeMusicQueue.currentIndex = targetIndex;
         const track = queueTrackAt(targetIndex);
         if (!track) return;
-        queueTransition = (async () => {
+        queueTransition = queueTransition.catch(() => {}).then(async () => {
             try {
                 if (window.EveAudioflixAudio?.isInternalViewOpen?.()) await window.EveAudioflixAudio?.openInternalView?.(track);
                 else await window.EveAudioflixAudio?.playItem?.(track);
             } catch (err) { playbackStatus = err?.message || 'Playback failed'; }
             window.EveAudioflixAudio?.syncQueueView?.();
             rerender();
-        })();
+        });
         return queueTransition;
     };
     window.EveAudioflixAudio?.setQueueBridge?.({
@@ -172,7 +167,6 @@ window.EveAudioflix = window.EveAudioflix || {};
         step: (delta) => playQueueIndex(activeMusicQueue.currentIndex + (Number(delta) || 0)),
         jump: (index) => playQueueIndex(Number(index) || 0)
     });
-    // Long-lived WPL file input, parked on document.body so rerenders can't destroy it mid-dialog.
     window.EveAudioflixUiPicker.instance = window.EveAudioflixUiPicker.create({
         rerender: () => rerender(),
         view: {
@@ -313,7 +307,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     // Handlers live in sibling modules and reach this view's mutable state through `uiCtx`, so the
     // renderers above keep using the same closure variables unchanged.
     const uiCtx = {
-        state, rerender, rerenderModal, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries,
+        state, rerender, rerenderModal, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries, playQueueIndex,
         waitForQueueTransition: () => queueTransition.catch(() => {}),
         get overlay() { return overlay; },
         get portedSounds() { return portedSounds; },
@@ -387,10 +381,16 @@ window.EveAudioflix = window.EveAudioflix || {};
         const eventItemId = e.detail?.item?.id;
         const currentQueueId = activeMusicQueue?.items?.[activeMusicQueue.currentIndex];
         if (e.detail?.status === 'Ended' && activeMusicQueue?.isPlaying && activeMusicQueue?.items?.length) {
-            // Only the currently owned queue item may advance. A late duplicate "Ended" from a
-            // replaced provider/player must not move the queue a second time.
-            if (!eventItemId || eventItemId === currentQueueId) {
-                playQueueIndex(activeMusicQueue.currentIndex + 1);
+            const expectedIndex = activeMusicQueue.currentIndex;
+            const advanceKey = `${eventItemId || currentQueueId}:${expectedIndex}`;
+            if ((!eventItemId || eventItemId === currentQueueId) && queueAdvanceKey !== advanceKey) {
+                queueAdvanceKey = advanceKey;
+                Promise.resolve(e.detail?.settle).catch(() => false).then(() => {
+                    if (activeMusicQueue?.isPlaying && activeMusicQueue.currentIndex === expectedIndex
+                        && activeMusicQueue.items[expectedIndex] === currentQueueId) {
+                        return playQueueIndex(expectedIndex + 1);
+                    }
+                }).finally(() => { if (queueAdvanceKey === advanceKey) queueAdvanceKey = ''; });
             }
         } else if (eventItemId && activeMusicQueue?.items?.length) {
             const foundIdx = activeMusicQueue.items.indexOf(e.detail.item.id);
