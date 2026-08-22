@@ -50,19 +50,22 @@ function buildHost() {
   host.className = "sheet-workspace";
   host.dataset.sheetWorkspace = "";
   host.innerHTML = `
-    <div class="sheet-workspace-nav">
-      <div class="sheet-workspace-copy">
-        <span>PLAYER CACHE</span>
-        <strong data-workspace-current>Nothing cached yet</strong>
-        <small>Temporary navigation for the last 10 sheets loaded into the player.</small>
-      </div>
+    <details class="sheet-workspace-cache">
+      <summary>
+        <div class="sheet-workspace-copy">
+          <span>PLAYER CACHE</span>
+          <strong data-workspace-current>Nothing cached yet</strong>
+          <small>Temporary navigation for the last 10 sheets loaded into the player.</small>
+        </div>
+        <b class="sheet-workspace-cache-toggle" aria-hidden="true"></b>
+      </summary>
       <div class="sheet-workspace-controls">
         <button type="button" data-workspace-back title="Previous loaded sheet">← Back</button>
         <select data-workspace-history aria-label="Recent loaded sheets"><option value="">No recent sheets</option></select>
         <span data-workspace-position>0 / 10</span>
         <button type="button" data-workspace-forward title="Next loaded sheet">Forward →</button>
       </div>
-    </div>
+    </details>
     <details class="sheet-workspace-staging" open>
       <summary>
         <span><strong>From Sheet Finder</strong><small>Sheet Finder and AI-converted results wait here until you choose one.</small></span>
