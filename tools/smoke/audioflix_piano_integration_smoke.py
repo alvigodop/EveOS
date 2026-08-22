@@ -88,6 +88,7 @@ def assert_static_contract() -> None:
     assert 'bulkConversionFile' in bulk and 'Queue .txt file' in bulk and 'file.text()' in bulk
     assert '(?=https?:\\/\\/|[\\s,]|$)' in bulk
     assert 'Ready in From Sheet Finder' in bulk
+    assert 'api.youtubeDependencies()' in bulk and 'Blocked —' in bulk and 'Failed —' in bulk
     assert '@media (max-width: 1180px)' in workspace_css and '.hero-grid, .lower-grid' in workspace_css
     assert '.controls-panel select' in workspace_css and '.seek-controls' in workspace_css
 
