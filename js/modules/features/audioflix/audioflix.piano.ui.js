@@ -160,6 +160,10 @@ window.EveAudioflixPianoUi = window.EveAudioflixPianoUi || {};
         if (!status.running) status = await window.EveAudioflixPiano.start();
         if (!status.running) {
             renderDetachedMessage(target, status.message || 'Piano-Auto-Player could not be opened.');
+            detachedWindow = null;
+            if (detachedTimer) clearInterval(detachedTimer);
+            detachedTimer = 0;
+            patch();
             return;
         }
         target.location.replace(status.url || window.EveAudioflixPiano.serviceUrl());

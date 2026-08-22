@@ -85,8 +85,16 @@ export function setupSheetWorkspace({ onLoad, getCurrent, toast }) {
   const position = host.querySelector("[data-workspace-position]");
   const stagingCount = host.querySelector("[data-workspace-staging-count]");
   const stagingHost = host.querySelector("[data-workspace-staging]");
+  const searchResults = document.getElementById("searchResults");
   let state = safeState();
   let warnedQuota = false;
+
+  function relabelFinderActions() {
+    searchResults?.querySelectorAll("button").forEach(button => {
+      if (button.textContent.trim() === "Import") button.textContent = "Stage";
+    });
+  }
+  if (searchResults) new MutationObserver(relabelFinderActions).observe(searchResults, { childList: true, subtree: true });
 
   function persist() {
     try {
@@ -157,7 +165,7 @@ export function setupSheetWorkspace({ onLoad, getCurrent, toast }) {
     state.staging.forEach(entry => stagingHost.append(stagedRow(entry)));
   }
 
-  function render() { renderHistory(); renderStaging(); }
+  function render() { renderHistory(); renderStaging(); relabelFinderActions(); }
 
   function rememberCurrent() {
     const song = getCurrent?.();
