@@ -1,4 +1,6 @@
 .venv/
+.youtube-piano-venv/
+.piano-hifi-venv/
 __pycache__/
 *.pyc
 .pytest_cache/

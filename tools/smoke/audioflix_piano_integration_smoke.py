@@ -67,18 +67,26 @@ def assert_static_contract() -> None:
     assert "startsWith('piano-')" in actions and "EveAudioflixPianoUi?.handleAction" in actions
     assert "ensureController" in piano_client and "api/piano-player" in piano_client
     assert "Starting Piano-Auto-Player" in piano_ui and "location.replace" in piano_ui
+    assert "piano-setup" in piano_ui and "Setup / Repair" in piano_ui
     assert "sessionStorage" in bridge and "localStorage" not in bridge
     assert "pianoPlayerPort: 8771" in state
 
     helper = (ROOT / "server_modules" / "eveos_control_helper.py").read_text(encoding="utf-8")
     assert '"/api/piano-player/status"' in helper
     assert '"/api/piano-player/start"' in helper and '"/api/piano-player/stop"' in helper
+    assert '"/api/piano-player/setup"' in helper and "open_setup" in helper
     assert "piano_player_control.restore_desired_state_async()" in helper
 
     ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     assert "tools/Piano-Auto-Player/data/**" in ignore
     assert "!tools/Piano-Auto-Player/data/README.txt" in ignore
     assert "tools/Piano-Auto-Player/youtube_session.txt" in ignore
+    assert "tools/Piano-Auto-Player/.youtube-piano-venv/" in ignore
+    assert "tools/Piano-Auto-Player/.piano-hifi-venv/" in ignore
+    setup = (PIANO / "setup.bat").read_text(encoding="utf-8")
+    start = (PIANO / "start.bat").read_text(encoding="utf-8")
+    assert "setup-youtube-piano.bat" in setup and "setup-hifi-piano.bat" in setup
+    assert "127.0.0.1:8771" in start and "127.0.0.1:8765" not in start
     if (ROOT / ".git").exists():
         tracked = subprocess.run(
             ["git", "ls-files", "--", "tools/Piano-Auto-Player/data/**", "tools/Piano-Auto-Player/youtube_session.txt"],
@@ -142,6 +150,7 @@ def assert_lifecycle_contract() -> None:
             piano_player_control.eveos_console_prefs.headless_for = lambda _service: True
             started = piano_player_control.start_server()
             assert started["ok"] and wait_until(lambda: piano_player_control.get_status()["running"])
+            assert "setupAvailable" in started and "youtubeSetup" in started and "hifiSetup" in started
             assert json.loads(preference.read_text(encoding="utf-8"))["desiredRunning"] is True
             stopped = piano_player_control.stop_server()
             assert stopped["ok"] and not stopped["running"]

@@ -7,6 +7,7 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
     const state = {
         baseUrl: '', controllerAvailable: false, directAvailable: false,
         installed: true, running: false, desiredRunning: false,
+        setupAvailable: false, youtubeSetup: false, hifiSetup: false,
         phase: 'checking', busy: false, port: 8771,
         url: 'http://127.0.0.1:8771/', appVersion: '',
         message: 'Checking Piano Auto Player...'
@@ -57,6 +58,9 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
         state.port = Number(payload.port) || state.port;
         state.url = String(payload.url || state.url);
         state.appVersion = String(payload.appVersion || state.appVersion || '');
+        state.setupAvailable = payload.setupAvailable === true;
+        state.youtubeSetup = payload.youtubeSetup === true;
+        state.hifiSetup = payload.hifiSetup === true;
         state.message = String(payload.message || '');
     }
 
@@ -150,8 +154,32 @@ window.EveAudioflixPiano = window.EveAudioflixPiano || {};
         }
     }
 
+    async function openSetup() {
+        if (state.busy) return { ...state };
+        state.busy = true;
+        state.message = 'Opening Piano setup...';
+        publish();
+        try {
+            const managed = await ensureController();
+            const payload = await json(
+                `${managed.baseUrl}/api/piano-player/setup`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+                8000
+            );
+            apply(payload, managed.baseUrl);
+            return { ...state };
+        } catch (error) {
+            state.phase = 'error';
+            state.message = error?.message || 'Piano setup could not be opened.';
+            return { ...state };
+        } finally {
+            state.busy = false;
+            publish();
+        }
+    }
+
     Object.assign(ns, {
         ready: true, state, serviceUrl, refresh,
-        start: () => setRunning(true), stop: () => setRunning(false)
+        start: () => setRunning(true), stop: () => setRunning(false), setup: openSetup
     });
 })(window.EveAudioflixPiano);

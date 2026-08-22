@@ -29,6 +29,28 @@ def _entry() -> Path:
     return _root() / "tools" / "Piano-Auto-Player" / "run.py"
 
 
+def _setup_entry() -> Path:
+    return _entry().parent / "setup.bat"
+
+
+def _setup_state() -> dict:
+    tool_root = _entry().parent
+    youtube_packages = tool_root / ".youtube-piano-venv" / "Lib" / "site-packages"
+    hifi_packages = tool_root / ".piano-hifi-venv" / "Lib" / "site-packages"
+    return {
+        "setupAvailable": _setup_entry().is_file(),
+        "youtubeSetup": all((
+            (tool_root / ".youtube-piano-venv" / "Scripts" / "python.exe").is_file(),
+            (youtube_packages / "basic_pitch").is_dir(),
+            (youtube_packages / "yt_dlp").is_dir(),
+        )),
+        "hifiSetup": all((
+            (tool_root / ".piano-hifi-venv" / "Scripts" / "python.exe").is_file(),
+            (hifi_packages / "transkun").is_dir(),
+        )),
+    }
+
+
 def _preference() -> Path:
     return _root() / "data" / "runtime" / "piano-player-service.json"
 
@@ -134,6 +156,7 @@ def _status(message: str = "") -> dict:
         "port": PIANO_PORT,
         "url": f"http://127.0.0.1:{PIANO_PORT}/",
         "appVersion": str(health.get("appVersion") or "") if health else "",
+        **_setup_state(),
         "pids": _pids() if running else [],
         "message": message or (
             "Piano Auto Player is online." if running
@@ -141,6 +164,24 @@ def _status(message: str = "") -> dict:
             else "Piano Auto Player is stopped."
         ),
     }
+
+
+def open_setup() -> dict:
+    with _LOCK:
+        current = _status()
+        setup = _setup_entry()
+        if not setup.is_file():
+            return {**current, "ok": False, "message": f"Setup launcher missing: {setup}"}
+        if os.name != "nt":
+            return {**current, "ok": False, "message": "The bundled setup launcher currently requires Windows."}
+        try:
+            subprocess.Popen(
+                ["cmd.exe", "/k", str(setup)], cwd=str(setup.parent),
+                creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0),
+            )
+        except OSError as exc:
+            return {**current, "ok": False, "message": f"Could not open Piano setup: {exc}"}
+        return {**_status(), "ok": True, "message": "Piano setup opened in a separate terminal."}
 
 
 def get_status() -> dict:

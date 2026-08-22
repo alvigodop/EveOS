@@ -236,6 +236,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/world-book/stop",
             "/api/piano-player/start",
             "/api/piano-player/stop",
+            "/api/piano-player/setup",
             "/api/gemini-credentials",
             "/api/control-plane/consoles",
         } and not gemini_control.request_can_control(self):
@@ -268,6 +269,8 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             action = piano_player_control.start_server
         elif path == "/api/piano-player/stop":
             action = piano_player_control.stop_server
+        elif path == "/api/piano-player/setup":
+            action = piano_player_control.open_setup
 
         if action is not None:
             payload = action()

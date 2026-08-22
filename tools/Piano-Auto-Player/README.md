@@ -1,5 +1,16 @@
 # Piano Auto Player
 
+## EveOS setup
+
+The core Piano player only needs Python 3. Open Audioflix > Piano-Auto-Player and
+choose **Start Piano**. For media conversion or the optional Hi-Fi transcription
+engine, choose **Setup / Repair** in Audioflix or run `setup.bat` here. The setup
+menu creates isolated `.youtube-piano-venv` and `.piano-hifi-venv` folders; both
+are disposable, ignored by Git, and can be rebuilt on another EveOS install.
+
+Private songs stay in `data/songs.json`. Export or import that library separately;
+it is intentionally excluded from the public EveOS repository and setup process.
+
 ### v0.6.21 Collapsible AI conversion panel
 
 This UI-only update keeps the v0.6.19 musical core plus v0.6.20 session retention/library transfer unchanged. The Media / Spotify → Piano area is now a native collapsible disclosure so the large AI conversion controls can stay out of the way until needed. Its former `experimental` badge is renamed to `AI-Conversion`, while every existing conversion, retained-session, diagnostics, alternate-source, and Hi-Fi confidence control remains inside the expandable panel.

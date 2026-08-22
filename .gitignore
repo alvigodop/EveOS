@@ -205,3 +205,5 @@ tools/Piano-Auto-Player/data/**
 !tools/Piano-Auto-Player/data/README.txt
 tools/Piano-Auto-Player/youtube_session.txt
 tools/Piano-Auto-Player/tmp/
+tools/Piano-Auto-Player/.youtube-piano-venv/
+tools/Piano-Auto-Player/.piano-hifi-venv/

@@ -71,6 +71,8 @@
 
 .audioflix-piano-offline[hidden] { display: none; }
 .audioflix-piano-offline strong { color: #edfafa; font-size: 22px; }
+.audioflix-piano-offline small { color: #6f858b; }
+.audioflix-piano-offline div { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 
 @media (max-width: 760px) {
     .audioflix-piano { grid-template-rows: auto auto minmax(360px, 1fr); }

@@ -14,9 +14,9 @@ if %errorlevel%==0 (
   set "PY=python"
 )
 
-echo Starting on http://127.0.0.1:8765
-start "" "http://127.0.0.1:8765"
-%PY% run.py
+echo Starting on http://127.0.0.1:8771
+start "" "http://127.0.0.1:8771"
+%PY% run.py --host 127.0.0.1 --port 8771
 if errorlevel 1 goto :fail
 exit /b 0
 
