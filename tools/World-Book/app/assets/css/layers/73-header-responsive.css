@@ -22,7 +22,13 @@
   white-space: nowrap;
 }
 
-@media (max-width: 1550px) and (min-width: 901px) {
+/*
+ * Move the action strip off the workspace row before that row becomes cramped.
+ * The wider threshold intentionally leaves the true wide-desktop layout alone
+ * while protecting scaled/zoomed mid-width windows where CSS pixels differ
+ * noticeably from the window's physical pixel width.
+ */
+@media (max-width: 1850px) and (min-width: 1321px) {
   .topbar {
     grid-template-columns: minmax(230px, auto) minmax(380px, 1fr);
     align-items: start;
