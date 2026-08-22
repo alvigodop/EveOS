@@ -1,3 +1,5 @@
+import { api } from "./api.js";
+
 function buildBulkUi() {
   const body = document.querySelector(".media-conversion-body");
   const singleForm = document.getElementById("youtubePianoForm");
@@ -37,6 +39,26 @@ function shortUrl(value) {
   }
 }
 
+function dependencyIssue(deps = {}) {
+  const missing = [
+    !deps.venv && "transcriber",
+    !deps.basic_pitch && "Basic Pitch",
+    !deps.ffmpeg && "FFmpeg",
+    !deps.ffprobe && "FFprobe",
+    !deps.js_runtime && (deps.js_runtime_issue || "YouTube JS runtime"),
+  ].filter(Boolean);
+  const detail = missing.length ? `: ${missing.join(" + ")}` : "";
+  return `Media-to-Piano setup needs repair${detail}. Run setup-youtube-piano.bat once, then restart start.bat.`;
+}
+
+function converterMessage() {
+  return String(document.getElementById("youtubePianoMessage")?.textContent || "").trim();
+}
+
+function isReviewMessage(value) {
+  return /choose the matching recording|public recording.*found below|alternate public source/i.test(String(value || ""));
+}
+
 export function setupBulkConversion({ youtubePiano, workspace }) {
   const ui = buildBulkUi();
   if (!ui) return { enqueue() {} };
@@ -64,7 +86,8 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
     const active = jobs.filter(job => job.state === "working").length;
     const ready = jobs.filter(job => job.state === "ready").length;
     const review = jobs.filter(job => job.state === "review").length;
-    summary.textContent = `${waiting} queued${active ? ` · ${active} converting` : ""}${ready ? ` · ${ready} ready` : ""}${review ? ` · ${review} review` : ""}`;
+    const failed = jobs.filter(job => job.state === "error").length;
+    summary.textContent = `${waiting} queued${active ? ` · ${active} converting` : ""}${ready ? ` · ${ready} ready` : ""}${review ? ` · ${review} review` : ""}${failed ? ` · ${failed} failed` : ""}`;
   }
 
   function updateCard(job) {
@@ -86,10 +109,28 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
     copy.append(title, url, state); node.append(number, copy, spinner); job.node = node; return node;
   }
 
+  async function dependencyBlocker() {
+    try {
+      const deps = await api.youtubeDependencies();
+      return deps?.ready ? "" : dependencyIssue(deps);
+    } catch (error) {
+      return `Media-to-Piano dependency check failed: ${error?.message || "local service unavailable"}`;
+    }
+  }
+
   async function drain() {
     if (processing) return;
     processing = true;
     try {
+      const blocker = await dependencyBlocker();
+      if (blocker) {
+        jobs.filter(job => job.state === "queued").forEach(job => {
+          job.state = "error";
+          job.message = `Blocked — ${blocker}`;
+          updateCard(job);
+        });
+        return;
+      }
       while (true) {
         const job = jobs.find(item => item.state === "queued");
         if (!job) break;
@@ -101,10 +142,13 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
           if (stagedAfter > stagedBefore) {
             job.state = "ready"; job.message = "Ready in From Sheet Finder";
           } else {
-            job.state = "review"; job.message = "Finished — review converter message / alternate source";
+            const detail = converterMessage() || "Conversion returned without a staged sheet or timed performance.";
+            job.state = isReviewMessage(detail) ? "review" : "error";
+            job.message = `${job.state === "review" ? "Needs review" : "Failed"} — ${detail}`;
           }
         } catch (error) {
-          job.state = "review"; job.message = error?.message || "Conversion needs attention";
+          job.state = "error";
+          job.message = `Failed — ${error?.message || "Conversion needs attention"}`;
         }
         updateCard(job);
       }
@@ -154,7 +198,7 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
   });
   clearButton.addEventListener("click", () => {
     for (let index = jobs.length - 1; index >= 0; index -= 1) {
-      if (!["ready", "review"].includes(jobs[index].state)) continue;
+      if (!["ready", "review", "error"].includes(jobs[index].state)) continue;
       jobs[index].node?.remove(); jobs.splice(index, 1);
     }
     renderSummary();
