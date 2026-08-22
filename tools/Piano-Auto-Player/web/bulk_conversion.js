@@ -59,6 +59,10 @@ function isReviewMessage(value) {
   return /choose the matching recording|public recording.*found below|alternate public source/i.test(String(value || ""));
 }
 
+function isSuccessMessage(value) {
+  return /^Loaded from the submitted source\b/i.test(String(value || "").trim());
+}
+
 export function setupBulkConversion({ youtubePiano, workspace }) {
   const ui = buildBulkUi();
   if (!ui) return { enqueue() {} };
@@ -72,6 +76,12 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
   const queueHost = document.getElementById("bulkConversionQueue");
   const jobs = [];
   let processing = false;
+  let stagedReceipt = 0;
+
+  // Sheet Workspace emits this only after it has accepted a real sheet/timed
+  // performance. Unlike a staging-count delta, this receipt is monotonic even
+  // if the user loads/discards older staged items while a long conversion runs.
+  window.addEventListener("piano:workspace-staged", () => { stagedReceipt += 1; });
 
   function syncMode() {
     const enabled = toggle.checked;
@@ -135,16 +145,16 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
         const job = jobs.find(item => item.state === "queued");
         if (!job) break;
         job.state = "working"; job.message = "Converting…"; updateCard(job);
-        const stagedBefore = workspace?.countStaged?.() || 0;
+        const receiptBefore = stagedReceipt;
         try {
           await youtubePiano.transcribe(job.url, "", { allowFallback: true });
-          const stagedAfter = workspace?.countStaged?.() || 0;
-          if (stagedAfter > stagedBefore) {
+          const detail = converterMessage();
+          if (stagedReceipt > receiptBefore && isSuccessMessage(detail)) {
             job.state = "ready"; job.message = "Ready in From Sheet Finder";
           } else {
-            const detail = converterMessage() || "Conversion returned without a staged sheet or timed performance.";
-            job.state = isReviewMessage(detail) ? "review" : "error";
-            job.message = `${job.state === "review" ? "Needs review" : "Failed"} — ${detail}`;
+            const fallbackDetail = detail || "Conversion returned without a staged sheet or timed performance.";
+            job.state = isReviewMessage(fallbackDetail) ? "review" : "error";
+            job.message = `${job.state === "review" ? "Needs review" : "Failed"} — ${fallbackDetail}`;
           }
         } catch (error) {
           job.state = "error";
