@@ -1,0 +1,23 @@
+{
+  "protocol": "world-portal-agent-plan",
+  "version": 1,
+  "worldId": "replace-with-world-id",
+  "title": "Repair selected-candidate export",
+  "summary": "Finalize and export the mission-selected pair instead of silently using a canonical fallback.",
+  "commands": [
+    {
+      "id": "finalize-selected",
+      "capability": "orogen.finalizeInput",
+      "parameters": {
+        "maskLayerId": { "selector": { "semantic": "latest-generated-mask" } },
+        "heightmapLayerId": { "selector": { "semantic": "latest-generated-heightmap" } },
+        "outputWidth": 4096,
+        "outputHeight": 2048,
+        "coastFloor": 18,
+        "strictBinaryMask": true,
+        "requireMatchingLandSupport": true
+      },
+      "reason": "The explicit selected outputs must remain the source of final downloadable bytes."
+    }
+  ]
+}

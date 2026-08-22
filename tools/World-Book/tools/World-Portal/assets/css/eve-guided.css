@@ -1,0 +1,136 @@
+.eve-guided-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(1, 6, 17, 0.78);
+  backdrop-filter: blur(12px);
+}
+
+.eve-guided-overlay[hidden] { display: none; }
+
+.eve-guided {
+  width: min(920px, 100%);
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+  border: 1px solid rgba(105, 193, 255, 0.35);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(10, 29, 65, 0.98), rgba(4, 13, 31, 0.98));
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
+}
+
+.eve-guided__header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 20px 22px;
+  border-bottom: 1px solid rgba(105, 193, 255, 0.17);
+  background: rgba(7, 23, 53, 0.96);
+}
+
+.eve-guided__header h2,
+.eve-guided__header p { margin: 0; }
+
+.eve-guided__eyebrow {
+  color: #6dd7ff;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.eve-guided__close {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  font-size: 1.35rem;
+}
+
+.eve-guided__body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.eve-guided__step {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(105, 193, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(7, 22, 49, 0.7);
+}
+
+.eve-guided__step h3,
+.eve-guided__step p { margin-top: 0; }
+
+.eve-guided__number {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 11px;
+  color: #041327;
+  background: #62cbff;
+  font-weight: 900;
+}
+
+.eve-guided__step button {
+  min-height: 38px;
+}
+
+.eve-guided__review {
+  padding: 16px;
+  border: 1px solid rgba(105, 193, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(3, 12, 29, 0.88);
+}
+
+.eve-guided__review h3 { margin-top: 0; }
+
+.eve-guided__review pre {
+  max-height: 310px;
+  overflow: auto;
+  padding: 13px;
+  border: 1px solid rgba(105, 193, 255, 0.13);
+  border-radius: 12px;
+  color: #c8d9f5;
+  background: rgba(0, 5, 16, 0.72);
+  font: 0.75rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#eveGuidedStatus {
+  min-height: 22px;
+  margin-bottom: 0;
+  color: #bcd4f7;
+}
+
+#eveGuidedStatus.is-error { color: #ffabb9; }
+
+@media (max-width: 640px) {
+  .eve-guided-overlay { padding: 0; }
+  .eve-guided { min-height: 100vh; max-height: 100vh; border: 0; border-radius: 0; }
+  .eve-guided__step { grid-template-columns: 1fr; }
+}
+
+.eve-agent-skill {
+  border-color: rgba(125, 221, 181, 0.24);
+  background: rgba(6, 35, 40, 0.55);
+}
+
+.eve-agent-skill .eve-guided__number {
+  background: #86e0ba;
+}
+
+.eve-agent-skill code {
+  color: #aee9d0;
+}

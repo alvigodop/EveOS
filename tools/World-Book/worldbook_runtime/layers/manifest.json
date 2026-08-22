@@ -16,6 +16,7 @@
   "71_narration_text.py",
   "72_narration_documents.py",
   "73_narration_routes.py",
+  "74_world_portal.py",
   "80_http_handler.py",
   "90_main.py"
 ]

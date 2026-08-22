@@ -1,0 +1,137 @@
+.orogen-mirror {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  background: #030308;
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.orogen-mirror--showing {
+  visibility: visible;
+}
+
+.orogen-mirror__stage {
+  position: absolute;
+  inset: 0 0 0 min(372px, 34vw);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orogen-mirror__video,
+.orogen-mirror .orogen-mirror__canvas {
+  grid-area: 1 / 1;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  display: block;
+  object-fit: contain;
+  background: #030308;
+  pointer-events: none;
+  touch-action: auto;
+  -webkit-user-drag: none;
+}
+
+.orogen-mirror--interactive .orogen-mirror__video:not([hidden]),
+.orogen-mirror--interactive .orogen-mirror__canvas:not([hidden]) {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+}
+
+.orogen-mirror--interactive .orogen-mirror__video:active,
+.orogen-mirror--interactive .orogen-mirror__canvas:active {
+  cursor: grabbing;
+}
+
+.orogen-mirror__badge {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  max-width: min(440px, calc(100vw - 36px));
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(104, 194, 255, 0.45);
+  border-radius: 999px;
+  background: rgba(2, 6, 17, 0.78);
+  color: #d9edff;
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  text-align: center;
+  pointer-events: none;
+}
+
+.planet-view-switcher {
+  position: fixed;
+  z-index: 12;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(8, 17, 39, 0.92);
+  box-shadow: var(--shadow);
+}
+
+.planet-view-switcher button {
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.planet-view-switcher button.is-active {
+  border-color: rgba(104, 194, 255, 0.48);
+  background: rgba(104, 194, 255, 0.14);
+  color: var(--text);
+}
+
+.hud.is-collapsed ~ .viewport .orogen-mirror__stage {
+  left: 0;
+}
+
+@media (max-width: 900px) {
+  .orogen-mirror__stage {
+    left: 0;
+  }
+
+  .planet-view-switcher {
+    top: auto;
+    right: 10px;
+    bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .orogen-mirror__badge {
+    right: 10px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 54px);
+    max-width: calc(100vw - 20px);
+  }
+}
+
+@media (max-width: 520px) {
+  .planet-view-switcher {
+    left: 10px;
+    right: 10px;
+    justify-content: stretch;
+  }
+
+  .planet-view-switcher button {
+    flex: 1 1 0;
+  }
+
+  .orogen-mirror__badge {
+    left: 10px;
+    right: 10px;
+    border-radius: 10px;
+  }
+}

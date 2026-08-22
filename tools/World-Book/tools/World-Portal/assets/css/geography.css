@@ -1,0 +1,132 @@
+.geography-labels {
+  position: fixed;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.continent-label,
+.country-marker {
+  --label-facing: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: auto;
+  cursor: pointer;
+  will-change: transform, opacity;
+}
+
+.continent-label {
+  padding: 6px 11px;
+  border: 1px solid rgba(116, 205, 255, 0.38);
+  border-radius: 999px;
+  color: #eff9ff;
+  background: linear-gradient(180deg, rgba(9, 28, 63, 0.90), rgba(6, 18, 43, 0.82));
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.36), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(8px);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.52);
+}
+
+.continent-label.is-visible,
+.country-marker.is-visible {
+  visibility: visible;
+  opacity: calc(0.98 * var(--label-facing));
+}
+
+.continent-label.is-selected {
+  border-color: rgba(255, 222, 113, 0.82);
+  background: linear-gradient(180deg, rgba(91, 66, 15, 0.94), rgba(48, 36, 10, 0.90));
+}
+
+.country-marker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 3px 7px 3px 4px;
+  border: 1px solid rgba(117, 207, 255, 0.34);
+  border-radius: 999px;
+  color: #f3f9ff;
+  background: rgba(6, 20, 46, 0.84);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.28);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.country-marker__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #75d4ff;
+  box-shadow: 0 0 8px rgba(86, 203, 255, 0.88);
+}
+
+.country-marker.is-compact {
+  padding: 4px;
+}
+
+.country-marker.is-compact .country-marker__name {
+  display: none;
+}
+
+.country-marker.is-compact:hover .country-marker__name,
+.country-marker.is-compact:focus-visible .country-marker__name {
+  display: inline;
+}
+
+.country-marker.is-selected {
+  z-index: 2;
+  border-color: rgba(255, 225, 121, 0.94);
+  background: rgba(76, 56, 12, 0.94);
+}
+
+.country-marker.is-selected .country-marker__dot {
+  background: #ffe27a;
+  box-shadow: 0 0 10px rgba(255, 221, 102, 0.92);
+}
+
+.country-search {
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(123, 178, 255, 0.27);
+  border-radius: 10px;
+  color: var(--text);
+  background: rgba(5, 15, 38, 0.82);
+}
+
+.country-list {
+  max-height: 210px;
+  margin-top: 10px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.country-list__button {
+  min-width: 0;
+  padding: 7px 8px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .country-list {
+    grid-template-columns: 1fr;
+  }
+}

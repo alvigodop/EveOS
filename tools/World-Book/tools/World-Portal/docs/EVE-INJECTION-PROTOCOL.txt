@@ -1,0 +1,202 @@
+WORLD PORTAL — EVE INJECTION PROTOCOL
+Protocol version 1
+Introduced in World Portal v0.16.0
+
+V0.20 MODEL-NEUTRAL PROTOCOL UPDATE
+The canonical plan identity is now world-portal-agent-plan version 1. The legacy
+world-portal-eve-plan identity remains accepted for backwards compatibility.
+Eve Guided Mode is a user-facing workflow name; the executor and portable Agent
+Skill are model-neutral. Context exports may use <world-name>.world-portal-context.zip
+and include agent-skill/SKILL.md plus dynamically generated capability and
+parameter documentation.
+
+
+PURPOSE
+Eve Guided Mode reduces the operational complexity of Heightmap Forge and the
+Orogen Refinement Lab. World Portal exports a bounded description of the active
+world. Eve or another compatible adviser may inspect that description and return
+a declarative plan. World Portal remains the authority that validates, previews,
+executes, saves, and promotes every result.
+
+CANONICAL ROUND TRIP
+1. World Portal exports <world-name>.eve-context.zip.
+2. The user uploads the ZIP to Eve or another compatible analysis client.
+3. The adviser returns <world-name>.eve-plan.json.
+4. World Portal validates the plan without executing it.
+5. The user reviews the objective, selected inputs, warnings, and confirmations.
+6. World Portal invokes only installed, allow-listed capabilities.
+7. Derived outputs remain attached to the active world and preserve lineage.
+8. Canonical promotion requires explicit user confirmation.
+9. World Portal can export the best current Orogen input bundle.
+
+AUTHORITY BOUNDARY
+Eve is an adviser and orchestrator. Eve may:
+- inspect exported metadata, previews, statistics, sessions, and passes;
+- choose among operations World Portal explicitly advertises;
+- recommend settings and selected layers;
+- return a deterministic action plan.
+
+Eve does not own world data and does not execute arbitrary code. World Portal:
+- owns every world and layer;
+- verifies world and context identity;
+- validates parameter ranges and layer compatibility;
+- performs all image processing locally;
+- controls canonical promotion;
+- stores execution history and resulting assets.
+
+CONTEXT BUNDLE
+The context ZIP contains compact, machine-readable and human-readable context:
+- manifest.json: protocol, world identity, context hash, and export policy;
+- world-summary.json: active world, canonical layers, and ownership counts;
+- capabilities.json: commands supported by the installed World Portal version;
+- layers.json: layer roles, provenance, dimensions, hashes, status, and analysis;
+- sessions.json: grouped Orogen analysis sessions;
+- passes.json: non-destructive refinement lineage;
+- statistics.json: physical and raster intelligence per layer;
+- current-settings.json: active World Portal and tool settings;
+- chat-report.txt: concise world summary for conversation;
+- layer-reports/: detailed plain-language intelligence reports;
+- previews/: compact PNG previews for relevant layers;
+- selected-assets/: optional full-resolution canonical visual, mask, and heightmap;
+- asset-index.json: IDs mapped to preview and report paths.
+
+DEEP RASTER INTELLIGENCE
+World Portal exposes deterministic evidence rather than only image filenames.
+
+Mask intelligence may include:
+- raw and spherical area-corrected land coverage;
+- connected landmasses and tiny-component counts;
+- largest and top-three landmass shares;
+- effective landmass count and fragmentation;
+- component size distribution and patch density;
+- geographic centroid and latitude/hemisphere shares;
+- occupied longitude and latitude extent;
+- antimeridian, seam, and pole contact;
+- coastline edges, edge density, and perimeter-area complexity;
+- coastal-pixel share and land at least 2, 4, 8, or 16 pixels inland;
+- largest component centroids, shares, bounds, and compactness;
+- anomaly flags for global land, near-empty masks, fragmentation, and speckles.
+
+Heightmap intelligence may include:
+- land coverage and spherical coverage;
+- minimum, maximum, mean, relief, and standard deviation;
+- P05 through P99 elevation percentiles;
+- P90-P10 terrain contrast;
+- hypsometric integral and elevation entropy;
+- lowland, hill, mountain, and peak shares;
+- local roughness and slope proxies;
+- ridge, valley, and flat-neighborhood shares;
+- peak candidates, highland systems, and highest-point coordinates;
+- near-black land risk and clipped-peak risk;
+- latitude-band elevation means and elevation center;
+- anomaly flags for global elevation, low relief, clipping, and fragile land.
+
+Visual raster intelligence may include:
+- dimensions, megapixels, aspect ratio, and exact 2:1 status;
+- alpha/transparency coverage;
+- exact-black, exact-white, near-black, and near-white shares;
+- luminance mean, variation, percentiles, and dynamic range;
+- RGB channel means and variation;
+- grayscale share, saturation, and quantized color count;
+- color entropy, palette concentration, and dominant colors;
+- texture complexity and edge strength;
+- conservative role hints such as likely mask or likely heightmap.
+
+Pair intelligence may include:
+- mask IoU, Dice, pixel agreement, and spherical agreement;
+- source-only and comparison-only land;
+- shared heightmap land, elevation error, bias, and correlation;
+- visual luminance/RGB difference and materially changed pixel share.
+
+These measurements do not create lore, political boundaries, biome names, or
+palette meanings. Unknown classified colors remain unknown until a legend or
+user mapping is supplied.
+
+PLAN DOCUMENT
+An Agent plan is JSON with this identity:
+- protocol: world-portal-agent-plan (canonical) or world-portal-eve-plan (legacy alias)
+- version: 1
+- worldId: the target world
+- basedOnContextHash: the exported context hash
+- title and plain-language summary
+- riskLevel
+- commands
+- expectedOutputs
+- notes
+
+A command contains:
+- id;
+- capability;
+- input layer references;
+- parameters;
+- reason;
+- expected result;
+- confirmation requirement;
+- failure behavior.
+
+Plans may not contain JavaScript, HTML, shell commands, executable attachments,
+filesystem paths, action-target URLs, or unknown command types.
+
+VERSION 1 CAPABILITIES
+The installed capability manifest is the source of truth. v0.16.0 advertises:
+- heightmapForge.setParameters
+- heightmapForge.regenerateMask
+- heightmapForge.regenerateElevation
+- refinement.selectLayers
+- refinement.compareMasks
+- layers.markProvisional
+- layers.promoteCanonical
+- orogen.exportInputBundle
+- world.saveCheckpoint
+
+Future commands are not executable until a later World Portal version advertises
+them. A plan generated for a newer capability set must be rejected safely.
+
+VALIDATION AND DRY RUN
+Before execution World Portal checks:
+- protocol and version;
+- world ID;
+- context hash and stale-state risk;
+- referenced layer existence;
+- installed capability support;
+- unsafe or executable-like values;
+- canonical confirmation requirements.
+
+A context-hash mismatch is a warning because the active world may have changed
+since export. The user should export a new context or apply only compatible steps.
+
+NON-DESTRUCTIVE LINEAGE
+Eve-directed operations create derived layers, provisional states, checkpoints,
+and refinement history. Original source maps are never silently overwritten.
+Canonical promotion remains a user decision and preserves parent IDs.
+
+OFFLINE-FIRST RULE
+The ZIP/JSON round trip is the canonical protocol. A future live MCP, local
+agent, Eve OS bridge, or desktop connector must call the same capabilities and
+schemas rather than creating a second unrestricted automation system.
+
+v0.16.1 COMMAND-RESULT AND FINALIZATION CONTRACT
+=================================================
+Heightmap Forge regeneration commands must persist full-resolution output layers. Their results expose generatedLayerId plus domain-specific mask or heightmap IDs.
+
+A later command may reference an earlier result with:
+  $result.<commandId>.<field>
+or:
+  { "fromCommand": "<commandId>", "field": "<field>" }
+
+References may target only commands that appear earlier in the plan. World Portal resolves them locally during execution.
+
+orogen.finalizeInput and orogen.exportInputBundle accept optional maskLayerId and heightmapLayerId inputs plus outputWidth, outputHeight, coastFloor, maskThreshold, strictBinaryMask, and requireMatchingLandSupport parameters.
+
+The finalizer is authoritative for downloadable Orogen inputs. It must produce a strict binary mask, exact-black ocean, nonzero accepted land, and identical mask/heightmap support. It must re-decode encoded PNGs before declaring the result Orogen Ready. Checksums in the manifest refer to the exact downloadable PNG bytes.
+
+When newer generated outputs exist but are not explicitly selected or promoted, implicit canonical export is forbidden. World Portal must pause and request a final layer choice.
+
+v0.19 MISSION ORCHESTRATION CONTRACT
+====================================
+Plans may create or recover missions, attach baselines, resolve semantic layer
+selectors, repair prerequisites with confirmation, generate candidate styles,
+pause for review, and resume from persisted command results. Candidate
+selection is separate from canonical promotion. Context bundles expose mission
+control, missing prerequisites, selector roles, candidate state, pending
+decisions, capabilities, and parameter ranges even when no mission exists.

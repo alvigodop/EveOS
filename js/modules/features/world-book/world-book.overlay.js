@@ -103,8 +103,9 @@ window.EveWorldBook = window.EveWorldBook || {};
         const pill = overlay.querySelector('[data-world-book-status-pill]');
         const toggle = overlay.querySelector('[data-world-book-server-toggle]');
         const offlineStart = overlay.querySelector('[data-world-book-offline-start]');
-        const message = overlay.querySelector('[data-world-book-offline-message]');
-        const frame = overlay.querySelector('[data-world-book-frame]');
+        const messages = overlay.querySelectorAll('[data-world-book-offline-message]');
+        const worldFrame = overlay.querySelector('[data-world-book-frame]');
+        const portalFrame = overlay.querySelector('[data-world-portal-frame]');
         const running = snapshot.running === true;
         const controllable = snapshot.controllerAvailable === true;
         const canBootstrap = snapshot.installed !== false;
@@ -141,12 +142,19 @@ window.EveWorldBook = window.EveWorldBook || {};
                 ? 'Start the World Book server'
                 : 'Start local control and World Book';
         }
-        if (message) message.textContent = snapshot.message || '';
+        messages.forEach((message) => { message.textContent = snapshot.message || ''; });
 
-        if (currentView() !== 'world') return;
+        if (!['world', 'portal'].includes(currentView())) return;
         overlay.classList.toggle('is-world-online', running);
-        if (running) navigateFrame(frame, snapshot.url);
-        else navigateFrame(frame, 'about:blank');
+        if (running) {
+            const portalUrl = `${String(snapshot.url || '').replace(/\/$/, '')}/?view=world-portal&embedded=1`;
+            const active = currentView();
+            navigateFrame(worldFrame, active === 'world' ? snapshot.url : 'about:blank');
+            navigateFrame(portalFrame, active === 'portal' ? portalUrl : 'about:blank');
+        } else {
+            navigateFrame(worldFrame, 'about:blank');
+            navigateFrame(portalFrame, 'about:blank');
+        }
     }
 
     async function refreshStatus() {
@@ -157,7 +165,7 @@ window.EveWorldBook = window.EveWorldBook || {};
 
     async function setView(view) {
         const overlay = ensureOverlay();
-        const next = view === 'world' ? 'world' : 'notes';
+        const next = ['world', 'portal'].includes(view) ? view : 'notes';
         overlay.dataset.view = next;
         writePreference(VIEW_KEY, next);
         overlay.querySelectorAll('[data-world-book-view]').forEach(function (button) {
@@ -197,17 +205,18 @@ window.EveWorldBook = window.EveWorldBook || {};
                             <span data-world-book-status>Local writing and knowledge workspace</span>
                         </div>
                     </div>
-                    <nav class="notes-world-book-tabs" aria-label="Notes and World Book views">
+                    <nav class="notes-world-book-tabs" aria-label="Notes, World Book, and World Portal views">
                         <button type="button" data-world-book-view="notes">Notes</button>
                         <button type="button" data-world-book-view="world">World Book</button>
+                        <button type="button" data-world-book-view="portal">World Portal</button>
                     </nav>
                     <div class="notes-world-book-actions">
                         <span class="notes-world-book-status-pill" data-world-book-status-pill data-state="checking">Checking</span>
                         <button type="button" data-world-book-server-toggle>Start World Book</button>
                         <button type="button" data-world-book-reader-controls title="Open compact Reader controls">Reader controls</button>
                         <button type="button" class="notes-world-book-detach"
-                            data-world-book-detach aria-label="Detach World Book into a window"
-                            title="Detach World Book into a window">
+                            data-world-book-detach aria-label="Detach the active view into a window"
+                            title="Detach the active view into a window">
                             <span aria-hidden="true">&#8599;</span>
                             <span class="notes-world-book-detach-label">Detach</span>
                         </button>
@@ -237,6 +246,16 @@ window.EveWorldBook = window.EveWorldBook || {};
                             <button type="button" data-world-book-offline-start>Start World Book</button>
                         </div>
                     </section>
+                    <section class="notes-world-book-portal-view" data-world-book-panel="portal">
+                        <iframe data-world-portal-frame src="about:blank"
+                            title="World Portal" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+                        <div class="notes-world-book-offline">
+                            <span aria-hidden="true">&#9671;</span>
+                            <strong>World Portal is resting</strong>
+                            <p data-world-book-offline-message>Start World Book first, then its Portal can be managed here.</p>
+                            <button type="button" data-world-book-offline-start>Start World Book</button>
+                        </div>
+                    </section>
                 </main>
             </section>`;
 
@@ -245,7 +264,9 @@ window.EveWorldBook = window.EveWorldBook || {};
         });
         overlay.querySelector('[data-world-book-close]').addEventListener('click', ns.close);
         overlay.querySelector('[data-world-book-server-toggle]').addEventListener('click', toggleServer);
-        overlay.querySelector('[data-world-book-offline-start]').addEventListener('click', toggleServer);
+        overlay.querySelectorAll('[data-world-book-offline-start]').forEach(button => {
+            button.addEventListener('click', toggleServer);
+        });
         overlay.querySelector('[data-world-book-reader-controls]').addEventListener('click', () => {
             window.EveWorldBookNarrationBridge?.openCompanion?.();
         });
@@ -295,8 +316,9 @@ window.EveWorldBook = window.EveWorldBook || {};
         document.body.classList.remove('notes-world-book-open');
         document.body.style.overflow = previousBodyOverflow;
         document.querySelector('.topbar-notes-world-book-btn')?.setAttribute('aria-expanded', 'false');
-        const frame = overlay.querySelector('[data-world-book-frame]');
-        navigateFrame(frame, 'about:blank');
+        overlay.querySelectorAll('[data-world-book-frame], [data-world-portal-frame]').forEach(frame => {
+            navigateFrame(frame, 'about:blank');
+        });
         window.clearInterval(statusTimer);
         statusTimer = 0;
         previousFocus?.focus?.();
@@ -305,6 +327,7 @@ window.EveWorldBook = window.EveWorldBook || {};
 
     ns.detach = function detachWorldBook() {
         return ns.detached.open({
+            view: currentView(),
             onSnapshot: renderStatus,
             onMessage: setOverlayStatus,
             onReady: ns.close

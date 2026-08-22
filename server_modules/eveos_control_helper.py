@@ -16,6 +16,7 @@ from . import eveos_console_prefs
 from . import eveos_web_control
 from . import gemini_control
 from . import gemini_credentials
+from . import piano_player_control
 from . import world_book_control
 from .eveos_http_cors import eveos_cors_origin
 
@@ -101,6 +102,8 @@ def _console_overview() -> dict:
          lambda s: [s.get("websocketPort"), s.get("statusPort")]),
         ("worldBook", "World Book", world_book_control.get_status,
          lambda s: [s.get("port")]),
+        ("piano", "Piano Auto Player", piano_player_control.get_status,
+         lambda s: [s.get("port")]),
     ):
         try:
             status = status_fn() or {}
@@ -136,7 +139,8 @@ def _stop_everything() -> dict:
     what happened to each is reported back rather than swallowed.
     """
     also = {}
-    for name, stop in (("worldBook", world_book_control.stop_server),
+    for name, stop in (("piano", piano_player_control.stop_server),
+                       ("worldBook", world_book_control.stop_server),
                        ("gemini", gemini_control.stop_server)):
         try:
             also[name] = "stopped" if (stop() or {}).get("ok", True) else "reported not-ok"
@@ -204,6 +208,9 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/world-book/status":
             self._send(world_book_control.get_status())
             return
+        if path == "/api/piano-player/status":
+            self._send(piano_player_control.get_status())
+            return
         if path == "/api/control-plane/consoles":
             self._send(_console_overview())
             return
@@ -227,6 +234,8 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/gemini-server/stop",
             "/api/world-book/start",
             "/api/world-book/stop",
+            "/api/piano-player/start",
+            "/api/piano-player/stop",
             "/api/gemini-credentials",
             "/api/control-plane/consoles",
         } and not gemini_control.request_can_control(self):
@@ -255,6 +264,10 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             action = world_book_control.start_server
         elif path == "/api/world-book/stop":
             action = world_book_control.stop_server
+        elif path == "/api/piano-player/start":
+            action = piano_player_control.start_server
+        elif path == "/api/piano-player/stop":
+            action = piano_player_control.stop_server
 
         if action is not None:
             payload = action()
@@ -313,10 +326,11 @@ def main() -> int:
     print(f"  Consoles: {'headless' if eveos_web_control.headless_mode() else 'visible'}"
           " (set EVEOS_HEADLESS=1 to hide spawned servers)")
     print(f"  Control: http://127.0.0.1:{args.port}/api/control-plane/status")
-    print("  Manages EveOS localhost, Gemini, and World Book independently.")
+    print("  Manages EveOS localhost, Gemini, World Book, and Piano independently.")
     print("  Press Ctrl+C to stop the control plane")
     eveos_web_control.restore_desired_state_async()
     world_book_control.restore_desired_state_async()
+    piano_player_control.restore_desired_state_async()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,0 +1,114 @@
+.world-portal-view {
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+body.world-portal-active .workspace,
+body.world-portal-active .footer {
+  display: none;
+}
+
+body.world-portal-active .world-portal-view {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.world-portal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-strong);
+}
+
+.world-portal-toolbar > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.world-portal-toolbar strong {
+  font-size: 17px;
+}
+
+.world-portal-toolbar small,
+.world-portal-kicker {
+  color: var(--muted);
+}
+
+.world-portal-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.world-portal-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.world-portal-frame-wrap {
+  position: relative;
+  min-height: 0;
+  background: #030a0d;
+}
+
+.world-portal-frame-wrap iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: none;
+  background: #030a0d;
+}
+
+.world-portal-view.is-online iframe {
+  display: block;
+}
+
+.world-portal-offline {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.world-portal-offline > span {
+  color: var(--accent);
+  font-size: 28px;
+}
+
+.world-portal-offline strong {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.world-portal-offline p {
+  margin: 0;
+}
+
+.world-portal-view.is-online .world-portal-offline {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .world-portal-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .world-portal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

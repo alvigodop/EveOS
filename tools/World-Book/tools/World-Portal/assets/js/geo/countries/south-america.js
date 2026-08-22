@@ -1,0 +1,17 @@
+export const SOUTH_AMERICA_COUNTRIES = Object.freeze([
+  {"name":"Argentina","code":"AR","latitude":-37.2392,"longitude":-64.0806,"priority":64.44},
+  {"name":"Bolivia","code":"BO","latitude":-16.4001,"longitude":-63.6389,"priority":60.41},
+  {"name":"Brazil","code":"BR","latitude":-14.0737,"longitude":-49.7116,"priority":69.3},
+  {"name":"Chile","code":"CL","latitude":-54.0159,"longitude":-69.8378,"priority":58.79},
+  {"name":"Colombia","code":"CO","latitude":3.9686,"longitude":-72.4865,"priority":60.58},
+  {"name":"Ecuador","code":"EC","latitude":-1.7633,"longitude":-78.2787,"priority":54.42},
+  {"name":"Falkland Islands","code":"FK","latitude":-51.7,"longitude":-59.3893,"priority":40.85},
+  {"name":"French Guiana","code":"GF","latitude":3.8894,"longitude":-53.0086,"priority":1.0},
+  {"name":"Guyana","code":"GY","latitude":4.9133,"longitude":-58.8454,"priority":53.32},
+  {"name":"Paraguay","code":"PY","latitude":-23.1138,"longitude":-58.6374,"priority":56.09},
+  {"name":"Peru","code":"PE","latitude":-9.2475,"longitude":-75.8747,"priority":61.09},
+  {"name":"South Georgia","code":"GS","latitude":-54.5,"longitude":-37.0,"priority":1.0},
+  {"name":"Suriname","code":"SR","latitude":3.8405,"longitude":-56.0316,"priority":52.14},
+  {"name":"Uruguay","code":"UY","latitude":-32.3875,"longitude":-55.8189,"priority":52.58},
+  {"name":"Venezuela","code":"VE","latitude":6.4817,"longitude":-65.4259,"priority":59.62},
+]);

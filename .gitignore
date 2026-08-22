@@ -192,3 +192,16 @@ server_modules/audioflix_allowed_dirs.json
 # World Book: application code is public; every runtime/user-data artifact stays local.
 tools/World-Book/data/**
 !tools/World-Book/data/README.txt
+
+# World Portal: generated texture and outer-tool synchronization state stay local.
+tools/World-Book/tools/World-Portal/assets/data/outer-sync/
+tools/World-Book/tools/World-Portal/assets/data/outer-tools.json
+tools/World-Book/tools/World-Portal/assets/data/outer-tools.runtime.json
+tools/World-Book/tools/World-Portal/assets/textures/earth-blue-marble.png
+tools/World-Book/tools/World-Portal/assets/textures/texture-manifest.json
+
+# Piano Auto Player: library contents, authenticated sessions, and temporary media stay local.
+tools/Piano-Auto-Player/data/**
+!tools/Piano-Auto-Player/data/README.txt
+tools/Piano-Auto-Player/youtube_session.txt
+tools/Piano-Auto-Player/tmp/

@@ -1,0 +1,28 @@
+WORLD PORTAL v0.20.0
+Files-only patch. Base: v0.19.x
+
+INSTALL
+1. Close the running server window and the World Portal browser tab.
+2. Extract this ZIP directly over the existing project folder.
+3. Double-click launch.bat.
+4. Keep the server window open. World Portal opens in your browser.
+
+REQUIREMENTS
+- Python 3 on PATH (launch.ps1 tries "py -3", then "python").
+- A browser with ES module, Web Worker, and WebGL2 support.
+- Internet access on first launch, and on every launch until three.js is cached
+  locally by the browser. See NETWORK ACCESS below.
+
+NETWORK ACCESS
+World Portal is not fully offline:
+- server.py downloads the NASA Blue Marble texture on first launch and caches it
+  at assets/textures/earth-blue-marble.png. Later launches reuse that file.
+- index.html resolves three.js 0.185.1 from the jsdelivr CDN through an import
+  map, so the browser needs network access unless the modules are already in its
+  HTTP cache.
+Everything else — world storage, Heightmap Forge, the Refinement Lab, Orogen
+finalization, and agent plan validation — runs locally in the browser.
+
+VERIFY
+  python tools/check-source-lines.py      # 450-line module cap
+  node --test "tests/*.test.mjs"          # unit tests (Node 18+, no dependencies)

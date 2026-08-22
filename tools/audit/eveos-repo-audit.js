@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const esbuild = require('esbuild');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const MAX_LINES = 450;
@@ -15,6 +16,9 @@ const SKIP_PREFIXES = [
     path.join('data', 'modular-state'),
     path.join('data', 'modular-packs'),
     path.join('tools', 'camofox-runtime', 'node_modules')
+];
+const LINE_LIMIT_EXEMPT_PREFIXES = [
+    'tools/World-Book/tools/World-Portal/outer/orogen/'
 ];
 const RUNTIME_SOURCE_PREFIXES = ['js/', 'css/', 'server/', 'server_modules/'];
 const MOJIBAKE_MARKERS = [
@@ -57,6 +61,11 @@ function walk(directory, files = []) {
 
 function read(filePath) {
     return fs.readFileSync(filePath, 'utf8');
+}
+
+function lineCount(source) {
+    if (!source) return 0;
+    return source.replace(/\r?\n$/, '').split(/\r?\n/).length;
 }
 
 function stripQuery(assetPath) {
@@ -111,11 +120,17 @@ function findDuplicateAssets(assets) {
 function inspectJavaScriptSyntax(sourceFiles, failures) {
     for (const filePath of sourceFiles) {
         const extension = path.extname(filePath).toLowerCase();
-        if (!['.js', '.cjs'].includes(extension)) continue;
+        if (!['.js', '.mjs', '.cjs'].includes(extension)) continue;
         try {
-            new vm.Script(read(filePath), { filename: relative(filePath) });
+            esbuild.transformSync(read(filePath), {
+                format: extension === '.cjs' ? 'cjs' : 'esm',
+                loader: 'js',
+                sourcefile: relative(filePath),
+                target: 'esnext'
+            });
         } catch (error) {
-            failures.push('javascript-syntax: ' + relative(filePath) + ': ' + error.message);
+            const detail = error.errors?.[0]?.text || error.message;
+            failures.push('javascript-syntax: ' + relative(filePath) + ': ' + detail);
         }
     }
 }
@@ -189,7 +204,9 @@ function main() {
     const warnings = [];
 
     for (const filePath of sourceFiles) {
-        const count = read(filePath).split(/\r?\n/).length;
+        const rel = relative(filePath);
+        if (LINE_LIMIT_EXEMPT_PREFIXES.some((prefix) => rel.startsWith(prefix))) continue;
+        const count = lineCount(read(filePath));
         if (count > MAX_LINES) failures.push(`line-limit ${count}: ${relative(filePath)}`);
     }
 

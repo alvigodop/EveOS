@@ -107,6 +107,9 @@ let config = {
         popupPort: 3040,
         localControlPort: 9082,
         geminiControlPort: 9082,
+        worldBookPort: 8766,
+        worldPortalPort: 8770,
+        pianoPlayerPort: 8771,
         corsProxyUrl: "",
         codetabsProxyUrl: "",
         statusTimeoutMs: 350

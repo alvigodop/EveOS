@@ -1,0 +1,16 @@
+{
+  "protocol": "world-portal-agent-plan",
+  "version": 1,
+  "worldId": "replace-with-world-id",
+  "title": "Repair canonical visual prerequisite",
+  "summary": "Inspect mission prerequisites and request confirmation before correcting canonical ownership.",
+  "commands": [
+    {
+      "id": "repair-prerequisites",
+      "capability": "mission.repairPrerequisites",
+      "parameters": { "apply": true },
+      "confirmation": "required",
+      "reason": "The canonical visual slot points at a nonvisual raster."
+    }
+  ]
+}

@@ -17,6 +17,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
         const stopItemPlayback = (id) => Promise.allSettled([window.EveAudioflixAudio?.stopItemLayers?.(id), window.EveAudioflixNative?.clearVoices?.(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id)]);
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
+            if (action?.startsWith('piano-')) return window.EveAudioflixPianoUi?.handleAction?.(actionTarget, e);
             if (action?.startsWith('soundlab-')) {
                 const result = await window.EveAudioflixSoundLabUi?.handleAction?.(actionTarget, e);
                 if (result?.rerender) ctx.rerender();
@@ -66,7 +67,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'submit-form') { const f = actionTarget.closest('form'); if (f?.reportValidity()) handleForm(f); return; }
             if (action === 'tab') {
                 ctx.activeTab = actionTarget.dataset.afTab || 'soundboard';
-                window.EveAudioflixSoundLabUi?.setVisible?.(ctx.activeTab === 'soundlab');
+                window.EveAudioflixSoundLabUi?.setVisible?.(ctx.activeTab === 'soundlab'); window.EveAudioflixPianoUi?.setVisible?.(ctx.activeTab === 'piano');
                 ctx.pushHotkeysToBridge();
                 ctx.rerender();
                 return;

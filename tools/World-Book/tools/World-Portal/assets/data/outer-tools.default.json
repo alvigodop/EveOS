@@ -1,0 +1,26 @@
+{
+  "format": "world-portal-outer-tools",
+  "version": 2,
+  "tools": [
+    {
+      "id": "orogen",
+      "name": "World Orogen",
+      "kind": "world 3D planetary tool",
+      "path": "outer/orogen",
+      "entry": "outer/orogen/import.html",
+      "generator": "outer/orogen/index.html",
+      "license": "GPL-3.0",
+      "repository": "https://github.com/raguilar011095/planet_heightmap_generation",
+      "hosted": "https://www.orogen.studio/",
+      "available": false,
+      "commit": null,
+      "syncSupported": false,
+      "syncReason": "Start server.py to verify Orogen world sync.",
+      "syncing": false,
+      "syncEndpoint": "/__outer/orogen/sync",
+      "updateEndpoint": "/__outer/orogen/update",
+      "bridgeProtocol": "world-portal.orogen-bridge",
+      "bridgeProtocolVersion": 1
+    }
+  ]
+}

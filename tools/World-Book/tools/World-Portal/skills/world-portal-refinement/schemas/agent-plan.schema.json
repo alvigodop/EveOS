@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world-portal-agent-plan.schema.json",
+  "title": "World Portal Agent Plan",
+  "type": "object",
+  "required": ["protocol", "version", "worldId", "commands"],
+  "properties": {
+    "protocol": { "enum": ["world-portal-agent-plan", "world-portal-eve-plan"] },
+    "version": { "type": "integer", "const": 1 },
+    "agent": { "type": "object" },
+    "worldId": { "type": "string", "minLength": 1 },
+    "basedOnContextHash": { "type": ["string", "null"] },
+    "title": { "type": "string" },
+    "summary": { "type": "string" },
+    "riskLevel": { "enum": ["low", "medium", "high"] },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "capability"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "capability": { "type": "string", "minLength": 1 },
+          "inputs": { "type": "object" },
+          "parameters": { "type": "object" },
+          "reason": { "type": "string" },
+          "expectedResult": { "type": "string" },
+          "confirmation": { "enum": ["required", "not-required"] },
+          "failureBehavior": { "enum": ["stop", "continue", "pause"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "expectedOutputs": { "type": "array" },
+    "notes": { "type": "array" }
+  },
+  "additionalProperties": true
+}

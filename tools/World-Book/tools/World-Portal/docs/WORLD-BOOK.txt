@@ -1,0 +1,325 @@
+WORLD PORTAL — WORLD BOOK
+World ownership, Orogen evidence, and connector doctrine
+Reconciled for World Portal v0.20.0
+
+PURPOSE
+World Portal is the owner and long-term home of each created world. World Orogen
+is an external planetary-science engine that may process a World Portal-owned
+heightmap and return terrain, climate, water, biome, and satellite layers.
+
+UPSTREAM SOURCE RULE
+The upstream World Orogen project is:
+
+raguilar011095/planet_heightmap_generation
+GNU General Public License v3.0
+
+Orogen is now carried inside World Portal as its first outer tool. The governing
+contract is docs/OUTER-TOOLS.txt; the rules below are unchanged by vendoring and
+are restated there:
+- Keep the upstream source in its own clearly identified module or repository.
+  It is carried as a pinned git submodule under outer/orogen, never as a copied
+  or hand-merged directory.
+- Do not casually rewrite, reorganize, or absorb its source into World Portal.
+  Vendored source is read-only; needed changes go upstream as proposals.
+- Allow the upstream author to continue developing the engine independently.
+- Update the external module from upstream instead of duplicating patches inside
+  World Portal.
+- Preserve the upstream license, attribution, and source availability.
+- Record the Orogen version or commit used to produce saved derivative layers.
+  The pinned submodule commit is that record.
+
+WORLD PORTAL INTEGRATION RULE
+World Portal connects around Orogen through host-owned connectors rather than
+changes inside Orogen. "Intimate integration" means the active World Portal
+state and attached Orogen run work together as two coordinated states. It does
+not mean sharing objects, modules, settings, or general DOM control.
+
+Every outbound pair, sync attachment, declared return association, extractor
+result, and mirrored view is keyed by connector version, immutable world ID,
+unique handoff ID, and checked-out Orogen commit. Switching worlds or commits
+invalidates stale attachments instead of retargeting them to whichever world is
+active. Returned images do not embed a verifiable handoff ID, so file selection
+declares the association; it does not prove which upstream run created them.
+
+Current transports are:
+- exact 2:1 finalized file/data handoff and explicit result intake;
+- guarded host-side startup-heightmap substitution for World sync; and
+- a host-owned camera-interactive connected mirror of the exact synced import
+  page's main rendered Orogen planet/galaxy canvas.
+
+planet-mirror@1 remains rendered visual transport. For pinned commit
+cc2662b4edd52231c4f65d8765f3ef12cd82d9b7, World Portal's same-origin,
+exact-full-tuple, commit-audited compatibility relay forwards only primary drag
+when unmodified, wheel-family zoom, and host pinch translated to wheel, for
+camera orbit and zoom. Ctrl+wheel is allowed only because Chromium emits
+trackpad pinch that way; Alt/Meta/Shift-modified wheel is rejected, and no
+keyboard event is forwarded. The relay cancels on view, world, frame, sync, or
+commit mismatch. Settings UI, right/middle buttons, edit gestures, and data
+actions stay in the Outer Tool Port. Generator navigation remains independent.
+
+The preferred future input transport is an upstream-supported semantic
+planet-camera-input@1 postMessage capability with source/origin, protocol,
+capability, world, handoff, and commit validation. The pinned Orogen commit does
+not implement it; the current relay is a narrowly audited compatibility
+connector, not permission for general DOM automation.
+
+The connected mirror fills the measured usable main area beside the HUD, or the
+full viewport on compact/collapsed layouts. While parked, its same source iframe
+renders at that exact rectangle and Orogen owns the capped device-pixel backing
+resolution. Contain is only a safe fit and the host does not auto-zoom Orogen.
+Reopening the port restores its normal layout without replacing its renderer,
+camera, or settings.
+
+For the audited pinned commit, primary canvas rotation gestures also maintain a
+normalized local geographic-facing direction. View changes align through the
+same bounded canvas input boundary, Orogen drags update World Portal, and World
+Portal's automatic spin is held only while Orogen is selected. This is not raw
+camera/settings access: zoom and the Orogen Auto-Rotate setting remain separate.
+
+HEIGHTMAP FORGE ROLE
+Heightmap Forge belongs to World Portal, not to Orogen. It converts a visual map
+into a deterministic Orogen-ready elevation layer while keeping the source map
+unchanged.
+
+Heightmap Forge owns these responsibilities:
+- explicit 2:1 image normalization;
+- ocean-color sampling;
+- connected-ocean segmentation;
+- exact-black ocean enforcement;
+- compression-noise and speck removal;
+- land-mask cleanup;
+- coast-distance base elevation;
+- seeded terrain variation;
+- validation;
+- PNG export;
+- saving derivative layers to the owning World Portal world.
+
+OROGEN ROLE
+Orogen remains responsible for planetary processing such as:
+- spherical heightmap sampling;
+- terrain warp and smoothing;
+- tectonic and plate-related systems;
+- hydraulic, thermal, and glacial erosion;
+- drainage and terrain refinement;
+- winds and ocean currents;
+- precipitation and temperature;
+- climate and biome classification;
+- high-resolution map exports.
+
+WORLD-OWNED OUTPUTS
+Orogen results are imported back into the same World Portal world that supplied
+the heightmap. Candidate owned layers include:
+- original visual map;
+- Heightmap Forge land mask;
+- Heightmap Forge grayscale heightmap;
+- Orogen satellite map;
+- Orogen land mask;
+- Orogen heightmap;
+- Orogen climate map;
+- Orogen biome map;
+- Orogen version or commit reference;
+- generation settings and timestamps.
+
+Deleting a custom world must delete these owned layers with it. Exporting a
+complete world package may include them. Lightweight package export may omit
+large derivative layers in a later update.
+
+The Landmasses panel prefers the newest recognized Orogen-returned mask, then the
+canonical mask, then the newest remaining mask. It derives complete component
+counts, spherical-area estimates, centroids, and generalized north-south/
+east-west bounding spans; only the 12 largest cosine-weighted components are
+listed. Orogen does not supply a physical planet radius in the image, so World
+Portal applies the owning world's selected radius (6371 km default, positive,
+maximum 1,000,000 km). Distances scale with radius, areas with radius squared,
+and component counts vary with resolution, threshold, cleanup, and seam handling.
+These are bounding spans and scale-consistent raster estimates, not coastline
+lengths or survey facts. Seam-crossing east-west span stays unavailable unless a
+circular-longitude span is supplied.
+
+NON-DESTRUCTIVE RULE
+The original visual map is never replaced automatically. A generated satellite,
+climate, biome, or height layer becomes the displayed world surface only after
+an explicit user choice.
+
+OFFLINE AND DETERMINISTIC RULE
+The normal visual-map-to-heightmap path must work entirely in the browser without
+AI. Given the same source image, settings, and random seed, it should reproduce
+the same result. AI may later suggest mountain ranges or elevation, but it stays
+optional, editable, and confirmable.
+
+CURRENT AND PLANNED CONNECTOR STATUS
+Available now:
+- Heightmap Forge, exact-black finalization, validation, and world-owned storage;
+- pinned pristine Orogen submodule in the embedded Outer Tool Port;
+- versioned/world-keyed handoff, sync, intake, source-commit provenance, and
+  lifecycle invalidation;
+- manual read-only upstream update notice;
+- World Portal/Orogen planet view switching through a camera-interactive
+  connected mirror whose settings and data controls remain port-only;
+- returned-mask landmass counts, areas, and radius-scaled bounding spans; and
+- Refinement Lab comparison, evidence assimilation, canonical selection, and
+  provenance-preserving next-pass export.
+
+Not supplied by the pinned upstream commit:
+- validated postMessage capabilities for semantic planet-camera input, direct
+  data input, progress, structured output metadata, lifecycle, or render-state
+  transfer.
+
+That capability is preferred but must be proposed upstream, reviewed, and
+adopted by deliberately repointing the submodule. It is not permission to modify
+the vendored working tree.
+
+Separate documents, pristine upstream source, and explicit contracts are
+architectural separation measures, not a legal guarantee. The same-origin
+canvas input relay is stronger coupling than rendered-pixel display alone and
+must be included in licensing review before distribution.
+
+FAILURE ISOLATION
+A missing, outdated, or failed Orogen connector must never prevent World Portal
+from opening, switching worlds, using orbital/transform/flat views, exploring
+geography, saving the existing world, or exporting its current package.
+
+
+V0.15 PERSISTENCE AND REFINEMENT DOCTRINE
+A World Portal world is a durable ownership graph. Its original texture,
+normalized texture, masks, heightmaps, Orogen exports, analysis sessions,
+refinement passes, confidence layers, physical analysis, and celestial system
+must survive reloads and remain attached to that world. Temporary blob URLs are
+rendering conveniences, never persistent identity. IndexedDB Blob records are
+the local source of truth; portable world packages remain backup and transfer.
+
+OROGEN OUTPUTS ARE EVIDENCE
+An incomplete or visually broken Orogen run is not automatically discarded. It
+may still contain useful coastline, island, elevation, ridge, terrain-color, or
+climate evidence. Store it as provisional, identify anomalies, compare it with
+other passes, and promote only accepted results. Never silently replace canon.
+
+REFINEMENT LINEAGE RULE
+Every promoted mask, heightmap, or visual texture is a new version with parent
+layer IDs and, when appropriate, a parent refinement pass. Earlier known-good
+versions remain available. Canonical means selected for current use; it does not
+mean its parents should be deleted.
+
+COASTLINE LOCK RULE
+When Lock canonical coastline is active, the accepted mask is authoritative.
+Elevation fusion may alter inland height but must write ocean to exact zero and
+must not create or delete coastline pixels. Coastline evolution requires a
+separate explicit mask promotion.
+
+PHYSICAL ANALYSIS RULE
+World Portal may derive area coverage, components, centroids, bounds, coastline
+complexity, elevation distributions, and terrain roughness from stored layers.
+These values are physical analysis. Do not automatically turn them into country,
+biome, culture, or lore canon. Unknown climate palettes remain unclassified until
+a legend or user mapping exists.
+
+CANONICAL VISUAL SYNTHESIS RULE
+A refined world texture may preserve a source ocean while compositing Orogen
+satellite or terrain evidence only inside an accepted land mask. The synthesized
+texture is a child layer and becomes active only through explicit promotion.
+
+CELESTIAL OWNERSHIP RULE
+Moons, asteroids, icy bodies, gas bodies, and rings belong to the active world.
+Their presentation settings and orbital parameters are saved with that world and
+removed with it. The global satellite-visibility switch hides them non-
+destructively. Planet pause freezes orbital-body motion too.
+
+UPSTREAM VERSION NOTE
+At implementation time the observed upstream repository head was
+cc2662b4edd52231c4f65d8765f3ef12cd82d9b7. Do not assign that commit to an
+imported image unless the run is known to have used it. When provenance is
+unknown, record Settings incomplete and sourceVersion null.
+
+
+V0.16 EVE INJECTION DOCTRINE
+Eve may act as an adviser and orchestrator over exported World Portal context.
+Eve does not become the owner of a world and does not bypass World Portal's local
+validation or canonical controls.
+
+The file-based round trip is authoritative:
+- World Portal exports an Eve context ZIP.
+- Eve returns a declarative Eve plan JSON.
+- World Portal validates and previews the plan.
+- The user confirms canonical changes.
+- World Portal invokes only installed allow-listed capabilities.
+- Outputs remain world-owned child layers and refinement passes.
+
+No Eve plan may contain arbitrary JavaScript, HTML, shell commands, executable
+attachments, filesystem paths, or network action targets. Future live bridges,
+MCP services, Eve OS integrations, and local agents must use the same capability
+registry and schemas instead of creating an unrestricted second control path.
+
+CONVERSATION CONTEXT RULE
+Imported images should expose enough deterministic context for useful analysis in
+chat. A layer report may include provenance, dimensions, role confidence, hashes,
+area-corrected land coverage, fragmentation, component shape, geographic placement,
+coast depth, elevation distributions, terrain structure, palette statistics, and
+comparison confidence. Compact previews and selected full-resolution assets may be
+attached separately.
+
+These reports must clearly distinguish measurement from interpretation. Unknown
+climate colors are not biome names. A land-mask component is not automatically a
+continent. Physical evidence does not establish political, cultural, cosmological,
+or narrative canon.
+
+CANONICAL CONFIRMATION RULE
+Eve may recommend a canonical mask, heightmap, or visual layer. World Portal must
+show the selected layer and require user confirmation before promotion. Rejected or
+older parents remain preserved unless the user explicitly deletes them.
+
+REPRODUCIBILITY RULE
+Each Eve context records a context hash. Each plan records the context it was based
+on. Each execution records the capability, parameters, result, time, and failure
+state. A stale plan may be reviewed, but World Portal must warn that the world has
+changed and reject incompatible steps.
+
+See docs/EVE-INJECTION-PROTOCOL.txt for the versioned protocol contract.
+
+V0.18 OROGEN EVIDENCE ASSIMILATION DOCTRINE
+World Portal separates hard canonical geography from soft simulated evidence.
+Imported Orogen runs are trusted layer by layer, not accepted or rejected as whole
+runs. A mask may have zero coastline trust while its paired height, satellite, or
+climate layers remain useful.
+
+Clean, Hybrid, and Feature-Preserving finalization styles are all valid products.
+Clean output prioritizes mechanical safety. Hybrid preserves supported character
+while rejecting remote noise. Feature-Preserving retains more coastline detail,
+nearby companion islands, ridges, and local relief. The smoothest result is not
+automatically the best worldbuilding result.
+
+Global-land masks cannot become coastline authority automatically. Contaminated
+heightmaps may contribute only after clipping to an accepted mask. Land-only
+visual synthesis preserves the original ocean. Climate colors and provisional
+environmental zones remain unnamed evidence unless a known legend is attached.
+
+Every assimilation result is a child layer with parent IDs, settings, trust
+profiles, and a refinement pass. Canonical promotion remains explicit. See
+OROGEN-EVIDENCE-ASSIMILATION.txt for the complete contract.
+
+V0.20 PORTABLE AGENT SKILL DOCTRINE
+Planetary refinement operating knowledge belongs with World Portal, not inside one
+conversation history. The project ships a model-neutral World Portal Agent Skill —
+Planetary Refinement under skills/world-portal-refinement/.
+
+The skill records reusable procedures, evidence rules, safety constraints, plan
+schemas, semantic-selector usage, candidate-review boundaries, export-integrity
+rules, and generic examples. Dynamic capability and parameter documentation must
+be generated from the installed World Portal capability manifest so agent guidance
+cannot silently become stale.
+
+world-portal-agent-plan is the canonical plan protocol. world-portal-eve-plan
+remains a backwards-compatible alias. Eve Guided Mode may remain the user-facing
+name, but Eve is one agent identity rather than a protocol requirement.
+
+A world or mission stores its own refinement/creative intent. The global skill
+must not embed Genopgil-specific preferences, IDs, run tokens, coordinates, land
+percentages, or aesthetic choices. The skill explains how to interpret intent;
+the world states what intent applies.
+
+Context and Lab Intelligence exports should include eve-briefing.json plus the
+portable agent skill by default. A fresh agent should be able to read those two
+entrypoints, inspect the advertised capability manifest, and author a valid plan
+without access to the chat history that originally developed the workflow.
+
+The agent remains advisory. World Portal remains authoritative for validation,
+execution, world ownership, mission state, lineage, confirmation, and final export.

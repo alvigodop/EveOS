@@ -1,0 +1,126 @@
+WORLD PORTAL — PORTABLE AGENT SKILL ARCHITECTURE
+Introduced in World Portal v0.20.0
+
+PURPOSE
+World Portal refinement knowledge must travel with the tool itself. A capable AI
+agent should not require a previous Eve conversation to understand canonical
+truth, Orogen evidence, missions, candidates, safety boundaries, or export rules.
+
+The portable skill captures observable procedures, schemas, rules, examples,
+capability descriptions, and planning heuristics. It does not attempt to copy or
+expose a model's private internal reasoning.
+
+SKILL IDENTITY
+Skill ID: world-portal-refinement
+Name: World Portal Agent Skill — Planetary Refinement
+Entrypoint: skills/world-portal-refinement/SKILL.md
+Canonical plan protocol: world-portal-agent-plan version 1
+Legacy-compatible plan protocol: world-portal-eve-plan version 1
+
+STATIC SKILL DOCUMENTS
+skills/world-portal-refinement contains:
+- SKILL.md
+- PLAN-AUTHORING.md
+- WORLD-MODEL.md
+- EVIDENCE-RULES.md
+- MISSION-WORKFLOW.md
+- SAFETY.md
+- GLOSSARY.md
+- JSON schemas
+- generalized examples
+
+DYNAMIC SKILL DOCUMENTS
+At export time World Portal generates these directly from the installed runtime:
+- capabilities.json
+- parameter-ranges.json
+- intent-map.json
+- diagnostic-checklist.json
+- CAPABILITIES.md
+- MODEL-STARTER-PROMPT.txt
+- world-portal-agent-skill.md
+- world-portal-agent-skill.json
+
+Dynamic capability documentation prevents a portable skill from silently
+claiming commands or parameter ranges that the installed World Portal version
+does not actually support.
+
+MODEL-NEUTRAL PROTOCOL
+Eve Guided Mode remains a familiar user-facing name, but the underlying control
+protocol is model-neutral. ChatGPT, another conversation, a local model, Claude,
+Gemini, Codex-like agents, or future MCP clients may all produce the same
+world-portal-agent-plan document.
+
+World Portal still owns validation and execution. Agent identity is advisory
+metadata, not authority.
+
+CONTEXT EXPORT
+Normal context and complete Lab Intelligence ZIPs may include:
+- eve-briefing.json
+- agent-skill/SKILL.md
+- agent-skill/skill-manifest.json
+- agent-skill/capabilities.json
+- agent-skill/parameter-ranges.json
+- agent-skill/intent-map.json
+- agent-skill/diagnostic-checklist.json
+- agent-skill/schemas/
+- agent-skill/examples/
+- reports, previews, selected assets, missions, sessions, and audits
+
+The stable first-read order is:
+1. eve-briefing.json
+2. agent-skill/SKILL.md
+3. agent-skill/capabilities.json
+4. agent-skill/parameter-ranges.json
+
+STANDALONE DISTRIBUTION
+World Portal can download world-portal-refinement-skill.zip without any world-
+specific data. Single-file Markdown and JSON versions exist for interfaces that
+cannot navigate ZIPs. The Copy Model Starter Prompt control gives the receiving
+model a minimal boot instruction.
+
+HARD TRUTH AND EVIDENCE
+The skill documents the canonical doctrine:
+- accepted canonical visual, mask, and heightmap are hard mechanical truth;
+- imported Orogen outputs are role-specific evidence until promoted;
+- a layer can be anomalous for one role and useful for another;
+- Clean, Hybrid, and Feature-Preserving outcomes are legitimate objectives;
+- subjective alternatives require human review rather than silent selection.
+
+CREATIVE INTENT IS WORLD DATA
+Global skill rules must not contain preferences for one world. The current world
+or mission may expose creative/refinement intent separately. The skill explains
+how to interpret intent; the world states which intent applies.
+
+VERSION NEGOTIATION
+eve-briefing.json records the active skill version, plan protocol version,
+capability manifest version, World Portal version, minimum supported version,
+and compatibility state. An agent receiving incompatible skill documentation
+must request or use a freshly exported skill instead of planning against stale
+capability assumptions.
+
+SKILL EXTENSIONS
+The architecture permits future skills under skills/<skill-id>/, for example:
+- planetary refinement
+- continent geography
+- river generation
+- climate interpretation
+- political boundaries
+- hex conversion
+- worldbook geography
+- astronomical-system construction
+
+Context packages advertise available skill IDs so an agent can load only the
+instructions relevant to the current task.
+
+TRANSPORT INDEPENDENCE
+The skill describes what operations mean, not how they are transported.
+Current transport:
+  context ZIP -> agent plan JSON -> local validation -> local execution
+Future transport may use MCP resources and tools, but it must reuse the same
+capabilities, schemas, safety rules, intent mapping, and World Portal executor.
+
+AUTHORITY BOUNDARY
+An AI agent advises and orchestrates. World Portal validates, executes, owns
+worlds and layers, owns missions and provenance, controls canonical confirmation,
+and produces final exports. The skill must never instruct an agent to bypass the
+declarative executor.

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>World Portal — Multi-World Geography System</title>
+  <link rel="stylesheet" href="assets/css/app.css" />
+  <link rel="stylesheet" href="assets/css/control-panel.css" />
+  <link rel="stylesheet" href="assets/css/geography.css" />
+  <link rel="stylesheet" href="assets/css/country-geography.css" />
+  <link rel="stylesheet" href="assets/css/heightmap-forge.css" />
+  <link rel="stylesheet" href="assets/css/orogen-lab.css" />
+  <link rel="stylesheet" href="assets/css/eve-guided.css" />
+  <link rel="stylesheet" href="assets/css/refinement-mission.css" />
+  <link rel="stylesheet" href="assets/css/outer-tools.css" />
+  <link rel="stylesheet" href="assets/css/orogen-mirror.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <aside class="hud" id="hud">
+    <section class="panel panel--brand">
+      <div class="brand-row">
+        <div class="brand-icon">W</div>
+        <div class="brand-copy">
+          <h1>World Portal</h1>
+          <p>Active world · owned geography · relational system</p>
+        </div>
+        <button
+          class="collapse-button"
+          id="collapseHud"
+          title="Collapse controls"
+          aria-expanded="true"
+          aria-controls="controlSections"
+        >−</button>
+      </div>
+    </section>
+
+    <div class="control-sections" id="controlSections">
+      <section class="panel world-library-panel">
+        <h2>World library</h2>
+        <label>
+          <span>Active world</span>
+          <select id="worldSelect" aria-label="Active world"></select>
+        </label>
+        <label>
+          <span>World name</span>
+          <input id="worldName" type="text" maxlength="80" value="Earth" />
+        </label>
+        <label>
+          <span>Add equirectangular map image</span>
+          <input id="worldMapFile" type="file" accept="image/png,image/jpeg,image/webp" />
+        </label>
+        <div class="button-row">
+          <button id="addWorldMap" type="button">Add world map</button>
+          <button id="saveWorldMap" type="button">Save current world</button>
+        </div>
+        <div class="button-row">
+          <button id="exportWorldMap" type="button">Export world package</button>
+          <button id="removeWorldMap" class="button--danger" type="button">Remove world</button>
+        </div>
+        <label>
+          <span>Import saved world package</span>
+          <input id="worldPackageFile" type="file" accept="application/json,.json,.world-portal.json" />
+        </label>
+        <div class="button-row">
+          <button id="importWorldMap" type="button">Import world package</button>
+        </div>
+        <p class="small-note" id="worldMetadataSummary"></p>
+        <p class="world-manager-status" id="worldManagerStatus" aria-live="polite">
+          Earth is the built-in world. Custom worlds keep their map and metadata together.
+        </p>
+        <p class="world-save-state" id="worldSaveState" aria-live="polite">Persistence ready.</p>
+      </section>
+
+      <section class="panel" id="refinementMissionPanel">
+        <h2>Refinement Mission</h2>
+        <p>
+          Follow one persistent World Portal → Orogen → Eve loop with automatic
+          result grouping, comparison, checkpoints, and one clear next action.
+        </p>
+        <div class="button-row">
+          <button id="openRefinementMission" type="button">Open Refinement Mission</button>
+        </div>
+        <p class="small-note mission-panel-status" id="refinementMissionSummary">
+          No active mission · create one guided refinement loop
+        </p>
+      </section>
+
+      <section class="panel" id="heightmapForgePanel">
+        <h2>Heightmap Forge</h2>
+        <p>
+          Convert the active visual map into a deterministic, exact-black-ocean
+          elevation heightmap for World Orogen without changing the original map.
+        </p>
+        <div class="button-row">
+          <button id="openHeightmapForge" type="button">Prepare for Orogen</button>
+        </div>
+        <p class="small-note" id="heightmapForgeSummary">
+          No Orogen-ready heightmap saved for this world.
+        </p>
+      </section>
+
+      <section class="panel" id="landmassPanel" aria-labelledby="landmassHeading">
+        <h2 id="landmassHeading">Landmasses</h2>
+        <p id="landmassDescription">Spherical areas and directional extents derived from an Orogen-returned or world-owned land mask.</p>
+        <label>
+          <span>Planet radius (km)</span>
+          <input id="planetRadiusKm" type="number" min="1" max="1000000" step="1" value="6371" aria-describedby="landmassDescription" />
+        </label>
+        <div class="button-row">
+          <button id="measureLandmasses" type="button" aria-controls="landmassSummary landmassList landmassNote">Measure land mask</button>
+        </div>
+        <div class="landmass-summary" id="landmassSummary" aria-label="Landmass summary"></div>
+        <ol class="landmass-list" id="landmassList" aria-label="Largest landmasses by physical area" hidden></ol>
+        <p class="small-note" id="landmassNote" role="status" aria-live="polite">No land mask measured yet.</p>
+      </section>
+
+      <section class="panel" id="outerToolsPanel">
+        <h2>Outer tools</h2>
+        <p>
+          Complete external tools carried with World Portal. Each runs unmodified
+          in its own page, and returns results as evidence.
+        </p>
+        <div class="outer-tool-list" id="outerToolList"></div>
+        <p class="small-note" id="outerToolCount">Checking availability…</p>
+        <p class="small-note" id="outerToolSummary"></p>
+      </section>
+      <section class="panel" id="orogenLabPanel">
+        <h2>Orogen Refinement Lab</h2>
+        <p>
+          Import Orogen outputs as world-owned layers, compare multiple passes,
+          repair masks, fuse elevations, and export a better next-generation input.
+        </p>
+        <div class="button-row">
+          <button id="openOrogenLab" type="button">Open refinement lab</button>
+        </div>
+        <p class="small-note" id="orogenLabSummary">0 layers · 0 Orogen sessions · 0 refinement passes</p>
+      </section>
+      <section class="panel" id="eveGuidedPanel">
+        <h2>Eve Guided Mode</h2>
+        <p>
+          Export compact world intelligence with a portable Agent Skill, review allow-listed
+          model-neutral plans, and build the selected Orogen input without manually tracking every layer.
+        </p>
+        <div class="button-row">
+          <button id="openEveGuided" type="button">Open Eve Guided Mode</button>
+        </div>
+        <p class="small-note" id="eveGuidedSummary">Agent-ready context not exported.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Projection</h2>
+        <label>
+          <span>Globe ⇄ flat map</span>
+          <input id="projectionBlend" type="range" min="0" max="1" step="0.01" value="0" />
+        </label>
+        <div class="button-row button-row--three">
+          <button id="viewGlobe">Orbital</button>
+          <button id="viewTransform">Transform</button>
+          <button id="viewFlat">Flat map</button>
+        </div>
+        <label class="toggle-row">
+          <input id="pureFlatToggle" type="checkbox" />
+          <span>Pure flat map</span>
+        </label>
+        <p class="small-note">
+          Dragging remains active through the projection transform. Left drag
+          pans the transforming map; right drag can orbit while it is still curved.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Hex conversion</h2>
+        <label>
+          <span>Hex density</span>
+          <input id="hexDensity" type="range" min="18" max="144" step="1" value="88" />
+        </label>
+        <label>
+          <span>Hex conversion</span>
+          <input id="hexStrength" type="range" min="0" max="1" step="0.01" value="1" />
+        </label>
+        <label>
+          <span>Hex borders</span>
+          <input id="hexBorderStrength" type="range" min="0" max="1" step="0.01" value="0.58" />
+        </label>
+        <label>
+          <span>Hex edge width</span>
+          <input id="hexEdgeWidth" type="range" min="0.02" max="0.20" step="0.0025" value="0.085" />
+        </label>
+        <label>
+          <span>Tile color cohesion</span>
+          <input id="hexCohesion" type="range" min="0" max="1" step="0.01" value="0.72" />
+        </label>
+        <label>
+          <span>Coastline snap</span>
+          <input id="hexCoastSnap" type="range" min="0" max="1" step="0.01" value="0.82" />
+        </label>
+        <label class="toggle-row">
+          <input id="hexEqualAreaToggle" type="checkbox" checked />
+          <span>Equal-area polar correction</span>
+        </label>
+        <p class="small-note">
+          Cohesion averages nearby NASA pixels into one stable tile. Coastline
+          snap prevents muddy half-land/half-water hexes. Small islands and
+          narrow countries read best at higher density.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Map overlays</h2>
+        <label class="toggle-row">
+          <input id="latLongGridToggle" type="checkbox" />
+          <span>Latitude / longitude grid</span>
+        </label>
+        <label class="toggle-row">
+          <input id="continentNamesToggle" type="checkbox" />
+          <span>Continent names</span>
+        </label>
+        <label class="toggle-row">
+          <input id="countryStatsToggle" type="checkbox" checked />
+          <span>Country geography panel</span>
+        </label>
+        <label>
+          <span>Grid opacity</span>
+          <input id="gridOpacity" type="range" min="0.05" max="0.85" step="0.01" value="0.36" />
+        </label>
+      </section>
+
+
+      <section class="panel geography-panel" id="geographyPanel" hidden>
+        <h2 id="geographyTitle">Selected continent</h2>
+        <p id="geographySummary"></p>
+        <input id="countrySearch" class="country-search" type="search" placeholder="Search countries…" />
+        <div id="countryList" class="country-list"></div>
+        <div class="button-row">
+          <button id="clearGeographySelection" type="button">Clear selection</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Planet style</h2>
+        <label>
+          <span>Cartoon strength</span>
+          <input id="cartoonStrength" type="range" min="0" max="1" step="0.01" value="0" />
+        </label>
+        <label>
+          <span>Land tint strength</span>
+          <input id="landTintStrength" type="range" min="0" max="1" step="0.01" value="0" />
+        </label>
+        <p class="small-note">
+          Lower values preserve more of the original NASA terrain colors.
+        </p>
+        <label>
+          <span>Color saturation</span>
+          <input id="saturation" type="range" min="0.2" max="2.2" step="0.01" value="1" />
+        </label>
+        <label>
+          <span>Ocean shine</span>
+          <input id="oceanShine" type="range" min="0" max="1.5" step="0.01" value="0.35" />
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>Cloud layer</h2>
+        <label class="toggle-row">
+          <input id="cloudsToggle" type="checkbox" />
+          <span>Cloud layer</span>
+        </label>
+        <label>
+          <span>Cloud opacity</span>
+          <input id="cloudOpacity" type="range" min="0.02" max="0.75" step="0.01" value="0.24" />
+        </label>
+        <label>
+          <span>Cloud drift</span>
+          <input id="cloudDriftSpeed" type="range" min="-0.12" max="0.12" step="0.0025" value="0.025" />
+        </label>
+        <label>
+          <span>Cloud softness</span>
+          <input id="cloudSoftness" type="range" min="0" max="1" step="0.01" value="0" />
+        </label>
+        <p class="small-note">
+          Clouds now use the same globe-to-flat transform as the world surface.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Lighting</h2>
+        <label>
+          <span>Light azimuth</span>
+          <input id="lightAzimuth" type="range" min="-180" max="180" step="1" value="-52" />
+        </label>
+        <label>
+          <span>Light elevation</span>
+          <input id="lightElevation" type="range" min="-85" max="85" step="1" value="26" />
+        </label>
+        <label class="toggle-row">
+          <input id="fullLightToggle" type="checkbox" />
+          <span>Full light around planet</span>
+        </label>
+      </section>
+
+      <section class="panel">
+        <h2>Planet and orbital layers</h2>
+        <label>
+          <span>Planet size</span>
+          <input id="planetScale" type="range" min="0.55" max="1.65" step="0.01" value="1" />
+        </label>
+        <label>
+          <span>Spin speed</span>
+          <input id="spinSpeed" type="range" min="-0.012" max="0.012" step="0.0005" value="0.0015" />
+        </label>
+        <label class="toggle-row">
+          <input id="satellitesToggle" type="checkbox" checked />
+          <span>Satellite objects (moons)</span>
+        </label>
+        <label class="toggle-row">
+          <input id="atmosphereToggle" type="checkbox" checked />
+          <span>Atmosphere glow</span>
+        </label>
+        <label class="toggle-row">
+          <input id="outlineToggle" type="checkbox" checked />
+          <span>Cartoon outline</span>
+        </label>
+        <div class="button-row">
+          <button id="pauseSpin">Pause spin</button>
+          <button id="resetView">Reset view</button>
+          <button id="resetSettings">Reset settings</button>
+        </div>
+        <p class="small-note">
+          Planet spin is frame-rate independent. Pause spin also pauses every
+          orbital body, while cloud drift remains independent.
+        </p>
+      </section>
+
+
+      <section class="panel" id="celestialSystemPanel">
+        <h2>Celestial system</h2>
+        <label>
+          <span>Orbital object</span>
+          <select id="celestialBodySelect"></select>
+        </label>
+        <label>
+          <span>Object type</span>
+          <select id="celestialKind">
+            <option value="moon">Moon</option>
+            <option value="asteroid">Asteroid</option>
+            <option value="ice">Ice moon</option>
+            <option value="gas">Gas moon</option>
+            <option value="ring">Orbital ring</option>
+          </select>
+        </label>
+        <label><span>Name</span><input id="celestialName" type="text" maxlength="60" /></label>
+        <label><span>Body / ring thickness</span><input id="celestialRadius" type="range" min="0.02" max="0.8" step="0.01" value="0.22" /></label>
+        <label><span>Orbit / ring radius</span><input id="celestialOrbitRadius" type="range" min="1.5" max="6.5" step="0.05" value="2.2" /></label>
+        <label><span>Orbit speed</span><input id="celestialOrbitSpeed" type="range" min="-2" max="2" step="0.01" value="0.32" /></label>
+        <label><span>Inclination</span><input id="celestialInclination" type="range" min="-90" max="90" step="1" value="5" /></label>
+        <label><span>Color</span><input id="celestialColor" type="color" value="#e8edf5" /></label>
+        <label class="toggle-row"><input id="celestialVisible" type="checkbox" checked /><span>Object visible</span></label>
+        <div class="button-row">
+          <button id="addCelestialBody" type="button">Add object</button>
+          <button id="removeCelestialBody" class="button--danger" type="button">Remove object</button>
+        </div>
+        <p class="small-note" id="celestialSummary">1 orbital object</p>
+      </section>
+
+      <section class="panel panel--credit">
+        <h2>Accurate source</h2>
+        <p>
+          Every visible land and water cell samples the NASA Blue Marble map.
+          The flat and globe views share the same source coordinates.
+        </p>
+        <p>
+          Credit: NASA/Goddard Space Flight Center Scientific Visualization
+          Studio. Blue Marble data courtesy Reto Stöckli (NASA/GSFC) and NASA
+          Earth Observatory.
+        </p>
+      </section>
+    </div>
+  </aside>
+
+  <aside class="country-stats-panel" id="countryStatsPanel" hidden>
+    <div class="country-stats-panel__header">
+      <div>
+        <h2 id="countryStatsTitle">Country geography</h2>
+        <p id="countryStatsSubtitle"></p>
+      </div>
+      <button class="country-stats-panel__close" id="closeCountryStats" type="button" aria-label="Close country geography">×</button>
+    </div>
+    <div class="country-stats-grid" id="countryStatsMetrics"></div>
+    <p class="country-stats-note" id="countryStatsNote"></p>
+    <div class="button-row">
+      <button id="openCountryDetail" type="button">Open detailed map</button>
+    </div>
+  </aside>
+
+  <div class="country-detail-overlay" id="countryDetailOverlay" hidden>
+    <section class="country-detail" role="dialog" aria-modal="true" aria-labelledby="countryDetailTitle">
+      <div class="country-detail__map-shell">
+        <canvas class="country-detail__map" id="countryDetailCanvas"></canvas>
+      </div>
+      <aside class="country-detail__sidebar">
+        <div class="country-detail__header">
+          <div>
+            <h2 id="countryDetailTitle">Country</h2>
+            <p id="countryDetailSubtitle"></p>
+          </div>
+          <button class="country-detail__close" id="closeCountryDetail" type="button" aria-label="Close detailed map">×</button>
+        </div>
+        <div class="country-detail__options">
+          <label><input id="detailHexToggle" type="checkbox" checked /> Hex terrain</label>
+          <label><input id="detailRiversToggle" type="checkbox" checked /> Rivers</label>
+          <label><input id="detailLakesToggle" type="checkbox" checked /> Lakes</label>
+        </div>
+        <div class="country-detail-stats" id="countryDetailStats"></div>
+        <p id="countryDetailNote"></p>
+      </aside>
+    </section>
+  </div>
+
+  <main class="viewport" id="viewport">
+    <div class="loading" id="loading">
+      <div class="loading__spinner" aria-hidden="true"></div>
+      <strong>Loading World Portal surface…</strong>
+      <span id="loadingDetail">Preparing the active world and its owned geography.</span>
+    </div>
+
+    <div class="error-panel" id="errorPanel" hidden>
+      <h2>World texture unavailable</h2>
+      <p id="errorMessage"></p>
+      <p>
+        Close this page, check the server window, and run
+        <code>launch.bat</code> again.
+      </p>
+    </div>
+  </main>
+
+  <script src="assets/js/eveos-host-bridge.js"></script>
+  <script type="module" src="assets/js/main.js"></script>
+</body>
+</html>

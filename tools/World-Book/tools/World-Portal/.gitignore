@@ -1,0 +1,15 @@
+# NASA Blue Marble texture — downloaded and cached by server.py on first launch.
+# Not committed: ~5 MB, reproducible, and attributed in THIRD-PARTY-NOTICES.txt.
+assets/textures/earth-blue-marble.png
+assets/textures/texture-manifest.json
+
+__pycache__/
+*.pyc
+
+.DS_Store
+Thumbs.db
+
+# Outer-tool runtime state. Portable identity lives in outer-tools.default.json.
+assets/data/outer-sync/
+assets/data/outer-tools.json
+assets/data/outer-tools.runtime.json

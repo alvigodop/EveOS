@@ -1,0 +1,34 @@
+{
+  "protocol": "world-portal-agent-plan",
+  "version": 1,
+  "worldId": "replace-with-world-id",
+  "title": "Recover interior relief",
+  "summary": "Use trusted/anomalous Orogen height evidence only inside the accepted coastline.",
+  "commands": [
+    {
+      "id": "assimilate-relief",
+      "capability": "evidence.assimilateHeightmaps",
+      "inputs": {
+        "canonicalHeightmapLayerId": { "selector": { "semantic": "current-canonical-heightmap" } },
+        "maskLayerId": { "selector": { "semantic": "current-canonical-mask" } },
+        "heightEvidenceLayerIds": {
+          "selector": {
+            "semantic": "anomalous-useful-elevation",
+            "trustField": "height",
+            "order": "highest-trust",
+            "limit": 2,
+            "return": "array"
+          }
+        }
+      },
+      "parameters": {
+        "evidenceInfluence": 0.55,
+        "detailStrength": 0.45,
+        "ridgeRetention": 0.9,
+        "valleyRetention": 0.75,
+        "coastlineLock": true
+      },
+      "reason": "The evidence contains useful terrain detail but should not control land/ocean support."
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+.topbar > *,
+.brand,
+.brand-copy,
+.workspace-control,
+.topbar-actions {
+  min-width: 0;
+}
+
+.topbar-actions .button,
+.workspace-control .button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1550px) and (min-width: 901px) {
+  .topbar {
+    grid-template-columns: minmax(230px, auto) minmax(380px, 1fr);
+    align-items: start;
+  }
+
+  .topbar-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .workspace-control {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+
+  .topbar-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 620px) {
+  .workspace-control {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .workspace-control label,
+  .workspace-control input {
+    grid-column: 1 / -1;
+  }
+
+  .workspace-control .button,
+  .topbar-actions .button {
+    min-width: 0;
+  }
+
+  .topbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .save-status {
+    grid-column: 1 / -1;
+  }
+}

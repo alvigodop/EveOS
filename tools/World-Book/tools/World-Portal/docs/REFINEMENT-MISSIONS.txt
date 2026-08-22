@@ -1,0 +1,58 @@
+WORLD PORTAL REFINEMENT MISSION DOCTRINE
+Version 1
+
+PURPOSE
+Refinement Mission Mode is a state-driven operator over existing World Portal
+engines. It does not implement a second terrain algorithm. Heightmap Forge,
+Orogen Refinement Lab, Eve Guided Mode, and the Orogen finalizer remain the
+authoritative transformation systems.
+
+MISSION OWNERSHIP
+A mission belongs to one world. It owns references to that world's canonical
+baseline, exported Orogen inputs, returned Orogen sessions, comparisons, Eve
+context and plans, accepted outputs, checkpoints, and pass lineage. Deleting the
+world deletes the mission with all other owned metadata.
+
+ONE NEXT ACTION
+The mission must expose one primary action based on persistent state. Advanced
+controls remain available underneath, but ordinary refinement should not require
+the user to manually remember filenames, layer IDs, canonical selections, or the
+last completed step.
+
+AUTOMATIC INTAKE
+Orogen files may be grouped by pass token and inferred role. Confidence and
+dimension requirements are controlled by the mission accuracy profile. Low-
+confidence files are not silently attached under strict profiles. Missing or
+anomalous files remain provisional evidence and are never promoted automatically.
+
+ACCURACY PROFILES
+Fast prioritizes speed and small context. Balanced is the default. High Accuracy
+uses larger previews, stricter matching, and recommends full-resolution evidence.
+Forensic includes all relevant evidence and requires very high role confidence.
+Profiles tune evidence scope and automatic decisions, not the canonical world
+without confirmation.
+
+EVE CURATION
+Mission-aware Eve context must include the baseline, latest returned Orogen run,
+comparison results, anomalies, lineage, tool settings, installed capabilities,
+and current next action. Full-resolution assets remain opt-in or profile-
+recommended to control bundle size.
+
+CHECKPOINTS AND ROLLBACK
+Accepted mission steps create checkpoints containing canonical visual, mask, and
+heightmap references. Rollback restores references without deleting newer layers,
+sessions, or evidence. Original source maps remain non-destructive.
+
+OROGEN SEPARATION
+World Orogen remains an external, separately maintained GPLv3 module. Mission
+Mode exchanges finalized inputs and imported outputs through World Portal data
+boundaries. It does not modify or absorb Orogen source code.
+
+v0.19 EVE-CONTROLLED MISSION LIFECYCLE
+======================================
+Refinement Missions may be created and managed through allow-listed Eve plan
+commands. Mission scope is explicitly world-agnostic and may target a planet,
+continent, island, region, or custom map. Candidate generation creates Clean,
+Hybrid, and Feature-Preserving pairs for human review. A paused plan persists
+its command position and results and may resume after the user selects a
+candidate. Selection does not silently promote canonical data.

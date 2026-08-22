@@ -1,0 +1,374 @@
+.outer-tool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.outer-tool-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(6, 14, 34, 0.6);
+}
+
+.outer-tool-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.outer-tool-card__head strong {
+  font-size: 13px;
+}
+
+.outer-tool-card__meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.outer-tool-card__hint {
+  font-size: 11.5px;
+  color: #ffd9a8;
+  font-style: normal;
+}
+
+.outer-tool-card button {
+  margin-top: 4px;
+  width: 100%;
+}
+
+.outer-tool-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.outer-tool-badge--ready {
+  background: rgba(29, 158, 117, 0.24);
+  color: #9fe1cb;
+}
+
+.outer-tool-badge--missing {
+  background: rgba(186, 117, 23, 0.24);
+  color: #fac775;
+}
+
+.outer-port-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 17, 0.78);
+}
+
+.outer-port-overlay--parked {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.outer-port {
+  width: min(1440px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+.outer-port__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.outer-port__header h2 {
+  margin: 2px 0 4px;
+  font-size: 20px;
+}
+
+.outer-port__header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.outer-port__eyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.outer-port__close {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--button);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.outer-port__provenance {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(6, 14, 34, 0.6);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.outer-port__update {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.outer-port__update p {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.outer-port__stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.outer-port__stage {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(6, 14, 34, 0.55);
+}
+
+.outer-port__stage h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.outer-port__hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.outer-port__stage label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.outer-port__check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.outer-port__steps {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.outer-port__pair {
+  margin: 0;
+  font-size: 12px;
+  color: #9fe1cb;
+}
+
+.outer-port__pair--blocked {
+  color: #fac775;
+}
+
+.outer-port__note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.outer-port__roles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-size: 11.5px;
+}
+
+.outer-port__roles li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(6, 14, 34, 0.5);
+}
+
+.outer-port__roles li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outer-port__roles li strong {
+  color: var(--accent);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.outer-port__role--unmatched strong {
+  color: #fac775;
+}
+
+.outer-port__status {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.outer-port__sync {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(6, 14, 34, 0.72);
+}
+
+.outer-port__sync--on {
+  border-color: rgba(29, 158, 117, 0.6);
+  background: rgba(15, 110, 86, 0.22);
+}
+
+.outer-port__sync--blocked {
+  border-color: rgba(186, 117, 23, 0.55);
+}
+
+.outer-port__switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.outer-port__sync-state {
+  margin: 0;
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.outer-port__open {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--button);
+  color: var(--text);
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.outer-port__open:hover {
+  border-color: var(--accent);
+}
+
+.outer-port__stage--active {
+  border-color: var(--accent);
+  background: rgba(104, 194, 255, 0.09);
+}
+
+.outer-port__frame-wrap {
+  position: relative;
+  min-height: 420px;
+  height: clamp(360px, 48vh, 680px);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #020611;
+}
+
+/* Mirror Planet keeps the same live iframe, camera, and settings. While the
+   port is parked, the host may opt this wrapper into the measured main-stage
+   rectangle so Orogen renders at the mirror's actual aspect and resolution.
+   Opening the port removes this parked-only rule and restores native layout. */
+.outer-port-overlay--parked .outer-port__frame-wrap--mirror-source {
+  position: fixed;
+  left: var(--orogen-mirror-source-left, 0px);
+  top: var(--orogen-mirror-source-top, 0px);
+  width: var(--orogen-mirror-source-width, 100vw);
+  height: var(--orogen-mirror-source-height, 100vh);
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #030308;
+  pointer-events: none;
+}
+
+.outer-port__frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.outer-port__frame-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  background: #020611;
+  pointer-events: none;
+}
+
+.outer-port__frame-state.is-loaded {
+  inset: 10px auto auto 10px;
+  display: block;
+  max-width: min(80%, 520px);
+  padding: 5px 8px;
+  border: 1px solid rgba(104, 194, 255, 0.28);
+  border-radius: 7px;
+  color: #c6d8e8;
+  background: rgba(2, 6, 17, 0.76);
+}
+
+@media (max-width: 720px) {
+  .outer-port__sync,
+  .outer-port__update {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
+import http.client
 import json
 import mimetypes
 import os
 import re
 import shutil
+import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world-portal-eve-briefing.schema.json",
+  "title": "World Portal Agent Briefing",
+  "type": "object",
+  "required": ["format", "version", "world", "canonicalState", "currentDecision", "packageValidation"],
+  "properties": {
+    "format": { "const": "world-portal-eve-briefing" },
+    "version": { "type": "integer", "minimum": 1 },
+    "world": { "type": "object" },
+    "scope": { "type": "object" },
+    "mission": { "type": ["object", "null"] },
+    "currentDecision": { "type": "object" },
+    "canonicalState": { "type": "object" },
+    "selectedCandidate": { "type": ["object", "null"] },
+    "candidateSummary": { "type": "array" },
+    "agentSkill": { "type": "object" },
+    "availableSkills": { "type": "array", "items": { "type": "string" } },
+    "availableCapabilities": {},
+    "parameterRanges": {},
+    "packageValidation": {
+      "type": "object",
+      "required": ["valid", "errors", "warnings"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "errors": { "type": "array" },
+        "warnings": { "type": "array" }
+      }
+    }
+  },
+  "additionalProperties": true
+}

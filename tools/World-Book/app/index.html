@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>World Book</title>
   <link rel="icon" href="assets/world-book.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="assets/css/app.css?v=b03a99172874">
+  <link rel="stylesheet" href="assets/css/app.css?v=2da899e83fcd">
 </head>
 <body>
   <div class="app-shell">
@@ -36,6 +36,7 @@
         <button id="focus-mode-btn" class="button" aria-pressed="false" title="Focus mode (Ctrl+Shift+F)">Focus</button>
         <button id="theme-btn" class="button" title="Change appearance">Theme</button>
         <button id="reader-library-btn" class="button" title="Open private documents and narration controls">Reader library</button>
+        <button id="world-portal-btn" class="button" title="Open the connected World Portal">World Portal</button>
         <button id="integration-btn" class="button" title="Apply a controlled World Book JSON injection">Eve Injection</button>
         <button id="export-btn" class="button button-primary">Backup & Restore</button>
         <button id="import-btn" class="button">Import JSON</button>
@@ -321,6 +322,33 @@
       </section>
     </main>
 
+    <section id="world-portal-view" class="world-portal-view" hidden aria-label="World Portal workspace">
+      <header class="world-portal-toolbar">
+        <div>
+          <span class="world-portal-kicker">Connected tool</span>
+          <strong>World Portal</strong>
+          <small id="world-portal-status">Checking the local Portal service...</small>
+        </div>
+        <div class="world-portal-actions">
+          <button id="world-portal-context-btn" class="button" type="button">Send selected lore</button>
+          <button id="world-portal-refresh-btn" class="button" type="button">Refresh</button>
+          <button id="world-portal-server-btn" class="button button-primary" type="button">Start Portal</button>
+          <button id="world-portal-detach-btn" class="button" type="button">Detach</button>
+          <button id="world-portal-back-btn" class="button" type="button">Back to World Book</button>
+        </div>
+      </header>
+      <div class="world-portal-frame-wrap">
+        <iframe id="world-portal-frame" src="about:blank" title="World Portal"
+          allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+        <div id="world-portal-offline" class="world-portal-offline">
+          <span aria-hidden="true">&#9671;</span>
+          <strong>World Portal is resting</strong>
+          <p>Start it only when you need the geography workspace.</p>
+          <button id="world-portal-offline-start-btn" class="button button-primary" type="button">Start Portal</button>
+        </div>
+      </div>
+    </section>
+
     <footer class="footer">
       <span id="footer-note">The server is local-only and binds to 127.0.0.1.</span>
       <button id="project-settings-btn" class="link-button">Project settings</button>
@@ -343,6 +371,6 @@
 
 
   <div id="dialog-host"></div>
-  <script src="assets/js/bootstrap.js?v=d4c5fd284a17"></script>
+  <script src="assets/js/bootstrap.js?v=ed565fa0e3a0"></script>
 </body>
 </html>

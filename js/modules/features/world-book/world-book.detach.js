@@ -6,6 +6,7 @@ window.EveWorldBook = window.EveWorldBook || {};
     const DETACHED_WINDOW_NAME = 'eveWorldBookWindow';
     let detachedWindow = null;
     let detachedReady = false;
+    let detachedView = '';
 
     function getWindowFeatures() {
         const availableWidth = Math.max(760, Number(window.screen?.availWidth) || 1280);
@@ -90,21 +91,26 @@ window.EveWorldBook = window.EveWorldBook || {};
             const guidance = snapshot.controllerAvailable
                 ? 'Start World Book in EveOS, then choose Detach again.'
                 : 'Run tools\\World-Book\\launch.bat, then choose Detach again.';
-            renderPlaceholder(target, 'World Book is resting', guidance, true);
+            renderPlaceholder(target, options.view === 'portal' ? 'World Portal is resting' : 'World Book is resting', guidance, true);
             notify(options.onMessage, guidance);
             return target;
         }
 
         detachedReady = true;
+        detachedView = options.view || 'world';
         markLoading(target);
-        target.location.href = snapshot.url || ns.client.state.url;
+        const baseUrl = snapshot.url || ns.client.state.url;
+        target.location.href = detachedView === 'portal'
+            ? `${String(baseUrl).replace(/\/$/, '')}/?view=world-portal&embedded=1`
+            : baseUrl;
         target.focus();
         notify(options.onReady, snapshot);
         return target;
     }
 
     function open(options = {}) {
-        if (detachedWindow && !detachedWindow.closed && detachedReady) {
+        if (detachedWindow && !detachedWindow.closed && detachedReady
+            && detachedView === (options.view || 'world')) {
             detachedWindow.focus();
             notify(options.onReady, ns.client.state);
             return detachedWindow;
@@ -126,7 +132,7 @@ window.EveWorldBook = window.EveWorldBook || {};
 
         renderPlaceholder(
             detachedWindow,
-            'Opening World Book',
+            options.view === 'portal' ? 'Opening World Portal' : 'Opening World Book',
             'Verifying the local World Book service...',
             false
         );

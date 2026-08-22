@@ -82,6 +82,8 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
             if handle_narration_get(self, parsed, query):
                 return
 
+            if handle_world_portal_get(self, parsed): return
+
             if parsed.path == "/api/config":
                 root_value = str(CONFIG.get("rootPath") or "")
                 root_exists = bool(root_value and Path(root_value).expanduser().is_dir())
@@ -187,6 +189,8 @@ class WorldBookHandler(SimpleHTTPRequestHandler):
 
             if handle_narration_post_raw(self, parsed):
                 return
+
+            if handle_world_portal_post(self, parsed): return
 
             payload = self.read_json_body()
             if handle_recovery_post_json(self, parsed, payload):

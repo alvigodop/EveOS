@@ -1,0 +1,46 @@
+WORLD PORTAL LAB INTELLIGENCE AND EXPORT AUDIT CONTRACT
+=======================================================
+Version: 1
+Introduced: World Portal v0.19.1
+
+1. SELECTED SOURCE AUTHORITY
+The selected Refinement Mission candidate is an explicit user decision. A normal
+Build Selected Orogen Input action must use that candidate before considering
+accepted pass outputs or canonical fallbacks. Explicit layer IDs supplied by a
+validated Eve command remain the highest-priority source.
+
+2. NO SILENT FALLBACK
+When a mission candidate is selected and non-explicit source resolution produces
+other layers, World Portal must stop. It must preserve an audit record explaining
+the requested and resolved pairs rather than downloading a mechanically valid but
+incorrect result.
+
+3. EXPORT AUDIT
+Every export attempt records world, mission, pass, candidate, requested source,
+resolved source, settings, source statistics, final statistics, validation,
+checksums, completion state, and any blocking error. Audit records belong to the
+world and survive reloads and portable world-package export.
+
+4. LAB INTELLIGENCE
+Individual reports remain available, but the lab must also expose all relevant
+world layers together. Batch intelligence includes provenance, trust, anomalies,
+physical statistics, sessions, passes, candidates, comparisons, cache state, and
+export history.
+
+5. EVE BRIEFING
+`eve-briefing.json` is the predictable entry point for chat review. It must make
+canonical state, mission state, selected candidates, evidence recommendations,
+anomalies, export state, current decisions, allowed next actions, and file
+relationships explicit. Its plain-language summary may only restate stored facts.
+
+6. CACHE AND REPRODUCIBILITY
+A cached analysis is reusable only when its raster checksum and analysis version
+still match. Packages must report cache state and validate referenced ZIP paths.
+Included full-resolution evidence is re-hashed before packaging when a stored
+checksum is available.
+
+7. SAFETY
+Batch reporting does not promote, delete, or rewrite layers. Candidate selection
+does not imply canonical promotion. Export finalization may enforce strict binary
+mask support and coast-floor rules, but it may not substitute unrelated source
+layers.

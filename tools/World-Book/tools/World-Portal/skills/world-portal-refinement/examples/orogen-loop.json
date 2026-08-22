@@ -1,0 +1,20 @@
+{
+  "protocol": "world-portal-agent-plan",
+  "version": 1,
+  "worldId": "replace-with-world-id",
+  "title": "Prepare next Orogen pass",
+  "summary": "Ensure the mission, generate candidates, pause for selection, then resume finalization and export.",
+  "commands": [
+    {
+      "id": "prepare-next-pass",
+      "capability": "mission.prepareNextOrogenInput",
+      "parameters": {
+        "styles": ["clean", "hybrid", "feature-preserving"],
+        "dryRun": false,
+        "export": true,
+        "coastFloor": 18
+      },
+      "reason": "The mission should orchestrate the existing deterministic engines and pause if candidate choice is unresolved."
+    }
+  ]
+}

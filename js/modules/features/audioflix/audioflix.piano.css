@@ -1,0 +1,81 @@
+.audioflix-piano {
+    min-height: min(72vh, 860px);
+    display: grid;
+    grid-template-rows: auto auto minmax(440px, 1fr);
+    gap: 12px;
+}
+
+.audioflix-piano-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px 18px;
+    border: 1px solid rgba(61, 213, 224, 0.24);
+    border-radius: 18px;
+    background: linear-gradient(125deg, rgba(6, 36, 43, 0.88), rgba(18, 22, 27, 0.92));
+}
+
+.audioflix-piano-header span {
+    color: #43dce7;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .16em;
+}
+
+.audioflix-piano-header h3 { margin: 5px 0; font-size: clamp(21px, 2.4vw, 34px); }
+.audioflix-piano-header p { margin: 0; max-width: 760px; color: #a9b9bd; }
+
+.audioflix-piano-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+}
+
+.audioflix-piano-actions b {
+    padding: 7px 11px;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 999px;
+    color: #aeb9bc;
+    font-size: 11px;
+}
+
+.audioflix-piano-actions b[data-state="running"] { color: #77efb1; border-color: rgba(74, 221, 143, .38); }
+.audioflix-piano-actions b[data-state="error"], .audioflix-piano-actions b[data-state="blocked"] { color: #ff8e86; }
+.audioflix-piano-message { margin: 0; color: #9fb0b5; font-size: 12px; }
+
+.audioflix-piano-stage {
+    position: relative;
+    min-height: 440px;
+    overflow: hidden;
+    border: 1px solid rgba(61, 213, 224, 0.2);
+    border-radius: 18px;
+    background: #071116;
+}
+
+.audioflix-piano-stage iframe { width: 100%; height: min(72vh, 900px); border: 0; background: #071116; }
+.audioflix-piano-stage iframe[hidden] { display: none; }
+
+.audioflix-piano-offline {
+    min-height: 440px;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 10px;
+    padding: 32px;
+    text-align: center;
+    color: #8ea0a5;
+}
+
+.audioflix-piano-offline[hidden] { display: none; }
+.audioflix-piano-offline strong { color: #edfafa; font-size: 22px; }
+
+@media (max-width: 760px) {
+    .audioflix-piano { grid-template-rows: auto auto minmax(360px, 1fr); }
+    .audioflix-piano-header { flex-direction: column; }
+    .audioflix-piano-actions { justify-content: flex-start; }
+    .audioflix-piano-stage, .audioflix-piano-offline { min-height: 360px; }
+    .audioflix-piano-stage iframe { height: 68vh; }
+}

@@ -1,0 +1,456 @@
+WORLD PORTAL — MULTI-WORLD GEOGRAPHY ARCHITECTURE
+Version 0.20.0
+
+CORE PRINCIPLE: THE ACTIVE WORLD OWNS THE MODEL
+World Portal no longer assumes one permanent Earth root. It maintains a library
+of independent world roots. Exactly one world is active at a time and supplies:
+
+World
+  -> Surface image
+  -> Continents
+     -> Countries or territories
+        -> Focused country record
+           -> Boundary polygons
+           -> Physical measurements
+           -> River lines
+           -> Lake polygons
+           -> Subdivisions/states
+  -> View settings
+
+No continent, country, river, lake, focused record, or subdivision floats
+outside its owning world.
+
+WORLD DOMAIN LAYER
+assets/js/world/world-portal.js
+- Owns the in-memory world runtime library.
+- Protects Earth as the guaranteed built-in fallback world.
+- Tracks and persists the active world ID.
+- Builds a separate indexed hierarchy for every world record.
+- Routes continent, country, and focused-record access through the active root.
+- Switches ownership state without letting UI controllers own datasets.
+- Captures per-world projection and rendering settings.
+- Saves and removes complete custom world records.
+- Materializes bundled Earth data for portable export.
+- Exposes metadata replacement for future editors and generators.
+
+assets/js/world/world-library-store.js
+- Stores custom world records in IndexedDB.
+- Uses one record per world, including its image Blob and metadata tree.
+- Deletes the same record when a world is removed, preventing orphan metadata.
+- Persists the ID of the last active world.
+
+assets/js/world/world-package.js
+- Defines world-portal-world package version 5.
+- Embeds the world image as a data URL for portability.
+- Optionally embeds Heightmap Forge land-mask and heightmap PNG assets.
+- Preserves hierarchy, focused geography, subdivisions, and view settings.
+- Continues importing earlier packages with missing collections rebuilt safely.
+- Restores imported packages as independent world records.
+
+WORLD MANAGER UI
+assets/js/ui/world-manager.js
+- Lists available worlds and selects the active planet.
+- Adds equirectangular PNG, JPEG, and WebP map images.
+- Saves custom worlds to IndexedDB.
+- Exports and imports portable world packages.
+- Removes a custom world and its complete owned record.
+- Restores per-world view state during a switch.
+- Rolls back ownership if a replacement texture cannot load.
+
+APPLICATION COMPOSITION
+assets/js/main.js
+- Creates settings and transient selection state.
+- Initializes World Portal and restores the active world.
+- Applies the active world's view settings before scene creation.
+- Creates the scene with the active world's surface source.
+- Composes world, geography, country-detail, and control modules.
+- Exposes dynamic window.WorldPortal.world and .worlds getters.
+
+RENDERING LAYER
+assets/js/scene/create-scene.js
+- Loads a URL or Blob texture source.
+- Replaces the active world texture without rebuilding the scene.
+- Disposes the previous texture only after the replacement loads successfully.
+- Preserves the shared globe-to-flat UV projection for every world.
+
+assets/js/scene/earth.js
+- Exposes setTexture() on the world surface.
+- Keeps the same shader, geometry, atmosphere, clouds, and projection system.
+
+GEOGRAPHY UI
+assets/js/ui/geography-controller.js
+assets/js/ui/geography-labels.js
+assets/js/ui/country-geography-controller.js
+- Read only from the active World Portal hierarchy.
+- Clear prior selections and rebuild labels after world or metadata changes.
+- Never carry one world's country selection into another world.
+
+WORLD RECORD SCHEMA
+A custom record contains:
+- id, name, schemaVersion, timestamps
+- surface.textureBlob, textureName, textureType, projection, dimensions
+- metadata.continents
+- metadata.countriesByContinent
+- metadata.countryGeography
+- metadata.subdivisionsByCountry
+- assets.heightmapForge
+- assets.orogen
+- viewState
+
+New image-only worlds initialize those metadata collections as empty owners.
+Future continent, country, state, lore, climate, settlement, and other systems
+can extend the record without changing the root relationship.
+
+BUILT-IN EARTH
+Earth uses bundled source modules and country JSON files at runtime instead of
+duplicating them in IndexedDB. Portable Earth export materializes those records
+into a self-contained custom-world package. Earth itself remains non-removable.
+
+
+VIEW-OWNED PLANET PRESENTATION
+The active world view state now also owns:
+- planetScale
+- satellitesVisible
+- spinSpeed
+- collapsedSections
+
+Planet size is applied to the world surface group, flat-map frame, atmosphere,
+outline, labels, focus calculations, satellite group, and OrbitControls distance
+limits. These remain one relational view instead of independently sized layers.
+
+MOTION AND SATELLITES
+Planet spin uses elapsed frame time and a fixed reference rate, eliminating
+refresh-rate-dependent rotation. Pausing freezes the planet, satellite orbit,
+and satellite bobbing together while cloud drift remains independent. Satellite
+objects are grouped behind the satellitesVisible world-view setting so future
+moons or orbital objects can join the same layer.
+
+PROJECTION INTERACTION
+OrbitControls remains active throughout intermediate projection states. In the
+transform range, left drag performs orbital pitch/yaw rotation and right drag
+pans. The scene tracks direct user interaction revisions; a projection preset
+resets to its default camera only when the user did not alter the camera during
+that animation.
+
+CONTROL-PANEL COMPOSITION
+assets/js/ui/controls.js turns each top-level panel into a section header and a
+content container at runtime. Individual collapse state is stored as the
+collapsedSections array. This avoids duplicating collapse markup across the HTML
+and keeps the section behavior modular.
+
+PERSISTENCE RULES
+- Unsaved custom worlds exist only for the current browser session.
+- Save current world writes the complete world record to IndexedDB.
+- View changes mark a custom world dirty in memory.
+- Save writes the latest view state and metadata.
+- Import writes the restored package immediately.
+- Remove deletes the complete record and activates Earth if necessary.
+
+MODULE POLICY
+Every active HTML, CSS, JavaScript, and Python source file is capped at 450
+lines. World management is split across the portal, IndexedDB store, package
+serializer, UI manager, and scene texture-switching APIs.
+
+RUNTIME
+launch.bat
+  -> launch.ps1
+  -> server.py
+  -> World Portal at http://127.0.0.1:8770/
+
+
+HEIGHTMAP FORGE DOMAIN
+Heightmap Forge is an additive converter workspace. It never replaces the active
+World Portal renderer and never overwrites the source visual map.
+
+assets/js/heightmap/heightmap-forge-controller.js
+- Opens the active world in a dedicated converter workspace.
+- Coordinates source loading, previews, full-resolution processing, validation,
+  PNG export, world-asset persistence, and the optional Orogen adapter.
+- Keeps full-resolution processing out of the normal orbital-view startup path.
+
+assets/js/heightmap/heightmap-forge-actions.js
+assets/js/heightmap/heightmap-forge-operation-guard.js
+assets/js/heightmap/heightmap-forge-settings.js
+- Separate UI actions and settings from the world-generation guard used to
+  reject stale or cross-world asynchronous Forge results.
+
+assets/js/heightmap/image-normalizer.js
+- Decodes the active world surface from URL or Blob.
+- Provides explicit stretch, center-crop, and padding normalization modes.
+- Produces exact 2:1 canvases at 2048 x 1024, 4096 x 2048, or 8192 x 4096.
+
+assets/js/heightmap/mask-processor.js
+- Samples ocean by RGB color distance.
+- Supports connected-ocean flood fill and map-edge seeds.
+- Treats the left and right equirectangular edges as horizontally adjacent.
+- Removes small land components, keeps the largest landmass when requested,
+  fills small holes, and smooths coastlines deterministically.
+
+assets/js/heightmap/elevation-generator.js
+- Computes land distance from the nearest coast.
+- Converts coast distance into a controllable grayscale elevation field.
+- Adds deterministic seeded multi-scale terrain noise reduced near coastlines.
+- Guarantees grayscale zero for every ocean pixel and 1-255 for intended land.
+
+assets/js/heightmap/heightmap-worker.js
+- Runs segmentation, cleanup, elevation, and validation in a module Web Worker.
+- Transfers typed-array buffers instead of cloning full-resolution results.
+
+assets/js/world/world-assets.js
+- Adds optional derivative assets to the owning world record.
+- Stores land-mask and heightmap PNG Blobs in the same IndexedDB record as the
+  visual map and geography metadata.
+- Serializes and restores those assets for package version 5.
+- Deleting a custom world removes these derivative layers with the same record.
+
+HEIGHTMAP FORGE WORLD RECORD EXTENSION
+assets.heightmapForge may contain:
+- converterVersion and updatedAt
+- sourceWidth and sourceHeight
+- width and height of the generated output
+- normalization, mask, cleanup, elevation, and random-seed settings
+- validation report
+- landMaskBlob
+- heightmapBlob
+
+All fields are optional. Older worlds and version 1 packages continue loading
+with no conversion requirement.
+
+WORLD OROGEN OUTER-TOOL CONNECTOR
+World Orogen remains a separately maintained GPLv3 browser application and is
+carried as a pristine pinned git submodule. The governing document is
+docs/OUTER-TOOLS.txt.
+
+The two tools run in separate documents and JavaScript realms. World Portal does
+not import Orogen modules, merge import maps, change upstream files, or control
+Orogen's settings UI or general DOM. "Intimate integration" is provided by
+World Portal-owned connectors that coordinate two independent states through
+versioned records keyed by immutable world ID, unique handoff ID, and full
+Orogen source commit.
+
+Current compatibility transports are explicit file/data handoff and intake,
+guarded startup-heightmap substitution for World sync, and a host-owned
+camera-interactive connected mirror of the exact synced import document's main
+canvas. planet-mirror@1 remains rendered visual transport. For pinned commit
+cc2662b4edd52231c4f65d8765f3ef12cd82d9b7, a same-origin,
+exact-full-tuple, commit-audited compatibility relay sends only primary drag
+when unmodified, wheel-family zoom, and host pinch translated to wheel, to that
+canvas for camera orbit and zoom. Ctrl+wheel is allowed only because Chromium
+emits trackpad pinch that way; Alt/Meta/Shift-modified wheel is rejected, and no
+keyboard event is forwarded. The relay cancels on view, world, frame, sync, or
+commit mismatch.
+
+The mirror excludes settings UI, keyboard events, right/middle buttons, edit
+gestures, data actions, and Alt/Meta/Shift-modified wheel. The generator remains
+navigation-only and independent. Missing or non-origin-clean WebGL output and browser capture
+restrictions fail visibly back to the World Portal planet without disturbing
+the tool in the port. The stage fills the measured usable viewport beside the
+HUD, or the full viewport for compact/collapsed layouts. While parked, the same
+source iframe renders at that rectangle and Orogen recreates its WebGL backing
+store at its capped device-pixel ratio. The host keeps contain only as a safe fit
+and does not auto-zoom the camera. Reopening the port restores native layout
+without replacing the iframe; parking it restabilizes the current stage size.
+
+At the audited commit, a gesture-derived synchronizer shares one normalized
+local geographic-facing direction without reading Orogen camera objects. It
+uses bounded canvas gestures to align Orogen before reveal, applies Orogen drag
+direction to World Portal, and holds World Portal's automatic spin only while
+the Orogen view is selected. Zoom and Orogen Auto-Rotate remain independent.
+
+The preferred future input transport is an upstream-supported semantic
+planet-camera-input@1 postMessage capability. It may be used only after
+source/origin validation, exact protocol negotiation, explicit capability
+discovery, and world/handoff/commit checks on every message. The pinned Orogen
+commit does not implement it. The current audited canvas relay is a compatibility
+connector, not permission to patch the submodule or automate its settings DOM.
+
+Heightmap Forge delegates through the installed
+window.WorldOrogenAdapter.sendHeightmap facade and emits
+world-portal:orogen-heightmap-ready. Handoff finalization, ownership, lifecycle
+invalidation, intake provenance, returned-mask extraction, update notice, and
+view switching remain host responsibilities.
+
+The document/realm boundary is an architectural separation measure, not a legal
+guarantee. GPL classification depends on communication mechanism and semantics;
+the same-origin canvas input relay is stronger coupling than rendered-pixel
+display alone. See docs/OUTER-TOOLS.txt and obtain legal advice before
+distribution.
+
+FAILURE ISOLATION
+Heightmap Forge is created after the normal world viewer has initialized. A
+converter or worker failure must not prevent world switching, orbital rendering,
+projection controls, geography exploration, or existing package export.
+
+
+PERSISTENT OWNERSHIP LAYER
+assets/js/world/world-autosave.js
+- Debounces meaningful custom-world changes.
+- Flushes before world switches and at visibility checkpoints.
+- Reports pending, saving, saved, failed, and storage-warning states.
+
+assets/js/world/world-layer-store.js
+- Defines the world-owned layer, session, canonical, and refinement-pass schema.
+- Maintains parent references, role domains, checksums, statuses, and source data.
+- Migrates older visual and Heightmap Forge assets into the registry.
+
+assets/js/world/world-library-store.js
+- Uses IndexedDB schema version 2 and transaction completion as the commit point.
+- Stores Blob-backed world records and deletes one complete world record at once.
+
+OROGEN REFINEMENT LAYER
+assets/js/refinement/orogen-session-importer.js
+- Batch imports Orogen image exports.
+- Infers editable roles and filename pass tokens.
+- Records settings as incomplete when images contain no run manifest.
+- Creates imported-run refinement lineage.
+
+assets/js/refinement/orogen-lab-controller.js
+assets/js/refinement/orogen-lab-view.js
+assets/css/orogen-lab.css
+- Provide layer browsing, metadata editing, session filtering, comparison,
+  physical analysis, repair, fusion, promotion, and next-pass export.
+
+assets/js/refinement/refinement-worker.js
+assets/js/refinement/refinement-worker-client.js
+- Run component analysis, anomaly detection, mask difference, union,
+  intersection, preference, cleanup, consensus, confidence, elevation fusion,
+  median fusion, detail recovery, and visual synthesis off the main thread.
+- Transfer copied ArrayBuffers to the worker so cached source arrays remain valid.
+
+assets/js/refinement/orogen-refinement-engine.js
+- Decodes world-owned image Blobs and aligns layer resolutions.
+- Coordinates worker operations and PNG result generation.
+- Keeps palette interpretation separate from raw image storage.
+
+HEIGHTMAP FORGE BRIDGE
+Heightmap Forge now stores three aligned source layers at the selected output
+resolution: normalized visual map, binary land mask, and procedural heightmap.
+This lets the Refinement Lab compare or composite Orogen exports without an
+aspect-ratio mismatch against the original art source.
+
+CELESTIAL DOMAIN
+assets/js/world/celestial-records.js
+assets/js/scene/celestial-system.js
+assets/js/ui/celestial-manager.js
+- Define per-world orbital-body records.
+- Render multiple moons, asteroid-like bodies, icy bodies, gas bodies, and rings.
+- Rebuild the scene-owned celestial group when active-world records change.
+- Persist body metadata through the same world autosave and package system.
+
+WORLD PACKAGE VERSION 5
+assets/js/world/world-package.js declares PACKAGE_VERSION 5. A package serializes
+arbitrary world-owned layer Blobs as embedded base64 data URLs, along with
+analysis sessions, refinement passes, canonical references, celestial records,
+deep analysis metadata, Eve/Agent bridge execution history, and Heightmap Forge
+metadata. Image Blobs travel through the layer registry, so new optional JSON
+metadata needs no serializer change.
+
+Import accepts any file whose format field is world-portal-world and does not
+gate on the version number, so versions 1 through 5 all restore; missing
+collections are rebuilt as empty owners and migrated after import.
+
+Known limit: export base64-encodes every Blob into one pretty-printed JSON
+string held entirely in memory. A world carrying several full-resolution layers
+approaches practical string and memory limits. A future container format should
+stream through assets/js/eve/zip-store.js instead.
+
+
+EVE-GUIDED INTELLIGENCE LAYER
+assets/js/eve/eve-guided-controller.js
+- Coordinates context export, plan review, allow-listed execution, checkpointing,
+  and best-input export without duplicating image-processing algorithms.
+- Accepts concise flat Heightmap Forge plan parameters and maps them into the
+  converter's nested mask, cleanup, and elevation settings.
+
+assets/js/eve/eve-context-exporter.js
+- Builds a store-only ZIP with world identity, layers, sessions, passes, settings,
+  capabilities, statistics, reports, compact previews, and optional canonical
+  full-resolution assets.
+- Re-analyzes older layers before export and records a stable metadata hash.
+- Deduplicates identical previews by checksum or stable fallback identity.
+
+assets/js/eve/eve-plan-validator.js
+- Rejects wrong protocols, wrong worlds, unknown capabilities, missing layers,
+  executable-like values, filesystem paths, and unsupported commands.
+- Warns when a plan was based on an older context hash.
+
+assets/js/eve/eve-capabilities.js
+- Is the installed source of truth for commands available to external advisers.
+- Future capabilities are documented but remain non-executable until advertised.
+
+assets/js/eve/layer-report.js
+- Converts raw analysis records into copyable plain-language reports.
+- Keeps deterministic physical evidence separate from lore and unknown palettes.
+
+assets/js/eve/zip-store.js
+- Creates portable ZIP bundles locally without an external runtime dependency.
+
+DEEP RASTER ANALYSIS
+assets/js/refinement/mask-intelligence.js
+- Treats horizontal equirectangular edges as connected.
+- Calculates pixel and spherical area coverage, component distributions, patch
+  density, geographic placement, coastline metrics, coast depth, deep-core shares,
+  compactness, seam/pole state, and anomaly flags.
+
+assets/js/refinement/raster-intelligence.js
+- Calculates heightmap distribution, relief, contrast, hypsometric structure,
+  entropy, roughness, local relief, highland systems, and risk indicators.
+- Calculates visual-image luminance, channels, palette, entropy, exact black/white,
+  transparency, saturation, texture complexity, and conservative role hints.
+- Compares compatible mask, heightmap, and visual layers quantitatively.
+
+ANALYSIS PRINCIPLES
+- Equirectangular pixel area is latitude-dependent; spherical coverage uses a
+  cosine latitude weight instead of treating polar and equatorial pixels equally.
+- Imported image colors are measured but unknown palette meanings are not guessed.
+- Physical metrics are evidence and context, not automatic canon or lore.
+- Generated analysis is versioned so old layers can be recalculated when methods
+  improve.
+- Large raster operations remain inside the existing module worker boundary.
+
+IMAGE CONTAINER INSPECTION
+assets/js/refinement/image-container-metadata.js
+- Reads PNG, JPEG, and WebP container structure directly from imported Blobs.
+- Records encoding, bit depth, color model, alpha/profile state, chunk/marker
+  inventory, JFIF density, selected EXIF fields, and embedded PNG text.
+- Reports GPS-block presence for privacy review but does not extract coordinates.
+- Stores results under layer.metadata.imageContainer for persistence and context
+  export without changing the image pixels.
+
+OROGEN INPUT FINALIZATION BOUNDARY — v0.16.1
+============================================
+The Orogen export path is separated into three stages:
+
+1. Heightmap Forge generation creates addressable world-owned mask and heightmap layers.
+2. The Eve execution layer resolves explicit layer IDs or current canonical IDs at command execution time.
+3. The Orogen input service resamples, support-locks, encodes, re-decodes, validates, hashes, persists, and downloads the final pair.
+
+Core pixel enforcement lives in assets/js/orogen/orogen-finalization-core.js. Browser image decoding and encoding live in orogen-input-finalizer.js. World ownership, persistence, manifest construction, and download behavior live in orogen-input-service.js.
+
+The downloadable mask and heightmap are products of the finalization stage, not direct aliases of source layer blobs.
+
+OROGEN EVIDENCE ASSIMILATION — v0.18
+====================================
+assets/js/refinement/evidence-profile.js
+- Stores role-specific coastline, height, visual, and climate trust.
+- Applies conservative automatic penalties for global-land masks, clipped peaks,
+  and nearly black land elevation.
+
+assets/js/refinement/evidence-assimilation-core.js
+- Pure worker-safe mask, height, climate-palette, and environmental-zone logic.
+- Uses canonical coastline distance, connected components, evidence support, and
+  island area/distance thresholds to separate character from remote noise.
+- Normalizes and clips height evidence inside selected land support.
+
+assets/js/refinement/evidence-assimilation-controller.js
+- Maps Refinement Lab controls to the existing engine and command service.
+- Creates provisional results and never promotes canonical layers implicitly.
+
+EVIDENCE FLOW
+canonical skeleton + trusted evidence -> worker operation -> generated layer ->
+refinement pass -> comparison -> optional human-confirmed promotion -> strict
+Orogen finalization.
+
+The worker is the raster-processing boundary. The command service is the
+world-ownership boundary. Eve and Mission Mode invoke the same allow-listed
+commands rather than duplicating image algorithms.

@@ -1,0 +1,57 @@
+WORLD PORTAL EVE MISSION ORCHESTRATION DOCTRINE
+Version 1
+
+PURPOSE
+Eve Mission Orchestration exposes the existing Heightmap Forge, Refinement Lab,
+Evidence Assimilation, and Orogen Finalizer through one generic declarative
+workflow. It does not create a second image-processing engine.
+
+AUTHORITATIVE FLOW
+The portable protocol remains authoritative:
+World Portal context ZIP -> Eve plan JSON -> local validation -> local execution.
+A future live connector must call the same capabilities and selectors.
+
+MISSION LIFECYCLE
+Eve plans may ensure, create, activate, scope, attach a baseline to, advance,
+checkpoint, complete, or roll back a Refinement Mission. mission.ensure is the
+preferred idempotent command. Re-importing the same plan must not create a
+second mission when the existing active mission satisfies it.
+
+GENERIC SCOPE
+A mission belongs to a world and may optionally target a planet, continent,
+island, region, or custom map subject. A scope mask may restrict later
+processing while preserving the rest of the world. No protocol behavior may be
+hardcoded to a world name, filename, run token, land percentage, or position.
+
+SEMANTIC SELECTORS
+Plans may identify layers by stable meaning instead of generated IDs. Supported
+roles include current canonical layers, latest generated outputs, latest Orogen
+layers, trust-ranked evidence, anomalous-but-useful elevation, and active
+mission-pass layers. Selectors resolve during validation and are displayed in
+the review screen. Ambiguous selectors stop for review.
+
+PREREQUISITE REPAIR
+World Portal may inspect whether canonical visual, mask, heightmap, dimensions,
+and mission baseline references are valid. Proposed canonical repairs require
+explicit confirmation. The original source image is never silently replaced.
+
+REFINEMENT INTENT
+Eve may express Clean, Hybrid, Feature-Preserving, or custom intent. World
+Portal translates intent into deterministic range-validated parameters and
+shows the resolved values before execution.
+
+CANDIDATE REVIEW
+A plan may generate all candidate styles as persistent mask/heightmap pairs.
+Selection records user preference but does not imply canonical promotion. The
+plan may pause with a resume token, preserve completed command results, and
+resume after the user selects a candidate.
+
+SAFETY
+Plans remain declarative. World Portal rejects arbitrary code, scripts, shell
+commands, executable paths, network action targets, unknown capabilities,
+invalid ranges, different-world references, and ambiguous selectors. Canonical
+promotion, rollback, replacement, and deletion require confirmation.
+
+NORMAL WORKFLOW
+Import world -> Export to Eve -> Import Eve plan -> Review candidates -> Select
+one -> Resume plan -> Download finalized Orogen input.

@@ -1,0 +1,29 @@
+{
+  "protocol": "world-portal-agent-plan",
+  "version": 1,
+  "worldId": "replace-with-world-id",
+  "title": "Generate character alternatives",
+  "summary": "Generate conservative and expressive candidate pairs, then pause for review.",
+  "commands": [
+    {
+      "id": "ensure-mission",
+      "capability": "mission.ensure",
+      "parameters": { "idempotencyKey": "character-review" }
+    },
+    {
+      "id": "build-candidates",
+      "capability": "evidence.buildCandidates",
+      "parameters": {
+        "styles": ["clean", "hybrid", "feature-preserving"],
+        "intent": {
+          "preserveNearbyIslands": true,
+          "removeRemoteNoise": true,
+          "preserveCoastlineCharacter": 0.8,
+          "ridgeRetention": 0.9,
+          "valleyRetention": 0.75
+        }
+      },
+      "reason": "The coastline choice is partly aesthetic and should be reviewed rather than silently promoted."
+    }
+  ]
+}

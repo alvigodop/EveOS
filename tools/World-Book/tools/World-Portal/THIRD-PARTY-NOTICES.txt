@@ -1,0 +1,112 @@
+THIRD-PARTY NOTICES
+
+NASA BLUE MARBLE
+Official NASA Blue Marble imagery is downloaded on first launch.
+Credit requested by the source:
+NASA/Goddard Space Flight Center Scientific Visualization Studio.
+The Blue Marble Next Generation data is courtesy of Reto Stöckli (NASA/GSFC) and NASA Earth Observatory.
+
+THREE.JS
+Version: 0.185.1
+License: MIT
+Source: https://threejs.org/ and https://github.com/mrdoob/three.js
+
+The MIT License
+Copyright © 2010-2026 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+
+HEX RENDERING NOTE
+No H3 library is bundled. Research into H3 informed the distinction between a
+true discrete global grid and this project's all-hex visual texture mosaic.
+
+
+v0.8.1 IMPLEMENTATION NOTES
+- Three.js OrbitControls is used with projection-specific enableRotate,
+  enablePan, mouse button, and touch mappings.
+- The procedural cloud image is generated at runtime with Three.js
+  CanvasTexture.
+- The NASA Blue Marble map remains the geographic source.
+
+
+v0.10.0 COUNTRY GEOGRAPHY SOURCES
+- Natural Earth project categories informed the country, rivers, lakes, and
+  coastline layer design. Natural Earth data is free for use.
+- Country outline files are Natural Earth-derived geometry bundled through the
+  installed CountryInfo dataset.
+- River lines and GSHHS lake polygons are read from Basemap's bundled map data.
+- WGS84 geodesic area and length estimates are generated with pyproj.Geod.
+- These layers are generalized and are not suitable for legal boundaries,
+  cadastral measurement, navigation, or a complete hydrology census.
+
+
+WORLD OROGEN — FIRST OUTER TOOL
+Repository: https://github.com/raguilar011095/planet_heightmap_generation
+Hosted at:  https://www.orogen.studio/
+License:    GNU General Public License v3.0
+Pinned commit: cc2662b4edd52231c4f65d8765f3ef12cd82d9b7
+
+STATUS: Orogen is World Portal's first outer tool. World Portal records a gitlink
+at outer/orogen pinned to the commit above. When initialized, the submodule has
+its own upstream objects/history and an unmodified working tree at that path.
+Orogen is served in its own page and JavaScript realm. See docs/OUTER-TOOLS.txt
+for the full host contract.
+
+WHAT A WORLD PORTAL CLONE CONTAINS: the parent repository records a pinned
+gitlink, not copies of Orogen source objects. A plain clone without recursive
+submodule initialization has no Orogen working files. Running
+
+  git submodule update --init outer/orogen
+
+fetches the pinned upstream source into the submodule's own repository and
+populates outer/orogen. A distribution that includes those fetched files must
+ship Orogen's LICENSE and satisfy all applicable GPLv3 obligations.
+
+RELATIONSHIP AND COUPLING: The architecture is designed for separately
+maintained and separately licensed programs. World Portal does not import
+Orogen's modules, merge import maps, modify its source, control its settings UI,
+or use its DOM as a general automation API. World Portal-owned,
+versioned/world-keyed connectors provide finalized file/data handoff and intake,
+guarded startup-heightmap sync, source-commit provenance, returned-mask
+extractors, a manual read-only update notice, and a camera-interactive connected
+mirror of the rendered planet/galaxy view.
+
+planet-mirror@1 remains rendered visual transport. For the pinned Orogen commit,
+World Portal also owns a same-origin, exact-context, commit-audited compatibility
+relay to the primary render canvas. It forwards only primary-button drag when
+unmodified, wheel-family zoom, and host pinch translated to wheel, for camera
+orbit and zoom. Ctrl+wheel is allowed only because Chromium emits trackpad pinch
+that way; Alt/Meta/Shift-modified wheel is rejected, and no keyboard event is
+forwarded. It never forwards settings UI, right/middle buttons, edit gestures,
+or data actions. A semantic planet-camera-input@1 postMessage
+capability is preferred for a future upstream revision; the pinned commit does
+not implement it.
+
+Heightmap Forge was implemented independently as a World Portal converter and
+produces Orogen-compatible input through its own modules.
+
+Distribution that includes Orogen must preserve its GPLv3 license, attribution,
+and satisfy applicable corresponding-source obligations. No technical boundary
+alone guarantees that two works are legally separate. The GNU GPL FAQ says the
+assessment depends on both communication mechanism and semantics, and sufficiently
+intimate semantic coupling may matter. The same-origin canvas input relay is
+stronger coupling than rendered-pixel display alone and must be included in that
+review. This notice is not legal advice:
+https://www.gnu.org/licenses/gpl-faq.html#MereAggregation

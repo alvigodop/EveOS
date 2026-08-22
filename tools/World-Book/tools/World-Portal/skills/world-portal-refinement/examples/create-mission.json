@@ -1,0 +1,18 @@
+{
+  "protocol": "world-portal-agent-plan",
+  "version": 1,
+  "worldId": "replace-with-world-id",
+  "title": "Ensure refinement mission",
+  "summary": "Create or recover a mission and attach the current canonical baseline.",
+  "commands": [
+    {
+      "id": "ensure-mission",
+      "capability": "mission.ensure",
+      "parameters": {
+        "idempotencyKey": "agent-baseline-mission",
+        "scope": { "worldId": "replace-with-world-id", "subjectType": "planet" }
+      },
+      "reason": "The world has no active mission yet."
+    }
+  ]
+}

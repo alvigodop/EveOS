@@ -31,11 +31,14 @@ def main() -> None:
     if not args.no_browser:
         threading.Timer(0.8, lambda: webbrowser.open(url)).start()
 
+    restore_world_portal_desired_state_async()
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopping World Book...")
     finally:
+        stop_world_portal(persist=False)
         server.server_close()
 
 

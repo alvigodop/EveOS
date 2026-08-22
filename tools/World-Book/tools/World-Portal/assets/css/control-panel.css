@@ -1,0 +1,225 @@
+/* Grouped control navigation and physical landmass readout. Loaded directly
+   after app.css so its layout contract wins deterministically on reload. */
+.control-group {
+  overflow: clip;
+  border: 1px solid rgba(104, 194, 255, 0.28);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(9, 23, 53, 0.97), rgba(5, 14, 34, 0.96));
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.34);
+  contain: layout paint;
+}
+
+.control-group__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 34px;
+  align-items: center;
+  gap: 9px;
+  min-height: 50px;
+  padding: 10px 12px 7px 14px;
+}
+
+.control-group__header h2 {
+  margin: 0;
+  color: #f0edff;
+  font-size: 0.98rem;
+  letter-spacing: 0.015em;
+}
+
+.control-group__count {
+  min-width: 24px;
+  padding: 3px 7px;
+  border: 1px solid rgba(104, 194, 255, 0.22);
+  border-radius: 999px;
+  color: #a9dfff;
+  background: rgba(28, 78, 121, 0.32);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.control-group__toggle {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 10px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.control-group__hint {
+  margin: 0;
+  padding: 0 14px 10px;
+  color: #9eb2d3;
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.control-group__body {
+  display: grid;
+  gap: 8px;
+  padding: 0 8px 8px;
+}
+
+.control-group__body > .panel {
+  min-width: 0;
+  border-radius: 14px;
+  padding: 12px 13px;
+  background: linear-gradient(180deg, rgba(18, 35, 72, 0.72), rgba(9, 21, 48, 0.78));
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.control-group[data-group-key="group-world"] .panel {
+  border-left-color: rgba(80, 220, 184, 0.58);
+}
+
+.control-group[data-group-key="group-terrain"] .panel {
+  border-left-color: rgba(255, 180, 87, 0.58);
+}
+
+.control-group[data-group-key="group-appearance"] .panel {
+  border-left-color: rgba(192, 142, 255, 0.58);
+}
+
+.control-group[data-group-key="group-view"] .panel {
+  border-left-color: rgba(104, 194, 255, 0.58);
+}
+
+.control-group.is-group-collapsed .control-group__header {
+  padding-bottom: 10px;
+}
+
+.control-sections.is-layout-stabilizing,
+.control-sections.is-layout-stabilizing * {
+  transition: none !important;
+}
+
+.panel-section-toggle:focus-visible,
+.control-group__toggle:focus-visible,
+#landmassPanel button:focus-visible,
+#landmassPanel input:focus-visible {
+  outline: 2px solid #a5ddff;
+  outline-offset: 2px;
+}
+
+#landmassPanel input[type="number"] {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(123, 178, 255, 0.3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: rgba(5, 15, 38, 0.92);
+}
+
+#landmassPanel #measureLandmasses {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(35, 95, 135, 0.96), rgba(40, 73, 142, 0.96));
+}
+
+.landmass-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 11px;
+}
+
+.landmass-metric {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid rgba(104, 194, 255, 0.17);
+  border-radius: 10px;
+  background: rgba(2, 12, 31, 0.48);
+}
+
+.landmass-metric span {
+  color: #9fb3d4;
+  font-size: 0.68rem;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.landmass-metric strong {
+  overflow-wrap: anywhere;
+  color: #f3f7ff;
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.landmass-list {
+  max-height: 330px;
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  counter-reset: landmass;
+  scrollbar-width: thin;
+}
+
+.landmass-item {
+  counter-increment: landmass;
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px 9px 35px;
+  border: 1px solid rgba(104, 194, 255, 0.16);
+  border-radius: 10px;
+  position: relative;
+  background: rgba(5, 16, 38, 0.62);
+}
+
+.landmass-item::before {
+  content: counter(landmass);
+  position: absolute;
+  top: 9px;
+  left: 10px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #071329;
+  background: #91d5ff;
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.landmass-item > strong {
+  color: #f3f7ff;
+  font-size: 0.82rem;
+}
+
+.landmass-item > span {
+  color: #afbfda;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.landmass-item--tiny {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
+.landmass-item__at {
+  color: #85cfed !important;
+}
+
+@media (max-width: 400px) {
+  .landmass-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .control-group *,
+  .panel-section-toggle {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}

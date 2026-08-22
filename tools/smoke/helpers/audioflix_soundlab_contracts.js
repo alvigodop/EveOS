@@ -49,12 +49,12 @@ function staticContracts() {
         'utf8'
     );
     const bridge = fs.readFileSync(path.join(ROOT, 'server_modules', 'audioflix_bridge.py'), 'utf8');
-    const order = ['soundboard', 'music', 'soundlab', 'router']
+    const order = ['soundboard', 'music', 'piano', 'soundlab', 'router']
         .map((tab) => ui.indexOf(`tabButton('${tab}'`));
     assert(order.every((index) => index >= 0), 'all Audioflix tabs are wired');
     assert(
         order.every((index, position) => !position || index > order[position - 1]),
-        'Sonic Forge tab order is stable'
+        'Piano and Sonic Forge tab order is stable'
     );
     [
         'audioflix.soundlab.state.js',

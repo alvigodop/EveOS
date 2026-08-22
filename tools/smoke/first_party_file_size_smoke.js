@@ -28,15 +28,26 @@ const EXCLUDED_DIRECTORIES = new Set([
     'third_party',
     'vendor'
 ]);
+const EXCLUDED_PATH_PREFIXES = [
+    // World Portal bundles the independently maintained GPL Orogen application.
+    'tools/World-Book/tools/World-Portal/outer/orogen/'
+];
 
 function countPhysicalLines(filePath) {
     const source = fs.readFileSync(filePath, 'utf8');
-    return source ? source.split(/\r?\n/).length : 0;
+    if (!source) return 0;
+    return source.replace(/\r?\n$/, '').split(/\r?\n/).length;
+}
+
+function isExcludedPath(filePath) {
+    const normalized = path.relative(REPO_ROOT, filePath).split(path.sep).join('/');
+    return EXCLUDED_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
 function collectCodeFiles(directory, files = []) {
     fs.readdirSync(directory, { withFileTypes: true }).forEach((entry) => {
         const filePath = path.join(directory, entry.name);
+        if (isExcludedPath(filePath)) return;
         if (entry.isDirectory()) {
             if (!EXCLUDED_DIRECTORIES.has(entry.name.toLowerCase())) {
                 collectCodeFiles(filePath, files);

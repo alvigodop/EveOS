@@ -1,0 +1,27 @@
+{
+  "format": "world-portal-agent-skill",
+  "version": 1,
+  "id": "world-portal-refinement",
+  "name": "World Portal Agent Skill — Planetary Refinement",
+  "description": "Model-neutral instructions for analyzing World Portal evidence and creating safe declarative refinement plans.",
+  "minimumWorldPortalVersion": "0.20.0",
+  "planProtocol": "world-portal-agent-plan",
+  "planProtocolVersion": 1,
+  "supportedLegacyProtocols": ["world-portal-eve-plan"],
+  "supportedBriefingVersions": [1],
+  "capabilityManifestVersion": 1,
+  "entrypoint": "SKILL.md",
+  "schemas": {
+    "agentPlan": "schemas/agent-plan.schema.json",
+    "briefing": "schemas/eve-briefing.schema.json",
+    "skillManifest": "schemas/skill-manifest.schema.json"
+  },
+  "examples": [
+    "examples/create-mission.json",
+    "examples/generate-candidates.json",
+    "examples/refine-heightmap.json",
+    "examples/orogen-loop.json",
+    "examples/repair-export.json",
+    "examples/repair-canonical-visual.json"
+  ]
+}

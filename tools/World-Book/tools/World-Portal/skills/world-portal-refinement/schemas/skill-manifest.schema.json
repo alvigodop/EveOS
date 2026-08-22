@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "world-portal-agent-skill-manifest.schema.json",
+  "title": "World Portal Agent Skill Manifest",
+  "type": "object",
+  "required": ["format", "version", "id", "name", "minimumWorldPortalVersion", "planProtocol", "entrypoint"],
+  "properties": {
+    "format": { "const": "world-portal-agent-skill" },
+    "version": { "type": "integer", "minimum": 1 },
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "description": { "type": "string" },
+    "minimumWorldPortalVersion": { "type": "string" },
+    "planProtocol": { "const": "world-portal-agent-plan" },
+    "planProtocolVersion": { "type": "integer" },
+    "supportedLegacyProtocols": { "type": "array" },
+    "entrypoint": { "type": "string" },
+    "schemas": { "type": "object" },
+    "examples": { "type": "array" }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,103 @@
+WORLD PORTAL — OROGEN EVIDENCE ASSIMILATION DOCTRINE
+=====================================================
+
+PURPOSE
+World Orogen runs may be physically invalid in one role while still containing
+valuable evidence in another. World Portal must judge each imported layer by its
+role instead of accepting or rejecting an entire run as one indivisible result.
+
+HARD SKELETON AND SOFT EVIDENCE
+The current canonical visual map, canonical coastline mask, and canonical
+heightmap are the world's hard mechanical skeleton. Imported Orogen masks,
+heightmaps, satellite maps, climate maps, terrain maps, and classified rasters are
+soft evidence until explicitly promoted.
+
+A globally contaminated mask must never define coastline truth. A globally
+contaminated heightmap may still contribute interior ridges after it is clipped to
+a trusted mask. A satellite layer may be useful for land coloration while its
+ocean is unusable. A climate raster may provide measured palette and latitude-band
+evidence without establishing named biomes.
+
+ROLE-SPECIFIC TRUST
+Every evidence layer may store independent trust values for:
+- coastline;
+- height and interior relief;
+- visual land appearance;
+- climate or environmental classification.
+
+Statuses are canonical-safe, provisional, anomalous-but-useful, rejected, and
+archived. Automatic anomaly penalties are advisory. User edits and Eve plans must
+remain explicit, versioned, and reproducible.
+
+FINALIZATION STYLES
+Clean / Canonical:
+- retains the accepted coastline;
+- removes detached noise;
+- minimizes evidence-driven terrain changes;
+- prioritizes simulator safety and repeatability.
+
+Hybrid / Balanced:
+- rejects remote specks;
+- retains supported coastline bends and protrusions;
+- preserves nearby companion islands above an area threshold;
+- recovers useful ridge and valley detail inside the accepted land support.
+
+Feature-Preserving:
+- allows a wider evidence buffer around the canonical coast;
+- accepts lower multi-source support when evidence trust is sufficient;
+- preserves more nearby islands and local coastline character;
+- retains stronger interior ridge and relief variation.
+
+Cleanest does not automatically mean best. Each style creates a child layer and a
+reversible refinement pass. No style silently replaces canonical geography.
+
+COASTLINE CHARACTER RULE
+The system must distinguish bad noise from valuable irregularity. Bad noise
+includes remote specks, ocean interpreted as land, encoding artifacts, and
+unsupported isolated components. Valuable irregularity may include nearby island
+groups, distinctive peninsulas, bays, concave or convex bends, and unusual but
+supported protrusions.
+
+Character recovery uses weighted evidence support, connected-component area, and
+distance from the canonical coastline. Horizontal equirectangular edges wrap.
+Remote components remain rejected even in Feature-Preserving mode unless the user
+changes the thresholds deliberately.
+
+HEIGHT EVIDENCE RULE
+Orogen height evidence is normalized only inside the selected land mask. The
+source canonical heightmap supplies the stable baseline. Evidence may contribute
+broad elevation and high-frequency interior detail. Ridge and valley retention,
+contrast, and smoothing are independently tunable.
+
+Every generated heightmap must keep ocean at exact zero and accepted land at one
+through 255. It must not create land outside the paired mask.
+
+VISUAL EVIDENCE RULE
+Land-only synthesis keeps the canonical visual map's ocean unchanged and blends a
+trusted satellite or terrain layer only inside the chosen mask. The result is a
+new visual child layer. The original visual map remains available.
+
+CLIMATE AND ENVIRONMENTAL ZONES
+Climate, biome, and classified rasters may be measured within the canonical land
+mask. World Portal may store dominant colors, relative coverage, and latitude-band
+patterns. It may create provisional color-derived environmental-zone layers.
+
+Without a supplied Orogen legend, those zones must not be named as deserts,
+forests, tundra, Köppen classes, or story regions. They are physical evidence, not
+lore or canon.
+
+EVE CONTEXT CURATION
+Archive broadly and analyze selectively. Eve context should prioritize canonical
+layers, the newest mission run, one useful prior comparison, and distinct
+anomalous evidence. Duplicate historical rasters may remain stored locally without
+being included full-resolution in every context bundle.
+
+EVE capabilities may set trust, build character-preserving masks, assimilate
+heightmaps, clip contaminated heightmaps, extract climate metadata, build
+provisional environmental zones, and create a paired next-pass refinement. All
+commands remain declarative and allow-listed.
+
+UPSTREAM SEPARATION
+Orogen remains a separately maintained GPLv3 upstream module. Evidence
+assimilation belongs to World Portal. It consumes imported rasters and typed-array
+results through adapters and does not modify or absorb Orogen source code.

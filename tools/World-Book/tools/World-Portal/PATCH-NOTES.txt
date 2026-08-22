@@ -1,0 +1,267 @@
+WORLD PORTAL v0.20.0 — PORTABLE AGENT SKILL SYSTEM
+
+This files-only patch upgrades the refinement bridge from an Eve-specific
+conversation workflow into a model-neutral portable Agent Skill while keeping
+Eve Guided Mode as the user-facing entry point.
+
+Highlights:
+- Adds skills/world-portal-refinement/ with SKILL.md, planning doctrine, world
+  model, evidence rules, mission workflow, safety, glossary, JSON schemas, and
+  generalized plan examples.
+- Adds the canonical world-portal-agent-plan protocol while retaining
+  world-portal-eve-plan as a backwards-compatible alias.
+- Generates capability, parameter-range, intent-map, diagnostic-checklist, and
+  capability Markdown files from the installed World Portal runtime.
+- Embeds the portable skill in normal World Portal context ZIPs and complete Lab
+  Intelligence ZIPs by default.
+- Adds standalone world-portal-refinement-skill.zip, single-file Markdown/JSON
+  skill downloads, full/compact instruction copy, and Copy Model Starter Prompt.
+- Adds skill compatibility/version metadata and available-skill information to
+  eve-briefing.json.
+- Keeps world/mission creative intent separate from global skill doctrine.
+- Exposes the Agent Skill through window.WorldPortal.agentSkill.
+
+The World Portal parent commit records Orogen as a pinned gitlink rather than
+committed source files. An initialized checkout fetches the pristine upstream
+source into its submodule repository under GPLv3. World Portal remains the
+validator, executor, owner, and final exporter.
+
+
+UNRELEASED — POST-0.20.0 FIXES
+
+World-keyed Orogen connection
+- Defined "intimate integration" as coordinated World Portal and Orogen states
+  through World Portal-owned connectors. Orogen remains a pristine pinned
+  submodule: no upstream files, settings, modules, or DOM controls are changed.
+- Handoffs now carry unique handoff identity, immutable world identity, and the
+  full checked-out Orogen commit. Sync, return intake, and mirror eligibility use
+  that captured context instead of whichever world happens to be active later.
+- Switching worlds, replacing the handoff/commit, disabling sync, or losing the
+  tool frame invalidates stale attachment state without deleting saved evidence.
+- Heightmap Forge Send to Orogen uses
+  window.WorldOrogenAdapter.sendHeightmap and the
+  world-portal:orogen-heightmap-ready event rather than a disconnected optional
+  global.
+- Each world retains up to 24 handoffs and marks one current handoff. Returned
+  layers, sessions, and refinement passes receive the captured source commit and
+  normalized handoff provenance; wrong-world, wrong-commit, or incomplete intake
+  is refused or rolled back.
+- Returned image files do not contain verifiable World Portal handoff metadata.
+  User selection associates the file set with the complete current handoff; the
+  recorded provenance is a declared association, not proof of the upstream run.
+- The preferred future direct transport is a validated upstream postMessage
+  capability. The pinned upstream does not expose it, so current compatibility
+  transports remain explicit file/data intake and guarded startup-asset sync.
+- Valid inbound world-metrics@1 messages are persisted under
+  assets.orogen.bridgeMetrics and emitted as a host event. The Landmasses panel
+  intentionally continues using local returned-mask analysis.
+
+Mirror Planet and view switching
+- Added Mirror Planet to present the exact synced import document's main Orogen
+  planet and galaxy canvas in World Portal's viewport. planet-mirror@1 remains
+  the rendered visual transport, and the generator remains an independent port
+  view.
+- Added a normal-view switch between the World Portal planet and the Orogen
+  connected mirror. For pinned commit
+  cc2662b4edd52231c4f65d8765f3ef12cd82d9b7, a host-owned same-origin,
+  exact-full-tuple, commit-audited compatibility relay forwards only primary
+  drag when unmodified, wheel-family zoom, and host pinch translated to wheel,
+  for Orogen camera orbit and zoom. Ctrl+wheel is allowed only for Chromium's
+  trackpad-pinch event; Alt/Meta/Shift-modified wheel is rejected.
+- Settings UI, keyboard events, right/middle buttons, edit gestures, and data
+  actions remain available only in the Outer Tool Port and are never relayed.
+  Input is cancelled on view, world, frame, sync, or commit mismatch.
+- Replaced the fixed mirror caps with a stage that fills the usable viewport.
+  While the port is parked, its same iframe now renders at the stage's measured
+  rectangle and native device-pixel backing resolution; resize, compact layout,
+  and port reopen/close all restabilize without replacing the Orogen session.
+- Added commit-audited geographic-facing direction synchronization. View changes
+  align Orogen and World Portal through the existing canvas camera boundary,
+  Orogen drags update the hidden World Portal view, and World Portal spin is held
+  only while Orogen is selected. Zoom and Orogen Auto-Rotate stay Orogen-owned.
+- Capture-stream dimensions are checked after responsive resizing; a stale track
+  falls back to exact-size canvas copying instead of stretching soft pixels.
+- Defined planet-camera-input@1 as the preferred future semantic postMessage
+  input capability. The pinned upstream does not implement that capability; the
+  current canvas relay is explicitly a host compatibility transport.
+- Canvas capture is best effort. A missing/non-origin-clean WebGL surface or
+  browser restriction reports the capability unavailable and falls back to the
+  World Portal planet without interrupting Orogen.
+- Native Orogen / and /import links are remapped only for same-host Orogen
+  Referers. A validated world-binding query is preserved across those native
+  tab changes; requests without trusted context never receive synced data.
+- While the connected mirror is shown, the source iframe remains layout-active
+  so its renderer, camera, and settings survive, but it is invisible and inert.
+  Reopening the port restores native Orogen behavior. Identity changes or the
+  explicit Reload action reload the frame.
+
+Landmass scale extraction and control-panel organization
+- Added a Landmasses panel that prefers the newest recognized Orogen-returned
+  mask, then canonical, then the newest remaining mask. It reports complete
+  counts, spherical area/coverage, source provenance, and the 12 largest
+  cosine-area-ranked components with generalized N-S/E-W bounding spans.
+- Physical units use the selected planet radius (6371 km default, positive,
+  maximum 1,000,000 km). Distances scale with radius and areas with radius
+  squared. Results depend on raster resolution, threshold, cleanup, connectivity,
+  and seam handling; they are bounding spans, not coastline/survey lengths.
+- Reorganized the control panel into four grouped work areas while retaining the
+  existing controls and persistence IDs. First load keeps World and Terrain
+  workflow open and expands World Library, Landmasses, and Outer Tools.
+- Balanced HUD inline padding at 6px and added a 16px bottom scroll cushion so
+  the final View and space group and its shadow remain visible at small heights.
+
+Manual Orogen update notice and runtime status
+- Added an explicit read-only upstream update check. It reports the checked-out
+  and upstream commits but never runs at launch/background, fetches, checks out,
+  merges, edits the gitlink, or changes the submodule.
+- Split portable tracked outer-tool defaults from ignored server-generated live
+  status. Launching World Portal no longer rewrites a tracked status file or
+  dirties an otherwise clean checkout.
+
+Documentation and licensing
+- Reconciled the obsolete v0.16 phase roadmap, new-tab instructions, file-only
+  integration claims, submodule-source booleans, manifest, notices, and current
+  iframe workflow.
+- Clarified that document/realm separation is an architectural design measure,
+  not a legal guarantee. GPL classification depends on coupling mechanism and
+  semantics; the same-origin canvas input relay is stronger coupling than pixel
+  display alone and legal review remains required before distribution.
+
+Plan validation
+- The unsafe-content scan now covers only the executable surface: each command's
+  inputs and parameters. Free-text plan fields (title, summary, notes, and each
+  command's reason and expectedResult) are no longer scanned. Previously any
+  agent-authored rationale mentioning a URL, a drive letter, or "../" rejected
+  the entire plan. Those fields reach only textContent, never an HTML sink.
+- Descriptive string parameters carried by the capability manifest — notes,
+  reason, name, description — are exempt from the value scan for the same
+  reason. They are stored as provenance and rendered, never interpreted.
+- Rejections now name the offending path and category, for example
+  "repair-coast.parameters.maskLayerId contains a filesystem path", instead of
+  one generic message that did not say which field failed.
+- The drive-letter pattern is anchored at a word boundary so it no longer
+  matches the "s:/" inside "https://" and misreport every URL as a filesystem
+  path.
+
+World packages
+- dataUrlToBlob now rejects a non-base64 data URL instead of feeding a
+  percent-encoded payload to atob() and producing corrupt image bytes.
+
+Tests
+- Added tests/ with 52 dependency-free unit tests run by node --test:
+  orogen-finalization.test.mjs, analysis-math.test.mjs, and
+  eve-plan-validator.test.mjs. Run with: node --test "tests/*.test.mjs"
+
+Downloads are opt-in and never triggered by syncing
+- Turning world sync on used to write the mask, heightmap, input manifest, and
+  handoff manifest to disk. The sync path called exportInputSet, which always
+  downloads; passing confirmBeforeDownload only suppressed the prompt, not the
+  files. Syncing now calls finalizeInput, which validates and persists the pair
+  as world layers and writes nothing to disk.
+- Replaced the "Download handoff manifest" checkbox with "Download files to
+  disk", defaulting to off. Nothing reaches the disk unless it is ticked.
+- The label states which mode needs it: while syncing the tool receives the pair
+  through the server, so downloads are unnecessary; with sync off they are the
+  only way to hand the pair over.
+- Sending with downloads off and sync off now says so plainly instead of
+  appearing to succeed while the tool has no way to receive anything.
+
+Embedded tool navigation no longer duplicates World Portal
+- Orogen's pages link home with href="/" and to its importer with
+  href="/import". Those are correct at orogen.studio but resolve against World
+  Portal's root when the tool is served from outer/orogen/. Following the home
+  link inside the embedded frame loaded World Portal into itself, producing a
+  second instance with a second globe and a duplicated control panel.
+- main.js now detects window.self !== window.top and refuses to boot a nested
+  instance, showing a short notice with a button back to the tool.
+- server.py redirects /import to the tool's import page. "/" is left alone
+  because it is World Portal's own page; the nesting guard covers that case.
+- Neither fix touches Orogen. Expect the same class of problem from any tool
+  built to be hosted at a domain root.
+
+World sync and port navigation
+- Added a world sync toggle. Off leaves the outer tool exactly as upstream ships
+  it. On makes it open on the active World Portal world.
+- Mechanism: Orogen loads assets/earth.png at startup and imports it
+  automatically, so server.py answers that one request with World Portal's
+  finalized heightmap. The vendored tool is not edited, not scripted, and the
+  submodule working tree stays clean. Turning sync off deletes only World
+  Portal's cached copy under assets/data/outer-sync/.
+- This is a declared coupling to an upstream detail, not an assumed one.
+  server.py verifies at startup that Orogen still references that asset path and
+  reports sync unavailable with a reason if it does not.
+- POST and DELETE /__outer/orogen/sync manage the synced heightmap. The endpoint
+  validates the PNG signature and caps payload size.
+- Sync reuses the exact validated bytes of the finalized heightmap layer rather
+  than re-encoding, and refreshes automatically when a newer pair is sent.
+- Port navigation: a persistent sync row with an Open Orogen button, relabelled
+  Open import and Open generator actions, and stage highlighting that follows
+  the round trip.
+- All World Portal control sections now start collapsed. A sectionsSeeded flag
+  records the seeding so a deliberate expand-all is not undone on reload.
+- Fixed a pre-existing bug that made section collapse state look broken on
+  reload. The applier that paints collapse state onto the sections was only
+  invoked from syncFromState(), which runs on world switches and never during
+  initial load, so a reload always rendered every section expanded no matter
+  what was stored. Collapse state is now applied when the sections are built.
+
+Outer tool port — original implementation (historical; later items above supersede it)
+- World Portal initialized as a git repository; Orogen added as a pinned
+  submodule at outer/orogen (cc2662b), served from the existing local server.
+- The original server published assets/data/outer-tools.json at startup. Current
+  startup writes ignored assets/data/outer-tools.runtime.json, while tracked
+  assets/data/outer-tools.default.json supplies portable fallback identity. The
+  browser still re-verifies availability at runtime with a HEAD request.
+- New Outer tools HUD panel lists each tool with availability, pinned commit,
+  and license. An uninitialized submodule renders as "not initialized" with the
+  exact git command to fix it, and never blocks anything else.
+- The original port overlay implemented three stages: Send finalized the
+  canonical pair and opened a separate tab, Work was passive guidance, and
+  Return imported exports as provisional evidence. The current port embeds the
+  tool in the same World Portal tab and retains pop-out only as an option.
+- Send defaults to the world's canonical mask and heightmap with an explicit
+  override, and refuses to run when either is missing rather than substituting.
+- Return infers layer role from Orogen's export filenames; an unrecognized file
+  is imported unclassified rather than guessed at.
+- Historical note: the first implementation chose a new tab. The current
+  implementation uses an iframe with its own document, realm, and import map;
+  World Portal still does not drive Orogen's settings or DOM controls. The later
+  audited canvas-camera relay above is the only narrow input exception.
+- tools/check-source-lines.py now skips outer/, .git, and node_modules. The
+  450-line module policy governs World Portal source; vendored upstream code is
+  read-only and is never reformatted to satisfy it.
+
+Outer tool doctrine
+- Added docs/OUTER-TOOLS.txt: the host contract for vendored external tools,
+  with World Orogen as the first outer tool. Defines the page boundary, the
+  submodule vendoring rule, the license boundary, the handoff/intake/provenance
+  adapter layer, failure isolation, and Orogen's concrete I/O contract.
+- Retired the in-process connector plan. Two findings drove this: Orogen is a
+  UI-driven browser application with no importable API, and it pins three.js
+  0.160.0 against World Portal's 0.185.1 through the same bare "three" import
+  specifier, so the two cannot share one JavaScript realm.
+- ARCHITECTURE.txt, WORLD-BOOK.txt, and README.txt were updated to point at the
+  outer-tool doctrine. The then-proposed direct boundary is now represented as a
+  preferred upstream postMessage capability; the current host transports remain
+  world-keyed and do not authorize general Orogen DOM scripting.
+- THIRD-PARTY-NOTICES.txt reclassifies Orogen as the first outer tool, records
+  the pinned commit, states that a plain clone carries a pointer rather than
+  source, and states the separate-programs relationship explicitly.
+- Replaced the sourceBundled and upstreamSourceBundled booleans in
+  PROJECT-MANIFEST.json with explicit vendoring fields. A submodule means the
+  parent repository records a pinned gitlink while the initialized submodule has
+  its own source-object database/history and working tree; one boolean could not
+  express both without being misleading. The manifest now records vendoring
+  method, gitlink, submodule path, pinned commit, parent file storage,
+  initialization behavior, and modification state separately.
+- Added a machine-readable outerTools block to PROJECT-MANIFEST.json carrying
+  the boundary, its reasons, the adapter list, the module map, the standing
+  rules, and Orogen's pinned identity and I/O contract.
+
+Documentation
+- INSTALL.txt described an Earth Hex v0.10.3 patch; rewritten for 0.20.0.
+- ARCHITECTURE.txt header corrected from 0.16.0 to 0.20.0, and its two
+  conflicting "WORLD PACKAGE VERSION 4" sections merged into one accurate
+  VERSION 5 section matching PACKAGE_VERSION in world-package.js.
+- README.txt and INSTALL.txt now state that three.js loads from a CDN and the
+  NASA texture downloads on first launch, so the runtime is not fully offline.
