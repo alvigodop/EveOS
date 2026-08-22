@@ -12,9 +12,13 @@
   max-width: 100%;
 }
 
-.topbar-actions .button,
-.workspace-control .button {
+.topbar-actions .button {
   min-width: 0;
+  white-space: nowrap;
+}
+
+.workspace-control .button {
+  min-width: max-content;
   white-space: nowrap;
 }
 
@@ -43,7 +47,7 @@
   }
 
   .workspace-control {
-    grid-template-columns: auto minmax(260px, 1fr) auto auto;
+    grid-template-columns: auto minmax(260px, 1fr) max-content max-content;
   }
 
   .topbar-actions {
@@ -75,7 +79,7 @@
   }
 
   .workspace-control {
-    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) max-content max-content;
   }
 
   .workspace-control label {
@@ -114,9 +118,13 @@
     grid-column: 1 / -1;
   }
 
-  .workspace-control .button,
   .topbar-actions .button {
     min-width: 0;
+  }
+
+  .workspace-control .button {
+    min-width: max-content;
+    width: 100%;
   }
 
   .topbar-actions {
