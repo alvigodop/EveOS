@@ -85,6 +85,8 @@ def assert_static_contract() -> None:
     assert 'HISTORY_LIMIT = 10' in workspace and 'From Sheet Finder' in workspace
     assert 'state.history.slice(-HISTORY_LIMIT)' in workspace and 'state.staging.push(entry)' in workspace
     assert 'Bulk conversion' in bulk and 'Queue conversions' in bulk and 'youtubePiano.transcribe' in bulk
+    assert 'bulkConversionFile' in bulk and 'Queue .txt file' in bulk and 'file.text()' in bulk
+    assert '(?=https?:\\/\\/|[\\s,]|$)' in bulk
     assert 'Ready in From Sheet Finder' in bulk
     assert '@media (max-width: 1180px)' in workspace_css and '.hero-grid, .lower-grid' in workspace_css
     assert '.controls-panel select' in workspace_css and '.seek-controls' in workspace_css

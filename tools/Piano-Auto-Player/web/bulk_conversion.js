@@ -10,9 +10,11 @@ function buildBulkUi() {
   panel.className = "bulk-conversion-panel";
   panel.hidden = true;
   panel.innerHTML = `
-    <textarea id="bulkConversionUrls" rows="5" spellcheck="false" placeholder="Paste multiple URLs — one per line, or comma-separated.\nhttps://youtu.be/...\nhttps://youtube.com/watch?v=..."></textarea>
+    <textarea id="bulkConversionUrls" rows="5" spellcheck="false" placeholder="Paste URLs however you have them — new lines, commas, spaces, or back-to-back http(s) links all work.\nhttps://youtu.be/...\nhttps://youtube.com/watch?v=..."></textarea>
+    <input id="bulkConversionFile" type="file" accept=".txt,text/plain" hidden>
     <div class="bulk-conversion-actions">
       <button type="button" class="primary" id="bulkQueueBtn">Queue conversions</button>
+      <button type="button" class="ghost" id="bulkFileBtn">Queue .txt file</button>
       <button type="button" class="ghost" id="bulkClearFinishedBtn">Clear finished</button>
       <span id="bulkQueueSummary">0 queued</span>
     </div>
@@ -22,7 +24,7 @@ function buildBulkUi() {
 }
 
 function urlsFrom(value) {
-  const found = String(value || "").match(/https?:\/\/[^\s,]+/gi) || [];
+  const found = String(value || "").match(/https?:\/\/[^\s,]*?(?=https?:\/\/|[\s,]|$)/gi) || [];
   return [...new Set(found.map(url => url.trim()).filter(Boolean))];
 }
 
@@ -40,6 +42,8 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
   if (!ui) return { enqueue() {} };
   const toggle = document.getElementById("bulkConversionMode");
   const input = document.getElementById("bulkConversionUrls");
+  const fileInput = document.getElementById("bulkConversionFile");
+  const fileButton = document.getElementById("bulkFileBtn");
   const queueButton = document.getElementById("bulkQueueBtn");
   const clearButton = document.getElementById("bulkClearFinishedBtn");
   const summary = document.getElementById("bulkQueueSummary");
@@ -112,7 +116,7 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
   function enqueue(values) {
     const urls = Array.isArray(values) ? values : urlsFrom(values);
     if (!urls.length) {
-      summary.textContent = "Paste at least one http(s) media URL.";
+      summary.textContent = "Paste or upload at least one http(s) media URL.";
       return;
     }
     urls.forEach(url => {
@@ -124,8 +128,27 @@ export function setupBulkConversion({ youtubePiano, workspace }) {
     void drain();
   }
 
+  async function queueTextFile(file) {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const urls = urlsFrom(text);
+      if (!urls.length) {
+        summary.textContent = `${file.name}: no http(s) URLs found.`;
+        return;
+      }
+      enqueue(urls);
+    } catch (error) {
+      summary.textContent = `Could not read ${file.name || "URL list"}: ${error?.message || "unknown error"}`;
+    } finally {
+      fileInput.value = "";
+    }
+  }
+
   toggle.addEventListener("change", syncMode);
   queueButton.addEventListener("click", () => enqueue(input.value));
+  fileButton.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => void queueTextFile(fileInput.files?.[0]));
   input.addEventListener("keydown", event => {
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") enqueue(input.value);
   });
