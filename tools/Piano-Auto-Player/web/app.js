@@ -5,6 +5,8 @@ import { InternalPreviewPlayer } from "./internal_preview.js";
 import { actionButton, escapeHtml, formatTime, resultNode as buildResultNode } from "./ui_helpers.js";
 import { setupYoutubePiano } from "./youtube_piano.js";
 import { setupLibraryTransfer } from "./library_transfer.js";
+import { setupSheetWorkspace } from "./sheet_workspace.js";
+import { setupBulkConversion } from "./bulk_conversion.js";
 const $ = (id) => document.getElementById(id);
 const els = {
   title: $("titleInput"), sheet: $("sheetInput"), stats: $("sheetStats"),
@@ -40,8 +42,11 @@ const internalPreview = new InternalPreviewPlayer(els.piano);
 const pianoControls = setupPianoControls({ layoutSelect: els.pianoLayout, soundSelect: els.pianoSound, soundStatus: els.pianoSoundStatus, visualMeta: els.pianoVisualMeta, piano: els.piano, recorder, preview: internalPreview });
 bindPhysicalPiano(recorder, els.piano, () => els.pianoLayout.value);
 const resultNode = (...args) => buildResultNode(els.template, ...args);
-const youtubePiano = setupYoutubePiano({ form: els.youtubeForm, input: els.youtubeUrl, message: els.youtubeMessage, button: els.youtubeButton, searchInput: els.search, onSong: applyImportedSong });
+let sheetWorkspace = null;
+const youtubePiano = setupYoutubePiano({ form: els.youtubeForm, input: els.youtubeUrl, message: els.youtubeMessage, button: els.youtubeButton, searchInput: els.search, onSong: (song, result) => sheetWorkspace?.stage(song, result) });
 const libraryTransfer = setupLibraryTransfer({ exportAllButton: $("exportLibraryBtn"), importButton: $("importLibraryBtn"), importInput: $("importLibraryInput"), onImported: refreshLibrary, toast });
+sheetWorkspace = setupSheetWorkspace({ onLoad: applyImportedSong, getCurrent: currentSheetSnapshot, toast });
+setupBulkConversion({ youtubePiano, workspace: sheetWorkspace });
 function playbackPayload() {
   return {
     title: els.title.value.trim() || "Untitled",
@@ -79,6 +84,9 @@ function updateSliderLabels() {
 }
 function performanceDuration(events = activePerformance) {
   return events.reduce((max, event) => Math.max(max, Number(event.at_ms || 0) + Number(event.duration_ms || 0)), 0);
+}
+function currentSheetSnapshot() {
+  return { _activeSongId: activeSongId, title: els.title.value.trim() || "Untitled sheet", sheet: els.sheet.value, performance: activePerformance.map(event => ({ ...event })), duration_ms: performanceDuration(), source: els.sheet.dataset.source || "manual", source_url: els.sheet.dataset.sourceUrl || "", timing_profile: els.sheet.dataset.timingProfile || "expressive", transcription_diagnostics: activeTranscriptionDiagnostics, recommended_interval_ms: Number(els.interval.value) };
 }
 function isTimedPerformance() { return activePerformance.length > 0; }
 async function refreshStats() {
@@ -315,8 +323,8 @@ async function searchSheets(event) {
 
 async function applyImportedSong(song, result = {}) {
   internalPreview.reset();
-  activeSongId = null; activeTranscriptionDiagnostics = song.transcription_diagnostics || null; recorder.clear(); activePerformance = Array.isArray(song.performance) ? song.performance : []; seekTarget = 1; stoppedResumeEvent = 0; playShouldRestart = false;
-  els.title.value = song.artist ? `${song.title} — ${song.artist}` : song.title; els.sheet.value = song.sheet || "";
+  activeSongId = song._activeSongId || null; activeTranscriptionDiagnostics = song.transcription_diagnostics || null; activePerformance = Array.isArray(song.performance) ? song.performance : []; if (activePerformance.length) recorder.load(activePerformance); else recorder.clear(); seekTarget = 1; stoppedResumeEvent = 0; playShouldRestart = false;
+  els.title.value = song.artist ? `${song.title} — ${song.artist}` : (song.title || "Untitled sheet"); els.sheet.value = song.sheet || "";
   els.sheet.dataset.source = song.source || result.provider_name || "online"; els.sheet.dataset.sourceUrl = song.source_url || result.url || ""; els.sheet.dataset.timingProfile = song.timing_profile || "expressive"; youtubePiano.showDiagnostics(activeTranscriptionDiagnostics);
   const suggested = Number(song.recommended_interval_ms || (activePerformance.length ? 0 : 115));
   if (suggested > 0) { const min = Number(els.interval.min || 25), max = Number(els.interval.max || 500); els.interval.value = Math.max(min, Math.min(max, Math.round(suggested / 5) * 5)); updateSliderLabels(); }
@@ -331,7 +339,7 @@ async function applyImportedSong(song, result = {}) {
 
 async function importResult(result) {
   toast(`Importing from ${result.provider_name || "source"}…`, "countdown");
-  try { await applyImportedSong(await api.importSheet(result.url, result.provider || ""), result); } catch (error) { toast(error.message, "error"); }
+  try { sheetWorkspace.stage(await api.importSheet(result.url, result.provider || ""), result); } catch (error) { toast(error.message, "error"); }
 }
 
 async function saveCurrentSong() {
@@ -370,21 +378,7 @@ async function refreshLibrary() {
 }
 
 function loadSong(song) {
-  internalPreview.reset();
-  activeSongId = song.id; activeTranscriptionDiagnostics = song.transcription_diagnostics || null; youtubePiano.showDiagnostics(activeTranscriptionDiagnostics);
-  els.title.value = song.title || "Untitled";
-  sheetEventTotal = 0; stoppedResumeEvent = 0; playShouldRestart = false;
-  if (song.performance?.length) {
-    activePerformance = song.performance; recorder.load(song.performance); els.sheet.value = song.sheet || ""; seekTarget = 1;
-    els.sheet.dataset.source = song.source || "performance"; els.sheet.dataset.sourceUrl = song.source_url || ""; els.sheet.dataset.timingProfile = song.timing_profile || "performance";
-    toast(/midi/i.test(song.timing_profile || song.source || "") ? "Loaded timed MIDI performance" : "Loaded timed recording", "idle");
-  } else {
-    activePerformance = []; recorder.clear(); els.sheet.value = song.sheet || ""; seekTarget = 1;
-    els.sheet.dataset.source = song.source || "local"; els.sheet.dataset.sourceUrl = song.source_url || ""; els.sheet.dataset.timingProfile = song.timing_profile || (/vpsheet/i.test(song.source || "") ? "vpsheet" : "expressive");
-    toast("Loaded sheet", "idle");
-  }
-  refreshStats();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  void sheetWorkspace.load({ ...song, _activeSongId: song.id }, { provider_name: song.source || "Local library", url: song.source_url || "" });
 }
 
 async function deleteSong(song) {

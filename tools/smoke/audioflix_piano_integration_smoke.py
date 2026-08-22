@@ -56,8 +56,13 @@ def assert_static_contract() -> None:
     ui = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.ui.js").read_text(encoding="utf-8")
     actions = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.ui.actions.js").read_text(encoding="utf-8")
     piano_ui = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.ui.js").read_text(encoding="utf-8")
+    piano_css = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.css").read_text(encoding="utf-8")
     piano_client = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.client.js").read_text(encoding="utf-8")
     bridge = (PIANO / "web" / "eveos-host-bridge.js").read_text(encoding="utf-8")
+    piano_app = (PIANO / "web" / "app.js").read_text(encoding="utf-8")
+    workspace = (PIANO / "web" / "sheet_workspace.js").read_text(encoding="utf-8")
+    bulk = (PIANO / "web" / "bulk_conversion.js").read_text(encoding="utf-8")
+    workspace_css = (PIANO / "web" / "piano_workspace.css").read_text(encoding="utf-8")
     state = (ROOT / "js" / "modules" / "core" / "state.js").read_text(encoding="utf-8")
 
     order = [ui.index(f"tabButton('{name}'") for name in ("soundboard", "music", "piano", "soundlab", "router")]
@@ -67,9 +72,22 @@ def assert_static_contract() -> None:
     assert "startsWith('piano-')" in actions and "EveAudioflixPianoUi?.handleAction" in actions
     assert "ensureController" in piano_client and "api/piano-player" in piano_client
     assert "Starting Piano-Auto-Player" in piano_ui and "location.replace" in piano_ui
+    assert "PIANO AUTOMATION" in piano_ui and "PRACTICE AUTOMATION" not in piano_ui
+    assert "data-piano-detached" in piano_ui and "detachedWindow" in piano_ui and "Focus Detached" in piano_ui
+    assert ".audioflix-piano.is-detached" in piano_css and "pointer-events: none" in piano_css
     assert "piano-setup" in piano_ui and "Setup / Repair" in piano_ui
     assert "sessionStorage" in bridge and "localStorage" not in bridge
     assert "pianoPlayerPort: 8771" in state
+
+    assert 'setupSheetWorkspace' in piano_app and 'setupBulkConversion' in piano_app
+    assert 'sheetWorkspace?.stage(song, result)' in piano_app
+    assert 'sheetWorkspace.stage(await api.importSheet' in piano_app
+    assert 'HISTORY_LIMIT = 10' in workspace and 'From Sheet Finder' in workspace
+    assert 'state.history.slice(-HISTORY_LIMIT)' in workspace and 'state.staging.push(entry)' in workspace
+    assert 'Bulk conversion' in bulk and 'Queue conversions' in bulk and 'youtubePiano.transcribe' in bulk
+    assert 'Ready in From Sheet Finder' in bulk
+    assert '@media (max-width: 1180px)' in workspace_css and '.hero-grid, .lower-grid' in workspace_css
+    assert '.controls-panel select' in workspace_css and '.seek-controls' in workspace_css
 
     helper = (ROOT / "server_modules" / "eveos_control_helper.py").read_text(encoding="utf-8")
     assert '"/api/piano-player/status"' in helper
@@ -106,6 +124,9 @@ def assert_http_contract() -> None:
         assert cors == "null"
         status, body, _ = request(server.server_port, "GET", "/")
         assert status == 200 and b"eveos-host-bridge.js" in body
+        for asset in ("sheet_workspace.js", "bulk_conversion.js", "piano_workspace.css"):
+            status, body, _ = request(server.server_port, "GET", f"/assets/{asset}")
+            assert status == 200 and body
         status, _, cors = request(server.server_port, "OPTIONS", "/api/status", "https://example.com")
         assert status == 204 and not cors
     finally:

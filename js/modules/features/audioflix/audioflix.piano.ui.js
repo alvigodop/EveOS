@@ -7,9 +7,15 @@ window.EveAudioflixPianoUi = window.EveAudioflixPianoUi || {};
     let visible = false;
     let pollTimer = 0;
     let root = null;
+    let detachedWindow = null;
+    let detachedTimer = 0;
 
     function snapshot() {
         return window.EveAudioflixPiano?.state || {};
+    }
+
+    function isDetached() {
+        return Boolean(detachedWindow && !detachedWindow.closed);
     }
 
     function context() {
@@ -31,33 +37,57 @@ window.EveAudioflixPianoUi = window.EveAudioflixPianoUi || {};
         } catch (_) {}
     }
 
+    function watchDetached() {
+        if (detachedTimer) clearInterval(detachedTimer);
+        if (!isDetached()) {
+            detachedTimer = 0;
+            detachedWindow = null;
+            patch();
+            return;
+        }
+        detachedTimer = setInterval(() => {
+            if (isDetached()) return;
+            clearInterval(detachedTimer);
+            detachedTimer = 0;
+            detachedWindow = null;
+            patch();
+        }, 700);
+    }
+
     function patch(host = root) {
         const panel = host?.querySelector?.('[data-audioflix-piano]');
         if (!panel) return;
         const status = snapshot();
         const running = status.running === true;
+        const detached = isDetached();
         const pill = panel.querySelector('[data-piano-status]');
         const message = panel.querySelector('[data-piano-message]');
         const toggle = panel.querySelector('[data-piano-toggle]');
+        const detachButton = panel.querySelector('[data-af-action="piano-detach"]');
         const frame = panel.querySelector('[data-piano-frame]');
         const offline = panel.querySelector('[data-piano-offline]');
+        const detachedOverlay = panel.querySelector('[data-piano-detached]');
         const setupState = panel.querySelector('[data-piano-setup-state]');
+        panel.classList.toggle('is-detached', detached);
+        panel.dataset.running = running ? 'true' : 'false';
         if (pill) {
             pill.dataset.state = status.phase || 'stopped';
             pill.textContent = running ? 'Online' : status.phase === 'starting' ? 'Starting' : 'Stopped';
         }
-        if (message) message.textContent = status.message || '';
+        if (message) message.textContent = detached ? 'Detached Piano window is active. The embedded player is paused for interaction until that window closes.' : (status.message || '');
         if (toggle) {
             toggle.textContent = running ? 'Stop Piano' : 'Start Piano';
             toggle.disabled = status.busy === true || status.installed === false;
         }
+        if (detachButton) detachButton.textContent = detached ? 'Focus Detached' : 'Detach';
         if (frame) {
             frame.hidden = !running;
             const source = running ? (status.url || window.EveAudioflixPiano.serviceUrl()) : 'about:blank';
             if (frame.getAttribute('src') !== source) frame.setAttribute('src', source);
-            if (running) sendContext(frame);
+            if (running && !detached) sendContext(frame);
         }
         if (offline) offline.hidden = running;
+        if (detachedOverlay) detachedOverlay.hidden = !detached;
         if (setupState) {
             const conversion = status.youtubeSetup ? 'Media conversion installed' : 'Media conversion optional';
             const hifi = status.hifiSetup ? 'Hi-Fi installed' : 'Hi-Fi optional';
@@ -95,10 +125,11 @@ window.EveAudioflixPianoUi = window.EveAudioflixPianoUi || {};
         const status = snapshot();
         const running = status.running === true;
         return `<section class="audioflix-piano" data-audioflix-piano>
-            <header class="audioflix-piano-header"><div><span>PRACTICE AUTOMATION</span><h3>Piano-Auto-Player</h3><p>Search sheets, record exact performances, audition internally, or send timed keys to a selected piano window.</p></div><div class="audioflix-piano-actions"><b data-piano-status data-state="${status.phase || 'checking'}">${running ? 'Online' : 'Checking'}</b><button type="button" data-af-action="piano-refresh">Refresh</button><button type="button" data-af-action="piano-setup">Setup / Repair</button><button type="button" data-af-action="piano-toggle" data-piano-toggle>${running ? 'Stop Piano' : 'Start Piano'}</button><button type="button" data-af-action="piano-detach">Detach</button></div></header>
+            <header class="audioflix-piano-header"><div><span>PIANO AUTOMATION</span><h3>Piano-Auto-Player</h3><p>Search sheets, record exact performances, audition internally, or send timed keys to a selected piano window.</p></div><div class="audioflix-piano-actions"><b data-piano-status data-state="${status.phase || 'checking'}">${running ? 'Online' : 'Checking'}</b><button type="button" data-af-action="piano-refresh">Refresh</button><button type="button" data-af-action="piano-setup">Setup / Repair</button><button type="button" data-af-action="piano-toggle" data-piano-toggle>${running ? 'Stop Piano' : 'Start Piano'}</button><button type="button" data-af-action="piano-detach">Detach</button></div></header>
             <p class="audioflix-piano-message" data-piano-message>${status.message || 'Checking the local Piano service...'}</p>
             <div class="audioflix-piano-stage">
                 <iframe data-piano-frame title="Piano Auto Player" src="${running ? status.url : 'about:blank'}" ${running ? '' : 'hidden'}></iframe>
+                <div class="audioflix-piano-detached" data-piano-detached hidden><strong>Detached Piano window active</strong><span>This embedded copy is dimmed and interaction-locked so the detached window is the primary Piano workspace.</span><button type="button" data-af-action="piano-refocus">Focus detached window</button></div>
                 <div class="audioflix-piano-offline" data-piano-offline ${running ? 'hidden' : ''}><strong>Piano is resting</strong><span>Start it only when you want sheet playback, recording, or conversion tools.</span><small data-piano-setup-state>Core ready - optional engines not checked</small><div><button type="button" data-af-action="piano-toggle">Start Piano-Auto-Player</button><button type="button" data-af-action="piano-setup">Setup / Repair</button></div></div>
             </div>
         </section>`;
@@ -114,8 +145,16 @@ window.EveAudioflixPianoUi = window.EveAudioflixPianoUi || {};
     }
 
     async function detach() {
+        if (isDetached()) {
+            detachedWindow.focus();
+            patch();
+            return;
+        }
         const target = window.open('about:blank', 'eveos-piano-auto-player', 'popup=yes,width=1320,height=900,resizable=yes,scrollbars=yes');
         if (!target) return;
+        detachedWindow = target;
+        watchDetached();
+        patch();
         renderDetachedMessage(target, 'Starting Piano-Auto-Player...');
         let status = snapshot();
         if (!status.running) status = await window.EveAudioflixPiano.start();
@@ -139,8 +178,9 @@ window.EveAudioflixPianoUi = window.EveAudioflixPianoUi || {};
             await window.EveAudioflixPiano.setup();
             patch();
         }
-        if (action === 'piano-detach') {
-            await detach();
+        if (action === 'piano-detach') await detach();
+        if (action === 'piano-refocus') {
+            if (isDetached()) detachedWindow.focus(); else await detach();
         }
         return { handled: action.startsWith('piano-') };
     }
