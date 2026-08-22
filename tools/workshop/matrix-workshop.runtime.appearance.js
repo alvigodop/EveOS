@@ -343,16 +343,18 @@
         }
 
         function updateCharacterChangeIntervalState() {
-            const lineChangeControls = document.querySelector('label[style*="display: flex"]');
+            const lineChangeControls = document.getElementById('characterChangeIntervalControls');
             const isSingleChar = selectedChars.size === 1;
 
             if (isSingleChar) {
+                lineChangeControls.setAttribute('aria-disabled', 'true');
                 lineChangeControls.style.opacity = '0.5';
                 lineChangeControls.style.pointerEvents = 'none';
                 document.getElementById('lineChangeSlider').disabled = true;
                 document.getElementById('minLineChange').disabled = true;
                 document.getElementById('maxLineChange').disabled = true;
             } else {
+                lineChangeControls.setAttribute('aria-disabled', 'false');
                 lineChangeControls.style.opacity = '1';
                 lineChangeControls.style.pointerEvents = 'auto';
                 document.getElementById('lineChangeSlider').disabled = false;
@@ -422,4 +424,3 @@
             if (lineChangeRate > maxLineChange) lineChangeRate = maxLineChange;
             document.getElementById('lineChangeSlider').value = lineChangeRate;
         }
-

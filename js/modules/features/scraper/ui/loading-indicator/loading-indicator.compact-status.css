@@ -17,13 +17,13 @@
     align-items: center !important;
     justify-content: center !important;
     padding: 0;
-    animation: search-monitor-breathe 2s ease-in-out infinite;
+    animation: search-monitor-breathe 3.2s ease-in-out infinite;
 }
 
 @keyframes search-monitor-breathe {
     0%,
     100% {
-        border-color: rgba(0, 212, 255, 0.15);
+        border-color: rgba(0, 212, 255, 0.1);
         box-shadow:
             0 8px 32px rgba(0, 0, 0, 0.4),
             inset 0 0 0 1px rgba(255, 255, 255, 0.05),
@@ -31,12 +31,12 @@
     }
 
     50% {
-        border-color: rgba(0, 212, 255, 0.42);
+        border-color: rgba(0, 212, 255, 0.24);
         box-shadow:
             0 8px 32px rgba(0, 0, 0, 0.4),
-            inset 0 0 0 1px rgba(255, 255, 255, 0.06),
-            0 0 0 5px rgba(0, 212, 255, 0.08),
-            0 0 18px rgba(0, 212, 255, 0.2);
+            inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+            0 0 0 2px rgba(0, 212, 255, 0.035),
+            0 0 10px rgba(0, 212, 255, 0.08);
     }
 }
 
