@@ -32,7 +32,18 @@
 
 @media (max-width: 1320px) and (min-width: 901px) {
   .topbar {
-    gap: 12px 16px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .brand,
+  .workspace-control,
+  .topbar-actions {
+    grid-column: 1;
+  }
+
+  .workspace-control {
+    grid-template-columns: auto minmax(260px, 1fr) auto auto;
   }
 
   .topbar-actions {
@@ -64,7 +75,15 @@
   }
 
   .workspace-control {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .workspace-control label {
+    grid-column: 1 / -1;
+  }
+
+  .workspace-control input {
+    min-width: 0;
   }
 
   .topbar-actions {

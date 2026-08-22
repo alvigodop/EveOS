@@ -89,6 +89,10 @@ An online URL is not treated as proof that media has been archived. If a track m
 
 The complete Piano Auto Player is now housed inside EveOS under `tools/Piano-Auto-Player/` and surfaced from **Audioflix > Piano**.
 
+![Piano Automation interface overview](docs/screenshots/eveos-piano-automation-overview.svg)
+
+*Interface overview of the integrated Piano workspace: Sheet Player, target-window playback controls, temporary Player Cache, From Sheet Finder staging, and bulk media conversion.*
+
 The bundled tool keeps its own Python service and frontend while EveOS manages its lifecycle. Its core capabilities include:
 
 - multi-provider sheet search;
@@ -124,6 +128,10 @@ Private Piano songs remain in `tools/Piano-Auto-Player/data/songs.json` and are 
 ## World Book, Reader Library, And World Portal
 
 World Book is a real local application rather than a cosmetic EveOS panel. EveOS can start, stop, embed, and detach it while the tool continues to own its own world/lore domain.
+
+![World Book workspace interface overview](docs/screenshots/eveos-world-book-workspace-overview.svg)
+
+*Interface overview of World Book's mounted workspace, responsive header controls, live-file tree, and connected lore editor.*
 
 The bundled World Book currently reports **0.16.0** and includes:
 

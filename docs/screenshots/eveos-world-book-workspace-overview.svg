@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">EveOS World Book workspace overview</title>
+  <desc id="desc">A diagram of the World Book local workspace with responsive header controls, mounted path, tabs, tree navigation, and lore editor.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1"><stop offset="0" stop-color="#15131b"/><stop offset="1" stop-color="#1d1822"/></linearGradient>
+    <style>
+      .panel{fill:#211d28;stroke:#41384d;stroke-width:1.3}.field{fill:#17141c;stroke:#4a4056;stroke-width:1.2}.button{fill:#24202b;stroke:#4a4056;stroke-width:1.1}.primary{fill:#8e76e8;stroke:#aa95f3}.tab{fill:#2a2432;stroke:#4a4056}.active{fill:#8e76e8}.h1{fill:#f6f3fa;font:800 28px system-ui,sans-serif}.h2{fill:#f6f3fa;font:750 18px system-ui,sans-serif}.body{fill:#c8c0d0;font:13px system-ui,sans-serif}.small{fill:#938a9e;font:11px system-ui,sans-serif}.label{fill:#66d6ff;font:700 12px system-ui,sans-serif;letter-spacing:1.2px}.bt{fill:#f7f4fa;font:650 11px system-ui,sans-serif;text-anchor:middle}.tree{fill:#b8afc1;font:12px system-ui,sans-serif}.muted{fill:#7f758a;font:11px system-ui,sans-serif}.line{stroke:#41384d;stroke-width:1}
+    </style>
+  </defs>
+  <rect width="1200" height="620" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1200" height="132" fill="#1e1a25" stroke="#41384d"/>
+  <rect x="24" y="24" width="42" height="42" rx="12" fill="#8e76e8"/><text x="45" y="51" class="bt">W</text>
+  <text x="80" y="42" class="h2">World Book</text><text x="80" y="60" class="small">Live files + connected novel lore</text>
+  <rect x="210" y="26" width="102" height="34" rx="9" class="button"/><text x="261" y="48" class="bt">Collapse header</text>
+
+  <text x="26" y="92" class="label">WORKSPACE</text>
+  <rect x="112" y="73" width="330" height="38" rx="9" class="field"/><text x="128" y="97" class="body">C:\Lex-Temp</text>
+  <rect x="452" y="73" width="108" height="38" rx="9" class="button"/><text x="506" y="97" class="bt">Mount path</text>
+  <rect x="570" y="73" width="92" height="38" rx="9" class="button"/><text x="616" y="97" class="bt">Refresh</text>
+  <text x="690" y="96" class="small">Ready</text>
+
+  <g>
+    <rect x="742" y="22" width="92" height="34" rx="9" class="button"/><text x="788" y="44" class="bt">New folder</text>
+    <rect x="844" y="22" width="104" height="34" rx="9" class="button"/><text x="896" y="44" class="bt">New text file</text>
+    <rect x="958" y="22" width="112" height="34" rx="9" class="button"/><text x="1014" y="44" class="bt">Smart collection</text>
+    <rect x="1080" y="22" width="78" height="34" rx="9" class="button"/><text x="1119" y="44" class="bt">Focus</text>
+    <rect x="742" y="66" width="78" height="34" rx="9" class="button"/><text x="781" y="88" class="bt">Theme</text>
+    <rect x="830" y="66" width="116" height="34" rx="9" class="button"/><text x="888" y="88" class="bt">Reader library</text>
+    <rect x="956" y="66" width="106" height="34" rx="9" class="button"/><text x="1009" y="88" class="bt">World Portal</text>
+    <rect x="1072" y="66" width="96" height="34" rx="9" class="button"/><text x="1120" y="88" class="bt">Eve Injection</text>
+    <rect x="930" y="106" width="120" height="34" rx="9" class="primary"/><text x="990" y="128" class="bt">Backup &amp; Restore</text>
+    <rect x="1060" y="106" width="108" height="34" rx="9" class="button"/><text x="1114" y="128" class="bt">Import JSON</text>
+  </g>
+
+  <rect x="0" y="132" width="1200" height="48" fill="#17141c" stroke="#41384d"/>
+  <g>
+    <rect x="22" y="141" width="78" height="30" rx="9" class="active"/><text x="61" y="161" class="bt">Live files</text>
+    <rect x="110" y="141" width="88" height="30" rx="9" class="tab"/><text x="154" y="161" class="bt">World Book</text>
+    <rect x="208" y="141" width="62" height="30" rx="9" class="tab"/><text x="239" y="161" class="bt">Tags</text>
+    <rect x="280" y="141" width="72" height="30" rx="9" class="tab"/><text x="316" y="161" class="bt">Integrity</text>
+    <rect x="362" y="141" width="72" height="30" rx="9" class="tab"/><text x="398" y="161" class="bt">Imports</text>
+  </g>
+
+  <rect x="20" y="198" width="330" height="392" rx="14" class="panel"/>
+  <text x="42" y="228" class="label">LIVE FILE TREE</text>
+  <rect x="42" y="242" width="286" height="36" rx="9" class="field"/><text x="56" y="265" class="small">Search the current view</text>
+  <text x="46" y="310" class="tree">▾ Lex-Temp</text>
+  <text x="66" y="338" class="tree">▾ Characters</text>
+  <text x="88" y="366" class="tree">Leon.md</text>
+  <text x="88" y="394" class="tree">Summoned-People.md</text>
+  <text x="66" y="426" class="tree">▸ Locations</text>
+  <text x="66" y="454" class="tree">▸ Systems</text>
+  <text x="66" y="482" class="tree">▸ Chapters</text>
+  <text x="46" y="532" class="muted">Real files and virtual lore stay connected</text>
+
+  <rect x="368" y="198" width="812" height="392" rx="14" class="panel"/>
+  <text x="394" y="230" class="label">CONNECTED LORE EDITOR</text>
+  <text x="394" y="264" class="h1">Leon</text>
+  <text x="394" y="290" class="small">Characters / Leon.md · live file</text>
+  <line x1="394" y1="312" x2="1150" y2="312" class="line"/>
+  <text x="394" y="344" class="small">STATUS</text><rect x="394" y="354" width="220" height="36" rx="9" class="field"/><text x="410" y="377" class="body">Active</text>
+  <text x="634" y="344" class="small">SEMANTIC KIND</text><rect x="634" y="354" width="220" height="36" rx="9" class="field"/><text x="650" y="377" class="body">Character</text>
+  <text x="874" y="344" class="small">TAGS</text><rect x="874" y="354" width="276" height="36" rx="9" class="field"/><text x="890" y="377" class="body">protagonist · summoned</text>
+  <text x="394" y="426" class="small">CONNECTED NOTES</text><rect x="394" y="438" width="756" height="90" rx="9" class="field"/>
+  <text x="412" y="466" class="body">Relationships, responsibilities, governed land, unresolved questions…</text>
+  <rect x="394" y="544" width="114" height="32" rx="9" class="primary"/><text x="451" y="565" class="bt">Read aloud</text>
+  <rect x="518" y="544" width="112" height="32" rx="9" class="button"/><text x="574" y="565" class="bt">Open externally</text>
+  <rect x="640" y="544" width="88" height="32" rx="9" class="button"/><text x="684" y="565" class="bt">Reveal</text>
+  <text x="880" y="565" class="small">Header controls reflow instead of colliding.</text>
+</svg>
