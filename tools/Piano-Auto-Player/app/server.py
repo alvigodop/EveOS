@@ -187,8 +187,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "No active event timeline to seek."}, HTTPStatus.BAD_REQUEST)
             return self._json({"ok": True, "event_index": actual})
         if path == "/api/songs":
-            has_sheet = bool(str(payload.get("sheet") or "").strip())
-            has_performance = bool(payload.get("performance"))
+            song_id = str(payload.get("id") or "")
+            existing = LIBRARY.get(song_id) if song_id else None
+            has_sheet = bool(str(payload.get("sheet") if "sheet" in payload else (existing.get("sheet") if existing else "")).strip())
+            has_performance = bool(payload.get("performance") if "performance" in payload else (existing.get("performance") if existing else None))
             if not (has_sheet or has_performance):
                 return self._json({"error": "Song has no sheet or recorded performance."}, HTTPStatus.BAD_REQUEST)
             return self._json({"song": LIBRARY.save(payload)})

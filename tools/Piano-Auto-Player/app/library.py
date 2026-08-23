@@ -48,8 +48,8 @@ class SongLibrary:
             songs = data.setdefault("songs", [])
             song_id = str(song.get("id") or f"song-{int(time.time() * 1000)}")
             existing = next((item for item in songs if str(item.get("id")) == song_id), {})
-            performance = self._clean_performance(song.get("performance"))
-            sheet = str(song.get("sheet") or "")
+            performance = self._clean_performance(song.get("performance")) if "performance" in song else existing.get("performance") or []
+            sheet = str(song.get("sheet") if "sheet" in song else existing.get("sheet") or "")
             kind = "performance" if performance and not sheet.strip() else str(song.get("kind") or existing.get("kind") or "sheet")
             identifiers = self._merge_identifiers(existing.get("identifiers"), song.get("identifiers"))
             record = {

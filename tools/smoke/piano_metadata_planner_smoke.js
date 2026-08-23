@@ -19,8 +19,8 @@ for (const token of [
 for (const token of [
   'ADVANCED PLAYBACK', 'Send to Queue', 'Replace Queue', 'Play selected', 'Shuffle selected',
   'Save identifiers', 'automatic_identifiers', 'personal_rating', 'conversion_rating',
-  'Required tag', 'Min events', 'Max events', 'custom identifiers', 'piano_player_planner_v1',
-  'data-piano-song-id', 'data-queue-clear', 'data-queue-play'
+  'Required tag', 'Min events', 'Max events', 'Custom identifiers', 'piano_player_planner_v1',
+  'pianoSongId', 'data-queue-clear', 'data-queue-play'
 ]) assert(PLANNER.includes(token), `planner contract missing: ${token}`);
 
 for (const token of ['sheet-workspace-planner', 'planner-filterbar', 'planner-grid', 'planner-editor', '@media (max-width: 760px)']) {
