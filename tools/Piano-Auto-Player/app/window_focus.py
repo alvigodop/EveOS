@@ -7,7 +7,9 @@ IS_WINDOWS = os.name == "nt"
 
 if IS_WINDOWS:
     user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     GA_ROOT = 2
+    SW_RESTORE = 9
 
     class GUITHREADINFO(ctypes.Structure):
         _fields_ = [
@@ -30,11 +32,63 @@ if IS_WINDOWS:
     user32.GetAncestor.restype = wintypes.HWND
     user32.GetClassNameW.argtypes = (wintypes.HWND, wintypes.LPWSTR, ctypes.c_int)
     user32.GetClassNameW.restype = ctypes.c_int
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+    user32.ShowWindow.restype = wintypes.BOOL
+    user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
+    user32.SetForegroundWindow.restype = wintypes.BOOL
+    user32.SetFocus.argtypes = (wintypes.HWND,)
+    user32.SetFocus.restype = wintypes.HWND
+    user32.BringWindowToTop.argtypes = (wintypes.HWND,)
+    user32.BringWindowToTop.restype = wintypes.BOOL
+    user32.AttachThreadInput.argtypes = (wintypes.DWORD, wintypes.DWORD, wintypes.BOOL)
+    user32.AttachThreadInput.restype = wintypes.BOOL
+    user32.OpenWindowStationW.argtypes = (wintypes.LPCWSTR, wintypes.BOOL, wintypes.DWORD)
+    user32.OpenWindowStationW.restype = wintypes.HANDLE
+    user32.SetProcessWindowStation.argtypes = (wintypes.HANDLE,)
+    user32.SetProcessWindowStation.restype = wintypes.BOOL
+    user32.OpenDesktopW.argtypes = (wintypes.LPCWSTR, wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    user32.OpenDesktopW.restype = wintypes.HANDLE
+    user32.SetThreadDesktop.argtypes = (wintypes.HANDLE,)
+    user32.SetThreadDesktop.restype = wintypes.BOOL
+    kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+
+
+def ensure_interactive_desktop() -> None:
+    """Bind a worker thread to the interactive WinSta0\Default desktop.
+
+    Background worker threads can otherwise observe GetForegroundWindow()==0 on
+    Windows. Keeping this helper small makes focus checks reliable for playback
+    and the target-focus watcher without creating a new desktop/window.
+    """
+    if not IS_WINDOWS:
+        return
+    try:
+        station = user32.OpenWindowStationW("WinSta0", False, 0x00020000 | 0x037F)
+        if station:
+            user32.SetProcessWindowStation(station)
+            desktop = user32.OpenDesktopW("Default", 0, False, 0x01FF)
+            if desktop:
+                user32.SetThreadDesktop(desktop)
+    except OSError:
+        pass
+
+
+def foreground_window() -> int:
+    if not IS_WINDOWS:
+        return 0
+    ensure_interactive_desktop()
+    return int(user32.GetForegroundWindow() or 0)
+
+
+def is_foreground(hwnd: int) -> bool:
+    return bool(hwnd and foreground_window() == int(hwnd))
 
 
 def list_windows() -> list[dict[str, object]]:
     if not IS_WINDOWS:
         return []
+    ensure_interactive_desktop()
     results: list[dict[str, object]] = []
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
@@ -87,7 +141,7 @@ def _root(hwnd: int) -> int:
 
 
 def background_target_info(hwnd: int) -> dict[str, object]:
-    """Resolve the selected top-level HWND to its retained keyboard-focus recipient."""
+    """Resolve a selected top-level HWND to its retained keyboard-focus recipient."""
     if not IS_WINDOWS or not hwnd:
         return {"target_hwnd": 0, "recipient_hwnd": 0, "thread_id": 0, "process_id": 0, "source": "none", "class_name": ""}
     target = int(hwnd)
@@ -121,6 +175,7 @@ def background_target_info(hwnd: int) -> dict[str, object]:
 def resolve_window(title_contains: str, hwnd: int = 0) -> tuple[int, str]:
     if not IS_WINDOWS:
         return 0, "Window targeting is only available on Windows."
+    ensure_interactive_desktop()
     if hwnd:
         title = window_title(hwnd)
         if title:
@@ -140,6 +195,27 @@ def focus_window(title_contains: str, hwnd: int = 0) -> tuple[bool, str]:
     target, title = resolve_window(title_contains, hwnd)
     if not target:
         return False, title
-    user32.ShowWindow(wintypes.HWND(target), 9)  # SW_RESTORE
-    ok = bool(user32.SetForegroundWindow(wintypes.HWND(target)))
-    return ok, title
+
+    ensure_interactive_desktop()
+    target_handle = wintypes.HWND(target)
+    current_tid = int(kernel32.GetCurrentThreadId())
+    target_tid = int(user32.GetWindowThreadProcessId(target_handle, None))
+    current_fg = foreground_window()
+    foreground_tid = int(user32.GetWindowThreadProcessId(wintypes.HWND(current_fg), None)) if current_fg else 0
+    attached: list[int] = []
+    try:
+        for thread_id in (foreground_tid, target_tid):
+            if thread_id and thread_id != current_tid:
+                if user32.AttachThreadInput(current_tid, thread_id, True):
+                    attached.append(thread_id)
+        user32.ShowWindow(target_handle, SW_RESTORE)
+        user32.BringWindowToTop(target_handle)
+        user32.SetForegroundWindow(target_handle)
+        user32.SetFocus(target_handle)
+    finally:
+        for thread_id in reversed(attached):
+            user32.AttachThreadInput(current_tid, thread_id, False)
+
+    actual = foreground_window()
+    ok = actual == target
+    return ok, title if ok else f"{title} (foreground remained 0x{actual:08X})"

@@ -10,7 +10,8 @@ from .piano_layout import display_strokes, strokes_for_midi
 from .performance_lifecycle import has_note_lifecycle, run_lifecycle_performance
 from .performance_notes import clean_performance
 from .state import RuntimeState
-from .window_focus import focus_window, resolve_window
+from .window_focus import focus_window, resolve_window, foreground_window, is_foreground
+from .focus_guard import TargetFocusGuard, TargetFocusState
 
 
 @dataclass
@@ -22,6 +23,7 @@ class PlaybackOptions:
     target_hwnd: int = 0
     input_mode: str = "foreground"
     auto_focus: bool = True
+    pause_on_focus_loss: bool = True
     dry_run: bool = False
     speed: float = 1.0
     adaptive_hold: bool = True
@@ -40,8 +42,13 @@ class PlaybackController:
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._pause = threading.Event()
+        self._manual_pause = threading.Event()
+        self._focus_paused = threading.Event()
         self._lock = threading.RLock()
         self._seek_request: int | None = None
+        self._target_hwnd = 0
+        self._target_title = ""
+        self._focus_guard: TargetFocusGuard | None = None
 
     def is_running(self) -> bool:
         return bool(self._thread and self._thread.is_alive())
@@ -66,16 +73,21 @@ class PlaybackController:
         resume_index = max(1, int(snapshot.get("current_index") or 1)) if int(snapshot.get("total_events") or 0) else 0
         self._stop.set()
         self._pause.clear()
+        self._manual_pause.clear()
         self.state.update(status="stopping", message="Stopping…", resume_index=resume_index)
         return resume_index
 
     def toggle_pause(self) -> bool:
         if not self.is_running():
             return False
-        if self._pause.is_set():
+        if self._focus_paused.is_set():
+            return True
+        if self._manual_pause.is_set():
+            self._manual_pause.clear()
             self._pause.clear()
             self.state.update(status="playing", message="Playing")
             return False
+        self._manual_pause.set()
         self._pause.set()
         self.state.update(status="paused", message="Paused")
         return True
@@ -106,20 +118,63 @@ class PlaybackController:
         with self._lock:
             self._stop.clear()
             self._pause.clear()
+            self._manual_pause.clear()
+            self._focus_paused.clear()
             self._seek_request = None
             self._thread = threading.Thread(target=target, args=args, daemon=True, name="piano-playback")
             self._thread.start()
+
+    def _on_target_lost(self) -> None:
+        if self._stop.is_set() or self._focus_paused.is_set():
+            return
+        self._focus_paused.set()
+        self._pause.set()
+        self.state.update(
+            status="paused",
+            message="Target lost focus — playback paused",
+            focus_state="PAUSED_FOR_FOCUS",
+            target_hwnd=self._target_hwnd,
+            target_title=self._target_title,
+        )
+
+    def _on_target_regained(self) -> None:
+        if not self._focus_paused.is_set():
+            return
+        self._focus_paused.clear()
+        if not self._manual_pause.is_set():
+            self._pause.clear()
+            self.state.update(
+                status="playing",
+                message="Target regained focus — playback resumed",
+                focus_state="ARMED",
+                target_hwnd=self._target_hwnd,
+                target_title=self._target_title,
+            )
+
+    def _target_is_ready(self, options: PlaybackOptions) -> bool:
+        if options.dry_run or options.input_mode != "foreground" or not options.pause_on_focus_loss:
+            return True
+        if not self._target_hwnd:
+            return False
+        if is_foreground(self._target_hwnd):
+            if self._focus_paused.is_set() and self._focus_guard is None:
+                self._on_target_regained()
+            return True
+        self._on_target_lost()
+        return False
 
     def _prepare(self, song_name: str, total: int, options: PlaybackOptions, initial_index: int = 0):
         keyboard = None
         mode = options.input_mode if options.input_mode in {"foreground", "virtual_target"} else "foreground"
         target_hwnd, target_title = resolve_window(options.target_window, options.target_hwnd) if IS_WINDOWS else (0, "")
+        self._target_hwnd = int(target_hwnd or 0)
+        self._target_title = target_title
+        if not options.dry_run and not target_hwnd:
+            raise RuntimeError(target_title or "Select a valid target window before playback.")
         if not options.dry_run:
             if not IS_WINDOWS:
                 raise RuntimeError("Real playback requires Windows.")
             if mode == "virtual_target":
-                if not target_hwnd:
-                    raise RuntimeError(target_title or "Select a valid Roblox target for virtual-target playback.")
                 keyboard = VirtualTargetWindowsKeyboard(target_hwnd)
             else:
                 keyboard = WindowsKeyboard()
@@ -128,18 +183,31 @@ class PlaybackController:
             status="countdown", message="Preparing playback…", current_index=initial_index,
             total_events=total, current_token="", active_song=song_name or "Untitled",
             started_at=time.time(), dry_run=options.dry_run, resume_index=0, timing_profile=options.timing_profile,
+            target_hwnd=self._target_hwnd, target_title=self._target_title,
+            focus_state="DISARMED", focus_guard_armed=False,
         )
         if mode == "foreground" and options.auto_focus and options.target_window and not options.dry_run:
             ok, title = focus_window(options.target_window, target_hwnd)
             self.state.update(message=f"Focused: {title}" if ok else f"Could not focus automatically: {title}")
-            if ok:
-                time.sleep(0.20)
+            if not ok and options.pause_on_focus_loss:
+                self.state.update(message=f"Waiting for target focus: {title}")
         elif mode == "virtual_target" and not options.dry_run:
             self.state.update(message=f"Virtual Target: sending window-scoped keys without foreground stealing · {target_title}")
 
+        if mode == "foreground" and options.pause_on_focus_loss and not options.dry_run:
+            self._focus_guard = TargetFocusGuard(
+                target_hwnd=self._target_hwnd,
+                on_lost=self._on_target_lost,
+                on_regained=self._on_target_regained,
+                log=lambda msg: self.state.update(message=msg, focus_state=self._focus_guard.state.name if self._focus_guard else "DISARMED"),
+            )
+            self._focus_guard.arm()
+            self.state.update(focus_state=self._focus_guard.state.name, focus_guard_armed=True)
+            self._target_is_ready(options)
+
         self._countdown(options.countdown_seconds)
         if not self._stop.is_set():
-            route = "virtual target (no foreground steal)" if mode == "virtual_target" else "foreground"
+            route = "virtual target (no foreground steal)" if mode == "virtual_target" else "foreground target-bound"
             self.state.update(status="playing", message=f"Playing via {route} at {self._speed(options):.2f}× — F7 emergency stop")
         return keyboard
 
@@ -166,9 +234,12 @@ class PlaybackController:
 
                 if self._should_stop():
                     break
+                if not self._target_is_ready(options):
+                    self._wait_if_paused()
+                    continue
                 event = events[zero_index]
                 target = clock + timeline_units * interval_seconds
-                paused_total = self._wait_until(target, paused_total)
+                paused_total = self._wait_until(target, paused_total, options)
 
                 requested = self._consume_seek(total)
                 if requested is not None:
@@ -178,13 +249,15 @@ class PlaybackController:
                     continue
                 if self._should_stop():
                     break
+                if not self._target_is_ready(options):
+                    continue
 
                 index = zero_index + 1
                 self.state.update(current_index=index, current_token=event.value)
                 if event.kind == "pause":
                     timeline_units += event.units
                     pause_end = clock + timeline_units * interval_seconds
-                    paused_total = self._wait_until(pause_end, paused_total)
+                    paused_total = self._wait_until(pause_end, paused_total, options)
                     if self._has_seek_request():
                         continue
                     zero_index += 1
@@ -192,22 +265,18 @@ class PlaybackController:
 
                 gap_units = self._gap_to_next_onset(events, zero_index)
                 hold_ms = self._sheet_hold_ms(event, gap_units, options, speed)
-                if keyboard is not None:
+                if keyboard is not None and self._target_is_ready(options):
                     cancel = self._interrupt_requested
                     if event.kind == "chord":
-                        keyboard.tap_chord(
-                            event.value, hold_ms, options.modifier_lead_ms, options.modifier_tail_ms,
-                            options.chord_spread_ms, cancel_check=cancel,
-                        )
+                        keyboard.tap_chord(event.value, hold_ms, options.modifier_lead_ms, options.modifier_tail_ms, options.chord_spread_ms, cancel_check=cancel)
                     else:
-                        keyboard.tap_char(
-                            event.value, hold_ms, options.modifier_lead_ms, options.modifier_tail_ms,
-                            cancel_check=cancel,
-                        )
+                        keyboard.tap_char(event.value, hold_ms, options.modifier_lead_ms, options.modifier_tail_ms, cancel_check=cancel)
                 if self._has_seek_request():
                     continue
                 if self._should_stop():
                     break
+                if self._focus_paused.is_set():
+                    continue
                 timeline_units += event.units
                 zero_index += 1
             self._finish(total)
@@ -243,9 +312,12 @@ class PlaybackController:
 
                 if self._should_stop():
                     break
+                if not self._target_is_ready(options):
+                    self._wait_if_paused()
+                    continue
                 event = events[zero_index]
                 target = clock + ((float(event["at_ms"]) - base_at_ms) / 1000.0 / speed)
-                paused_total = self._wait_until(target, paused_total)
+                paused_total = self._wait_until(target, paused_total, options)
 
                 requested = self._consume_seek(total)
                 if requested is not None:
@@ -256,13 +328,15 @@ class PlaybackController:
                     continue
                 if self._should_stop():
                     break
+                if not self._target_is_ready(options):
+                    continue
 
                 key = str(event["key"])
                 midi_notes = event.get("midi_notes") or []
                 strokes = strokes_for_midi(midi_notes, options.piano_layout) if midi_notes else []
                 display_key = display_strokes(strokes) if strokes else key
                 self.state.update(current_index=zero_index + 1, current_token=display_key)
-                if keyboard is not None:
+                if keyboard is not None and self._target_is_ready(options):
                     hold = self._performance_hold_ms(events, zero_index, options, speed)
                     cancel = self._interrupt_requested
                     if strokes:
@@ -275,6 +349,8 @@ class PlaybackController:
                     continue
                 if self._should_stop():
                     break
+                if self._focus_paused.is_set():
+                    continue
                 zero_index += 1
             self._finish(total)
         except Exception as exc:
@@ -289,13 +365,19 @@ class PlaybackController:
         while time.monotonic() < deadline:
             if self._should_stop():
                 return
+            if self._focus_paused.is_set():
+                self._wait_if_paused()
+                continue
             self.state.update(message=f"Starting in {max(0.0, deadline - time.monotonic()):0.1f}s…")
             time.sleep(0.05)
 
-    def _wait_until(self, base_target: float, paused_total: float) -> float:
+    def _wait_until(self, base_target: float, paused_total: float, options: PlaybackOptions | None = None) -> float:
         while True:
             if self._should_stop() or self._has_seek_request():
                 return paused_total
+            if options is not None and not self._target_is_ready(options):
+                paused_total += self._wait_if_paused()
+                continue
             if self._pause.is_set():
                 paused_total += self._wait_if_paused()
                 continue
@@ -321,7 +403,7 @@ class PlaybackController:
         return False
 
     def _interrupt_requested(self) -> bool:
-        return self._has_seek_request() or self._should_stop()
+        return self._has_seek_request() or self._should_stop() or self._focus_paused.is_set()
 
     def _finish(self, total: int) -> None:
         if self._stop.is_set() or f7_is_down():
@@ -334,8 +416,15 @@ class PlaybackController:
             self.state.update(status="complete", message="Finished", current_index=total, current_token="", resume_index=0)
 
     def _reset_flags(self) -> None:
+        if self._focus_guard is not None:
+            self._focus_guard.disarm()
+            self._focus_guard = None
         self._stop.clear()
         self._pause.clear()
+        self._manual_pause.clear()
+        self._focus_paused.clear()
+        self._target_hwnd = 0
+        self._target_title = ""
         with self._lock:
             self._seek_request = None
 
@@ -388,9 +477,6 @@ class PlaybackController:
         desired = gap_ms * max(10.0, min(options.gate_percent, 90.0)) / 100.0 if options.adaptive_hold else base
         desired = max(base, desired)
         if event.hold_units > 0:
-            # VPsheet uses '-' as an instruction to hold the previous key. Let
-            # that provider-specific sustain extend through almost the full gap
-            # instead of applying the normal musical gate.
             sustain_ms = max(options.interval_ms, 1.0) * (event.units + event.hold_units) / max(speed, 0.25)
             desired = max(desired, sustain_ms * 0.94)
         shifted = any(char_needs_shift(char) for char in event.value)
@@ -402,8 +488,6 @@ class PlaybackController:
         if event.hold_units > 0:
             max_hold = 2000.0
         elif str(options.timing_profile).lower() == "letter_grid":
-            # Octave staff sheets often have wide LH/RH gaps. Keep the approved
-            # gate percentage, but do not clip every longer phrase at 240 ms.
             max_hold = 560.0
         else:
             max_hold = 240.0

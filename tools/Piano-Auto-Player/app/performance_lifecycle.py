@@ -39,14 +39,9 @@ def build_lifecycle_actions(events: list[dict[str, Any]], layout: str, start_zer
             owner = f"{zero_index}:{span_index}:{span['source_midi']}"
             start = event_at + float(span["offset_ms"])
             end = start + float(span["duration_ms"])
-            common = dict(
-                event_index=zero_index + 1,
-                owner=owner,
-                stroke=stroke,
-                physical_id=str(span["physical_id"]),
-                velocity=int(span.get("velocity") or 0),
-                display_token=display,
-            )
+            common = dict(event_index=zero_index + 1, owner=owner, stroke=stroke,
+                          physical_id=str(span["physical_id"]), velocity=int(span.get("velocity") or 0),
+                          display_token=display)
             actions.append(LifecycleAction(start, "down", **common))
             actions.append(LifecycleAction(end, "up", **common))
     return sorted(actions, key=lambda action: (action.at_ms, 0 if action.kind == "up" else 1, action.event_index))
@@ -84,12 +79,8 @@ class LifecycleKeyState:
 
         to_press = [action.stroke for action in winners.values()]
         if to_press and self.keyboard is not None:
-            self.keyboard.press_strokes(
-                to_press,
-                self.options.modifier_lead_ms,
-                self.options.modifier_tail_ms,
-                self.options.chord_spread_ms,
-            )
+            self.keyboard.press_strokes(to_press, self.options.modifier_lead_ms,
+                                       self.options.modifier_tail_ms, self.options.chord_spread_ms)
         for physical_id, action in winners.items():
             self.active[physical_id] = (action.owner, action.stroke)
 
@@ -139,7 +130,7 @@ def run_lifecycle_performance(controller, events, song_name, options) -> None:
                 action = actions[cursor]
                 target = clock + ((action.at_ms - base_at_ms) / 1000.0 / speed)
                 paused_total = _wait_until(controller, target, paused_total, key_state)
-                if controller._has_seek_request() or controller._should_stop():
+                if controller._has_seek_request() or controller._should_stop() or controller._focus_paused.is_set():
                     continue
 
                 due: list[LifecycleAction] = []
@@ -147,6 +138,8 @@ def run_lifecycle_performance(controller, events, song_name, options) -> None:
                 while cursor < len(actions) and abs(actions[cursor].at_ms - stamp) <= 0.5:
                     due.append(actions[cursor])
                     cursor += 1
+                if controller._focus_paused.is_set():
+                    continue
                 downs = [row for row in due if row.kind == "down"]
                 if downs:
                     latest = max(downs, key=lambda row: row.event_index)
@@ -177,6 +170,10 @@ def _wait_until(controller, base_target: float, paused_total: float, key_state: 
     while True:
         if controller._should_stop() or controller._has_seek_request():
             return paused_total
+        if controller._focus_paused.is_set():
+            key_state.release_all()
+            paused_total += controller._wait_if_paused()
+            continue
         if controller._pause.is_set():
             key_state.release_all()
             paused_total += controller._wait_if_paused()
