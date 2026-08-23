@@ -391,5 +391,9 @@ function installPlayerQueue() {
   });
 }
 
-window.addEventListener("load", () => { void installPlayerQueue(); });
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", () => { void installPlayerQueue(); }, { once: true });
+} else {
+  void installPlayerQueue();
+}
 export { installPlayerQueue };
