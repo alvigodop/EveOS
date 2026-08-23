@@ -21,4 +21,8 @@
   if (window.parent && window.parent !== window) {
     window.parent.postMessage({ type: 'piano:eveos-ready' }, '*');
   }
+
+  window.addEventListener('load', () => {
+    import('./player_queue.js').catch(() => {});
+  });
 })();
