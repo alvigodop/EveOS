@@ -23,6 +23,8 @@
   }
 
   window.addEventListener('load', () => {
-    import('./player_queue.js').catch(() => {});
+    import('./player_queue.js')
+      .then(() => import('./player_queue_advanced.js'))
+      .catch(() => {});
   });
 })();
