@@ -15,6 +15,11 @@ const CODE_EXTENSIONS = new Set([
 ]);
 const EXCLUDED_DIRECTORIES = new Set([
     '.git',
+    '.venv',
+    'venv',
+    'env',
+    '.youtube-piano-venv',
+    '.piano-hifi-venv',
     'bin',
     'build',
     'coverage',
@@ -49,7 +54,8 @@ function collectCodeFiles(directory, files = []) {
         const filePath = path.join(directory, entry.name);
         if (isExcludedPath(filePath)) return;
         if (entry.isDirectory()) {
-            if (!EXCLUDED_DIRECTORIES.has(entry.name.toLowerCase())) {
+            const name = entry.name.toLowerCase();
+            if (!EXCLUDED_DIRECTORIES.has(name) && !name.endsWith('-venv') && !name.includes('venv')) {
                 collectCodeFiles(filePath, files);
             }
             return;

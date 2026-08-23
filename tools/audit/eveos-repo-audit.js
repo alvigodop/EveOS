@@ -10,7 +10,8 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const MAX_LINES = 450;
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.css', '.html', '.py', '.bat', '.ps1']);
 const SKIP_DIRS = new Set([
-    '.git', '.claude', '__pycache__', 'bin', 'logs', 'node_modules', 'output'
+    '.git', '.claude', '__pycache__', 'bin', 'logs', 'node_modules', 'output',
+    '.venv', 'venv', 'env', '.env', '.youtube-piano-venv', '.piano-hifi-venv'
 ]);
 const SKIP_PREFIXES = [
     path.join('data', 'modular-state'),
@@ -41,7 +42,7 @@ function relative(filePath) {
 }
 
 function shouldSkip(relativePath, dirName = '') {
-    if (SKIP_DIRS.has(dirName)) return true;
+    if (SKIP_DIRS.has(dirName) || dirName.endsWith('-venv') || dirName.includes('venv')) return true;
     const platformPath = relativePath.replace(/\//g, path.sep);
     return SKIP_PREFIXES.some((prefix) => (
         platformPath === prefix || platformPath.startsWith(`${prefix}${path.sep}`)
