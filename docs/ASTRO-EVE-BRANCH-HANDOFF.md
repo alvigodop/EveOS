@@ -123,7 +123,7 @@ Message:
 
 `docs: add canonical Astro Eve-Branch handoff`
 
-Note: the commit above contains the playlist cookie-free option change plus this handoff may be represented by a later commit; always inspect the actual branch HEAD before rebasing or force-updating anything.
+Correction: the playlist implementation itself is the change recorded in that commit; this handoff document was added afterward in commit `16f26359547d3c4f68ed5524e4d85c8bf88d6daa`.
 
 Private/restricted playlists may still legitimately require credentials. Do not attempt to bypass access controls.
 
