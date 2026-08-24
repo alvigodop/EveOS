@@ -77,6 +77,44 @@ try:
     check(video.get("videoUrl") == "https://cdn.example/combined.mp4", "direct video chooses one progressive MP4 with audio")
     check(video.get("height") == 720 and video.get("duration") == 19, "selected stream metadata is returned")
 
+    # Verify a /p/ video post can use the page-metadata fallback when yt-dlp itself
+    # reports no playable media.
+    class FailingYoutubeDL(FakeYoutubeDL):
+        def extract_info(self, url, download=False):
+            raise RuntimeError("Instagram sent an empty media response")
+
+    class FailingYtDlp:
+        YoutubeDL = FailingYoutubeDL
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return (
+                b'<html><head>'
+                b'<meta property="og:title" content="Instagram Post Video">'
+                b'<meta property="og:video" content="https://cdn.example/post-video.mp4">'
+                b'<meta property="og:image" content="https://cdn.example/post.jpg">'
+                b'</head></html>'
+            )
+
+    original_urlopen = INSTAGRAM.urlopen
+    YTDL._get_yt_dlp = lambda: FailingYtDlp
+    INSTAGRAM.urlopen = lambda *_args, **_kwargs: FakeResponse()
+    try:
+        post_video = INSTAGRAM.resolve_video({"url": "https://www.instagram.com/p/PostVideo/"})
+        check(post_video.get("ok"), "video Instagram /p/ post resolves through webpage fallback")
+        check(post_video.get("videoUrl") == "https://cdn.example/post-video.mp4", "post fallback returns direct video URL")
+        check(post_video.get("source") == "instagram-webpage", "post fallback identifies webpage source")
+        check(post_video.get("title") == "Instagram Post Video", "post fallback retains og:title")
+    finally:
+        INSTAGRAM.urlopen = original_urlopen
+        YTDL._get_yt_dlp = lambda: FakeYtDlp
+
     # Authentication option contract: explicit browser-cookie configuration is translated
     # to yt-dlp only when requested, so EveOS never silently reads browser credentials.
     with tempfile.NamedTemporaryFile(suffix=".txt") as handle:
