@@ -308,15 +308,48 @@ def resolve_video(payload: dict) -> dict:
                 "duration": info.get("duration") or 0,
                 "width": selected.get("width") or info.get("width") or 0,
                 "height": selected.get("height") or info.get("height") or 0,
+                "thumbnail": info.get("thumbnail") or "",
+                "source": "yt-dlp",
             }
         extraction_error = "Instagram did not expose a progressive video stream with audio."
     except Exception as exc:  # noqa: BLE001
         extraction_error = str(exc)[:300]
 
-    # Instagram's current media endpoint can fail with an empty-media response even
-    # when the public post page remains accessible. Try the page's own video metadata
-    # before returning the existing 422 response. This applies to /p/ video posts and
-    # also gives Reels a second chance without affecting their primary yt-dlp path.
+    # Resolver fallback ladder:
+    # 1. Camofox browser-rendered extraction
+    # 2. Lightpanda browser-rendered extraction
+    # 3. Webpage metadata regex fallback
+    try:
+        from server_modules import audioflix_instagram_browser
+
+        camofox_result = audioflix_instagram_browser.extract_camofox_video(target_url)
+        if camofox_result.get("ok"):
+            return {
+                "ok": True,
+                "videoUrl": camofox_result["videoUrl"],
+                "title": camofox_result.get("title") or "Instagram Video",
+                "duration": 0,
+                "width": 0,
+                "height": 0,
+                "thumbnail": camofox_result.get("thumbnail") or "",
+                "source": camofox_result.get("source", "camofox-browser"),
+            }
+
+        lightpanda_result = audioflix_instagram_browser.extract_lightpanda_video(target_url)
+        if lightpanda_result.get("ok"):
+            return {
+                "ok": True,
+                "videoUrl": lightpanda_result["videoUrl"],
+                "title": lightpanda_result.get("title") or "Instagram Video",
+                "duration": 0,
+                "width": 0,
+                "height": 0,
+                "thumbnail": lightpanda_result.get("thumbnail") or "",
+                "source": lightpanda_result.get("source", "lightpanda-browser"),
+            }
+    except Exception:  # noqa: BLE001
+        pass
+
     fallback = _webpage_video_fallback(target_url)
     if fallback.get("ok"):
         return {
@@ -326,6 +359,7 @@ def resolve_video(payload: dict) -> dict:
             "duration": 0,
             "width": 0,
             "height": 0,
+            "thumbnail": fallback.get("thumbnail") or "",
             "source": fallback.get("source", "instagram-webpage"),
         }
 

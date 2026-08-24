@@ -102,8 +102,50 @@ try:
                 b'</head></html>'
             )
 
-    original_urlopen = INSTAGRAM.urlopen
+    # Verify resolver fallback ladder: yt-dlp -> Camofox -> Lightpanda -> Webpage metadata
+    from server_modules import audioflix_instagram_browser
+
+    # 1. yt-dlp fails -> Camofox succeeds
+    original_camofox = audioflix_instagram_browser.extract_camofox_video
+    original_lightpanda = audioflix_instagram_browser.extract_lightpanda_video
     YTDL._get_yt_dlp = lambda: FailingYtDlp
+    audioflix_instagram_browser.extract_camofox_video = lambda _url: {
+        "ok": True,
+        "videoUrl": "https://cdn.example/camofox-video.mp4",
+        "title": "Camofox Hydrated Video",
+        "thumbnail": "https://cdn.example/camofox-thumb.jpg",
+        "source": "camofox-browser",
+    }
+    try:
+        cf_res = INSTAGRAM.resolve_video({"url": "https://www.instagram.com/p/DS2r6KBDNCS/"})
+        check(cf_res.get("ok"), "yt-dlp failure falls back to Camofox browser extraction")
+        check(cf_res.get("videoUrl") == "https://cdn.example/camofox-video.mp4", "Camofox video URL returned")
+        check(cf_res.get("source") == "camofox-browser", "Camofox source identified")
+    finally:
+        audioflix_instagram_browser.extract_camofox_video = original_camofox
+
+    # 2. yt-dlp fails -> Camofox fails -> Lightpanda succeeds
+    audioflix_instagram_browser.extract_camofox_video = lambda _url: {"ok": False, "reason": "No video"}
+    audioflix_instagram_browser.extract_lightpanda_video = lambda _url: {
+        "ok": True,
+        "videoUrl": "https://cdn.example/lightpanda-video.mp4",
+        "title": "Lightpanda Rendered Video",
+        "thumbnail": "https://cdn.example/lightpanda-thumb.jpg",
+        "source": "lightpanda-browser",
+    }
+    try:
+        lp_res = INSTAGRAM.resolve_video({"url": "https://www.instagram.com/p/DS2r6KBDNCS/"})
+        check(lp_res.get("ok"), "Camofox failure falls back to Lightpanda browser extraction")
+        check(lp_res.get("videoUrl") == "https://cdn.example/lightpanda-video.mp4", "Lightpanda video URL returned")
+        check(lp_res.get("source") == "lightpanda-browser", "Lightpanda source identified")
+    finally:
+        audioflix_instagram_browser.extract_camofox_video = original_camofox
+        audioflix_instagram_browser.extract_lightpanda_video = original_lightpanda
+
+    # 3. yt-dlp fails -> Camofox fails -> Lightpanda fails -> Webpage metadata succeeds
+    audioflix_instagram_browser.extract_camofox_video = lambda _url: {"ok": False, "reason": "No video"}
+    audioflix_instagram_browser.extract_lightpanda_video = lambda _url: {"ok": False, "reason": "No video"}
+    original_urlopen = INSTAGRAM.urlopen
     INSTAGRAM.urlopen = lambda *_args, **_kwargs: FakeResponse()
     try:
         post_video = INSTAGRAM.resolve_video({"url": "https://www.instagram.com/p/PostVideo/"})
@@ -113,6 +155,8 @@ try:
         check(post_video.get("title") == "Instagram Post Video", "post fallback retains og:title")
     finally:
         INSTAGRAM.urlopen = original_urlopen
+        audioflix_instagram_browser.extract_camofox_video = original_camofox
+        audioflix_instagram_browser.extract_lightpanda_video = original_lightpanda
         YTDL._get_yt_dlp = lambda: FakeYtDlp
 
     # Authentication option contract: explicit browser-cookie configuration is translated
