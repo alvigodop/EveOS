@@ -1,8 +1,9 @@
 """Public, no-login Instagram media extraction for Audioflix.
 
-Uses Instagram's current public web GraphQL/media endpoint first, then embed
-and direct-page representations. No Instagram account, cookie file, browser
-profile, API key, or third-party downloader site is required for public media.
+Uses Instagram's current public web GraphQL/media representation first, then
+Instagram embed/page representations, then a configurable public media proxy
+fallback. No Instagram account, browser cookies, cookie export, or API key is
+required for public media.
 """
 
 from __future__ import annotations
@@ -66,9 +67,6 @@ def _session_csrf(shortcode: str) -> str:
         raw = _request(url, headers=_headers(), timeout=10)
     except Exception:
         return ""
-    # Cookie jars are not exposed by urllib's raw response, so prefer a CSRF token
-    # returned in response content when available. The endpoint remains useful as
-    # a lightweight public session bootstrap even when no token is returned.
     text = raw.decode("utf-8", errors="replace")
     match = re.search(r'"csrf_token"\s*:\s*"([^"]+)"', text, re.IGNORECASE)
     return match.group(1) if match else ""
@@ -89,13 +87,30 @@ def _parse_graphql_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def _graphql(shortcode: str, csrf: str) -> dict[str, Any] | None:
-    variables = {"shortcode": shortcode, "__relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider": False}
+    variables = {
+        "shortcode": shortcode,
+        "__relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider": False,
+    }
     for doc_id in _doc_ids():
-        form = urlencode({"variables": json.dumps(variables, separators=(",", ":")), "doc_id": doc_id, "server_timestamps": "true"}).encode("utf-8")
+        form = urlencode({
+            "variables": json.dumps(variables, separators=(",", ":")),
+            "doc_id": doc_id,
+            "server_timestamps": "true",
+        }).encode("utf-8")
         headers = _headers(csrf)
-        headers.update({"Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "XMLHttpRequest", "X-FB-Friendly-Name": "PolarisPostActionLoadPostQueryQuery"})
+        headers.update({
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Requested-With": "XMLHttpRequest",
+            "X-FB-Friendly-Name": "PolarisPostActionLoadPostQueryQuery",
+        })
         try:
-            raw = _request("https://www.instagram.com/graphql/query/", method="POST", body=form, headers=headers, timeout=12)
+            raw = _request(
+                "https://www.instagram.com/graphql/query/",
+                method="POST",
+                body=form,
+                headers=headers,
+                timeout=12,
+            )
             payload = json.loads(raw.decode("utf-8", errors="replace"))
             media = _parse_graphql_payload(payload)
             if media:
@@ -120,7 +135,9 @@ def _walk_video_urls(value: Any, found: list[str]) -> None:
 
 def _looks_like_video(url: str) -> bool:
     lower = str(url or "").lower()
-    return lower.startswith(("http://", "https://")) and (".mp4" in lower or "/video/" in lower or "video_url" in lower or "playable_url" in lower)
+    return lower.startswith(("http://", "https://")) and (
+        ".mp4" in lower or ".m3u8" in lower or "/video/" in lower or "video_url" in lower or "playable_url" in lower
+    )
 
 
 def _clean(value: str) -> str:
@@ -146,7 +163,17 @@ def _video_payload(media: dict[str, Any], *, source: str) -> dict[str, Any] | No
     if not thumb and isinstance(media.get("image_versions2"), dict):
         candidates = media["image_versions2"].get("candidates") or []
         thumb = candidates[0].get("url") if candidates and isinstance(candidates[0], dict) else ""
-    return {"ok": True, "videoUrl": cleaned[0], "videoUrls": cleaned, "title": title[:180] or "Instagram Video", "thumbnail": thumb, "duration": media.get("video_duration") or 0, "width": dimensions.get("width") or 0, "height": dimensions.get("height") or 0, "source": source}
+    return {
+        "ok": True,
+        "videoUrl": cleaned[0],
+        "videoUrls": cleaned,
+        "title": title[:180] or "Instagram Video",
+        "thumbnail": thumb,
+        "duration": media.get("video_duration") or 0,
+        "width": dimensions.get("width") or 0,
+        "height": dimensions.get("height") or 0,
+        "source": source,
+    }
 
 
 def _embed(shortcode: str) -> dict[str, Any] | None:
@@ -161,7 +188,16 @@ def _embed(shortcode: str) -> dict[str, Any] | None:
         for candidate in candidates:
             candidate = _clean(candidate)
             if _looks_like_video(candidate):
-                return {"ok": True, "videoUrl": candidate, "title": "Instagram Video", "thumbnail": "", "duration": 0, "width": 0, "height": 0, "source": "instagram-embed"}
+                return {
+                    "ok": True,
+                    "videoUrl": candidate,
+                    "title": "Instagram Video",
+                    "thumbnail": "",
+                    "duration": 0,
+                    "width": 0,
+                    "height": 0,
+                    "source": "instagram-embed",
+                }
     return None
 
 
@@ -169,6 +205,7 @@ def resolve_public(shortcode: str) -> dict[str, Any]:
     shortcode = str(shortcode or "").strip()
     if not shortcode:
         return {"ok": False, "reason": "Missing Instagram shortcode."}
+
     csrf = _session_csrf(shortcode)
     media = _graphql(shortcode, csrf)
     if media:
@@ -189,7 +226,26 @@ def resolve_public(shortcode: str) -> dict[str, Any]:
                 result = _video_payload(child, source="instagram-graphql-carousel")
                 if result:
                     return result
+
     result = _embed(shortcode)
     if result:
         return result
-    return {"ok": False, "reason": "Instagram public media endpoints did not expose a playable video."}
+
+    # Some public Instagram posts are still available to public downloader
+    # services even when Instagram blocks their direct anonymous web API calls.
+    # Keep this last in the first-party public resolver so it is a resilience
+    # fallback, not the primary dependency.
+    try:
+        from server_modules import audioflix_instagram_public_proxy
+        proxy_result = audioflix_instagram_public_proxy.resolve_public(
+            f"https://www.instagram.com/p/{shortcode}/"
+        )
+        if proxy_result.get("ok"):
+            return proxy_result
+    except Exception:
+        pass
+
+    return {
+        "ok": False,
+        "reason": "Instagram public media endpoints did not expose a playable video.",
+    }
