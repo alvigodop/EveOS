@@ -91,6 +91,37 @@ class InstagramMetadataTests(unittest.TestCase):
         self.assertEqual(metadata["artist"], "xarzzu")
         self.assertEqual(metadata["audioKind"], "original_audio")
 
+    def test_collection_public_fallback_entry_is_metadata_enriched(self):
+        public_result = {
+            "ok": True,
+            "videoUrl": "https://cdn.example/video.mp4",
+            "title": "Instagram Video",
+            "artist": "Instagram",
+            "duration": 49,
+            "thumbnail": "",
+        }
+        metadata = {
+            "ok": True,
+            "title": "Original audio — xarzzu",
+            "artist": "xarzzu",
+            "creator": "xarzzu",
+            "audioKind": "original_audio",
+        }
+        with patch("server_modules.audioflix_ytdl._get_yt_dlp", return_value=object()):
+            with patch("server_modules.audioflix_instagram.audioflix_ytdl.YoutubeDL") as youtube_dl:
+                youtube_dl.return_value.__enter__.return_value.extract_info.side_effect = RuntimeError("empty media")
+                with patch("server_modules.audioflix_instagram_public.resolve_public", return_value=public_result):
+                    with patch("server_modules.audioflix_instagram_metadata.resolve_metadata", return_value=metadata):
+                        result = audioflix_instagram.list_collection({"source": "https://www.instagram.com/p/DS2r6KBDNCS/"})
+
+        self.assertTrue(result["ok"])
+        entry = result["entries"][0]
+        self.assertEqual(entry["title"], "Original audio — xarzzu")
+        self.assertEqual(entry["artist"], "xarzzu")
+        self.assertEqual(entry["creator"], "xarzzu")
+        self.assertEqual(entry["audioKind"], "original_audio")
+        self.assertEqual(entry["duration"], 49)
+
     def test_browser_metadata_failure_preserves_playable_video(self):
         playable = {"ok": True, "videoUrl": "https://cdn.example/video.mp4", "title": "Instagram Video"}
         with patch.object(audioflix_instagram, "RESOLVER_PROVIDERS", [lambda url, shortcode: playable]):
