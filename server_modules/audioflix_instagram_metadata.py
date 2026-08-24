@@ -157,9 +157,9 @@ def _metadata_from_html(page: str) -> dict[str, Any]:
     original_audio = bool(re.search(r"\bOriginal audio\b|\boriginal sound\b", searchable, re.IGNORECASE))
     music_title = ""
     if original_audio:
-        title_match = re.search(r"(?:Original audio|original sound)\s*(?:—|-|–)?\s*([^|•\n]{1,180})", searchable, re.IGNORECASE)
+        title_match = re.search(r"(?:Original audio|original sound)\s*(?:—|-|–)\s*([^|•\n]{1,180})", searchable, re.IGNORECASE)
         candidate = title_match.group(1).strip() if title_match else ""
-        if candidate and candidate.lower() not in {creator.lower(), display_name.lower()}:
+        if candidate and candidate.lower() not in {creator.lower(), display_name.lower(), "download"}:
             music_title = f"Original audio — {candidate}"
         else:
             music_title = f"Original audio — {creator or display_name or 'Instagram'}"
