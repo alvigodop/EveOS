@@ -1,5 +1,6 @@
 """Offline contracts for Instagram collection metadata, direct video, and MP4 localization."""
 
+import json
 import os
 import sys
 import tempfile

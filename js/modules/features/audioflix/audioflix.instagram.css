@@ -343,3 +343,45 @@
         grid-template-columns: auto minmax(0, 1fr);
     }
 }
+
+.audioflix-session-badge {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 0.8rem;
+    color: rgba(235, 241, 245, 0.75);
+}
+
+.audioflix-session-badge.is-connected {
+    border-color: rgba(79, 209, 137, 0.35);
+    background: rgba(79, 209, 137, 0.08);
+    color: #4fd189;
+}
+
+.audioflix-session-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.audioflix-btn-small {
+    padding: 3px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    color: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.audioflix-btn-small:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.12);
+}
+

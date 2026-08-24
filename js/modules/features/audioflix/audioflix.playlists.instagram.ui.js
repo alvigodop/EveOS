@@ -78,6 +78,47 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
                 ctx.rerender();
                 return true;
             }
+            if (action === 'instagram-session-check') {
+                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                    instagramStatus: 'Checking Instagram session status...'
+                });
+                ctx.rerender();
+                const nativeIg = window.EveAudioflixNativeInstagram?.create?.(ctx) || window.EveAudioflixNativeInstagram;
+                const res = await nativeIg?.getInstagramSessionStatus?.();
+                const isConn = Boolean(res?.ok && res?.connected);
+                const count = res?.cookieCount || 0;
+                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                    instagramSessionConnected: isConn,
+                    instagramSessionCookieCount: count,
+                    instagramStatus: isConn
+                        ? `✓ Instagram session is active (${count} cookies stored).`
+                        : 'Instagram session is not connected. Use the EveOS Instagram Connector extension to link your browser session with 1 click.'
+                });
+                ctx.rerender();
+                return true;
+            }
+            if (action === 'instagram-session-disconnect') {
+                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                    instagramStatus: 'Disconnecting Instagram session...'
+                });
+                ctx.rerender();
+                const nativeIg = window.EveAudioflixNativeInstagram?.create?.(ctx) || window.EveAudioflixNativeInstagram;
+                const res = await nativeIg?.clearInstagramSession?.();
+                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                    instagramSessionConnected: false,
+                    instagramSessionCookieCount: 0,
+                    instagramStatus: res?.ok ? 'Instagram session disconnected.' : (res?.reason || 'Could not disconnect session.')
+                });
+                ctx.rerender();
+                return true;
+            }
+            if (action === 'instagram-session-connect-guide') {
+                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                    instagramStatus: 'To connect Instagram: 1. Sign in to instagram.com in Chrome or Edge. 2. Click the EveOS Instagram Connector extension button in your browser toolbar. 3. Click "Connect Instagram".'
+                });
+                ctx.rerender();
+                return true;
+            }
             return false;
         };
     }

@@ -28,7 +28,23 @@ window.EveAudioflixNativeInstagram = window.EveAudioflixNativeInstagram || {};
                 probe: true
             });
         }
-        return { listInstagramCollection, resolveInstagramVideo };
+        async function getInstagramSessionStatus() {
+            return fetchJson('/api/audioflix/instagram-session/status', {
+                method: 'POST',
+                body: JSON.stringify({}),
+                timeout: 8000,
+                probe: true
+            });
+        }
+        async function clearInstagramSession() {
+            return fetchJson('/api/audioflix/instagram-session/clear', {
+                method: 'POST',
+                body: JSON.stringify({}),
+                timeout: 8000,
+                probe: true
+            });
+        }
+        return { listInstagramCollection, resolveInstagramVideo, getInstagramSessionStatus, clearInstagramSession };
     }
 
     Object.assign(ns, { ready: true, create });
