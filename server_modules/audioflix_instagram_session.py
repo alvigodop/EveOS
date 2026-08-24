@@ -1,12 +1,8 @@
-"""Local Instagram session import for EveOS Audioflix.
+"""Local Instagram session storage and browser-auth status for EveOS Audioflix.
 
-The supported fast path is user-initiated browser import: an EveOS browser
-connector extension reads only Instagram cookies from the active signed-in
-browser session and posts them to the localhost control plane. Cookies are
-stored in the existing Camofox site-cookie config so the browser resolver can
-reuse the authenticated session.
-
-No browser profile databases are opened by EveOS.
+The preferred user flow is the built-in EveOS browser session. The explicit
+cookie-file import remains available as an advanced fallback, but users do
+not need a browser extension or manual cookie export for normal use.
 """
 
 from __future__ import annotations
@@ -20,6 +16,7 @@ from pathlib import Path
 _MAX_COOKIE_COUNT = 128
 _MAX_COOKIE_VALUE = 8192
 
+
 def _config_path() -> Path:
     explicit = (os.environ.get("EVEOS_CAMOFOX_COOKIE_CONFIG") or "").strip()
     if explicit:
@@ -27,6 +24,7 @@ def _config_path() -> Path:
     local_appdata = (os.environ.get("LOCALAPPDATA") or "").strip()
     root = Path(local_appdata) / "EveOS" if local_appdata else Path.home() / ".eveos"
     return root / "camofox-site-cookies.json"
+
 
 def _load() -> dict:
     path = _config_path()
@@ -39,6 +37,7 @@ def _load() -> dict:
         pass
     return {}
 
+
 def _normalize_cookie(cookie: dict) -> dict | None:
     if not isinstance(cookie, dict):
         return None
@@ -50,7 +49,9 @@ def _normalize_cookie(cookie: dict) -> dict | None:
     if not (domain == "instagram.com" or domain.endswith(".instagram.com") or domain == ".instagram.com"):
         return None
     result = {
-        "name": name, "value": value, "domain": domain,
+        "name": name,
+        "value": value,
+        "domain": domain,
         "path": str(cookie.get("path") or "/"),
         "secure": bool(cookie.get("secure", True)),
         "httpOnly": bool(cookie.get("httpOnly", False)),
@@ -64,6 +65,7 @@ def _normalize_cookie(cookie: dict) -> dict | None:
             pass
     return result
 
+
 def _netscape_path() -> Path:
     explicit = (os.environ.get("EVEOS_INSTAGRAM_COOKIES") or "").strip()
     if explicit:
@@ -72,16 +74,17 @@ def _netscape_path() -> Path:
     root = Path(local_appdata) / "EveOS" if local_appdata else Path.home() / ".eveos"
     return root / "instagram-cookies.txt"
 
+
 def _write_netscape_file(cookies: list[dict], path: Path) -> None:
     lines = ["# Netscape HTTP Cookie File", "# https://curl.haxx.se/rfc/cookie_spec.html", ""]
-    for c in cookies:
-        domain = c.get("domain", "instagram.com")
+    for cookie in cookies:
+        domain = cookie.get("domain", "instagram.com")
         include_sub = "TRUE" if domain.startswith(".") else "FALSE"
-        path_str = c.get("path", "/")
-        secure = "TRUE" if c.get("secure", True) else "FALSE"
-        expires = str(c.get("expires", 2147483647))
-        name = c.get("name", "")
-        value = c.get("value", "")
+        path_str = cookie.get("path", "/")
+        secure = "TRUE" if cookie.get("secure", True) else "FALSE"
+        expires = str(cookie.get("expires", 2147483647))
+        name = cookie.get("name", "")
+        value = cookie.get("value", "")
         if name and value:
             lines.append(f"{domain}\t{include_sub}\t{path_str}\t{secure}\t{expires}\t{name}\t{value}")
     try:
@@ -89,6 +92,7 @@ def _write_netscape_file(cookies: list[dict], path: Path) -> None:
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     except OSError:
         pass
+
 
 def import_cookies(payload: dict) -> dict:
     raw = payload.get("cookies") if isinstance(payload, dict) else None
@@ -125,12 +129,41 @@ def import_cookies(payload: dict) -> dict:
             handle.write("\n")
         os.replace(temp_name, path)
     finally:
-        try: os.unlink(temp_name)
-        except OSError: pass
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
     _write_netscape_file(cookies, _netscape_path())
-    return {"ok": True, "cookieCount": len(cookies), "configPath": str(path), "message": "Instagram session connected. Audioflix can now use the authenticated browser session."}
+    return {"ok": True, "cookieCount": len(cookies), "configPath": str(path), "message": "Instagram session connected."}
+
+
+def browser_status() -> dict:
+    try:
+        from server_modules import audioflix_instagram_browser_auth
+        return audioflix_instagram_browser_auth.status()
+    except Exception:
+        return {"ok": True, "connected": False, "state": "browser_unavailable"}
+
+
+def connect_browser() -> dict:
+    try:
+        from server_modules import audioflix_instagram_browser_auth
+        return audioflix_instagram_browser_auth.start()
+    except Exception as exc:
+        return {"ok": False, "reason": str(exc)}
+
 
 def status() -> dict:
+    browser = browser_status()
+    if browser.get("connected") or browser.get("state") in {"browser_open", "awaiting_login"}:
+        return {
+            "ok": True,
+            "connected": bool(browser.get("connected")),
+            "state": browser.get("state"),
+            "cookieCount": 0,
+            "source": "eveos-browser",
+            "message": browser.get("message") or "Instagram browser session status available.",
+        }
     path = _config_path()
     try:
         payload = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
@@ -138,21 +171,38 @@ def status() -> dict:
         payload = {}
     cookies = payload.get("cookies", {}) if isinstance(payload, dict) else {}
     instagram = cookies.get("instagram.com", []) if isinstance(cookies, dict) else []
-    return {"ok": True, "connected": bool(instagram), "cookieCount": len(instagram) if isinstance(instagram, list) else 0, "configPath": str(path), "updatedAt": payload.get("updatedAt") if isinstance(payload, dict) else None}
+    return {
+        "ok": True,
+        "connected": bool(instagram),
+        "state": "cookie_file" if instagram else "not_connected",
+        "cookieCount": len(instagram) if isinstance(instagram, list) else 0,
+        "configPath": str(path),
+        "updatedAt": payload.get("updatedAt") if isinstance(payload, dict) else None,
+        "source": "cookie-file",
+    }
+
 
 def clear() -> dict:
+    try:
+        from server_modules import audioflix_instagram_browser_auth
+        audioflix_instagram_browser_auth.disconnect()
+    except Exception:
+        pass
     path = _config_path()
     netscape = _netscape_path()
     if netscape.exists():
-        try: netscape.unlink()
-        except OSError: pass
-    if not path.exists(): return {"ok": True, "connected": False, "cookieCount": 0}
+        try:
+            netscape.unlink()
+        except OSError:
+            pass
+    if not path.exists():
+        return {"ok": True, "connected": False, "cookieCount": 0, "state": "disconnected"}
     try:
         payload = _load()
         if isinstance(payload, dict) and isinstance(payload.get("cookies"), dict):
             payload["cookies"].pop("instagram.com", None)
             payload["updatedAt"] = int(time.time())
             path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        return {"ok": True, "connected": False, "cookieCount": 0}
+        return {"ok": True, "connected": False, "cookieCount": 0, "state": "disconnected"}
     except OSError as exc:
         return {"ok": False, "reason": str(exc)}
