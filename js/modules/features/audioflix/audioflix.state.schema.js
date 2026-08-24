@@ -45,6 +45,14 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 card: text(source.card, ''),
                 folder: text(source.folder, ''),
                 category: text(source.category, ''),
+                creator: text(source.creator, ''),
+                creatorDisplayName: text(source.creatorDisplayName, ''),
+                collaborators: Array.isArray(source.collaborators) ? source.collaborators.map((c) => text(c, '')).filter(Boolean) : [],
+                audioTitle: text(source.audioTitle, ''),
+                audioArtist: text(source.audioArtist, ''),
+                audioKind: text(source.audioKind, ''),
+                caption: text(source.caption, ''),
+                permalink: text(source.permalink, ''),
                 volume: normalizeVolume(source.volume, 1),
                 // Track length in seconds (0 = not yet known). Persisted so duration facets/smart
                 // folders work without replaying every track to re-measure it.

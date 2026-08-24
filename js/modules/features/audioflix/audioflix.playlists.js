@@ -90,22 +90,26 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
 
     // Add one upstream entry as a music track bound to this connection.
     function addTrack(connection, entry, targetFolder = '') {
-        const dur = Number(entry?.duration || 0);
+        const patch = providers()?.entryPatch?.(connection.provider, entry) || {};
+        const dur = Number(patch.duration !== undefined ? patch.duration : (entry?.duration || 0)) || 0;
         const folderName = text(targetFolder) || text(connection.folder, DEFAULT_FOLDER);
+        const title = text(patch.title || entry?.title, 'Untitled Track');
+        const artist = text(patch.artist || entry?.artist);
         const added = window.EveAudioflixState?.addItem?.('music', {
-            title: text(entry?.title, 'Untitled Track'),
+            title,
             url: text(entry?.url),
-            artist: text(entry?.artist),
-            ...providers()?.entryPatch?.(connection.provider, entry),
+            artist,
             folder: folderName,
-            duration: dur
+            duration: dur,
+            ...patch
         });
         if (!added) return null;
         window.EveAudioflixState?.updateItem?.('music', added.id, {
             sourceId: text(entry?.sourceId),
             playlistId: connection.id,
             duration: dur,
-            upstreamMissing: false
+            upstreamMissing: false,
+            ...patch
         });
         if (connection.group) window.EveAudioflixState?.toggleMusicGroup?.(added.id, connection.group, true);
         return added;
