@@ -12,20 +12,13 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
             .filter((item) => item.playlistId === connection.id)
             .sort((a, b) => Number(a.playlistPosition || 0) - Number(b.playlistPosition || 0));
 
-        // One row per reel, each owning its own URL field. A single bulk textarea meant the list
-        // and the addresses were two parallel things you had to line up by counting, and editing
-        // the seventh URL meant finding the seventh line. The field lives with the reel it points
-        // at, and the form collects every row in order on save.
         const rows = tracks.map((item, index) => `<li class="audioflix-instagram-source-row">`
             + `<span class="audioflix-instagram-source-index">${index + 1}</span>`
             + `<div class="audioflix-instagram-source-body">`
             + `<strong title="${esc(item.title || '')}">${esc(item.title || 'Untitled Reel')}</strong>`
-            + `<input type="url" name="link" value="${esc(item.url || '')}"`
-            + ` aria-label="URL for ${esc(item.title || 'this reel')}" spellcheck="false"></div>`
+            + `<input type="url" name="link" value="${esc(item.url || '')}" aria-label="URL for ${esc(item.title || 'this reel')}" spellcheck="false"></div>`
             + `<a href="${esc(item.url || '')}" target="_blank" rel="noopener">Open</a></li>`).join('');
 
-        // Rows can only edit what already exists, so appending stays available as its own field.
-        // It is named `link` too, which puts anything typed here after the rows on save.
         const addField = `<label class="audioflix-wide-field audioflix-instagram-add">`
             + `<span>Add more Reels</span>`
             + `<textarea name="link" rows="2" placeholder="One URL per line"></textarea></label>`;
@@ -67,6 +60,7 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
                 picker.click();
                 return true;
             }
+
             if (action === 'instagram-sync') {
                 const group = target.dataset.afGroup || '';
                 ctx.playbackStatus = `Refreshing Reel collection "${group}"...`;
@@ -78,28 +72,46 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
                 ctx.rerender();
                 return true;
             }
+
+            if (action === 'instagram-session-connect-guide') {
+                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                    instagramStatus: 'Opening the EveOS Instagram browser...'
+                });
+                ctx.rerender();
+                const nativeIg = window.EveAudioflixNativeInstagram?.create?.(ctx) || window.EveAudioflixNativeInstagram;
+                const res = await nativeIg?.connectInstagramBrowser?.();
+                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                    instagramSessionConnected: Boolean(res?.connected),
+                    instagramSessionCookieCount: Number(res?.cookieCount || 0),
+                    instagramStatus: res?.message || res?.reason || 'Instagram browser connection started.'
+                });
+                ctx.rerender();
+                return true;
+            }
+
             if (action === 'instagram-session-check') {
                 ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
-                    instagramStatus: 'Checking Instagram session status...'
+                    instagramStatus: 'Checking Instagram browser session...'
                 });
                 ctx.rerender();
                 const nativeIg = window.EveAudioflixNativeInstagram?.create?.(ctx) || window.EveAudioflixNativeInstagram;
                 const res = await nativeIg?.getInstagramSessionStatus?.();
                 const isConn = Boolean(res?.ok && res?.connected);
-                const count = res?.cookieCount || 0;
+                const count = Number(res?.cookieCount || 0);
                 ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
                     instagramSessionConnected: isConn,
                     instagramSessionCookieCount: count,
                     instagramStatus: isConn
-                        ? `✓ Instagram session is active (${count} cookies stored).`
-                        : 'Instagram session is not connected. Use the EveOS Instagram Connector extension to link your browser session with 1 click.'
+                        ? '✓ Instagram browser session is connected.'
+                        : (res?.message || 'Instagram browser session is waiting for sign-in.')
                 });
                 ctx.rerender();
                 return true;
             }
+
             if (action === 'instagram-session-disconnect') {
                 ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
-                    instagramStatus: 'Disconnecting Instagram session...'
+                    instagramStatus: 'Disconnecting Instagram browser session...'
                 });
                 ctx.rerender();
                 const nativeIg = window.EveAudioflixNativeInstagram?.create?.(ctx) || window.EveAudioflixNativeInstagram;
@@ -107,18 +119,12 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
                 ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
                     instagramSessionConnected: false,
                     instagramSessionCookieCount: 0,
-                    instagramStatus: res?.ok ? 'Instagram session disconnected.' : (res?.reason || 'Could not disconnect session.')
+                    instagramStatus: res?.ok ? 'Instagram browser session disconnected.' : (res?.reason || 'Could not disconnect session.')
                 });
                 ctx.rerender();
                 return true;
             }
-            if (action === 'instagram-session-connect-guide') {
-                ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
-                    instagramStatus: 'To connect Instagram: 1. Sign in to instagram.com in Chrome or Edge. 2. Click the EveOS Instagram Connector extension button in your browser toolbar. 3. Click "Connect Instagram".'
-                });
-                ctx.rerender();
-                return true;
-            }
+
             return false;
         };
     }
