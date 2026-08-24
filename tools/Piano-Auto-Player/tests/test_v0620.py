@@ -68,7 +68,7 @@ class V0620RetentionAndLibraryTransferTests(unittest.TestCase):
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         self.assertIn("payload?.session || payload", js)
         self.assertIn("cookies retained locally", js)
-        self.assertIn("retained session first", html)
+        self.assertIn("anonymous-first", html)
         self.assertNotIn('localStorage.setItem("piano_youtube_session"', js)
 
     def test_individual_song_round_trip(self):

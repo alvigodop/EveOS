@@ -69,9 +69,9 @@ class V041CompactUITests(unittest.TestCase):
         css = Path("web/styles.css").read_text(encoding="utf-8")
         api = Path("web/api.js").read_text(encoding="utf-8")
         self.assertIn('id="youtubeAccessMode"', html)
-        self.assertIn("Automatic — retained session first, then anonymous fallbacks", html)
+        self.assertIn("Automatic — anonymous-first, then optional session fallbacks", html)
         self.assertIn(".compact-target select", css)
-        self.assertIn("JSON.stringify({ url, access, title_hint: titleHint, quality, piano_layout: pianoLayout, engine })", api)
+        self.assertIn("access: resolvedAccess", api)
 
     def test_v041_sources_stay_modular(self):
         for name in ["app/audio_transcriber.py", "app/server.py", "web/api.js", "web/youtube_piano.js", "web/index.html", "web/styles.css"]:
