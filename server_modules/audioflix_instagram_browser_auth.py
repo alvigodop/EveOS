@@ -13,10 +13,8 @@ import os
 import subprocess
 import threading
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
-import uuid
 from pathlib import Path
 
 AUTH_PORT = int(os.environ.get("EVEOS_INSTAGRAM_BROWSER_PORT", "9382"))
@@ -160,11 +158,7 @@ def _ensure_tab() -> dict | None:
         created = _request(
             "POST",
             "/tabs",
-            {
-                "userId": AUTH_USER_ID,
-                "sessionKey": AUTH_SESSION_KEY,
-                "url": "https://www.instagram.com/",
-            },
+            {"userId": AUTH_USER_ID, "sessionKey": AUTH_SESSION_KEY, "url": "https://www.instagram.com/"},
             timeout=20,
         )
         _TAB_ID = str(created.get("tabId") or "").strip() or None
@@ -194,12 +188,7 @@ def _login_state(tab_id: str) -> dict:
       };
     })()"""
     try:
-        payload = _request(
-            "POST",
-            f"/tabs/{urllib.parse.quote(tab_id, safe='')}/evaluate",
-            {"userId": AUTH_USER_ID, "expression": expression},
-            timeout=12,
-        )
+        payload = _request("POST", f"/tabs/{urllib.parse.quote(tab_id, safe='')}/evaluate", {"userId": AUTH_USER_ID, "expression": expression}, timeout=12)
         result = payload.get("result") if isinstance(payload, dict) else None
         return result if isinstance(result, dict) else {}
     except Exception:
@@ -216,27 +205,20 @@ def start() -> dict:
     _state_write({"userId": AUTH_USER_ID, "tabId": str(tab.get("tabId") or _TAB_ID or ""), "updatedAt": int(time.time())})
     if state.get("likelyAuthenticated"):
         return {"ok": True, "connected": True, "state": "connected", "message": "Instagram is already connected in the EveOS browser."}
-    return {
-        "ok": True,
-        "connected": False,
-        "state": "browser_open",
-        "message": "Instagram sign-in opened in the EveOS browser. Sign in there once; EveOS will keep the session locally.",
-    }
+    return {"ok": True, "connected": False, "state": "browser_open", "message": "Instagram sign-in opened in the EveOS browser. Sign in there once; EveOS will keep the session locally."}
 
 
 def status() -> dict:
     tab = _find_tab()
+    if not tab and _state_read():
+        if _start_server():
+            tab = _ensure_tab()
     if not tab:
         return {"ok": True, "connected": False, "state": "not_started"}
     tab_id = str(tab.get("tabId") or "")
     state = _login_state(tab_id)
     connected = bool(state.get("likelyAuthenticated"))
-    return {
-        "ok": True,
-        "connected": connected,
-        "state": "connected" if connected else "awaiting_login",
-        "message": "Instagram browser session is ready." if connected else "Instagram sign-in is still required in the EveOS browser.",
-    }
+    return {"ok": True, "connected": connected, "state": "connected" if connected else "awaiting_login", "message": "Instagram browser session is ready." if connected else "Instagram sign-in is still required in the EveOS browser."}
 
 
 def disconnect() -> dict:
@@ -254,6 +236,9 @@ def disconnect() -> dict:
 
 
 def browser_session_ready() -> bool:
+    state = _state_read()
+    if state and not _health():
+        _start_server()
     return bool(status().get("connected"))
 
 
