@@ -6,7 +6,9 @@ entries WITHOUT resolving a stream for each video (resolving happens lazily at p
 audioflix_ytdl.resolve). A 200-track playlist lists in about one request instead of 200.
 
 Public and unlisted playlists work (an unlisted URL still carries its list id); private ones
-cannot be read without credentials and report a clear reason.
+cannot be read without credentials and report a clear reason. Public YouTube extraction uses
+cookie-free player clients first, matching the direct audio resolver, so normal users do not
+need to export browser cookies just to import a public playlist.
 """
 
 from __future__ import annotations
@@ -78,6 +80,28 @@ def _safe_str(v) -> str:
     return str(v or "").encode("ascii", "backslashreplace").decode("ascii")
 
 
+def _yt_playlist_options() -> dict:
+    """Return the cookie-free yt-dlp options shared with direct YouTube resolution.
+
+    These clients are intentionally public/browser-like. They are not a guarantee that
+    every restricted YouTube playlist is accessible without credentials; they simply keep
+    public playlist imports from unnecessarily depending on exported browser cookies.
+    """
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "extract_flat": "in_playlist",
+        "playlistend": _MAX_ENTRIES,
+        "source_address": "0.0.0.0",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "mweb", "android"],
+            }
+        },
+    }
+
+
 def list_playlist(url: str, force: bool = False) -> dict:
     """Return ``{ok, playlistId, title, entries:[{sourceId,title,url,artist,duration}]}``."""
     clean = str(url or "").strip()
@@ -94,14 +118,7 @@ def list_playlist(url: str, force: bool = False) -> dict:
     if yt_dlp is None:
         return {"ok": False, "reason": "yt-dlp is not installed on this system."}
 
-    options = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        # Enumerate entries only — do NOT resolve a stream per video (that is the slow part).
-        "extract_flat": "in_playlist",
-        "playlistend": _MAX_ENTRIES,
-    }
+    options = _yt_playlist_options()
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(clean, download=False)
