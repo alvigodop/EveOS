@@ -55,7 +55,7 @@ if IS_WINDOWS:
 
 
 def ensure_interactive_desktop() -> None:
-    """Bind a worker thread to the interactive WinSta0\Default desktop.
+    r"""Bind a worker thread to the interactive WinSta0\Default desktop.
 
     Background worker threads can otherwise observe GetForegroundWindow()==0 on
     Windows. Keeping this helper small makes focus checks reliable for playback

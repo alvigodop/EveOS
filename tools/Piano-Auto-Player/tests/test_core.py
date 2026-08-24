@@ -434,7 +434,7 @@ class V033SeekStabilityTests(unittest.TestCase):
         state = RuntimeState()
         controller = PlaybackController(state)
         with patch("app.playback.IS_WINDOWS", True), patch("app.playback.WindowsKeyboard", FakeKeyboard), patch("app.playback.resolve_window", return_value=(1, "Roblox")):
-            controller.start("abc", "seek cancellation", PlaybackOptions(countdown_seconds=0, auto_focus=False, interval_ms=10))
+            controller.start("abc", "seek cancellation", PlaybackOptions(countdown_seconds=0, auto_focus=False, pause_on_focus_loss=False, interval_ms=10))
             self.assertTrue(note_started.wait(0.5))
             controller.seek(3)
             for _ in range(150):

@@ -1,10 +1,9 @@
 import threading
 import time
-from dataclasses import dataclass
 from typing import Any
 
 from .virtual_target import VirtualTargetWindowsKeyboard
-from .keyboard_win import IS_WINDOWS, WindowsKeyboard, char_needs_shift, f7_is_down
+from .keyboard_win import IS_WINDOWS, WindowsKeyboard, f7_is_down
 from .parser import SheetEvent, parse_sheet
 from .piano_layout import display_strokes, strokes_for_midi
 from .performance_lifecycle import has_note_lifecycle, run_lifecycle_performance
@@ -12,28 +11,14 @@ from .performance_notes import clean_performance
 from .state import RuntimeState
 from .window_focus import focus_window, resolve_window, foreground_window, is_foreground
 from .focus_guard import TargetFocusGuard, TargetFocusState
-
-
-@dataclass
-class PlaybackOptions:
-    interval_ms: float = 115.0
-    note_hold_ms: float = 18.0
-    countdown_seconds: float = 3.0
-    target_window: str = "Roblox"
-    target_hwnd: int = 0
-    input_mode: str = "foreground"
-    auto_focus: bool = True
-    pause_on_focus_loss: bool = True
-    dry_run: bool = False
-    speed: float = 1.0
-    adaptive_hold: bool = True
-    gate_percent: float = 58.0
-    modifier_lead_ms: float = 6.0
-    modifier_tail_ms: float = 2.0
-    chord_spread_ms: float = 4.0
-    start_event: int = 1
-    timing_profile: str = "expressive"
-    piano_layout: str = "61"
+from .playback_timing import (
+    PlaybackOptions,
+    gap_to_next_onset,
+    performance_hold_ms,
+    playback_speed,
+    sheet_hold_ms,
+    start_zero_index,
+)
 
 
 class PlaybackController:
@@ -80,12 +65,13 @@ class PlaybackController:
     def toggle_pause(self) -> bool:
         if not self.is_running():
             return False
-        if self._focus_paused.is_set():
-            return True
         if self._manual_pause.is_set():
             self._manual_pause.clear()
-            self._pause.clear()
-            self.state.update(status="playing", message="Playing")
+            if not self._focus_paused.is_set():
+                self._pause.clear()
+                self.state.update(status="playing", message="Playing")
+            else:
+                self.state.update(status="paused", message="Target lost focus — playback paused")
             return False
         self._manual_pause.set()
         self._pause.set()
@@ -154,11 +140,13 @@ class PlaybackController:
     def _target_is_ready(self, options: PlaybackOptions) -> bool:
         if options.dry_run or options.input_mode != "foreground" or not options.pause_on_focus_loss:
             return True
+        if self._focus_paused.is_set():
+            return False
         if not self._target_hwnd:
             return False
+        if self._focus_guard is not None:
+            return True
         if is_foreground(self._target_hwnd):
-            if self._focus_paused.is_set() and self._focus_guard is None:
-                self._on_target_regained()
             return True
         self._on_target_lost()
         return False
@@ -208,18 +196,18 @@ class PlaybackController:
         self._countdown(options.countdown_seconds)
         if not self._stop.is_set():
             route = "virtual target (no foreground steal)" if mode == "virtual_target" else "foreground target-bound"
-            self.state.update(status="playing", message=f"Playing via {route} at {self._speed(options):.2f}× — F7 emergency stop")
+            self.state.update(status="playing", message=f"Playing via {route} at {playback_speed(options):.2f}× — F7 emergency stop")
         return keyboard
 
     def _run_sheet(self, events: list[SheetEvent], song_name: str, options: PlaybackOptions) -> None:
         keyboard = None
         try:
             total = len(events)
-            zero_index = self._start_zero_index(total, options.start_event)
+            zero_index = start_zero_index(total, options.start_event)
             keyboard = self._prepare(song_name, total, options, zero_index + 1)
             if self._stop.is_set():
                 return
-            speed = self._speed(options)
+            speed = playback_speed(options)
             interval_seconds = max(options.interval_ms, 1.0) / 1000.0 / speed
             clock = time.monotonic()
             timeline_units = 0.0
@@ -263,8 +251,8 @@ class PlaybackController:
                     zero_index += 1
                     continue
 
-                gap_units = self._gap_to_next_onset(events, zero_index)
-                hold_ms = self._sheet_hold_ms(event, gap_units, options, speed)
+                gap_units = gap_to_next_onset(events, zero_index)
+                hold_ms = sheet_hold_ms(event, gap_units, options, speed)
                 if keyboard is not None and self._target_is_ready(options):
                     cancel = self._interrupt_requested
                     if event.kind == "chord":
@@ -293,11 +281,11 @@ class PlaybackController:
         keyboard = None
         try:
             total = len(events)
-            zero_index = self._start_zero_index(total, options.start_event)
+            zero_index = start_zero_index(total, options.start_event)
             keyboard = self._prepare(song_name, total, options, zero_index + 1)
             if self._stop.is_set():
                 return
-            speed = self._speed(options)
+            speed = playback_speed(options)
             base_at_ms = float(events[zero_index]["at_ms"])
             clock = time.monotonic()
             paused_total = 0.0
@@ -337,7 +325,7 @@ class PlaybackController:
                 display_key = display_strokes(strokes) if strokes else key
                 self.state.update(current_index=zero_index + 1, current_token=display_key)
                 if keyboard is not None and self._target_is_ready(options):
-                    hold = self._performance_hold_ms(events, zero_index, options, speed)
+                    hold = performance_hold_ms(events, zero_index, options, speed)
                     cancel = self._interrupt_requested
                     if strokes:
                         keyboard.tap_strokes(strokes, hold, options.modifier_lead_ms, options.modifier_tail_ms, options.chord_spread_ms, cancel_check=cancel)
@@ -436,63 +424,13 @@ class PlaybackController:
         with self._lock:
             if self._seek_request is None:
                 return None
-            target = self._start_zero_index(total, self._seek_request)
+            target = start_zero_index(total, self._seek_request)
             self._seek_request = None
             return target
 
-    @staticmethod
-    def _start_zero_index(total: int, requested: int) -> int:
-        if total <= 0:
-            return 0
-        return max(0, min(int(requested or 1) - 1, total - 1))
-
-    @staticmethod
-    def _speed(options: PlaybackOptions) -> float:
-        return max(0.25, min(float(options.speed), 3.0))
-
-    @staticmethod
-    def _performance_hold_ms(events: list[dict[str, Any]], index: int, options: PlaybackOptions, speed: float = 1.0) -> float:
-        event = events[index]
-        hold = max(1.0, float(event["duration_ms"]) / max(speed, 0.25))
-        if index + 1 >= len(events):
-            return hold
-        gap = max(1.0, (float(events[index + 1]["at_ms"]) - float(event["at_ms"])) / max(speed, 0.25))
-        gate = max(0.10, min(options.gate_percent / 100.0, 0.90))
-        overhead = max(0.0, options.modifier_lead_ms) + max(0.0, options.chord_spread_ms)
-        return min(hold, max(8.0, gap * gate - overhead))
-
-    @staticmethod
-    def _gap_to_next_onset(events: list[SheetEvent], index: int) -> float:
-        gap = max(events[index].units, 0.01)
-        cursor = index + 1
-        while cursor < len(events) and events[cursor].kind == "pause":
-            gap += events[cursor].units
-            cursor += 1
-        return gap
-
-    @staticmethod
-    def _sheet_hold_ms(event: SheetEvent, gap_units: float, options: PlaybackOptions, speed: float = 1.0) -> float:
-        base = max(options.note_hold_ms, 1.0) / max(speed, 0.25)
-        gap_ms = max(options.interval_ms, 1.0) * max(gap_units, 0.01) / max(speed, 0.25)
-        desired = gap_ms * max(10.0, min(options.gate_percent, 90.0)) / 100.0 if options.adaptive_hold else base
-        desired = max(base, desired)
-        if event.hold_units > 0:
-            sustain_ms = max(options.interval_ms, 1.0) * (event.units + event.hold_units) / max(speed, 0.25)
-            desired = max(desired, sustain_ms * 0.94)
-        shifted = any(char_needs_shift(char) for char in event.value)
-        overhead = options.modifier_lead_ms + options.modifier_tail_ms if shifted else 0.0
-        if event.kind == "chord" and shifted:
-            overhead += options.chord_spread_ms
-        availability_ratio = 0.97 if event.hold_units > 0 else 0.82
-        available = max(2.0, gap_ms * availability_ratio - overhead)
-        if event.hold_units > 0:
-            max_hold = 2000.0
-        elif str(options.timing_profile).lower() == "letter_grid":
-            max_hold = 560.0
-        else:
-            max_hold = 240.0
-        return max(2.0, min(desired, available, max_hold))
-
-    @staticmethod
-    def _clean_performance(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return clean_performance(raw)
+    _speed = staticmethod(playback_speed)
+    _start_zero_index = staticmethod(start_zero_index)
+    _performance_hold_ms = staticmethod(performance_hold_ms)
+    _gap_to_next_onset = staticmethod(gap_to_next_onset)
+    _sheet_hold_ms = staticmethod(sheet_hold_ms)
+    _clean_performance = staticmethod(clean_performance)
