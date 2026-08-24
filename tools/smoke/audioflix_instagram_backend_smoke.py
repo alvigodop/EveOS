@@ -238,8 +238,11 @@ with tempfile.TemporaryDirectory(prefix="eveos_ig_session_") as session_root:
         check(session_status.get("connected") and session_status.get("cookieCount") == 2, "browser session status reports connected")
         config = json.loads(Path(session_status["configPath"]).read_text(encoding="utf-8"))
         check(len(config["cookies"]["instagram.com"]) == 2, "session store contains only Instagram cookies")
+        netscape_file = INSTAGRAM_SESSION._netscape_path()
+        check(netscape_file.is_file(), "Netscape cookie file is created for yt-dlp compatibility")
         cleared = INSTAGRAM_SESSION.clear()
         check(cleared.get("ok") and not INSTAGRAM_SESSION.status().get("connected"), "browser session can be cleared")
+        check(not netscape_file.is_file(), "Netscape cookie file is cleaned up on session clear")
     finally:
         if original_cookie_config is None:
             os.environ.pop("EVEOS_CAMOFOX_COOKIE_CONFIG", None)

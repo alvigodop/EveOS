@@ -64,6 +64,32 @@ def _normalize_cookie(cookie: dict) -> dict | None:
             pass
     return result
 
+def _netscape_path() -> Path:
+    explicit = (os.environ.get("EVEOS_INSTAGRAM_COOKIES") or "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    local_appdata = (os.environ.get("LOCALAPPDATA") or "").strip()
+    root = Path(local_appdata) / "EveOS" if local_appdata else Path.home() / ".eveos"
+    return root / "instagram-cookies.txt"
+
+def _write_netscape_file(cookies: list[dict], path: Path) -> None:
+    lines = ["# Netscape HTTP Cookie File", "# https://curl.haxx.se/rfc/cookie_spec.html", ""]
+    for c in cookies:
+        domain = c.get("domain", "instagram.com")
+        include_sub = "TRUE" if domain.startswith(".") else "FALSE"
+        path_str = c.get("path", "/")
+        secure = "TRUE" if c.get("secure", True) else "FALSE"
+        expires = str(c.get("expires", 2147483647))
+        name = c.get("name", "")
+        value = c.get("value", "")
+        if name and value:
+            lines.append(f"{domain}\t{include_sub}\t{path_str}\t{secure}\t{expires}\t{name}\t{value}")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
 def import_cookies(payload: dict) -> dict:
     raw = payload.get("cookies") if isinstance(payload, dict) else None
     if not isinstance(raw, list):
@@ -101,6 +127,7 @@ def import_cookies(payload: dict) -> dict:
     finally:
         try: os.unlink(temp_name)
         except OSError: pass
+    _write_netscape_file(cookies, _netscape_path())
     return {"ok": True, "cookieCount": len(cookies), "configPath": str(path), "message": "Instagram session connected. Audioflix can now use the authenticated browser session."}
 
 def status() -> dict:
@@ -115,6 +142,10 @@ def status() -> dict:
 
 def clear() -> dict:
     path = _config_path()
+    netscape = _netscape_path()
+    if netscape.exists():
+        try: netscape.unlink()
+        except OSError: pass
     if not path.exists(): return {"ok": True, "connected": False, "cookieCount": 0}
     try:
         payload = _load()

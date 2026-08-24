@@ -62,9 +62,17 @@ def _cookie_header_from_file(path: Path) -> str:
 
 def _explicit_cookie_file() -> Path | None:
     configured = os.environ.get("EVEOS_INSTAGRAM_COOKIES", "").strip()
+    if configured:
+        p = Path(configured).expanduser()
+        if p.is_file():
+            return p
+    local_appdata = (os.environ.get("LOCALAPPDATA") or "").strip()
+    local_root = Path(local_appdata) / "EveOS" if local_appdata else Path.home() / ".eveos"
+    local_file = local_root / "instagram-cookies.txt"
+    if local_file.is_file():
+        return local_file
     fallback = Path(__file__).resolve().parents[1] / "data" / "runtime" / "instagram-cookies.txt"
-    cookie_file = Path(configured).expanduser() if configured else fallback
-    return cookie_file if cookie_file.is_file() else None
+    return fallback if fallback.is_file() else None
 
 
 def _ydl_options() -> dict:

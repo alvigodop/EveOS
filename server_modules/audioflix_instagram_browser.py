@@ -44,9 +44,17 @@ def _is_video_url(url: str) -> bool:
 def _explicit_instagram_cookie_file() -> Path | None:
     """Return EveOS's explicit Instagram Netscape cookie file when configured."""
     configured = os.environ.get("EVEOS_INSTAGRAM_COOKIES", "").strip()
+    if configured:
+        candidate = Path(configured).expanduser()
+        if candidate.is_file():
+            return candidate
+    local_appdata = (os.environ.get("LOCALAPPDATA") or "").strip()
+    local_root = Path(local_appdata) / "EveOS" if local_appdata else Path.home() / ".eveos"
+    local_file = local_root / "instagram-cookies.txt"
+    if local_file.is_file():
+        return local_file
     fallback = Path(__file__).resolve().parents[1] / "data" / "runtime" / "instagram-cookies.txt"
-    candidate = Path(configured).expanduser() if configured else fallback
-    return candidate if candidate.is_file() else None
+    return fallback if fallback.is_file() else None
 
 
 def _instagram_cookie_entries(target_url: str) -> list[dict]:
