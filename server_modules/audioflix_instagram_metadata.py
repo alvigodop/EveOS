@@ -185,11 +185,29 @@ def _metadata_from_html(page: str) -> dict[str, Any]:
     }
 
 
+def _metadata_quality(metadata: dict[str, Any]) -> int:
+    """Score the useful fields so a browser pass can improve an incomplete embed pass."""
+    if not metadata:
+        return 0
+    score = 0
+    for key in ("creator", "creatorDisplayName", "caption", "audioTitle", "audioArtist", "permalink", "thumbnail"):
+        if metadata.get(key):
+            score += 1
+    if metadata.get("title") and metadata.get("title") != "Instagram Video":
+        score += 1
+    if metadata.get("artist") and metadata.get("artist") != "Instagram":
+        score += 1
+    return score
+
+
 def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any]:
     """Best-effort public metadata enrichment; never required for playback."""
     shortcode = str(shortcode or "").strip()
     if not shortcode:
         return {"ok": False, "reason": "Missing Instagram shortcode."}
+    fallback_url = str(fallback_url or "").strip() or f"https://www.instagram.com/p/{shortcode}/"
+
+    best: dict[str, Any] = {}
 
     # First reuse structured public metadata if Instagram exposes it.
     try:
@@ -199,14 +217,13 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
             metadata = _metadata_from_media(media)
             if metadata.get("creator") or metadata.get("audioTitle") or metadata.get("caption"):
                 metadata.update({"ok": True, "thumbnail": media.get("display_url") or media.get("thumbnail_src") or ""})
-                metadata["permalink"] = metadata.get("permalink") or fallback_url or f"https://www.instagram.com/p/{shortcode}/"
+                metadata["permalink"] = metadata.get("permalink") or fallback_url
                 return metadata
+            best = metadata
     except Exception:
         pass
 
-    # Public embeds are valuable even when Instagram strips OG metadata from
-    # the normal anonymous page. The embed's visible "A post shared by ..."
-    # and "Original audio" text is a valid generic fallback for library labels.
+    # Public embeds are valuable even when Instagram strips OG metadata from the normal anonymous page.
     try:
         from server_modules import audioflix_instagram_public
         for prefix in ("reel", "p"):
@@ -216,26 +233,47 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
                 timeout=10,
             ).decode("utf-8", errors="replace")
             metadata = _metadata_from_html(page)
-            if metadata.get("creator") or metadata.get("caption") or metadata.get("audioTitle") or metadata.get("title") != "Instagram Video":
+            if _metadata_quality(metadata) > _metadata_quality(best):
+                best = metadata
+            if _metadata_quality(metadata) >= 3:
                 metadata["ok"] = True
-                metadata["permalink"] = metadata.get("permalink") or fallback_url or f"https://www.instagram.com/{prefix}/{shortcode}/"
+                metadata["permalink"] = metadata.get("permalink") or fallback_url
                 return metadata
     except Exception:
         pass
 
-    # 3. Dynamic browser rendering attempt via EveOS browser infrastructure (Lightpanda / Camofox).
+    # The anonymous embed can be a JS shell. Render the actual post as well as the embed;
+    # hydrated Instagram pages expose creator/audio/caption text that never appears in the raw
+    # HTTP response. Keep this strictly as metadata enrichment so playback is still independent.
     try:
         from server_modules import audioflix_instagram_browser
-        for prefix in ("reel", "p"):
-            embed_url = f"https://www.instagram.com/{prefix}/{shortcode}/embed/"
-            rendered_page = audioflix_instagram_browser.render_instagram_html(embed_url)
-            if rendered_page:
-                metadata = _metadata_from_html(rendered_page)
-                if metadata.get("creator") or metadata.get("caption") or metadata.get("audioTitle") or metadata.get("title") != "Instagram Video":
-                    metadata["ok"] = True
-                    metadata["permalink"] = metadata.get("permalink") or fallback_url or f"https://www.instagram.com/{prefix}/{shortcode}/"
-                    return metadata
+        render_targets = (
+            fallback_url,
+            f"https://www.instagram.com/p/{shortcode}/",
+            f"https://www.instagram.com/reel/{shortcode}/",
+            f"https://www.instagram.com/reel/{shortcode}/embed/",
+            f"https://www.instagram.com/p/{shortcode}/embed/",
+        )
+        seen_targets: set[str] = set()
+        for target in render_targets:
+            if target in seen_targets:
+                continue
+            seen_targets.add(target)
+            rendered_page = audioflix_instagram_browser.render_instagram_html(target)
+            if not rendered_page:
+                continue
+            metadata = _metadata_from_html(rendered_page)
+            if _metadata_quality(metadata) > _metadata_quality(best):
+                best = metadata
+            if metadata.get("creator") or metadata.get("caption") or metadata.get("audioTitle") or metadata.get("title") != "Instagram Video":
+                metadata["ok"] = True
+                metadata["permalink"] = metadata.get("permalink") or fallback_url
+                return metadata
     except Exception:
         pass
 
+    if best and _metadata_quality(best) > 0:
+        best["ok"] = True
+        best["permalink"] = best.get("permalink") or fallback_url
+        return best
     return {"ok": False, "reason": "Public Instagram metadata was not available."}
