@@ -1,0 +1,10 @@
+{
+  "id": "eveos-camofox-runtime",
+  "name": "EveOS Camofox Browser",
+  "version": "1.14.0",
+  "plugins": {
+    "persistence": { "enabled": true },
+    "vnc": { "enabled": false }
+  },
+  "interactive": { "mode": "off" }
+}
