@@ -34,7 +34,13 @@ export const api = {
   clearYoutubeSession: () => request("/api/youtube/session/clear", { method: "POST", body: "{}" }),
   resolveMedia: (url) => request(`/api/media/resolve?url=${encodeURIComponent(url)}`),
   bestReference: (query, artist = "") => request(`/api/reference?q=${encodeURIComponent(query)}&artist=${encodeURIComponent(artist)}`),
-  startYoutube: (url, access = "auto", titleHint = "", quality = "rhythm_accurate", pianoLayout = "61", engine = "auto_hifi") => request("/api/youtube", { method: "POST", body: JSON.stringify({ url, access, title_hint: titleHint, quality, piano_layout: pianoLayout, engine }) }),
+  startYoutube: (url, access = "auto", titleHint = "", quality = "rhythm_accurate", pianoLayout = "61", engine = "auto_hifi") => {
+    const resolvedAccess = access === "auto" ? "anonymous" : access;
+    return request("/api/youtube", {
+      method: "POST",
+      body: JSON.stringify({ url, access: resolvedAccess, title_hint: titleHint, quality, piano_layout: pianoLayout, engine }),
+    });
+  },
   alternateSources: (query) => request(`/api/alternate-sources?q=${encodeURIComponent(query)}`),
   youtubeStatus: (job) => request(`/api/youtube/status?job=${encodeURIComponent(job)}`),
   songs: () => request("/api/songs"),
