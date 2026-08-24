@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from server_modules import audioflix_instagram
+from server_modules import audioflix_instagram_metadata
 from server_modules import audioflix_instagram_public
 
 
@@ -17,9 +18,7 @@ class InstagramMetadataTests(unittest.TestCase):
             parsed = audioflix_instagram.parse_urls(raw)
             self.assertEqual(parsed, [canonical])
             self.assertEqual(audioflix_instagram._code(parsed[0]), shortcode)
-
-        # Joint list deduplicates reels/reel alias to 3 unique canonical URLs
-        value = " ".join([raw for raw, _, _ in shapes])
+        value = " ".join(raw for raw, _, _ in shapes)
         urls = audioflix_instagram.parse_urls(value)
         self.assertEqual(len(urls), 3)
         self.assertEqual({audioflix_instagram._code(url) for url in urls}, {"DS2r6KBDNCS"})
@@ -28,14 +27,10 @@ class InstagramMetadataTests(unittest.TestCase):
         media = {
             "user": {"username": "xarzzu", "full_name": "Xarzzu"},
             "caption": {"text": "caption"},
-            "music_metadata": {
-                "music_info": {
-                    "music_asset_info": {
-                        "title": "Catalog Track",
-                        "display_artist": "Actual Artist",
-                    }
-                }
-            },
+            "music_metadata": {"music_info": {"music_asset_info": {
+                "title": "Catalog Track",
+                "display_artist": "Actual Artist",
+            }}},
         }
         metadata = audioflix_instagram_public._metadata_from_media(media)
         self.assertEqual(metadata["title"], "Catalog Track")
@@ -43,11 +38,23 @@ class InstagramMetadataTests(unittest.TestCase):
         self.assertEqual(metadata["creator"], "xarzzu")
 
     def test_original_audio_uses_creator_when_catalog_music_is_missing(self):
-        media = {
-            "user": {"username": "xarzzu", "full_name": "Xarzzu"},
-            "audio_type": "original_audio",
-        }
+        media = {"user": {"username": "xarzzu", "full_name": "Xarzzu"}, "audio_type": "original_audio"}
         metadata = audioflix_instagram_public._metadata_from_media(media)
+        self.assertEqual(metadata["title"], "Original audio — xarzzu")
+        self.assertEqual(metadata["artist"], "xarzzu")
+        self.assertEqual(metadata["audioKind"], "original_audio")
+
+    def test_embed_visible_text_provides_creator_and_original_audio_fallback(self):
+        page = """
+        <blockquote class="instagram-media">
+          <a href="https://www.instagram.com/reel/DS2r6KBDNCS/">View this post on Instagram</a>
+          <p>A post shared by Xarzzu (@xarzzu)</p>
+          <span>Original audio</span>
+        </blockquote>
+        """
+        metadata = audioflix_instagram_metadata._metadata_from_html(page)
+        self.assertEqual(metadata["creator"], "xarzzu")
+        self.assertEqual(metadata["creatorDisplayName"], "Xarzzu")
         self.assertEqual(metadata["title"], "Original audio — xarzzu")
         self.assertEqual(metadata["artist"], "xarzzu")
         self.assertEqual(metadata["audioKind"], "original_audio")
@@ -55,25 +62,19 @@ class InstagramMetadataTests(unittest.TestCase):
     def test_collaborators_are_normalized(self):
         media = {
             "user": {"username": "owner"},
-            "coauthor_producers": {
-                "edges": [
-                    {"node": {"username": "First"}},
-                    {"node": {"username": "Second"}},
-                    {"node": {"username": "First"}},
-                ]
-            },
+            "coauthor_producers": {"edges": [
+                {"node": {"username": "First"}},
+                {"node": {"username": "Second"}},
+                {"node": {"username": "First"}},
+            ]},
         }
         metadata = audioflix_instagram_public._metadata_from_media(media)
         self.assertEqual(metadata["collaborators"], ["first", "second"])
 
     def test_metadata_failure_does_not_change_playable_result(self):
-        playable = {
-            "ok": True,
-            "videoUrl": "https://cdn.example/video.mp4",
-            "title": "Instagram Video",
-        }
+        playable = {"ok": True, "videoUrl": "https://cdn.example/video.mp4", "title": "Instagram Video"}
         with patch.object(audioflix_instagram, "RESOLVER_PROVIDERS", [lambda url, shortcode: playable]):
-            with patch("server_modules.audioflix_instagram_public.resolve_metadata", side_effect=RuntimeError("metadata unavailable")):
+            with patch("server_modules.audioflix_instagram_metadata.resolve_metadata", side_effect=RuntimeError("metadata unavailable")):
                 result = audioflix_instagram.resolve_video({"url": "https://www.instagram.com/reel/ABC123/"})
         self.assertTrue(result["ok"])
         self.assertEqual(result["videoUrl"], playable["videoUrl"])
