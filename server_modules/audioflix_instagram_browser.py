@@ -1,8 +1,4 @@
-"""Browser-rendered video extraction for Instagram posts and Reels.
-
-Used by Audioflix when yt-dlp returns an empty media response for public or
-JavaScript-hydrated Instagram URLs.
-"""
+"""Browser-rendered video extraction for Instagram posts and Reels."""
 
 from __future__ import annotations
 
@@ -12,6 +8,7 @@ import logging
 import os
 import re
 import urllib.parse
+import urllib.request
 import uuid
 from pathlib import Path
 
@@ -42,7 +39,6 @@ def _is_video_url(url: str) -> bool:
 
 
 def _explicit_instagram_cookie_file() -> Path | None:
-    """Return EveOS's explicit Instagram Netscape cookie file when configured."""
     configured = os.environ.get("EVEOS_INSTAGRAM_COOKIES", "").strip()
     if configured:
         candidate = Path(configured).expanduser()
@@ -58,12 +54,6 @@ def _explicit_instagram_cookie_file() -> Path | None:
 
 
 def _instagram_cookie_entries(target_url: str) -> list[dict]:
-    """Translate the explicit Instagram Netscape cookie file for Camofox.
-
-    We deliberately do not read Chrome/Edge/Firefox cookie stores here. The only
-    credential source is the explicit EveOS Instagram cookie-file route already
-    used by yt-dlp and the webpage fallback.
-    """
     cookie_file = _explicit_instagram_cookie_file()
     if not cookie_file:
         return []
@@ -103,70 +93,120 @@ def _instagram_cookie_entries(target_url: str) -> list[dict]:
     return entries
 
 
-def _browser_cookie_payload(target_url: str, user_id: str) -> tuple[list[dict], bool]:
-    """Return browser-session cookies, preferring Camofox site config then the Instagram cookie file."""
-    from server_modules.camofox_runtime import _cookies_for_target
+def _request_json(method: str, port: int, path: str, payload: dict | None = None, timeout: int = 20) -> dict:
+    data = None
+    headers = {}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{int(port)}{path}",
+        data=data,
+        method=method.upper(),
+        headers=headers,
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        raw = response.read().decode("utf-8", errors="replace")
+        return json.loads(raw or "{}") if raw else {}
 
+
+def _browser_target() -> tuple[int, str, bool]:
+    try:
+        from server_modules import audioflix_instagram_browser_auth
+        if audioflix_instagram_browser_auth.browser_session_ready():
+            return (
+                audioflix_instagram_browser_auth.auth_port(),
+                audioflix_instagram_browser_auth.auth_user_id(),
+                True,
+            )
+    except Exception:
+        pass
+    return 9377, f"eveos-ig-{uuid.uuid4().hex[:10]}", False
+
+
+def _browser_cookie_payload(target_url: str, user_id: str) -> tuple[list[dict], bool]:
+    from server_modules.camofox_runtime import _cookies_for_target
     configured = _cookies_for_target(target_url)
     if configured:
         return configured, True
-
     imported = _instagram_cookie_entries(target_url)
     if imported:
         logger.info("Instagram: importing %d explicit cookie-file entries into Camofox session %s", len(imported), user_id)
         return imported, True
-
     return [], False
 
 
 def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
-    """Extract a direct video URL from an Instagram post via Camofox browser runtime."""
+    """Extract a direct video URL from the persistent/local EveOS browser session when connected."""
     try:
         from server_modules.camofox_server import _cleanup_session, _json_request, ensure_camofox_server
     except ImportError as err:
         return {"ok": False, "reason": f"Camofox modules not available: {err}"}
 
+    port, user_id, authenticated_browser = _browser_target()
     try:
-        ensure_camofox_server()
+        if authenticated_browser:
+            # The dedicated Instagram browser server is already running in desktop mode.
+            pass
+        else:
+            ensure_camofox_server()
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "reason": f"Camofox server unavailable: {exc}"}
 
-    user_id = f"eveos-ig-{uuid.uuid4().hex[:10]}"
     tab_id = None
-    cookies_used = False
+    cookies_used = authenticated_browser
+
+    def request(method: str, path: str, payload: dict | None = None, timeout_value: int = 20) -> dict:
+        if authenticated_browser:
+            return _request_json(method, port, path, payload=payload, timeout=timeout_value)
+        return _json_request(method, path, payload=payload, timeout=timeout_value)
 
     try:
-        created = _json_request(
-            "POST",
-            "/tabs",
-            payload={"userId": user_id, "sessionKey": "audioflix-instagram"},
-            timeout=12,
-        )
-        tab_id = str(created.get("tabId") or "").strip()
+        if authenticated_browser:
+            tab = None
+            try:
+                tabs = request("GET", f"/tabs?userId={urllib.parse.quote(user_id, safe='')}", timeout_value=10).get("tabs", [])
+                if isinstance(tabs, list):
+                    for candidate in tabs:
+                        if candidate.get("tabId"):
+                            tab = candidate
+                            break
+            except Exception:
+                tab = None
+            if tab:
+                tab_id = str(tab.get("tabId"))
+            else:
+                created = request(
+                    "POST",
+                    "/tabs",
+                    {"userId": user_id, "sessionKey": "instagram-account", "url": "https://www.instagram.com/"},
+                    timeout_value=15,
+                )
+                tab_id = str(created.get("tabId") or "").strip()
+        else:
+            created = request(
+                "POST",
+                "/tabs",
+                {"userId": user_id, "sessionKey": "audioflix-instagram"},
+                timeout_value=12,
+            )
+            tab_id = str(created.get("tabId") or "").strip()
+
         if not tab_id:
             return {"ok": False, "reason": "Camofox tab creation failed."}
 
-        cookies, cookies_used = _browser_cookie_payload(target_url, user_id)
-        if cookies:
-            encoded_user = urllib.parse.quote(user_id, safe="")
-            _json_request(
-                "POST",
-                f"/sessions/{encoded_user}/cookies",
-                payload={"cookies": cookies},
-                timeout=12,
-            )
+        if not authenticated_browser:
+            cookies, cookies_used = _browser_cookie_payload(target_url, user_id)
+            if cookies:
+                encoded_user = urllib.parse.quote(user_id, safe="")
+                request("POST", f"/sessions/{encoded_user}/cookies", {"cookies": cookies}, timeout_value=12)
 
-        _json_request(
-            "POST",
-            f"/tabs/{tab_id}/navigate",
-            payload={"userId": user_id, "url": target_url},
-            timeout=timeout,
-        )
-        _json_request(
+        request("POST", f"/tabs/{tab_id}/navigate", {"userId": user_id, "url": target_url}, timeout_value=timeout)
+        request(
             "POST",
             f"/tabs/{tab_id}/wait",
-            payload={"userId": user_id, "timeout": min(10000, timeout * 1000), "waitForNetwork": True},
-            timeout=timeout + 5,
+            {"userId": user_id, "timeout": min(10000, timeout * 1000), "waitForNetwork": True},
+            timeout_value=timeout + 5,
         )
 
         expression = r"""(() => {
@@ -181,8 +221,7 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
             }
           };
           document.querySelectorAll('video').forEach(v => {
-            add(v.currentSrc);
-            add(v.src);
+            add(v.currentSrc); add(v.src);
             v.querySelectorAll('source').forEach(s => add(s.src));
           });
           add(document.querySelector('meta[property="og:video"]')?.content);
@@ -191,16 +230,10 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
           document.querySelectorAll('script').forEach(s => {
             const txt = s.textContent || '';
             const matches = txt.match(/"(?:video_url|playable_url_quality_hd|playable_url)"\s*:\s*"([^"]+)"/g);
-            if (matches) {
-              matches.forEach(m => {
-                const marker = ':"';
-                const index = m.indexOf(marker);
-                if (index >= 0) {
-                  const cleaned = m.slice(index + marker.length, -1).replace(/\\u0026/g, '&').replace(/\\\//g, '/');
-                  add(cleaned);
-                }
-              });
-            }
+            if (matches) matches.forEach(m => {
+              const marker = ':"'; const index = m.indexOf(marker);
+              if (index >= 0) add(m.slice(index + marker.length, -1).replace(/\\u0026/g, '&').replace(/\\\//g, '/'));
+            });
           });
           return {
             title: document.title || document.querySelector('meta[property="og:title"]')?.content || 'Instagram Video',
@@ -208,16 +241,14 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
             videoUrls: urls
           };
         })()"""
-
-        eval_resp = _json_request(
+        data = (request(
             "POST",
             f"/tabs/{tab_id}/evaluate",
-            payload={"userId": user_id, "expression": expression},
-            timeout=12,
-        )
-        data = eval_resp.get("result") or {}
-        raw_urls = data.get("videoUrls") or []
-        for candidate in raw_urls:
+            {"userId": user_id, "expression": expression},
+            timeout_value=12,
+        ).get("result") or {})
+
+        for candidate in data.get("videoUrls") or []:
             candidate = _clean_url(candidate)
             if _is_video_url(candidate):
                 return {
@@ -228,14 +259,19 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
                     "source": "camofox-browser",
                     "usedCookies": cookies_used,
                 }
+
         reason = "Camofox rendered DOM did not expose a playable video URL."
         if not cookies_used:
-            reason += " No explicit Instagram/Camofox cookies were configured."
+            reason += " No connected EveOS Instagram browser session or explicit cookies were available."
         return {"ok": False, "reason": reason, "usedCookies": cookies_used}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "reason": f"Camofox extraction error: {exc}", "usedCookies": cookies_used}
     finally:
-        _cleanup_session(user_id)
+        if tab_id and not authenticated_browser:
+            try:
+                _cleanup_session(user_id)
+            except Exception:
+                pass
 
 
 def extract_lightpanda_video(target_url: str, timeout: int = 18) -> dict:
@@ -273,13 +309,7 @@ def extract_lightpanda_video(target_url: str, timeout: int = 18) -> dict:
                 title = html.unescape(title_match.group(1)).strip() if title_match else "Instagram Video"
                 thumb_match = re.search(r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']', page)
                 thumbnail = html.unescape(thumb_match.group(1)).strip() if thumb_match else ""
-                return {
-                    "ok": True,
-                    "videoUrl": candidate,
-                    "title": title,
-                    "thumbnail": thumbnail,
-                    "source": "lightpanda-browser",
-                }
+                return {"ok": True, "videoUrl": candidate, "title": title, "thumbnail": thumbnail, "source": "lightpanda-browser"}
         return {"ok": False, "reason": "Lightpanda rendered DOM did not expose a playable video URL."}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "reason": f"Lightpanda extraction error: {exc}"}
