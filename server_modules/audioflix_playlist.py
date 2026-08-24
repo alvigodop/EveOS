@@ -22,7 +22,6 @@ from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger("EveOSAudioflixPlaylist")
 
-# Live connection: a short TTL keeps repeated syncs cheap without hiding upstream edits for long.
 _CACHE_TTL_S = 120
 _MAX_CACHE = 50
 _MAX_ENTRIES = 500
@@ -41,7 +40,6 @@ def playlist_id_from_url(url: str) -> str:
     listed = parse_qs(parsed.query or "").get("list")
     if listed and listed[0].strip():
         return listed[0].strip()
-    # youtube.com/playlist/<id> style fallbacks
     parts = [p for p in (parsed.path or "").split("/") if p]
     if len(parts) >= 2 and parts[0] in {"playlist", "playlists"}:
         return parts[1]
@@ -80,30 +78,8 @@ def _safe_str(v) -> str:
     return str(v or "").encode("ascii", "backslashreplace").decode("ascii")
 
 
-def _yt_playlist_options() -> dict:
-    """Return the cookie-free yt-dlp options shared with direct YouTube resolution.
-
-    These clients are intentionally public/browser-like. They are not a guarantee that
-    every restricted YouTube playlist is accessible without credentials; they simply keep
-    public playlist imports from unnecessarily depending on exported browser cookies.
-    """
-    return {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "extract_flat": "in_playlist",
-        "playlistend": _MAX_ENTRIES,
-        "source_address": "0.0.0.0",
-        "extractor_args": {
-            "youtube": {
-                "player_client": ["web", "mweb", "android"],
-            }
-        },
-    }
-
-
 def list_playlist(url: str, force: bool = False) -> dict:
-    """Return ``{ok, playlistId, title, entries:[{sourceId,title,url,artist,duration}]}``."""
+    """Return ``{ok, playlistId, title, entries:[{sourceId,title,url,artist,duration]}``."""
     clean = str(url or "").strip()
     if not clean:
         return {"ok": False, "reason": "Missing playlist URL."}
@@ -114,11 +90,17 @@ def list_playlist(url: str, force: bool = False) -> dict:
 
     from server_modules import audioflix_ytdl
 
-    yt_dlp = audioflix_ytdl._get_yt_dlp()  # reuses the same lazy import + availability check
+    yt_dlp = audioflix_ytdl._get_yt_dlp()
     if yt_dlp is None:
         return {"ok": False, "reason": "yt-dlp is not installed on this system."}
 
-    options = _yt_playlist_options()
+    # Use the exact same anonymous/client policy as single-track Audioflix
+    # resolution. This keeps playlist import cookie-free and prevents the two
+    # paths from silently drifting when YouTube client behavior changes.
+    options = audioflix_ytdl.youtube_ydl_options(
+        playlist=True,
+        extra={"playlistend": _MAX_ENTRIES},
+    )
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(clean, download=False)
