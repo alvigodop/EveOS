@@ -8,8 +8,11 @@ Metadata enrichment is completely decoupled from media stream resolution.
 from __future__ import annotations
 
 import html
+import json
 import re
 from typing import Any
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 
 def _clean(value: str) -> str:
@@ -186,7 +189,7 @@ def _metadata_from_html(page: str) -> dict[str, Any]:
 
 
 def _metadata_quality(metadata: dict[str, Any]) -> int:
-    """Score the useful fields so a browser pass can improve an incomplete embed pass."""
+    """Score the useful fields so a later pass can improve an incomplete result."""
     if not metadata:
         return 0
     score = 0
@@ -200,6 +203,72 @@ def _metadata_quality(metadata: dict[str, Any]) -> int:
     return score
 
 
+def _oembed_metadata(post_url: str) -> dict[str, Any]:
+    """Fetch Meta's public Instagram oEmbed representation for a public post/reel."""
+    request_url = "https://graph.facebook.com/v25.0/instagram_oembed?url=" + quote(post_url, safe="") + "&maxwidth=540"
+    request = Request(
+        request_url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+            "Accept": "application/json",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.instagram.com/",
+        },
+    )
+    with urlopen(request, timeout=10) as response:
+        payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    if not isinstance(payload, dict):
+        return {}
+
+    author = str(payload.get("author_name") or "").strip()
+    author_url = str(payload.get("author_url") or "").strip()
+    title = str(payload.get("title") or "").strip()
+    thumbnail = str(payload.get("thumbnail_url") or "").strip()
+    html_blob = str(payload.get("html") or "")
+
+    parsed_embed = _metadata_from_html(html_blob) if html_blob else {}
+    creator = parsed_embed.get("creator") or ""
+    if not creator and author_url:
+        match = re.search(r"instagram\.com/([A-Za-z0-9._]+)/?$", author_url, re.IGNORECASE)
+        creator = match.group(1).lower() if match else ""
+    if not creator:
+        creator = author.lstrip("@").lower()
+
+    display_name = parsed_embed.get("creatorDisplayName") or author
+    audio_title = parsed_embed.get("audioTitle") or ""
+    audio_kind = parsed_embed.get("audioKind") or ""
+    if audio_title:
+        final_title = audio_title
+        final_artist = parsed_embed.get("artist") or creator or display_name or "Instagram"
+    elif title:
+        final_title = title
+        final_artist = creator or display_name or "Instagram"
+    elif creator:
+        final_title = display_name or creator
+        final_artist = creator
+    else:
+        final_title = "Instagram Video"
+        final_artist = "Instagram"
+
+    result = {
+        "creator": creator,
+        "creatorDisplayName": display_name,
+        "collaborators": parsed_embed.get("collaborators") or [],
+        "audioTitle": audio_title,
+        "audioArtist": parsed_embed.get("audioArtist") or (creator if audio_kind == "original_audio" else ""),
+        "audioKind": audio_kind,
+        "caption": parsed_embed.get("caption") or title,
+        "title": final_title[:180],
+        "artist": final_artist[:120],
+        "permalink": parsed_embed.get("permalink") or post_url,
+        "thumbnail": thumbnail or parsed_embed.get("thumbnail") or "",
+        "metadataSource": "instagram-oembed",
+    }
+    if _metadata_quality(result) <= 0:
+        return {}
+    return result
+
+
 def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any]:
     """Best-effort public metadata enrichment; never required for playback."""
     shortcode = str(shortcode or "").strip()
@@ -209,7 +278,6 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
 
     best: dict[str, Any] = {}
 
-    # First reuse structured public metadata if Instagram exposes it.
     try:
         from server_modules import audioflix_instagram_public
         media = audioflix_instagram_public._graphql(shortcode, "")
@@ -223,7 +291,15 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
     except Exception:
         pass
 
-    # Public embeds are valuable even when Instagram strips OG metadata from the normal anonymous page.
+    # Meta's public oEmbed surface is preferred for anonymous public-post identity.
+    try:
+        metadata = _oembed_metadata(fallback_url)
+        if metadata:
+            metadata["ok"] = True
+            return metadata
+    except Exception:
+        pass
+
     try:
         from server_modules import audioflix_instagram_public
         for prefix in ("reel", "p"):
@@ -242,9 +318,6 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
     except Exception:
         pass
 
-    # The anonymous embed can be a JS shell. Render the actual post as well as the embed;
-    # hydrated Instagram pages expose creator/audio/caption text that never appears in the raw
-    # HTTP response. Keep this strictly as metadata enrichment so playback is still independent.
     try:
         from server_modules import audioflix_instagram_browser
         render_targets = (
