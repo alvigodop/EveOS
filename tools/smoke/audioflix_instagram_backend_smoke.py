@@ -195,7 +195,83 @@ try:
             os.remove(cookie_path)
         except OSError:
             pass
+
+    os.environ["EVEOS_INSTAGRAM_COOKIES_BROWSER"] = "edge:Default"
+    options = INSTAGRAM._ydl_options()
+    check(options.get("cookiesfrombrowser") == ("edge", "Default", None, None), "browser cookie configuration is translated correctly")
 finally:
+    os.environ.pop("EVEOS_INSTAGRAM_COOKIES", None)
+    os.environ.pop("EVEOS_INSTAGRAM_COOKIES_BROWSER", None)
     YTDL._get_yt_dlp = original_get_ytdlp
 
-print("Audioflix Instagram backend smoke: PASS")
+
+tmp = Path(tempfile.mkdtemp(prefix="eveos_reel_video_"))
+download_calls = []
+original_local_get = LOCALIZE._get_yt_dlp
+original_download = LOCALIZE._download
+
+
+def fake_download(_yt_dlp, _url, outtmpl, want_mp3, media_format):
+    download_calls.append((want_mp3, media_format))
+    path = Path(outtmpl.replace(".%(ext)s", ".mp4"))
+    path.write_bytes(b"fake-mp4")
+    return {"filepath": str(path), "duration": 12}
+
+
+LOCALIZE._get_yt_dlp = lambda: object()
+LOCALIZE._download = fake_download
+try:
+    localized = LOCALIZE.localize_one({
+        "track": {"id": "reel", "title": "Saved Reel", "url": urls[0]},
+        "targetDir": str(tmp),
+        "mediaFormat": "video",
+    })
+    check(localized.get("ok") and localized.get("ext") == "mp4", "Reels can localize as MP4")
+    check(localized.get("mediaFormat") == "video", "localization reports the requested media format")
+    check(download_calls == [(False, "video")], "video localization uses one merge attempt and never enters MP3 fallback")
+finally:
+    LOCALIZE._get_yt_dlp = original_local_get
+    LOCALIZE._download = original_download
+
+
+bridge_source = Path(ROOT, "server_modules", "audioflix_bridge.py").read_text(encoding="utf-8")
+check("/api/audioflix/instagram-collection" in bridge_source, "bridge registers Instagram collection metadata")
+check("/api/audioflix/instagram-video" in bridge_source, "bridge registers direct Instagram video")
+
+
+# Verify the user-initiated browser session connector stores only Instagram cookies.
+from server_modules import audioflix_instagram_session as INSTAGRAM_SESSION
+
+with tempfile.TemporaryDirectory(prefix="eveos_ig_session_") as session_root:
+    original_appdata = os.environ.get("LOCALAPPDATA")
+    original_cookie_config = os.environ.get("EVEOS_CAMOFOX_COOKIE_CONFIG")
+    try:
+        os.environ["EVEOS_CAMOFOX_COOKIE_CONFIG"] = str(Path(session_root) / "camofox-site-cookies.json")
+        imported = INSTAGRAM_SESSION.import_cookies({
+            "cookies": [
+                {"name": "sessionid", "value": "fake-session", "domain": ".instagram.com", "path": "/", "secure": True, "httpOnly": True},
+                {"name": "csrftoken", "value": "fake-csrf", "domain": "www.instagram.com", "path": "/", "secure": True},
+                {"name": "not-instagram", "value": "drop-me", "domain": ".example.com", "path": "/"},
+            ]
+        })
+        check(imported.get("ok") and imported.get("cookieCount") == 2, "browser session import accepts only Instagram cookies")
+        session_status = INSTAGRAM_SESSION.status()
+        check(session_status.get("connected") and session_status.get("cookieCount") == 2, "browser session status reports connected")
+        config = json.loads(Path(session_status["configPath"]).read_text(encoding="utf-8"))
+        check(len(config["cookies"]["instagram.com"]) == 2, "session store contains only Instagram cookies")
+        netscape_file = INSTAGRAM_SESSION._netscape_path()
+        check(netscape_file.is_file(), "Netscape cookie file is created for yt-dlp compatibility")
+        cleared = INSTAGRAM_SESSION.clear()
+        check(cleared.get("ok") and not INSTAGRAM_SESSION.status().get("connected"), "browser session can be cleared")
+        check(not netscape_file.is_file(), "Netscape cookie file is cleaned up on session clear")
+    finally:
+        if original_cookie_config is None:
+            os.environ.pop("EVEOS_CAMOFOX_COOKIE_CONFIG", None)
+        else:
+            os.environ["EVEOS_CAMOFOX_COOKIE_CONFIG"] = original_cookie_config
+        if original_appdata is None:
+            os.environ.pop("LOCALAPPDATA", None)
+        else:
+            os.environ["LOCALAPPDATA"] = original_appdata
+
+print("AUDIOFLIX_INSTAGRAM_BACKEND_SMOKE_OK")
