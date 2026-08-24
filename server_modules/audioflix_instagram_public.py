@@ -66,8 +66,10 @@ def _new_session():
 
 def _request(url: str, *, method: str = "GET", body: bytes | None = None, headers: dict[str, str] | None = None, timeout: int = 12, opener=None) -> bytes:
     request = Request(url, data=body, headers=headers or _headers(), method=method)
-    client = opener or __import__("urllib.request", fromlist=["urlopen"]).urlopen
-    with client(request, timeout=timeout) as response:
+    if opener is not None:
+        with opener.open(request, timeout=timeout) as response:
+            return response.read()
+    with __import__("urllib.request", fromlist=["urlopen"]).urlopen(request, timeout=timeout) as response:
         return response.read()
 
 
