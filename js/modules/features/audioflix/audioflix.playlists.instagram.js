@@ -83,30 +83,52 @@ window.EveAudioflixInstagramPlaylists = window.EveAudioflixInstagramPlaylists ||
         };
     }
 
-    // "Instagram Reel 7" is what BOTH sides produce when they have no real name: the client-side
-    // import numbers them, and the backend falls back to the same shape. Letting that through a
-    // patch would let a refresh overwrite a genuine name -- or one the user typed -- with a
-    // placeholder, so it is filtered out rather than trusted.
-    const PLACEHOLDER_TITLE = /^instagram\s+reel\s*\d*$/i;
+    const PLACEHOLDER_TITLE = /^instagram\s+(?:reel|video)\s*\d*$/i;
+    const PLACEHOLDER_ARTIST = /^instagram$/i;
 
     function realTitle(value) {
         const title = text(value);
         return title && !PLACEHOLDER_TITLE.test(title) ? title : '';
     }
 
+    function metadataTitle(entry) {
+        const direct = realTitle(entry?.title);
+        if (direct) return direct;
+        const audio = realTitle(entry?.audioTitle);
+        if (audio) return audio;
+        const owner = text(entry?.creator || entry?.creatorDisplayName);
+        if (String(entry?.audioKind || '').toLowerCase() === 'original_audio' && owner) {
+            return `Original audio — ${owner}`;
+        }
+        return owner ? `${owner} — Instagram Reel` : '';
+    }
+
+    function metadataArtist(entry) {
+        const direct = text(entry?.artist);
+        if (direct && !PLACEHOLDER_ARTIST.test(direct)) return direct;
+        return text(entry?.audioArtist || entry?.creator || entry?.creatorDisplayName);
+    }
+
     function entryPatch(entry) {
-        // title was missing here entirely, which is why "Refresh metadata" never renamed anything:
-        // the backend resolved real titles and the reconcile threw them away.
-        const title = realTitle(entry?.title);
+        const title = metadataTitle(entry);
+        const artist = metadataArtist(entry);
         return {
             ...(title ? { title } : {}),
-            artist: text(entry?.artist || entry?.uploader || entry?.author),
+            ...(artist ? { artist } : {}),
             album: text(entry?.album),
             image: text(entry?.image || entry?.thumbnail),
             duration: Number(entry?.duration || 0) || 0,
             sourceId: text(entry?.sourceId || entry?.id),
             sourceProvider: 'instagram',
-            playlistPosition: Number(entry?.position || 0) || 0
+            playlistPosition: Number(entry?.position || 0) || 0,
+            creator: text(entry?.creator),
+            creatorDisplayName: text(entry?.creatorDisplayName),
+            collaborators: Array.isArray(entry?.collaborators) ? entry.collaborators : [],
+            audioTitle: text(entry?.audioTitle),
+            audioArtist: text(entry?.audioArtist),
+            audioKind: text(entry?.audioKind),
+            caption: text(entry?.caption),
+            permalink: text(entry?.permalink)
         };
     }
 
