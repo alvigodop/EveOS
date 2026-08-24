@@ -4,12 +4,14 @@ The primary path is yt-dlp. When Instagram's extractor returns an empty-media
 response, EveOS uses Instagram's public GraphQL/embed/page representations.
 No Instagram account, browser cookies, cookie export, or API key is required
 for public media. Browser rendering remains a final fallback only.
+
+Media resolution and public metadata enrichment are deliberately independent:
+metadata is best-effort and can never make a playable video fail.
 """
 
 from __future__ import annotations
 
 import html
-import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -146,6 +148,27 @@ def _display_title(info: dict, position: int) -> str:
     return clean[:180] or f"Instagram Video {position}"
 
 
+def _merge_metadata(entry: dict, url: str) -> dict:
+    """Enrich an already-resolved entry without changing media-resolution semantics."""
+    try:
+        from server_modules import audioflix_instagram_public
+        metadata = audioflix_instagram_public.resolve_metadata(_code(url), fallback_url=url)
+        if not metadata.get("ok"):
+            return entry
+        for key in ("creator", "creatorDisplayName", "collaborators", "audioTitle", "audioArtist", "audioKind", "caption", "permalink"):
+            if metadata.get(key):
+                entry[key] = metadata[key]
+        if metadata.get("thumbnail") and not entry.get("image"):
+            entry["image"] = metadata["thumbnail"]
+        if metadata.get("title") and entry.get("title", "").startswith("Instagram Video"):
+            entry["title"] = metadata["title"][:180]
+        if metadata.get("artist") and entry.get("artist") in (None, "", "Instagram"):
+            entry["artist"] = metadata["artist"][:120]
+    except Exception:
+        pass
+    return entry
+
+
 def _extract_one(pair) -> dict:
     position, url = pair
     from server_modules import audioflix_ytdl
@@ -159,7 +182,7 @@ def _extract_one(pair) -> dict:
             info = None
 
     if info and (info.get("title") or info.get("description") or info.get("uploader")):
-        return {
+        entry = {
             "sourceId": _code(url),
             "title": _display_title(info, position),
             "artist": info.get("uploader") or info.get("channel") or "",
@@ -170,15 +193,15 @@ def _extract_one(pair) -> dict:
             "position": position,
             "sourceProvider": "instagram",
         }
+        return _merge_metadata(entry, url)
 
     try:
         from server_modules import audioflix_instagram_public
         public_res = audioflix_instagram_public.resolve_public(_code(url))
         if public_res.get("ok"):
-            title = public_res.get("title") or f"Instagram Video {position}"
-            return {
+            entry = {
                 "sourceId": _code(url),
-                "title": title[:180] or f"Instagram Video {position}",
+                "title": public_res.get("title") or f"Instagram Video {position}",
                 "artist": public_res.get("artist") or "Instagram",
                 "album": "",
                 "url": url,
@@ -186,11 +209,20 @@ def _extract_one(pair) -> dict:
                 "duration": public_res.get("duration") or 0,
                 "position": position,
                 "sourceProvider": "instagram",
+                "creator": public_res.get("creator") or "",
+                "creatorDisplayName": public_res.get("creatorDisplayName") or "",
+                "collaborators": public_res.get("collaborators") or [],
+                "audioTitle": public_res.get("audioTitle") or "",
+                "audioArtist": public_res.get("audioArtist") or "",
+                "audioKind": public_res.get("audioKind") or "",
+                "caption": public_res.get("caption") or "",
+                "permalink": public_res.get("permalink") or url,
             }
+            return entry
     except Exception:
         pass
 
-    return _fallback(url, position, "yt-dlp empty response, public fallback available")
+    return _merge_metadata(_fallback(url, position, "yt-dlp empty response, public fallback available"), url)
 
 
 def list_collection(payload: dict) -> dict:
@@ -327,6 +359,22 @@ def resolve_video(payload: dict) -> dict:
         try:
             result = provider(target_url, shortcode)
             if result and result.get("ok"):
+                # Enrichment is deliberately after provider success. If every
+                # public metadata endpoint fails, the already-playable result
+                # is returned unchanged.
+                try:
+                    from server_modules import audioflix_instagram_public
+                    metadata = audioflix_instagram_public.resolve_metadata(shortcode, fallback_url=target_url)
+                    if metadata.get("ok"):
+                        for key in ("creator", "creatorDisplayName", "collaborators", "audioTitle", "audioArtist", "audioKind", "caption", "permalink", "artist"):
+                            if metadata.get(key):
+                                result[key] = metadata[key]
+                        if metadata.get("title") and str(result.get("title") or "").startswith("Instagram Video"):
+                            result["title"] = metadata["title"]
+                        if metadata.get("thumbnail") and not result.get("thumbnail"):
+                            result["thumbnail"] = metadata["thumbnail"]
+                except Exception:
+                    pass
                 return result
         except Exception:
             continue
