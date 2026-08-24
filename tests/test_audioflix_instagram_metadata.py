@@ -107,12 +107,18 @@ class InstagramMetadataTests(unittest.TestCase):
             "creator": "xarzzu",
             "audioKind": "original_audio",
         }
-        with patch("server_modules.audioflix_ytdl._get_yt_dlp", return_value=object()):
-            with patch("server_modules.audioflix_instagram.audioflix_ytdl.YoutubeDL") as youtube_dl:
-                youtube_dl.return_value.__enter__.return_value.extract_info.side_effect = RuntimeError("empty media")
-                with patch("server_modules.audioflix_instagram_public.resolve_public", return_value=public_result):
-                    with patch("server_modules.audioflix_instagram_metadata.resolve_metadata", return_value=metadata):
-                        result = audioflix_instagram.list_collection({"source": "https://www.instagram.com/p/DS2r6KBDNCS/"})
+        class FailingYtDlp:
+            class YoutubeDL:
+                def __init__(self, *args, **kwargs): pass
+                def __enter__(self): return self
+                def __exit__(self, *args): return False
+                def extract_info(self, *args, **kwargs):
+                    raise RuntimeError("empty media response")
+
+        with patch("server_modules.audioflix_ytdl._get_yt_dlp", return_value=FailingYtDlp):
+            with patch("server_modules.audioflix_instagram_public.resolve_public", return_value=public_result):
+                with patch("server_modules.audioflix_instagram_metadata.resolve_metadata", return_value=metadata):
+                    result = audioflix_instagram.list_collection({"source": "https://www.instagram.com/p/DS2r6KBDNCS/"})
 
         self.assertTrue(result["ok"])
         entry = result["entries"][0]
