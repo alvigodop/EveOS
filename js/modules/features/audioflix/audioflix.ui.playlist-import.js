@@ -12,31 +12,23 @@ window.EveAudioflixPlaylistImportUi = window.EveAudioflixPlaylistImportUi || {};
 
     function render({ mode = 'youtube', esc, values = {}, state = {} }) {
         const selector = modeSelector(mode);
-
         if (mode === 'wpl') {
             const urlValue = esc(values.wplUrl || '');
             return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="wpl">${selector}<label class="audioflix-wide-field"><span>WPL Playlist File Path or Browse</span><div class="audioflix-inline-field"><input name="url" required placeholder="C:\\path\\to\\playlist.wpl" value="${urlValue}"><button type="button" class="audioflix-add-toggle" data-af-action="trigger-wpl-file-picker" title="Select .wpl file from your computer">Browse File</button></div></label><label><span>Target Folder</span><input name="folder" placeholder="WPL Playlists"></label><button type="submit" data-af-action="submit-form">Import WPL Playlist</button></form>`;
         }
-
         if (mode === 'spotify') {
             const urlValue = esc(values.spotifyUrl || '');
             const folderValue = esc(values.spotifyFolder || '');
             const status = esc(values.spotifyStatus || '');
             return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="spotify">${selector}<label class="audioflix-wide-field"><span>Spotify playlist URL, embed URL, or iframe snippet</span><textarea name="url" rows="3" required placeholder="https://open.spotify.com/playlist/...">${urlValue}</textarea></label><label><span>Audioflix Folder</span><input name="folder" value="${folderValue}" placeholder="Spotify Playlists"></label><button type="submit" data-af-action="submit-form">Import Spotify Playlist</button><button type="button" data-af-action="spotify-session-import">Open Saved Session</button><small class="audioflix-wide-field">Private playlists use a separate saved EveOS Edge profile. Sign in there once; it does not share the login from your normal Edge window. Extraction needs a running local EveOS server.</small>${status ? `<output class="audioflix-import-status">${status}</output>` : ''}</form>`;
         }
-
         if (mode === 'instagram') {
             const urlValue = esc(values.instagramUrl || '');
             const groupValue = esc(values.instagramGroup || '');
-            const folderValue = esc(values.instagramFolder || 'IG Reel Playlists');
+            const folderValue = esc(values.instagramFolder || 'IG Video Playlists');
             const status = esc(values.instagramStatus || '');
-            const isConn = Boolean(values.instagramSessionConnected);
-            const sessionBadge = isConn
-                ? `<div class="audioflix-session-badge is-connected"><span>✓ Instagram browser connected</span><div class="audioflix-session-actions"><button type="button" class="audioflix-btn-small" data-af-action="instagram-session-check">Check</button><button type="button" class="audioflix-btn-small" data-af-action="instagram-session-disconnect">Disconnect</button></div></div>`
-                : `<div class="audioflix-session-badge"><span>Instagram browser not connected</span><div class="audioflix-session-actions"><button type="button" class="audioflix-btn-small" data-af-action="instagram-session-connect-guide">Connect Account</button><button type="button" class="audioflix-btn-small" data-af-action="instagram-session-check">Check</button></div></div>`;
-            return `<form class="audioflix-form audioflix-instagram-import" data-af-form="import-playlist" data-af-mode="instagram">${selector}${sessionBadge}<label class="audioflix-wide-field"><span>Instagram video URLs or text collection</span><textarea name="url" rows="6" required placeholder="Paste one Instagram video URL per line">${urlValue}</textarea><small>Reel, post, and TV links are accepted. Connect Account opens an EveOS browser where you can sign in once; no browser extension or cookie export is required.</small></label><button type="button" data-af-action="instagram-collection-file">Choose .txt collection</button><label><span>Group title</span><input name="group" value="${groupValue}" required placeholder="Instagram Videos"></label><label><span>Audioflix Folder</span><input name="folder" value="${folderValue}" placeholder="IG Video Playlists"></label><button type="submit" data-af-action="submit-form">Import Video Collection</button>${status ? `<output class="audioflix-import-status">${status}</output>` : ''}</form>`;
+            return `<form class="audioflix-form audioflix-instagram-import" data-af-form="import-playlist" data-af-mode="instagram">${selector}<label class="audioflix-wide-field"><span>Instagram video URLs or text collection</span><textarea name="url" rows="6" required placeholder="Paste one Instagram video URL per line">${urlValue}</textarea><small>Public Reel, post, and TV video links are supported. EveOS tries its public Instagram resolver first; no Instagram login, cookie export, or browser extension is required.</small></label><button type="button" data-af-action="instagram-collection-file">Choose .txt collection</button><label><span>Group title</span><input name="group" value="${groupValue}" required placeholder="Instagram Videos"></label><label><span>Audioflix Folder</span><input name="folder" value="${folderValue}" placeholder="IG Video Playlists"></label><button type="submit" data-af-action="submit-form">Import Video Collection</button>${status ? `<output class="audioflix-import-status">${status}</output>` : ''}</form>`;
         }
-
         const count = (state.musicPlaylists || []).filter((entry) => entry.provider !== 'wpl').length;
         const syncAll = count ? '<button type="button" class="audioflix-add-toggle" data-af-action="sync-all-playlists" title="Re-read all upstream playlists">Sync All Playlists</button>' : '';
         return `<form class="audioflix-form" data-af-form="import-playlist" data-af-mode="youtube">${selector}<label class="audioflix-wide-field"><span>Playlist URL</span><input name="url" required placeholder="https://youtube.com/playlist?list=..."></label><label><span>Target Folder</span><input name="folder" placeholder="Youtube Playlists"></label><button type="submit" data-af-action="submit-form">Import Playlist</button>${syncAll}</form>`;
