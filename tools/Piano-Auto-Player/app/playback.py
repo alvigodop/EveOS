@@ -144,8 +144,10 @@ class PlaybackController:
             return False
         if not self._target_hwnd:
             return False
-        if self._focus_guard is not None:
-            return True
+        # The FocusGuard owns session-level pause/resume, but it must never be
+        # the final authority for generated input. Re-check the real foreground
+        # HWND immediately before every foreground-mode stroke to close the
+        # asynchronous watcher race window.
         if is_foreground(self._target_hwnd):
             return True
         self._on_target_lost()
