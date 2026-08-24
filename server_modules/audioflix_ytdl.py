@@ -1,12 +1,13 @@
 """yt-dlp backed URL → direct-audio-stream resolver for Audioflix.
 
-Exposes a single function ``resolve(url)`` that returns a dict with the best
+Exposes a single function ``resolve(url)`` that returns the best
 audio-only stream URL for a given video/audio platform link (YouTube, SoundCloud,
-Bandcamp, etc.). Results are cached in-memory with a 4-hour TTL since YouTube
-stream URLs typically expire after ~6 hours.
+Bandcamp, etc.). Results are cached in-memory with a 15-minute TTL since direct
+YouTube stream URLs are temporary.
 
 The module is designed to be imported lazily so yt-dlp is only loaded when the
-first resolve request arrives.
+first resolve request arrives.  Playlist enumeration reuses the same extractor
+policy so anonymous/client selection is defined in one place.
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ import logging
 import threading
 import time
 from http import HTTPStatus
-from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger("EveOSAudioflixYTDL")
 
@@ -54,6 +54,40 @@ def _version_tuple(value: str):
     while len(parts) < 3:
         parts.append(0)
     return tuple(parts)
+
+
+def youtube_ydl_options(*, playlist: bool = False, extra: dict | None = None) -> dict:
+    """Return the shared anonymous yt-dlp policy used by Audioflix.
+
+    This is deliberately cookie-free.  Individual callers can add task-specific
+    options without changing the platform/client policy.  Keeping the policy here
+    prevents single-track resolution and playlist enumeration from drifting apart
+    when YouTube changes which anonymous client works best.
+    """
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "skip_download": True,
+        "source_address": "0.0.0.0",
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web", "mweb", "android"],
+            },
+        },
+    }
+    if playlist:
+        options.update({
+            "extract_flat": "in_playlist",
+            "playlistend": 500,
+        })
+    else:
+        options.update({
+            "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+            "noplaylist": True,
+        })
+    if extra:
+        options.update(extra)
+    return options
 
 
 _yt_dlp = None
@@ -100,18 +134,8 @@ def resolve(url: str, force: bool = False) -> dict:
     if yt_dlp is None:
         return {"ok": False, "reason": "yt-dlp is not installed on this system."}
 
-    ydl_opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "skip_download": True,
-        "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
-        "noplaylist": True,
-        "source_address": "0.0.0.0",
-        "extractor_args": {"youtube": {"player_client": ["web", "mweb", "android"]}},
-    }
-
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(youtube_ydl_options()) as ydl:
             info = ydl.extract_info(url, download=False)
             if info is None:
                 return {"ok": False, "reason": "yt-dlp returned no info for this URL."}
