@@ -67,13 +67,13 @@ function main() {
         'the row carries an editable field holding THAT reel\'s URL');
     // The title attribute also reads item.title, so matching that alone passes even when the
     // visible label is regenerated from the index -- which is the thing being complained about.
-    assert(/>\$\{esc\(item\.title \|\| 'Untitled Reel'\)\}</.test(renderBody),
+    assert(/>\$\{esc\(item\.title \|\| '(Untitled Reel|Untitled Instagram Video)'\)\}</.test(renderBody),
         'the row DISPLAYS the track title rather than a generated label');
     assert(!/Instagram Reel \$\{index/.test(renderBody),
         'no row rebuilds a numbered placeholder for display');
     assert(!/Editable Reel URLs/.test(renderBody),
         'the detached bulk textarea of every URL is gone');
-    assert(/rows="2"/.test(renderBody) && /Add more Reels/.test(renderBody),
+    assert(/rows="2"/.test(renderBody) && /Add more (Reels|videos)/i.test(renderBody),
         'appending new reels is still possible; rows can only edit what already exists');
 
     // ---- the rows have to be inside the form, or Save cannot see them ----

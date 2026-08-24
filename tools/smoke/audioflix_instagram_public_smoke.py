@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+
+ROOT = str(Path(__file__).resolve().parents[2])
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from server_modules import audioflix_instagram_public as public
 
