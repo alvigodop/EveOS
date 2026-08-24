@@ -269,6 +269,60 @@ def _oembed_metadata(post_url: str) -> dict[str, Any]:
     return result
 
 
+def _render_authenticated_instagram_html(target_url: str, timeout: int = 20) -> str:
+    """Render an Instagram page inside the persistent EveOS login session.
+
+    The normal browser renderer intentionally prefers anonymous rendering for media,
+    but metadata for age/profile-gated posts may only exist in the user's connected
+    Instagram session. This path is only used when that persistent session is ready.
+    """
+    try:
+        from server_modules import audioflix_instagram_browser
+        port, user_id, authenticated = audioflix_instagram_browser._browser_target()
+        if not authenticated:
+            return ""
+        request = audioflix_instagram_browser._request_json
+        tabs = request("GET", f"/tabs?userId={quote(user_id, safe='')}", timeout=10).get("tabs", [])
+        tab_id = ""
+        if isinstance(tabs, list):
+            for tab in tabs:
+                candidate = str(tab.get("tabId") or "").strip() if isinstance(tab, dict) else ""
+                if candidate:
+                    tab_id = candidate
+                    break
+        if not tab_id:
+            created = request(
+                "POST",
+                "/tabs",
+                {"userId": user_id, "sessionKey": "audioflix-metadata", "url": "https://www.instagram.com/"},
+                timeout=15,
+            )
+            tab_id = str(created.get("tabId") or "").strip()
+        if not tab_id:
+            return ""
+        request(
+            "POST",
+            f"/tabs/{quote(tab_id, safe='')}/navigate",
+            {"userId": user_id, "url": target_url},
+            timeout=timeout,
+        )
+        request(
+            "POST",
+            f"/tabs/{quote(tab_id, safe='')}/wait",
+            {"userId": user_id, "timeout": min(12000, timeout * 1000), "waitForNetwork": True},
+            timeout=timeout + 5,
+        )
+        result = request(
+            "POST",
+            f"/tabs/{quote(tab_id, safe='')}/evaluate",
+            {"userId": user_id, "expression": "document.documentElement.outerHTML"},
+            timeout=12,
+        )
+        return str(result.get("result") or "")
+    except Exception:
+        return ""
+
+
 def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any]:
     """Best-effort public metadata enrichment; never required for playback."""
     shortcode = str(shortcode or "").strip()
@@ -288,6 +342,31 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
                 metadata["permalink"] = metadata.get("permalink") or fallback_url
                 return metadata
             best = metadata
+    except Exception:
+        pass
+
+    # Prefer the user's persistent EveOS Instagram browser session before
+    # anonymous surfaces. This is the only path capable of seeing metadata that
+    # Instagram hides behind an account/age gate for logged-out clients.
+    try:
+        authenticated_targets = (
+            f"https://www.instagram.com/p/{shortcode}/",
+            f"https://www.instagram.com/reel/{shortcode}/",
+            f"https://www.instagram.com/p/{shortcode}/embed/",
+            f"https://www.instagram.com/reel/{shortcode}/embed/",
+        )
+        for target in authenticated_targets:
+            rendered_page = _render_authenticated_instagram_html(target)
+            if not rendered_page:
+                continue
+            metadata = _metadata_from_html(rendered_page)
+            if _metadata_quality(metadata) > _metadata_quality(best):
+                best = metadata
+            if metadata.get("creator") or metadata.get("caption") or metadata.get("audioTitle") or metadata.get("title") != "Instagram Video":
+                metadata["ok"] = True
+                metadata["metadataSource"] = "instagram-authenticated-browser"
+                metadata["permalink"] = metadata.get("permalink") or fallback_url
+                return metadata
     except Exception:
         pass
 
