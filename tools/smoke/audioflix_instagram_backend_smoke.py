@@ -10,6 +10,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from server_modules import audioflix_instagram as INSTAGRAM
+from server_modules import audioflix_instagram_browser as INSTAGRAM_BROWSER
 from server_modules import audioflix_localize as LOCALIZE
 from server_modules import audioflix_ytdl as YTDL
 
@@ -77,8 +78,6 @@ try:
     check(video.get("videoUrl") == "https://cdn.example/combined.mp4", "direct video chooses one progressive MP4 with audio")
     check(video.get("height") == 720 and video.get("duration") == 19, "selected stream metadata is returned")
 
-    # Verify a /p/ video post can use the page-metadata fallback when yt-dlp itself
-    # reports no playable media.
     class FailingYoutubeDL(FakeYoutubeDL):
         def extract_info(self, url, download=False):
             raise RuntimeError("Instagram sent an empty media response")
@@ -103,13 +102,10 @@ try:
             )
 
     # Verify resolver fallback ladder: yt-dlp -> Camofox -> Lightpanda -> Webpage metadata
-    from server_modules import audioflix_instagram_browser
-
-    # 1. yt-dlp fails -> Camofox succeeds
-    original_camofox = audioflix_instagram_browser.extract_camofox_video
-    original_lightpanda = audioflix_instagram_browser.extract_lightpanda_video
+    original_camofox = INSTAGRAM_BROWSER.extract_camofox_video
+    original_lightpanda = INSTAGRAM_BROWSER.extract_lightpanda_video
     YTDL._get_yt_dlp = lambda: FailingYtDlp
-    audioflix_instagram_browser.extract_camofox_video = lambda _url: {
+    INSTAGRAM_BROWSER.extract_camofox_video = lambda _url: {
         "ok": True,
         "videoUrl": "https://cdn.example/camofox-video.mp4",
         "title": "Camofox Hydrated Video",
@@ -122,11 +118,10 @@ try:
         check(cf_res.get("videoUrl") == "https://cdn.example/camofox-video.mp4", "Camofox video URL returned")
         check(cf_res.get("source") == "camofox-browser", "Camofox source identified")
     finally:
-        audioflix_instagram_browser.extract_camofox_video = original_camofox
+        INSTAGRAM_BROWSER.extract_camofox_video = original_camofox
 
-    # 2. yt-dlp fails -> Camofox fails -> Lightpanda succeeds
-    audioflix_instagram_browser.extract_camofox_video = lambda _url: {"ok": False, "reason": "No video"}
-    audioflix_instagram_browser.extract_lightpanda_video = lambda _url: {
+    INSTAGRAM_BROWSER.extract_camofox_video = lambda _url: {"ok": False, "reason": "No video"}
+    INSTAGRAM_BROWSER.extract_lightpanda_video = lambda _url: {
         "ok": True,
         "videoUrl": "https://cdn.example/lightpanda-video.mp4",
         "title": "Lightpanda Rendered Video",
@@ -139,12 +134,11 @@ try:
         check(lp_res.get("videoUrl") == "https://cdn.example/lightpanda-video.mp4", "Lightpanda video URL returned")
         check(lp_res.get("source") == "lightpanda-browser", "Lightpanda source identified")
     finally:
-        audioflix_instagram_browser.extract_camofox_video = original_camofox
-        audioflix_instagram_browser.extract_lightpanda_video = original_lightpanda
+        INSTAGRAM_BROWSER.extract_camofox_video = original_camofox
+        INSTAGRAM_BROWSER.extract_lightpanda_video = original_lightpanda
 
-    # 3. yt-dlp fails -> Camofox fails -> Lightpanda fails -> Webpage metadata succeeds
-    audioflix_instagram_browser.extract_camofox_video = lambda _url: {"ok": False, "reason": "No video"}
-    audioflix_instagram_browser.extract_lightpanda_video = lambda _url: {"ok": False, "reason": "No video"}
+    INSTAGRAM_BROWSER.extract_camofox_video = lambda _url: {"ok": False, "reason": "No video"}
+    INSTAGRAM_BROWSER.extract_lightpanda_video = lambda _url: {"ok": False, "reason": "No video"}
     original_urlopen = INSTAGRAM.urlopen
     INSTAGRAM.urlopen = lambda *_args, **_kwargs: FakeResponse()
     try:
@@ -155,19 +149,31 @@ try:
         check(post_video.get("title") == "Instagram Post Video", "post fallback retains og:title")
     finally:
         INSTAGRAM.urlopen = original_urlopen
-        audioflix_instagram_browser.extract_camofox_video = original_camofox
-        audioflix_instagram_browser.extract_lightpanda_video = original_lightpanda
+        INSTAGRAM_BROWSER.extract_camofox_video = original_camofox
+        INSTAGRAM_BROWSER.extract_lightpanda_video = original_lightpanda
         YTDL._get_yt_dlp = lambda: FakeYtDlp
 
-    # Authentication option contract: explicit browser-cookie configuration is translated
-    # to yt-dlp only when requested, so EveOS never silently reads browser credentials.
-    with tempfile.NamedTemporaryFile(suffix=".txt") as handle:
-        os.environ["EVEOS_INSTAGRAM_COOKIES"] = handle.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False, encoding="utf-8") as handle:
+        cookie_path = handle.name
+        handle.write("# Netscape HTTP Cookie File\n")
+        handle.write(".instagram.com\tTRUE\t/\tTRUE\t2147483647\tcsrftoken\tfake-csrf\n")
+        handle.write(".instagram.com\tTRUE\t/\tTRUE\t2147483647\tsessionid\tfake-session\n")
+    try:
+        os.environ["EVEOS_INSTAGRAM_COOKIES"] = cookie_path
         os.environ.pop("EVEOS_INSTAGRAM_COOKIES_BROWSER", None)
         options = INSTAGRAM._ydl_options()
-        check(options.get("cookiefile") == handle.name, "explicit Instagram cookie file is honored")
+        check(options.get("cookiefile") == cookie_path, "explicit Instagram cookie file is honored by yt-dlp")
+        imported = INSTAGRAM_BROWSER._instagram_cookie_entries("https://www.instagram.com/p/DS2r6KBDNCS/")
+        check(len(imported) == 2, "explicit Instagram cookie file imports into Camofox")
+        check(imported[1].get("name") == "sessionid" and imported[1].get("value") == "fake-session", "Camofox receives cookie name/value")
+    finally:
+        os.environ.pop("EVEOS_INSTAGRAM_COOKIES", None)
+        os.environ.pop("EVEOS_INSTAGRAM_COOKIES_BROWSER", None)
+        try:
+            os.remove(cookie_path)
+        except OSError:
+            pass
 
-    os.environ.pop("EVEOS_INSTAGRAM_COOKIES", None)
     os.environ["EVEOS_INSTAGRAM_COOKIES_BROWSER"] = "edge:Default"
     options = INSTAGRAM._ydl_options()
     check(options.get("cookiesfrombrowser") == ("edge", "Default", None, None), "browser cookie configuration is translated correctly")
