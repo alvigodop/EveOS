@@ -82,6 +82,100 @@ def _extract_candidates(body: str) -> list[str]:
     return candidates
 
 
+def _music_metadata_from_page(page: str) -> dict:
+    """Extract public Instagram music attribution from embedded page JSON.
+
+    Instagram commonly exposes this object as clips_music_attribution_info.
+    Field names have changed over time, so the parser accepts several public
+    aliases and never treats missing metadata as a resolver failure.
+    """
+    if not page:
+        return {}
+    object_patterns = (
+        r'"clips_music_attribution_info"\s*:\s*(\{.*?\})\s*(?:,|})',
+        r'"music_metadata"\s*:\s*(\{.*?\})\s*(?:,|})',
+        r'"audio_metadata"\s*:\s*(\{.*?\})\s*(?:,|})',
+    )
+    objects = []
+    for pattern in object_patterns:
+        objects.extend(re.findall(pattern, page, flags=re.DOTALL))
+
+    for raw in objects:
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        artist = str(
+            payload.get("artist_name")
+            or payload.get("artist")
+            or payload.get("artistName")
+            or payload.get("audio_artist")
+            or ""
+        ).strip()
+        song = str(
+            payload.get("song_name")
+            or payload.get("song")
+            or payload.get("songName")
+            or payload.get("title")
+            or payload.get("audio_title")
+            or ""
+        ).strip()
+        audio_id = str(
+            payload.get("audio_id")
+            or payload.get("audioId")
+            or payload.get("music_asset_id")
+            or ""
+        ).strip()
+        if artist or song or audio_id:
+            return {
+                "musicTitle": song[:180],
+                "musicArtist": artist[:180],
+                "musicId": audio_id[:120],
+                "musicIsOriginal": bool(payload.get("uses_original_sound")) if "uses_original_sound" in payload else None,
+            }
+
+    # Fallback for pages where the attribution object is serialized with escaped quotes.
+    def field(pattern: str) -> str:
+        match = re.search(pattern, page, flags=re.IGNORECASE)
+        return html.unescape(match.group(1)).strip() if match else ""
+
+    song = field(r'\\?"(?:song_name|songName|audio_title)\\?"\s*:\s*\\?"([^"\\]+)')
+    artist = field(r'\\?"(?:artist_name|artistName|audio_artist)\\?"\s*:\s*\\?"([^"\\]+)')
+    audio_id = field(r'\\?"(?:audio_id|audioId|music_asset_id)\\?"\s*:\s*\\?"([^"\\]+)')
+    if song or artist or audio_id:
+        return {"musicTitle": song[:180], "musicArtist": artist[:180], "musicId": audio_id[:120]}
+    return {}
+
+
+def _enrich_with_music(result: dict, url: str) -> dict:
+    """Best-effort public metadata enrichment; media resolution stays independent."""
+    try:
+        request = Request(
+            url,
+            headers={
+                "User-Agent": _USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.instagram.com/",
+            },
+        )
+        with urlopen(request, timeout=10) as response:
+            page = response.read(_MAX_BODY).decode("utf-8", errors="replace")
+        metadata = _music_metadata_from_page(page)
+        if metadata:
+            result.update(metadata)
+            if metadata.get("musicTitle"):
+                result["title"] = metadata["musicTitle"]
+            if metadata.get("musicArtist"):
+                result["artist"] = metadata["musicArtist"]
+            result["metadataSource"] = "instagram-public-page"
+    except Exception:
+        pass
+    return result
+
+
 def _indown_resolve(url: str) -> dict | None:
     try:
         jar = http.cookiejar.CookieJar()
@@ -122,7 +216,7 @@ def _indown_resolve(url: str) -> dict | None:
         for candidate in candidates:
             candidate = _clean(candidate)
             if _looks_like_video(candidate):
-                return {
+                return _enrich_with_music({
                     "ok": True,
                     "videoUrl": candidate,
                     "title": "Instagram Video",
@@ -131,7 +225,7 @@ def _indown_resolve(url: str) -> dict | None:
                     "width": 0,
                     "height": 0,
                     "source": "instagram-public-proxy",
-                }
+                }, url)
     except Exception:
         pass
     return None
@@ -154,7 +248,7 @@ def resolve_public(url: str) -> dict:
                 final_url = response.geturl()
                 content_type = str(response.headers.get("Content-Type") or "").lower()
                 if _looks_like_video(final_url) or content_type.startswith("video/"):
-                    return {
+                    return _enrich_with_music({
                         "ok": True,
                         "videoUrl": final_url,
                         "title": "Instagram Video",
@@ -163,13 +257,13 @@ def resolve_public(url: str) -> dict:
                         "width": 0,
                         "height": 0,
                         "source": "instagram-public-proxy",
-                    }
+                    }, url)
                 body = response.read(_MAX_BODY).decode("utf-8", errors="replace")
                 candidates = _extract_candidates(body)
                 for candidate in candidates:
                     candidate = _clean(candidate)
                     if _looks_like_video(candidate):
-                        return {
+                        return _enrich_with_music({
                             "ok": True,
                             "videoUrl": candidate,
                             "title": "Instagram Video",
@@ -178,7 +272,7 @@ def resolve_public(url: str) -> dict:
                             "width": 0,
                             "height": 0,
                             "source": "instagram-public-proxy",
-                        }
+                        }, url)
         except Exception as exc:  # noqa: BLE001
             return {"ok": False, "reason": f"Custom public Instagram proxy failed: {str(exc)[:220]}"}
 
@@ -187,4 +281,3 @@ def resolve_public(url: str) -> dict:
         return result
 
     return {"ok": False, "reason": "Public Instagram proxy did not expose a playable video URL."}
-
