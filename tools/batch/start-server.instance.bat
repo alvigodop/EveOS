@@ -52,7 +52,9 @@ if "%LP_ENABLED_STATE%"=="0" (
     call "%START_SERVER_BROWSER_BAT%" :EnsureLightpandaMonitor
 )
 
-start "EveOS Instance %INSTANCE_PORT%" /min cmd /k "%LP_FLAG%set ""EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"" && cd /d ""%PROJECT_ROOT%"" && ""%EVEOS_PYTHON%"" server/python-server.py %INSTANCE_PORT%"
+if defined LP_FLAG %LP_FLAG%
+set "EVEOS_MODULAR_ROOT=%INSTANCE_PACK_PATH%"
+start "EveOS Instance %INSTANCE_PORT%" /min "%EVEOS_PYTHON%" server/python-server.py %INSTANCE_PORT%
 call "%START_SERVER_PATHS_BAT%" :TrackInstance "%INSTANCE_PORT%" "%INSTANCE_PACK_PATH%" "%INSTANCE_KIND%"
 exit /b 0
 
@@ -80,6 +82,6 @@ echo      URL: http://127.0.0.1:%INSTANCE_PORT%/EveOS.html
 echo      Data: current active modular data-pack
 echo.
 
-start "EveOS Port %INSTANCE_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && ""%EVEOS_PYTHON%"" server/python-server.py %INSTANCE_PORT%"
+start "EveOS Port %INSTANCE_PORT%" /min "%EVEOS_PYTHON%" server/python-server.py %INSTANCE_PORT%
 call "%START_SERVER_PATHS_BAT%" :TrackInstance "%INSTANCE_PORT%" "active modular data-pack" "PortOnly"
 exit /b 0

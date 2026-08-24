@@ -106,7 +106,7 @@ if not exist "%ACTIVITY_LOG%" type nul > "%ACTIVITY_LOG%"
 
 echo.
 echo [OK] Starting Lightpanda bridge on port %BRIDGE_PORT%...
-start "EveOS Lightpanda Bridge" cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""EVEOS_PROJECT_ROOT=%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && ""%EVEOS_PYTHON%"" -u ""%BRIDGE_SCRIPT%"" %BRIDGE_PORT%"
+start "EveOS Lightpanda Bridge" "%EVEOS_PYTHON%" -u "%BRIDGE_SCRIPT%" %BRIDGE_PORT%
 timeout /t 2 /nobreak >nul
 exit /b 0
 

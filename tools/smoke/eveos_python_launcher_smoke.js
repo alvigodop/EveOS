@@ -21,7 +21,8 @@ const launcherFiles = fs.readdirSync(BATCH_DIR)
 // EVEOS_PYTHON must execute it directly, never prefix it with another python command.
 const dangerousPatterns = [
     /(?:^|[\s&|]|\")python(?:\.exe)?[\s]+(?:\"?%EVEOS_PYTHON%|\"?%EVEOS_PYTHON_CMD%)/i,
-    /(?:^|[\s&|]|\")py(?:\.exe)?[\s]+[^\r\n]*%EVEOS_PYTHON%/i
+    /(?:^|[\s&|]|\")py(?:\.exe)?[\s]+[^\r\n]*%EVEOS_PYTHON%/i,
+    /""%EVEOS_PYTHON%""/i
 ];
 
 for (const filePath of launcherFiles) {

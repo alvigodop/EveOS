@@ -135,7 +135,7 @@ rem Clear stale partial listeners. The canonical Gemini process must own both po
 call :StopGeminiSilent
 call :Sleep 1
 
-start "%GEMINI_WINDOW_TITLE%" /min cmd /k "cd /d ""%GEMINI_MAIN_DIR%"" && set ""PYTHONUNBUFFERED=1"" && set ""PYTHONUTF8=1"" && set ""PYTHONIOENCODING=utf-8"" && ""%EVEOS_PYTHON%"" -u ""%GEMINI_MAIN_SCRIPT%"" --port %GEMINI_WS_PORT%"
+start "%GEMINI_WINDOW_TITLE%" /min "%EVEOS_PYTHON%" -u "%GEMINI_MAIN_SCRIPT%" --port %GEMINI_WS_PORT%
 
 call :WaitForReady 18
 if %ERRORLEVEL% EQU 0 (

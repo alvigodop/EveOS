@@ -39,7 +39,7 @@ if defined CONTROL_PORT_BUSY if /I not "%CONTROL_SERVICE%"=="gemini-control-help
 )
 
 echo Starting EveOS local control plane on port %GEMINI_CONTROL_PORT%...
-start "EveOS Local Control %GEMINI_CONTROL_PORT%" /min cmd /k "cd /d ""%PROJECT_ROOT%"" && set ""PYTHONUNBUFFERED=1"" && ""%EVEOS_PYTHON%"" -u server/eveos-control-helper.py %GEMINI_CONTROL_PORT%"
+start "EveOS Local Control %GEMINI_CONTROL_PORT%" /min "%EVEOS_PYTHON%" -u server/eveos-control-helper.py %GEMINI_CONTROL_PORT%
 
 "%EVEOS_PYTHON%" server/eveos-control-helper.py %GEMINI_CONTROL_PORT% --probe --timeout 30
 if not errorlevel 1 (
