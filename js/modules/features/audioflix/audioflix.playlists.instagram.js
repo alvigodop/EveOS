@@ -110,7 +110,7 @@ window.EveAudioflixInstagramPlaylists = window.EveAudioflixInstagramPlaylists ||
     }
 
     function entryPatch(entry) {
-        const title = metadataTitle(entry);
+        const title = realTitle(entry?.title) || metadataTitle(entry);
         const artist = metadataArtist(entry);
         return {
             ...(title ? { title } : {}),
