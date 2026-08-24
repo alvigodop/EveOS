@@ -9,9 +9,11 @@ from __future__ import annotations
 import html
 import json
 import logging
+import os
 import re
 import urllib.parse
 import uuid
+from pathlib import Path
 
 logger = logging.getLogger("AudioflixInstagramBrowser")
 
@@ -39,10 +41,79 @@ def _is_video_url(url: str) -> bool:
     )
 
 
+def _explicit_instagram_cookie_file() -> Path | None:
+    """Return EveOS's explicit Instagram Netscape cookie file when configured."""
+    configured = os.environ.get("EVEOS_INSTAGRAM_COOKIES", "").strip()
+    fallback = Path(__file__).resolve().parents[1] / "data" / "runtime" / "instagram-cookies.txt"
+    candidate = Path(configured).expanduser() if configured else fallback
+    return candidate if candidate.is_file() else None
+
+
+def _instagram_cookie_entries(target_url: str) -> list[dict]:
+    """Translate the explicit Instagram Netscape cookie file for Camofox.
+
+    We deliberately do not read Chrome/Edge/Firefox cookie stores here. The only
+    credential source is the explicit EveOS Instagram cookie-file route already
+    used by yt-dlp and the webpage fallback.
+    """
+    cookie_file = _explicit_instagram_cookie_file()
+    if not cookie_file:
+        return []
+    hostname = (urllib.parse.urlparse(target_url).hostname or "instagram.com").strip()
+    entries: list[dict] = []
+    try:
+        for raw in cookie_file.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            fields = line.split("\t")
+            if len(fields) < 7:
+                continue
+            domain, _include_subdomains, path, secure, expires, name, value = fields[:7]
+            if not name:
+                continue
+            normalized_domain = domain.strip() or hostname
+            if not normalized_domain.startswith(".") and normalized_domain != hostname and not hostname.endswith("." + normalized_domain):
+                continue
+            try:
+                expiry = int(float(expires)) if expires else None
+            except (TypeError, ValueError):
+                expiry = None
+            entry = {
+                "name": name,
+                "value": value,
+                "domain": normalized_domain,
+                "path": path or "/",
+                "secure": str(secure).strip() == "TRUE",
+                "httpOnly": False,
+            }
+            if expiry and expiry > 0:
+                entry["expires"] = expiry
+            entries.append(entry)
+    except OSError:
+        logger.warning("Instagram: unable to read explicit cookie file %s", cookie_file)
+    return entries
+
+
+def _browser_cookie_payload(target_url: str, user_id: str) -> tuple[list[dict], bool]:
+    """Return browser-session cookies, preferring Camofox site config then the Instagram cookie file."""
+    from server_modules.camofox_runtime import _cookies_for_target
+
+    configured = _cookies_for_target(target_url)
+    if configured:
+        return configured, True
+
+    imported = _instagram_cookie_entries(target_url)
+    if imported:
+        logger.info("Instagram: importing %d explicit cookie-file entries into Camofox session %s", len(imported), user_id)
+        return imported, True
+
+    return [], False
+
+
 def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
     """Extract a direct video URL from an Instagram post via Camofox browser runtime."""
     try:
-        from server_modules.camofox_runtime import _cookies_for_target
         from server_modules.camofox_server import _cleanup_session, _json_request, ensure_camofox_server
     except ImportError as err:
         return {"ok": False, "reason": f"Camofox modules not available: {err}"}
@@ -54,7 +125,7 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
 
     user_id = f"eveos-ig-{uuid.uuid4().hex[:10]}"
     tab_id = None
-    cookies = _cookies_for_target(target_url)
+    cookies_used = False
 
     try:
         created = _json_request(
@@ -67,6 +138,7 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
         if not tab_id:
             return {"ok": False, "reason": "Camofox tab creation failed."}
 
+        cookies, cookies_used = _browser_cookie_payload(target_url, user_id)
         if cookies:
             encoded_user = urllib.parse.quote(user_id, safe="")
             _json_request(
@@ -113,9 +185,10 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
             const matches = txt.match(/"(?:video_url|playable_url_quality_hd|playable_url)"\s*:\s*"([^"]+)"/g);
             if (matches) {
               matches.forEach(m => {
-                const parts = m.split(':"');
-                if (parts[1]) {
-                  const cleaned = parts[1].slice(0, -1).replace(/\\u0026/g, '&').replace(/\\\//g, '/');
+                const marker = ':"';
+                const index = m.indexOf(marker);
+                if (index >= 0) {
+                  const cleaned = m.slice(index + marker.length, -1).replace(/\\u0026/g, '&').replace(/\\\//g, '/');
                   add(cleaned);
                 }
               });
@@ -145,10 +218,14 @@ def extract_camofox_video(target_url: str, timeout: int = 18) -> dict:
                     "title": data.get("title") or "Instagram Video",
                     "thumbnail": data.get("thumbnail") or "",
                     "source": "camofox-browser",
+                    "usedCookies": cookies_used,
                 }
-        return {"ok": False, "reason": "Camofox rendered DOM did not expose a playable video URL."}
+        reason = "Camofox rendered DOM did not expose a playable video URL."
+        if not cookies_used:
+            reason += " No explicit Instagram/Camofox cookies were configured."
+        return {"ok": False, "reason": reason, "usedCookies": cookies_used}
     except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "reason": f"Camofox extraction error: {exc}"}
+        return {"ok": False, "reason": f"Camofox extraction error: {exc}", "usedCookies": cookies_used}
     finally:
         _cleanup_session(user_id)
 
