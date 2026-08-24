@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "EveOS Instagram Connector",
+  "version": "0.1.0",
+  "description": "User-initiated bridge that sends only Instagram cookies to the local EveOS Audioflix server.",
+  "permissions": ["cookies", "activeTab"],
+  "host_permissions": ["https://*.instagram.com/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "action": {"default_title": "Connect Instagram to EveOS", "default_popup": "popup.html"}
+}
