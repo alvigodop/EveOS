@@ -150,14 +150,47 @@ def _extract_one(pair) -> dict:
     position, url = pair
     from server_modules import audioflix_ytdl
     yt_dlp = audioflix_ytdl._get_yt_dlp()
-    if yt_dlp is None:
-        return _fallback(url, position, "yt-dlp is not installed.")
+    info = None
+    if yt_dlp is not None:
+        try:
+            with yt_dlp.YoutubeDL(_ydl_options()) as ydl:
+                info = ydl.extract_info(url, download=False) or {}
+        except Exception:
+            info = None
+
+    if info and (info.get("title") or info.get("description") or info.get("uploader")):
+        return {
+            "sourceId": _code(url),
+            "title": _display_title(info, position),
+            "artist": info.get("uploader") or info.get("channel") or "",
+            "album": info.get("album") or info.get("series") or "",
+            "url": url,
+            "image": info.get("thumbnail") or "",
+            "duration": info.get("duration") or 0,
+            "position": position,
+            "sourceProvider": "instagram",
+        }
+
     try:
-        with yt_dlp.YoutubeDL(_ydl_options()) as ydl:
-            info = ydl.extract_info(url, download=False) or {}
-        return {"sourceId": _code(url), "title": _display_title(info, position), "artist": info.get("uploader") or info.get("channel") or "", "album": info.get("album") or info.get("series") or "", "url": url, "image": info.get("thumbnail") or "", "duration": info.get("duration") or 0, "position": position, "sourceProvider": "instagram"}
-    except Exception as exc:
-        return _fallback(url, position, str(exc))
+        from server_modules import audioflix_instagram_public
+        public_res = audioflix_instagram_public.resolve_public(_code(url))
+        if public_res.get("ok"):
+            title = public_res.get("title") or f"Instagram Video {position}"
+            return {
+                "sourceId": _code(url),
+                "title": title[:180] or f"Instagram Video {position}",
+                "artist": public_res.get("artist") or "Instagram",
+                "album": "",
+                "url": url,
+                "image": public_res.get("thumbnail") or "",
+                "duration": public_res.get("duration") or 0,
+                "position": position,
+                "sourceProvider": "instagram",
+            }
+    except Exception:
+        pass
+
+    return _fallback(url, position, "yt-dlp empty response, public fallback available")
 
 
 def list_collection(payload: dict) -> dict:

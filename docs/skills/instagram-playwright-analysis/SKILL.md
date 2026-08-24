@@ -1,3 +1,8 @@
+---
+name: instagram-playwright-analysis
+description: Reusable workflow for inspecting public browser flows, capturing network contracts, and reproducing media resolution via lightweight HTTP.
+---
+
 # Instagram Playwright Analysis Skill
 
 ## Purpose
@@ -11,21 +16,21 @@ Use this workflow when an anonymous Instagram media surface works in a normal br
 3. Use the available Playwright skill/tool to inspect the normal public flow.
 4. Capture navigation, requests, responses, status codes, content types, POST bodies, redirects, and relevant response snippets.
 5. Identify the smallest reproducible HTTP contract. If the browser only performs a simple GET/POST flow, reproduce that flow with the standard runtime HTTP client rather than shipping a browser dependency.
-6. Validate the resolved media URL independently with a ranged request and confirm a playable media signature such as MP4 `ftyp`.
+6. Validate the resolved media URL independently with a ranged request and confirm a playable media signature such as MP4 typ.
 7. Add or update a targeted offline smoke test for the resolver contract and keep the full verification suite green.
 8. Record the discovered route, failure mode, and fallback ordering in the implementation comments or acceptance report.
 
 ## Metadata analysis
 
-When media resolution succeeds but the Audioflix track is missing useful metadata, inspect the same public page for embedded attribution data before adding a second network dependency. For Instagram Reels, check public serialized fields such as `clips_music_attribution_info`, `music_metadata`, and `audio_metadata`. Treat music metadata as best-effort enrichment: failure to find it must never make video resolution fail.
+When media resolution succeeds but the Audioflix track is missing useful metadata, inspect the same public page for embedded attribution data before adding a second network dependency. For Instagram Reels, check public serialized fields such as clips_music_attribution_info, music_metadata, and udio_metadata. Treat music metadata as best-effort enrichment: failure to find it must never make video resolution fail.
 
 Return normalized fields where available:
 
-- `title` / `musicTitle`
-- `artist` / `musicArtist`
-- `musicId`
-- `musicIsOriginal`
-- `metadataSource`
+- 	itle / musicTitle
+- rtist / musicArtist
+- musicId
+- musicIsOriginal
+- metadataSource
 
 Do not assume that every Reel uses a catalog song. Preserve original-sound attribution when that is what Instagram exposes.
 

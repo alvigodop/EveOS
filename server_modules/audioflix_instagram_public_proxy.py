@@ -72,8 +72,8 @@ def _extract_candidates(body: str) -> list[str]:
         pass
 
     patterns = [
-        r'href=[\"\'](https://[^\s\"\'<>]+\.mp4[^\s\"\'<>]*)[\"\']',
-        r'src=[\"\'](https://[^\s\"\'<>]+\.mp4[^\s\"\'<>]*)[\"\']',
+        r'href=["\'](https://[^\s"\'<>]+\.mp4[^\s"\'<>]*)["\']',
+        r'src=["\'](https://[^\s"\'<>]+\.mp4[^\s"\'<>]*)["\']',
         r'(?i)(?:videoUrl|video_url|downloadUrl|download_url|contentUrl)\s*["\']?\s*[:=]\s*["\']([^"\']+)',
         r'https://[^\s"\']+\.(?:mp4|m3u8)(?:\?[^\s"\']*)?',
     ]
@@ -82,13 +82,36 @@ def _extract_candidates(body: str) -> list[str]:
     return candidates
 
 
-def _music_metadata_from_page(page: str) -> dict:
-    """Extract public Instagram music attribution from embedded page JSON.
+def _extract_duration_from_url(url: str) -> int:
+    efg_match = re.search(r'[?&]efg=([a-zA-Z0-9_\-=]+)', url)
+    if efg_match:
+        try:
+            import base64
+            padded = efg_match.group(1) + '=' * (-len(efg_match.group(1)) % 4)
+            decoded = json.loads(base64.b64decode(padded.replace('-', '+').replace('_', '/')).decode('utf-8', errors='replace'))
+            if isinstance(decoded, dict) and decoded.get("duration_s"):
+                return int(decoded["duration_s"])
+        except Exception:
+            pass
+    return 0
 
-    Instagram commonly exposes this object as clips_music_attribution_info.
-    Field names have changed over time, so the parser accepts several public
-    aliases and never treats missing metadata as a resolver failure.
-    """
+
+def _extract_thumbnail_from_html(html_text: str) -> str:
+    img_matches = re.findall(r'<img[^>]+src=["\'](https://[^\s"\'<>]*)["\']', html_text)
+    for img in img_matches:
+        unesc_img = html.unescape(img)
+        if "fetch?url=" in unesc_img:
+            from urllib.parse import parse_qs, urlparse
+            parsed = parse_qs(urlparse(unesc_img).query)
+            if "url" in parsed and parsed["url"]:
+                return _clean(parsed["url"][0])
+        elif ("fbcdn.net" in unesc_img or "cdninstagram.com" in unesc_img) and "indown" not in unesc_img:
+            return _clean(unesc_img)
+    return ""
+
+
+def _music_metadata_from_page(page: str) -> dict:
+    """Extract public Instagram music attribution from embedded page JSON."""
     if not page:
         return {}
     object_patterns = (
@@ -136,14 +159,13 @@ def _music_metadata_from_page(page: str) -> dict:
                 "musicIsOriginal": bool(payload.get("uses_original_sound")) if "uses_original_sound" in payload else None,
             }
 
-    # Fallback for pages where the attribution object is serialized with escaped quotes.
     def field(pattern: str) -> str:
         match = re.search(pattern, page, flags=re.IGNORECASE)
         return html.unescape(match.group(1)).strip() if match else ""
 
-    song = field(r'\\?"(?:song_name|songName|audio_title)\\?"\s*:\s*\\?"([^"\\]+)')
-    artist = field(r'\\?"(?:artist_name|artistName|audio_artist)\\?"\s*:\s*\\?"([^"\\]+)')
-    audio_id = field(r'\\?"(?:audio_id|audioId|music_asset_id)\\?"\s*:\s*\\?"([^"\\]+)')
+    song = field(r'\\?"(?:song_name|songName|audio_title)\\?"\s*:\s*\\?"([^"\\\r\n]+)')
+    artist = field(r'\\?"(?:artist_name|artistName|audio_artist)\\?"\s*:\s*\\?"([^"\\\r\n]+)')
+    audio_id = field(r'\\?"(?:audio_id|audioId|music_asset_id)\\?"\s*:\s*\\?"([^"\\\r\n]+)')
     if song or artist or audio_id:
         return {"musicTitle": song[:180], "musicArtist": artist[:180], "musicId": audio_id[:120]}
     return {}
@@ -189,9 +211,9 @@ def _indown_resolve(url: str) -> dict | None:
         with opener.open(req1, timeout=15) as res1:
             html1 = res1.read(_MAX_BODY).decode("utf-8", errors="replace")
 
-        token_match = re.search(r'name=[\"\']_token[\"\']\s+value=[\"\']([^\"\']+)[\"\']', html1)
+        token_match = re.search(r'name=["\']_token["\']\s+value=["\']([^"\']+)["\']', html1)
         if not token_match:
-            token_match = re.search(r'value=[\"\']([^\"\']+)[\"\']\s+name=[\"\']_token[\"\']', html1)
+            token_match = re.search(r'value=["\']([^"\']+)["\']\s+name=["\']_token["\']', html1)
         token = token_match.group(1) if token_match else ""
 
         post_data = urlencode({
@@ -212,16 +234,18 @@ def _indown_resolve(url: str) -> dict | None:
         with opener.open(req2, timeout=15) as res2:
             html2 = res2.read(_MAX_BODY).decode("utf-8", errors="replace")
 
+        thumbnail = _extract_thumbnail_from_html(html2)
         candidates = _extract_candidates(html2)
         for candidate in candidates:
             candidate = _clean(candidate)
             if _looks_like_video(candidate):
+                duration = _extract_duration_from_url(candidate)
                 return _enrich_with_music({
                     "ok": True,
                     "videoUrl": candidate,
                     "title": "Instagram Video",
-                    "thumbnail": "",
-                    "duration": 0,
+                    "thumbnail": thumbnail,
+                    "duration": duration,
                     "width": 0,
                     "height": 0,
                     "source": "instagram-public-proxy",
