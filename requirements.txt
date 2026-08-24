@@ -12,7 +12,8 @@ numpy==1.24.4
 sounddevice==0.5.5
 
 # Audioflix URL resolver (YouTube, SoundCloud, etc. to direct audio stream).
-yt-dlp
+# Instagram logged-in extraction fixes landed in yt-dlp on 2026-07-21.
+yt-dlp>=2026.07.21
 
 # World Book Reader Library PDF extraction.
 PyMuPDF==1.27.2.2

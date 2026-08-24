@@ -18,6 +18,24 @@ _REEL_RE = re.compile(
 _MAX_ITEMS = 250
 
 
+def _browser_cookie_spec(value: str):
+    """Translate EVEOS_INSTAGRAM_COOKIES_BROWSER into yt-dlp's browser tuple.
+
+    Supported forms are ``edge`` / ``chrome`` / ``firefox`` and optionally
+    ``browser:profile``. We intentionally require an explicit setting rather than
+    silently reading a user's browser cookies.
+    """
+    spec = str(value or "").strip()
+    if not spec:
+        return None
+    browser, sep, profile = spec.partition(":")
+    browser = browser.strip()
+    profile = profile.strip() if sep else None
+    if not browser:
+        return None
+    return (browser, profile or None, None, None)
+
+
 def _ydl_options() -> dict:
     options = {
         "quiet": True,
@@ -31,6 +49,10 @@ def _ydl_options() -> dict:
     cookie_file = Path(configured).expanduser() if configured else fallback
     if cookie_file.is_file():
         options["cookiefile"] = str(cookie_file)
+    else:
+        browser_spec = _browser_cookie_spec(os.environ.get("EVEOS_INSTAGRAM_COOKIES_BROWSER", ""))
+        if browser_spec:
+            options["cookiesfrombrowser"] = browser_spec
     return options
 
 
@@ -124,8 +146,6 @@ def resolve_video(payload: dict) -> dict:
         return {"ok": False, "reason": "yt-dlp is not installed."}
     options = {
         **_ydl_options(),
-        # The browser needs one progressive URL. A split video+audio selection cannot be
-        # represented by a single <video src> without downloading and merging first.
         "format": "best[ext=mp4]/best",
     }
     try:

@@ -76,7 +76,22 @@ try:
     check(video.get("ok"), "direct Reel video resolves")
     check(video.get("videoUrl") == "https://cdn.example/combined.mp4", "direct video chooses one progressive MP4 with audio")
     check(video.get("height") == 720 and video.get("duration") == 19, "selected stream metadata is returned")
+
+    # Authentication option contract: explicit browser-cookie configuration is translated
+    # to yt-dlp only when requested, so EveOS never silently reads browser credentials.
+    with tempfile.NamedTemporaryFile(suffix=".txt") as handle:
+        os.environ["EVEOS_INSTAGRAM_COOKIES"] = handle.name
+        os.environ.pop("EVEOS_INSTAGRAM_COOKIES_BROWSER", None)
+        options = INSTAGRAM._ydl_options()
+        check(options.get("cookiefile") == handle.name, "explicit Instagram cookie file is honored")
+
+    os.environ.pop("EVEOS_INSTAGRAM_COOKIES", None)
+    os.environ["EVEOS_INSTAGRAM_COOKIES_BROWSER"] = "edge:Default"
+    options = INSTAGRAM._ydl_options()
+    check(options.get("cookiesfrombrowser") == ("edge", "Default", None, None), "browser cookie configuration is translated correctly")
 finally:
+    os.environ.pop("EVEOS_INSTAGRAM_COOKIES", None)
+    os.environ.pop("EVEOS_INSTAGRAM_COOKIES_BROWSER", None)
     YTDL._get_yt_dlp = original_get_ytdlp
 
 

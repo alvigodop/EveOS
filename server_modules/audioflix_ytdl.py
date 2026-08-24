@@ -2,7 +2,7 @@
 
 Exposes a single function ``resolve(url)`` that returns a dict with the best
 audio-only stream URL for a given video/audio platform link (YouTube, SoundCloud,
-Bandcamp, etc.).  Results are cached in-memory with a 4-hour TTL since YouTube
+Bandcamp, etc.). Results are cached in-memory with a 4-hour TTL since YouTube
 stream URLs typically expire after ~6 hours.
 
 The module is designed to be imported lazily so yt-dlp is only loaded when the
@@ -19,11 +19,11 @@ from urllib.parse import parse_qs, urlparse
 
 logger = logging.getLogger("EveOSAudioflixYTDL")
 
-# ---------------------------------------------------------------------------
-# In-memory cache: url → {result_dict, expires_at}
-# ---------------------------------------------------------------------------
+# Instagram extraction fixes used by EveOS landed in yt-dlp on 2026-07-21.
+_MIN_YTDLP_VERSION = (2026, 7, 21)
+
 _cache: dict[str, dict] = {}
-_CACHE_TTL_S = 15 * 60  # 15 minutes
+_CACHE_TTL_S = 15 * 60
 _MAX_CACHE = 200
 _cache_lock = threading.Lock()
 
@@ -41,18 +41,24 @@ def _cache_get(url: str) -> dict | None:
 def _cache_set(url: str, result: dict) -> None:
     with _cache_lock:
         if len(_cache) >= _MAX_CACHE:
-            # evict oldest
             oldest_key = min(_cache, key=lambda k: _cache[k]["expires_at"])
             del _cache[oldest_key]
         _cache[url] = {"result": result, "expires_at": time.monotonic() + _CACHE_TTL_S}
 
 
-# ---------------------------------------------------------------------------
-# yt-dlp extraction (lazy import)
-# ---------------------------------------------------------------------------
+def _version_tuple(value: str):
+    try:
+        parts = [int(part) for part in str(value).split(".")[:3]]
+    except (TypeError, ValueError):
+        return None
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts)
+
+
 _yt_dlp = None
 _yt_dlp_lock = threading.Lock()
-_yt_dlp_available: bool | None = None  # None = not checked yet
+_yt_dlp_available: bool | None = None
 
 
 def _get_yt_dlp():
@@ -68,6 +74,14 @@ def _get_yt_dlp():
             _yt_dlp_available = True
             version_str = getattr(getattr(yt_dlp, "version", None), "__version__", "?")
             logger.info("yt-dlp loaded successfully (version %s)", version_str)
+            parsed = _version_tuple(version_str)
+            if parsed is not None and parsed < _MIN_YTDLP_VERSION:
+                logger.warning(
+                    "yt-dlp %s is older than EveOS's supported Instagram extraction floor "
+                    "%s; reinstall requirements.txt or upgrade yt-dlp before testing Instagram links.",
+                    version_str,
+                    ".".join(map(str, _MIN_YTDLP_VERSION)),
+                )
             return _yt_dlp
         except ImportError:
             _yt_dlp_available = False
@@ -76,11 +90,7 @@ def _get_yt_dlp():
 
 
 def resolve(url: str, force: bool = False) -> dict:
-    """Extract the best audio stream URL from a platform link.
-
-    Returns ``{"ok": True, "audioUrl": "...", "title": "...", ...}`` on success
-    or ``{"ok": False, "reason": "..."}`` on failure.
-    """
+    """Extract the best audio stream URL from a platform link."""
     if not force:
         cached = _cache_get(url)
         if cached is not None:
@@ -94,11 +104,10 @@ def resolve(url: str, force: bool = False) -> dict:
         "quiet": True,
         "no_warnings": True,
         "skip_download": True,
-        # Prefer audio-only formats; fall back to best available
         "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
         "noplaylist": True,
         "source_address": "0.0.0.0",
-        "extractor_args": {"youtube": {"player_client": ["web", "mweb", "android"]}}
+        "extractor_args": {"youtube": {"player_client": ["web", "mweb", "android"]}},
     }
 
     try:
@@ -109,7 +118,6 @@ def resolve(url: str, force: bool = False) -> dict:
 
             audio_url = info.get("url")
             if not audio_url:
-                # Some extractors put the URL in 'requested_downloads'
                 downloads = info.get("requested_downloads") or []
                 if downloads:
                     audio_url = downloads[0].get("url")
@@ -135,10 +143,6 @@ def resolve(url: str, force: bool = False) -> dict:
         logger.warning("yt-dlp extraction failed for %s: %s", url, exc)
         return {"ok": False, "reason": str(exc)[:300]}
 
-
-# ---------------------------------------------------------------------------
-# HTTP handler (called from audioflix_bridge)
-# ---------------------------------------------------------------------------
 
 def handle_resolve_request(handler, query) -> None:
     """Handle GET /api/audioflix/resolve-url?url=...&force=1"""
