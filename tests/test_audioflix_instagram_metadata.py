@@ -7,14 +7,21 @@ from server_modules import audioflix_instagram_public
 
 class InstagramMetadataTests(unittest.TestCase):
     def test_supported_url_shapes_normalize_to_same_shortcode(self):
-        value = " ".join([
-            "https://www.instagram.com/p/DS2r6KBDNCS/",
-            "https://www.instagram.com/reel/DS2r6KBDNCS/",
-            "https://www.instagram.com/reels/DS2r6KBDNCS/",
-            "https://www.instagram.com/tv/DS2r6KBDNCS/",
-        ])
+        shapes = [
+            ("https://www.instagram.com/p/DS2r6KBDNCS/", "https://www.instagram.com/p/DS2r6KBDNCS/", "DS2r6KBDNCS"),
+            ("https://www.instagram.com/reel/DS2r6KBDNCS/", "https://www.instagram.com/reel/DS2r6KBDNCS/", "DS2r6KBDNCS"),
+            ("https://www.instagram.com/reels/DS2r6KBDNCS/", "https://www.instagram.com/reel/DS2r6KBDNCS/", "DS2r6KBDNCS"),
+            ("https://www.instagram.com/tv/DS2r6KBDNCS/", "https://www.instagram.com/tv/DS2r6KBDNCS/", "DS2r6KBDNCS"),
+        ]
+        for raw, canonical, shortcode in shapes:
+            parsed = audioflix_instagram.parse_urls(raw)
+            self.assertEqual(parsed, [canonical])
+            self.assertEqual(audioflix_instagram._code(parsed[0]), shortcode)
+
+        # Joint list deduplicates reels/reel alias to 3 unique canonical URLs
+        value = " ".join([raw for raw, _, _ in shapes])
         urls = audioflix_instagram.parse_urls(value)
-        self.assertEqual(len(urls), 4)
+        self.assertEqual(len(urls), 3)
         self.assertEqual({audioflix_instagram._code(url) for url in urls}, {"DS2r6KBDNCS"})
 
     def test_catalog_music_wins_over_creator_fallback(self):
