@@ -314,6 +314,11 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             pass
 
 
+class EveOSControlServer(http.server.ThreadingHTTPServer):
+    allow_reuse_address = True
+    daemon_threads = True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="EveOS file-mode local control plane")
     parser.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT)
@@ -323,7 +328,7 @@ def main() -> int:
     if args.probe:
         return wait_for_control(args.port, args.timeout)
     global _SERVER
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", args.port), EveOSControlHandler)
+    server = EveOSControlServer(("127.0.0.1", args.port), EveOSControlHandler)
     _SERVER = server
     print("[OK] EveOS local control plane")
     print(f"  Consoles: {'headless' if eveos_web_control.headless_mode() else 'visible'}"
