@@ -8,14 +8,14 @@ if defined EVEOS_PYTHON (
     set "EVEOS_PYTHON="
 )
 
-set "_EVEOS_PYTHON_ROOT=%~dp0..\.."
+for %%R in ("%~dp0..\..") do set "_EVEOS_PYTHON_ROOT=%%~fR"
 if exist "%_EVEOS_PYTHON_ROOT%\.venv\Scripts\python.exe" (
     set "EVEOS_PYTHON=%_EVEOS_PYTHON_ROOT%\.venv\Scripts\python.exe"
 )
 
 if not defined EVEOS_PYTHON (
     for /f "delims=" %%P in ('where python 2^>nul') do (
-        if not defined EVEOS_PYTHON set "EVEOS_PYTHON=%%P"
+        if not defined EVEOS_PYTHON set "EVEOS_PYTHON=%%~fP"
     )
 )
 
