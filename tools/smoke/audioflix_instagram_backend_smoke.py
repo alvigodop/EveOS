@@ -12,6 +12,7 @@ if ROOT not in sys.path:
 
 from server_modules import audioflix_instagram as INSTAGRAM
 from server_modules import audioflix_instagram_browser as INSTAGRAM_BROWSER
+from server_modules import audioflix_instagram_public as INSTAGRAM_PUBLIC
 from server_modules import audioflix_localize as LOCALIZE
 from server_modules import audioflix_ytdl as YTDL
 
@@ -105,7 +106,9 @@ try:
     # Verify resolver fallback ladder: yt-dlp -> Camofox -> Lightpanda -> Webpage metadata
     original_camofox = INSTAGRAM_BROWSER.extract_camofox_video
     original_lightpanda = INSTAGRAM_BROWSER.extract_lightpanda_video
+    original_public = INSTAGRAM_PUBLIC.resolve_public
     YTDL._get_yt_dlp = lambda: FailingYtDlp
+    INSTAGRAM_PUBLIC.resolve_public = lambda _shortcode: {"ok": False}
     INSTAGRAM_BROWSER.extract_camofox_video = lambda _url: {
         "ok": True,
         "videoUrl": "https://cdn.example/camofox-video.mp4",
@@ -150,6 +153,7 @@ try:
         check(post_video.get("title") == "Instagram Post Video", "post fallback retains og:title")
     finally:
         INSTAGRAM.urlopen = original_urlopen
+        INSTAGRAM_PUBLIC.resolve_public = original_public
         INSTAGRAM_BROWSER.extract_camofox_video = original_camofox
         INSTAGRAM_BROWSER.extract_lightpanda_video = original_lightpanda
         YTDL._get_yt_dlp = lambda: FakeYtDlp
