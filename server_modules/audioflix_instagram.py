@@ -151,8 +151,8 @@ def _display_title(info: dict, position: int) -> str:
 def _merge_metadata(entry: dict, url: str) -> dict:
     """Enrich an already-resolved entry without changing media-resolution semantics."""
     try:
-        from server_modules import audioflix_instagram_public
-        metadata = audioflix_instagram_public.resolve_metadata(_code(url), fallback_url=url)
+        from server_modules import audioflix_instagram_metadata
+        metadata = audioflix_instagram_metadata.resolve_metadata(_code(url), fallback_url=url)
         if not metadata.get("ok"):
             return entry
         for key in ("creator", "creatorDisplayName", "collaborators", "audioTitle", "audioArtist", "audioKind", "caption", "permalink"):
@@ -218,7 +218,7 @@ def _extract_one(pair) -> dict:
                 "caption": public_res.get("caption") or "",
                 "permalink": public_res.get("permalink") or url,
             }
-            return entry
+            return _merge_metadata(entry, url)
     except Exception:
         pass
 
@@ -359,12 +359,9 @@ def resolve_video(payload: dict) -> dict:
         try:
             result = provider(target_url, shortcode)
             if result and result.get("ok"):
-                # Enrichment is deliberately after provider success. If every
-                # public metadata endpoint fails, the already-playable result
-                # is returned unchanged.
                 try:
-                    from server_modules import audioflix_instagram_public
-                    metadata = audioflix_instagram_public.resolve_metadata(shortcode, fallback_url=target_url)
+                    from server_modules import audioflix_instagram_metadata
+                    metadata = audioflix_instagram_metadata.resolve_metadata(shortcode, fallback_url=target_url)
                     if metadata.get("ok"):
                         for key in ("creator", "creatorDisplayName", "collaborators", "audioTitle", "audioArtist", "audioKind", "caption", "permalink", "artist"):
                             if metadata.get(key):
