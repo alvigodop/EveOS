@@ -52,7 +52,7 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
                     ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
                         instagramUrl: await file.text(),
                         instagramGroup: stripExt(file.name),
-                        instagramFolder: ctx.importFormValues?.instagramFolder || 'IG Reel Playlists',
+                        instagramFolder: ctx.importFormValues?.instagramFolder || 'IG Video Playlists',
                         instagramStatus: `Loaded ${file.name}. Review the group title, then import.`
                     });
                     ctx.rerender();
@@ -63,12 +63,12 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
 
             if (action === 'instagram-sync') {
                 const group = target.dataset.afGroup || '';
-                ctx.playbackStatus = `Refreshing Reel collection "${group}"...`;
+                ctx.playbackStatus = `Refreshing Instagram collection "${group}"...`;
                 ctx.rerender();
                 const result = await window.EveAudioflixPlaylists?.syncPlaylistByGroup?.(group, true);
                 ctx.playbackStatus = result?.ok
                     ? `Refreshed "${group}" - ${result.added || 0} added, ${result.missing || 0} missing.`
-                    : (result?.reason || 'Reel refresh failed.');
+                    : (result?.reason || 'Instagram refresh failed.');
                 ctx.rerender();
                 return true;
             }
@@ -80,12 +80,39 @@ window.EveAudioflixInstagramUi = window.EveAudioflixInstagramUi || {};
                 ctx.rerender();
                 const nativeIg = window.EveAudioflixNativeInstagram?.create?.(ctx) || window.EveAudioflixNativeInstagram;
                 const res = await nativeIg?.connectInstagramBrowser?.();
+                if (res?.connected) {
+                    ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                        instagramSessionConnected: true,
+                        instagramSessionCookieCount: 0,
+                        instagramStatus: '✓ Instagram browser session is connected.'
+                    });
+                    ctx.rerender();
+                    return true;
+                }
                 ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
-                    instagramSessionConnected: Boolean(res?.connected),
-                    instagramSessionCookieCount: Number(res?.cookieCount || 0),
-                    instagramStatus: res?.message || res?.reason || 'Instagram browser connection started.'
+                    instagramStatus: res?.message || res?.reason || 'Instagram sign-in window opened. Sign in there once.'
                 });
                 ctx.rerender();
+
+                if (res?.ok) {
+                    for (let attempt = 0; attempt < 90; attempt += 1) {
+                        await new Promise((resolve) => setTimeout(resolve, 1500));
+                        const status = await nativeIg?.getInstagramSessionStatus?.();
+                        if (status?.ok && status?.connected) {
+                            ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                                instagramSessionConnected: true,
+                                instagramSessionCookieCount: 0,
+                                instagramStatus: '✓ Instagram browser session connected.'
+                            });
+                            ctx.rerender();
+                            return true;
+                        }
+                    }
+                    ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
+                        instagramStatus: 'Instagram sign-in window is still open. Click Check when you finish signing in.'
+                    });
+                    ctx.rerender();
+                }
                 return true;
             }
 
