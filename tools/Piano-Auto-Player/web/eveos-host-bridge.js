@@ -25,7 +25,7 @@
   window.addEventListener('load', () => {
     import('./player_queue.js')
       .then(() => import('./player_queue_advanced.js'))
-      .then(() => import('./sheet_progress.js'))
       .catch(() => {});
+    import('./sheet_progress.js').catch(() => {});
   });
 })();
