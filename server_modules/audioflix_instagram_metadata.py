@@ -223,4 +223,19 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
     except Exception:
         pass
 
+    # 3. Dynamic browser rendering attempt via EveOS browser infrastructure (Lightpanda / Camofox).
+    try:
+        from server_modules import audioflix_instagram_browser
+        for prefix in ("reel", "p"):
+            embed_url = f"https://www.instagram.com/{prefix}/{shortcode}/embed/"
+            rendered_page = audioflix_instagram_browser.render_instagram_html(embed_url)
+            if rendered_page:
+                metadata = _metadata_from_html(rendered_page)
+                if metadata.get("creator") or metadata.get("caption") or metadata.get("audioTitle") or metadata.get("title") != "Instagram Video":
+                    metadata["ok"] = True
+                    metadata["permalink"] = metadata.get("permalink") or fallback_url or f"https://www.instagram.com/{prefix}/{shortcode}/"
+                    return metadata
+    except Exception:
+        pass
+
     return {"ok": False, "reason": "Public Instagram metadata was not available."}

@@ -313,3 +313,45 @@ def extract_lightpanda_video(target_url: str, timeout: int = 18) -> dict:
         return {"ok": False, "reason": "Lightpanda rendered DOM did not expose a playable video URL."}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "reason": f"Lightpanda extraction error: {exc}"}
+
+
+def render_instagram_html(target_url: str, timeout: int = 5) -> str:
+    """Render an Instagram URL/embed using EveOS browser infrastructure (Lightpanda / Camofox)."""
+    try:
+        from server_modules.lightpanda_runtime import fetch_lightpanda_html, is_lightpanda_available
+        if is_lightpanda_available():
+            result = fetch_lightpanda_html(target_url, timeout=timeout, http_timeout_ms=min(5000, timeout * 1000))
+            if result and result.stdout and len(result.stdout) > 200:
+                return str(result.stdout)
+    except Exception:
+        pass
+
+    try:
+        from server_modules.camofox_server import _cleanup_session, _json_request, ensure_camofox_server
+        port, user_id, authenticated_browser = _browser_target()
+        if not authenticated_browser:
+            ensure_camofox_server()
+
+        def request(method: str, path: str, payload: dict | None = None, timeout_val: int = 20) -> dict:
+            if authenticated_browser:
+                return _request_json(method, port, path, payload=payload, timeout=timeout_val)
+            return _json_request(method, path, payload=payload, timeout=timeout_val)
+
+        created = request("POST", "/tabs", {"userId": user_id, "sessionKey": "audioflix-metadata"}, timeout_val=10)
+        tab_id = str(created.get("tabId") or "").strip()
+        if tab_id:
+            try:
+                request("POST", f"/tabs/{tab_id}/navigate", {"userId": user_id, "url": target_url}, timeout_val=timeout)
+                request("POST", f"/tabs/{tab_id}/wait", {"userId": user_id, "timeout": min(6000, timeout * 1000), "waitForNetwork": True}, timeout_val=timeout + 3)
+                eval_res = request("POST", f"/tabs/{tab_id}/evaluate", {"userId": user_id, "expression": "document.documentElement.outerHTML"}, timeout_val=10)
+                html_res = str(eval_res.get("result") or "")
+                if html_res:
+                    return html_res
+            finally:
+                if not authenticated_browser:
+                    _cleanup_session(user_id)
+    except Exception:
+        pass
+
+    return ""
+

@@ -71,11 +71,33 @@ class InstagramMetadataTests(unittest.TestCase):
         metadata = audioflix_instagram_public._metadata_from_media(media)
         self.assertEqual(metadata["collaborators"], ["first", "second"])
 
-    def test_metadata_failure_does_not_change_playable_result(self):
+    def test_resolve_metadata_falls_back_to_browser_rendered_embed(self):
+        rendered_html = """
+        <blockquote class="instagram-media">
+          <a href="https://www.instagram.com/reel/DS2r6KBDNCS/">View this post on Instagram</a>
+          <p>A post shared by Xarzzu (@xarzzu)</p>
+          <span>Original audio</span>
+        </blockquote>
+        """
+        with patch("server_modules.audioflix_instagram_public._graphql", return_value=None):
+            with patch("server_modules.audioflix_instagram_public._request", return_value=b"<html><title>Instagram</title></html>"):
+                with patch("server_modules.audioflix_instagram_browser.render_instagram_html", return_value=rendered_html):
+                    metadata = audioflix_instagram_metadata.resolve_metadata("DS2r6KBDNCS")
+
+        self.assertTrue(metadata["ok"])
+        self.assertEqual(metadata["creator"], "xarzzu")
+        self.assertEqual(metadata["creatorDisplayName"], "Xarzzu")
+        self.assertEqual(metadata["title"], "Original audio — xarzzu")
+        self.assertEqual(metadata["artist"], "xarzzu")
+        self.assertEqual(metadata["audioKind"], "original_audio")
+
+    def test_browser_metadata_failure_preserves_playable_video(self):
         playable = {"ok": True, "videoUrl": "https://cdn.example/video.mp4", "title": "Instagram Video"}
         with patch.object(audioflix_instagram, "RESOLVER_PROVIDERS", [lambda url, shortcode: playable]):
-            with patch("server_modules.audioflix_instagram_metadata.resolve_metadata", side_effect=RuntimeError("metadata unavailable")):
-                result = audioflix_instagram.resolve_video({"url": "https://www.instagram.com/reel/ABC123/"})
+            with patch("server_modules.audioflix_instagram_public._graphql", return_value=None):
+                with patch("server_modules.audioflix_instagram_public._request", side_effect=RuntimeError("HTTP failed")):
+                    with patch("server_modules.audioflix_instagram_browser.render_instagram_html", side_effect=RuntimeError("Browser crashed")):
+                        result = audioflix_instagram.resolve_video({"url": "https://www.instagram.com/reel/DS2r6KBDNCS/"})
         self.assertTrue(result["ok"])
         self.assertEqual(result["videoUrl"], playable["videoUrl"])
         self.assertEqual(result["title"], "Instagram Video")
