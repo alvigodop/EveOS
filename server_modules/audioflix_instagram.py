@@ -204,53 +204,131 @@ def list_collection(payload: dict) -> dict:
     return {"ok": True, "title": title, "playlistId": "instagram:" + ",".join(_code(url) for url in urls), "entries": entries, "scrapeSource": "yt-dlp"}
 
 
-def resolve_video(payload: dict) -> dict:
-    urls = parse_urls(payload.get("url"))
-    if not urls:
-        return {"ok": False, "reason": "No Instagram video URL was provided."}
-    target_url = urls[0]
+# ============================================================================
+# RESOLVER PROVIDERS REGISTRY
+# ============================================================================
+
+def _provider_ytdlp(url: str, shortcode: str) -> dict | None:
     from server_modules import audioflix_ytdl
     yt_dlp = audioflix_ytdl._get_yt_dlp()
     if yt_dlp is None:
-        return {"ok": False, "reason": "yt-dlp is not installed."}
+        return None
     options = {**_ydl_options(), "format": "best[ext=mp4]/best"}
-    extraction_error = ""
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(target_url, download=False) or {}
+            info = ydl.extract_info(url, download=False) or {}
         candidates = [info, *(info.get("requested_downloads") or []), *(info.get("formats") or [])]
         playable = [item for item in candidates if item.get("url") and item.get("vcodec", "none") != "none" and item.get("acodec", "none") != "none" and str(item.get("protocol") or "https").startswith(("http", "m3u8"))]
         playable.sort(key=lambda item: (item.get("ext") == "mp4", item.get("height") or 0, item.get("tbr") or 0), reverse=True)
         selected = playable[0] if playable else {}
         if selected.get("url"):
-            return {"ok": True, "videoUrl": selected["url"], "title": info.get("title") or "Instagram Video", "duration": info.get("duration") or 0, "width": selected.get("width") or info.get("width") or 0, "height": selected.get("height") or info.get("height") or 0, "thumbnail": info.get("thumbnail") or "", "source": "yt-dlp"}
-        extraction_error = "Instagram did not expose a progressive video stream with audio."
-    except Exception as exc:
-        extraction_error = str(exc)[:300]
+            return {
+                "ok": True,
+                "videoUrl": selected["url"],
+                "title": info.get("title") or "Instagram Video",
+                "duration": info.get("duration") or 0,
+                "width": selected.get("width") or info.get("width") or 0,
+                "height": selected.get("height") or info.get("height") or 0,
+                "thumbnail": info.get("thumbnail") or "",
+                "source": "yt-dlp",
+            }
+    except Exception:
+        pass
+    return None
 
-    # Public no-login extraction: GraphQL/ruling session, then embed/page strategies.
+
+def _provider_public(url: str, shortcode: str) -> dict | None:
     try:
         from server_modules import audioflix_instagram_public
-        public_result = audioflix_instagram_public.resolve_public(_code(target_url))
-        if public_result.get("ok"):
-            return public_result
+        res = audioflix_instagram_public.resolve_public(shortcode)
+        if res and res.get("ok"):
+            return res
     except Exception:
         pass
+    return None
 
-    # Browser rendering remains a fallback for pages that need client hydration.
+
+def _provider_camofox(url: str, shortcode: str) -> dict | None:
     try:
         from server_modules import audioflix_instagram_browser
-        camofox_result = audioflix_instagram_browser.extract_camofox_video(target_url)
-        if camofox_result.get("ok"):
-            return {"ok": True, "videoUrl": camofox_result["videoUrl"], "title": camofox_result.get("title") or "Instagram Video", "duration": 0, "width": 0, "height": 0, "thumbnail": camofox_result.get("thumbnail") or "", "source": camofox_result.get("source", "camofox-browser")}
-        lightpanda_result = audioflix_instagram_browser.extract_lightpanda_video(target_url)
-        if lightpanda_result.get("ok"):
-            return {"ok": True, "videoUrl": lightpanda_result["videoUrl"], "title": lightpanda_result.get("title") or "Instagram Video", "duration": 0, "width": 0, "height": 0, "thumbnail": lightpanda_result.get("thumbnail") or "", "source": lightpanda_result.get("source", "lightpanda-browser")}
+        res = audioflix_instagram_browser.extract_camofox_video(url)
+        if res and res.get("ok"):
+            return {
+                "ok": True,
+                "videoUrl": res["videoUrl"],
+                "title": res.get("title") or "Instagram Video",
+                "duration": res.get("duration") or 0,
+                "width": 0,
+                "height": 0,
+                "thumbnail": res.get("thumbnail") or "",
+                "source": res.get("source", "camofox-browser"),
+            }
     except Exception:
         pass
+    return None
 
-    fallback = _webpage_video_fallback(target_url)
-    if fallback.get("ok"):
-        return {"ok": True, "videoUrl": fallback["videoUrl"], "title": fallback.get("title") or "Instagram Video", "duration": 0, "width": 0, "height": 0, "thumbnail": fallback.get("thumbnail") or "", "source": fallback.get("source", "instagram-webpage")}
 
-    return {"ok": False, "reason": (extraction_error or fallback.get("reason") or "Instagram video extraction failed.")[:300]}
+def _provider_lightpanda(url: str, shortcode: str) -> dict | None:
+    try:
+        from server_modules import audioflix_instagram_browser
+        res = audioflix_instagram_browser.extract_lightpanda_video(url)
+        if res and res.get("ok"):
+            return {
+                "ok": True,
+                "videoUrl": res["videoUrl"],
+                "title": res.get("title") or "Instagram Video",
+                "duration": res.get("duration") or 0,
+                "width": 0,
+                "height": 0,
+                "thumbnail": res.get("thumbnail") or "",
+                "source": res.get("source", "lightpanda-browser"),
+            }
+    except Exception:
+        pass
+    return None
+
+
+def _provider_webpage(url: str, shortcode: str) -> dict | None:
+    try:
+        res = _webpage_video_fallback(url)
+        if res and res.get("ok"):
+            return {
+                "ok": True,
+                "videoUrl": res["videoUrl"],
+                "title": res.get("title") or "Instagram Video",
+                "duration": res.get("duration") or 0,
+                "width": 0,
+                "height": 0,
+                "thumbnail": res.get("thumbnail") or "",
+                "source": res.get("source", "instagram-webpage"),
+            }
+    except Exception:
+        pass
+    return None
+
+
+RESOLVER_PROVIDERS = [
+    _provider_ytdlp,
+    _provider_public,
+    _provider_camofox,
+    _provider_lightpanda,
+    _provider_webpage,
+]
+
+
+def resolve_video(payload: dict) -> dict:
+    urls = parse_urls(payload.get("url"))
+    if not urls:
+        return {"ok": False, "reason": "No Instagram video URL was provided."}
+    target_url = urls[0]
+    shortcode = _code(target_url)
+
+    for provider in RESOLVER_PROVIDERS:
+        try:
+            result = provider(target_url, shortcode)
+            if result and result.get("ok"):
+                return result
+        except Exception:
+            continue
+
+    return {"ok": False, "reason": "All Instagram resolver providers failed to extract a playable video stream."}

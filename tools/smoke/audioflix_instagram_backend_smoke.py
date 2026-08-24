@@ -274,4 +274,61 @@ with tempfile.TemporaryDirectory(prefix="eveos_ig_session_") as session_root:
         else:
             os.environ["LOCALAPPDATA"] = original_appdata
 
+    # Verify duration extraction from Facebook CDN efg payloads (valid, malformed, missing)
+    from server_modules import audioflix_instagram_public_proxy as INSTAGRAM_PROXY
+    import base64
+    valid_efg = base64.b64encode(json.dumps({"duration_s": 49}).encode()).decode()
+    dur1 = INSTAGRAM_PROXY._extract_duration_from_url(f"https://instagram.example.com/video.mp4?efg={valid_efg}")
+    check(dur1 == 49, "valid efg parameter extracts exact duration in seconds")
+    dur2 = INSTAGRAM_PROXY._extract_duration_from_url("https://instagram.example.com/video.mp4?efg=corrupted_base64!!!")
+    check(dur2 == 0, "corrupted efg parameter safely falls back to 0")
+    dur3 = INSTAGRAM_PROXY._extract_duration_from_url("https://instagram.example.com/video.mp4?other=param")
+    check(dur3 == 0, "missing efg parameter safely returns 0")
+
+    # Verify collection import fallback to public resolver when yt-dlp returns empty response
+    original_get_ytdlp = YTDL._get_yt_dlp
+    original_public = INSTAGRAM_PUBLIC.resolve_public
+    try:
+        YTDL._get_yt_dlp = lambda: FailingYtDlp
+        INSTAGRAM_PUBLIC.resolve_public = lambda _code: {
+            "ok": True,
+            "title": "Fallback Public Post Title",
+            "artist": "Public Creator",
+            "thumbnail": "https://cdn.example/thumb.jpg",
+            "duration": 49,
+            "source": "instagram-public-proxy",
+        }
+        col = INSTAGRAM.list_collection({"source": "https://www.instagram.com/p/DS2r6KBDNCS/", "title": "Public Collection"})
+        check(col.get("ok"), "collection import succeeds when yt-dlp fails")
+        check(len(col.get("entries", [])) == 1, "collection entry is preserved")
+        entry = col["entries"][0]
+        check(entry.get("title") == "Fallback Public Post Title", "collection entry populates title from public resolver")
+        check(entry.get("artist") == "Public Creator", "collection entry populates artist from public resolver")
+        check(entry.get("duration") == 49, "collection entry populates duration from public resolver")
+    finally:
+        YTDL._get_yt_dlp = original_get_ytdlp
+        INSTAGRAM_PUBLIC.resolve_public = original_public
+
+    # Verify fail-safe resolution when all providers fail
+    try:
+        YTDL._get_yt_dlp = lambda: FailingYtDlp
+        INSTAGRAM_PUBLIC.resolve_public = lambda _code: {"ok": False}
+        INSTAGRAM_BROWSER.extract_camofox_video = lambda _url: {"ok": False}
+        INSTAGRAM_BROWSER.extract_lightpanda_video = lambda _url: {"ok": False}
+        INSTAGRAM.urlopen = lambda *_args, **_kwargs: FakeResponse() # but without og:video
+        class EmptyResponse:
+            def __enter__(self): return self
+            def __exit__(self, *_args): return False
+            def read(self): return b"<html><head></head><body>No video</body></html>"
+        INSTAGRAM.urlopen = lambda *_args, **_kwargs: EmptyResponse()
+        failed_res = INSTAGRAM.resolve_video({"url": "https://www.instagram.com/p/NonExistent/"})
+        check(failed_res.get("ok") is False, "graceful failure when all providers fail")
+        check("failed" in failed_res.get("reason", "").lower(), "informative error reason returned")
+    finally:
+        YTDL._get_yt_dlp = original_get_ytdlp
+        INSTAGRAM_PUBLIC.resolve_public = original_public
+        INSTAGRAM_BROWSER.extract_camofox_video = original_camofox
+        INSTAGRAM_BROWSER.extract_lightpanda_video = original_lightpanda
+        INSTAGRAM.urlopen = original_urlopen
+
 print("AUDIOFLIX_INSTAGRAM_BACKEND_SMOKE_OK")
