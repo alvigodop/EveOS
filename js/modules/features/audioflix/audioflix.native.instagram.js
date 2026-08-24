@@ -19,32 +19,51 @@ window.EveAudioflixNativeInstagram = window.EveAudioflixNativeInstagram || {};
                 probe: options.force === true
             });
         }
+
         async function resolveInstagramVideo(url) {
             if (!url) return { ok: false, reason: 'Missing Instagram Reel URL.' };
             return fetchJson('/api/audioflix/instagram-video', {
                 method: 'POST',
                 body: JSON.stringify({ url }),
-                timeout: 30000,
+                timeout: 60000,
                 probe: true
             });
         }
+
+        async function connectInstagramBrowser() {
+            return fetchJson('/api/audioflix/instagram-session/connect-browser', {
+                method: 'POST',
+                body: JSON.stringify({}),
+                timeout: 15000,
+                probe: true
+            });
+        }
+
         async function getInstagramSessionStatus() {
             return fetchJson('/api/audioflix/instagram-session/status', {
                 method: 'POST',
                 body: JSON.stringify({}),
-                timeout: 8000,
+                timeout: 10000,
                 probe: true
             });
         }
+
         async function clearInstagramSession() {
             return fetchJson('/api/audioflix/instagram-session/clear', {
                 method: 'POST',
                 body: JSON.stringify({}),
-                timeout: 8000,
+                timeout: 10000,
                 probe: true
             });
         }
-        return { listInstagramCollection, resolveInstagramVideo, getInstagramSessionStatus, clearInstagramSession };
+
+        return {
+            listInstagramCollection,
+            resolveInstagramVideo,
+            connectInstagramBrowser,
+            getInstagramSessionStatus,
+            clearInstagramSession
+        };
     }
 
     Object.assign(ns, { ready: true, create });
