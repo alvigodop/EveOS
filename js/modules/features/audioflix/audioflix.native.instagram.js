@@ -7,21 +7,17 @@ window.EveAudioflixNativeInstagram = window.EveAudioflixNativeInstagram || {};
 
     function create({ fetchJson }) {
         async function listInstagramCollection(source, options = {}) {
-            if (!source) return { ok: false, reason: 'Missing Instagram Reel collection.' };
+            if (!source) return { ok: false, reason: 'Missing Instagram video collection.' };
             return fetchJson('/api/audioflix/instagram-collection', {
                 method: 'POST',
-                body: JSON.stringify({
-                    source,
-                    title: String(options.title || '').trim(),
-                    force: options.force === true
-                }),
+                body: JSON.stringify({ source, title: String(options.title || '').trim(), force: options.force === true }),
                 timeout: 180000,
                 probe: options.force === true
             });
         }
 
         async function resolveInstagramVideo(url) {
-            if (!url) return { ok: false, reason: 'Missing Instagram Reel URL.' };
+            if (!url) return { ok: false, reason: 'Missing Instagram video URL.' };
             return fetchJson('/api/audioflix/instagram-video', {
                 method: 'POST',
                 body: JSON.stringify({ url }),
@@ -30,40 +26,7 @@ window.EveAudioflixNativeInstagram = window.EveAudioflixNativeInstagram || {};
             });
         }
 
-        async function connectInstagramBrowser() {
-            return fetchJson('/api/audioflix/instagram-session/connect-browser', {
-                method: 'POST',
-                body: JSON.stringify({}),
-                timeout: 15000,
-                probe: true
-            });
-        }
-
-        async function getInstagramSessionStatus() {
-            return fetchJson('/api/audioflix/instagram-session/status', {
-                method: 'POST',
-                body: JSON.stringify({}),
-                timeout: 10000,
-                probe: true
-            });
-        }
-
-        async function clearInstagramSession() {
-            return fetchJson('/api/audioflix/instagram-session/clear', {
-                method: 'POST',
-                body: JSON.stringify({}),
-                timeout: 10000,
-                probe: true
-            });
-        }
-
-        return {
-            listInstagramCollection,
-            resolveInstagramVideo,
-            connectInstagramBrowser,
-            getInstagramSessionStatus,
-            clearInstagramSession
-        };
+        return { listInstagramCollection, resolveInstagramVideo };
     }
 
     Object.assign(ns, { ready: true, create });
