@@ -8,10 +8,8 @@ Metadata enrichment is completely decoupled from media stream resolution.
 from __future__ import annotations
 
 import html
-import json
 import re
 from typing import Any
-from urllib.request import Request, urlopen
 
 
 def _clean(value: str) -> str:
@@ -110,6 +108,15 @@ def _metadata_from_media(media: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _visible_html_text(page: str) -> str:
+    """Normalize visible embed text so creator/audio labels can work without OG tags."""
+    text = re.sub(r"<script\b[^>]*>.*?</script>", " ", page, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<style\b[^>]*>.*?</style>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    return " ".join(text.split())
+
+
 def _metadata_from_html(page: str) -> dict[str, Any]:
     def meta(*names: str) -> str:
         for name in names:
@@ -124,25 +131,36 @@ def _metadata_from_html(page: str) -> dict[str, Any]:
         return ""
 
     description = meta("description", "og:description")
+    visible_text = _visible_html_text(page)
+    searchable = " ".join(part for part in (description, visible_text) if part)
+
     creator = ""
     display_name = ""
-    author_match = re.search(r'(?:A post shared by|shared by)\s+([^(@]+?)\s*\(@([A-Za-z0-9._]+)\)', description, re.IGNORECASE)
+    author_match = re.search(r'(?:A post shared by|A post shared|shared by)\s+([^(@<]+?)\s*\(@([A-Za-z0-9._]+)\)', searchable, re.IGNORECASE)
     if author_match:
         display_name = author_match.group(1).strip()
         creator = author_match.group(2).lower()
-    elif "@" in description:
-        handle = re.search(r'@([A-Za-z0-9._]+)', description)
+    else:
+        handle = re.search(r'@([A-Za-z0-9._]{1,30})', searchable)
         creator = handle.group(1).lower() if handle else ""
+
     caption = meta("og:title", "twitter:title")
-    if caption.startswith("A post shared by"):
+    if caption.lower().startswith("a post shared"):
         caption = ""
+
     thumbnail = meta("og:image", "twitter:image")
+    permalink = meta("og:url")
+
+    original_audio = bool(re.search(r"\bOriginal audio\b|\boriginal sound\b", searchable, re.IGNORECASE))
     music_title = ""
-    music_artist = ""
-    music_match = re.search(r'(?:Original audio|original sound)\s*[—-–]\s*([^|•]+)', description, re.IGNORECASE)
-    if music_match:
-        music_title = f"Original audio — {music_match.group(1).strip()}"
-    original_audio = bool(music_match) or bool(re.search(r'Original audio', description, re.IGNORECASE))
+    if original_audio:
+        title_match = re.search(r"(?:Original audio|original sound)\s*(?:—|-|–)?\s*([^|•\n]{1,180})", searchable, re.IGNORECASE)
+        candidate = title_match.group(1).strip() if title_match else ""
+        if candidate and candidate.lower() not in {creator.lower(), display_name.lower()}:
+            music_title = f"Original audio — {candidate}"
+        else:
+            music_title = f"Original audio — {creator or display_name or 'Instagram'}"
+
     if original_audio:
         title = music_title or f"Original audio — {creator or display_name or 'Instagram'}"
         artist = creator or display_name or "Instagram"
@@ -151,13 +169,13 @@ def _metadata_from_html(page: str) -> dict[str, Any]:
         title = caption or display_name or creator or "Instagram Video"
         artist = creator or display_name or "Instagram"
         kind = ""
-    permalink = meta("og:url")
+
     return {
         "creator": creator,
         "creatorDisplayName": display_name,
         "collaborators": [],
         "audioTitle": music_title,
-        "audioArtist": music_artist,
+        "audioArtist": creator if original_audio else "",
         "audioKind": kind,
         "caption": caption,
         "title": title[:180],
@@ -172,6 +190,8 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
     shortcode = str(shortcode or "").strip()
     if not shortcode:
         return {"ok": False, "reason": "Missing Instagram shortcode."}
+
+    # First reuse structured public metadata if Instagram exposes it.
     try:
         from server_modules import audioflix_instagram_public
         media = audioflix_instagram_public._graphql(shortcode, "")
@@ -183,15 +203,24 @@ def resolve_metadata(shortcode: str, *, fallback_url: str = "") -> dict[str, Any
                 return metadata
     except Exception:
         pass
+
+    # Public embeds are valuable even when Instagram strips OG metadata from
+    # the normal anonymous page. The embed's visible "A post shared by ..."
+    # and "Original audio" text is a valid generic fallback for library labels.
     try:
         from server_modules import audioflix_instagram_public
-        for prefix in ("p", "reel"):
-            page = audioflix_instagram_public._request(f"https://www.instagram.com/{prefix}/{shortcode}/embed/", headers=audioflix_instagram_public._headers(), timeout=10).decode("utf-8", errors="replace")
+        for prefix in ("reel", "p"):
+            page = audioflix_instagram_public._request(
+                f"https://www.instagram.com/{prefix}/{shortcode}/embed/",
+                headers=audioflix_instagram_public._headers(),
+                timeout=10,
+            ).decode("utf-8", errors="replace")
             metadata = _metadata_from_html(page)
-            if metadata.get("creator") or metadata.get("caption") or metadata.get("audioTitle"):
+            if metadata.get("creator") or metadata.get("caption") or metadata.get("audioTitle") or metadata.get("title") != "Instagram Video":
                 metadata["ok"] = True
                 metadata["permalink"] = metadata.get("permalink") or fallback_url or f"https://www.instagram.com/{prefix}/{shortcode}/"
                 return metadata
     except Exception:
         pass
+
     return {"ok": False, "reason": "Public Instagram metadata was not available."}
