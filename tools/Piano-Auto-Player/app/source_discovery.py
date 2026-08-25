@@ -15,6 +15,8 @@ SUPPORTED_MEDIA_HOSTS = {
     "www.youtube.com": "YouTube",
     "music.youtube.com": "YouTube",
     "youtu.be": "YouTube",
+    "instagram.com": "Instagram",
+    "www.instagram.com": "Instagram",
     "audio.com": "Audio.com",
     "www.audio.com": "Audio.com",
     "soundcloud.com": "SoundCloud",
