@@ -28,6 +28,9 @@ window.EveAudioflixAudioSource = window.EveAudioflixAudioSource || {};
     function needsResolution(url) {
         const value = String(url || '').trim();
         if (PROVIDER_NATIVE_RE.test(value)) return false;
+        // Instagram has its own URL provider. Let the Instagram import/cache layer own resolution
+        // so generic /api/audioflix/resolve-url (yt-dlp) is never run before Instagram playback.
+        if (window.EveAudioflixUrlProviders?.providerFor?.(value) === 'instagram') return false;
         if (value.includes('/api/proxy?') || value.includes('googlevideo.com')) return true;
         return PLATFORM_RE.test(value) || (/^https?:\/\//i.test(value) && !DIRECT_AUDIO_RE.test(value));
     }
