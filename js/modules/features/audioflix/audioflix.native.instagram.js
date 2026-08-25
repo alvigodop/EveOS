@@ -5,6 +5,10 @@ window.EveAudioflixNativeInstagram = window.EveAudioflixNativeInstagram || {};
     const ns = window.EveAudioflixNativeInstagram;
     if (ns.ready) return;
 
+    function canonical(value) {
+        return window.EveAudioflixInstagramPlaylists?.parseUrls?.(value)?.[0] || String(value || '').trim();
+    }
+
     function create({ fetchJson }) {
         async function listInstagramCollection(source, options = {}) {
             if (!source) return { ok: false, reason: 'Missing Instagram video collection.' };
@@ -16,14 +20,24 @@ window.EveAudioflixNativeInstagram = window.EveAudioflixNativeInstagram || {};
             });
         }
 
-        async function resolveInstagramVideo(url) {
+        async function resolveInstagramVideo(url, options = {}) {
             if (!url) return { ok: false, reason: 'Missing Instagram video URL.' };
-            return fetchJson('/api/audioflix/instagram-video', {
+            const key = canonical(url);
+            const cache = window.EveAudioflixInstagramCache;
+            if (!options.force) {
+                const cached = cache?.recall?.(key);
+                if (cached?.videoUrl) return cached;
+            }
+            const result = await fetchJson('/api/audioflix/instagram-video', {
                 method: 'POST',
                 body: JSON.stringify({ url }),
                 timeout: 60000,
                 probe: true
             });
+            if (result?.ok && result.videoUrl) {
+                cache?.remember?.(key, result);
+            }
+            return result;
         }
 
         return { listInstagramCollection, resolveInstagramVideo };
