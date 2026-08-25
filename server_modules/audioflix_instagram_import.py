@@ -25,33 +25,25 @@ def _code(url: str) -> str:
 
 def _resolve_one(pair: tuple[int, str]) -> dict:
     position, url = pair
-    from server_modules import audioflix_instagram
+    from server_modules import audioflix_instagram_playback
 
-    result = audioflix_instagram.resolve_video({"url": url})
+    result = audioflix_instagram_playback.resolve_video({"url": url})
     entry = {
         "sourceId": _code(url),
         "title": str(result.get("title") or f"Instagram Video {position}").strip()[:180],
-        "artist": str(result.get("artist") or result.get("creatorDisplayName") or result.get("creator") or "").strip()[:120],
+        "artist": str(result.get("artist") or "").strip()[:120],
         "album": "",
         "url": url,
         "image": str(result.get("thumbnail") or "").strip(),
         "duration": float(result.get("duration") or 0) or 0,
         "position": position,
         "sourceProvider": "instagram",
-        # Import-time transport cache. The browser/player consumes this directly and never
-        # needs to resolve the original Instagram page again unless the signed URL expires.
         "resolvedVideoUrl": str(result.get("videoUrl") or "").strip(),
         "resolvedDuration": float(result.get("duration") or 0) or 0,
         "resolvedWidth": int(result.get("width") or 0) or 0,
         "resolvedHeight": int(result.get("height") or 0) or 0,
         "resolvedSource": str(result.get("source") or "").strip(),
     }
-    for key in (
-        "creator", "creatorDisplayName", "collaborators", "audioTitle", "audioArtist",
-        "audioKind", "caption", "permalink",
-    ):
-        if result.get(key):
-            entry[key] = result[key]
     if not result.get("ok"):
         entry["metadataWarning"] = str(result.get("reason") or "Instagram media could not be resolved.")[:240]
     return entry
