@@ -55,6 +55,22 @@ window.EveAudioflixInstagramPlaylists = window.EveAudioflixInstagramPlaylists ||
         }));
     }
 
+    function primeResolvedMedia(entries) {
+        const cache = window.EveAudioflixInstagramCache;
+        if (!cache?.remember || !Array.isArray(entries)) return;
+        for (const entry of entries) {
+            const sourceUrl = parseUrls(entry?.url || entry?.permalink || '')[0];
+            const videoUrl = text(entry?.resolvedVideoUrl);
+            if (!sourceUrl || !videoUrl) continue;
+            cache.remember(sourceUrl, {
+                videoUrl,
+                duration: Number(entry?.resolvedDuration || entry?.duration || 0) || 0,
+                width: Number(entry?.resolvedWidth || 0) || 0,
+                height: Number(entry?.resolvedHeight || 0) || 0
+            });
+        }
+    }
+
     async function fetchPlaylist(value, force, options = {}) {
         const normalized = normalize(value);
         if (!normalized.ok) return normalized;
@@ -67,6 +83,10 @@ window.EveAudioflixInstagramPlaylists = window.EveAudioflixInstagramPlaylists ||
             );
         } catch (_) {}
         if (enriched?.ok && Array.isArray(enriched.entries) && enriched.entries.length) {
+            // Import is the expensive boundary. The backend has already resolved public media,
+            // including any browser fallback, so persist those direct URLs before the library item
+            // can ever be played. Playback then needs no Camofox/metadata request.
+            primeResolvedMedia(enriched.entries);
             return Object.assign({}, enriched, normalized, {
                 ok: true,
                 title: text(enriched.title) || title,
@@ -79,7 +99,7 @@ window.EveAudioflixInstagramPlaylists = window.EveAudioflixInstagramPlaylists ||
             title,
             entries: fallbackEntries(normalized.urls),
             scrapeSource: 'url-list',
-            enrichmentWarning: enriched?.reason || 'Metadata will be enriched when the EveOS server can access these Reels.'
+            enrichmentWarning: enriched?.reason || 'Instagram media could not be resolved during import.'
         };
     }
 
