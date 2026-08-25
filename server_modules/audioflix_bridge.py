@@ -169,11 +169,13 @@ def instagram_session_clear(payload: dict) -> dict:
 
 
 def instagram_collection(payload: dict) -> dict:
-    from server_modules import audioflix_instagram
-    return audioflix_instagram.list_collection(payload)
+    from server_modules import audioflix_instagram_import
+    return audioflix_instagram_import.list_collection(payload)
 
 
 def instagram_video(payload: dict) -> dict:
+    # Kept as a compatibility endpoint for first-use / expired-cache recovery.
+    # Normal library playback should use the import-time URL cache instead.
     from server_modules import audioflix_instagram
     return audioflix_instagram.resolve_video(payload)
 
