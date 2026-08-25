@@ -174,10 +174,10 @@ def instagram_collection(payload: dict) -> dict:
 
 
 def instagram_video(payload: dict) -> dict:
-    # Kept as a compatibility endpoint for first-use / expired-cache recovery.
-    # Normal library playback should use the import-time URL cache instead.
-    from server_modules import audioflix_instagram
-    return audioflix_instagram.resolve_video(payload)
+    # Playback/recovery is media-only. Rich Instagram metadata is intentionally deferred and is
+    # never invoked from the normal playback endpoint.
+    from server_modules import audioflix_instagram_playback
+    return audioflix_instagram_playback.resolve_video(payload)
 
 
 def save_soundlab_recording(payload: dict) -> dict:
