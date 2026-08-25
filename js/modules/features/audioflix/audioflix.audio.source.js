@@ -28,9 +28,6 @@ window.EveAudioflixAudioSource = window.EveAudioflixAudioSource || {};
     function needsResolution(url) {
         const value = String(url || '').trim();
         if (PROVIDER_NATIVE_RE.test(value)) return false;
-        // Instagram has its own URL provider. Let the Instagram import/cache layer own resolution
-        // so generic /api/audioflix/resolve-url (yt-dlp) is never run before Instagram playback.
-        if (window.EveAudioflixUrlProviders?.providerFor?.(value) === 'instagram') return false;
         if (value.includes('/api/proxy?') || value.includes('googlevideo.com')) return true;
         return PLATFORM_RE.test(value) || (/^https?:\/\//i.test(value) && !DIRECT_AUDIO_RE.test(value));
     }
@@ -39,6 +36,23 @@ window.EveAudioflixAudioSource = window.EveAudioflixAudioSource || {};
         const safeItem = item && typeof item === 'object' ? { ...item } : {};
         const targetUrl = getOriginalPlatformUrl(safeItem);
         if (!targetUrl || !needsResolution(targetUrl)) return safeItem;
+
+        // Instagram uses its dedicated media resolver (and cache) instead of generic yt-dlp
+        if (window.EveAudioflixUrlProviders?.providerFor?.(targetUrl) === 'instagram') {
+            const resolver = window.EveAudioflixNative?.resolveInstagramVideo || window.EveAudioflixNative?.resolveUrl;
+            const resolved = await resolver?.(targetUrl);
+            const mediaUrl = resolved?.videoUrl || resolved?.audioUrl;
+            if (!resolved?.ok || !mediaUrl) {
+                const reason = resolved?.reason || 'The Instagram URL did not resolve to a playable video stream.';
+                throw new Error(reason);
+            }
+            safeItem.sourceUrl = targetUrl;
+            safeItem.url = window.EveAudioflixNative?.getProxyUrl?.(mediaUrl) || mediaUrl;
+            safeItem.rawAudioUrl = mediaUrl;
+            safeItem.resolvedDuration = Math.max(0, Number(resolved.duration || 0) || 0);
+            safeItem.resolvedTitle = String(resolved.title || '').trim();
+            return safeItem;
+        }
 
         const isProxyOrExpired = String(safeItem.url || '').includes('/api/proxy?') || String(safeItem.url || '').includes('googlevideo.com');
         const resolved = await window.EveAudioflixNative?.resolveUrl?.(targetUrl, isProxyOrExpired);
