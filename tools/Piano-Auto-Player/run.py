@@ -1,5 +1,16 @@
 import argparse
 
+from app import source_discovery
+
+# Instagram Reels/video posts are a first-class media source for the existing
+# yt-dlp -> WAV -> Basic Pitch / Hi-Fi transcription pipeline. Keep the
+# registration here so older provider logic remains unchanged and the server
+# imports the expanded allowlist before constructing its transcriber.
+source_discovery.SUPPORTED_MEDIA_HOSTS.update({
+    "instagram.com": "Instagram",
+    "www.instagram.com": "Instagram",
+})
+
 from app.server import run
 
 if __name__ == "__main__":
