@@ -4,6 +4,17 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
     const ns = window.EveAudioflixLibraryNextUi;
     if (ns.ready) return;
 
+    function pruneGroupMap() {
+        const s = window.EveAudioflixState?.ensure?.();
+        if (!s) return;
+        const liveIds = new Set((s.music || []).map((item) => item.id));
+        const current = s.musicGroupMap || {};
+        const next = Object.fromEntries(Object.entries(current).filter(([id]) => liveIds.has(id)));
+        if (Object.keys(next).length !== Object.keys(current).length) {
+            window.EveAudioflixState?.update?.({ musicGroupMap: next }, 'audioflix-prune-orphan-group-memberships');
+        }
+    }
+
     function syncQueueRebase() {
         const q = window.__eveAudioflixQueueRebase;
         if (!q) return;
@@ -45,7 +56,7 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
     function boot() {
         if (ns.booted || !document.body) return;
         ns.booted = true;
-        const observe = () => { injectMarkers(); syncQueueRebase(); };
+        const observe = () => { pruneGroupMap(); injectMarkers(); syncQueueRebase(); };
         const observer = new MutationObserver(observe);
         observer.observe(document.body, { childList: true, subtree: true });
         document.addEventListener('click', (event) => {
@@ -65,6 +76,6 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
         observe();
     }
 
-    Object.assign(ns, { ready: true, boot });
+    Object.assign(ns, { ready: true, boot, pruneGroupMap });
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })();
