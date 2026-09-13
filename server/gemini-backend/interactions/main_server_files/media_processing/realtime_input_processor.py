@@ -5,6 +5,60 @@ from main_server_files.chat_history.chat_history_handler import save_chat_histor
 import asyncio
 import time
 
+MODE2_TURN_CONTEXT_PREFIXES = (
+    "[SILENT BACKGROUND CONTEXT — internal memory refresh only.",
+    "[SILENT GUARD — internal note, do NOT acknowledge:",
+)
+MODE2_TURN_CONTEXT_TTL_SECONDS = 30.0
+
+
+def _is_mode2_turn_context(text):
+    value = str(text or "")
+    return any(value.startswith(prefix) for prefix in MODE2_TURN_CONTEXT_PREFIXES)
+
+
+def _store_mode2_turn_context(connection_monitor, text):
+    if connection_monitor is None:
+        return
+    setattr(connection_monitor, "mode2_pending_turn_context", str(text or ""))
+    setattr(connection_monitor, "mode2_pending_turn_context_at", time.time())
+
+
+def _consume_mode2_turn_context(connection_monitor):
+    if connection_monitor is None:
+        return ""
+
+    text = str(getattr(connection_monitor, "mode2_pending_turn_context", "") or "")
+    try:
+        stored_at = float(getattr(connection_monitor, "mode2_pending_turn_context_at", 0) or 0)
+    except (TypeError, ValueError):
+        stored_at = 0.0
+
+    # Consume before checking freshness so stale context can never leak into a later turn.
+    setattr(connection_monitor, "mode2_pending_turn_context", "")
+    setattr(connection_monitor, "mode2_pending_turn_context_at", 0.0)
+
+    if not text or not stored_at:
+        return ""
+    if time.time() - stored_at > MODE2_TURN_CONTEXT_TTL_SECONDS:
+        return ""
+    return text
+
+
+def _merge_mode2_turn_context(connection_monitor, user_text):
+    text = str(user_text or "")
+    context = _consume_mode2_turn_context(connection_monitor)
+    if not context:
+        return text, False
+
+    return (
+        context
+        + "\n\n[USER MESSAGE — answer this message normally using the internal EveOS context above when relevant.]\n"
+        + text,
+        True,
+    )
+
+
 async def process_realtime_input(data, session, connection_monitor, audio_processor):
     """Process realtime input data from the client."""
     print(f"Processing realtime_input with {len(data['realtime_input']['media_chunks'])} chunks")
@@ -102,6 +156,20 @@ async def process_realtime_input(data, session, connection_monitor, audio_proces
         else:
             print(f"WARNING: Unknown MIME type in realtime_input chunk: {mime_type}")
 
+    # Mode 2's Text Brain emits a unique silent context frame immediately before the
+    # user's corresponding message. Do not open a separate Gemini turn for that frame:
+    # buffer it briefly, then atomically prepend it to the next real user turn.
+    if (
+        is_system_context
+        and is_modular_context_payload
+        and modular_context_silent
+        and text_part_content
+        and _is_mode2_turn_context(text_part_content)
+    ):
+        _store_mode2_turn_context(connection_monitor, text_part_content)
+        print("Buffered Mode 2 extracted context for the next user turn.")
+        return
+
     # Handle system context separately
     if is_system_context and text_part_content:
         print("Processing system context - adding as background context to session")
@@ -182,7 +250,14 @@ Please acknowledge that you've received this context and can now continue the co
              # silent screen-share frame was pending just before it.
              setattr(connection_monitor, "screen_share_silent_response_pending", False)
              setattr(connection_monitor, "screen_share_silent_response_started_at", 0)
+             # Preserve clean user-visible history. Only the payload sent to Gemini gets
+             # the hidden Text Brain context prepended.
              save_chat_history(text_part_content, is_user=True)
+             text_part_string, mode2_context_merged = _merge_mode2_turn_context(
+                 connection_monitor, text_part_content
+             )
+             if mode2_context_merged:
+                 print("Merged buffered Mode 2 context into the next user turn.")
              if connection_monitor.is_websocket_open():
                  await connection_monitor.safe_send(json.dumps({
                      "text": "Processing your message...",
