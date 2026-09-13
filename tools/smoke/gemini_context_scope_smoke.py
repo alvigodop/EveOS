@@ -328,6 +328,18 @@ def main():
     assert_true([item["id"] for item in group_workspaces] == ["main"], "nested selected tab should not duplicate at top level")
     assert_true(any(child["id"] == "child" for child in group_workspaces[0]["children"]), "selected sub tab should stay nested under its parent")
 
+    manual_group = build_gemini_context_from_state(
+        state,
+        mode="summary",
+        sample_limit=25,
+        scope="group",
+        workspace_id="main",
+        workspace_ids="main,child",
+    )["payload"]
+    assert_true(manual_group["scope"]["scope"] == "group", "manual group scope metadata missing")
+    assert_true(manual_group["counts"]["bookmarks"] == 3, "manual group should include only its selected tab branches")
+    assert_true("other" not in manual_group["breakdown"]["bookmarksByWorkspace"], "manual group leaked unrelated workspace")
+
     print("GEMINI_CONTEXT_SCOPE_SMOKE_OK")
 
 

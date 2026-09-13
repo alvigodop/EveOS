@@ -32,12 +32,14 @@ window.EveDataStore = window.EveDataStore || {};
         liveContextBudgetChars,
         textBrainContextBudgetChars,
         textBrainContextSlot,
+        isTextBrainModeRequested,
+        waitForTextBrainContextSlot,
         getRecentNexusTraces,
         buildNexusTraceContextBlock,
         prepareLiveContextMessage,
         buildContextManifest
     } = transportApi;
-async function fetchGeminiContext(mode = 'summary', limit = 25, options = {}) {
+    async function fetchGeminiContext(mode = 'summary', limit = 25, options = {}) {
         const safeMode = normalizeContextMode(mode);
         const safeLimit = modeLimit(safeMode, limit);
         const scopeOptions = Object.assign({}, getCurrentGeminiContextScope(), options?.scope || {});
@@ -54,7 +56,7 @@ async function fetchGeminiContext(mode = 'summary', limit = 25, options = {}) {
             params.set('categoryName', String(scopeOptions.categoryName));
         }
         let remoteError = '';
-        if (typeof ns.isHttpContext !== 'function' || ns.isHttpContext()) {
+        if (!options?.preferLocalContext && (typeof ns.isHttpContext !== 'function' || ns.isHttpContext())) {
             try {
                 const query = `/api/eve-state/modular/gemini-context?${params.toString()}`;
                 const { ok, payload } = await ns.requestJson(query);
@@ -111,13 +113,44 @@ async function fetchGeminiContext(mode = 'summary', limit = 25, options = {}) {
     const LIVE_CONTEXT_APPEND_RESERVE_CHARS = 12000;
 
     async function sendContextToGeminiCore(mode = 'summary', limit = 25, options = {}) {
-        let context = await fetchGeminiContext(mode, limit, options);
+        // The selected scope comes from live browser state, while the server context endpoint
+        // reads the durable modular store. Flush the current datapack first so a recently edited
+        // tab/card is never replaced by the server's older snapshot. If that save fails, build
+        // from the same live browser state instead of knowingly sending stale data.
+        let relayOptions = options;
+        const canFlushLiveState = typeof ns.isHttpContext === 'function'
+            && ns.isHttpContext()
+            && typeof ns.getStore === 'function'
+            && typeof ns.hashState === 'function'
+            && typeof ns.withOperationMonitor === 'function';
+        if (canFlushLiveState) {
+            try {
+                const syncResult = await syncNow(true);
+                if (syncResult && syncResult.ok === false) {
+                    relayOptions = { ...options, preferLocalContext: true, syncError: syncResult.error || 'save failed' };
+                }
+            } catch (error) {
+                relayOptions = { ...options, preferLocalContext: true, syncError: error?.message || String(error) };
+            }
+        }
+        let context = await fetchGeminiContext(mode, limit, relayOptions);
         if (!context.ok) return context;
 
         // Auto-step the detail tier down until the snapshot fits the MODEL budget (not just the
         // transport guard). In Mode 2 the destination is the text brain's 1M-token window, so the
         // budget is far roomier than the live session's.
-        const brainSlot = textBrainContextSlot();
+        let brainSlot = textBrainContextSlot();
+        if (!brainSlot && isTextBrainModeRequested()) {
+            brainSlot = await waitForTextBrainContextSlot();
+            if (!brainSlot) {
+                return {
+                    ok: false,
+                    sent: false,
+                    route: 'text-brain',
+                    error: 'Mode 2 Text Brain relay is still loading. Context was not sent to the Live model; try again in a moment.'
+                };
+            }
+        }
         const budgetChars = brainSlot ? textBrainContextBudgetChars() : liveContextBudgetChars();
         let autoDegradedFrom = null;
         let autoDegradedChars = 0;
@@ -130,7 +163,7 @@ async function fetchGeminiContext(mode = 'summary', limit = 25, options = {}) {
                 autoDegradedChars = (context.contextText || '').length;
             }
             ladderIndex += 1;
-            const lower = await fetchGeminiContext(CONTEXT_TIER_LADDER[ladderIndex], limit, options);
+            const lower = await fetchGeminiContext(CONTEXT_TIER_LADDER[ladderIndex], limit, relayOptions);
             if (!lower.ok) break;
             context = lower;
         }

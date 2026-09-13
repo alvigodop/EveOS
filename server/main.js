@@ -5,7 +5,7 @@ function loadMainScriptAggregator() {
     const script = document.createElement('script');
     // The server now serves from the project root (Workshop/)
     // So we point to the migrated script loader in js/modules/gemini/
-    script.src = (window.GEMINI_APP_ROOT || '') + "js/modules/gemini/Script_Loader/Script_Loader.js?v=792283588d21";
+    script.src = (window.GEMINI_APP_ROOT || '') + "js/modules/gemini/Script_Loader/Script_Loader.js?v=fd23672c1bc7";
     script.defer = true;
     document.head.appendChild(script);
 }

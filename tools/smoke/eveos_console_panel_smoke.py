@@ -36,6 +36,7 @@ if str(ROOT) not in sys.path:
 from server_modules import eveos_console_prefs as P  # noqa: E402
 from server_modules import eveos_control_helper as H  # noqa: E402
 from server_modules import eveos_web_control as W  # noqa: E402
+from server_modules import gemini_control as G  # noqa: E402
 
 
 def check(condition, message):
@@ -164,6 +165,52 @@ def check_overview():
          H.world_book_control.get_status) = original
 
 
+def check_gemini_spawn_visibility():
+    """Gemini must obey the same per-service headed/headless setting shown in Settings."""
+    if G.os.name != "nt":
+        source = Path(G.__file__).read_text(encoding="utf-8")
+        check('headless_for("gemini")' in source and 'CREATE_NEW_CONSOLE' in source,
+              "Gemini's Windows spawner is wired to the shared console preference")
+        return
+    captured = []
+
+    class FakeProcess:
+        pid = 9191
+
+        def poll(self):
+            return None
+
+    original = (G._PROCESS, G._status_payload, G._port_open, G._main_script, G.subprocess.Popen)
+    try:
+        G._status_payload = lambda *a, **k: {
+            "ok": True, "running": False, "portConflict": False, "pids": [], "state": "stopped"
+        }
+        G._port_open = lambda _port: True
+        G._main_script = lambda: ROOT / "EveOS.html"
+        G.subprocess.Popen = lambda *a, **k: captured.append(k) or FakeProcess()
+
+        P.set_console("gemini", False)
+        G._PROCESS = None
+        G.start_server()
+        headed = captured.pop()
+        check(headed["creationflags"] & getattr(G.subprocess, "CREATE_NEW_CONSOLE", 0),
+              "Gemini opens a visible console when its Settings preference is headed")
+        check(headed["stdout"] is None and headed["stderr"] is None,
+              "headed Gemini inherits its visible console output")
+
+        P.set_console("gemini", True)
+        G._PROCESS = None
+        G.start_server()
+        hidden = captured.pop()
+        check(hidden["creationflags"] & getattr(G.subprocess, "CREATE_NO_WINDOW", 0),
+              "Gemini hides its console only when its Settings preference is headless")
+        check(hidden["stdout"] == G.subprocess.DEVNULL and hidden["stderr"] == G.subprocess.DEVNULL,
+              "headless Gemini suppresses console streams")
+    finally:
+        G._PROCESS, G._status_payload, G._port_open, G._main_script, G.subprocess.Popen = original
+        P.clear("gemini")
+
+
 def check_panel_contract():
     """The JS reads this payload. Exercising it for real needs a browser and a live plane."""
     panel = (ROOT / "js" / "modules" / "core" / "eveos-console-panel.js").read_text(encoding="utf-8")
@@ -208,7 +255,7 @@ def check_panel_contract():
 
     for key in ("web", "gemini", "worldBook", "piano", "watchFusion"):
         check(f"'{key}'" in panel, f"disconnected payload specifies service key '{key}'")
-    for label in ("EveOS localhost", "Gemini backend", "World Book", "Piano Auto Player", "WatchFusion"):
+    for label in ("EveOS localhost", "Gemini Live Link", "World Book", "Piano Auto Player", "WatchFusion"):
         check(f"'{label}'" in panel, f"disconnected payload specifies service label '{label}'")
 
     check("state.textContent = unavailable ? 'unavailable' :" in panel,
@@ -255,6 +302,7 @@ def main():
             W._preference_path = lambda: Path(directory) / "eveos-web-service.json"
             check_backend(store)
             check_overview()
+            check_gemini_spawn_visibility()
         finally:
             P._path, W._preference_path = original_path, original_pref
 
@@ -265,7 +313,8 @@ def main():
 
     check_panel_contract()
 
-    print("console panel OK - preferences persist apart, lifecycle policy is visible, payload matches UI")
+    if os.environ.get("EVE_SMOKE_VERBOSE") == "1":
+        print("console panel OK - preferences persist apart, lifecycle policy is visible, payload matches UI")
     print("EVEOS_CONSOLE_PANEL_SMOKE_OK")
 
 

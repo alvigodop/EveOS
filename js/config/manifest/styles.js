@@ -84,8 +84,8 @@ window.EveModuleManifestParts.styles = [
         'js/modules/modals/modals.css?v=c5e73ca3e548',
 
         // Gemini Integration Styles
-        'css/modules/gemini/main_css_files.css?v=dc61b2c37c80',
-        'css/modules/gemini/audio_playback_ui/audio_player.css?v=643a096a8882',
+        'css/modules/gemini/main_css_files.css?v=c97bd0a2e86e',
+        'css/modules/gemini/audio_playback_ui/audio_player.css?v=99ae2f02d14a',
         'css/modules/gemini/base_styles_ui/body_styles.css?v=61b84ae7cb3c',
         'css/modules/gemini/button_group_ui/button_group.css?v=6af4affa4571',
         'css/modules/gemini/canvas_ui/canvas_element.css?v=2cea636c699f',

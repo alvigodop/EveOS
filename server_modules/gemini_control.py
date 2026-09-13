@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import eveos_ports, gemini_credentials
+from . import eveos_console_prefs, eveos_ports, gemini_credentials
 
 
 WEBSOCKET_PORT = eveos_ports.service_port("GEMINI_WS_PORT")
@@ -229,12 +229,11 @@ def start_server() -> dict:
         }
 
     if not (_PROCESS and _PROCESS.poll() is None):
+        headless = eveos_console_prefs.headless_for("gemini")
         flags = 0
         if os.name == "nt":
-            flags = (
-                getattr(subprocess, "CREATE_NO_WINDOW", 0)
-                | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            )
+            flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            flags |= getattr(subprocess, "CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE", 0)
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
         # Hidden Windows processes otherwise inherit a legacy code page and can
@@ -248,8 +247,8 @@ def start_server() -> dict:
             [sys.executable, str(script), "--port", str(WEBSOCKET_PORT)],
             cwd=str(script.parent),
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL if headless else None,
+            stderr=subprocess.DEVNULL if headless else None,
             env=env,
             creationflags=flags,
         )

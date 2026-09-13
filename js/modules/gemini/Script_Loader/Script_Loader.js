@@ -40,7 +40,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js?v=f51b582130e7`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js?v=8a54de31bff8`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/svg_fixing/svgFixerLoader.js?v=fdf5cde639ee`,
-    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=316cfe49fc89`,
+    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=936f46a7f54a`,
     `${BASE_PATHS.CLIENT_CORE}/themeToggle.js?v=dd535222b6f0`,
     `${BASE_PATHS.CLIENT_CORE}/response_handling/responseClass.js?v=2fac1d9fdb98`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js?v=a6dbae2e3334`,
@@ -49,11 +49,11 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=783e71af7bc3`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiSessionResumption.js?v=14014db741b6`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=54e76c719a48`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=37005bb6878e`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=22d374b2839c`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js?v=78e959ad2d9b`,
 
     // 2. Agentic Functions
-    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=15b634aa0b4e`,
+    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=c73614f65191`,
     `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=85125891eeec`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js?v=cd2003932bc1`,
     `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=cc5ee042f918`,
@@ -61,7 +61,7 @@ const masterScriptList = [
     `${BASE_PATHS.AGENTIC}/time_perc/time_perc.js?v=05fcdfc258d9`,
 
     // 3. Log Interface Display
-    `${BASE_PATHS.LOG_INTERFACE}/msg_log/msg_log.js?v=f2b26e8f92de`,
+    `${BASE_PATHS.LOG_INTERFACE}/msg_log/msg_log.js?v=67473a2102d6`,
     `${BASE_PATHS.LOG_INTERFACE}/sys_log/sys_log.js?v=2c6e25d0a00d`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/msg_int.js?v=db986a21aefa`,
     `${BASE_PATHS.LOG_INTERFACE}/msg_int/popout_chat_feature/popoutChatHandler.js?v=ebd4472134e5`,

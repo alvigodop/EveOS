@@ -17,7 +17,7 @@
     const PANEL_SELECTOR = '#eveosConsolePanel, [data-eveos-console-panel]';
     const OFFLINE_SERVICE_SPECS = [
         ['web', 'EveOS localhost', [['EVEOS_WEB_PORT', 8765]]],
-        ['gemini', 'Gemini backend', [['GEMINI_WS_PORT', 9085], ['GEMINI_STATUS_PORT', 9086]]],
+        ['gemini', 'Gemini Live Link', [['GEMINI_WS_PORT', 9085], ['GEMINI_STATUS_PORT', 9086]]],
         ['worldBook', 'World Book', [['WORLD_BOOK_PORT', 8766]]],
         ['piano', 'Piano Auto Player', [['PIANO_PLAYER_PORT', 8771]]],
         ['watchFusion', 'WatchFusion', [['WATCHFUSION_PORT', 9087]]]

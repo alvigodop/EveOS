@@ -136,6 +136,7 @@ console.log("socketAudioLogic.js loading...");
 
     async function handleGeminiInterruption(data = {}) {
         LiveAudioGate.cancel(data.reason || 'provider_barge_in');
+        window.EveLiveWaveform?.reset?.();
 
         try {
             if (typeof stopAllAudioPlayback === 'function') stopAllAudioPlayback();
@@ -197,8 +198,10 @@ console.log("socketAudioLogic.js loading...");
             }));
         }
 
-        if (typeof ensureAudioPlayerUI === 'function') ensureAudioPlayerUI(audioData);
-        else console.error("ensureAudioPlayerUI missing! Cannot update UI.");
+        const playerContainer = typeof ensureAudioPlayerUI === 'function'
+            ? ensureAudioPlayerUI(audioData)
+            : null;
+        if (typeof ensureAudioPlayerUI !== 'function') console.error("ensureAudioPlayerUI missing! Cannot update UI.");
 
         const shouldAutoPlay = (isCompleteAudio && (typeof playProcessedAudio !== 'undefined' && playProcessedAudio)) ||
             (isInterimAudio && (typeof playInterimAudio !== 'undefined' && playInterimAudio)) ||
@@ -214,7 +217,7 @@ console.log("socketAudioLogic.js loading...");
             return true;
         }
 
-        async function playWithRecovery(chunk, finalAudio, isCurrent) {
+        async function playWithRecovery(chunk, finalAudio, isCurrent, uiContainer) {
             const ready = await ensurePlaybackReady();
             if (!isCurrent()) return;
             if (!ready) {
@@ -224,7 +227,7 @@ console.log("socketAudioLogic.js loading...");
                 return;
             }
             try {
-                await injestAudioChuckToPlay(chunk, finalAudio);
+                await injestAudioChuckToPlay(chunk, finalAudio, uiContainer);
             } catch (error) {
                 if (!isCurrent()) return;
                 console.warn('[socketAudioLogic] Audio ingest failed; rebuilding audio context once:', error);
@@ -236,7 +239,7 @@ console.log("socketAudioLogic.js loading...");
                     window.audioInputContext = null;
                     await ensurePlaybackReady();
                     if (!isCurrent()) return;
-                    await injestAudioChuckToPlay(chunk, finalAudio);
+                    await injestAudioChuckToPlay(chunk, finalAudio, uiContainer);
                 } catch (retryError) {
                     console.error('[socketAudioLogic] Audio retry failed:', retryError);
                     if (typeof displayMessage === 'function') {
@@ -262,6 +265,16 @@ console.log("socketAudioLogic.js loading...");
                     console.warn('[socketAudioLogic] Native Audioflix route skipped:', nativeError);
                 }
                 if (!isCurrent()) return;
+                const nativeOwnsPlayback = nativeHandled
+                    && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.();
+                if (nativeOwnsPlayback) {
+                    // The native bridge has accepted this chunk into its audible FIFO. Schedule
+                    // now, before the optional monitor mirror can delay the visualization.
+                    window.EveLiveWaveform?.queueFromPcm?.(audioData, playerContainer, {
+                        startInMs: 80,
+                        route: 'native'
+                    });
+                }
 
                 try {
                     await window.EveAudioflixGemini?.mirrorAudioChunk?.(audioData, {
@@ -272,8 +285,8 @@ console.log("socketAudioLogic.js loading...");
                     console.warn('[socketAudioLogic] Gemini monitor mirror skipped:', monitorError);
                 }
                 if (!isCurrent()) return;
-                if (nativeHandled && window.EveAudioflixNative?.shouldSuppressBrowserPlayback?.()) return;
-                await playWithRecovery(audioData, isCompleteAudio, isCurrent);
+                if (nativeOwnsPlayback) return;
+                await playWithRecovery(audioData, isCompleteAudio, isCurrent, playerContainer);
             });
         }
     }

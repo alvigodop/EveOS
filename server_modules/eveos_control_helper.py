@@ -156,7 +156,7 @@ def _console_overview(web_port=None) -> dict:
         ("web", "EveOS localhost",
          (lambda: eveos_web_control.get_status()) if web_port is None else (lambda: eveos_web_control.get_status(port=web_port)),
          lambda s: [s.get("port")]),
-        ("gemini", "Gemini backend", gemini_control.get_status,
+        ("gemini", "Gemini Live Link", gemini_control.get_status,
          lambda s: [s.get("websocketPort"), s.get("statusPort")]),
         ("worldBook", "World Book", world_book_control.get_status,
          lambda s: [s.get("port")]),
@@ -288,7 +288,10 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             self._send(eveos_web_control.get_status(port=_request_web_port(self)))
             return
         if path == "/api/gemini-server/status":
-            self._send(gemini_control.get_status())
+            payload = gemini_control.get_status()
+            payload["hostRunning"] = eveos_web_control.get_status(
+                port=_request_web_port(self)).get("running") is True
+            self._send(payload)
             return
         if path == "/api/world-book/status":
             self._send(world_book_control.get_status())

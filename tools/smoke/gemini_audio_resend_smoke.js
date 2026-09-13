@@ -30,6 +30,10 @@ async function assertBrowserLiveGate() {
     const workletCommands = [];
     let hardStops = 0;
     let nativeStops = 0;
+    let liveWaveformResets = 0;
+    const liveWaveformSchedules = [];
+    let browserIngests = 0;
+    const voicePlayer = { id: 'incoming-voice-player' };
     let legacyMessages = 0;
     const socket = { readyState: 1, send(raw) { sent.push(JSON.parse(raw)); }, onmessage: null };
     const sandbox = {
@@ -43,6 +47,11 @@ async function assertBrowserLiveGate() {
         setTimeout,
         clearTimeout,
         stopAllAudioPlayback() { hardStops += 1; },
+        playProcessedAudio: true,
+        playInterimAudio: true,
+        autoAudioPlay: true,
+        ensureAudioPlayerUI() { return voicePlayer; },
+        async injestAudioChuckToPlay() { browserIngests += 1; },
         updateConnectionStatus() {},
         document: { visibilityState: 'visible' }
     };
@@ -55,7 +64,15 @@ async function assertBrowserLiveGate() {
         audioQueue: [{ id: 1 }],
         generalAudioQueue: [{ id: 2 }],
         isPlayingFromQueue: true,
-        EveAudioflixNative: { async stopStream() { nativeStops += 1; } },
+        EveAudioflixNative: {
+            async stopStream() { nativeStops += 1; },
+            async sendGeminiChunk() { return true; },
+            shouldSuppressBrowserPlayback() { return true; }
+        },
+        EveLiveWaveform: {
+            queueFromPcm(chunk, container, options) { liveWaveformSchedules.push({ chunk, container, options }); },
+            reset() { liveWaveformResets += 1; }
+        },
         GeminiLiveToolBridge: { async execute(call) { return { ok: true, name: call.name }; } },
         dispatchEvent() {}
     };
@@ -81,6 +98,15 @@ async function assertBrowserLiveGate() {
     assert.equal(Object.keys(sandbox.window._workletCache).length, 0);
     assert.equal(sandbox.window.GeminiLiveAudioGate.epoch, 1,
         'interruption advances the audio epoch so stale async work cannot resume');
+    assert.equal(liveWaveformResets, 1, 'interruption also clears queued live waveform frames');
+
+    await sandbox.window.handleAudioMessage({ audio: 'AAAA', sequential: false });
+    assert.equal(liveWaveformSchedules.length, 1,
+        'native playback schedules one audible-timeline waveform frame');
+    assert.equal(liveWaveformSchedules[0].container, voicePlayer,
+        'native waveform is bound to the incoming voice message');
+    assert.equal(liveWaveformSchedules[0].options.route, 'native');
+    assert.equal(browserIngests, 0, 'native-owned playback does not also enter browser ingest');
 
     await sandbox.window.handleSocketMessage({
         currentTarget: socket,

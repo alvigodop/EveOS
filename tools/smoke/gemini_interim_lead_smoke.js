@@ -36,6 +36,14 @@ async function main() {
             const out = { ready: !!H };
             if (!H) return out;
 
+            const waveformSchedules = [];
+            window.EveLiveWaveform = {
+                queueFromPcm(chunk, container, options) {
+                    waveformSchedules.push({ chunk, container, options });
+                }
+            };
+            const voiceMessage = { id: 'voice-message-player' };
+
             const CHUNK = 0.04;
             window.base64ToArrayBuffer = () => new ArrayBuffer(1920);
             window.createAudioBufferFromPCM = () => ({ duration: CHUNK });
@@ -80,10 +88,12 @@ async function main() {
             H.stopAll('first-stream-test');
             ctx.currentTime = 0.10;
             started.length = 0;
-            await H.playInterimAudio('AAAA', ctx);
+            await H.playInterimAudio('AAAA', ctx, voiceMessage);
             out.firstStart = started[0];
             out.firstHeadroom = +(started[0] - ctx.currentTime).toFixed(3);
             out.configuredHeadroom = H.INITIAL_HEADROOM;
+            out.waveformFirstDelayMs = waveformSchedules[0]?.options?.startInMs;
+            out.waveformBoundToMessage = waveformSchedules[0]?.container === voiceMessage;
 
             // Healthy arrivals remain contiguous on the buffered timeline.
             ctx.currentTime += CHUNK;
@@ -146,6 +156,10 @@ async function main() {
             `first Gemini PCM chunk gets jitter headroom (${result.firstHeadroom}s)`);
         assert(result.firstHeadroom <= result.configuredHeadroom + 0.02,
             `first-turn latency stays bounded (${result.firstHeadroom}s)`);
+        assert(result.waveformBoundToMessage,
+            'live waveform is bound to the incoming voice message player');
+        assert(Math.abs(result.waveformFirstDelayMs - (result.firstHeadroom * 1000)) < 2,
+            `live waveform follows scheduled audible playback (${result.waveformFirstDelayMs}ms vs ${result.firstHeadroom * 1000}ms)`);
         assert(Math.abs(result.healthySpacing - 0.04) <= 0.002,
             `healthy chunks remain contiguous (${result.healthySpacing}s spacing)`);
         assert(result.jitterRecoveryHeadroom >= result.configuredHeadroom - 0.005,

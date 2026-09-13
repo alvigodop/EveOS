@@ -54,9 +54,14 @@ function showIncomingMessage(text, isTranscription = false, audioData = null) {
         // Retrieve current full text
         let currentFullText = targetMessage.getAttribute('data-full-text') || "";
 
-        // Append new text with separator to avoid merging with thinking blocks
-        let newFullText = currentFullText + "\n\n" + cleanedText;
+        // A voice bubble begins empty while native transcription catches up. Do not add a leading
+        // separator when that delayed transcript becomes the first content in the bubble.
+        let newFullText = currentFullText ? currentFullText + "\n\n" + cleanedText : cleanedText;
         targetMessage.setAttribute('data-full-text', newFullText);
+        if (isTranscription) {
+            targetMessage.querySelector('.message-transcription-loading')?.remove();
+            targetMessage.dataset.transcriptState = 'ready';
+        }
 
         // Re-render content
         if (window.MessagingLog && window.MessagingLog.MessageUiCreator) {
@@ -188,4 +193,4 @@ function showIncomingMessage(text, isTranscription = false, audioData = null) {
             }
         }, 2000); // Wait a short time after message display before starting self-talk
     }
-} 
+}

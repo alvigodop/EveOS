@@ -9,13 +9,9 @@ window.AudioIngestCore = window.AudioIngestCore || {};
 // Centralized ingestion queue to prevent race conditions in scheduling
 let ingestionQueue = Promise.resolve();
 
-// --- Live waveform driver (routing-agnostic) ---
-// Fed from ensureAudioPlayerUI (audioPlayerUI.js) for EVERY incoming chunk — that runs before any of
-// handleAudioMessage's early returns (processing-disabled, interim-disabled, native/CABLE suppress),
-// so the bars animate as the audio arrives no matter where the sound is actually routed. The caller
-// hands us the exact player container it just ensured; we also keep a newestPlayer() fallback in case
-// that element detaches. A rAF loop eases the bars toward each chunk's amplitude profile and decays
-// back to idle once chunks stop arriving.
+// --- Live waveform driver ---
+// Audio may arrive much faster than it is heard. Playback routes enqueue each PCM profile at the
+// audible start time so the visualizer follows the speaker, not websocket/backend throughput.
 window.EveLiveWaveform = window.EveLiveWaveform || (function () {
     const BARS = 16;
     // The audio is heard ~one jitter buffer behind ingest, so hold each chunk's profile this long
@@ -27,9 +23,11 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
     let syncDelayMs = 120;
     let target = new Array(BARS).fill(0.06);
     let display = new Array(BARS).fill(0.06);
-    let lastFeedAt = 0;
+    let activeUntil = 0;
+    let visualNextAt = 0;
     let raf = null;
-    let activeContainer = null;   // the player the caller bound us to for the current stream
+    let activeContainer = null;
+    const timers = new Set();
 
     function newestPlayer() {
         const players = document.querySelectorAll('.audio-player-container');
@@ -52,7 +50,7 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
     function ensureLoop() {
         if (raf) return;
         const loop = function () {
-            const idle = (performance.now() - lastFeedAt) > 350;
+            const idle = performance.now() > activeUntil;
             let settled = true;
             for (let b = 0; b < BARS; b++) {
                 const goal = idle ? 0.06 : target[b];
@@ -67,9 +65,7 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
         raf = requestAnimationFrame(loop);
     }
 
-    // Build an amplitude profile (RMS per segment) from a base64 int16 LE PCM chunk and drive the
-    // given container's bars. `container` is the player ensureAudioPlayerUI just created/updated.
-    function feedFromPcm(base64Chunk, container) {
+    function queueFromPcm(base64Chunk, container, options = {}) {
         try {
             if (!base64Chunk) return;
             const bin = atob(base64Chunk);
@@ -89,24 +85,47 @@ window.EveLiveWaveform = window.EveLiveWaveform || (function () {
                 }
                 next[b] = Math.min(1, Math.sqrt(sum / seg) * 3.2);  // RMS, scaled for visibility
             }
-            setTimeout(function () {
+            const durationMs = Math.max(16, Number(options.durationMs) || (bin.length / 48));
+            const now = performance.now();
+            if (container && activeContainer && container !== activeContainer) reset();
+            const requestedAt = now + Math.max(0,
+                Number.isFinite(Number(options.startInMs)) ? Number(options.startInMs) : syncDelayMs);
+            const scheduledAt = options.serial === false
+                ? requestedAt
+                : Math.max(requestedAt, visualNextAt || 0);
+            visualNextAt = Math.max(visualNextAt, scheduledAt + durationMs);
+            const timer = setTimeout(function () {
+                timers.delete(timer);
                 target = next;
-                lastFeedAt = performance.now();
+                activeUntil = Math.max(activeUntil, performance.now() + durationMs);
                 if (container) activeContainer = container;
                 ensureLoop();
-            }, syncDelayMs);
+            }, Math.max(0, scheduledAt - now));
+            timers.add(timer);
         } catch (e) { /* visualizer is optional */ }
     }
 
+    function reset() {
+        timers.forEach((timer) => clearTimeout(timer));
+        timers.clear();
+        visualNextAt = 0;
+        activeUntil = 0;
+        target = new Array(BARS).fill(0.06);
+        activeContainer?._renderWaveBars?.(target.slice());
+        activeContainer = null;
+    }
+
     return {
-        feedFromPcm,
+        queueFromPcm,
+        feedFromPcm: (chunk, container) => queueFromPcm(chunk, container),
+        reset,
         // Live tuning knob for the audio/visual offset (see syncDelayMs note above).
         setSyncDelay: function (ms) { syncDelayMs = Math.max(0, Number(ms) || 0); return syncDelayMs; },
         getSyncDelay: function () { return syncDelayMs; }
     };
 })();
 
-async function injestAudioChuckToPlay(base64AudioChunk, isFinalAudio = true) {
+async function injestAudioChuckToPlay(base64AudioChunk, isFinalAudio = true, uiContainer = null) {
     // Guard: Ignore null or undefined chunks
     if (!base64AudioChunk) {
         console.warn("[ingestCoordinator] Received null/undefined audio chunk, skipping.");
@@ -117,7 +136,7 @@ async function injestAudioChuckToPlay(base64AudioChunk, isFinalAudio = true) {
     return new Promise((resolve, reject) => {
         ingestionQueue = ingestionQueue.then(async () => {
             try {
-                await _processInjest(base64AudioChunk, isFinalAudio);
+                await _processInjest(base64AudioChunk, isFinalAudio, uiContainer);
                 resolve();
             } catch (err) {
                 console.error("Queue processing error:", err);
@@ -134,7 +153,7 @@ async function injestAudioChuckToPlay(base64AudioChunk, isFinalAudio = true) {
 /**
  * Internal ingestion logic (now run sequentially via queue)
  */
-async function _processInjest(base64AudioChunk, isFinalAudio = true) {
+async function _processInjest(base64AudioChunk, isFinalAudio = true, uiContainer = null) {
     // If master audio processing toggle is off, skip playback
     if (!playProcessedAudio) {
         console.log("Master audio toggle is off: skipping audio chunk ingestion");
@@ -168,7 +187,7 @@ async function _processInjest(base64AudioChunk, isFinalAudio = true) {
             if (InterimHandler) {
                 // We MUST await here to ensure the internal scheduling clock 
                 // is updated before the next chunk in the queue is processed.
-                await InterimHandler.playInterimAudio(base64AudioChunk, window.audioInputContext);
+                await InterimHandler.playInterimAudio(base64AudioChunk, window.audioInputContext, uiContainer);
             } else {
                 console.warn("InterimIngestHandler missing");
             }

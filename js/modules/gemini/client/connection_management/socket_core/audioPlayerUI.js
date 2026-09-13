@@ -47,6 +47,7 @@ console.log("audioPlayerUI.js loading...");
             if (window.MessagingLog && window.MessagingLog.MessageUiCreator) {
                 // Use the creator to make a standard bubble
                 targetMessage = window.MessagingLog.MessageUiCreator.createMessageContainer("");
+                targetMessage.classList.add('gemini-message');
 
                 // Create empty content div so we have a place for text later if it comes
                 const content = window.MessagingLog.MessageUiCreator.createMessageContent("");
@@ -67,6 +68,20 @@ console.log("audioPlayerUI.js loading...");
 
                 containerDiv.appendChild(targetMessage);
             }
+        }
+
+        // Native output transcription can arrive after the first audio chunk. Keep the response
+        // visibly pending instead of presenting a blank bubble and then popping text into it.
+        const content = targetMessage.querySelector('.message-content');
+        const hasTranscript = String(targetMessage.getAttribute('data-full-text') || content?.textContent || '').trim();
+        if (!hasTranscript && !targetMessage.querySelector('.message-transcription-loading')) {
+            const pending = document.createElement('div');
+            pending.className = 'message-transcription-loading';
+            pending.setAttribute('role', 'status');
+            pending.setAttribute('aria-live', 'polite');
+            pending.innerHTML = '<span class="message-transcription-loading__dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Transcription loading</span>';
+            targetMessage.dataset.transcriptState = 'pending';
+            targetMessage.insertBefore(pending, targetMessage.querySelector('.message-timestamp'));
         }
 
         // Check for createAudioPlayer in global scope or MessagingLog namespace
@@ -142,14 +157,8 @@ console.log("audioPlayerUI.js loading...");
                 });
             }
 
-            // Drive the live "vocal-cord" waveform as the audio ARRIVES. This runs for every incoming
-            // chunk on every branch of handleAudioMessage (before its early returns), so the bars
-            // animate live whether the sound is routed to the browser worklet, the CABLE bypass, or
-            // the native bridge — not only when the message is replayed. Feed the new chunk only
-            // (not the accumulated buffer) and bind this exact container so we don't guess.
-            if (audioData && window.EveLiveWaveform && typeof window.EveLiveWaveform.feedFromPcm === 'function') {
-                window.EveLiveWaveform.feedFromPcm(audioData, container);
-            }
+            // The playback route schedules the live waveform when the user will hear this chunk.
+            // Driving it here made the animation race ahead at backend-ingest speed.
         }
         return container;
     }

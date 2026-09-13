@@ -41,9 +41,25 @@ window.EveDataStore = window.EveDataStore || {};
         return Math.max(20000, Math.min(LIVE_CONTEXT_MAX_CHARS, budget));
     }
     function textBrainContextSlot() {
-        const mode2 = window.EveAudioflixState?.isTextBrainMode?.() === true;
+        const mode2 = isTextBrainModeRequested();
         const slot = window.EveGeminiMode2;
         return mode2 && typeof slot?.setEveContext === 'function' ? slot : null;
+    }
+
+    function isTextBrainModeRequested() {
+        if (window.EveAudioflixState?.isTextBrainMode?.() === true) return true;
+        return window.EveAudioflixState?.ensure?.()?.geminiConversationMode === 'text-brain-live-voice';
+    }
+
+    async function waitForTextBrainContextSlot(timeoutMs = 2500) {
+        if (!isTextBrainModeRequested()) return null;
+        const deadline = Date.now() + Math.max(0, Number(timeoutMs) || 0);
+        let slot = textBrainContextSlot();
+        while (!slot && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            slot = textBrainContextSlot();
+        }
+        return slot;
     }
 
     function countLibraryEntries(categories) {
@@ -201,6 +217,8 @@ window.EveDataStore = window.EveDataStore || {};
         liveContextBudgetChars,
         textBrainContextBudgetChars,
         textBrainContextSlot,
+        isTextBrainModeRequested,
+        waitForTextBrainContextSlot,
         getRecentNexusTraces,
         buildNexusTraceContextBlock,
         prepareLiveContextMessage,

@@ -31,8 +31,20 @@
         disconnectClient
     } = connectionApi;
     let recoveryPromise = null;
-async function recoverServerIfNeeded(reason) {
+    function disableForStoppedHost(message) {
+        setDesiredServerState(false);
+        setConnectionPreference(false);
+        setManualStop(true);
+        disconnectClient();
+        state.hostRunning = false;
+        state.running = false;
+        state.serverState = 'manual-stop';
+        state.connectionPhase = 'manual-stop';
+        state.message = message || 'EveOS localhost was stopped; Gemini Live Link is disabled.';
+    }
+    async function recoverServerIfNeeded(reason) {
         if (isManualStopActive()) return false;
+        if (state.hostRequired && state.hostRunning !== true) return false;
         if (!state.desiredRunning || state.running || state.busy || recoveryPromise) return false;
         if (!state.controllerAvailable || !state.baseUrl) return false;
         const now = Date.now();
@@ -102,6 +114,16 @@ async function recoverServerIfNeeded(reason) {
         const found = await findController();
         if (found) {
             state.controllerAvailable = true;
+            state.hostFailureCount = 0;
+            state.hostRunning = !state.hostRequired
+                || found.baseUrl === window.location.origin
+                || found.payload.hostRunning === true;
+            if (state.hostRequired && !state.hostRunning) {
+                disableForStoppedHost('EveOS localhost was closed; Gemini Live Link and auto-reconnect are disabled.');
+                publish();
+                reconcileClientConnection();
+                return { ...state };
+            }
             state.running = !!found.payload.running;
             state.serverState = found.payload.state || (state.running ? 'running' : 'stopped');
             state.message = found.payload.message || `Gemini server is ${state.serverState}.`;
@@ -116,6 +138,15 @@ async function recoverServerIfNeeded(reason) {
             }
         } else {
             state.controllerAvailable = false;
+            if (state.hostRequired) {
+                state.hostFailureCount += 1;
+                if (state.hostFailureCount >= 2) {
+                    disableForStoppedHost('EveOS localhost is offline; Gemini Live Link will stay disabled until you start it again.');
+                    publish();
+                    reconcileClientConnection();
+                    return { ...state };
+                }
+            }
             state.running = await checkDirectServerStatus();
             state.statusFailureCount += 1;
             if (state.running) {
@@ -309,6 +340,10 @@ async function recoverServerIfNeeded(reason) {
                     window.SocketGlobalState.serverOfflinePauseActive = false;
                 }
                 setManualStop(false);
+                if (state.hostRequired) {
+                    state.hostRunning = true;
+                    state.hostFailureCount = 0;
+                }
                 setDesiredServerState(true);
                 setConnectionPreference(true);
                 reconcileClientConnection();

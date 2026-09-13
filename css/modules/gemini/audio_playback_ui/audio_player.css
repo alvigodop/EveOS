@@ -6,6 +6,80 @@
     border-radius: 4px;
     padding: 8px 12px;
     max-width: 100%;
+    min-width: 0;
+    width: min(100%, 620px) !important;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+    gap: 6px;
+    overflow: hidden;
+}
+
+.audio-player-container > .mdl-button {
+    flex: 0 0 32px;
+}
+
+.audio-player-container .audio-progress-container {
+    flex: 1 1 86px !important;
+    min-width: 64px;
+    margin: 0 4px !important;
+}
+
+.audio-player-container .audio-waveform-canvas {
+    flex: 1 1 54px !important;
+    width: 66px !important;
+    min-width: 44px;
+    max-width: 66px;
+    margin: 0 3px !important;
+}
+
+.audio-player-container .audio-time-display {
+    flex: 1 1 78px;
+    min-width: 72px !important;
+}
+
+.audio-player-container .volume-slider {
+    flex: 1 1 54px;
+    width: 60px !important;
+    min-width: 44px;
+    max-width: 80px;
+    margin-left: 0 !important;
+}
+
+.audio-player-container .playback-speed-selector {
+    flex: 0 0 58px;
+    width: 58px;
+    max-width: 58px;
+    margin-left: 0 !important;
+}
+
+.message-transcription-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 12px;
+}
+
+.message-transcription-loading__dots {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.message-transcription-loading__dots i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #b39dff;
+    animation: eve-transcript-loading 1s ease-in-out infinite;
+}
+
+.message-transcription-loading__dots i:nth-child(2) { animation-delay: 0.14s; }
+.message-transcription-loading__dots i:nth-child(3) { animation-delay: 0.28s; }
+
+@keyframes eve-transcript-loading {
+    0%, 100% { opacity: 0.35; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-2px); }
 }
 
 .audio-controls {
@@ -96,4 +170,4 @@
     text-align: right;
     flex-shrink: 0;
     font-family: 'Roboto Mono', monospace;
-} 
+}

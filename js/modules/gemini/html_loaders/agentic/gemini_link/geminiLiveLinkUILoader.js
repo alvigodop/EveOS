@@ -65,7 +65,7 @@ async function sendGeminiLiveLinkContext() {
     try {
         result = await _withGeminiLiveLinkTimeout(
             api.sendContextToGemini(mode, profile.limit, { scope: selectedScope }),
-            15000,
+            45000,
             'EveOS context preparation'
         );
     } catch (error) {

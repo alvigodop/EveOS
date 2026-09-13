@@ -11,7 +11,7 @@ let serverRunning = false;
 let connectionAttempts = 0;
 
 const context = {
-    console,
+    console: { log() {}, warn() {}, error: (...args) => console.error(...args) },
     AbortSignal,
     WebSocket: { OPEN: 1, CLOSED: 3 },
     setTimeout(fn) {
@@ -106,6 +106,31 @@ async function main() {
     await runNextTimer();
     if (connectionAttempts !== 2) {
         throw new Error(`Reconnect did not resume after credentials became available: ${connectionAttempts}`);
+    }
+
+    // A stopped headed localhost/link writes the disabled preference before its socket closes.
+    // A stale desired-running bit must never override that explicit disabled state and create a
+    // new background reconnect monitor (the prior logic turned it back on here).
+    if (context.SocketGlobalState.continuousReconnectInterval) {
+        context.clearTimeout(context.SocketGlobalState.continuousReconnectInterval);
+        context.SocketGlobalState.continuousReconnectInterval = null;
+    }
+    storage.set('geminiConnectionEnabled', 'false');
+    storage.set('geminiServerDesiredState', 'running');
+    context.SocketGlobalState.autoReconnectEnabled = true;
+    context.SocketGlobalState.serverOfflinePauseActive = false;
+    const attemptsBeforeDisabled = connectionAttempts;
+    await context.startContinuousReconnectAttempts();
+    if (storage.get('geminiConnectionEnabled') !== 'false') {
+        throw new Error('Disabled Gemini preference was overwritten by stale desired-running state.');
+    }
+    if (context.SocketGlobalState.autoReconnectEnabled
+        || !context.SocketGlobalState.serverOfflinePauseActive
+        || context.SocketGlobalState.continuousReconnectInterval) {
+        throw new Error('Disabled Gemini link started a background reconnect monitor.');
+    }
+    if (connectionAttempts !== attemptsBeforeDisabled) {
+        throw new Error('Disabled Gemini link attempted a socket connection.');
     }
 
     console.log('GEMINI_RECONNECT_PERSISTENCE_SMOKE_OK');

@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..', '..');
 const sent = [];
 const displayed = [];
 const requests = [];
+let currentBrowserStateSaved = false;
 
 const context = {
   console,
@@ -23,15 +24,26 @@ const context = {
       _modularSync: {
         sharedReady: true,
         engineReady: true,
-        requestJson: async (query) => {
+        isHttpContext: () => true,
+        state: { lastUploadedHash: '', lastSyncedLocalHash: '', remoteSignature: '' },
+        hashState: () => 'current-browser-state',
+        withOperationMonitor: async (work) => work(),
+        getStore: () => ({ captureState: () => ({ marker: 'Fresh scoped datapack from browser' }) }),
+        requestJson: async (query, options) => {
           requests.push(query);
+          if (query === '/api/eve-state/modular/save') {
+            currentBrowserStateSaved = JSON.parse(options.body).marker === 'Fresh scoped datapack from browser';
+            return { ok: true, payload: { ok: true, status: { signature: 'fresh' } } };
+          }
           const parsed = new URL(`http://localhost${query}`);
           return {
             ok: true,
             payload: {
               ok: true,
               mode: parsed.searchParams.get('mode') === 'full' ? 'full' : 'summary',
-              contextText: '[EVEOS MODULAR CONTEXT]\nActive tab: Main',
+              contextText: '[EVEOS MODULAR CONTEXT]\n' + (currentBrowserStateSaved
+                ? 'Fresh scoped datapack from browser'
+                : 'STALE server datapack'),
               payload: {
                 scope: {
                   scope: parsed.searchParams.get('scope'),
@@ -93,8 +105,9 @@ function assert(condition, message) {
 
   const result = await api.sendContextToGemini('full', 30);
   assert(result.ok && result.sent && result.mode === 'full', 'context relay should report sent full context');
-  assert(/scope=workspace/.test(requests[0]), 'default relay should request current workspace branch scope');
-  assert(/workspaceId=main/.test(requests[0]), 'default relay should include active workspace id');
+  assert(requests[0] === '/api/eve-state/modular/save', 'relay must flush current browser datapack before building context');
+  assert(/scope=workspace/.test(requests[1]), 'default relay should request current workspace branch scope');
+  assert(/workspaceId=main/.test(requests[1]), 'default relay should include active workspace id');
   assert(sent.length === 1, 'one Gemini context payload should be sent');
 
   const payload = sent[0];
@@ -102,7 +115,8 @@ function assert(condition, message) {
   assert(payload.is_system_context === true, 'payload must use backend-recognized system context flag');
   assert(payload.is_system_message !== true, 'payload must not be ignored as a system message');
   assert(payload.realtime_input.media_chunks[0].mime_type === 'text/plain', 'context should be sent as text/plain');
-  assert(payload.realtime_input.media_chunks[0].data.includes('Active tab: Main'), 'context text should be preserved');
+  assert(payload.realtime_input.media_chunks[0].data.includes('Fresh scoped datapack from browser'), 'fresh browser datapack should be relayed');
+  assert(!payload.realtime_input.media_chunks[0].data.includes('STALE server datapack'), 'stale server datapack must not be relayed');
   assert(payload.context_manifest?.label === 'EveOS Context Snapshot', 'payload should include a readable manifest');
   assert(payload.context_manifest?.scopeMode === 'workspace', 'manifest should preserve scoped workspace mode');
   assert(payload.context_manifest?.counts?.bookmarks === 2, 'manifest should expose bookmark counts');

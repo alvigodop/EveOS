@@ -194,7 +194,12 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"error": "Unknown modular state endpoint"}')
 
         elif path == '/api/gemini-server/status':
-            gemini_control.send_json(self, gemini_control.get_status())
+            payload = gemini_control.get_status()
+            # Reaching this route proves the headed EveOS localhost is alive. Browser lifecycle
+            # control uses this to distinguish a Gemini socket drop from the user closing the
+            # localhost terminal, which must disable reconnect instead of relaunching a backend.
+            payload['hostRunning'] = True
+            gemini_control.send_json(self, payload)
 
         elif world_book_control.handle_get_request(self, path):
             return

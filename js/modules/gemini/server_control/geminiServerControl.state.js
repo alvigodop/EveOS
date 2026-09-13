@@ -21,7 +21,10 @@
         lastKnownRunningAt: 0,
         lastRecoveryAttemptAt: 0,
         recoveryAttempts: 0,
-        manualStop: false
+        manualStop: false,
+        hostRequired: /^https?:$/.test(window.location?.protocol || ''),
+        hostRunning: !/^https?:$/.test(window.location?.protocol || ''),
+        hostFailureCount: 0
     };
     // The EveOS python server's status endpoint does real work (listener sweep + backend
     // probe) and can legitimately take over a second on Windows. A flat 700ms budget made

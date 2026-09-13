@@ -146,10 +146,38 @@ function makeRelayVm({ textBrainMode }) {
         loadState(fresh);
         assert(fresh.window.EveAudioflixState.ensure().geminiConversationMode === 'text-brain-live-voice',
             'fresh state should default to Mode 2');
-        console.log('state default + migration OK');
+        if (process.env.EVE_SMOKE_VERBOSE === '1') console.log('state default + migration OK');
     }
 
-    // --- 2 + 3. Mode 2: context routes to the text brain; next turn carries it ---
+    // --- 2. Mode 2 module race: never leak scoped context to the Live socket while Text Brain loads ---
+    {
+        const { context, wsFrames } = makeRelayVm({ textBrainMode: true });
+        for (const script of [
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.scope.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.bookmarks.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.nexus.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.sync.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.scope.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.transport.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.api.context.js'
+        ]) runScript(context, script);
+
+        let handedOff = '';
+        setTimeout(() => {
+            context.window.EveGeminiMode2 = {
+                setEveContext(message) { handedOff = message; return { chars: message.length }; }
+            };
+        }, 20);
+        const result = await context.window.EveDataStore._modularSync.sendContextToGemini('summary', 10);
+        assert(result.ok && result.route === 'text-brain', 'delayed Mode 2 slot should receive context');
+        assert(handedOff.includes('[SYSTEM CONTEXT:'), 'delayed Mode 2 slot received the scoped snapshot');
+        assert(wsFrames.length === 0, 'Mode 2 loading race must never leak context to the Live socket');
+        if (process.env.EVE_SMOKE_VERBOSE === '1') console.log('mode 2 delayed-slot routing OK');
+    }
+
+    // --- 3 + 4. Mode 2: context routes to the text brain; next turn carries it ---
     {
         const { context, wsFrames, brainRequests, spoken } = makeRelayVm({ textBrainMode: true });
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js');
@@ -189,7 +217,9 @@ function makeRelayVm({ textBrainMode }) {
         assert(wsFrames.length === 1, 'exactly one system context frame should be sent');
         assert(wsFrames[0].is_system_context === true, 'frame should be system context');
         assert(wsFrames[0].realtime_input.media_chunks[0].data.includes('Brain reply about your cards.'), 'system context should contain extracted facts');
-        console.log(`mode 2 routing OK: ${result.mode} snapshot (${result.manifest.messageChars} chars) -> brain slot -> next turn carried ${String(req.context).length} chars; live WS untouched`);
+        if (process.env.EVE_SMOKE_VERBOSE === '1') {
+            console.log(`mode 2 routing OK: ${result.mode} snapshot (${result.manifest.messageChars} chars) -> brain slot -> next turn carried ${String(req.context).length} chars; live WS untouched`);
+        }
 
         // Data Stream deltas also route to the brain in Mode 2 (the live session never sees them)
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.datastream.trace.js');
@@ -218,10 +248,12 @@ function makeRelayVm({ textBrainMode }) {
         assert(String(req3.context || '').includes('[trimmed]'), 'oversized selective update should be visibly bounded');
         mode2.setEveContext('fresh snapshot', null);
         assert(mode2.getEveContextStatus().updateCount === 0, 'a fresh snapshot should clear the delta log');
-        console.log('mode 2 data stream OK: delta -> brain update log -> carried on next turn; cleared by fresh snapshot');
+        if (process.env.EVE_SMOKE_VERBOSE === '1') {
+            console.log('mode 2 data stream OK: delta -> brain update log -> carried on next turn; cleared by fresh snapshot');
+        }
     }
 
-    // --- 4. Mode 1 regression: context still goes over the live WebSocket ---
+    // --- 5. Mode 1 regression: context still goes over the live WebSocket ---
     {
         const { context, wsFrames } = makeRelayVm({ textBrainMode: false });
         runScript(context, 'js/modules/features/modular-state-sync/modular-state-sync.api.context.local.shared.js');
@@ -238,7 +270,7 @@ function makeRelayVm({ textBrainMode }) {
         assert(result.ok && result.sent && result.route === 'websocket', 'mode 1 should route over the websocket');
         assert(wsFrames.length > 0, 'mode 1 should emit websocket frames');
         assert(result.manifest.modelBudgetChars === 128000, 'mode 1 keeps the live-session budget');
-        console.log('mode 1 regression OK: websocket route intact');
+        if (process.env.EVE_SMOKE_VERBOSE === '1') console.log('mode 1 regression OK: websocket route intact');
     }
 
     console.log('GEMINI_MODE2_CONTEXT_ROUTING_SMOKE_OK');

@@ -121,30 +121,31 @@ console.log("serverStatusChecker.js loading...");
             return;
         }
 
-        if (isServerDesiredRunning()) {
-            State.autoReconnectEnabled = true;
-            State.serverOfflinePauseActive = false;
-        }
-
-        if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) {
-            return;
-        }
-
-        if (isConnectionDisabledByPreference() && !isServerDesiredRunning()) {
+        // The disabled preference is authoritative. A stale desired-running bit used to turn it
+        // back on after the headed localhost/Gemini terminal was closed.
+        if (isConnectionDisabledByPreference()) {
             stopReconnectMonitor(
                 "System Message: Gemini connection is disabled by preference. Auto reconnect paused.",
                 'Gemini Connection Disabled'
             );
             return;
-        } else if (isConnectionDisabledByPreference() && isServerDesiredRunning()) {
-            try {
-                localStorage.setItem('geminiConnectionEnabled', 'true');
-            } catch (error) {
-                // Keep the in-memory reconnect path alive even if storage is blocked.
-            }
+        }
+
+        const lifecycle = window.GeminiServerControl?.getState?.();
+        if (lifecycle?.hostRequired === true && lifecycle.hostRunning === false) {
+            stopReconnectMonitor(
+                'System Message: EveOS localhost is offline. Gemini Live Link will stay disabled.',
+                'Gemini Connection Disabled'
+            );
+            return;
+        }
+
+        if (isServerDesiredRunning()) {
             State.autoReconnectEnabled = true;
             State.serverOfflinePauseActive = false;
         }
+
+        if (!State.autoReconnectEnabled || State.serverOfflinePauseActive) return;
 
         if (State.continuousReconnectInterval) clearTimeout(State.continuousReconnectInterval);
 
@@ -158,6 +159,15 @@ console.log("serverStatusChecker.js loading...");
         const maxStatusChecks = State.serverStartupMaxChecks || 10;
 
         const runCheck = async () => {
+            const currentLifecycle = window.GeminiServerControl?.getState?.();
+            if (isConnectionDisabledByPreference()
+                || (currentLifecycle?.hostRequired === true && currentLifecycle.hostRunning === false)) {
+                stopReconnectMonitor(
+                    'System Message: EveOS localhost is offline. Gemini Live Link will stay disabled.',
+                    'Gemini Connection Disabled'
+                );
+                return;
+            }
             if (State.sessionOwnershipTransferred
                 || !State.autoReconnectEnabled
                 || State.serverOfflinePauseActive) {

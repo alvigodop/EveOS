@@ -77,7 +77,7 @@ window.AudioIngestCore.InterimIngestHandler = {
         };
     },
 
-    playInterimAudio: async function (base64AudioChunk, context) {
+    playInterimAudio: async function (base64AudioChunk, context, uiContainer = null) {
         const arrivalNow = Date.now();
         let arrivalGapMs = 0;
         if (this.diagnostics.lastPacketAt) {
@@ -144,6 +144,12 @@ window.AudioIngestCore.InterimIngestHandler = {
             interimSource._eveStartTime = startTime;
             interimSource._eveEndTime = startTime + audioBuffer.duration;
             interimSource.start(startTime);
+
+            window.EveLiveWaveform?.queueFromPcm?.(base64AudioChunk, uiContainer, {
+                startInMs: Math.max(0, (startTime - context.currentTime) * 1000),
+                durationMs: audioBuffer.duration * 1000,
+                route: 'browser'
+            });
 
             this.activeSources.push(interimSource);
             interimSource.onended = () => {
