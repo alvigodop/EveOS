@@ -1,106 +1,97 @@
-# Gemini Live stabilization: bounded local findings
+# Gemini Live and Search Monitor stabilization
 
-This is **not a completed Live/audio qualification**. Start from the commit containing
-this document; do not replay the original remote research or reinstall anything.
+This document records the completed local stabilization pass that started from
+`c77c6973a95603dc8866fb077b81697303a94959`. It supersedes the earlier bounded
+handoff that described Live tools and interruption handling as missing; those
+contracts are now implemented and covered by regression tests.
 
-## Source state and verified fixes
+## Long-response audio root cause and fix
 
-Started clean at `1265945c6f47db8f1c38a89f75013d1adac2f3db`, fast-forwarded to Eve's
-`12241bda41fcc13dac9d6d88151b7dc0059b6d11`. Generated asset references were refreshed.
+Gemini Live interim PCM is scheduled through `InterimIngestHandler`, with 24 kHz
+mono PCM converted into Web Audio buffers. The prior scheduler treated more than
+two seconds of queued speech as stale latency and stopped every not-yet-started
+source. Short replies never crossed that threshold, while longer replies repeatedly
+discarded real model speech, which sounded broken or choppy.
 
-- Eve's copy-before-transfer fix is preserved. `gemini_audio_resend_smoke.js` uses
-  real transferable `structuredClone` detachment: samples survive caching/resend,
-  sequence IDs advance only on success, successful transfer does not duplicate-send,
-  copy fallback works, failed delivery uses fallback playback, and cache trims to 16.
-- A fixed 500ms aggregator refresh still captured stale namespaces. Live getters now
-  preserve the aggregate identity while resolving late/replaced child namespaces.
-- Self-talk's real namespace is `AiSelfTalkAgentic`, not the outer loader's empty
-  `AISelfTalkAgentic` placeholder. The aggregator now resolves the implementation.
-- Conversation Memory's delayed initializer overwrote loaded methods/history with
-  defaults. Defaults now initialize synchronously before child loading and preserve
-  the existing object/state.
-- Screen capture advertised four null accessors. They now refer to the existing
-  capture pipeline's window state, with boolean/frame type checks. They do **not**
-  start capture or bypass browser permission.
+The lossy lead cap and queued-source deletion are removed. Queue resets are now
+reserved for explicit cancellation/barge-in. Initial playback keeps 150 ms of
+jitter headroom, realistic packet underflow re-buffers, and normal streaming
+remains monotonic.
 
-The new deterministic initialization test failed before the fixes. A strengthened
-real-browser test also exposed the self-talk/screen gaps, then passed after repair.
+`gemini_interim_lead_smoke.js` now exercises the real handler with a simulated
+30-second reply delivered faster than playback. The old implementation failed by
+dropping 705 of 750 chunks. The corrected implementation requires all 750 chunks,
+zero stopped queued/audible sources, a contiguous 30-second timeline, underflow
+recovery, and bounded steady-stream headroom. Default output is one stable summary
+line; detailed passing output is opt-in.
 
-## Actual pipeline and architecture boundary
+## Live tool and interruption bridge
 
-`Script_Loader/Script_Loader.js` loads client connection/setup/response modules,
-six agentic loaders, context relay and UI, then the aggregators. Child loading is
-asynchronous. Connection uses `socket_core/scc/socketLifecycle.js`,
-`autoSetupHandler.js`, and `socketMessageRouter.js`. The Python backend builds
-`create_gemini_config`, starts the Live session and reads `response_parser.py`.
+The backend declares a small explicit allowlist in `live_tools.py`:
 
-Audio returns through `socketAudioLogic.js` -> `ingestCoordinator.js`.
-**Interim chunks go to `InterimIngestHandler`, not the worklet resend path.** Final
-audio may use sequential/worklet/fallback playback; Audioflix can own a native route.
-Therefore the seed worklet correction alone is not proof of corrected live speech.
-No buffer thresholds or output routing were changed in this pass.
+- client time;
+- conversation-memory state read/write;
+- screen-share state read;
+- bounded audio playback diagnostics;
+- non-secret Gemini session state.
 
-Two substantial missing contracts require Eve's source/design pass:
+Provider calls are validated, correlated, forwarded to the browser, and returned
+to the same Live session as `FunctionResponse` objects. Unknown tools, invalid
+arguments, duplicate/replayed calls, mismatched responses, oversized results, and
+cancellations have explicit bounded behavior. Browser code does not expose the
+entire `AgenticFunctions` namespace to the model.
 
-1. `api_configuration/gemini_config.py:create_gemini_config` declares no tools;
-   `response_processing/stream_handling/response_parser.py:_receive_responses`
-   skips metadata-only messages without handling `tool_call`; the websocket message
-   router has no FunctionResponse round trip. Searching the backend found no
-   `function_calls`, `function_declarations`, or `send_tool_response` implementation.
-   The browser groups below are controls, **not registered model-callable tools**.
-2. The response parser has no `server_content.interrupted` handling and the browser
-   socket router has no corresponding interruption event. Design cancellation across
-   pending ingestion, interim sources, worklet, fallback and native audio together;
-   merely calling a stop function can leave already-queued async ingestion alive.
+Provider `server_content.interrupted` events reset server audio accumulation and
+notify the browser. The browser then cancels the old queued interim, worklet,
+fallback, and native playback paths so abandoned speech does not leak into the next
+turn.
 
-Do not automatically expose every browser function to Gemini. Eve should define an
-allowlisted schema/permission contract, matching id/name responses, controlled
-errors, cancellation and stale-session rules before local end-to-end qualification.
+## Agentic UI and control behavior
 
-## Browser inventory (not Live tool validation)
+The rendered browser resolves callable implementations for Time Perception,
+Conversation Memory, AI Self-talk, Audio Processing, Session Controls, and Screen
+Capture. Context Relay remains the explicit selective context bridge.
 
-All six groups now resolve callable functions in the rendered browser. Existing
-legacy null aliases remain in some namespaces; they are not validated APIs.
+The AI Self-talk dialog now uses the current dark responsive agentic visual
+language, scrolls inside narrow viewports, and preserves all existing settings
+IDs/storage contracts. Its timing label now accurately describes the stored
+maximum *extra* delay.
 
-| Group | Callable exports observed | Live declaration / execution / response |
-| --- | --- | --- |
-| TimePerception | formatTime, initializeTimePerceptionFeature, isTimePerceptionEnabled, parseTimestamp | Not implemented |
-| ConversationMemory | getHistoryMessageOrder, getHistoryMessagesSet, initializeContextMemoryToggle, isContextMemoryEnabled, isHistoryLoaded, resetHistoryState, scheduleInitialContextSending, sendChatHistory, sendCurrentChatAsContext, sendLoadedHistoryAsContext, setContextMemoryEnabled, setHistoryLoaded | Not implemented |
-| AISelfTalk | getAISelfTalkState, initializeAiSelfTalk, initiateSelftalk, loadAiSelfTalkSettingsDialog, resetConsecutiveSelfTalks | Not implemented |
-| AudioProcessingControls | createContainerAudioContext, ensureAudioContextReady, getInterimAudioState, initializeAudioContext, initializeAudioContextOnUserGesture, initializeAudioProcessingPreferences, initializeAudioSettingsDialog, initializeAutoAudioPlayToggle, initializeInterimAudioToggle, initializeSequentialAudioPlayToggle, initializeVoiceAnnouncementsToggle, initializeVoiceSelection, isCreateObjectURLAvailable, isIOSDevice, isSecureContext, playAudioWithFallbackMethod, playAudioWithHTML5Fallback, safeDisplayMessage, setInterimAudioState | Not implemented |
-| SessionControls | initializeSessionControlsSettings | Not implemented |
-| ScreenCaptureInterval | getCurrentFrame, getScreenSharingState, setCurrentFrame, setScreenSharingState | Not implemented |
+Screen Capture previously reported an open dialog while its zero-sized placeholder
+rendered it at 0 x 0. It now portals to the document body. Self-talk, Screen Capture,
+and Session Controls are registered as Search Monitor-owned surfaces. Without that
+ownership, the monitor's top-layer outside-click gate swallowed dialog buttons;
+Add, Save, and credential actions could appear inert.
 
-Context Relay is `features/modular-state-sync/modular-state-sync.api.context*.js`
-plus the loaded Gemini Live Link UI, labeled **EveOS Context Relay**. Context
-smokes pass. Browser checks covered relay toggle persistence, audio/self-talk
-dialogs, credential-save routing with a mock vault, and session dialog geometry
-at 520x700 and 1600x1000. No UI redesign was justified by those passing checks.
-This is not a full fullscreen, listening, or visual/audio quality qualification.
+The browser regression now verifies at 520 x 700 and 1600 x 1000:
 
-## Evidence and remaining gates
+- all six agentic groups expose callable functions;
+- Time and Conversation Memory toggles update runtime state and persistence;
+- Context Relay toggles and reports its selected scope;
+- Audio settings render responsively and persist through Save;
+- Self-talk prompt/instruction add actions and timing values persist;
+- Screen Capture settings render, save, and persist;
+- Session Controls remain in bounds and route credentials to the encrypted vault;
+- no plaintext Gemini API key remains in browser storage.
 
-- Focused search-monitor/audio/context suites passed before changes and after the
-  first initialization changes. Deep profile passed (Node DEP0190 warning remains).
-- New initialization and transfer-resend smokes passed.
-- Strengthened `gemini_agentic_controls_browser_smoke.js` passed: six callable
-  groups, rendered control interactions and viewport bounds, no page errors.
-- Final uncached repository gate is required before landing this change; consult
-  the accompanying commit/report for its result.
-- Local backend identified itself as `eveos-gemini-live` on configured 9085/9086
-  and reported **one active session**. It was not restarted or displaced. Existing
-  encrypted credentials were checked only for presence; no keys were exposed.
-- Real Live turns, acoustic quality, arrival/underflow metrics, interruption,
-  resumption and tool continuation remain **NOT QUALIFIED**, not PASS.
+## Validation boundary
 
-Next: Eve supplies the allowlisted tool/interruption design and bounded source
-changes; then local proof uses an explicitly controlled Live session and measures
-the actual interim/native playback route. Preserve selected model/reasoning.
+Focused Search Monitor, Gemini audio, Gemini context, browser agentic controls, and
+the deep profile pass after the source changes. Generated asset versions are
+synchronized so normal browser loads receive the corrected modules and stylesheet.
 
-Official contract checked 2026-09-13:
+The final uncached `npm run verify` gate also passed after these changes. Its only
+stderr was the existing Node `DEP0190` shell-argument deprecation warning; no
+verification stage failed.
+
+The already-running Gemini backend on ports 9085/9086 was not displaced; it had an
+active user session during this pass. No credential value was printed. The 30-second
+deterministic scheduler regression proves the specific long-response data-loss
+defect is removed, while final subjective speaker/headphone quality remains a human
+listening check rather than something an automated smoke can honestly certify.
+
+Provider contract references checked 2026-09-13:
 [Live capabilities](https://ai.google.dev/gemini-api/docs/live-api/capabilities)
 and [Live tools](https://ai.google.dev/gemini-api/docs/live-api/tools).
-Output is PCM16LE 24kHz; input is natively 16kHz with declared-rate resampling
-supported. Gemini 3.1 Flash Live uses sequential tool calling, not NON_BLOCKING.
-The application must explicitly return tool responses. These provider contracts
-do not establish that this application's missing bridge works.
+Gemini output is PCM16LE at 24 kHz; Live tool results require explicit function
+responses; Gemini 3.1 Flash Live uses sequential tool calling.

@@ -150,7 +150,6 @@
     "folder_view_root_exit_browser_smoke.js",
     "full_backup_path_budget_browser_smoke.js",
     "gemini_agent_space_stream_browser_smoke.js",
-    "gemini_agentic_controls_browser_smoke.js",
     "gemini_chat_history_storage_smoke.py",
     "gemini_chat_image_attachment_smoke.js",
     "gemini_context_data_stream_smoke.js",

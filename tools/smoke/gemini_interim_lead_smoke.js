@@ -3,8 +3,8 @@
  *
  * Exercises the actual InterimIngestHandler used when Gemini Live's
  * "Play Interim Audio Chunks" path is enabled. The scheduler must start with
- * jitter headroom, recover from a realistic packet stall, stay monotonic, and
- * bound runaway backlog without cutting currently audible speech.
+ * jitter headroom, recover from a realistic packet stall, and preserve every
+ * PCM chunk in a long monotonic response without cutting audible speech.
  */
 const fs = require('fs');
 const os = require('os');
@@ -109,16 +109,19 @@ async function main() {
             const afterRecoveryStart = started[started.length - 1];
             out.recoverySpacing = +(afterRecoveryStart - recoveredStart).toFixed(3);
 
-            // Long producer backlog stays bounded without stopping the source being heard.
+            // Gemini can deliver long replies faster than wall-clock playback. Every PCM chunk
+            // is content, not disposable latency: the prior two-second "lead cap" stopped queued
+            // sources and produced the long-reply breakup that short replies never crossed.
             H.stopAll('backlog-test');
             ctx.currentTime = 0;
             started.length = 0;
             stoppedAudible = 0;
             stoppedQueued = 0;
-            await feed(140);
+            await feed(750); // 30 seconds of model speech arriving in a burst
             out.leadAfterBacklog = +(H.nextStartTime - ctx.currentTime).toFixed(3);
-            out.maxLead = typeof H.MAX_LEAD === 'number' ? H.MAX_LEAD : 2.0;
             out.backlogScheduled = started.length;
+            out.backlogMonotonic = started.every((v, i) => i === 0 || v >= started[i - 1]);
+            out.backlogSpan = +(started.at(-1) - started[0] + CHUNK).toFixed(3);
             out.stoppedAudibleDuringBacklog = stoppedAudible;
             out.stoppedQueuedDuringBacklog = stoppedQueued;
             out.diagnostics = H.getDiagnostics ? H.getDiagnostics() : null;
@@ -152,24 +155,25 @@ async function main() {
             `jitter recovery reports underflow (got ${result.rebufferReason})`);
         assert(Math.abs(result.recoverySpacing - 0.04) <= 0.002,
             `chunks after rebuffer return to contiguous scheduling (${result.recoverySpacing}s spacing)`);
-        assert(result.backlogScheduled === 140,
-            `all 140 chunks reached the scheduler (got ${result.backlogScheduled})`);
-        assert(result.leadAfterBacklog <= result.maxLead + 0.2,
-            `a long backlog stays bounded (lead ${result.leadAfterBacklog}s, cap ${result.maxLead}s)`);
-        assert(result.stoppedQueuedDuringBacklog > 0,
-            'backlog recovery discarded not-yet-heard sources');
+        assert(result.backlogScheduled === 750,
+            `all 750 long-reply chunks reached the scheduler (got ${result.backlogScheduled})`);
+        assert(result.stoppedQueuedDuringBacklog === 0,
+            `long reply must not discard queued speech (${result.stoppedQueuedDuringBacklog} dropped)`);
         assert(result.stoppedAudibleDuringBacklog === 0,
             'backlog recovery must never stop the source already being heard');
-        assert(result.diagnostics?.backlogRecoveries > 0,
-            'backlog recovery is observable through bounded diagnostics');
-        assert(result.leadWhenSteady <= result.maxLead,
-            `steady streaming stays under the cap (lead ${result.leadWhenSteady}s)`);
+        assert(result.backlogMonotonic, 'long reply scheduling never jumps backward');
+        assert(Math.abs(result.backlogSpan - 30) < 0.01,
+            `all 30 seconds remain contiguous (got ${result.backlogSpan}s)`);
+        assert(result.leadWhenSteady < 0.25,
+            `steady real-time streaming keeps only jitter headroom (${result.leadWhenSteady}s)`);
         assert(result.steadyMonotonic,
             'steady streaming schedules chunks in order');
 
-        console.log(`gemini interim stream OK — first ${result.firstHeadroom}s headroom, `
-            + `60ms stall recovered with ${result.jitterRecoveryHeadroom}s headroom, `
-            + `steady lead ${result.leadWhenSteady}s`);
+        if (process.env.EVE_SMOKE_VERBOSE === '1') {
+            console.log(`gemini interim stream OK — first ${result.firstHeadroom}s headroom, `
+                + `60ms stall recovered with ${result.jitterRecoveryHeadroom}s headroom, `
+                + `steady lead ${result.leadWhenSteady}s`);
+        }
         console.log('GEMINI_INTERIM_LEAD_SMOKE_OK');
     } finally {
         await browser.close();

@@ -16,15 +16,12 @@ window.AudioIngestCore.InterimIngestHandler = {
     INITIAL_HEADROOM: 0.15,
     REBUFFER_THRESHOLD: 0.025,
     IDLE_THRESHOLD: 0.35,
-    MAX_LEAD: 2.0,
     HEARTBEAT_TIMEOUT: 15000,
 
     diagnostics: {
         chunks: 0,
         underflows: 0,
         rebufferEvents: 0,
-        backlogRecoveries: 0,
-        backlogSourcesDropped: 0,
         hardStops: 0,
         maxLeadSec: 0,
         lastLeadSec: 0,
@@ -55,36 +52,6 @@ window.AudioIngestCore.InterimIngestHandler = {
         if (reason) this.diagnostics.lastStopReason = String(reason);
     },
 
-    /**
-     * When the producer gets far ahead, discard only audio that has not begun yet.
-     * Never cut the source that is already audible.
-     */
-    dropQueuedBacklog: function (context) {
-        if (!context) return 0;
-        const now = context.currentTime;
-        const kept = [];
-        let dropped = 0;
-        let playingEnd = now;
-
-        this.activeSources.forEach(source => {
-            const start = Number(source._eveStartTime);
-            const end = Number(source._eveEndTime);
-            if (Number.isFinite(start) && start > now + 0.01) {
-                try { source.stop(); } catch (e) { }
-                dropped += 1;
-                return;
-            }
-            kept.push(source);
-            if (Number.isFinite(end) && end > playingEnd) playingEnd = end;
-        });
-
-        this.activeSources = kept;
-        this.nextStartTime = Math.max(playingEnd, now + this.INITIAL_HEADROOM);
-        this.diagnostics.backlogRecoveries += 1;
-        this.diagnostics.backlogSourcesDropped += dropped;
-        return dropped;
-    },
-
     isStillStreaming: function (context) {
         if (!context) return false;
         const now = Date.now();
@@ -103,7 +70,6 @@ window.AudioIngestCore.InterimIngestHandler = {
             ...this.diagnostics,
             activeSources: this.activeSources.length,
             queueLeadSec: Number(lead.toFixed(3)),
-            maxLeadConfiguredSec: this.MAX_LEAD,
             initialHeadroomSec: this.INITIAL_HEADROOM,
             rebufferThresholdSec: this.REBUFFER_THRESHOLD,
             contextState: context?.state || 'unavailable',
@@ -172,14 +138,6 @@ window.AudioIngestCore.InterimIngestHandler = {
 
                 this.nextStartTime = now + this.INITIAL_HEADROOM;
                 this.freshStartRequested = false;
-            }
-
-            let lead = this.nextStartTime - context.currentTime;
-            if (lead > this.MAX_LEAD) {
-                const dropped = this.dropQueuedBacklog(context);
-                console.warn(`[InterimIngestHandler] ${lead.toFixed(2)}s stale lead; `
-                    + `dropped ${dropped} not-yet-started sources without cutting current speech.`);
-                lead = this.nextStartTime - context.currentTime;
             }
 
             const startTime = Math.max(this.nextStartTime, context.currentTime);

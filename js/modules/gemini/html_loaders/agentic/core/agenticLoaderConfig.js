@@ -20,10 +20,10 @@ const agenticUILoaderScripts = [
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/audio_proc/audioSettingsDialogUILoader.js?v=c2faf304f639`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/sonic_forge/sonicForgeManagerUILoader.js?v=3d44b5033621`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/narration/worldBookNarrationManagerUILoader.js?v=f4fdb689b0d6`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sess_ctrl/sessionControlsUILoader.js?v=ebe3064e147f`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/scr_cap/screenCaptureSettingsUILoader.js?v=fdccecf8ddde`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/sess_ctrl/sessionControlsUILoader.js?v=af99f873f2f4`,
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/scr_cap/screenCaptureSettingsUILoader.js?v=b15033edd2c1`,
     `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkUILoader.js?v=abd2a89d80ac`,
-    `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkSettingsDialogUILoader.js?v=f69967fb2fec`
+    `${AGENTIC_HTML_LOADERS_BASE_PATH}/self_talk/aiSelfTalkSettingsDialogUILoader.js?v=9b0bc4da5a51`
 ];
 
 // Export to global scope if needed for other modules, though primarily used by scriptLoader

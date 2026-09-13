@@ -9,7 +9,7 @@ const AUDIO_INGEST_CORE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemi
 
 const audioIngestScripts = [
     `${AUDIO_INGEST_CORE_PATH}/sequentialIngestHandler.js?v=1a10dea642b1`,
-    `${AUDIO_INGEST_CORE_PATH}/interimIngestHandler.js?v=4c3a52aa6400`,
+    `${AUDIO_INGEST_CORE_PATH}/interimIngestHandler.js?v=b99a1018159e`,
     `${AUDIO_INGEST_CORE_PATH}/workletIngestHandler.js?v=39d726eb9b58`,
     `${AUDIO_INGEST_CORE_PATH}/errorRecoveryHandler.js?v=a8c264daa638`,
     `${AUDIO_INGEST_CORE_PATH}/ingestCoordinator.js?v=596655da2d1e`

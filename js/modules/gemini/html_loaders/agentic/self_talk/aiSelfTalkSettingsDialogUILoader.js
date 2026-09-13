@@ -13,79 +13,95 @@ async function loadAiSelfTalkSettingsDialog() {
     try {
         const html = `
 <!-- Self-talk Settings Dialog -->
-<dialog id="selfTalkSettingsDialog" class="mdl-dialog" style="width: 500px;">
-    <h4 class="mdl-dialog__title">AI Self-talk Settings</h4>
+<dialog id="selfTalkSettingsDialog" class="mdl-dialog gemini-self-talk-dialog" aria-labelledby="selfTalkSettingsTitle">
+    <header class="gemini-self-talk-dialog__header">
+        <span class="gemini-self-talk-dialog__kicker">Agentic Functions · Self-talk</span>
+        <h4 class="mdl-dialog__title" id="selfTalkSettingsTitle">AI Self-talk Settings</h4>
+        <p>Shape autonomous follow-ups, timing, and the instructions Gemini carries into self-talk turns.</p>
+    </header>
     <div class="mdl-dialog__content">
-        <div class="settings-section" style="margin-bottom: 20px;">
-            <h5 style="font-size: 14px; color: #333; display: block; margin-bottom: 5px;">Response Delay:</h5>
-            <div class="delay-settings" style="display: flex; gap: 15px;">
-                <div class="delay-setting" style="flex: 1;">
-                    <label for="baseDelayInput" style="font-size: 12px; color: #757575; display: block; margin-bottom: 3px;">Minimum (seconds):</label>
-                    <input type="number" id="baseDelayInput" min="1" max="26" value="15" step="1" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+        <section class="gemini-self-talk-section">
+            <div class="gemini-self-talk-section__heading">
+                <span>Timing</span>
+                <small>Randomize the wait between autonomous responses.</small>
+            </div>
+            <div class="gemini-self-talk-delay-grid">
+                <div class="gemini-self-talk-field">
+                    <label for="baseDelayInput">Minimum seconds</label>
+                    <input type="number" id="baseDelayInput" min="1" max="26" value="15" step="1">
                 </div>
-                <div class="delay-setting" style="flex: 1;">
-                    <label for="maxDelayInput" style="font-size: 12px; color: #757575; display: block; margin-bottom: 3px;">Maximum (seconds):</label>
-                    <input type="number" id="maxDelayInput" min="1" max="60" value="40" step="1" style="width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px;">
+                <div class="gemini-self-talk-field">
+                    <label for="maxDelayInput">Maximum extra seconds</label>
+                    <input type="number" id="maxDelayInput" min="0" max="60" value="40" step="1">
                 </div>
             </div>
-        </div>
+        </section>
         
-        <div class="settings-section" style="margin-bottom: 20px;">
-            <h5 style="font-size: 14px; color: #333; display: block; margin-bottom: 5px;">Self-talk Prompts:</h5>
-            <div class="prompt-list" id="selfTalkPromptList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; padding: 8px; margin-bottom: 10px; background-color: #f9f9f9;">
+        <section class="gemini-self-talk-section">
+            <div class="gemini-self-talk-section__heading">
+                <span>Self-talk prompts</span>
+                <small>Choose the internal follow-up goals Gemini can rotate through.</small>
+            </div>
+            <div class="gemini-self-talk-list" id="selfTalkPromptList" aria-live="polite">
                 <!-- Prompt items will be added here -->
             </div>
-            <div class="prompt-input-container" style="display: flex; align-items: flex-end; gap: 10px;">
-                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+            <div class="gemini-self-talk-input-row">
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label gemini-self-talk-textfield">
                     <input class="mdl-textfield__input" type="text" id="newPromptInput">
                     <label class="mdl-textfield__label" for="newPromptInput">New prompt instruction...</label>
                 </div>
-                <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored" id="addPromptBtn">
+                <button class="mdl-button mdl-js-button gemini-self-talk-add" id="addPromptBtn" type="button" aria-label="Add self-talk prompt">
                     <i class="material-icons">add</i>
                 </button>
             </div>
             <!-- Hidden textarea to store combined prompts -->
-            <textarea id="selfTalkPromptInput" style="display: none;"></textarea>
-        </div>
+            <textarea id="selfTalkPromptInput" class="gemini-self-talk-hidden"></textarea>
+        </section>
         
-        <div class="settings-section" style="margin-bottom: 10px;">
-            <h5 style="font-size: 14px; color: #333; display: block; margin-bottom: 5px;">System Instructions:</h5>
-            <div class="instruction-list" id="systemInstructionList" style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; border-radius: 4px; padding: 8px; margin-bottom: 10px; background-color: #f9f9f9;">
+        <section class="gemini-self-talk-section">
+            <div class="gemini-self-talk-section__heading">
+                <span>System instructions</span>
+                <small>Persistent behavioral guidance applied to autonomous turns.</small>
+            </div>
+            <div class="gemini-self-talk-list" id="systemInstructionList" aria-live="polite">
                 <!-- Instruction items will be added here -->
             </div>
-            <div class="instruction-input-container" style="display: flex; align-items: flex-end; gap: 10px;">
-                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label" style="width: 100%;">
+            <div class="gemini-self-talk-input-row">
+                <div class="mdl-textfield mdl-js-textfield mdl-textfield--floating-label gemini-self-talk-textfield">
                     <input class="mdl-textfield__input" type="text" id="newInstructionInput">
                     <label class="mdl-textfield__label" for="newInstructionInput">New system instruction...</label>
                 </div>
-                <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--mini-fab mdl-button--colored" id="addInstructionBtn">
+                <button class="mdl-button mdl-js-button gemini-self-talk-add" id="addInstructionBtn" type="button" aria-label="Add system instruction">
                     <i class="material-icons">add</i>
                 </button>
             </div>
             <!-- Hidden textarea to store combined instructions -->
-            <textarea id="selfTalkSystemMessageInput" style="display: none;"></textarea>
-        </div>
+            <textarea id="selfTalkSystemMessageInput" class="gemini-self-talk-hidden"></textarea>
+        </section>
 
-        <div class="settings-section" style="margin-bottom: 20px; border-top: 1px solid #eee; padding-top: 15px;">
-            <h5 style="font-size: 14px; color: #333; display: block; margin-bottom: 10px;">Settings Management:</h5>
-            <div class="settings-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                <button type="button" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect" id="exportSettingsBtn" style="flex: 1; background-color: #e0e0e0; color: #333; font-size: 11px;">
-                    <i class="material-icons" style="font-size: 16px; margin-right: 5px; vertical-align: middle;">download</i>Export
+        <section class="gemini-self-talk-section gemini-self-talk-section--management">
+            <div class="gemini-self-talk-section__heading">
+                <span>Settings management</span>
+                <small>Move this configuration safely or start fresh.</small>
+            </div>
+            <div class="gemini-self-talk-management-actions">
+                <button type="button" class="mdl-button mdl-js-button" id="exportSettingsBtn">
+                    <i class="material-icons">download</i><span>Export</span>
                 </button>
-                <button type="button" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect" id="importSettingsBtn" style="flex: 1; background-color: #e0e0e0; color: #333; font-size: 11px;">
-                    <i class="material-icons" style="font-size: 16px; margin-right: 5px; vertical-align: middle;">upload</i>Import
+                <button type="button" class="mdl-button mdl-js-button" id="importSettingsBtn">
+                    <i class="material-icons">upload</i><span>Import</span>
                 </button>
-                <button type="button" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect" id="clearSettingsBtn" style="flex: 1; background-color: #ffcdd2; color: #d32f2f; font-size: 11px;">
-                    <i class="material-icons" style="font-size: 16px; margin-right: 5px; vertical-align: middle;">delete</i>Clear
+                <button type="button" class="mdl-button mdl-js-button gemini-self-talk-danger" id="clearSettingsBtn">
+                    <i class="material-icons">delete</i><span>Clear</span>
                 </button>
             </div>
             <!-- Hidden file input for import -->
-            <input type="file" id="importSettingsInput" accept=".json" style="display: none;">
-        </div>
+            <input type="file" id="importSettingsInput" accept=".json" class="gemini-self-talk-hidden">
+        </section>
 
-        <p class="settings-note" style="font-size: 12px; color: #666; margin-top: 5px;">These instructions control how the AI behaves in self-talk mode.</p>
+        <p class="gemini-self-talk-note"><i class="material-icons">info</i> Changes apply after Save and only affect self-talk mode.</p>
     </div>
-    <div class="mdl-dialog__actions">
+    <div class="mdl-dialog__actions gemini-self-talk-dialog__actions">
         <button type="button" class="mdl-button" id="selfTalkSettingsCancel">Cancel</button>
         <button type="button" class="mdl-button" id="selfTalkSettingsSave">Save</button>
     </div>
@@ -104,6 +120,15 @@ async function loadAiSelfTalkSettingsDialog() {
 
         // Upgrade MDL components within the loaded dialog
         const dialog = document.getElementById('selfTalkSettingsDialog');
+        if (dialog) {
+            dialog.setAttribute('aria-modal', 'true');
+            if (typeof window.SearchMonitorBoot?.registerSurface === 'function') {
+                window.SearchMonitorBoot.registerSurface({ element: dialog });
+            } else {
+                dialog.dataset.searchMonitorOwned = 'true';
+                dialog.dataset.surfaceOwner = 'search-monitor';
+            }
+        }
         if (window.componentHandler && dialog) {
             window.componentHandler.upgradeElements(dialog);
         }
@@ -121,4 +146,4 @@ async function loadAiSelfTalkSettingsDialog() {
 
 // Expose the loader function globally
 window.AiSelfTalkAgentic = window.AiSelfTalkAgentic || {};
-window.AiSelfTalkAgentic.loadAiSelfTalkSettingsDialog = loadAiSelfTalkSettingsDialog; 
+window.AiSelfTalkAgentic.loadAiSelfTalkSettingsDialog = loadAiSelfTalkSettingsDialog;

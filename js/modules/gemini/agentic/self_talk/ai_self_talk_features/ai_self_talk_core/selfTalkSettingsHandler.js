@@ -48,6 +48,7 @@ window.AiSelfTalkAgentic.UI.initializeSettingsHandler = function () {
         console.warn("One or more self-talk settings dialog elements not found. Skipping full initialization of settings dialog.");
         return;
     }
+    selfTalkSettingsDialog.dataset.settingsHandlerBound = '1';
 
     // Register dialog if polyfill is available and dialog is not yet registered
     if (typeof dialogPolyfill !== 'undefined' && !selfTalkSettingsDialog.showModal) {
@@ -77,40 +78,37 @@ window.AiSelfTalkAgentic.UI.initializeSettingsHandler = function () {
     const updateCombinedText = Definitions.updateCombinedText;
     const parseTextToItems = Definitions.parseTextToItems;
 
-    addPromptBtn.addEventListener('click', function () {
-        if (newPromptInput.value.trim()) {
-            addItemToList(newPromptInput.value.trim(), 'selfTalkPromptList');
-            newPromptInput.value = '';
-            // Update MDL textfield state
-            if (newPromptInput.parentElement.MaterialTextfield) newPromptInput.parentElement.MaterialTextfield.change(); else newPromptInput.parentElement.classList.remove('is-dirty');
-        }
+    function addDraft(input, listId) {
+        if (!input) return;
+        const text = input.value.trim();
+        if (!text) return;
+        addItemToList(text, listId);
+        input.value = '';
+        const field = input.parentElement;
+        if (field?.MaterialTextfield) field.MaterialTextfield.change('');
+        else field?.classList.remove('is-dirty');
+    }
+
+    addPromptBtn.addEventListener('click', function (event) {
+        event.preventDefault();
+        addDraft(newPromptInput, 'selfTalkPromptList');
     });
 
-    addInstructionBtn.addEventListener('click', function () {
-        if (newInstructionInput.value.trim()) {
-            addItemToList(newInstructionInput.value.trim(), 'systemInstructionList');
-            newInstructionInput.value = '';
-            // Update MDL textfield state
-            if (newInstructionInput.parentElement.MaterialTextfield) newInstructionInput.parentElement.MaterialTextfield.change(); else newInstructionInput.parentElement.classList.remove('is-dirty');
-        }
+    addInstructionBtn.addEventListener('click', function (event) {
+        event.preventDefault();
+        addDraft(newInstructionInput, 'systemInstructionList');
     });
 
-    newPromptInput.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter' && newPromptInput.value.trim()) {
-            addItemToList(newPromptInput.value.trim(), 'selfTalkPromptList');
-            newPromptInput.value = '';
-            // Update MDL textfield state
-            if (newPromptInput.parentElement.MaterialTextfield) newPromptInput.parentElement.MaterialTextfield.change(); else newPromptInput.parentElement.classList.remove('is-dirty');
-        }
+    newPromptInput.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' || event.isComposing) return;
+        event.preventDefault();
+        addDraft(newPromptInput, 'selfTalkPromptList');
     });
 
-    newInstructionInput.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter' && newInstructionInput.value.trim()) {
-            addItemToList(newInstructionInput.value.trim(), 'systemInstructionList');
-            newInstructionInput.value = '';
-            // Update MDL textfield state
-            if (newInstructionInput.parentElement.MaterialTextfield) newInstructionInput.parentElement.MaterialTextfield.change(); else newInstructionInput.parentElement.classList.remove('is-dirty');
-        }
+    newInstructionInput.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' || event.isComposing) return;
+        event.preventDefault();
+        addDraft(newInstructionInput, 'systemInstructionList');
     });
 
     // Populate lists from stored/default prompts

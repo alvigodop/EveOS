@@ -11,6 +11,54 @@ async function main() {
     let credentialConfigured = false;
     let credentialPosts = 0;
 
+    async function inspectAgenticDialog(selector) {
+        return page.locator(selector).evaluate((dialog) => {
+            const rect = dialog.getBoundingClientRect();
+            const content = dialog.querySelector('.mdl-dialog__content');
+            const actions = dialog.querySelector('.mdl-dialog__actions');
+            const style = getComputedStyle(dialog);
+            return {
+                open: dialog.open,
+                viewport: { width: innerWidth, height: innerHeight },
+                rect: {
+                    left: Math.round(rect.left),
+                    top: Math.round(rect.top),
+                    right: Math.round(rect.right),
+                    bottom: Math.round(rect.bottom),
+                    width: Math.round(rect.width),
+                    height: Math.round(rect.height)
+                },
+                background: style.backgroundColor,
+                backgroundImage: style.backgroundImage,
+                color: style.color,
+                display: style.display,
+                className: dialog.className,
+                dynamicThemePresent: !!document.getElementById('screenCaptureSettingsStyles'),
+                childCount: dialog.children.length,
+                inlineDisplay: dialog.style.display,
+                parentDisplay: dialog.parentElement ? getComputedStyle(dialog.parentElement).display : null,
+                parentSize: dialog.parentElement ? {
+                    width: Math.round(dialog.parentElement.getBoundingClientRect().width),
+                    height: Math.round(dialog.parentElement.getBoundingClientRect().height)
+                } : null,
+                contentOverflowY: content ? getComputedStyle(content).overflowY : null,
+                actionHeight: actions ? Math.round(actions.getBoundingClientRect().height) : 0
+            };
+        });
+    }
+
+    function requireModernDialog(name, result) {
+        const escapedViewport = result.rect.left < -1 || result.rect.top < -1
+            || result.rect.right > result.viewport.width + 1
+            || result.rect.bottom > result.viewport.height + 1;
+        const legacyLightSurface = result.background === 'rgb(255, 255, 255)'
+            || (result.background === 'rgba(0, 0, 0, 0)' && result.backgroundImage === 'none');
+        if (!result.open || escapedViewport || legacyLightSurface
+            || result.rect.width < 300 || result.actionHeight < 48) {
+            throw new Error(`${name} dialog is not a modern responsive surface: ${JSON.stringify(result)}`);
+        }
+    }
+
     page.on('pageerror', (error) => pageErrors.push(error?.stack || String(error)));
     await page.addInitScript(() => {
         class MockWebSocket {
@@ -128,6 +176,34 @@ async function main() {
             throw new Error(`Agentic controls are not fully wired: ${JSON.stringify(controls)}`);
         }
 
+        const coreToggleState = await page.evaluate(() => {
+            const exerciseToggle = (id, storageKey, getter) => {
+                const toggle = document.getElementById(id);
+                const original = toggle.checked;
+                toggle.checked = !original;
+                toggle.dispatchEvent(new Event('change', { bubbles: true }));
+                const changed = {
+                    checked: toggle.checked,
+                    stored: localStorage.getItem(storageKey),
+                    runtime: getter()
+                };
+                toggle.checked = original;
+                toggle.dispatchEvent(new Event('change', { bubbles: true }));
+                return changed;
+            };
+            return {
+                time: exerciseToggle('timePerceptionToggle', 'timePerceptionEnabled',
+                    () => window.AgenticFunctions.TimePerception.isTimePerceptionEnabled()),
+                memory: exerciseToggle('contextMemoryToggle', 'contextMemoryEnabled',
+                    () => window.AgenticFunctions.ConversationMemory.isContextMemoryEnabled())
+            };
+        });
+        for (const [name, state] of Object.entries(coreToggleState)) {
+            if (state.stored !== String(state.checked) || state.runtime !== state.checked) {
+                throw new Error(`${name} agentic toggle did not update runtime and persistence: ${JSON.stringify(state)}`);
+            }
+        }
+
         await page.evaluate(() => {
             window.__geminiRelayToggleEvents = [];
             window.addEventListener('eve:gemini-live-link-toggled', (event) => {
@@ -184,16 +260,66 @@ async function main() {
         await page.click('label[for="playProcessedAudioToggle"]');
         await page.waitForFunction(() => !document.getElementById('audioSettingsButton')?.disabled);
         await page.click('#audioSettingsButton');
-        if (!(await page.locator('#audioSettingsDialog').evaluate((dialog) => dialog.open))) {
-            throw new Error('Audio Processing settings did not open.');
+        requireModernDialog('Audio Processing', await inspectAgenticDialog('#audioSettingsDialog'));
+        await page.fill('#processedAudioDelayInput', '137');
+        await page.click('#audioSettingsSave');
+        if (await page.evaluate(() => localStorage.getItem('processedAudioDelay')) !== '137') {
+            throw new Error('Audio Processing settings did not persist through Save.');
         }
-        await page.click('#audioSettingsCancel');
 
         await page.click('#selfTalkSettingsButton');
-        if (!(await page.locator('#selfTalkSettingsDialog').evaluate((dialog) => dialog.open))) {
-            throw new Error('AI Self-talk settings did not open.');
+        requireModernDialog('AI Self-talk', await inspectAgenticDialog('#selfTalkSettingsDialog'));
+        if (process.env.EVE_SMOKE_SCREENSHOT) {
+            await page.screenshot({ path: path.resolve(process.env.EVE_SMOKE_SCREENSHOT) });
         }
-        await page.click('#selfTalkSettingsCancel');
+        await page.fill('#newPromptInput', 'smoke prompt instruction');
+        await page.click('#addPromptBtn');
+        const promptDraftAdded = await page.locator('#selfTalkPromptList').textContent();
+        if (!promptDraftAdded?.includes('smoke prompt instruction')) {
+            throw new Error(`AI Self-talk Add prompt did not update the list: ${promptDraftAdded}`);
+        }
+        await page.fill('#newInstructionInput', 'smoke system instruction');
+        await page.click('#addInstructionBtn');
+        const instructionDraftAdded = await page.locator('#systemInstructionList').textContent();
+        if (!instructionDraftAdded?.includes('smoke system instruction')) {
+            throw new Error(`AI Self-talk Add instruction did not update the list: ${instructionDraftAdded}`);
+        }
+        await page.fill('#baseDelayInput', '9');
+        await page.fill('#maxDelayInput', '21');
+        await page.click('#selfTalkSettingsSave');
+        const selfTalkSaved = await page.evaluate(() => ({
+            prompt: localStorage.getItem('selfTalkPrompt'),
+            instruction: localStorage.getItem('selfTalkSystemMessage'),
+            base: localStorage.getItem('baseSelftalkDelay'),
+            extra: localStorage.getItem('maxSelftalkDelayOffset')
+        }));
+        if (!selfTalkSaved.prompt?.includes('smoke prompt instruction')
+            || !selfTalkSaved.instruction?.includes('smoke system instruction')
+            || selfTalkSaved.base !== '9000' || selfTalkSaved.extra !== '21000') {
+            throw new Error(`AI Self-talk settings did not persist: ${JSON.stringify(selfTalkSaved)}`);
+        }
+
+        await page.evaluate(() => document.getElementById('screenCaptureSettingsButton').click());
+        await page.waitForFunction(() => document.getElementById('screenCaptureSettingsDialog')?.open);
+        requireModernDialog('Screen Capture', await inspectAgenticDialog('#screenCaptureSettingsDialog'));
+        await page.fill('#screenCaptureIntervalInput', '1750');
+        await page.fill('#screenCaptureQualityInput', '0.9');
+        await page.fill('#screenCaptureMaxDimensionInput', '1920');
+        await page.selectOption('#screenCaptureFormatInput', 'webp');
+        await page.check('#screenCaptureSilentToggle');
+        await page.click('#screenCaptureSettingsSave');
+        const screenSaved = await page.evaluate(() => ({
+            interval: localStorage.getItem('screenCaptureInterval'),
+            quality: localStorage.getItem('screenCaptureQuality'),
+            maxDimension: localStorage.getItem('screenCaptureMaxDimension'),
+            format: localStorage.getItem('screenCaptureFormat'),
+            silent: localStorage.getItem('screenCaptureSilentObservation')
+        }));
+        if (JSON.stringify(screenSaved) !== JSON.stringify({
+            interval: '1750', quality: '0.9', maxDimension: '1920', format: 'webp', silent: 'true'
+        })) {
+            throw new Error(`Screen Capture settings did not persist: ${JSON.stringify(screenSaved)}`);
+        }
 
         await page.evaluate(() => document.getElementById('sessionControlsSettingsButton').click());
         await page.waitForFunction(() => document.getElementById('sessionControlsDialog')?.open);
@@ -257,12 +383,10 @@ async function main() {
         }
 
         if (pageErrors.length) throw new Error(`Page errors:\n${pageErrors.join('\n\n')}`);
-        console.log(`GEMINI_AGENTIC_CONTROLS_BROWSER_SMOKE_OK ${JSON.stringify({
-            controls,
-            credentialPosts,
-            narrowDialog,
-            wideDialog
-        })}`);
+        if (process.env.EVE_SMOKE_VERBOSE === '1') {
+            console.log(JSON.stringify({ controls, credentialPosts, narrowDialog, wideDialog }));
+        }
+        console.log('GEMINI_AGENTIC_CONTROLS_BROWSER_SMOKE_OK');
     } finally {
         await browser.close();
     }

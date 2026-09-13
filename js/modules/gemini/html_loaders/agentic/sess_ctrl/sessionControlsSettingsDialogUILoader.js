@@ -171,6 +171,13 @@ async function loadSessionControlsSettingsDialog() {
 
     document.body.appendChild(container.firstElementChild);
     const dialog = document.getElementById('sessionControlsDialog');
+    dialog.setAttribute('aria-modal', 'true');
+    if (typeof window.SearchMonitorBoot?.registerSurface === 'function') {
+        window.SearchMonitorBoot.registerSurface({ element: dialog });
+    } else {
+        dialog.dataset.searchMonitorOwned = 'true';
+        dialog.dataset.surfaceOwner = 'search-monitor';
+    }
     if (typeof componentHandler !== 'undefined') componentHandler.upgradeElements(dialog);
     if (typeof dialog.showModal !== 'function' && typeof dialogPolyfill !== 'undefined') {
         dialogPolyfill.registerDialog(dialog);

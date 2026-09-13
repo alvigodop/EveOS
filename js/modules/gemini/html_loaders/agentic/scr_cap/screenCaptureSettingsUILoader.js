@@ -67,7 +67,7 @@ function ensureScreenCaptureSettingsStyles() {
     border: 1px solid rgba(34, 211, 238, 0.28);
     border-radius: 18px;
     padding: 0;
-    background: linear-gradient(150deg, rgba(10, 16, 24, 0.98), rgba(14, 24, 35, 0.98));
+    background: linear-gradient(150deg, rgba(10, 16, 24, 0.98), rgba(14, 24, 35, 0.98)) !important;
     color: #e8f8ff;
     box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
 }
@@ -250,6 +250,18 @@ async function loadScreenCaptureSettingsDialog() {
         }
 
         const dialog = document.getElementById('screenCaptureSettingsDialog');
+        if (dialog && dialog.parentElement !== document.body) {
+            document.body.appendChild(dialog);
+        }
+        if (dialog) {
+            dialog.setAttribute('aria-modal', 'true');
+            if (typeof window.SearchMonitorBoot?.registerSurface === 'function') {
+                window.SearchMonitorBoot.registerSurface({ element: dialog });
+            } else {
+                dialog.dataset.searchMonitorOwned = 'true';
+                dialog.dataset.surfaceOwner = 'search-monitor';
+            }
+        }
         if (dialog && typeof window.dialogPolyfill !== 'undefined') {
             window.dialogPolyfill.registerDialog(dialog);
         }

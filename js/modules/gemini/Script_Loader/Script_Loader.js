@@ -40,7 +40,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/application_state_management/applicationStateManager.js?v=f51b582130e7`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/error_filtering/errorFilter.js?v=8a54de31bff8`,
     `${BASE_PATHS.CLIENT_CORE}/page_initialization/svg_fixing/svgFixerLoader.js?v=fdf5cde639ee`,
-    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=407ef636a240`,
+    `${BASE_PATHS.CLIENT_CORE}/page_initialization/page_initialization_core/pageInitializerLoader.js?v=316cfe49fc89`,
     `${BASE_PATHS.CLIENT_CORE}/themeToggle.js?v=dd535222b6f0`,
     `${BASE_PATHS.CLIENT_CORE}/response_handling/responseClass.js?v=2fac1d9fdb98`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/connection_status_core/connectionStatusLoader.js?v=a6dbae2e3334`,
@@ -53,8 +53,8 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js?v=78e959ad2d9b`,
 
     // 2. Agentic Functions
-    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=c9c490fd46ee`,
-    `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=2e41e1dbad9c`,
+    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=045f43ed3bd7`,
+    `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=85125891eeec`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js?v=cd2003932bc1`,
     `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=cc5ee042f918`,
     `${BASE_PATHS.AGENTIC}/conv_mem/conv_mem.js?v=9d973f5cbe45`,

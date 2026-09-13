@@ -41,7 +41,7 @@ async function loadSessionControlsCard() {
 function loadSessionControlsSettingsDialogScript() {
     return new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/html_loaders/agentic/sess_ctrl/sessionControlsSettingsDialogUILoader.js?v=ccfd1aa72ac8';
+        script.src = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemini/html_loaders/agentic/sess_ctrl/sessionControlsSettingsDialogUILoader.js?v=e4ab78d5a8ab';
         script.defer = true;
         script.onload = () => {
             console.log('Session Controls Settings Dialog UI Loader script loaded.');

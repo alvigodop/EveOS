@@ -16,8 +16,8 @@ const aiSelfTalkScripts = [
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkDefinitions.js?v=275891a5993d`,
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkExecution.js?v=48c10d5b775b`,
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkToggleHandler.js?v=83d358572fc1`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkSettingsHandler.js?v=fa8f48a0fafc`,
-    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkUIInitialization.js?v=e24f53d8fe5c`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkSettingsHandler.js?v=ec5f0f9bbb77`,
+    `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/selfTalkUIInitialization.js?v=b57ca22e7267`,
     `${AI_SELF_TALK_BASE_PATH}/ai_self_talk_features/ai_self_talk_core/aiSelfTalkCoordinator.js?v=d5bfddd26418`
 ];
 
