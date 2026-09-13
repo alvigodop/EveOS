@@ -12,6 +12,15 @@ import os
 import re
 
 
+_WRAPPED_TRANSCRIPT_ECHO = re.compile(
+    r"^\s*\*{0,2}<(?:Transcribe|Transcription|SPEECH)[-_]Start>\*{0,2}\s*"
+    r"(?P<spoken>[\s\S]*?)\s*"
+    r"\*{0,2}</?(?:Transcribe|Transcription|SPEECH)[-_]End>\*{0,2}\s*"
+    r"(?P<echo>[\s\S]*?)\s*$",
+    flags=re.IGNORECASE,
+)
+
+
 BASE_HINT_PHRASES = [
     "EveOS",
     "Eve OS",
@@ -68,7 +77,17 @@ def normalize_transcript(text: str) -> str:
     if not text:
         return ""
 
-    cleaned = " ".join(str(text).split())
+    source = str(text)
+    wrapped_echo = _WRAPPED_TRANSCRIPT_ECHO.match(source)
+    if wrapped_echo:
+        spoken = " ".join(wrapped_echo.group("spoken").split())
+        echo = " ".join(wrapped_echo.group("echo").split())
+        # Native Live transcription should contain one spoken answer. Older inline-tag prompts
+        # could make the provider return the tagged answer and then repeat it verbatim.
+        if spoken and spoken.casefold() == echo.casefold():
+            source = spoken
+
+    cleaned = " ".join(source.split())
     if not cleaned:
         return ""
 

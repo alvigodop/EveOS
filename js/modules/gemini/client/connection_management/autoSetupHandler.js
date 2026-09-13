@@ -258,7 +258,8 @@ async function sendAutoSetupMessage() {
 
     if (window.GeminiInstructionState?.applyToSetupMessage) {
         window.GeminiInstructionState.applyToSetupMessage(setup_client_message, {
-            includeTranscriptionInjection: true,
+            // Do not combine native output transcription with the retired tag-based fallback.
+            includeTranscriptionInjection: !setup_client_message.outputTranscriptionEnabled,
             includeScreenPolicy: true
         });
     } else {

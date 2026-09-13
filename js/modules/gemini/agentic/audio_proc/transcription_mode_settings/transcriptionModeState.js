@@ -30,7 +30,7 @@ window.AudioProcessingControlsAgentic.TranscriptionModeState = {
 
     // Get custom injection prompt
     getInjectionPrompt: function () {
-        const defaultPrompt = `[RULE: ALWAYS wrap your final spoken response in <SPEECH-START> and <SPEECH-END> tags. DO NOT repeat your spoken response outside of these tags. Internal thoughts should be in **THOUGHTS** blocks. Example: **THOUGHTS** Greeting the user. <SPEECH-START>Hello! How can I help?</SPEECH-START>]`;
+        const defaultPrompt = `[RULE: ALWAYS wrap your final spoken response in <SPEECH-START> and <SPEECH-END> tags. DO NOT repeat your spoken response outside of these tags. Internal thoughts should be in **THOUGHTS** blocks. Example: **THOUGHTS** Greeting the user. <SPEECH-START>Hello! How can I help?</SPEECH-END>]`;
         const saved = localStorage.getItem('customInjectionPrompt');
         return saved || defaultPrompt;
     },

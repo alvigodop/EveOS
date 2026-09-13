@@ -66,7 +66,7 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/voice_operations/voiceAnnouncementTester.js?v=89bb1983d1a7`,
 
     // Transcription Mode Settings
-    `${AUDIO_PROCESSING_BASE_PATH}/transcription_mode_settings/transcriptionModeState.js?v=b9b1bebe8941`,
+    `${AUDIO_PROCESSING_BASE_PATH}/transcription_mode_settings/transcriptionModeState.js?v=80db6f2fb9bd`,
     `${AUDIO_PROCESSING_BASE_PATH}/transcription_mode_settings/transcriptionModeToggleHandler.js?v=5539c8e908f2`,
     `${AUDIO_PROCESSING_BASE_PATH}/inline_transcription/transcriptionSystemInstructions.js?v=43d0cc1a451a`,
     `${AUDIO_PROCESSING_BASE_PATH}/inline_transcription/transcriptionBoxParser.js?v=33693282a854`,

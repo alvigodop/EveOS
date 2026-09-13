@@ -74,6 +74,21 @@ The browser regression now verifies at 520 x 700 and 1600 x 1000:
 - Session Controls remain in bounds and route credentials to the encrypted vault;
 - no plaintext Gemini API key remains in browser storage.
 
+## Native transcript echo guard
+
+Gemini Live already returns a native transcript for its audio response. An older
+optional inline-transcription prompt could still be added to the same session,
+causing the model to produce both a tagged transcript and the same spoken line.
+Manual and automatic setup now omit that legacy tag prompt whenever native output
+transcription is enabled. The legacy fallback example also uses a valid closing
+tag.
+
+The backend normalizer additionally collapses the exact historical shape
+`<Transcription-Start> text <Transcribe-End> text` to one copy. The guard is
+deliberately narrow: it does not remove intentional repeated phrases from normal
+speech. Focused instruction-state and transcription-normalizer smokes cover both
+the source separation and the reported malformed-tag echo.
+
 ## Validation boundary
 
 Focused Search Monitor, Gemini audio, Gemini context, browser agentic controls, and

@@ -30,6 +30,14 @@ def main():
         normalize_transcript("this story is about an evil wizard"),
         "this story is about an evil wizard",
     )
+    assert_equal(
+        normalize_transcript(
+            "<Transcription-Start> Yay! Hiiii to you too! What are we up to now, Nya? "
+            "nyyyyaaaann~~! <Transcribe-End> Yay! Hiiii to you too! What are we up to "
+            "now, Nya? nyyyyaaaann~~!"
+        ),
+        "Yay! Hiiii to you too! What are we up to now, Nya? nyyyyaaaann~~!",
+    )
     phrases = get_vosk_phrase_list()
     if "EveOS" not in phrases or "[unk]" not in phrases:
         raise AssertionError("Vosk phrase list must include EveOS and [unk]")

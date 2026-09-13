@@ -83,8 +83,10 @@ runScript('js/modules/gemini/comm/reinit_model/model_setup_communication/model_s
 const manualSetup = context.window.ModelSetupCore.createSetupMessage('Leda', false);
 const manualText = instructionText(manualSetup);
 assert(/Saved persona/i.test(manualText), 'manual setup should include saved system instruction');
-assert(/Transcription mode injection prompt/i.test(manualText), 'manual setup should include transcription injection');
+assert(!/Transcription mode injection prompt/i.test(manualText),
+    'native output transcription must not also inject legacy transcript-tag instructions');
 assert(/Screen observation policy/i.test(manualText), 'manual setup should include screen observation policy');
+assert(manualSetup.outputTranscriptionEnabled === true, 'manual setup should request native output transcription');
 
 runScript('js/modules/gemini/client/connection_management/autoSetupHandler.js');
 (async () => {
@@ -99,8 +101,10 @@ runScript('js/modules/gemini/client/connection_management/autoSetupHandler.js');
     assert(sent.length === 1, 'auto setup should send one websocket payload');
     const autoText = instructionText(sent[0]);
     assert(/Saved persona/i.test(autoText), 'auto setup should include saved system instruction');
-    assert(/Transcription mode injection prompt/i.test(autoText), 'auto setup should include transcription injection');
+    assert(!/Transcription mode injection prompt/i.test(autoText),
+        'auto setup must not combine native transcripts with legacy transcript-tag instructions');
     assert(/Screen observation policy/i.test(autoText), 'auto setup should include screen observation policy');
+    assert(sent[0].outputTranscriptionEnabled === true, 'auto setup should request native output transcription');
     assert(sent[0].inlineTranscriptionMode === false, 'auto setup should preserve inline transcription setting');
 
     console.log('GEMINI_INSTRUCTION_STATE_SMOKE_OK');

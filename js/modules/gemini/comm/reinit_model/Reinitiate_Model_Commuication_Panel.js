@@ -13,7 +13,7 @@ const MODEL_REINIT_BASE_PATH = (window.GEMINI_APP_ROOT || '') + 'js/modules/gemi
 const modelReinitScripts = [
     // Core Model Initialization
     `${MODEL_REINIT_BASE_PATH}/model_initialization/modelInitializer.js?v=3d845021b7ca`,
-    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/setupMessageCreator.js?v=c43635653b34`,
+    `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/setupMessageCreator.js?v=0236522214a9`,
     `${MODEL_REINIT_BASE_PATH}/model_setup_communication/model_setup_core/sessionFlowManager.js?v=255324737a47`,
     `${MODEL_REINIT_BASE_PATH}/model_setup_communication/initialSetupMessageHandler.js?v=ad74d78c005a`
 ];

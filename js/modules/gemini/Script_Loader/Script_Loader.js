@@ -48,12 +48,12 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/heartbeat_core/heartbeatLoader.js?v=c0f7922138af`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiInstructionState.js?v=783e71af7bc3`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/geminiSessionResumption.js?v=14014db741b6`,
-    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=fca60cb7616e`,
+    `${BASE_PATHS.CLIENT_CORE}/connection_management/autoSetupHandler.js?v=54e76c719a48`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/socket_core/socketCoreLoader.js?v=37005bb6878e`,
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js?v=78e959ad2d9b`,
 
     // 2. Agentic Functions
-    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=045f43ed3bd7`,
+    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=15b634aa0b4e`,
     `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=85125891eeec`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js?v=cd2003932bc1`,
     `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=cc5ee042f918`,
@@ -79,7 +79,7 @@ const masterScriptList = [
     `${BASE_PATHS.COMM_PANEL}/clear_sys_log/Clear_System_Log_Commuication_Panel.js?v=b53612b2a565`,
     `${BASE_PATHS.COMM_PANEL}/past_chats/Toggle_Past_Chats_Commuication_Panel.js?v=4404063b22c3`,
     `${BASE_PATHS.COMM_PANEL}/sys_msg_toggle/System_Message_Toggle_Commuication_Panel.js?v=1549eaa29bde`,
-    `${BASE_PATHS.COMM_PANEL}/reinit_model/Reinitiate_Model_Commuication_Panel.js?v=b297c794face`,
+    `${BASE_PATHS.COMM_PANEL}/reinit_model/Reinitiate_Model_Commuication_Panel.js?v=815dc5b744eb`,
 
     // 5. Aggregator Modules
     APP_ROOT + 'js/modules/gemini/client/Client_Core_Control.js?v=f1ea8e0e2c03',

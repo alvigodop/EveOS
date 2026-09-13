@@ -69,10 +69,13 @@ window.ModelSetupCore.createSetupMessage = function (selectedVoice, sequentialAu
 
     if (window.GeminiInstructionState?.applyToSetupMessage) {
         window.GeminiInstructionState.applyToSetupMessage(setup_client_message, {
-            includeTranscriptionInjection: true,
+            // Native Live output transcription already supplies the spoken text. The legacy
+            // tag prompt made native-audio models emit a tagged copy plus the spoken copy.
+            includeTranscriptionInjection: !setup_client_message.outputTranscriptionEnabled,
             includeScreenPolicy: true
         });
-    } else if (window.AudioProcessingControlsAgentic &&
+    } else if (!setup_client_message.outputTranscriptionEnabled &&
+        window.AudioProcessingControlsAgentic &&
         window.AudioProcessingControlsAgentic.TranscriptionModeState &&
         window.AudioProcessingControlsAgentic.TranscriptionModeState.isInjectionEnabled()) {
         setup_client_message.setup.systemInstruction = {
