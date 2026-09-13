@@ -131,7 +131,7 @@ def _status_payload(message: str = "", fresh: bool = False) -> dict:
     # Never probe the WebSocket listener with a bare TCP connect. The websockets server expects
     # an HTTP Upgrade request, so connect-and-close health checks are logged as failed handshakes
     # even while the real EveOS session is healthy. Listener discovery is non-invasive; the
-    # branded HTTP status endpoint on 9086 remains the authority for service identity/readiness.
+    # branded HTTP status endpoint on STATUS_PORT remains the authority for service identity/readiness.
     websocket_port_open = bool(websocket_pids)
     status_port_open = bool(status_pids)
     status_snapshot = _status_http_snapshot() if status_port_open else None
@@ -249,7 +249,7 @@ def start_server() -> dict:
             creationflags=flags,
         )
 
-    # Wait briefly for the branded HTTP health endpoint. Do not connect to 9085 here: a raw TCP
+    # Wait briefly for the branded HTTP health endpoint. Do not connect to WEBSOCKET_PORT here: a raw TCP
     # readiness probe is indistinguishable from a broken WebSocket handshake to the server and
     # floods headed Gemini terminals with false errors.
     deadline = time.monotonic() + 1.5

@@ -172,7 +172,7 @@ def assert_start_contract():
     gemini_control._PROCESS = None
     with (
         mock.patch.object(gemini_control, "_status_payload", side_effect=[stopped, starting]),
-        mock.patch.object(gemini_control, "_port_open", return_value=False),
+        mock.patch.object(gemini_control, "_status_http_snapshot", return_value=None),
         mock.patch.object(gemini_control.time, "monotonic", side_effect=[0, 2]),
         mock.patch.object(gemini_control.subprocess, "Popen", return_value=fake_process) as popen,
     ):
@@ -215,7 +215,6 @@ def assert_foreign_listener_safety():
             "_listener_pids",
             side_effect=lambda port, fresh=False: [333],
         ),
-        mock.patch.object(gemini_control, "_port_open", return_value=True),
         mock.patch.object(gemini_control, "_status_http_snapshot", return_value=None),
         mock.patch.object(gemini_control, "_terminate_pid", return_value=True) as terminate,
     ):

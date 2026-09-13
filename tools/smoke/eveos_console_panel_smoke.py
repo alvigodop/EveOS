@@ -180,12 +180,12 @@ def check_gemini_spawn_visibility():
         def poll(self):
             return None
 
-    original = (G._PROCESS, G._status_payload, G._port_open, G._main_script, G.subprocess.Popen)
+    original = (G._PROCESS, G._status_payload, G._status_http_snapshot, G._main_script, G.subprocess.Popen)
     try:
         G._status_payload = lambda *a, **k: {
             "ok": True, "running": False, "portConflict": False, "pids": [], "state": "stopped"
         }
-        G._port_open = lambda _port: True
+        G._status_http_snapshot = lambda: {"ok": True}
         G._main_script = lambda: ROOT / "EveOS.html"
         G.subprocess.Popen = lambda *a, **k: captured.append(k) or FakeProcess()
 
@@ -207,7 +207,7 @@ def check_gemini_spawn_visibility():
         check(hidden["stdout"] == G.subprocess.DEVNULL and hidden["stderr"] == G.subprocess.DEVNULL,
               "headless Gemini suppresses console streams")
     finally:
-        G._PROCESS, G._status_payload, G._port_open, G._main_script, G.subprocess.Popen = original
+        G._PROCESS, G._status_payload, G._status_http_snapshot, G._main_script, G.subprocess.Popen = original
         P.clear("gemini")
 
 
