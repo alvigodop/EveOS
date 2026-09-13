@@ -1,6 +1,7 @@
 import json
 import os
 import socket
+import httpx
 from google import genai
 from google.genai import types
 
@@ -83,6 +84,30 @@ def _env_enabled(name, default=True):
         return default
     return str(raw).strip().lower() not in {"0", "false", "off", "no"}
 
+
+def _gemini_http_options(api_version):
+    """Build google-genai HTTP options with the same IPv4 policy as Live.
+
+    API-key IP restrictions apply to GenerateContent as well as Live. Binding
+    HTTPX transports to the IPv4 wildcard keeps Text Brain, transcription, and
+    other HTTP model calls on IPv4 without changing the API key allowlist.
+    Supplying an async transport also keeps google-genai on its HTTPX path, where
+    the local bind address is explicit and deterministic.
+    """
+    options = {
+        "api_version": api_version,
+        "timeout": TimeoutConfig.CLIENT_TIMEOUT_MS,
+    }
+    if _env_enabled("EVEOS_GEMINI_FORCE_IPV4", True):
+        options["client_args"] = {
+            "transport": httpx.HTTPTransport(local_address="0.0.0.0"),
+        }
+        options["async_client_args"] = {
+            "transport": httpx.AsyncHTTPTransport(local_address="0.0.0.0"),
+        }
+    return options
+
+
 def install_live_websocket_ipv4_patch():
     """Force Gemini Live and Live Music WebSockets through IPv4 when enabled.
 
@@ -142,14 +167,14 @@ def create_gemini_client(api_key, api_version="v1beta"):
     try:
         print("\nConfiguring Gemini client with enhanced timeout settings...")
         install_live_websocket_ipv4_patch()
+        force_ipv4 = _env_enabled("EVEOS_GEMINI_FORCE_IPV4", True)
         client = genai.Client(
             api_key=api_key,
-            http_options={
-                'api_version': api_version,
-                'timeout': TimeoutConfig.CLIENT_TIMEOUT_MS,
-            }
+            http_options=_gemini_http_options(api_version),
         )
         print(f"[OK] Client configured successfully with {TimeoutConfig.CLIENT_TIMEOUT_SECONDS}s timeout")
+        if force_ipv4:
+            print("[OK] Gemini HTTP IPv4 routing enabled")
         print(f"[OK] Response timeout set to {TimeoutConfig.RESPONSE_TIMEOUT}s (extended to {TimeoutConfig.RESPONSE_TIMEOUT_EXTENDED}s for retries)")
         return client
     except Exception as e:
@@ -178,7 +203,7 @@ def create_gemini_config(
     
     resolved_model = resolve_live_model(model_name)
     capabilities = model_capabilities("live", resolved_model)
-
+    
     # LiveConnectConfig exposes these controls at the top level. Keeping them
     # out of a nested GenerationConfig avoids invalid-argument failures as
     # preview model contracts evolve.
@@ -188,7 +213,7 @@ def create_gemini_config(
         "top_p": 1,
         "max_output_tokens": 2048,
     }
-
+    
     # Apply overrides if provided
     if generation_config:
         # Mapping from client-side keys (often camelCase) to server-side keys
