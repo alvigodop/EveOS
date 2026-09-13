@@ -59,7 +59,7 @@ def assert_backend_lifecycle_contract():
     from main_server_files.api_configuration.gemini_config import _gemini_http_options
     from main_server_files.port_management.port_handler import is_port_in_use
     from main_server_files.server_initialization.server_initializer import parse_server_port, validate_server_port
-    from main_server_files.status_monitoring.status_handler import start_status_server
+    from main_server_files.status_monitoring.status_handler import _websocket_ready, start_status_server
     from main_server_files.websocket_server.websocket_server_handler import (
         ALLOWED_BROWSER_ORIGINS,
         MAX_CLIENT_MESSAGE_BYTES,
@@ -88,6 +88,16 @@ def assert_backend_lifecycle_contract():
     ).read_text(encoding="utf-8")
     assert "connect_ex(" not in port_handler_source
     assert "create_connection(" not in port_handler_source
+
+    # The branded 9086 status endpoint must be equally non-invasive. Polling
+    # /status is frequent, so connecting to 9085 here would flood the headed
+    # terminal with fake failed-opening-handshake tracebacks.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        occupied_status_probe_port = listener.getsockname()[1]
+        listener.listen(1)
+        assert _websocket_ready(occupied_status_probe_port) is True
+    assert _websocket_ready(occupied_status_probe_port) is False
 
     # Text Brain/transcription use normal HTTP model calls, so IPv4 routing must
     # cover both HTTPX clients as well as the separately patched Live WebSocket.
@@ -129,6 +139,7 @@ def assert_backend_lifecycle_contract():
         interactions_root / "main_server_files" / "status_monitoring" / "status_handler.py"
     ).read_text(encoding="utf-8")
     assert '"service": SERVICE_NAME' in status_handler_source
+    assert "create_connection(" not in status_handler_source
 
 
 def assert_legacy_http_safety_contract():
