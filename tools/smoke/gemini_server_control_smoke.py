@@ -1,6 +1,9 @@
 """Focused lifecycle-contract smoke for EveOS Gemini server control."""
 
+import asyncio
+import os
 from pathlib import Path
+import socket
 from unittest import mock
 import sys
 
@@ -53,6 +56,8 @@ def assert_backend_lifecycle_contract():
     interactions_root = ROOT / "server" / "gemini-backend" / "interactions"
     sys.path.insert(0, str(interactions_root))
 
+    from main_server_files.api_configuration.gemini_config import _gemini_http_options
+    from main_server_files.port_management.port_handler import is_port_in_use
     from main_server_files.server_initialization.server_initializer import parse_server_port, validate_server_port
     from main_server_files.status_monitoring.status_handler import start_status_server
     from main_server_files.websocket_server.websocket_server_handler import (
@@ -68,6 +73,39 @@ def assert_backend_lifecycle_contract():
             pass
         else:
             raise AssertionError(f"Invalid paired Gemini port was accepted: {invalid_port}")
+
+    # Port ownership detection must never connect to the Gemini WebSocket listener.
+    # A bind probe reports the conflict without creating an empty handshake attempt.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        occupied_port = listener.getsockname()[1]
+        listener.listen(1)
+        assert is_port_in_use(occupied_port) is True
+    assert is_port_in_use(occupied_port) is False
+
+    port_handler_source = (
+        interactions_root / "main_server_files" / "port_management" / "port_handler.py"
+    ).read_text(encoding="utf-8")
+    assert "connect_ex(" not in port_handler_source
+    assert "create_connection(" not in port_handler_source
+
+    # Text Brain/transcription use normal HTTP model calls, so IPv4 routing must
+    # cover both HTTPX clients as well as the separately patched Live WebSocket.
+    with mock.patch.dict(os.environ, {"EVEOS_GEMINI_FORCE_IPV4": "1"}):
+        http_options = _gemini_http_options("v1beta")
+    assert http_options["api_version"] == "v1beta"
+    sync_transport = http_options["client_args"]["transport"]
+    async_transport = http_options["async_client_args"]["transport"]
+    try:
+        assert type(sync_transport).__name__ == "HTTPTransport"
+        assert type(async_transport).__name__ == "AsyncHTTPTransport"
+    finally:
+        sync_transport.close()
+        asyncio.run(async_transport.aclose())
+
+    requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
+    assert "httpx==0.28.1" in requirements
+
     status_server = start_status_server(0, websocket_port=9191)
     try:
         assert status_server.websocket_port == 9191
