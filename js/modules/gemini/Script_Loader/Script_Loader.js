@@ -53,7 +53,7 @@ const masterScriptList = [
     `${BASE_PATHS.CLIENT_CORE}/connection_management/waitForConnection.js?v=78e959ad2d9b`,
 
     // 2. Agentic Functions
-    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=610d81b9894b`,
+    `${BASE_PATHS.AGENTIC}/audio_proc/audio_proc.js?v=c9c490fd46ee`,
     `${BASE_PATHS.AGENTIC}/self_talk/self_talk.js?v=2e41e1dbad9c`,
     `${BASE_PATHS.AGENTIC}/scr_cap/scr_cap.js?v=cd2003932bc1`,
     `${BASE_PATHS.AGENTIC}/sess_ctrl/sess_ctrl.js?v=cc5ee042f918`,

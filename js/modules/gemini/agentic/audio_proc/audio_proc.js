@@ -34,7 +34,7 @@ const audioProcessingScripts = [
     `${AUDIO_PROCESSING_BASE_PATH}/playback_settings/sequentialAudioPlayState.js?v=a3e389e81237`,
 
     // Audio Processing and Queue Management
-    `${AUDIO_PROCESSING_BASE_PATH}/playback_proc/audio_injest_core/audioIngestLoader.js?v=0ed31b13e01c`,
+    `${AUDIO_PROCESSING_BASE_PATH}/playback_proc/audio_injest_core/audioIngestLoader.js?v=beeeb4395935`,
     `${AUDIO_PROCESSING_BASE_PATH}/queue_mgmt/audioQueueStore.js?v=b79f06a3d496`,
     `${AUDIO_PROCESSING_BASE_PATH}/queue_mgmt/queue_core/queueItemSelector.js?v=984dc744106d`,
     `${AUDIO_PROCESSING_BASE_PATH}/queue_mgmt/queue_core/queueUIManager.js?v=df45f5b4416e`,
@@ -49,7 +49,7 @@ const audioProcessingScripts = [
 
     // Audio Seeking and Settings
     `${AUDIO_PROCESSING_BASE_PATH}/seek_ops/audioSeeker.js?v=037657dd4b5f`,
-    `${AUDIO_PROCESSING_BASE_PATH}/settings_dialog/audioSettingsDialogHandler.js?v=d71f9a9b6cff`,
+    `${AUDIO_PROCESSING_BASE_PATH}/settings_dialog/audioSettingsDialogHandler.js?v=d791a0f92047`,
 
     // Audio Processing Preferences and Toggles
     `${AUDIO_PROCESSING_BASE_PATH}/audio_preferences/audioProcessingPreferencesHandler.js?v=bfec08202e3b`,
