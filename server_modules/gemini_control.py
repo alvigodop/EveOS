@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import signal
-import socket
 import http.client
 import subprocess
 import sys
@@ -27,14 +26,6 @@ def _project_root() -> Path:
 
 def _main_script() -> Path:
     return _project_root() / "server" / "gemini-backend" / "interactions" / "main.py"
-
-
-def _port_open(port: int) -> bool:
-    try:
-        with socket.create_connection(("127.0.0.1", port), timeout=0.2):
-            return True
-    except OSError:
-        return False
 
 
 def _status_http_snapshot() -> dict | None:
@@ -136,8 +127,13 @@ def _terminate_pid(pid: int) -> bool:
 def _status_payload(message: str = "", fresh: bool = False) -> dict:
     websocket_pids = _listener_pids(WEBSOCKET_PORT, fresh)
     status_pids = _listener_pids(STATUS_PORT)
-    websocket_port_open = bool(websocket_pids) and _port_open(WEBSOCKET_PORT)
-    status_port_open = bool(status_pids) and _port_open(STATUS_PORT)
+
+    # Never probe the WebSocket listener with a bare TCP connect. The websockets server expects
+    # an HTTP Upgrade request, so connect-and-close health checks are logged as failed handshakes
+    # even while the real EveOS session is healthy. Listener discovery is non-invasive; the
+    # branded HTTP status endpoint on 9086 remains the authority for service identity/readiness.
+    websocket_port_open = bool(websocket_pids)
+    status_port_open = bool(status_pids)
     status_snapshot = _status_http_snapshot() if status_port_open else None
     status_ready = status_snapshot is not None
     process_alive = bool(_PROCESS and _PROCESS.poll() is None)
@@ -253,15 +249,19 @@ def start_server() -> dict:
             creationflags=flags,
         )
 
+    # Wait briefly for the branded HTTP health endpoint. Do not connect to 9085 here: a raw TCP
+    # readiness probe is indistinguishable from a broken WebSocket handshake to the server and
+    # floods headed Gemini terminals with false errors.
     deadline = time.monotonic() + 1.5
     while time.monotonic() < deadline:
-        if _port_open(WEBSOCKET_PORT) and _port_open(STATUS_PORT):
+        if _status_http_snapshot() is not None:
             break
         if _PROCESS.poll() is not None:
             break
         time.sleep(0.1)
 
-    payload = _status_payload("Gemini server started." if _port_open(WEBSOCKET_PORT) else "Gemini server is starting.", fresh=True)
+    payload = _status_payload(fresh=True)
+    payload["message"] = "Gemini server started." if payload["running"] else "Gemini server is starting."
     if _PROCESS.poll() is not None and not payload["running"]:
         payload.update(ok=False, state="error", message="Gemini server exited before becoming ready.")
     return payload
