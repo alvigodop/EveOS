@@ -2,22 +2,28 @@ import socket
 import subprocess
 import platform
 
+
 def is_port_in_use(port):
-    """Check if a port is in use on either IPv4 or IPv6."""
-    # Check IPv4
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        ipv4_in_use = s.connect_ex(('127.0.0.1', port)) == 0
-    
-    # Check IPv6
-    ipv6_in_use = False
+    """Check whether EveOS's loopback WebSocket bind is unavailable.
+
+    Probe by binding a temporary socket instead of connecting to the target
+    port. A TCP connect against a WebSocket listener creates an empty client
+    connection, which websockets logs as a failed opening handshake. The real
+    Gemini server binds only to 127.0.0.1, so testing that exact bind contract
+    detects a stale listener without sending traffic to it.
+    """
     try:
-        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
-            ipv6_in_use = s.connect_ex(('::1', port)) == 0
-    except socket.error:
-        # IPv6 might not be supported
-        pass
-    
-    return ipv4_in_use or ipv6_in_use
+        port = int(port)
+    except (TypeError, ValueError):
+        return True
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", port))
+        return False
+    except OSError:
+        return True
+
 
 def free_port(port):
     """Attempt to free a port by killing the process using it.
