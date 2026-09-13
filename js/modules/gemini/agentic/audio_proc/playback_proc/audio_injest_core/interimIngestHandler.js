@@ -11,15 +11,18 @@ window.AudioIngestCore.InterimIngestHandler = {
     freshStartRequested: false,
     nextStartTime: 0,
 
+    // Gemini Live audio arrives over the network. Keep a small jitter cushion so a
+    // delayed packet does not force every following chunk to start at the live edge.
     INITIAL_HEADROOM: 0.15,
-    RESYNC_THRESHOLD: 5.0,
-    IDLE_THRESHOLD: 10.0,
+    REBUFFER_THRESHOLD: 0.025,
+    IDLE_THRESHOLD: 0.35,
     MAX_LEAD: 2.0,
     HEARTBEAT_TIMEOUT: 15000,
 
     diagnostics: {
         chunks: 0,
         underflows: 0,
+        rebufferEvents: 0,
         backlogRecoveries: 0,
         backlogSourcesDropped: 0,
         hardStops: 0,
@@ -27,7 +30,8 @@ window.AudioIngestCore.InterimIngestHandler = {
         lastLeadSec: 0,
         lastArrivalGapMs: 0,
         maxArrivalGapMs: 0,
-        lastPacketAt: 0
+        lastPacketAt: 0,
+        lastRebufferReason: ''
     },
 
     reset: function (context) {
@@ -53,8 +57,7 @@ window.AudioIngestCore.InterimIngestHandler = {
 
     /**
      * When the producer gets far ahead, discard only audio that has not begun yet.
-     * The previous implementation called stopAll(), cutting the source the user was actively
-     * hearing and producing the exact mid-word chop this guard was supposed to prevent.
+     * Never cut the source that is already audible.
      */
     dropQueuedBacklog: function (context) {
         if (!context) return 0;
@@ -102,6 +105,7 @@ window.AudioIngestCore.InterimIngestHandler = {
             queueLeadSec: Number(lead.toFixed(3)),
             maxLeadConfiguredSec: this.MAX_LEAD,
             initialHeadroomSec: this.INITIAL_HEADROOM,
+            rebufferThresholdSec: this.REBUFFER_THRESHOLD,
             contextState: context?.state || 'unavailable',
             outputSampleRate: Number(context?.sampleRate || 0) || null
         };
@@ -109,10 +113,11 @@ window.AudioIngestCore.InterimIngestHandler = {
 
     playInterimAudio: async function (base64AudioChunk, context) {
         const arrivalNow = Date.now();
+        let arrivalGapMs = 0;
         if (this.diagnostics.lastPacketAt) {
-            const arrivalGap = arrivalNow - this.diagnostics.lastPacketAt;
-            this.diagnostics.lastArrivalGapMs = arrivalGap;
-            this.diagnostics.maxArrivalGapMs = Math.max(this.diagnostics.maxArrivalGapMs, arrivalGap);
+            arrivalGapMs = arrivalNow - this.diagnostics.lastPacketAt;
+            this.diagnostics.lastArrivalGapMs = arrivalGapMs;
+            this.diagnostics.maxArrivalGapMs = Math.max(this.diagnostics.maxArrivalGapMs, arrivalGapMs);
         }
         this.diagnostics.lastPacketAt = arrivalNow;
         this.diagnostics.chunks += 1;
@@ -121,8 +126,12 @@ window.AudioIngestCore.InterimIngestHandler = {
         const arrayBuffer = base64ToArrayBuffer(base64AudioChunk);
         try {
             if (typeof createAudioBufferFromPCM !== 'function') {
-                console.warn("createAudioBufferFromPCM not available for interim playback");
+                console.warn('createAudioBufferFromPCM not available for interim playback');
                 return;
+            }
+
+            if (context?.state === 'suspended' && typeof context.resume === 'function') {
+                try { await context.resume(); } catch (e) { /* user gesture policy may still own resume */ }
             }
 
             const audioBuffer = createAudioBufferFromPCM(arrayBuffer, context);
@@ -131,12 +140,29 @@ window.AudioIngestCore.InterimIngestHandler = {
             interimSource.playbackRate.value = 1.0;
             interimSource.connect(context.destination);
 
-            const gap = context.currentTime - this.nextStartTime;
-            const isFreshStart = this.freshStartRequested
-                || (this.activeSources.length === 0 && gap > this.IDLE_THRESHOLD);
+            const now = context.currentTime;
+            const hasTimeline = Number.isFinite(this.nextStartTime) && this.nextStartTime > 0;
+            const missedBy = hasTimeline ? now - this.nextStartTime : Number.POSITIVE_INFINITY;
+            const idleArrival = arrivalGapMs > (this.IDLE_THRESHOLD * 1000)
+                && this.activeSources.length === 0;
+            const needsRebuffer = this.freshStartRequested
+                || !hasTimeline
+                || missedBy > this.REBUFFER_THRESHOLD
+                || idleArrival;
 
-            if (isFreshStart) {
+            if (needsRebuffer) {
+                let reason = 'fresh-start';
+                if (!hasTimeline) reason = 'first-chunk';
+                else if (missedBy > this.REBUFFER_THRESHOLD) reason = 'underflow';
+                else if (idleArrival) reason = 'idle-resume';
+
+                if (reason === 'underflow') this.diagnostics.underflows += 1;
+                this.diagnostics.rebufferEvents += 1;
+                this.diagnostics.lastRebufferReason = reason;
+
                 try {
+                    // Prime WebAudio with a silent one-frame source. This is best-effort and
+                    // avoids the first real PCM source paying device wake-up cost on some hosts.
                     const chirp = context.createBuffer(1, 1, 24000);
                     const chirpSource = context.createBufferSource();
                     chirpSource.buffer = chirp;
@@ -144,11 +170,8 @@ window.AudioIngestCore.InterimIngestHandler = {
                     chirpSource.start();
                 } catch (e) { /* warm-up is best effort */ }
 
-                this.nextStartTime = context.currentTime + this.INITIAL_HEADROOM;
+                this.nextStartTime = now + this.INITIAL_HEADROOM;
                 this.freshStartRequested = false;
-            } else if (gap > this.RESYNC_THRESHOLD) {
-                this.diagnostics.underflows += 1;
-                this.nextStartTime = context.currentTime + this.INITIAL_HEADROOM;
             }
 
             let lead = this.nextStartTime - context.currentTime;
@@ -160,10 +183,6 @@ window.AudioIngestCore.InterimIngestHandler = {
             }
 
             const startTime = Math.max(this.nextStartTime, context.currentTime);
-            if (startTime <= context.currentTime + 0.001 && this.activeSources.length === 0) {
-                this.diagnostics.underflows += 1;
-            }
-
             interimSource._eveStartTime = startTime;
             interimSource._eveEndTime = startTime + audioBuffer.duration;
             interimSource.start(startTime);
@@ -178,9 +197,9 @@ window.AudioIngestCore.InterimIngestHandler = {
             this.diagnostics.lastLeadSec = Number(scheduledLead.toFixed(3));
             this.diagnostics.maxLeadSec = Math.max(this.diagnostics.maxLeadSec, scheduledLead);
         } catch (error) {
-            console.error("Error playing interim audio chunk:", error);
+            console.error('Error playing interim audio chunk:', error);
         }
     }
 };
 
-console.log("interimIngestHandler.js loaded.");
+console.log('interimIngestHandler.js loaded.');
