@@ -9,11 +9,24 @@ SERVICE_NAME = "eveos-gemini-live"
 
 
 def _websocket_ready(port):
+    """Report whether the loopback WebSocket port is already bound.
+
+    Never connect to the WebSocket listener for health checks. A connect-and-close
+    probe reaches websockets without an HTTP Upgrade request and is logged as a
+    failed opening handshake even when the real EveOS session is healthy.
+    """
     try:
-        with socket.create_connection(("127.0.0.1", int(port)), timeout=0.2):
-            return True
-    except OSError:
+        port = int(port)
+    except (TypeError, ValueError):
         return False
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", port))
+        return False
+    except OSError:
+        return True
+
 
 class StatusHandler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
@@ -65,13 +78,14 @@ class ThreadingStatusServer(socketserver.ThreadingMixIn, http.server.HTTPServer)
     daemon_threads = True
     allow_reuse_address = True
 
+
 def start_status_server(port, websocket_port=DEFAULT_PORT):
     """
     Start the status HTTP server on the specified port.
 
     Args:
         port (int): The port number to run the status server on
-        websocket_port (int): The WebSocket port reported and probed by /status
+        websocket_port (int): The WebSocket port reported and checked by /status
 
     Returns:
         http.server.HTTPServer: The running server instance
