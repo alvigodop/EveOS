@@ -135,6 +135,30 @@ async function main() {
             throw new Error(`Detached button geometry collapsed: ${JSON.stringify(popoutBox)}`);
         }
 
+        await page.evaluate(() => {
+            window.__lastDetachedCall = null;
+            window.open = function (url, target, features) {
+                window.__lastDetachedCall = { url: String(url), target: String(target), features: String(features) };
+                return { focus: () => {}, closed: false };
+            };
+        });
+        await popoutButton.click();
+        await page.waitForTimeout(80);
+
+        const detachCall = await page.evaluate(() => window.__lastDetachedCall);
+        if (!detachCall) {
+            throw new Error('Pointer click on Detached button did not trigger window.open');
+        }
+        if (!detachCall.url.includes('9077')) {
+            throw new Error(`Detached window URL does not point to port 9077: ${detachCall.url}`);
+        }
+        if (detachCall.target !== 'eveBookmarkIntelWindow') {
+            throw new Error(`Detached window target is not eveBookmarkIntelWindow: ${detachCall.target}`);
+        }
+        if (!detachCall.features.includes('popup=yes') || !detachCall.features.includes('resizable=yes')) {
+            throw new Error(`Detached window features missing popup/resizable flags: ${detachCall.features}`);
+        }
+
         const baseline = await page.evaluate(() => {
             const layout = document.querySelector('#categorySettingsModal .app-layout');
             const main = layout?.querySelector(':scope > .main-column');

@@ -132,7 +132,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/core/app-recovery.js?v=98afd7296b47",
     "js/modules/features/scraper/ui/category-scraper-panel.js?v=baac5d72901f",
     "js/modules/features/scraper/ui/templates/scraper-panel-template.js?v=2bf4b8c56ce2",
-    "js/modules/features/scraper/ui/bookmark-intel/bookmark-intel-manager.js?v=0722bb94e6fa",
+    "js/modules/features/scraper/ui/bookmark-intel/bookmark-intel-manager.js?v=2eb66c956581",
     "js/modules/features/scraper/core/scraper-init.js?v=a138ac6260ba",
     "js/modules/features/scraper/core/module-system/module-initializer.js?v=155bf74ddd8c"
 ]);

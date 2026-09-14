@@ -14,6 +14,7 @@
     const START_ENDPOINT = '/api/bookmark-intel/start';
     const STOP_ENDPOINT = '/api/bookmark-intel/stop';
     const HEALTH_ENDPOINT = '/api/health';
+    const DETACHED_WINDOW_NAME = 'eveBookmarkIntelWindow';
     const EXPANDED_CLASS = 'bookmark-intel-workspace-expanded';
     const EXPANDED_STYLE_ID = 'bookmark-intel-expanded-layout-style';
     const observedPanels = new WeakSet();
@@ -27,6 +28,7 @@
     };
     let isActionBusy = false;
     let isExpanded = false;
+    let detachedWindow = null;
 
     function getPort() {
         return Number(window.EveOSPortRegistry?.get?.('BOOKMARK_INTEL_PORT', 9077)) || 9077;
@@ -191,6 +193,33 @@
         observedPanels.add(panel);
     }
 
+    function getDetachedWindowFeatures() {
+        const availableWidth = Math.max(900, Number(window.screen?.availWidth) || 1440);
+        const availableHeight = Math.max(680, Number(window.screen?.availHeight) || 900);
+        const width = Math.min(1500, Math.max(900, availableWidth - 100));
+        const height = Math.min(1000, Math.max(680, availableHeight - 100));
+        const left = Math.max(0, Math.round((availableWidth - width) / 2));
+        const top = Math.max(0, Math.round((availableHeight - height) / 2));
+        return `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`;
+    }
+
+    function detachBookmarkIntel(url) {
+        const targetUrl = url || getServiceUrl();
+        if (detachedWindow && !detachedWindow.closed) {
+            try {
+                detachedWindow.focus();
+            } catch {}
+            return detachedWindow;
+        }
+        detachedWindow = window.open(targetUrl, DETACHED_WINDOW_NAME, getDetachedWindowFeatures());
+        if (detachedWindow) {
+            try {
+                detachedWindow.focus();
+            } catch {}
+        }
+        return detachedWindow;
+    }
+
     const BookmarkIntelManager = {
         getStatus: function () {
             return { ...currentStatus };
@@ -200,6 +229,14 @@
 
         checkStatus: async function () {
             return await queryStatus();
+        },
+
+        detach: function (url) {
+            return detachBookmarkIntel(url);
+        },
+
+        getDetachedWindow: function () {
+            return detachedWindow;
         },
 
         setExpanded: function (expanded, container = null) {
@@ -280,7 +317,7 @@
                                     <button class="tool-btn btn-bi-expand" type="button" aria-pressed="${isExpanded ? 'true' : 'false'}" style="padding: 6px 12px; font-size: 0.82rem;" title="Give Bookmark Intel the full Scraper workspace width">
                                         ${isExpanded ? 'Collapse ⤡' : 'Expand ⤢'}
                                     </button>
-                                    <a href="${serviceUrl}" target="_blank" rel="noopener noreferrer" class="tool-btn btn-bi-popout" style="padding: 6px 12px; font-size: 0.82rem; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Open Bookmark Intel in a detached tab">
+                                    <a href="${serviceUrl}" target="_blank" rel="noopener noreferrer" class="tool-btn btn-bi-popout" style="padding: 6px 12px; font-size: 0.82rem; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Open Bookmark Intel in a detached window">
                                         Detached ↗
                                     </a>
                                 </div>
@@ -323,6 +360,14 @@
                 if (expandBtn) {
                     expandBtn.addEventListener('click', () => {
                         applyExpandedState(container, !isExpanded);
+                    });
+                }
+
+                const popoutBtn = container.querySelector('.btn-bi-popout');
+                if (popoutBtn) {
+                    popoutBtn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        detachBookmarkIntel();
                     });
                 }
 
