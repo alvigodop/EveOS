@@ -3,8 +3,7 @@
  *
  * Card-scoped Knowledge Base manager for Bookmark Intel.
  * Provides embedded UI frame integration, live health/status probing,
- * and service lifecycle controls (start/stop/restart/open-tab) inside
- * the EveOS Scraper settings and workspace panel.
+ * service lifecycle controls, and a non-destructive expanded Scraper view.
  */
 (function () {
     'use strict';
@@ -15,6 +14,9 @@
     const START_ENDPOINT = '/api/bookmark-intel/start';
     const STOP_ENDPOINT = '/api/bookmark-intel/stop';
     const HEALTH_ENDPOINT = '/api/health';
+    const EXPANDED_CLASS = 'bookmark-intel-workspace-expanded';
+    const EXPANDED_STYLE_ID = 'bookmark-intel-expanded-layout-style';
+    const observedPanels = new WeakSet();
 
     let currentStatus = {
         running: false,
@@ -24,6 +26,7 @@
         lastChecked: 0
     };
     let isActionBusy = false;
+    let isExpanded = false;
 
     function getPort() {
         return Number(window.EveOSPortRegistry?.get?.('BOOKMARK_INTEL_PORT', 9077)) || 9077;
@@ -120,6 +123,74 @@
         return { ok: false, message: 'Could not reach EveOS control plane to toggle Bookmark Intel.' };
     }
 
+    function ensureExpandedLayoutStyles() {
+        if (document.getElementById(EXPANDED_STYLE_ID)) return;
+        const style = document.createElement('style');
+        style.id = EXPANDED_STYLE_ID;
+        style.textContent = `
+            .app-layout.${EXPANDED_CLASS} > .main-column {
+                display: none !important;
+            }
+            .app-layout.${EXPANDED_CLASS} > .sidebar-column {
+                flex: 1 1 100% !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
+                position: static !important;
+                max-height: none !important;
+                overflow: visible !important;
+            }
+            .app-layout.${EXPANDED_CLASS} #bookmarkIntelManagement,
+            .app-layout.${EXPANDED_CLASS} #bookmark-intel-scraper-panel-container,
+            .app-layout.${EXPANDED_CLASS} .bookmark-intel-scraper-shell {
+                width: 100% !important;
+                max-width: none !important;
+            }
+            .app-layout.${EXPANDED_CLASS} .bookmark-intel-content-area {
+                min-height: 72vh !important;
+            }
+            .app-layout.${EXPANDED_CLASS} #bookmark-intel-frame {
+                height: 76vh !important;
+                min-height: 720px !important;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function expandedLayout(container) {
+        return container?.closest?.('.app-layout')
+            || document.getElementById('bookmarkIntelManagement')?.closest?.('.app-layout')
+            || null;
+    }
+
+    function applyExpandedState(container, nextState = isExpanded) {
+        ensureExpandedLayoutStyles();
+        isExpanded = !!nextState;
+        const layout = expandedLayout(container);
+        if (layout) layout.classList.toggle(EXPANDED_CLASS, isExpanded);
+        const button = container?.querySelector?.('.btn-bi-expand');
+        if (button) {
+            button.textContent = isExpanded ? 'Collapse ⤡' : 'Expand ⤢';
+            button.setAttribute('aria-pressed', isExpanded ? 'true' : 'false');
+            button.title = isExpanded
+                ? 'Restore the normal Scraper split view'
+                : 'Give Bookmark Intel the full Scraper workspace width';
+        }
+        return isExpanded;
+    }
+
+    function ensurePanelVisibilityObserver(container) {
+        const panel = container?.closest?.('#bookmarkIntelManagement');
+        if (!panel || observedPanels.has(panel) || typeof MutationObserver !== 'function') return;
+        const observer = new MutationObserver(() => {
+            if (window.getComputedStyle(panel).display === 'none' && isExpanded) {
+                applyExpandedState(container, false);
+            }
+        });
+        observer.observe(panel, { attributes: true, attributeFilter: ['style', 'class'] });
+        observedPanels.add(panel);
+    }
+
     const BookmarkIntelManager = {
         getStatus: function () {
             return { ...currentStatus };
@@ -129,6 +200,11 @@
 
         checkStatus: async function () {
             return await queryStatus();
+        },
+
+        setExpanded: function (expanded, container = null) {
+            const target = container || document.getElementById('bookmark-intel-scraper-panel-container');
+            return applyExpandedState(target, expanded);
         },
 
         startService: async function () {
@@ -171,6 +247,8 @@
 
             const serviceUrl = getServiceUrl();
             const port = getPort();
+            ensureExpandedLayoutStyles();
+            ensurePanelVisibilityObserver(container);
 
             const renderTemplate = () => {
                 const isRunning = currentStatus.running;
@@ -199,8 +277,11 @@
                                     ` : `
                                         <button class="tool-btn btn-bi-start" style="padding: 6px 14px; font-size: 0.82rem; background: #1f382a; color: #8fe5b2; border: 1px solid #2e5c42; font-weight: 700;" ${isActionBusy ? 'disabled' : ''}>Start Service</button>
                                     `}
-                                    <a href="${serviceUrl}" target="_blank" rel="noopener noreferrer" class="tool-btn btn-bi-popout" style="padding: 6px 12px; font-size: 0.82rem; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Open Bookmark Intel in standalone tab">
-                                        Open ↗
+                                    <button class="tool-btn btn-bi-expand" type="button" aria-pressed="${isExpanded ? 'true' : 'false'}" style="padding: 6px 12px; font-size: 0.82rem;" title="Give Bookmark Intel the full Scraper workspace width">
+                                        ${isExpanded ? 'Collapse ⤡' : 'Expand ⤢'}
+                                    </button>
+                                    <a href="${serviceUrl}" target="_blank" rel="noopener noreferrer" class="tool-btn btn-bi-popout" style="padding: 6px 12px; font-size: 0.82rem; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Open Bookmark Intel in a detached tab">
+                                        Detached ↗
                                     </a>
                                 </div>
                             </div>
@@ -228,11 +309,20 @@
                     </div>
                 `;
 
+                applyExpandedState(container, isExpanded);
+
                 const refreshBtn = container.querySelector('.btn-bi-refresh');
                 if (refreshBtn) {
                     refreshBtn.addEventListener('click', () => {
                         const frame = container.querySelector('#bookmark-intel-frame');
                         if (frame) frame.src = serviceUrl;
+                    });
+                }
+
+                const expandBtn = container.querySelector('.btn-bi-expand');
+                if (expandBtn) {
+                    expandBtn.addEventListener('click', () => {
+                        applyExpandedState(container, !isExpanded);
                     });
                 }
 
