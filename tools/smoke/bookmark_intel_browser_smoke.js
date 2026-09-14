@@ -213,6 +213,22 @@ async function main() {
             throw new Error(`Switching away from Bookmark Intel left expanded layout active: ${JSON.stringify(restoredOnSwitch)}`);
         }
 
+        await page.locator('.source-toggle-btn[data-source="bookmark-intel"]').click();
+        await page.waitForTimeout(120);
+        const returnedState = await page.evaluate(() => {
+            const panel = document.getElementById('bookmarkIntelManagement');
+            const title = document.querySelector('#bookmark-intel-scraper-panel-container .api-scraper-provider-title')?.textContent?.trim();
+            const badge = document.querySelector('#bookmark-intel-scraper-panel-container .bookmark-intel-badge')?.textContent?.trim();
+            return {
+                visible: panel ? window.getComputedStyle(panel).display !== 'none' : false,
+                title,
+                badge
+            };
+        });
+        if (!returnedState.visible || returnedState.title !== 'Bookmark Intel') {
+            throw new Error(`Returning to Bookmark Intel failed: ${JSON.stringify(returnedState)}`);
+        }
+
         if (pageErrors.length > 0) {
             throw new Error(`Uncaught browser page errors during test: ${pageErrors.join(' | ')}`);
         }
