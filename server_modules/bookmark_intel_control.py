@@ -57,11 +57,13 @@ def _write_desired_state(enabled: bool) -> None:
 
 
 def _port_open() -> bool:
+    """Report whether the exact loopback port is bound without connecting to it."""
     try:
-        with socket.create_connection(("127.0.0.1", BOOKMARK_INTEL_PORT), timeout=0.25):
-            return True
-    except OSError:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", BOOKMARK_INTEL_PORT))
         return False
+    except OSError:
+        return True
 
 
 def _health_payload() -> dict | None:
