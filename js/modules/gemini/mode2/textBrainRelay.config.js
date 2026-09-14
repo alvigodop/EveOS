@@ -1,5 +1,8 @@
 window.EveGeminiMode2Config = Object.freeze({
-    REQUEST_TIMEOUT_MS: 20000,
+    // The live capture showed valid Text Brain responses arriving right on the old
+    // 20s boundary and losing a race with the client fallback timer. Keep the user
+    // turn pending long enough for a late-but-valid extraction to reach Live.
+    REQUEST_TIMEOUT_MS: 40000,
     HISTORY_LIMIT: 40,
     HISTORY_TEXT_LIMIT: 1200,
     CONTEXT_LIMIT: 80000,
