@@ -3,7 +3,8 @@
 This intentionally executes the real realtime_input processor from its AST with tiny
 stubs, so the smoke does not need google-genai installed. It verifies that Mode 2's
 unique silent extraction frame is buffered (not sent as its own Live turn), merged
-into the immediately following user turn, consumed once, and expired safely.
+into the immediately following user turn, consumed once, expired safely, and that the
+client request window stays long enough for late-but-valid Text Brain responses.
 """
 from __future__ import annotations
 
@@ -12,13 +13,22 @@ import asyncio
 import base64
 import json
 from pathlib import Path
+import re
 import time
 from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 PROCESSOR = ROOT / "server" / "gemini-backend" / "interactions" / "main_server_files" / "media_processing" / "realtime_input_processor.py"
+MODE2_CONFIG = ROOT / "js" / "modules" / "gemini" / "mode2" / "textBrainRelay.config.js"
 SOURCE = PROCESSOR.read_text(encoding="utf-8")
+CONFIG_SOURCE = MODE2_CONFIG.read_text(encoding="utf-8")
 TREE = ast.parse(SOURCE, filename=str(PROCESSOR))
+
+timeout_match = re.search(r"REQUEST_TIMEOUT_MS:\s*(\d+)", CONFIG_SOURCE)
+assert timeout_match, "Mode 2 request timeout config is missing"
+assert int(timeout_match.group(1)) >= 40000, (
+    "Mode 2 hard timeout regressed below 40s; valid ~20s Text Brain responses can lose the fallback race"
+)
 
 HELPERS = {
     "_is_mode2_turn_context",
