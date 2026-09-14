@@ -82,6 +82,7 @@ namespace = {
     "time": time,
     "types": SimpleNamespace(Part=Part, Content=Content, Blob=Blob),
     "save_chat_history": save_chat_history,
+    "print": lambda *_args, **_kwargs: None,
 }
 module = ast.Module(body=selected, type_ignores=[])
 ast.fix_missing_locations(module)
@@ -126,8 +127,9 @@ async def main():
     session = Session()
 
     extracted = (
-        "[SILENT BACKGROUND CONTEXT — internal memory refresh only. Do NOT acknowledge, mention, "
-        "or respond to this message in any way.]\nBrowser card contains exactly 8 bookmarks."
+        "[MODE 2 VERIFIED EVEOS CONTEXT — authoritative facts for the current user turn. "
+        "Do NOT claim the EveOS context is missing, unloaded, or needs to be sent through "
+        "Context Relay.]\nBrowser card contains exactly 8 bookmarks."
     )
     await process_realtime_input(
         text_frame(
@@ -153,6 +155,8 @@ async def main():
     merged = content.parts[0].text
     assert extracted in merged, "extracted EveOS facts missing from atomic Live turn"
     assert question in merged, "user question missing from atomic Live turn"
+    assert "facts above are authoritative" in merged
+    assert "never claim they were unavailable" in merged
     assert history[-1] == (question, True), "hidden context must never pollute user-visible chat history"
     assert monitor.mode2_pending_turn_context == "", "Mode 2 context must be one-shot"
 

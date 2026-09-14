@@ -8,6 +8,7 @@ import time
 MODE2_TURN_CONTEXT_PREFIXES = (
     "[SILENT BACKGROUND CONTEXT — internal memory refresh only.",
     "[SILENT GUARD — internal note, do NOT acknowledge:",
+    "[MODE 2 VERIFIED EVEOS CONTEXT — authoritative facts for the current user turn.",
 )
 MODE2_TURN_CONTEXT_TTL_SECONDS = 30.0
 
@@ -53,7 +54,7 @@ def _merge_mode2_turn_context(connection_monitor, user_text):
 
     return (
         context
-        + "\n\n[USER MESSAGE — answer this message normally using the internal EveOS context above when relevant.]\n"
+        + "\n\n[CURRENT USER MESSAGE — answer this message directly. The verified EveOS facts above are authoritative for this turn; use them when answering and never claim they were unavailable.]\n"
         + text,
         True,
     )

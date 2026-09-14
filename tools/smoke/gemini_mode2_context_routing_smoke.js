@@ -217,6 +217,8 @@ function makeRelayVm({ textBrainMode }) {
         assert(wsFrames.length === 1, 'exactly one system context frame should be sent');
         assert(wsFrames[0].is_system_context === true, 'frame should be system context');
         assert(wsFrames[0].realtime_input.media_chunks[0].data.includes('Brain reply about your cards.'), 'system context should contain extracted facts');
+        assert(wsFrames[0].realtime_input.media_chunks[0].data.includes('authoritative facts for the current user turn'), 'live handoff must mark extracted facts authoritative');
+        assert(wsFrames[0].realtime_input.media_chunks[0].data.includes('Do NOT claim the EveOS context is missing'), 'live handoff must prohibit false no-context replies');
         if (process.env.EVE_SMOKE_VERBOSE === '1') {
             console.log(`mode 2 routing OK: ${result.mode} snapshot (${result.manifest.messageChars} chars) -> brain slot -> next turn carried ${String(req.context).length} chars; live WS untouched`);
         }
@@ -235,6 +237,7 @@ function makeRelayVm({ textBrainMode }) {
         mode2.resetBrainGate();   // clear the free-tier throttle between test turns
         await mode2.relayUserUtterance('and now?');
         const req2 = brainRequests[1];
+        assert(wsFrames.length === 1, 'identical extracted facts must be handed off again for the one-shot next turn');
         assert(String(req2.context || '').includes('[EVEOS DATA STREAM UPDATES'), 'delta log missing from next brain turn');
         assert(String(req2.context || '').includes('eveos.gemini-data-stream.v2'), 'delta payload missing from next brain turn');
 

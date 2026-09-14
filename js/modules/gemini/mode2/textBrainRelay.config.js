@@ -14,6 +14,7 @@ window.EveGeminiMode2Config = Object.freeze({
     HISTORY_EXCLUDE_MARKERS: Object.freeze([
         'BACKGROUND CONTEXT FROM TEXT BRAIN',
         'SILENT BACKGROUND CONTEXT',
+        'MODE 2 VERIFIED EVEOS CONTEXT',
         'TEXT BRAIN → LIVE',
         'Text Brain is extracting',
         'Text Brain unavailable',

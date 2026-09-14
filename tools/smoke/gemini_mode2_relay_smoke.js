@@ -125,13 +125,13 @@ async function main() {
     }
     if (!messages.some((message) => /TEXT BRAIN/.test(message))) throw new Error('text brain display message missing');
 
-    // A second identical extraction must NOT be re-injected (dedupe), and the throttle gate
-    // must be resettable for tests.
+    // A second identical extraction MUST be re-injected: backend context is one-shot and consumed
+    // with each user turn, so client-side dedupe would leave repeat queries contextless.
     sandbox.window.EveGeminiMode2.resetBrainGate();
     const injectionsBefore = sent.filter((p) => p.is_modular_context === true).length;
     await sandbox.window.EveGeminiMode2.relayUserUtterance('hello again');
     const injectionsAfter = sent.filter((p) => p.is_modular_context === true).length;
-    if (injectionsAfter !== injectionsBefore) throw new Error('identical extraction should not be re-injected');
+    if (injectionsAfter !== injectionsBefore + 1) throw new Error('identical extraction must be re-injected for the next one-shot turn');
     if (spoken[1] !== 'hello again') throw new Error('second turn should still reach the live model');
 
     // --- Quota cooldown is scoped to the model that 429'd; switching models resumes instantly ---

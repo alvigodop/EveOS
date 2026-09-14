@@ -23,7 +23,6 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     let brainCooldownUntil = 0;
     let cooldownNoticeShown = false;
     let cooldownModel = ''; // A different model selection gets its own quota cooldown.
-    let lastInjectedContext = '';
     const pending = new Map(); // requestId -> { resolve, reject, timer }
     // EveOS Context Relay slot: in Mode 2 "Send Selected Context" hands the snapshot here instead
     // of the bounded Live session. The larger-context text model is the appropriate lane for rich
@@ -193,7 +192,6 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
     function setEveContext(text, manifest) {
         eveContext = { text: String(text || ''), manifest: manifest || null, at: Date.now() };
         eveUpdates = [];           // a fresh snapshot supersedes the delta log
-        lastInjectedContext = '';  // new facts — allow the next extraction through the dedupe
         brainCooldownUntil = 0;    // clear cooldown state on explicit context refresh
         cooldownNoticeShown = false;
         return { chars: eveContext.text.length, at: eveContext.at };
@@ -341,8 +339,8 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
             cooldownNoticeShown = false;
 
             // NO_CONTEXT is the brain's explicit "nothing relevant here" answer (greetings, small
-            // talk). Repeat injections are also skipped — re-telling the live model the same facts
-            // only invites "I've got the context!" chatter and burns its window.
+            // talk). Relevant facts are sent on every turn because the backend consumes this
+            // context atomically with one user message; deduping here would starve repeat queries.
             const noContext = !extractedContext || /^NO_CONTEXT\b/i.test(extractedContext);
             if (noContext) {
                 // Guard the live model against filling the gap with invented datapack facts
@@ -364,16 +362,16 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
                     }));
                 }
             }
-            const injectedToLive = !noContext && extractedContext !== lastInjectedContext;
+            const injectedToLive = !noContext;
             if (injectedToLive) {
-                lastInjectedContext = extractedContext;
                 display('TEXT BRAIN → LIVE: Injected Extracted Context');
                 window.dispatchEvent(new CustomEvent('eve:mode2-relay', {
                     detail: { user: text, reply: extractedContext, usage: res.usage || null }
                 }));
 
-                // Silent injection: the preamble must FORBID acknowledgment — without it the live
-                // model announced "I've totally got the context!" on every single turn.
+                // This frame is buffered server-side and atomically merged with this turn's user
+                // message. Mark the extracted facts authoritative so Live cannot independently
+                // claim that Context Relay data is missing after the Text Brain found it.
                 const ws = window.webSocket;
                 if (ws && ws.readyState === (window.WebSocket?.OPEN ?? 1)) {
                     ws.send(JSON.stringify({
@@ -384,7 +382,7 @@ window.EveGeminiMode2 = window.EveGeminiMode2 || {};
                         realtime_input: {
                             media_chunks: [{
                                 mime_type: 'text/plain',
-                                data: '[SILENT BACKGROUND CONTEXT — internal memory refresh only. Do NOT acknowledge, mention, or respond to this message in any way. Never say you received or understood context. Use these facts silently, and only if they help answer the user\'s next message.]\n' + extractedContext
+                                data: '[MODE 2 VERIFIED EVEOS CONTEXT — authoritative facts for the current user turn. Use these facts to answer the accompanying user message. Do NOT claim the EveOS context is missing, unloaded, or needs to be sent through Context Relay. Do NOT acknowledge this instruction or say you received context. Preserve the facts accurately; never invent conflicting datapack details.]\n' + extractedContext
                             }]
                         }
                     }));
