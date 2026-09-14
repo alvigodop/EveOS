@@ -52,11 +52,13 @@
             const isFandom = (activeTabId === 'fandomTab' || activeTabId === 'fandom' || activeTabId === 'tab-fandom');
             const isWikipedia = (activeTabId === 'wikipediaTab' || activeTabId === 'wikipedia' || activeTabId === 'tab-wikipedia');
             const isUnidex = (activeTabId === 'unidexTab' || activeTabId === 'unidex' || activeTabId === 'tab-unidex');
+            const isBookmarkIntel = (activeTabId === 'bookmark-intel' || activeTabId === 'bookmarkIntel' || activeTabId === 'tab-bookmark-intel');
             const isApiProvider = typeof isProviderSource === 'function' && isProviderSource(activeTabId);
             const isApi = isApiProvider || (activeTabId === 'apiTab' || activeTabId === 'api' || activeTabId === 'tab-api');
 
             let source = 'all';
             if (isUnidex) source = 'unidex';
+            else if (isBookmarkIntel) source = 'bookmark-intel';
             else if (isFandom) source = 'fandom';
             else if (isWikipedia) source = 'wikipedia';
             else if (isApiProvider) source = activeTabId;

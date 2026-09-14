@@ -36,6 +36,7 @@ try:
     from server_modules import gemini_credentials
     from server_modules import audioflix_bridge
     from server_modules import world_book_control
+    from server_modules import bookmark_intel_control
     from server_modules import eveos_server_status
     from server_modules.eveos_http_cors import eveos_cors_origin
 except ImportError as exc:
@@ -169,11 +170,9 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             gemini_control.send_json(self, eveos_server_status.build_status(self.server))
         
         elif path == '/api/wikipedia/search':
-            # Handle Wikipedia search request
             wikipedia.handle_wikipedia_search(self, query)
-            
+
         elif path == '/api/proxy':
-            # Handle proxy request
             proxy.handle_proxy_request(self, query)
 
         elif path == '/api/lightpanda':
@@ -202,6 +201,9 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             gemini_control.send_json(self, payload)
 
         elif world_book_control.handle_get_request(self, path):
+            return
+
+        elif bookmark_intel_control.handle_get_request(self, path):
             return
 
         elif path == '/api/gemini-credentials/status':
@@ -278,6 +280,9 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             return
 
         if world_book_control.handle_post_request(self, path):
+            return
+
+        if bookmark_intel_control.handle_post_request(self, path):
             return
 
         if path == '/api/gemini-credentials':
@@ -399,15 +404,12 @@ def run_server(port=DEFAULT_PORT, open_browser=True, host=DEFAULT_HOST):
             except Exception as exc:
                 logger.debug("Audioflix device prewarm skipped: %s", exc)
             world_book_control.restore_desired_state_async()
+            bookmark_intel_control.restore_desired_state_async()
             print("  ------------------------------")
             print("  Press Ctrl+C to stop the server")
-            
-            # Open browser
             if open_browser:
                 print("  Opening browser...")
                 webbrowser.open(url)
-            
-            # Start server
             httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n[OK] Server stopped")

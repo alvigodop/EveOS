@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
+from . import bookmark_intel_control
 from . import eveos_console_prefs
 from . import eveos_ports
 from . import eveos_web_control
@@ -164,6 +165,8 @@ def _console_overview(web_port=None) -> dict:
          lambda s: [s.get("port")]),
         ("watchFusion", "WatchFusion", watchfusion_control.get_status,
          lambda s: [s.get("port")]),
+        ("bookmarkIntel", "Bookmark Intel", bookmark_intel_control.get_status,
+         lambda s: [s.get("port")]),
     )
     for key, label, status_fn, ports in status_specs:
         try:
@@ -211,7 +214,8 @@ def _stop_everything(web_port=None) -> dict:
     for name, stop in (("watchFusion", watchfusion_control.stop_server),
                        ("piano", piano_player_control.stop_server),
                        ("worldBook", world_book_control.stop_server),
-                       ("gemini", gemini_control.stop_server)):
+                       ("gemini", gemini_control.stop_server),
+                       ("bookmarkIntel", bookmark_intel_control.stop_server)):
         try:
             also[name] = "stopped" if (stop() or {}).get("ok", True) else "reported not-ok"
         except Exception as exc:  # noqa: BLE001
@@ -302,6 +306,9 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/watchfusion/status":
             self._send(watchfusion_control.get_status())
             return
+        if path == "/api/bookmark-intel/status":
+            self._send(bookmark_intel_control.get_status())
+            return
         if path == "/api/control-plane/consoles":
             self._send(_console_overview(_request_web_port(self)))
             return
@@ -321,6 +328,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/world-book/start", "/api/world-book/stop", "/api/world-book/launch",
             "/api/piano-player/start", "/api/piano-player/stop", "/api/piano-player/launch", "/api/piano-player/setup",
             "/api/watchfusion/start", "/api/watchfusion/stop", "/api/watchfusion/launch", "/api/watchfusion/setup",
+            "/api/bookmark-intel/start", "/api/bookmark-intel/stop",
             "/api/gemini-credentials", "/api/control-plane/consoles",
         }
         if path in controlled_paths and not gemini_control.request_can_control(self):
@@ -333,35 +341,25 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             }, HTTPStatus.FORBIDDEN)
             return
 
-        action = None
-        if path == "/api/eveos-server/start":
-            action = lambda: eveos_web_control.start_server(port=_request_web_port(self))
-        elif path == "/api/eveos-server/stop":
-            action = lambda: _stop_everything(_request_web_port(self))
-        elif path == "/api/gemini-server/start":
-            action = gemini_control.start_server
-        elif path == "/api/gemini-server/stop":
-            action = lambda: _stop_tool(gemini_control.stop_server)
-        elif path == "/api/world-book/start":
-            action = world_book_control.start_server
-        elif path == "/api/world-book/stop":
-            action = lambda: _stop_tool(world_book_control.stop_server)
-        elif path == "/api/world-book/launch":
-            action = world_book_control.open_launcher
-        elif path == "/api/piano-player/start":
-            action = piano_player_control.start_server
-        elif path == "/api/piano-player/stop":
-            action = lambda: _stop_tool(piano_player_control.stop_server)
-        elif path == "/api/piano-player/launch":
-            action = piano_player_control.open_launcher
-        elif path == "/api/piano-player/setup":
-            action = piano_player_control.open_setup
-        elif path == "/api/watchfusion/start":
-            action = watchfusion_control.start_server
-        elif path == "/api/watchfusion/stop":
-            action = lambda: _stop_tool(watchfusion_control.stop_server)
-        elif path == "/api/watchfusion/launch":
-            action = watchfusion_control.open_launcher
+        actions = {
+            "/api/eveos-server/start": lambda: eveos_web_control.start_server(port=_request_web_port(self)),
+            "/api/eveos-server/stop": lambda: _stop_everything(_request_web_port(self)),
+            "/api/gemini-server/start": gemini_control.start_server,
+            "/api/gemini-server/stop": lambda: _stop_tool(gemini_control.stop_server),
+            "/api/world-book/start": world_book_control.start_server,
+            "/api/world-book/stop": lambda: _stop_tool(world_book_control.stop_server),
+            "/api/world-book/launch": world_book_control.open_launcher,
+            "/api/piano-player/start": piano_player_control.start_server,
+            "/api/piano-player/stop": lambda: _stop_tool(piano_player_control.stop_server),
+            "/api/piano-player/launch": piano_player_control.open_launcher,
+            "/api/piano-player/setup": piano_player_control.open_setup,
+            "/api/watchfusion/start": watchfusion_control.start_server,
+            "/api/watchfusion/stop": lambda: _stop_tool(watchfusion_control.stop_server),
+            "/api/watchfusion/launch": watchfusion_control.open_launcher,
+            "/api/bookmark-intel/start": bookmark_intel_control.start_server,
+            "/api/bookmark-intel/stop": lambda: _stop_tool(bookmark_intel_control.stop_server),
+        }
+        action = actions.get(path)
 
         if action is not None:
             payload = action()
@@ -431,12 +429,13 @@ def main() -> int:
     print(f"  Consoles: {'headless' if eveos_web_control.headless_mode() else 'visible'}"
           " (set EVEOS_HEADLESS=1 to hide spawned servers)")
     print(f"  Control: http://127.0.0.1:{args.port}/api/control-plane/status")
-    print("  Manages EveOS localhost, Gemini, World Book, Piano, and WatchFusion independently.")
+    print("  Manages EveOS localhost, Gemini, World Book, Piano, WatchFusion, and Bookmark Intel independently.")
     print("  Press Ctrl+C to stop the control plane")
     eveos_web_control.restore_desired_state_async()
     world_book_control.restore_desired_state_async()
     piano_player_control.restore_desired_state_async()
     watchfusion_control.restore_desired_state_async()
+    bookmark_intel_control.restore_desired_state_async()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

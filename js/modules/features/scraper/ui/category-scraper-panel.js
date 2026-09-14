@@ -87,6 +87,10 @@
             if (unidexPanelContainer && window.EveOS?.API?.Manager?.renderUnidexPanelUI) {
                 window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, categoryName);
             }
+            const bookmarkIntelContainer = container.querySelector('#bookmark-intel-scraper-panel-container');
+            if (bookmarkIntelContainer && window.BookmarkIntelManager?.renderPanelUI) {
+                window.BookmarkIntelManager.renderPanelUI(bookmarkIntelContainer);
+            }
             if (window.TabManagerUI?.updatePanels) {
                 window.TabManagerUI.updatePanels(currentSource, true);
             }

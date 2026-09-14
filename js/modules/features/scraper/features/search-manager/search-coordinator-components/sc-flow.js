@@ -123,6 +123,28 @@ SearchCoordinatorFlow.performContentSearch = async function (query, source, opti
         return;
     }
 
+    if (source === 'bookmark-intel') {
+        try {
+            const container = document.getElementById('bookmark-intel-scraper-panel-container');
+            if (container && window.BookmarkIntelManager?.renderPanelUI) {
+                window.BookmarkIntelManager.renderPanelUI(container, { query });
+            }
+            if (resultsContainer && window.SearchUIRenderer) {
+                resultsContainer.innerHTML = '<div class="empty-results-message"><p>Bookmark Intel analyzer is active in the management panel above.</p><p class="secondary-text">Use the embedded analyzer controls above to inspect URLs, extract comic/video metadata, or explore bookmark graphs.</p></div>';
+            }
+        } catch (error) {
+            console.error('SearchCoordinatorFlow: Error during Bookmark Intel search', error);
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showError(`Error loading Bookmark Intel: ${error.message}`, resultsContainerId);
+            }
+        } finally {
+            if (window.SearchUIRenderer && isActiveResultsRequest(resultsContainer, requestId)) {
+                SearchUIRenderer.showLoading(false, resultsContainerId);
+            }
+        }
+        return;
+    }
+
     if (isApiSource) {
         try {
             const apiResultsContainer = document.getElementById(resultsContainerId);

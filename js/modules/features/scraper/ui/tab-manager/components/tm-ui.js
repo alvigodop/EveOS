@@ -21,8 +21,8 @@
                 const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
 
                 // Check source validity
-                if (!['wikipedia', 'fandom', 'unidex', 'api'].includes(source) && !isApiProviderSource) {
-                    console.error(`Invalid source: ${source}, must be 'wikipedia', 'fandom', 'unidex', 'api', or a registered API provider`);
+                if (!['wikipedia', 'fandom', 'unidex', 'api', 'bookmark-intel'].includes(source) && !isApiProviderSource) {
+                    console.error(`Invalid source: ${source}, must be 'wikipedia', 'fandom', 'unidex', 'api', 'bookmark-intel', or a registered API provider`);
                     return;
                 }
 
@@ -88,6 +88,7 @@
             const wikipediaManagement = document.getElementById('wikipediaManagement');
             const fandomManagement = document.getElementById('fandomManagement');
             const unidexManagement = document.getElementById('unidexManagement');
+            const bookmarkIntelManagement = document.getElementById('bookmarkIntelManagement');
             const apiManagement = document.getElementById('apiManagement');
 
             if (wikipediaManagement) {
@@ -112,6 +113,16 @@
                 }
             } else if (!isInitialLoad) {
                 console.warn('unidexManagement element not found');
+            }
+
+            if (bookmarkIntelManagement) {
+                bookmarkIntelManagement.style.display = source === 'bookmark-intel' ? 'block' : 'none';
+                if (source === 'bookmark-intel' && window.BookmarkIntelManager?.renderPanelUI) {
+                    const bookmarkIntelContainer = bookmarkIntelManagement.querySelector('#bookmark-intel-scraper-panel-container') || bookmarkIntelManagement;
+                    window.BookmarkIntelManager.renderPanelUI(bookmarkIntelContainer);
+                }
+            } else if (!isInitialLoad && source === 'bookmark-intel') {
+                console.warn('bookmarkIntelManagement element not found');
             }
 
             const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
@@ -190,10 +201,12 @@
                 const wikipediaManagement = document.getElementById('wikipediaManagement');
                 const fandomManagement = document.getElementById('fandomManagement');
                 const unidexManagement = document.getElementById('unidexManagement');
+                const bookmarkIntelManagement = document.getElementById('bookmarkIntelManagement');
                 const apiManagement = document.getElementById('apiManagement');
                 if (wikipediaManagement) wikipediaManagement.style.display = 'none';
                 if (fandomManagement) fandomManagement.style.display = 'none';
                 if (unidexManagement) unidexManagement.style.display = 'none';
+                if (bookmarkIntelManagement) bookmarkIntelManagement.style.display = 'none';
                 if (apiManagement) apiManagement.style.display = 'none';
 
                 const isApiProviderSource = !!window.EveOS?.API?.Manager?.isProviderSource?.(source);
@@ -207,6 +220,12 @@
                         if (unidexPanelContainer) {
                             window.EveOS.API.Manager.renderUnidexPanelUI(unidexPanelContainer, window.currentCategoryCtx || window.StorageManager?.categoryContext || '');
                         }
+                    }
+                } else if (source === 'bookmark-intel') {
+                    if (bookmarkIntelManagement) bookmarkIntelManagement.style.display = 'block';
+                    if (bookmarkIntelManagement && window.BookmarkIntelManager?.renderPanelUI) {
+                        const bookmarkIntelContainer = bookmarkIntelManagement.querySelector('#bookmark-intel-scraper-panel-container') || bookmarkIntelManagement;
+                        window.BookmarkIntelManager.renderPanelUI(bookmarkIntelContainer);
                     }
                 } else if (source === 'api' || isApiProviderSource) {
                     if (apiManagement) apiManagement.style.display = 'block';

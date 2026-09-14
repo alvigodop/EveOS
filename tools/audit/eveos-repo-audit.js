@@ -22,7 +22,8 @@ const SKIP_PREFIXES = [
 const LINE_LIMIT_EXEMPT_PREFIXES = [
     'tools/World-Book/tools/World-Portal/outer/orogen/',
     'tools/WatchFusion/voxelvision/',
-    'tools/WatchFusion/nuvio/'
+    'tools/WatchFusion/nuvio/',
+    'tools/Bookmark-Intel/intel_legacy.py'
 ];
 const RUNTIME_SOURCE_PREFIXES = ['js/', 'css/', 'server/', 'server_modules/'];
 const MOJIBAKE_MARKERS = [

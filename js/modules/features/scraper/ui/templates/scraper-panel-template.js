@@ -51,6 +51,9 @@
                                             <button class="source-toggle-btn" data-source="unidex" onclick="updateSource('unidex')">
                                                 <span class="icon">U</span> Unidex
                                             </button>
+                                            <button class="source-toggle-btn" data-source="bookmark-intel" onclick="updateSource('bookmark-intel')">
+                                                <span class="icon">B</span> Bookmark Intel
+                                            </button>
                                         </div>
                                     </div>
                                 <div class="source-toggle-group source-toggle-group--apis">
@@ -341,6 +344,11 @@
                                     <!-- Unified Knowledge Base -->
                                     <div id="unidexManagement" class="wiki-management-panel scraper-management-panel" style="display: none;">
                                         <div id="unidex-scraper-panel-container"></div>
+                                    </div>
+
+                                    <!-- Bookmark Intel Knowledge Base -->
+                                    <div id="bookmarkIntelManagement" class="wiki-management-panel scraper-management-panel" style="display: none;">
+                                        <div id="bookmark-intel-scraper-panel-container"></div>
                                     </div>
 
                                     <!-- API Search Management -->
