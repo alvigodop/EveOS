@@ -19,6 +19,17 @@ EveOS owns the integration contract: canonical ports, lifecycle and foreign-port
 
 Agent Nexus owns agent presentation. Its initial TLO entry is only a Phase 1 placeholder. TLO identity, durable conversations/memory, tool permissions, and autonomous behavior belong to the next dedicated phase above the generic provider. They must not be added to FreeToken or the generic harness.
 
+## Merger contract
+
+The merger is deliberately bidirectional without collapsing the tools into one process:
+
+- EveOS reuses the Harness model registry, switching, streaming/cancellation, GPU coexistence, telemetry, context geometry, and bounded in-process conversation memory. The embedded workspace is the Harness UI itself, so these behaviors are not duplicated in an EveOS facade.
+- The Harness inherits EveOS's central port registry, verified ownership checks, explicit lifecycle, Global Stop participation, per-service terminal visibility, stopped/degraded presentation, asset/version audits, and compact repository verification.
+- The EveOS web server, Local Control coordinator, Harness HTTP service, and FreeToken runtime remain separate processes because they have different failure, restart, console, and resource boundaries. EveOS combines their status and controls; it does not merge their process lifetimes or silently start the GPU runtime.
+- Weights, virtual environments, downloads, caches, logs, PID files, model-location overrides, and other machine-local state remain ignored under the Harness subtree. Agent identity, durable agent memory, permissions, and autonomous behavior remain above the generic provider in Agent Nexus.
+
+This boundary is the improved merger requirement: share stable contracts and user-facing controls, preserve specialized runtime ownership, and add explicit adapters instead of copying inference logic across domains.
+
 ## Lifecycle contract
 
 Opening Search Monitor or expanding Local MoE Harness must never start a model. Start and Stop are explicit. Closing the panel does not stop an intentionally running runtime. EveOS may stop its verified owned runtime during global Stop, but must never kill a process merely because it occupies port 5180 or 1919.
@@ -47,9 +58,15 @@ Use the smallest relevant check first:
 - `python tools/smoke/local_moe_control_smoke.py`
 - `node tools/smoke/search_monitor_ai_home_smoke.js`
 - `npm run --silent smoke:local-moe`
+- `npm run --silent test:smoke`
+- `npm run --silent test:deep`
 - `npm run --silent smoke:control-plane`
 - `npm run --silent audit:ports`
 - `npm run verify` once at the final integration gate
+
+`smoke:local-moe` is the compact merger gate: it captures the lifecycle/ownership checks, the Harness model-selector mappings, and the Search Monitor embed contract, then emits one stable summary line. It is included in the fingerprinted fast profile and the uncached deep profile. A tracked Harness code/config change invalidates fast-pass reuse, while detailed child output stays hidden on success and is written to ignored machine-readable diagnostics on failure. The root smoke never boots a model or allocates GPU memory; real runtime/model qualification remains an explicit integration gate.
+
+The imported Harness contains tests for both native Windows and Linux/WSL plus source-contract tests that require its ignored `runtime/freetoken` checkout. Whole-directory test discovery is therefore not a portable EveOS gate. Run the applicable upstream component tests when changing Harness internals; use the EveOS merger smoke for the shared boundary, and use explicit native runtime qualification for model/GPU behavior.
 
 Real runtime qualification additionally verifies explicit startup, verified ownership, stopped/degraded UI, model selection, streaming/cancellation through the generic Harness, and clean shutdown. Phase 1 does not claim persistent TLO continuity; that contract begins when the TLO Bridge is implemented in Phase 2.
 

@@ -16,10 +16,10 @@ const CODE_EXTENSIONS = new Set(['.js', '.mjs', '.py', '.html', '.css', '.json',
 const SKIP_PARTS = ['/node_modules/', '/data/runtime/', '/test-results/', '/.git/', '/js/vendor/', '/public/vendor/'];
 
 const PROFILES = Object.freeze({
-  fast: ['smoke:file-size', 'smoke:regressions', 'smoke:watchfusion'],
+  fast: ['smoke:file-size', 'smoke:regressions', 'smoke:local-moe', 'smoke:watchfusion'],
   deep: [
     'smoke:file-size', 'smoke:regressions', 'smoke:control-plane', 'smoke:world-book',
-    'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
+    'smoke:local-moe', 'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
     'smoke:audioflix-piano', 'smoke:piano-queue', 'smoke:piano-metadata', 'smoke:watchfusion'
   ],
   security: ['smoke:server-security', 'smoke:watchfusion-security']
@@ -90,11 +90,12 @@ function failureContext(value) {
 }
 
 function runScript(name, verbose) {
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const result = spawnSync(npm, ['run', '--silent', name], {
+  const windows = process.platform === 'win32';
+  const command = windows ? (process.env.ComSpec || 'cmd.exe') : 'npm';
+  const args = windows ? ['/d', '/s', '/c', `npm run --silent ${name}`] : ['run', '--silent', name];
+  const result = spawnSync(command, args, {
     cwd: ROOT,
     encoding: 'utf8',
-    shell: process.platform === 'win32',
     windowsHide: true,
     maxBuffer: MAX_CAPTURE_CHARS
   });

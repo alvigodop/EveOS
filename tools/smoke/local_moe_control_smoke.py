@@ -97,10 +97,19 @@ def check_start_passes_canonical_ports() -> None:
             patch.object(local_moe_control.subprocess, "Popen", return_value=fake) as popen:
         result = local_moe_control.start_server()
     environment = popen.call_args.kwargs["env"]
+    launch = popen.call_args.kwargs
     require(environment["LOCAL_MOE_HARNESS_PORT"] == str(local_moe_control.HARNESS_PORT),
             "Start lost the canonical Harness port")
     require(environment["FREETOKEN_PORT"] == str(local_moe_control.RUNTIME_PORT),
             "Start lost the canonical runtime port")
+    require(Path(launch["cwd"]).resolve() == local_moe_control._tool_root().resolve(),
+            "Harness did not launch from its isolated tool root")
+    if local_moe_control.os.name == "nt":
+        require(launch["creationflags"] & getattr(local_moe_control.subprocess, "CREATE_NO_WINDOW", 0),
+                "Headless Local MoE did not request a hidden terminal")
+        require(launch["stdout"] == local_moe_control.subprocess.DEVNULL
+                and launch["stderr"] == local_moe_control.subprocess.DEVNULL,
+                "Headless Local MoE did not suppress its terminal streams")
     require(result["ok"] is True, "Start did not return its lifecycle result")
     write_pid.assert_called_once_with(fake.pid)
     local_moe_control._PROCESS = None
@@ -158,6 +167,10 @@ def check_control_plane_wiring() -> None:
         require(endpoint in source, f"Control plane is missing {endpoint}")
     require("local_moe_control.restore_desired_state_async" not in source,
             "Local MoE must never auto-restore when Local Control opens")
+    require('(\"localMoe\", local_moe_control.stop_server)' in source,
+            "Global Stop does not include the Local MoE Harness")
+    require("localMoe" in local_moe_control.eveos_console_prefs.KNOWN_SERVICES,
+            "Local MoE is missing from the shared terminal preference registry")
 
 
 def main() -> None:
