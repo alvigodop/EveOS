@@ -104,12 +104,12 @@
         ]
       },
       "required_files": ["config.json", "model-00000-of-00002.safetensors", "model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors", "tokenizer.json"],
-      "notes": "Validated alternate on this RTX 4050 / 52 GB WSL machine. Harmony parsing remains owned by FreeToken.",
+      "notes": "Validated alternate on this RTX 4050 / 52 GB WSL machine. Windows uses a bounded 1K eager cache profile so the model remains startable beside EveOS. Harmony parsing remains owned by FreeToken.",
       "default_reasoning_effort": "low",
       "profiles": {
-        "normal": {"label": "GPT-OSS Safe 4K", "kv_tokens": 4096, "prefill_tokens": 1024, "d2d": 0, "memory_ratio": 0.90, "graph": 0, "moe_slots": null, "startup_timeout": 240, "request_timeout": 600},
-        "busy": {"label": "GPT-OSS Busy 4K", "kv_tokens": 4096, "prefill_tokens": 1024, "d2d": 0, "memory_ratio": 0.86, "graph": 0, "moe_slots": null, "startup_timeout": 300, "request_timeout": 1200},
-        "recovery": {"label": "GPT-OSS Recovery 2K", "kv_tokens": 2048, "prefill_tokens": 512, "d2d": 0, "memory_ratio": 0.90, "graph": 0, "moe_slots": null, "startup_timeout": 300, "request_timeout": 1200}
+        "normal": {"label": "GPT-OSS Safe 1K", "kv_tokens": 1024, "prefill_tokens": 256, "d2d": 0, "memory_ratio": 0.99, "graph": 0, "moe_slots": null, "startup_timeout": 300, "request_timeout": 600},
+        "busy": {"label": "GPT-OSS Busy 1K", "kv_tokens": 1024, "prefill_tokens": 256, "d2d": 0, "memory_ratio": 0.99, "graph": 0, "moe_slots": null, "startup_timeout": 360, "request_timeout": 1200},
+        "recovery": {"label": "GPT-OSS Recovery 1K", "kv_tokens": 1024, "prefill_tokens": 256, "d2d": 0, "memory_ratio": 0.99, "graph": 0, "moe_slots": null, "startup_timeout": 360, "request_timeout": 1200}
       }
     },
     {

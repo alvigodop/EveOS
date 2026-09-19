@@ -22,6 +22,12 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
             registry=self.registry,
         )
 
+    @staticmethod
+    def _model_argument(args):
+        if "-ModelPath" in args:
+            return args[args.index("-ModelPath") + 1]
+        return args[2]
+
     def test_qwen_environment_preserves_validated_normal_geometry(self):
         record = self.registry.require("qwen36-nvfp4")
         with patch.dict(os.environ, {"LOCAL_MOE_MOE_CACHE_SIZE": "999"}):
@@ -38,10 +44,12 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         record = self.registry.require("gpt-oss-20b")
         normal = self.lifecycle._profile_environment(record, "normal")
         environment = self.lifecycle._profile_environment(record, "recovery")
-        self.assertEqual(normal["LOCAL_MOE_MEMORY_RATIO"], "0.9")
-        self.assertEqual(environment["LOCAL_MOE_KV_RESERVE_TOKENS"], "2048")
-        self.assertEqual(environment["LOCAL_MOE_MAX_PREFILL_LENGTH"], "512")
-        self.assertEqual(environment["LOCAL_MOE_MEMORY_RATIO"], "0.9")
+        self.assertEqual(normal["LOCAL_MOE_KV_RESERVE_TOKENS"], "1024")
+        self.assertEqual(normal["LOCAL_MOE_MAX_PREFILL_LENGTH"], "256")
+        self.assertEqual(normal["LOCAL_MOE_MEMORY_RATIO"], "0.99")
+        self.assertEqual(environment["LOCAL_MOE_KV_RESERVE_TOKENS"], "1024")
+        self.assertEqual(environment["LOCAL_MOE_MAX_PREFILL_LENGTH"], "256")
+        self.assertEqual(environment["LOCAL_MOE_MEMORY_RATIO"], "0.99")
         self.assertEqual(environment["LOCAL_MOE_CUDA_GRAPH_MAX_BS"], "0")
         self.assertNotIn("LOCAL_MOE_NORMAL_MOE_SLOTS", environment)
 
@@ -54,12 +62,15 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
     def test_process_args_use_approved_single_file_entrypoint(self):
         record = self.registry.require("gemma4-26b-q4_0-gguf")
         args = self.lifecycle._process_args(record)
-        self.assertEqual(args[2], str(record.local_path / record.data["serve_file"]))
+        self.assertEqual(
+            self._model_argument(args),
+            str(record.local_path / record.data["serve_file"]),
+        )
 
     def test_process_args_keep_directory_models_unchanged(self):
         record = self.registry.require("qwen36-nvfp4")
         args = self.lifecycle._process_args(record)
-        self.assertEqual(args[2], str(record.local_path))
+        self.assertEqual(self._model_argument(args), str(record.local_path))
 
     async def test_fast8k_launcher_request_maps_to_busy_qwen_profile(self):
         record = self.registry.require("qwen36-nvfp4")

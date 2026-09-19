@@ -52,3 +52,5 @@ Use the smallest relevant check first:
 - `npm run verify` once at the final integration gate
 
 Real runtime qualification additionally verifies explicit startup, verified ownership, stopped/degraded UI, model selection, streaming/cancellation through the generic Harness, and clean shutdown. Phase 1 does not claim persistent TLO continuity; that contract begins when the TLO Bridge is implemented in Phase 2.
+
+The native-Windows qualification pass on 2026-09-19 booted the Harness from EveOS and completed real `MODEL_OK` chat responses with all four installed catalog entries: Qwen3.6 NVFP4, Qwen3 Coder FP8, GPT-OSS 20B MXFP4, and Gemma 4 Q4_0 GGUF. GPT-OSS uses a bounded 1K eager profile on the 6 GB RTX 4050 so its minimum MoE and KV cache plan fits while EveOS remains active. Failed model transitions retain the previously working model, and the final gate returns the Harness to the default Qwen3.6 profile before clean shutdown.

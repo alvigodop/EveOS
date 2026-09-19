@@ -293,11 +293,19 @@ def start_server() -> dict:
 def _terminate_owned(pid: int) -> bool:
     try:
         if os.name == "nt":
-            result = subprocess.run(
+            subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, text=True,
                 check=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
-            return result.returncode == 0
+            # taskkill can return nonzero when one child exits during tree teardown even
+            # though the verified root and Harness listener are both gone. Judge the
+            # final owned state instead of leaking a stale PID or a false UI failure.
+            deadline = time.monotonic() + 3.0
+            while time.monotonic() < deadline:
+                if not _process_command_line(pid) and _harness_health() is None:
+                    return True
+                time.sleep(0.1)
+            return False
         os.kill(pid, signal.SIGTERM)
         return True
     except OSError:

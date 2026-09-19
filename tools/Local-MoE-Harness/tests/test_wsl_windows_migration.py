@@ -45,6 +45,13 @@ class WslToWindowsMigrationTests(unittest.TestCase):
         self.assertEqual(qwen["validation"], "windows_validated")
         self.assertEqual(qwen["support"], "validated-project-path")
 
+    def test_qualified_windows_gpt_oss_policy_is_recorded(self):
+        policy = json.loads((ROOT / "config" / "platform-policy.json").read_text(encoding="utf-8"))
+        gpt_oss = policy["windows"]["models"]["gpt-oss-20b"]
+        self.assertTrue(gpt_oss["selectable"])
+        self.assertEqual(gpt_oss["validation"], "windows_validated")
+        self.assertEqual(gpt_oss["support"], "validated-project-path")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -93,7 +93,7 @@ Current catalog:
 
 - Qwen3.6 35B A3B NVFP4 — general/default reference model; hardware-qualified on native Windows and validated on Linux/WSL
 - Qwen3 Coder 30B A3B FP8 — validated coding specialist and selectable on both Linux/WSL and native Windows
-- GPT-OSS 20B — validated Linux/WSL alternate; native-Windows qualification candidate on the 6 GB RTX 4050 reference machine
+- GPT-OSS 20B — validated Linux/WSL alternate and hardware-qualified native-Windows model using the bounded 1K eager profile on the 6 GB RTX 4050 reference machine
 - Gemma 4 26B A4B Q4_0 GGUF — validated Linux/WSL alternate and hardware-qualified native-Windows GGUF reference model
 
 Cold switching requires authoritative `/health` readiness and exact `/v1/models` identity. Failed switches restore the previous usable model. Switching also clears compact in-process conversation memory.

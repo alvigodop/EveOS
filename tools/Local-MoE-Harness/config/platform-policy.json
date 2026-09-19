@@ -23,9 +23,9 @@
       },
       "gpt-oss-20b": {
         "selectable": true,
-        "validation": "windows_candidate",
-        "support": "upstream-supported-unvalidated",
-        "note": "Available as a native-Windows qualification candidate; Linux/WSL validation does not automatically imply Windows project validation."
+        "validation": "windows_validated",
+        "support": "validated-project-path",
+        "note": "Native Windows GPT-OSS is hardware-qualified on the 6 GB RTX 4050 reference machine with the bounded 1K eager cache profile. Exact model identity, health, chat generation, safe failed-switch rollback, and return-to-Qwen passed beside the EveOS control plane."
       },
       "gemma4-26b-q4_0-gguf": {
         "selectable": true,

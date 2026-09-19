@@ -8,7 +8,7 @@ import sys
 import tempfile
 import importlib.util
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -118,6 +118,16 @@ def check_unowned_stop_fails_closed() -> None:
     terminate.assert_not_called()
 
 
+def check_windows_tree_exit_is_idempotent() -> None:
+    if local_moe_control.os.name != "nt":
+        return
+    with patch.object(local_moe_control.subprocess, "run", return_value=SimpleNamespace(returncode=128)), \
+            patch.object(local_moe_control, "_process_command_line", return_value=""), \
+            patch.object(local_moe_control, "_harness_health", return_value=None):
+        require(local_moe_control._terminate_owned(731) is True,
+                "A completed Windows process-tree exit was reported as a stop failure")
+
+
 def check_owned_stop_uses_verified_pid() -> None:
     stopped = {"running": False, "state": "stopped", "ok": True}
     with tempfile.TemporaryDirectory() as raw:
@@ -158,6 +168,7 @@ def main() -> None:
         check_unowned_listener_stays_blocked,
         check_start_passes_canonical_ports,
         check_unowned_stop_fails_closed,
+        check_windows_tree_exit_is_idempotent,
         check_owned_stop_uses_verified_pid,
         check_control_plane_wiring,
     )
