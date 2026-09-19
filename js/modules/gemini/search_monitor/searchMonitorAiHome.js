@@ -127,9 +127,17 @@
                         <p class="eveos-ai-provider-message" data-local-moe-message>Open this section to check the local inference core. Nothing starts automatically.</p>
                         <div class="eveos-ai-provider-controls">
                             <button type="button" data-local-moe-action="setup">Setup runtime</button>
-                            <button type="button" data-local-moe-action="open" disabled>Open models & chat</button>
                             <button type="button" data-local-moe-action="refresh">Refresh</button>
                         </div>
+                        <section class="eveos-local-moe-inline" data-local-moe-inline hidden aria-label="Local MoE models and chat">
+                            <div class="eveos-local-moe-inline-head">
+                                <span><strong>Models & chat</strong><small>Local Harness workspace</small></span>
+                                <span class="eveos-ai-provider-pill">Inline</span>
+                            </div>
+                            <iframe data-local-moe-frame title="Local MoE models and chat"
+                                sandbox="allow-forms allow-scripts allow-same-origin"
+                                allow="clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
+                        </section>
                     </div>
                 </details>
 
@@ -190,6 +198,27 @@
         return status?.running ? 'Telemetry ready' : 'Standby';
     }
 
+    function syncLocalMoeInline(status) {
+        const provider = boundRoot?.querySelector('[data-ai-provider="local-moe"]');
+        const host = boundRoot?.querySelector('[data-local-moe-inline]');
+        const frame = boundRoot?.querySelector('[data-local-moe-frame]');
+        if (!provider || !host || !frame) return;
+
+        const running = status?.running === true;
+        const shouldShow = running && provider.open === true && !!status.url;
+        host.hidden = !shouldShow;
+
+        if (!running) {
+            frame.removeAttribute('src');
+            delete frame.dataset.localMoeUrl;
+            return;
+        }
+        if (shouldShow && frame.dataset.localMoeUrl !== status.url) {
+            frame.src = status.url;
+            frame.dataset.localMoeUrl = status.url;
+        }
+    }
+
     function renderLocalMoe(status, overrideMessage) {
         if (!boundRoot || !status) return;
         lastLocalMoeStatus = status;
@@ -206,6 +235,7 @@
         setText('[data-local-moe-ports]', `${status.port || 5180} · ${status.runtimePort || 1919}`);
         setText('[data-local-moe-gpu]', gpuLabel(status));
         setText('[data-local-moe-message]', overrideMessage || status.message || 'Status available.');
+        syncLocalMoeInline(status);
 
         const primary = boundRoot.querySelector('[data-local-moe-primary]');
         if (primary) {
@@ -218,8 +248,6 @@
             setup.hidden = status.setupReady === true;
             setup.disabled = localMoeBusy;
         }
-        const open = boundRoot.querySelector('[data-local-moe-action="open"]');
-        if (open) open.disabled = localMoeBusy || !running;
         boundRoot.querySelectorAll('[data-local-moe-action="refresh"]').forEach((button) => {
             button.disabled = localMoeBusy;
         });
@@ -271,13 +299,7 @@
         event.stopPropagation();
         const action = button.dataset.localMoeAction;
         if (action === 'refresh') refreshLocalMoe();
-        else if (action === 'open') {
-            if (lastLocalMoeStatus?.running) {
-                window.open(lastLocalMoeStatus.url, '_blank', 'noopener');
-            }
-        } else {
-            invokeLocalMoe(action);
-        }
+        else invokeLocalMoe(action);
     }
 
     function bind(container, options) {
@@ -290,6 +312,7 @@
         });
         localMoe?.addEventListener('toggle', function () {
             if (localMoe.open && !localMoeLoaded) refreshLocalMoe();
+            else if (lastLocalMoeStatus) syncLocalMoeInline(lastLocalMoeStatus);
         });
         container.addEventListener('click', handleLocalMoeAction);
     }

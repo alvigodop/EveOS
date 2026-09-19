@@ -23,7 +23,7 @@ Agent Nexus owns agent presentation. Its initial TLO entry is only a Phase 1 pla
 
 Opening Search Monitor or expanding Local MoE Harness must never start a model. Start and Stop are explicit. Closing the panel does not stop an intentionally running runtime. EveOS may stop its verified owned runtime during global Stop, but must never kill a process merely because it occupies port 5180 or 1919.
 
-The stopped UI remains usable and reports setup, selected-model, Harness, and FreeToken state when available. The standalone harness interface remains available for low-level infrastructure work, while EveOS provides the primary lifecycle shell.
+The stopped UI remains usable and reports setup, selected-model, Harness, and FreeToken state when available. While the owned Harness is online, its model selector and chat workspace are embedded directly in the expanded Local MoE provider. The iframe is unloaded on Stop, stays isolated from EveOS state, and reuses the Harness-owned UI rather than duplicating inference behavior in the shell. The standalone harness URL remains available for low-level infrastructure work, while EveOS provides the primary lifecycle shell.
 
 Search Monitor's AI Home keeps the Assistant compact by default and exposes Gemini Link, Local MoE, and Agent Nexus as independent collapsed providers. Opening Gemini preserves the existing Gemini workspace on demand. Opening Local MoE performs only a passive status read; its model starts only from the explicit Start control. Agent Nexus contains a Phase 1 TLO placeholder and no hidden agent runtime.
 

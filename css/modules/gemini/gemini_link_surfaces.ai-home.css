@@ -219,6 +219,52 @@
     padding: 6px 10px;
 }
 
+.eveos-local-moe-inline {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid rgba(110, 231, 255, 0.16);
+    border-radius: 14px;
+    background: rgba(2, 7, 12, 0.72);
+}
+
+.eveos-local-moe-inline[hidden] {
+    display: none !important;
+}
+
+.eveos-local-moe-inline-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 11px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.eveos-local-moe-inline-head > span:first-child {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.eveos-local-moe-inline-head strong {
+    color: rgba(244, 251, 255, 0.92);
+    font-size: 0.78rem;
+}
+
+.eveos-local-moe-inline-head small {
+    color: rgba(230, 246, 255, 0.5);
+    font-size: 0.65rem;
+}
+
+.eveos-local-moe-inline iframe {
+    display: block;
+    width: 100%;
+    height: clamp(520px, 68vh, 760px);
+    border: 0;
+    background: #071019;
+}
+
 .eveos-agent-card {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;

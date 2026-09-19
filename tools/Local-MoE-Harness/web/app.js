@@ -169,6 +169,10 @@ function scheduleStatusPoll(delayMs = 8000) {
   if (statusPollTimer) clearTimeout(statusPollTimer);
   statusPollTimer = setTimeout(() => {
     statusPollTimer = null;
+    if (document.activeElement?.closest?.('#chat-form')) {
+      scheduleStatusPoll(2000);
+      return;
+    }
     if (currentAbortCtrl) {
       scheduleStatusPoll(3000);
       return;
