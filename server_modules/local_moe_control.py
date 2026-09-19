@@ -191,10 +191,12 @@ def _status(message: str = "", *, health=_UNSET, harness_pid=_UNSET) -> dict:
         harness_pid = _managed_harness_pid()
     running = health is not None
     process_alive = bool((_PROCESS and _PROCESS.poll() is None) or harness_pid)
-    harness_conflict = _port_open(HARNESS_PORT) and not running
+    # A single missed health response must not relabel our verified process as a
+    # foreign service while the model is loading or the bridge is resyncing.
+    harness_conflict = _port_open(HARNESS_PORT) and not running and harness_pid is None
     runtime_conflict = _port_open(RUNTIME_PORT) and not running and _managed_runtime_pid() is None
     blocked = harness_conflict or runtime_conflict
-    state = "running" if running else ("starting" if process_alive else ("blocked" if blocked else "stopped"))
+    state = "running" if running else ("blocked" if blocked else ("starting" if process_alive else "stopped"))
     details = _live_details() if running else {
         "runtimeReady": False,
         "runtimeReachable": _port_open(RUNTIME_PORT) and not runtime_conflict,
@@ -214,6 +216,8 @@ def _status(message: str = "", *, health=_UNSET, harness_pid=_UNSET) -> dict:
         status_message = "Local MoE Harness is online and managed by EveOS."
     elif running:
         status_message = "Local MoE Harness is online but was not started by this EveOS checkout."
+    elif process_alive:
+        status_message = "Local MoE Harness is starting or temporarily resynchronizing."
     elif not _setup_ready():
         status_message = "Local MoE Harness is installed but needs its local runtime setup."
     else:

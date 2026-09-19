@@ -25,6 +25,8 @@ Opening Search Monitor or expanding Local MoE Harness must never start a model. 
 
 The stopped UI remains usable and reports setup, selected-model, Harness, and FreeToken state when available. The standalone harness interface remains available for low-level infrastructure work, while EveOS provides the primary lifecycle shell.
 
+Search Monitor's AI Home keeps the Assistant compact by default and exposes Gemini Link, Local MoE, and Agent Nexus as independent collapsed providers. Opening Gemini preserves the existing Gemini workspace on demand. Opening Local MoE performs only a passive status read; its model starts only from the explicit Start control. Agent Nexus contains a Phase 1 TLO placeholder and no hidden agent runtime.
+
 ## Ports and local state
 
 `config/eveos-ports.json` is authoritative:
@@ -41,7 +43,7 @@ Model weights stay where Drift configured them. External absolute model paths ar
 Use the smallest relevant check first:
 
 - `python tools/smoke/local_moe_control_smoke.py`
-- `node tools/smoke/local_moe_search_monitor_smoke.js`
+- `node tools/smoke/search_monitor_ai_home_smoke.js`
 - `npm run --silent smoke:local-moe`
 - `npm run --silent smoke:control-plane`
 - `npm run --silent audit:ports`

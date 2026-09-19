@@ -1,0 +1,315 @@
+/* Search Monitor AI Home: provider shells and the generic Local MoE lifecycle surface. */
+(function () {
+    'use strict';
+
+    if (window.EveOSSearchMonitorAiHome) return;
+
+    const STATUS_PATH = '/api/local-moe/status';
+    const ACTION_PATHS = {
+        start: '/api/local-moe/start',
+        stop: '/api/local-moe/stop',
+        setup: '/api/local-moe/setup'
+    };
+    let boundRoot = null;
+    let localMoeBusy = false;
+    let localMoeLoaded = false;
+    let lastLocalMoeStatus = null;
+    let onGeminiOpen = null;
+
+    function markup() {
+        return `
+            <div class="gemini-monitor-shell-toolbar">
+                <div class="gemini-monitor-shell-copy">
+                    <div class="gemini-monitor-shell-kicker">EveOS AI Home</div>
+                    <div class="gemini-monitor-shell-title">Search Monitor Assistant</div>
+                </div>
+                <div class="gemini-monitor-toolbar-actions">
+                    <div class="gemini-server-control" data-eveos-control-plane data-state="checking">
+                        <span class="gemini-server-state" data-eveos-control-status>Checking</span>
+                        <button type="button" class="gemini-server-toggle" data-eveos-control-toggle disabled>
+                            <i class="material-icons" aria-hidden="true">sync</i>
+                            <span data-eveos-control-action-label>Start</span>
+                        </button>
+                    </div>
+                    <button type="button" class="gemini-server-inspector-toggle eveos-control-open" data-eveos-control-open title="Open EveOS localhost" aria-label="Open EveOS localhost" hidden>
+                        <i class="material-icons" aria-hidden="true">open_in_new</i>
+                    </button>
+                    <button type="button" class="gemini-server-inspector-toggle" data-gemini-server-inspector-toggle title="Open EveOS runtime monitor" aria-label="Open EveOS runtime monitor">
+                        <i class="material-icons" aria-hidden="true">dns</i>
+                    </button>
+                    <div class="gemini-monitor-view-switch" role="group" aria-label="Search Monitor view">
+                        <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="summary">Compact</button>
+                        <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="full">Workspace</button>
+                    </div>
+                </div>
+            </div>
+            <div id="search-monitor-assistant-pane" class="gemini-monitor-summary-pane">
+                <div class="gemini-monitor-card">
+                    <div class="gemini-monitor-head">
+                        <div>
+                            <div class="gemini-monitor-kicker">Search Monitor</div>
+                            <h3 class="gemini-monitor-title">Assistant standby</h3>
+                        </div>
+                        <div class="gemini-monitor-pill">Compact</div>
+                    </div>
+                    <div class="gemini-monitor-body">
+                        <div class="gemini-monitor-status-row">
+                            <span class="gemini-monitor-status-dot" aria-hidden="true"></span>
+                            <span class="gemini-monitor-status-text">Ready for context relay, prompt assistance, and provider control.</span>
+                        </div>
+                        <p class="gemini-monitor-copy">Switch to Workspace to manage Gemini Link, the local inference core, and future EveOS agents independently.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="gemini-monitor-workspace-shell" data-ai-home-workspace>
+                <div class="gemini-monitor-workspace-head">
+                    <div>
+                        <div class="gemini-monitor-workspace-kicker">Provider workspace</div>
+                        <div class="gemini-monitor-workspace-title">AI infrastructure</div>
+                    </div>
+                    <div class="gemini-monitor-workspace-pill">Explicit start</div>
+                </div>
+                <p class="gemini-monitor-workspace-note">Providers stay isolated and collapsed until you open them. Viewing this workspace never starts a model.</p>
+
+                <details class="eveos-ai-provider" data-ai-provider="gemini">
+                    <summary class="eveos-ai-provider-summary">
+                        <span class="eveos-ai-provider-icon eveos-ai-provider-icon--gemini">G</span>
+                        <span class="eveos-ai-provider-heading">
+                            <strong>Gemini Link</strong>
+                            <small>Cloud live voice, context relay, and agentic controls</small>
+                        </span>
+                        <span class="eveos-ai-provider-pill">On demand</span>
+                        <i class="material-icons eveos-ai-provider-chevron" aria-hidden="true">expand_more</i>
+                    </summary>
+                    <div class="eveos-ai-provider-body">
+                        <div class="gemini-monitor-card eveos-ai-provider-intro">
+                            <div class="gemini-monitor-status-row">
+                                <span class="gemini-monitor-status-dot" aria-hidden="true"></span>
+                                <span class="gemini-monitor-status-text">Open this section to load the existing Gemini workspace in place.</span>
+                            </div>
+                            <details class="gemini-api-setup-guide">
+                                <summary><span>Gemini API setup guide</span><small>Gemini Link + Sonic Forge</small></summary>
+                                <div class="gemini-api-setup-guide-body">
+                                    <ol>
+                                        <li>Create a Gemini API key in <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a>.</li>
+                                        <li>Open Session Controls in this section, paste the key, and save it.</li>
+                                        <li>Start Gemini Link. Sonic Forge reuses the same saved credential.</li>
+                                    </ol>
+                                    <p class="gemini-api-security-note">Treat the key like a password. Never place it in prompts, screenshots, exports, source files, or commits.</p>
+                                    <a class="gemini-api-docs-link" href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noopener noreferrer">Read Google’s API-key guide</a>
+                                </div>
+                            </details>
+                        </div>
+                        <div id="gemini-provider-runtime-host" class="eveos-ai-provider-runtime"></div>
+                    </div>
+                </details>
+
+                <details class="eveos-ai-provider" data-ai-provider="local-moe">
+                    <summary class="eveos-ai-provider-summary">
+                        <span class="eveos-ai-provider-icon eveos-ai-provider-icon--local">M</span>
+                        <span class="eveos-ai-provider-heading">
+                            <strong>Local MoE Harness</strong>
+                            <small data-local-moe-summary>Generic local inference core · checking when opened</small>
+                        </span>
+                        <span class="eveos-ai-provider-pill" data-local-moe-state>Stopped</span>
+                        <button type="button" class="eveos-ai-provider-action" data-local-moe-primary data-local-moe-action="start">Start</button>
+                        <i class="material-icons eveos-ai-provider-chevron" aria-hidden="true">expand_more</i>
+                    </summary>
+                    <div class="eveos-ai-provider-body">
+                        <div class="eveos-ai-status-grid">
+                            <div><span>Harness</span><strong data-local-moe-harness>Stopped</strong></div>
+                            <div><span>Runtime</span><strong data-local-moe-runtime>Offline</strong></div>
+                            <div><span>Model</span><strong data-local-moe-model>Configured model</strong></div>
+                            <div><span>Profile</span><strong data-local-moe-profile>—</strong></div>
+                            <div><span>Ports</span><strong data-local-moe-ports>5180 · 1919</strong></div>
+                            <div><span>GPU</span><strong data-local-moe-gpu>Standby</strong></div>
+                        </div>
+                        <p class="eveos-ai-provider-message" data-local-moe-message>Open this section to check the local inference core. Nothing starts automatically.</p>
+                        <div class="eveos-ai-provider-controls">
+                            <button type="button" data-local-moe-action="setup">Setup runtime</button>
+                            <button type="button" data-local-moe-action="open" disabled>Open models & chat</button>
+                            <button type="button" data-local-moe-action="refresh">Refresh</button>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="eveos-ai-provider" data-ai-provider="agents">
+                    <summary class="eveos-ai-provider-summary">
+                        <span class="eveos-ai-provider-icon eveos-ai-provider-icon--agent">A</span>
+                        <span class="eveos-ai-provider-heading">
+                            <strong>Agent Nexus</strong>
+                            <small>Independent EveOS agents and their provider assignments</small>
+                        </span>
+                        <span class="eveos-ai-provider-pill">Phase 2</span>
+                        <i class="material-icons eveos-ai-provider-chevron" aria-hidden="true">expand_more</i>
+                    </summary>
+                    <div class="eveos-ai-provider-body">
+                        <article class="eveos-agent-card" data-agent-id="tlo">
+                            <span class="eveos-agent-avatar">T</span>
+                            <span><strong>TLO</strong><small>Placeholder only · birth, memory, tools, and autonomy arrive in Phase 2.</small></span>
+                            <span class="eveos-ai-provider-pill">Not initialized</span>
+                        </article>
+                    </div>
+                </details>
+            </div>
+        `;
+    }
+
+    function localControl() {
+        return window.EveOSLocalControl || null;
+    }
+
+    async function request(path, options, timeoutMs) {
+        const control = localControl();
+        if (!control) throw new Error('EveOS Local Control is not loaded yet.');
+        return control.fetchJson(control.baseUrl() + path, options, timeoutMs || 6000);
+    }
+
+    function requestErrorMessage(error, fallback) {
+        const message = String(error?.message || '').trim();
+        if (!message || /failed to fetch|network|abort/i.test(message)) {
+            return fallback || 'Local Control is offline. Start it from the localhost control above, then refresh.';
+        }
+        return message;
+    }
+
+    function setText(selector, value) {
+        const node = boundRoot?.querySelector(selector);
+        if (node) node.textContent = value;
+    }
+
+    function gpuLabel(status) {
+        const gpu = status?.gpuCoexistence?.gpu || status?.system?.gpu || {};
+        const utilization = gpu.util_pct ?? gpu.utilization_pct ?? gpu.utilization ?? gpu.utilizationPercent;
+        const used = gpu.memory_used_mb ?? gpu.memoryUsedMb;
+        const total = gpu.memory_total_mb ?? gpu.memoryTotalMb;
+        if (Number.isFinite(Number(utilization))) return `${Math.round(Number(utilization))}% util`;
+        if (Number.isFinite(Number(used)) && Number.isFinite(Number(total))) {
+            return `${Math.round(Number(used))}/${Math.round(Number(total))} MB`;
+        }
+        return status?.running ? 'Telemetry ready' : 'Standby';
+    }
+
+    function renderLocalMoe(status, overrideMessage) {
+        if (!boundRoot || !status) return;
+        lastLocalMoeStatus = status;
+        const running = status.running === true;
+        const starting = status.state === 'starting';
+        const blocked = status.state === 'blocked' || status.state === 'external';
+        const stateLabel = running ? 'Online' : starting ? 'Starting' : blocked ? 'Blocked' : 'Stopped';
+        setText('[data-local-moe-state]', stateLabel);
+        setText('[data-local-moe-summary]', status.message || 'Generic local inference core');
+        setText('[data-local-moe-harness]', running ? 'Online' : status.state || 'Stopped');
+        setText('[data-local-moe-runtime]', status.runtimeReady ? 'Ready' : status.runtimeHealth || 'Offline');
+        setText('[data-local-moe-model]', status.activeModel?.label || status.activeModel?.id || 'Configured model');
+        setText('[data-local-moe-profile]', status.activeProfile || '—');
+        setText('[data-local-moe-ports]', `${status.port || 5180} · ${status.runtimePort || 1919}`);
+        setText('[data-local-moe-gpu]', gpuLabel(status));
+        setText('[data-local-moe-message]', overrideMessage || status.message || 'Status available.');
+
+        const primary = boundRoot.querySelector('[data-local-moe-primary]');
+        if (primary) {
+            primary.dataset.localMoeAction = running || starting ? 'stop' : 'start';
+            primary.textContent = localMoeBusy ? 'Working…' : (running || starting ? 'Stop' : 'Start');
+            primary.disabled = localMoeBusy || blocked || (!running && status.setupReady === false);
+        }
+        const setup = boundRoot.querySelector('[data-local-moe-action="setup"]');
+        if (setup) {
+            setup.hidden = status.setupReady === true;
+            setup.disabled = localMoeBusy;
+        }
+        const open = boundRoot.querySelector('[data-local-moe-action="open"]');
+        if (open) open.disabled = localMoeBusy || !running;
+        boundRoot.querySelectorAll('[data-local-moe-action="refresh"]').forEach((button) => {
+            button.disabled = localMoeBusy;
+        });
+    }
+
+    async function refreshLocalMoe() {
+        if (!boundRoot || localMoeBusy) return lastLocalMoeStatus;
+        setText('[data-local-moe-message]', 'Checking Local MoE infrastructure…');
+        try {
+            const status = await request(STATUS_PATH, null, 7000);
+            localMoeLoaded = true;
+            renderLocalMoe(status);
+            return status;
+        } catch (error) {
+            const fallback = lastLocalMoeStatus || {
+                running: false, state: 'unavailable', setupReady: true, port: 5180, runtimePort: 1919
+            };
+            renderLocalMoe(fallback, requestErrorMessage(error));
+            return null;
+        }
+    }
+
+    async function invokeLocalMoe(action) {
+        if (!ACTION_PATHS[action] || localMoeBusy) return null;
+        localMoeBusy = true;
+        let finalMessage = '';
+        renderLocalMoe(lastLocalMoeStatus || {
+            running: false, state: 'stopped', setupReady: true, port: 5180, runtimePort: 1919
+        }, `${action === 'setup' ? 'Opening setup' : action === 'start' ? 'Starting' : 'Stopping'}…`);
+        try {
+            const status = await request(ACTION_PATHS[action], { method: 'POST' }, action === 'stop' ? 35000 : 9000);
+            renderLocalMoe(status);
+            return status;
+        } catch (error) {
+            finalMessage = requestErrorMessage(error, `Local MoE ${action} failed because Local Control is offline.`);
+            return null;
+        } finally {
+            localMoeBusy = false;
+            renderLocalMoe(lastLocalMoeStatus || {
+                running: false, state: 'unavailable', setupReady: true, port: 5180, runtimePort: 1919
+            }, finalMessage);
+        }
+    }
+
+    function handleLocalMoeAction(event) {
+        const button = event.target.closest('[data-local-moe-action]');
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const action = button.dataset.localMoeAction;
+        if (action === 'refresh') refreshLocalMoe();
+        else if (action === 'open') {
+            if (lastLocalMoeStatus?.running) {
+                window.open(lastLocalMoeStatus.url, '_blank', 'noopener');
+            }
+        } else {
+            invokeLocalMoe(action);
+        }
+    }
+
+    function bind(container, options) {
+        boundRoot = container;
+        onGeminiOpen = options?.onGeminiOpen || null;
+        const gemini = container.querySelector('[data-ai-provider="gemini"]');
+        const localMoe = container.querySelector('[data-ai-provider="local-moe"]');
+        gemini?.addEventListener('toggle', function () {
+            if (gemini.open) onGeminiOpen?.();
+        });
+        localMoe?.addEventListener('toggle', function () {
+            if (localMoe.open && !localMoeLoaded) refreshLocalMoe();
+        });
+        container.addEventListener('click', handleLocalMoeAction);
+    }
+
+    function setWorkspaceActive(active) {
+        if (active && !localMoeLoaded) refreshLocalMoe();
+        const gemini = boundRoot?.querySelector('[data-ai-provider="gemini"]');
+        if (active && gemini?.open) onGeminiOpen?.();
+        return !!(active && gemini?.open);
+    }
+
+    function isGeminiOpen() {
+        return !!boundRoot?.querySelector('[data-ai-provider="gemini"]')?.open;
+    }
+
+    window.EveOSSearchMonitorAiHome = Object.freeze({
+        markup,
+        bind,
+        setWorkspaceActive,
+        isGeminiOpen,
+        refreshLocalMoe
+    });
+})();

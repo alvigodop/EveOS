@@ -92,7 +92,8 @@
         if (!container) return;
         const hasFullUi = !!container.querySelector('.mdl-layout__container');
         container.dataset.geminiFullReady = hasFullUi ? '1' : '0';
-        if (hasFullUi && container.dataset.geminiMonitorView === 'full' && !isWorkspaceCollapsed()) {
+        if (hasFullUi && container.dataset.geminiMonitorView === 'full'
+                && window.EveOSSearchMonitorAiHome?.isGeminiOpen?.() && !isWorkspaceCollapsed()) {
             ensureExpandedWorkspace(container);
         }
     }
@@ -156,9 +157,10 @@
             button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
         });
 
-        if (normalized === 'full') {
+        const geminiProviderOpen = window.EveOSSearchMonitorAiHome?.setWorkspaceActive?.(normalized === 'full');
+        if (normalized === 'full' && geminiProviderOpen) {
             ensureExpandedWorkspace(container);
-            requestGeminiBoot('full-monitor-view');
+            requestGeminiBoot('gemini-provider-open');
             startFullUiPolling(container);
         } else {
             stopFullUiPolling(container);
@@ -176,23 +178,18 @@
         });
     }
 
-    function bindOnDemandBoot(container) {
-        if (!container || container.dataset.geminiBootBound === '1') return;
-        container.dataset.geminiBootBound = '1';
-
-        const trigger = function () {
-            requestGeminiBoot('ui-interaction');
-        };
-
-        container.addEventListener('pointerdown', trigger, { once: true, passive: true });
-        container.addEventListener('focusin', trigger, { once: true });
-        container.addEventListener('keydown', trigger, { once: true });
+    function openGeminiProvider(container) {
+        if (!container || container.dataset.geminiMonitorView !== 'full') return;
+        ensureExpandedWorkspace(container);
+        requestGeminiBoot('gemini-provider-open');
+        startFullUiPolling(container);
     }
 
     window.addEventListener('eve:gemini-workspace-ready', function () {
         const container = document.getElementById('gemini-ui-root');
         syncFullUiReadiness(container);
-        if (container?.dataset.geminiMonitorView === 'full') {
+        if (container?.dataset.geminiMonitorView === 'full'
+                && window.EveOSSearchMonitorAiHome?.isGeminiOpen?.()) {
             ensureExpandedWorkspace(container);
         }
     });
@@ -207,69 +204,13 @@
         geminiContainer.className = 'gemini-monitor-shell';
         geminiContainer.tabIndex = 0;
 
-        geminiContainer.innerHTML = `
-            <div class="gemini-monitor-shell-toolbar">
-                <div class="gemini-monitor-shell-copy">
-                    <div class="gemini-monitor-shell-kicker">Gemini Link</div>
-                    <div class="gemini-monitor-shell-title">Search Monitor Assistant</div>
-                </div>
-                <div class="gemini-monitor-toolbar-actions">
-                    <div class="gemini-server-control" data-eveos-control-plane data-state="checking">
-                        <span class="gemini-server-state" data-eveos-control-status>Checking</span>
-                        <button type="button" class="gemini-server-toggle" data-eveos-control-toggle disabled>
-                            <i class="material-icons" aria-hidden="true">sync</i>
-                            <span data-eveos-control-action-label>Start</span>
-                        </button>
-                    </div>
-                    <button type="button" class="gemini-server-inspector-toggle eveos-control-open" data-eveos-control-open title="Open EveOS localhost" aria-label="Open EveOS localhost" hidden>
-                        <i class="material-icons" aria-hidden="true">open_in_new</i>
-                    </button>
-                    <button type="button" class="gemini-server-inspector-toggle" data-gemini-server-inspector-toggle title="Open EveOS runtime monitor" aria-label="Open EveOS runtime monitor">
-                        <i class="material-icons" aria-hidden="true">dns</i>
-                    </button>
-                    <div class="gemini-monitor-view-switch" role="group" aria-label="Gemini monitor view">
-                        <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="summary">Compact</button>
-                        <button type="button" class="gemini-monitor-view-btn" data-gemini-monitor-view-btn="full">Workspace</button>
-                    </div>
-                </div>
-            </div>
-            <div id="gemini-monitor-summary-pane" class="gemini-monitor-summary-pane">
-                <div id="gemini-monitor-summary-card" class="gemini-monitor-card" data-collapsible-section="monitor-surface">
-                    <div class="gemini-monitor-head" data-collapsible-header>
-                        <div>
-                            <div class="gemini-monitor-kicker">Gemini Live Link</div>
-                            <h3 class="gemini-monitor-title">Search Monitor Surface</h3>
-                        </div>
-                        <div class="gemini-monitor-pill">On Demand</div>
-                    </div>
-                    <div class="gemini-monitor-body" data-collapsible-body>
-                        <div class="gemini-monitor-status-row">
-                            <span class="gemini-monitor-status-dot" aria-hidden="true"></span>
-                            <span class="gemini-monitor-status-text">Standing by for context relay, prompt assist, and live tool controls.</span>
-                        </div>
-                        <p class="gemini-monitor-copy">Compact keeps the short relay surface. Workspace keeps this summary visible and opens the full Gemini layout underneath it.</p>
-                        <p class="gemini-monitor-meta">Modules stay deferred until needed, then the broader Gemini workspace boots in-place without leaving Search Monitor.</p>
-                        <details class="gemini-api-setup-guide">
-                            <summary>
-                                <span>Gemini API setup guide</span>
-                                <small>Gemini Link + Sonic Forge</small>
-                            </summary>
-                            <div class="gemini-api-setup-guide-body">
-                                <ol>
-                                    <li>Open <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio API Keys</a>, sign in, and accept the terms if prompted.</li>
-                                    <li>Create a new API key. New AI Studio keys are authorization keys already limited to Gemini; import your Cloud project first if it is not listed.</li>
-                                    <li>In Search Monitor, switch to <b>Workspace</b>, open <b>Session Controls</b>, paste the key, and save it.</li>
-                                    <li>Start Gemini Link. Sonic Forge automatically reuses the same saved credential.</li>
-                                </ol>
-                                <p><b>Legacy key?</b> AI Studio now rejects unrestricted standard keys. Restrict it to the Gemini API, or replace it with a new authorization key.</p>
-                                <p class="gemini-api-security-note">Treat the key like a password. Never place it in prompts, screenshots, exports, source files, or commits. Replace a key immediately if it is exposed.</p>
-                                <a class="gemini-api-docs-link" href="https://ai.google.dev/gemini-api/docs/api-key" target="_blank" rel="noopener noreferrer">Read Google’s current API-key guide</a>
-                            </div>
-                        </details>
-                    </div>
-                </div>
-            </div>
-        `;
+        const aiHome = window.EveOSSearchMonitorAiHome;
+        if (!aiHome) {
+            debugBootLog('Gemini Init: AI Home shell not ready, waiting...');
+            setTimeout(injectGeminiUI, 250);
+            return;
+        }
+        geminiContainer.innerHTML = aiHome.markup();
 
         let target = document.getElementById('gemini-placeholder');
         if (target) {
@@ -291,8 +232,10 @@
             debugBootLog('Gemini Init: UI injected using fallback order logic.');
         }
 
+        aiHome.bind(geminiContainer, {
+            onGeminiOpen: function () { openGeminiProvider(geminiContainer); }
+        });
         bindMonitorViewControls(geminiContainer);
-        bindOnDemandBoot(geminiContainer);
         syncFullUiReadiness(geminiContainer);
         updateMonitorViewState(geminiContainer, getPreferredMonitorView());
 

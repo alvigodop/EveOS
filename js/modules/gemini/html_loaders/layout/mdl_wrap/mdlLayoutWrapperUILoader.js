@@ -17,8 +17,11 @@ async function loadMdlLayoutWrapper() {
 </div>
 `;
 
-        // Insert the MDL layout wrapper into the container if it exists, otherwise body
-        const container = document.getElementById('gemini-ui-root') || document.body;
+        // EveOS keeps the preserved Gemini workspace inside its own provider section. The
+        // historical root/body fallback retains standalone compatibility.
+        const container = document.getElementById('gemini-provider-runtime-host')
+            || document.getElementById('gemini-ui-root')
+            || document.body;
         container.insertAdjacentHTML('beforeend', htmlContent);
 
         // Remove loading state if it exists
@@ -47,4 +50,4 @@ async function loadMdlLayoutWrapper() {
 }
 
 // Export the function globally
-window.loadMdlLayoutWrapper = loadMdlLayoutWrapper; 
+window.loadMdlLayoutWrapper = loadMdlLayoutWrapper;

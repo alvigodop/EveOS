@@ -4,7 +4,8 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Gemini Integration
-    "js/modules/gemini/gemini-init.js?v=5db5bbaa9511",
+    "js/modules/gemini/search_monitor/searchMonitorAiHome.js?v=d92f364746c3",
+    "js/modules/gemini/gemini-init.js?v=13239e4da41e",
     "js/modules/gemini/server_control/geminiServerNetwork.js?v=9edb7c790707",
     "js/modules/gemini/server_control/eveosControlPlane.js?v=7ca8a4a236bf",
     "js/modules/gemini/server_control/geminiCredentialBridge.js?v=8800a8a6adf8",
@@ -13,6 +14,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/gemini/server_control/geminiServerControl.js?v=ae8d384d9691",
     "js/modules/gemini/server_control/geminiServerInspector.js?v=9b814834ac9b",
     "js/modules/gemini/server_control/geminiCredentialWorkflow.js?v=344f1a5fb09d",
-    "js/modules/gemini/Script_Loader/Script_Loader.js?v=195ff5024db2",
+    "js/modules/gemini/Script_Loader/Script_Loader.js?v=df3ab9adec3c",
     "js/modules/gemini/ui/geminiSectionCollapse.js?v=c16eefaac0ce"
 ]);

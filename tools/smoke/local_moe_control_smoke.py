@@ -63,6 +63,30 @@ def check_status_is_passive() -> None:
     popen.assert_not_called()
 
 
+def check_owned_health_blip_stays_starting() -> None:
+    with patch.object(local_moe_control, "_harness_health", return_value=None), \
+            patch.object(local_moe_control, "_port_open", side_effect=lambda port: port == local_moe_control.HARNESS_PORT), \
+            patch.object(local_moe_control, "_managed_harness_pid", return_value=42420), \
+            patch.object(local_moe_control, "_managed_runtime_pid", return_value=None), \
+            patch.object(local_moe_control, "_setup_ready", return_value=True):
+        status = local_moe_control.get_status()
+    require(status["state"] == "starting" and status["ok"] is True,
+            "Owned process was misclassified during a transient health miss")
+    require("different service" not in status["message"],
+            "Owned process was mislabeled as a foreign service")
+
+
+def check_unowned_listener_stays_blocked() -> None:
+    with patch.object(local_moe_control, "_harness_health", return_value=None), \
+            patch.object(local_moe_control, "_port_open", side_effect=lambda port: port == local_moe_control.HARNESS_PORT), \
+            patch.object(local_moe_control, "_managed_harness_pid", return_value=None), \
+            patch.object(local_moe_control, "_managed_runtime_pid", return_value=None), \
+            patch.object(local_moe_control, "_setup_ready", return_value=True):
+        status = local_moe_control.get_status()
+    require(status["state"] == "blocked" and status["ok"] is False,
+            "Unowned Harness listener did not fail closed")
+
+
 def check_start_passes_canonical_ports() -> None:
     stopped = {"running": False, "state": "stopped", "setupReady": True, "ok": True}
     fake = FakeProcess([], env={})
@@ -130,6 +154,8 @@ def main() -> None:
     checks = (
         check_config_ports,
         check_status_is_passive,
+        check_owned_health_blip_stays_starting,
+        check_unowned_listener_stays_blocked,
         check_start_passes_canonical_ports,
         check_unowned_stop_fails_closed,
         check_owned_stop_uses_verified_pid,

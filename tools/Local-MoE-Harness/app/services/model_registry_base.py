@@ -5,7 +5,7 @@ import os
 import tempfile
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 
@@ -91,6 +91,9 @@ class ModelRegistry:
                     not isinstance(filename, str)
                     or "\\" in filename
                     or Path(filename).is_absolute()
+                    or PurePosixPath(filename).is_absolute()
+                    or PureWindowsPath(filename).is_absolute()
+                    or bool(PureWindowsPath(filename).drive)
                     or ".." in Path(filename).parts
                 ):
                     raise ModelRegistryError(f"{model_id}: unsafe required file {filename!r}")
@@ -103,6 +106,9 @@ class ModelRegistry:
                     or not serve_value
                     or "\\" in serve_value
                     or serve_relative.is_absolute()
+                    or PurePosixPath(serve_value).is_absolute()
+                    or PureWindowsPath(serve_value).is_absolute()
+                    or bool(PureWindowsPath(serve_value).drive)
                     or ".." in serve_relative.parts
                     or serve_relative == Path(".")
                 ):
