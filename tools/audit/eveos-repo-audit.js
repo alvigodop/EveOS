@@ -17,9 +17,14 @@ const SKIP_PREFIXES = [
     path.join('data', 'modular-state'),
     path.join('data', 'modular-packs'),
     path.join('tools', 'camofox-runtime', 'node_modules'),
+    path.join('tools', 'Local-MoE-Harness', 'state'),
+    path.join('tools', 'Local-MoE-Harness', 'tools', 'downloads'),
+    path.join('tools', 'Local-MoE-Harness', 'tools', 'python'),
+    path.join('tools', 'Local-MoE-Harness', 'tools', 'uv'),
     path.join('tools', 'WatchFusion', 'nuvio')
 ];
 const LINE_LIMIT_EXEMPT_PREFIXES = [
+    'tools/Local-MoE-Harness/',
     'tools/World-Book/tools/World-Portal/outer/orogen/',
     'tools/WatchFusion/voxelvision/',
     'tools/WatchFusion/nuvio/',

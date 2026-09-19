@@ -17,7 +17,7 @@
     "audit:runtime-assets": "node tools/audit/runtime-asset-reachability-audit.js",
     "audit:smoke-registry": "node tools/audit/smoke-registry-audit.js",
     "audit:ports": "node tools/audit/eveos-port-registry-audit.js && python tools/smoke/eveos_port_registry_smoke.py",
-    "audit:python": "python -m compileall -q server server_modules tools",
+    "audit:python": "python tools/audit/compile_tracked_python.py",
     "smoke:audioflix-spotify-match": "python tools/smoke/audioflix_spotify_match_smoke.py",
     "smoke:audioflix-instagram-public": "python tools/smoke/audioflix_instagram_public_smoke.py",
     "smoke:file-size": "node tools/smoke/first_party_file_size_smoke.js",

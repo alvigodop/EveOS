@@ -38,6 +38,8 @@ Environment overrides remain valid for qualification, and effective collisions m
 
 Model weights stay where Drift configured them. External absolute model paths are stored only in the ignored `tools/Local-MoE-Harness/state/model-locations.json`; they are never committed. A clean checkout begins from the tracked catalog/settings and can be reconstructed with the bundled setup workflow.
 
+The copied virtual environments, managed Python/uv tools, downloads, logs, and state remain machine-local. Repository source audits and Python compilation operate on tracked sources rather than traversing those ignored runtime trees.
+
 ## Verification
 
 Use the smallest relevant check first:
