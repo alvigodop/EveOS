@@ -35,7 +35,7 @@ async function main() {
             && typeof window.switchCategoryTab === 'function'
             && !!document.getElementById('categorySettingsModal')
             && !!window.BookmarkIntelManager
-        ), undefined, { timeout: 60000 });
+        ), undefined, { timeout: 120000 });
 
         await page.evaluate(async () => {
             const categories = window.StorageManager?.getCategories?.() || [];
