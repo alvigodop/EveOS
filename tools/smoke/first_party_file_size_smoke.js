@@ -36,6 +36,8 @@ const EXCLUDED_DIRECTORIES = new Set([
 const EXCLUDED_PATH_PREFIXES = [
     // Bookmark Intel is an independently maintained Side-Builds tool embedded as a knowledge base.
     'tools/Bookmark-Intel/',
+    // Local MoE Harness is an independently maintained Side-Builds inference runtime.
+    'tools/Local-MoE-Harness/',
     // World Portal bundles the independently maintained GPL Orogen application.
     'tools/World-Book/tools/World-Portal/outer/orogen/',
     // WatchFusion bundles the independently maintained VoxelVision engine.

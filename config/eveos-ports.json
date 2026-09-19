@@ -9,6 +9,8 @@
     "WORLD_BOOK_PORT": { "port": 8766, "service": "World Book" },
     "PIANO_PLAYER_PORT": { "port": 8771, "service": "Piano Auto Player" },
     "BOOKMARK_INTEL_PORT": { "port": 9077, "service": "Bookmark Intel" },
+    "FREETOKEN_PORT": { "port": 1919, "service": "FreeToken local inference runtime" },
+    "LOCAL_MOE_HARNESS_PORT": { "port": 5180, "service": "Local MoE Harness" },
     "GEMINI_CONTROL_PORT": { "port": 9082, "service": "EveOS local control plane" },
     "GEMINI_WS_PORT": { "port": 9085, "service": "Gemini Live WebSocket" },
     "GEMINI_STATUS_PORT": { "port": 9086, "service": "Gemini Live status" },

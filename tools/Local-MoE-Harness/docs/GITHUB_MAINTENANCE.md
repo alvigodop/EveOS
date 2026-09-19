@@ -1,0 +1,146 @@
+# Local MoE Harness — GitHub Maintenance Workflow
+
+## Source of truth
+
+The active GitHub source of truth for Local MoE Harness is:
+
+```text
+driftai/Side-Builds/Local-MoE-Harness
+```
+
+Any former private staging subtree is retired from active maintenance. Do not recreate or sync back to a retired private mirror unless the user explicitly requests a private staging copy.
+
+## Legacy sync helper is retired
+
+Older local installations may still contain:
+
+```text
+github-sync.bat
+scripts/github-sync.sh
+```
+
+Those helpers belonged to the retired staging workflow and must not be used for current maintenance. Old copies may contain a retired repository target, machine-local path assumptions, or unsafe Git-identity fallbacks.
+
+Do not publish, revive, or modify those legacy helpers as the default workflow. Future GitHub maintenance should use a sparse checkout of `Side-Builds/Local-MoE-Harness` directly as documented below.
+
+If an older local installation still contains the legacy helpers, leave model/runtime state untouched but remove or clearly disable the helpers before relying on that installation for future Git synchronization.
+
+## Monorepo scope rule
+
+`Side-Builds` contains many independent projects. A Local MoE Harness task does not grant permission to download or materialize sibling projects.
+
+When a local Git checkout is required, default to a blobless partial clone plus sparse checkout:
+
+```bash
+git clone --filter=blob:none --sparse --no-tags https://github.com/driftai/Side-Builds.git <workdir>
+git -C <workdir> sparse-checkout set --cone Local-MoE-Harness
+```
+
+Keep sparse checkout enabled. Do not run `git sparse-checkout disable` or expand scope to sibling projects unless the task genuinely requires them.
+
+For a single-project change, stage only the harness subtree:
+
+```bash
+git add -- Local-MoE-Harness
+```
+
+Do not use `git add -A` or `git add .` for a Local MoE Harness-only task. Before committing, inspect:
+
+```bash
+git diff --cached --name-only
+```
+
+Every staged project path must be inside `Local-MoE-Harness/`, except an explicitly requested shared root policy file such as `AGENTS.md`.
+
+## Existing local workspace containers
+
+A directory that merely contains several independent project folders is not automatically a safe place to turn into a Side-Builds Git root.
+
+If a target parent directory already contains another live project with local/uncommitted work, do **not** initialize or clone Side-Builds at that parent merely to obtain Local MoE Harness. Doing so can make Git start tracking, hiding, or otherwise interacting with the sibling project's files.
+
+Instead:
+
+1. leave the existing sibling project untouched;
+2. use a disposable blobless/sparse Side-Builds checkout elsewhere to obtain or update `Local-MoE-Harness`;
+3. copy/synchronize only the Harness source subtree into its intended standalone local folder;
+4. delete the disposable checkout after verification.
+
+This keeps local workspace organization independent from monorepo ownership and prevents an unrelated live project from becoming collateral Git state.
+
+## Public Git identity privacy gate
+
+Before creating a commit from any local, temporary, sparse, or release checkout, configure repository-local identity:
+
+```bash
+git config --local user.name "Drift"
+git config --local user.email "70552212+driftai@users.noreply.github.com"
+```
+
+Do not rely on global Git configuration for public work.
+
+Before commit, verify:
+
+```bash
+git config --local --get user.name
+git config --local --get user.email
+```
+
+Expected:
+
+```text
+Drift
+70552212+driftai@users.noreply.github.com
+```
+
+Immediately after commit and before push, inspect the actual commit metadata:
+
+```bash
+git show -s --format="%an%n%ae%n%cn%n%ce" HEAD
+```
+
+Both author and committer email must be:
+
+```text
+70552212+driftai@users.noreply.github.com
+```
+
+If the metadata is wrong, stop before push and amend/recreate the commit. If an incorrect public commit has already been pushed, do not mask it with a later commit; rewrite it only when safe and use `--force-with-lease`, never unrestricted `--force`.
+
+## Local runtime state
+
+Repository maintenance must not treat local runtime state as source files. Keep generated/runtime-owned content local and ignored, including:
+
+- `.venv/`
+- `.venvs/`
+- `models/`
+- `runtime/`
+- `.cache/`
+- `.freetoken/`
+- `.tmp/`
+- `tools/`
+- `logs/`
+- `state/`
+- `output/`
+- benchmark artifacts and other machine-local generated files
+
+Their absence from GitHub is intentional and must not be interpreted as permission to delete a user's local copies.
+
+Model checkpoint weights may be intentionally linked outside the Harness root through the model-location feature. Those external checkpoint directories are still local runtime data and must never be staged merely because they are reachable from the Harness.
+
+## Push discipline
+
+Before push:
+
+1. confirm the branch and remote;
+2. confirm only intended harness paths are staged;
+3. verify author and committer metadata;
+4. run the relevant tests for the changed code;
+5. confirm no machine-local data, secrets, credentials, private paths, or private identity information entered the diff.
+
+If the remote moved or a push is rejected, stop and reconcile. Do not force-push over newer work and do not materialize the entire monorepo merely to resolve a single-project update.
+
+## Rule for agents
+
+For ordinary Local MoE Harness development, release, maintenance, or documentation work:
+
+> Work directly against `Side-Builds/Local-MoE-Harness`, keep Git scope sparse, preserve local runtime state, retire old staging sync helpers, avoid turning shared local workspace containers into monorepo roots, and verify the noreply identity in the actual commit object before every public push.
