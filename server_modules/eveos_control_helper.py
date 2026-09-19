@@ -19,6 +19,7 @@ from . import eveos_ports
 from . import eveos_web_control
 from . import gemini_control
 from . import gemini_credentials
+from . import local_moe_control
 from . import piano_player_control
 from . import watchfusion_control
 from . import world_book_control
@@ -29,38 +30,26 @@ DEFAULT_PORT = eveos_ports.service_port("GEMINI_CONTROL_PORT")
 MAIN_LAUNCHER_PORT = 3000
 _SERVER = None
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
-
-
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent
-
-
 def _shutdown_plane_after_response(delay: float = 0.4) -> bool:
     if _SERVER is None:
         return False
     threading.Timer(delay, _SERVER.shutdown).start()
     return True
-
-
 def _valid_port(value) -> int | None:
     try:
         port = int(value)
     except (TypeError, ValueError):
         return None
     return port if 1 <= port <= 65535 else None
-
-
 def _last_launcher_port_path() -> Path:
     return _project_root() / "data" / "runtime" / "eveos-last-launcher-port.txt"
-
-
 def _read_last_launcher_port() -> int | None:
     try:
         return _valid_port(_last_launcher_port_path().read_text(encoding="utf-8").strip())
     except OSError:
         return None
-
-
 def _file_mode_discovery_candidates() -> list[int]:
     candidates = [
         _read_last_launcher_port(),
@@ -167,6 +156,8 @@ def _console_overview(web_port=None) -> dict:
          lambda s: [s.get("port")]),
         ("bookmarkIntel", "Bookmark Intel", bookmark_intel_control.get_status,
          lambda s: [s.get("port")]),
+        ("localMoe", "Local MoE Harness", local_moe_control.get_status,
+         lambda s: [s.get("port"), s.get("runtimePort")]),
     )
     for key, label, status_fn, ports in status_specs:
         try:
@@ -211,7 +202,8 @@ def _stop_tool(stop) -> dict:
 
 def _stop_everything(web_port=None) -> dict:
     also = {}
-    for name, stop in (("watchFusion", watchfusion_control.stop_server),
+    for name, stop in (("localMoe", local_moe_control.stop_server),
+                       ("watchFusion", watchfusion_control.stop_server),
                        ("piano", piano_player_control.stop_server),
                        ("worldBook", world_book_control.stop_server),
                        ("gemini", gemini_control.stop_server),
@@ -309,6 +301,9 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/bookmark-intel/status":
             self._send(bookmark_intel_control.get_status())
             return
+        if path == "/api/local-moe/status":
+            self._send(local_moe_control.get_status())
+            return
         if path == "/api/control-plane/consoles":
             self._send(_console_overview(_request_web_port(self)))
             return
@@ -329,6 +324,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/piano-player/start", "/api/piano-player/stop", "/api/piano-player/launch", "/api/piano-player/setup",
             "/api/watchfusion/start", "/api/watchfusion/stop", "/api/watchfusion/launch", "/api/watchfusion/setup",
             "/api/bookmark-intel/start", "/api/bookmark-intel/stop",
+            "/api/local-moe/start", "/api/local-moe/stop", "/api/local-moe/launch", "/api/local-moe/setup",
             "/api/gemini-credentials", "/api/control-plane/consoles",
         }
         if path in controlled_paths and not gemini_control.request_can_control(self):
@@ -358,6 +354,10 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/watchfusion/launch": watchfusion_control.open_launcher,
             "/api/bookmark-intel/start": bookmark_intel_control.start_server,
             "/api/bookmark-intel/stop": lambda: _stop_tool(bookmark_intel_control.stop_server),
+            "/api/local-moe/start": local_moe_control.start_server,
+            "/api/local-moe/stop": lambda: _stop_tool(local_moe_control.stop_server),
+            "/api/local-moe/launch": local_moe_control.open_launcher,
+            "/api/local-moe/setup": local_moe_control.open_setup,
         }
         action = actions.get(path)
 
@@ -429,7 +429,7 @@ def main() -> int:
     print(f"  Consoles: {'headless' if eveos_web_control.headless_mode() else 'visible'}"
           " (set EVEOS_HEADLESS=1 to hide spawned servers)")
     print(f"  Control: http://127.0.0.1:{args.port}/api/control-plane/status")
-    print("  Manages EveOS localhost, Gemini, World Book, Piano, WatchFusion, and Bookmark Intel independently.")
+    print("  Manages EveOS localhost, Gemini, Local MoE, World Book, Piano, WatchFusion, and Bookmark Intel independently.")
     print("  Press Ctrl+C to stop the control plane")
     eveos_web_control.restore_desired_state_async()
     world_book_control.restore_desired_state_async()

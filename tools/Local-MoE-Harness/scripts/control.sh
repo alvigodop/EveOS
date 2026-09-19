@@ -6,7 +6,7 @@ STATE_DIR="$ROOT/state"
 LOG_DIR="$ROOT/logs"
 HARNESS_PID="$STATE_DIR/harness.pid"
 FREETOKEN_PID="$STATE_DIR/freetoken.pid"
-HARNESS_URL="http://127.0.0.1:5180"
+HARNESS_URL="http://127.0.0.1:${LOCAL_MOE_HARNESS_PORT:-5180}"
 
 mkdir -p "$STATE_DIR" "$LOG_DIR"
 

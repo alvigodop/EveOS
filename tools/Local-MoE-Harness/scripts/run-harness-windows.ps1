@@ -2,8 +2,10 @@ $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Python = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $Python)) { throw "Project-local harness environment is missing. Run Setup.bat." }
+$HarnessPort = if ($env:LOCAL_MOE_HARNESS_PORT) { [int]$env:LOCAL_MOE_HARNESS_PORT } else { 5180 }
+$FreeTokenPort = if ($env:FREETOKEN_PORT) { [int]$env:FREETOKEN_PORT } else { 1919 }
 
-$Existing = Get-NetTCPConnection -LocalPort 1919 -State Listen -ErrorAction SilentlyContinue
+$Existing = Get-NetTCPConnection -LocalPort $FreeTokenPort -State Listen -ErrorAction SilentlyContinue
 if ($Existing) {
     $Managed = $false
     $PidPath = Join-Path $Root "state\freetoken.pid"
@@ -11,7 +13,7 @@ if ($Existing) {
         $ManagedPid = (Get-Content -Raw $PidPath).Trim()
         foreach ($Item in $Existing) { if ("$($Item.OwningProcess)" -eq $ManagedPid) { $Managed = $true } }
     }
-    if (-not $Managed) { throw "Port 1919 is already owned by an external process. Self-contained mode refuses to adopt it." }
+    if (-not $Managed) { throw "Port $FreeTokenPort is already owned by an external process. Self-contained mode refuses to adopt it." }
 }
 
 $env:PYTHONPATH = $Root
@@ -25,5 +27,5 @@ $env:TEMP = Join-Path $Root ".tmp"
 $env:TMP = Join-Path $Root ".tmp"
 New-Item -ItemType Directory -Force -Path $env:APPDATA,$env:LOCALAPPDATA,$env:TEMP | Out-Null
 
-& $Python -m uvicorn app.main:app --host 127.0.0.1 --port 5180
+& $Python -m uvicorn app.main:app --host 127.0.0.1 --port $HarnessPort
 exit $LASTEXITCODE

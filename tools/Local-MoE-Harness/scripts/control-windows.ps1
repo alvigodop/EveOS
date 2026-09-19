@@ -6,7 +6,8 @@ $Logs = Join-Path $Root "logs"
 $HarnessPidPath = Join-Path $State "harness.pid"
 $RuntimePidPath = Join-Path $State "freetoken.pid"
 $HarnessScript = Join-Path $Root "scripts\run-harness-windows.ps1"
-$HarnessUrl = "http://127.0.0.1:5180"
+$HarnessPort = if ($env:LOCAL_MOE_HARNESS_PORT) { [int]$env:LOCAL_MOE_HARNESS_PORT } else { 5180 }
+$HarnessUrl = "http://127.0.0.1:$HarnessPort"
 New-Item -ItemType Directory -Force -Path $State,$Logs | Out-Null
 
 function Repair-ProjectLocalVenvs {
@@ -143,7 +144,7 @@ function Start-Harness {
         Set-Content -Encoding ASCII -Path $HarnessPidPath -Value $Process.Id
         Write-Host "[Control] Harness launcher PID: $($Process.Id)"
     }
-    Write-Host "[Control] Waiting for localhost:5180..."
+    Write-Host "[Control] Waiting for localhost:$HarnessPort..."
     $Deadline = (Get-Date).AddMinutes(8)
     while ((Get-Date) -lt $Deadline) {
         if (Test-Harness) { Write-Host "[Control] Harness is online."; Start-Process $HarnessUrl; return }

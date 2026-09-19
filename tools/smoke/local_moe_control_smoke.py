@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+"""Deterministic contract checks for EveOS Local MoE lifecycle ownership."""
+
+from __future__ import annotations
+
+import os
+import sys
+import tempfile
+import importlib.util
+from pathlib import Path
+from types import ModuleType
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from server_modules import eveos_control_helper, local_moe_control  # noqa: E402
+
+
+def require(condition: bool, message: str) -> None:
+    if not condition:
+        raise AssertionError(message)
+
+
+def load_harness_config(path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location("eveos_local_moe_harness_config", path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Unable to load Local MoE config: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class FakeProcess:
+    def __init__(self, command, **kwargs):
+        self.command = command
+        self.kwargs = kwargs
+        self.pid = 42420
+
+    def poll(self):
+        return None
+
+
+def check_config_ports() -> None:
+    module = load_harness_config(ROOT / "tools" / "Local-MoE-Harness" / "app" / "config.py")
+    with patch.dict(os.environ, {"LOCAL_MOE_HARNESS_PORT": "15180", "FREETOKEN_PORT": "11919"}):
+        settings = module.load_settings()
+    require(settings["harness_port"] == 15180, "Harness ignored the EveOS port environment")
+    require(settings["runtime_base_url"] == "http://127.0.0.1:11919", "Runtime ignored EveOS port environment")
+
+
+def check_status_is_passive() -> None:
+    with patch.object(local_moe_control, "_harness_health", return_value=None), \
+            patch.object(local_moe_control, "_port_open", return_value=False), \
+            patch.object(local_moe_control, "_managed_harness_pid", return_value=None), \
+            patch.object(local_moe_control, "_managed_runtime_pid", return_value=None), \
+            patch.object(local_moe_control, "_setup_ready", return_value=True), \
+            patch.object(local_moe_control.subprocess, "Popen") as popen:
+        status = local_moe_control.get_status()
+    require(status["state"] == "stopped", "Passive status did not report stopped")
+    require(status["explicitStartRequired"] is True, "Explicit-start contract is missing")
+    popen.assert_not_called()
+
+
+def check_start_passes_canonical_ports() -> None:
+    stopped = {"running": False, "state": "stopped", "setupReady": True, "ok": True}
+    fake = FakeProcess([], env={})
+    with patch.object(local_moe_control, "_status", return_value=stopped), \
+            patch.object(local_moe_control, "_harness_health", return_value={"info": {}}), \
+            patch.object(local_moe_control, "_write_pid") as write_pid, \
+            patch.object(local_moe_control.eveos_console_prefs, "headless_for", return_value=True), \
+            patch.object(local_moe_control.subprocess, "Popen", return_value=fake) as popen:
+        result = local_moe_control.start_server()
+    environment = popen.call_args.kwargs["env"]
+    require(environment["LOCAL_MOE_HARNESS_PORT"] == str(local_moe_control.HARNESS_PORT),
+            "Start lost the canonical Harness port")
+    require(environment["FREETOKEN_PORT"] == str(local_moe_control.RUNTIME_PORT),
+            "Start lost the canonical runtime port")
+    require(result["ok"] is True, "Start did not return its lifecycle result")
+    write_pid.assert_called_once_with(fake.pid)
+    local_moe_control._PROCESS = None
+
+
+def check_unowned_stop_fails_closed() -> None:
+    running = {"running": True, "state": "running", "ok": True}
+    with patch.object(local_moe_control, "_harness_health", return_value={"info": {}}), \
+            patch.object(local_moe_control, "_managed_harness_pid", return_value=None), \
+            patch.object(local_moe_control, "_status", return_value=running), \
+            patch.object(local_moe_control, "_terminate_owned") as terminate:
+        result = local_moe_control.stop_server()
+    require(result["ok"] is False and result["state"] == "external",
+            "Unowned Harness stop did not fail closed")
+    terminate.assert_not_called()
+
+
+def check_owned_stop_uses_verified_pid() -> None:
+    stopped = {"running": False, "state": "stopped", "ok": True}
+    with tempfile.TemporaryDirectory() as raw:
+        temp = Path(raw)
+        harness_pid = temp / "harness.pid"
+        runtime_pid = temp / "freetoken.pid"
+        harness_pid.write_text("731", encoding="ascii")
+        runtime_pid.write_text("732", encoding="ascii")
+        with patch.object(local_moe_control, "_harness_health", side_effect=[{"info": {}}, None, None]), \
+                patch.object(local_moe_control, "_managed_harness_pid", return_value=731), \
+                patch.object(local_moe_control, "_terminate_owned", return_value=True) as terminate, \
+                patch.object(local_moe_control, "_http_json", return_value={}) as request, \
+                patch.object(local_moe_control, "_pid_path", return_value=harness_pid), \
+                patch.object(local_moe_control, "_runtime_pid_path", return_value=runtime_pid), \
+                patch.object(local_moe_control, "_status", return_value=stopped):
+            result = local_moe_control.stop_server()
+    terminate.assert_called_once_with(731)
+    request.assert_called_once_with(
+        local_moe_control.HARNESS_PORT, "/api/runtime/stop", method="POST", timeout=20
+    )
+    require(result["state"] == "stopped", "Owned stop did not return stopped state")
+
+
+def check_control_plane_wiring() -> None:
+    source = Path(eveos_control_helper.__file__).read_text(encoding="utf-8")
+    for endpoint in ("/api/local-moe/status", "/api/local-moe/start", "/api/local-moe/stop",
+                     "/api/local-moe/launch", "/api/local-moe/setup"):
+        require(endpoint in source, f"Control plane is missing {endpoint}")
+    require("local_moe_control.restore_desired_state_async" not in source,
+            "Local MoE must never auto-restore when Local Control opens")
+
+
+def main() -> None:
+    checks = (
+        check_config_ports,
+        check_status_is_passive,
+        check_start_passes_canonical_ports,
+        check_unowned_stop_fails_closed,
+        check_owned_stop_uses_verified_pid,
+        check_control_plane_wiring,
+    )
+    for check in checks:
+        check()
+    print(f"local-moe-control-smoke: PASS ({len(checks)} checks)")
+
+
+if __name__ == "__main__":
+    main()
