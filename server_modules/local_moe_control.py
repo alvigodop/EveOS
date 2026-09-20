@@ -319,29 +319,79 @@ def _terminate_owned(pid: int) -> bool:
         return False
 
 
+def _terminate_owned_runtime(pid: int) -> bool:
+    """Stop a verified runtime tree even when the Harness API is unavailable."""
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, text=True,
+                check=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return False
+
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if not _process_command_line(pid) and not _port_open(RUNTIME_PORT):
+            return True
+        time.sleep(0.1)
+    return False
+
+
 def stop_server() -> dict:
     global _PROCESS
     with _LOCK:
         running = _harness_health() is not None
         pid = _managed_harness_pid()
+        runtime_pid = _managed_runtime_pid()
         if pid is None:
             if running:
                 return {**_status(health={}, harness_pid=None), "ok": False, "state": "external",
                         "message": "Refusing to stop a Harness not owned by this EveOS checkout."}
+            if runtime_pid is not None:
+                runtime_stopped = _terminate_owned_runtime(runtime_pid)
+                if runtime_stopped:
+                    _runtime_pid_path().unlink(missing_ok=True)
+                    _pid_path().unlink(missing_ok=True)
+                _PROCESS = None
+                payload = _status(
+                    "Local MoE orphaned runtime stopped."
+                    if runtime_stopped else "Local MoE orphaned runtime did not stop cleanly.",
+                    health=None,
+                    harness_pid=None,
+                )
+                if not runtime_stopped:
+                    payload.update(ok=False, state="error")
+                return payload
             _pid_path().unlink(missing_ok=True)
+            if not _port_open(RUNTIME_PORT):
+                _runtime_pid_path().unlink(missing_ok=True)
             return _status("Local MoE Harness was already stopped.", health=None, harness_pid=None)
         if running:
             _http_json(HARNESS_PORT, "/api/runtime/stop", method="POST", timeout=20)
-        stopped = _terminate_owned(pid)
-        if stopped:
+        harness_stopped = _terminate_owned(pid)
+        runtime_stopped = not _port_open(RUNTIME_PORT)
+        if not runtime_stopped:
+            runtime_pid = _managed_runtime_pid()
+            runtime_stopped = (
+                _terminate_owned_runtime(runtime_pid) if runtime_pid is not None else False
+            )
+        stopped = harness_stopped and runtime_stopped
+        if harness_stopped:
             _pid_path().unlink(missing_ok=True)
+        if runtime_stopped:
             _runtime_pid_path().unlink(missing_ok=True)
         _PROCESS = None
     if stopped:
         deadline = time.monotonic() + 3
         while time.monotonic() < deadline and _harness_health() is not None:
             time.sleep(0.1)
-    return _status("Local MoE Harness stopped." if stopped else "Local MoE Harness did not stop cleanly.")
+    payload = _status("Local MoE Harness stopped." if stopped else "Local MoE Harness did not stop cleanly.")
+    if not stopped:
+        payload.update(ok=False, state="error")
+    return payload
 
 
 def open_launcher() -> dict:

@@ -149,6 +149,7 @@ def check_owned_stop_uses_verified_pid() -> None:
                 patch.object(local_moe_control, "_managed_harness_pid", return_value=731), \
                 patch.object(local_moe_control, "_terminate_owned", return_value=True) as terminate, \
                 patch.object(local_moe_control, "_http_json", return_value={}) as request, \
+                patch.object(local_moe_control, "_port_open", return_value=False), \
                 patch.object(local_moe_control, "_pid_path", return_value=harness_pid), \
                 patch.object(local_moe_control, "_runtime_pid_path", return_value=runtime_pid), \
                 patch.object(local_moe_control, "_status", return_value=stopped):
@@ -158,6 +159,49 @@ def check_owned_stop_uses_verified_pid() -> None:
         local_moe_control.HARNESS_PORT, "/api/runtime/stop", method="POST", timeout=20
     )
     require(result["state"] == "stopped", "Owned stop did not return stopped state")
+
+
+def check_orphan_runtime_stop_uses_verified_pid() -> None:
+    stopped = {"running": False, "state": "stopped", "ok": True}
+    with tempfile.TemporaryDirectory() as raw:
+        temp = Path(raw)
+        harness_pid = temp / "harness.pid"
+        runtime_pid = temp / "freetoken.pid"
+        harness_pid.write_text("731", encoding="ascii")
+        runtime_pid.write_text("844", encoding="ascii")
+        with patch.object(local_moe_control, "_harness_health", return_value=None), \
+                patch.object(local_moe_control, "_managed_harness_pid", return_value=None), \
+                patch.object(local_moe_control, "_managed_runtime_pid", return_value=844), \
+                patch.object(local_moe_control, "_terminate_owned_runtime", return_value=True) as terminate, \
+                patch.object(local_moe_control, "_pid_path", return_value=harness_pid), \
+                patch.object(local_moe_control, "_runtime_pid_path", return_value=runtime_pid), \
+                patch.object(local_moe_control, "_status", return_value=stopped):
+            result = local_moe_control.stop_server()
+            terminate.assert_called_once_with(844)
+            require(result["state"] == "stopped", "Orphan runtime stop did not return stopped state")
+            require(not harness_pid.exists(), "Orphan cleanup retained the stale Harness PID")
+            require(not runtime_pid.exists(), "Orphan cleanup retained the stopped runtime PID")
+
+
+def check_failed_orphan_runtime_stop_stays_retryable() -> None:
+    stale = {"running": False, "state": "stopped", "ok": True}
+    with tempfile.TemporaryDirectory() as raw:
+        temp = Path(raw)
+        harness_pid = temp / "harness.pid"
+        runtime_pid = temp / "freetoken.pid"
+        harness_pid.write_text("731", encoding="ascii")
+        runtime_pid.write_text("844", encoding="ascii")
+        with patch.object(local_moe_control, "_harness_health", return_value=None), \
+                patch.object(local_moe_control, "_managed_harness_pid", return_value=None), \
+                patch.object(local_moe_control, "_managed_runtime_pid", return_value=844), \
+                patch.object(local_moe_control, "_terminate_owned_runtime", return_value=False), \
+                patch.object(local_moe_control, "_pid_path", return_value=harness_pid), \
+                patch.object(local_moe_control, "_runtime_pid_path", return_value=runtime_pid), \
+                patch.object(local_moe_control, "_status", return_value=stale):
+            result = local_moe_control.stop_server()
+            require(result["ok"] is False and result["state"] == "error",
+                    "A surviving orphan runtime was reported as stopped")
+            require(runtime_pid.exists(), "A failed stop erased the PID required for retry")
 
 
 def check_control_plane_wiring() -> None:
@@ -183,6 +227,8 @@ def main() -> None:
         check_unowned_stop_fails_closed,
         check_windows_tree_exit_is_idempotent,
         check_owned_stop_uses_verified_pid,
+        check_orphan_runtime_stop_uses_verified_pid,
+        check_failed_orphan_runtime_stop_stays_retryable,
         check_control_plane_wiring,
     )
     for check in checks:

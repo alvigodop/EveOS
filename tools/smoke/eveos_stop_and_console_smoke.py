@@ -142,27 +142,31 @@ def main():
             shutdowns.append(True)
 
     original = (
+        H.local_moe_control.stop_server,
         H.watchfusion_control.stop_server,
         H.piano_player_control.stop_server,
         H.world_book_control.stop_server,
         H.gemini_control.stop_server,
+        H.bookmark_intel_control.stop_server,
         H.eveos_web_control.stop_server,
         H._SERVER,
     )
     try:
+        H.local_moe_control.stop_server = lambda: calls.append("localMoe") or {"ok": True}
         H.watchfusion_control.stop_server = lambda: calls.append("watchFusion") or {"ok": True}
         H.piano_player_control.stop_server = lambda: calls.append("piano") or {"ok": True}
         H.world_book_control.stop_server = lambda: calls.append("worldBook") or {"ok": True}
         H.gemini_control.stop_server = lambda: calls.append("gemini") or {"ok": True}
+        H.bookmark_intel_control.stop_server = lambda: calls.append("bookmarkIntel") or {"ok": True}
         H.eveos_web_control.stop_server = lambda *a, **k: calls.append("web") or {"ok": True, "running": False}
         H._SERVER = _FakeServer()
 
         payload = H._stop_everything()
 
-        expected = ["watchFusion", "piano", "worldBook", "gemini", "web"]
+        expected = ["localMoe", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel", "web"]
         check(calls == expected,
               f"managed dependents stop before the EveOS web surface (got {calls})")
-        for key in ("watchFusion", "piano", "worldBook", "gemini"):
+        for key in ("localMoe", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel"):
             check(payload.get("stoppedAlso", {}).get(key) == "stopped", f"{key} is reported")
         check(payload.get("controlPlaneStopping") is True,
               "the control plane closes itself, so Global Stop leaves nothing running")
@@ -207,10 +211,12 @@ def main():
               "the deferred coordinator shutdown actually runs after a web-stop exception")
     finally:
         (
+            H.local_moe_control.stop_server,
             H.watchfusion_control.stop_server,
             H.piano_player_control.stop_server,
             H.world_book_control.stop_server,
             H.gemini_control.stop_server,
+            H.bookmark_intel_control.stop_server,
             H.eveos_web_control.stop_server,
             H._SERVER,
         ) = original
