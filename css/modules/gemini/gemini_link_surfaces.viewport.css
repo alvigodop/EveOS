@@ -64,6 +64,26 @@
     backdrop-filter: blur(14px);
 }
 
+/* The normal Search Monitor is a narrow component even on a wide desktop.
+   Give its title and controls separate rows instead of relying on viewport
+   breakpoints, which allowed the action buttons to overflow into the title. */
+#loadingIndicator:not(.compact):not(.wide-mode):not(.fullscreen-mode) #gemini-ui-root .gemini-monitor-shell-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+}
+
+#loadingIndicator:not(.compact):not(.wide-mode):not(.fullscreen-mode) #gemini-ui-root .gemini-monitor-shell-copy,
+#loadingIndicator:not(.compact):not(.wide-mode):not(.fullscreen-mode) #gemini-ui-root .gemini-monitor-toolbar-actions {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+}
+
+#loadingIndicator:not(.compact):not(.wide-mode):not(.fullscreen-mode) #gemini-ui-root .gemini-monitor-toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 #loadingIndicator:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout__header {
     position: relative !important;
     top: auto !important;

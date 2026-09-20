@@ -13,11 +13,15 @@ const loaderPath = path.join(
 );
 const harnessAppPath = path.join(ROOT, 'tools', 'Local-MoE-Harness', 'web', 'app.js');
 const manifestPath = path.join(ROOT, 'js', 'config', 'manifest', 'scripts.parts', '13-gemini.js');
+const viewportCssPath = path.join(
+    ROOT, 'css', 'modules', 'gemini', 'gemini_link_surfaces.viewport.css'
+);
 const source = fs.readFileSync(aiHomePath, 'utf8');
 const initSource = fs.readFileSync(initPath, 'utf8');
 const loaderSource = fs.readFileSync(loaderPath, 'utf8');
 const harnessAppSource = fs.readFileSync(harnessAppPath, 'utf8');
 const manifestSource = fs.readFileSync(manifestPath, 'utf8');
+const viewportCssSource = fs.readFileSync(viewportCssPath, 'utf8');
 
 const requests = [];
 let localMoeResponse = {
@@ -79,6 +83,16 @@ function assert(condition, message) {
         'Gemini full UI is not scoped to its provider body');
     assert(manifestSource.indexOf('searchMonitorAiHome.js') < manifestSource.indexOf('gemini-init.js'),
         'AI Home module must load before gemini-init');
+    assert(
+        /#loadingIndicator:not\(\.compact\):not\(\.wide-mode\):not\(\.fullscreen-mode\)[^{]+\.gemini-monitor-shell-toolbar\s*\{[^}]*flex-direction:\s*column/s
+            .test(viewportCssSource),
+        'Normal-width Search Monitor does not stack its title above toolbar actions'
+    );
+    assert(
+        /#loadingIndicator:not\(\.compact\):not\(\.wide-mode\):not\(\.fullscreen-mode\)[^{]+\.gemini-monitor-toolbar-actions\s*\{[^}]*flex-wrap:\s*wrap/s
+            .test(viewportCssSource),
+        'Normal-width Search Monitor actions can overflow into the title row'
+    );
 
     const listeners = {};
     const gemini = { open: false, addEventListener(type, fn) { listeners[`gemini:${type}`] = fn; } };
