@@ -13,6 +13,8 @@
     const draftAgentIds = new Set();
 
     function markup() {
+        const tloMarkup = window.EveOSTloChat?.markup?.()
+            || '<p class="eveos-ai-provider-message">TLO Chat module is unavailable.</p>';
         return `
             <div class="eveos-agent-nexus-intro">
                 <strong>Two peers, separate responsibilities</strong>
@@ -24,13 +26,7 @@
                 <button type="button" data-agent-nexus-view="management" role="tab" aria-selected="false">Agent Management</button>
             </div>
             <section class="eveos-agent-nexus-panel" data-agent-nexus-panel="tlo">
-                <article class="eveos-agent-card" data-agent-id="tlo">
-                    <span class="eveos-agent-avatar">T</span>
-                    <span><strong>TLO</strong><small>Local agent identity above the generic Local MoE provider.</small></span>
-                    <span class="eveos-ai-provider-pill">Foundation</span>
-                </article>
-                <p class="eveos-ai-provider-message">Opening TLO never starts Local MoE or a model. Chat transport will be wired after the local identity contract is proven.</p>
-                <button type="button" class="eveos-agent-nexus-secondary" data-agent-nexus-view="management">Open Agent Management</button>
+                ${tloMarkup}
             </section>
             <section class="eveos-agent-nexus-panel" data-agent-nexus-panel="nexus-browser" hidden>
                 <article class="eveos-agent-card" data-agent-tool-id="nexus-browser">
@@ -267,6 +263,7 @@
             if (button.getAttribute('role') === 'tab') button.setAttribute('aria-selected', String(active));
         });
         if (view === 'management') loadManagement(false);
+        if (view === 'tlo') window.EveOSTloChat?.activate?.();
     }
 
     function handleClick(event) {
@@ -290,6 +287,7 @@
         root = container;
         if (boundRoots.has(container)) return;
         boundRoots.add(container);
+        window.EveOSTloChat?.bind?.(container);
         container.addEventListener('click', handleClick);
         container.addEventListener('submit', (event) => {
             if (!event.target.matches('[data-agent-management-form]')) return;
@@ -298,5 +296,5 @@
         });
     }
 
-    window.EveOSAgentNexus = Object.freeze({ markup, bind, loadManagement });
+    window.EveOSAgentNexus = Object.freeze({ markup, bind, loadManagement, selectView });
 })();

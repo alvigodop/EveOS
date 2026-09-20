@@ -152,7 +152,7 @@
                             <strong>Agent Nexus</strong>
                             <small>TLO, Nexus Browser, and private local agent profiles</small>
                         </span>
-                        <span class="eveos-ai-provider-pill">Foundation</span>
+                        <span class="eveos-ai-provider-pill">TLO chat</span>
                         <i class="material-icons eveos-ai-provider-chevron" aria-hidden="true">expand_more</i>
                     </summary>
                     <div class="eveos-ai-provider-body">
@@ -309,12 +309,16 @@
         window.EveOSAgentNexus?.bind?.(container);
         const gemini = container.querySelector('[data-ai-provider="gemini"]');
         const localMoe = container.querySelector('[data-ai-provider="local-moe"]');
+        const agents = container.querySelector('[data-ai-provider="agents"]');
         gemini?.addEventListener('toggle', function () {
             if (gemini.open) onGeminiOpen?.();
         });
         localMoe?.addEventListener('toggle', function () {
             if (localMoe.open && !localMoeLoaded) refreshLocalMoe();
             else if (lastLocalMoeStatus) syncLocalMoeInline(lastLocalMoeStatus);
+        });
+        agents?.addEventListener('toggle', function () {
+            if (agents.open) window.EveOSTloChat?.activate?.();
         });
         container.addEventListener('click', handleLocalMoeAction);
     }

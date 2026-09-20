@@ -50,6 +50,8 @@
     "verify:gemini": "npm run verify:gemini:audio && npm run smoke:search-monitor && npm run smoke:gemini-context && node tools/smoke/gemini_agentic_controls_browser_smoke.js",
     "smoke:bookmark-intel": "python tools/smoke/bookmark_intel_integration_smoke.py && node tools/smoke/bookmark_intel_browser_smoke.js",
     "smoke:agent-management": "python tools/smoke/agent_management_smoke.py",
+    "smoke:tlo-chat-adapter": "python tools/smoke/tlo_chat_adapter_smoke.py",
+    "smoke:tlo-chat-surface": "node tools/smoke/tlo_chat_surface_smoke.js",
     "smoke:agent-nexus-surface": "node tools/smoke/agent_nexus_surface_smoke.js",
     "smoke:agent-nexus": "node tools/smoke/agent_nexus_integration_smoke.js",
     "smoke:local-moe": "node tools/smoke/local_moe_integration_smoke.js",

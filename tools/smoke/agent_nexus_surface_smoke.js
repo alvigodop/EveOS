@@ -6,10 +6,12 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const tloModulePath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'tloChat.js');
 const modulePath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'agentNexus.js');
 const manifestPath = path.join(ROOT, 'js', 'config', 'manifest', 'scripts.parts', '13-gemini.js');
 const cssPath = path.join(ROOT, 'css', 'modules', 'gemini', 'gemini_link_surfaces.agent-nexus.css');
 const source = fs.readFileSync(modulePath, 'utf8');
+const tloSource = fs.readFileSync(tloModulePath, 'utf8');
 const manifest = fs.readFileSync(manifestPath, 'utf8');
 const css = fs.readFileSync(cssPath, 'utf8');
 const windowMock = {
@@ -18,9 +20,11 @@ const windowMock = {
     location: { protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:8765' }
 };
 
-vm.runInNewContext(source, {
+const context = {
     window: windowMock, console, setTimeout, clearTimeout, AbortController, URLSearchParams
-}, { filename: modulePath });
+};
+vm.runInNewContext(tloSource, context, { filename: tloModulePath });
+vm.runInNewContext(source, context, { filename: modulePath });
 
 function requireContract(condition, message) {
     if (!condition) throw new Error(message);
@@ -36,7 +40,7 @@ requireContract(markup.includes('Never included in browser projections'),
     'Private-note projection boundary is not visible to the user');
 requireContract(source.includes('/api/eve-state/modular/agent-management'),
     'Agent Nexus is not wired to Agent Management');
-requireContract(!source.includes('/api/local-moe/start'),
+requireContract(!source.includes('/api/local-moe/start') && !tloSource.includes('/api/local-moe/start'),
     'Agent Nexus can auto-start Local MoE');
 requireContract(manifest.indexOf('agentNexus.js') < manifest.indexOf('searchMonitorAiHome.js'),
     'Agent Nexus is not loaded before its Search Monitor host');

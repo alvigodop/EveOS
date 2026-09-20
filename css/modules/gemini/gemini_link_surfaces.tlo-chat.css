@@ -1,0 +1,193 @@
+.eveos-tlo-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.eveos-tlo-facts > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.eveos-tlo-facts small {
+    color: rgba(230, 246, 255, 0.46);
+    font-size: 0.59rem;
+    text-transform: uppercase;
+}
+
+.eveos-tlo-facts strong {
+    overflow: hidden;
+    color: rgba(244, 251, 255, 0.86);
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eveos-tlo-status {
+    min-height: 1.35em;
+}
+
+.eveos-tlo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 9px;
+}
+
+.eveos-tlo-actions button,
+.eveos-tlo-composer button {
+    appearance: none;
+    border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 999px;
+    background: rgba(8, 19, 28, 0.82);
+    color: rgba(230, 246, 255, 0.74);
+    cursor: pointer;
+    font: 700 0.65rem/1 inherit;
+    padding: 8px 11px;
+}
+
+.eveos-tlo-actions button:hover,
+.eveos-tlo-composer button:hover:not(:disabled) {
+    border-color: rgba(34, 211, 238, 0.62);
+    background: rgba(8, 145, 178, 0.2);
+    color: #e9fbff;
+}
+
+.eveos-tlo-composer button:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.eveos-tlo-transcript {
+    display: flex;
+    min-height: 170px;
+    max-height: min(44vh, 430px);
+    flex-direction: column;
+    gap: 9px;
+    margin-top: 11px;
+    overflow: auto;
+    padding: 11px;
+    border: 1px solid rgba(34, 211, 238, 0.12);
+    border-radius: 12px;
+    background: rgba(2, 8, 13, 0.72);
+    overscroll-behavior: contain;
+}
+
+.eveos-tlo-empty {
+    margin: auto;
+    color: rgba(230, 246, 255, 0.42);
+    font-size: 0.68rem;
+    text-align: center;
+}
+
+.eveos-tlo-turn {
+    width: min(86%, 680px);
+    box-sizing: border-box;
+    padding: 9px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.eveos-tlo-turn.is-user {
+    align-self: flex-end;
+    border-color: rgba(34, 211, 238, 0.2);
+    background: rgba(8, 145, 178, 0.12);
+}
+
+.eveos-tlo-turn.is-status {
+    width: 100%;
+    border-color: rgba(251, 113, 133, 0.18);
+    background: rgba(127, 29, 29, 0.12);
+}
+
+.eveos-tlo-turn strong {
+    color: rgba(165, 243, 252, 0.82);
+    font-size: 0.61rem;
+    text-transform: uppercase;
+}
+
+.eveos-tlo-turn p {
+    margin: 5px 0 0;
+    color: rgba(244, 251, 255, 0.9);
+    font: 500 0.72rem/1.55 inherit;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.eveos-tlo-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.eveos-tlo-composer > label {
+    color: rgba(230, 246, 255, 0.58);
+    font-size: 0.63rem;
+    font-weight: 700;
+}
+
+.eveos-tlo-composer textarea {
+    width: 100%;
+    min-height: 70px;
+    max-height: 230px;
+    box-sizing: border-box;
+    resize: vertical;
+    border: 1px solid rgba(34, 211, 238, 0.17);
+    border-radius: 11px;
+    outline: none;
+    background: rgba(3, 10, 16, 0.82);
+    color: #eefbff;
+    font: 500 0.72rem/1.5 inherit;
+    padding: 10px;
+}
+
+.eveos-tlo-composer textarea:focus {
+    border-color: rgba(34, 211, 238, 0.68);
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.1);
+}
+
+.eveos-tlo-composer textarea:disabled {
+    opacity: 0.56;
+}
+
+.eveos-tlo-composer > div {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.eveos-tlo-composer > div > span {
+    min-width: 0;
+    flex: 1;
+    color: rgba(230, 246, 255, 0.4);
+    font-size: 0.6rem;
+}
+
+@media (max-width: 620px) {
+    .eveos-tlo-facts {
+        grid-template-columns: 1fr;
+    }
+
+    .eveos-tlo-transcript {
+        min-height: 145px;
+        max-height: 48vh;
+    }
+
+    .eveos-tlo-turn {
+        width: 94%;
+    }
+
+    .eveos-tlo-composer > div {
+        flex-wrap: wrap;
+    }
+}

@@ -15,7 +15,7 @@ MAX_BODY_BYTES = 256 * 1024
 logger = logging.getLogger("EveOSAgentManagement")
 
 
-def _authorize(handler) -> bool:
+def authorize_local_ui(handler) -> bool:
     headers = getattr(handler, "headers", None)
     origin = str(headers.get("Origin", "") if headers else "").strip().lower()
     trusted_origin = (
@@ -55,7 +55,7 @@ def _read_body(handler):
 def handle_get_request(handler, path, query) -> bool:
     if path not in {BASE_PATH, f"{BASE_PATH}/projection"}:
         return False
-    if not _authorize(handler):
+    if not authorize_local_ui(handler):
         return True
     try:
         if path == BASE_PATH:
@@ -78,7 +78,7 @@ def handle_get_request(handler, path, query) -> bool:
 def handle_post_request(handler, path) -> bool:
     if path != f"{BASE_PATH}/save":
         return False
-    if not _authorize(handler):
+    if not authorize_local_ui(handler):
         return True
     payload, error = _read_body(handler)
     if error:

@@ -39,8 +39,8 @@ The POC extension currently requests `<all_urls>`. Public integration must repla
 
 ## Phase plan
 
-1. **Foundation (current):** TLO and Nexus Browser appear as distinct Agent Nexus peers. Agent Management v1 persists atomically at `data/runtime/agent-management/agents.json`, keeps a local backup, validates bounded input, and exposes an allowlisted one-agent/one-scope projection. No runtime auto-start is introduced.
-2. **TLO chat:** load TLO's scoped projection, explicitly connect to an already-running Local MoE Harness, stream/cancel through the existing provider contract, and preserve the no-autostart rule.
+1. **Foundation (complete):** TLO and Nexus Browser appear as distinct Agent Nexus peers. Agent Management v1 persists atomically at `data/runtime/agent-management/agents.json`, keeps a local backup, validates bounded input, and exposes an allowlisted one-agent/one-scope projection. No runtime auto-start is introduced.
+2. **TLO chat (complete):** load only TLO's selected scoped projection, connect to an already-running Local MoE Harness through the EveOS TLO adapter, stream/cancel through the existing provider contract, and preserve the no-autostart rule. The browser owns a bounded in-memory transcript; the Harness compact memory remains only a provider optimization.
 3. **Nexus Browser runtime:** adapt the POC server/Dex/extension into an isolated EveOS-owned service with a registered port, verified process identity, explicit start/stop, and Global Stop participation.
 4. **Scoped bridge:** authorize extension requests by exact room/agent/target and carry only the requested Agent Management projection. Content scripts never receive the full store or filesystem access.
 5. **Qualification:** run deterministic gates, real TLO chat, disposable headed browser round trip, cross-agent isolation, restart persistence, foreign-port safety, and one final uncached repository verification.
@@ -54,6 +54,18 @@ The POC extension currently requests `<all_urls>`. Public integration must repla
 - Projections omit private notes, permissions, provenance, unrelated scopes, and every other agent.
 - Future schema versions must add an explicit idempotent migration and rollback test; unsupported versions fail closed.
 
-## Not complete yet
+## TLO chat boundary
 
-This foundation does not claim that TLO chat or the Nexus Browser runtime is integrated. Headless transport remains unavailable until authenticated sessions, exact-once delivery, and target identity are proven without weakening the headed contract.
+`TLO UI -> /api/eve-state/modular/tlo/chat/stream -> tlo/default projection -> Local MoE /api/chat/stream`
+
+- EveOS assembles the system prompt only from the scoped projection's display name, role, identity, working rules, allowed-tool capability context, scope instructions, scope context, and scope tools.
+- Private notes, permissions, provenance, other scopes, and other agents never enter the TLO adapter payload.
+- An empty TLO `modelId` uses the running Harness selection. A configured ID must exist in the trusted Harness registry and already be active; TLO never accepts model paths, launch flags, or silent model switches.
+- The browser transcript is private and page-local. Clear/new conversation resets it without changing Agent Management. Transcript persistence is deliberately deferred until a distinct local conversation owner is justified.
+- Opening TLO performs only passive status reads. Start, stop, setup, and model switching remain in the generic Local MoE surface.
+
+## Phase 2 qualification
+
+Phase 2 completed its native-Windows qualification on 2026-09-20 with the trusted `bonsai2-27b-ptq1` registry model. The stopped surface remained navigable and did not start Local MoE. After an explicit start, TLO streamed a first turn, recalled a unique token on the second turn, cancelled an in-flight long response, and returned to an idle request count without spawning duplicate Harness or model processes. Local MoE then stopped cleanly, and the ignored Agent Management TLO profile survived the EveOS web-server restart while its scoped projection continued to exclude private fields.
+
+The Nexus Browser runtime remains untouched for Phase 3. Headless transport remains unavailable until authenticated sessions, exact-once delivery, and target identity are proven without weakening the headed contract.

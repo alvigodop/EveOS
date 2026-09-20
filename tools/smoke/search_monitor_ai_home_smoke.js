@@ -6,6 +6,7 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const tloChatPath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'tloChat.js');
 const agentNexusPath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'agentNexus.js');
 const aiHomePath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'searchMonitorAiHome.js');
 const initPath = path.join(ROOT, 'js', 'modules', 'gemini', 'gemini-init.js');
@@ -17,6 +18,7 @@ const manifestPath = path.join(ROOT, 'js', 'config', 'manifest', 'scripts.parts'
 const viewportCssPath = path.join(
     ROOT, 'css', 'modules', 'gemini', 'gemini_link_surfaces.viewport.css'
 );
+const tloChatSource = fs.readFileSync(tloChatPath, 'utf8');
 const agentNexusSource = fs.readFileSync(agentNexusPath, 'utf8');
 const source = fs.readFileSync(aiHomePath, 'utf8');
 const initSource = fs.readFileSync(initPath, 'utf8');
@@ -51,9 +53,11 @@ const windowMock = {
         }
     }
 };
-vm.runInNewContext(agentNexusSource, {
+const sharedContext = {
     window: windowMock, console, setTimeout, clearTimeout, AbortController, URLSearchParams
-}, { filename: agentNexusPath });
+};
+vm.runInNewContext(tloChatSource, sharedContext, { filename: tloChatPath });
+vm.runInNewContext(agentNexusSource, sharedContext, { filename: agentNexusPath });
 vm.runInNewContext(source, { window: windowMock, console, setTimeout, clearTimeout }, { filename: aiHomePath });
 
 function assert(condition, message) {
@@ -75,7 +79,7 @@ function assert(condition, message) {
         'Agent Nexus is missing the private Agent Management surface');
     assert(agentNexusSource.includes('/api/eve-state/modular/agent-management'),
         'Agent Nexus is not wired to versioned local Agent Management');
-    assert(!agentNexusSource.includes('/api/local-moe/start'),
+    assert(!agentNexusSource.includes('/api/local-moe/start') && !tloChatSource.includes('/api/local-moe/start'),
         'Opening Agent Nexus can start Local MoE instead of remaining passive');
     assert(!/<details[^>]+data-ai-provider="(?:gemini|local-moe|agents)"[^>]*\sopen(?:\s|>)/.test(markup),
         'A provider is expanded by default');
@@ -93,7 +97,8 @@ function assert(condition, message) {
         'Opening Workspace still boots Gemini before its provider is opened');
     assert(loaderSource.includes("getElementById('gemini-provider-runtime-host')"),
         'Gemini full UI is not scoped to its provider body');
-    assert(manifestSource.indexOf('agentNexus.js') < manifestSource.indexOf('searchMonitorAiHome.js')
+    assert(manifestSource.indexOf('tloChat.js') < manifestSource.indexOf('agentNexus.js')
+        && manifestSource.indexOf('agentNexus.js') < manifestSource.indexOf('searchMonitorAiHome.js')
         && manifestSource.indexOf('searchMonitorAiHome.js') < manifestSource.indexOf('gemini-init.js'),
         'Agent Nexus and AI Home modules are not registered in dependency order');
     assert(

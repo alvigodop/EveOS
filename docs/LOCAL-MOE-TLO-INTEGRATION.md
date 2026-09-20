@@ -17,7 +17,7 @@ Local MoE Harness owns the reusable inference engine: FreeToken integration and 
 
 EveOS owns the integration contract: canonical ports, lifecycle and foreign-port safety, terminal preference, Search Monitor presentation, stopped/degraded states, shared verification policy, and future provider routing.
 
-Agent Nexus owns agent presentation. Its initial TLO entry is only a Phase 1 placeholder. TLO identity, durable conversations/memory, tool permissions, and autonomous behavior belong to the next dedicated phase above the generic provider. They must not be added to FreeToken or the generic harness.
+Agent Nexus owns agent presentation. TLO identity, scoped rules/context, and provider binding come from Agent Management and are enforced by the thin EveOS TLO adapter. They must not be added to FreeToken or the generic Harness.
 
 ## Merger contract
 
@@ -36,7 +36,16 @@ Opening Search Monitor or expanding Local MoE Harness must never start a model. 
 
 The stopped UI remains usable and reports setup, selected-model, Harness, and FreeToken state when available. While the owned Harness is online, its model selector and chat workspace are embedded directly in the expanded Local MoE provider. The iframe is unloaded on Stop, stays isolated from EveOS state, and reuses the Harness-owned UI rather than duplicating inference behavior in the shell. The standalone harness URL remains available for low-level infrastructure work, while EveOS provides the primary lifecycle shell.
 
-Search Monitor's AI Home keeps the Assistant compact by default and exposes Gemini Link, Local MoE, and Agent Nexus as independent collapsed providers. Opening Gemini preserves the existing Gemini workspace on demand. Opening Local MoE performs only a passive status read; its model starts only from the explicit Start control. Agent Nexus contains a Phase 1 TLO placeholder and no hidden agent runtime.
+Search Monitor's AI Home keeps the Assistant compact by default and exposes Gemini Link, Local MoE, and Agent Nexus as independent collapsed providers. Opening Gemini preserves the existing Gemini workspace on demand. Opening Local MoE performs only a passive status read; its model starts only from the explicit Start control. Opening Agent Nexus or TLO also performs only passive status reads. TLO Chat talks through `/api/eve-state/modular/tlo/chat/stream`; it never owns or starts the Harness runtime.
+
+## TLO conversation and context ownership
+
+- Agent Management owns TLO's durable definition. The adapter requests exactly one `tlo` projection and one selected scope, initially `default`.
+- The TLO browser surface owns a bounded in-memory transcript and sends at most 40 prior user/assistant messages for continuity. Clear/new conversation resets only this page-local state.
+- Harness compact memory stays an in-process provider optimization and never becomes TLO identity or Agent Management data.
+- The EveOS adapter constructs the system prompt from allowlisted projection fields. Private notes, permissions, provenance, unrelated scopes, and other agents are structurally absent.
+- Empty `providerBinding.modelId` means the current Harness selection. Explicit IDs must be trusted registry entries and already active; model switching remains an explicit Harness action.
+- Cancellation aborts the browser stream and closes the one matching upstream Harness request. One user submission creates only one generation request.
 
 ## Ports and local state
 
@@ -68,6 +77,8 @@ Use the smallest relevant check first:
 
 The imported Harness contains tests for both native Windows and Linux/WSL plus source-contract tests that require its ignored `runtime/freetoken` checkout. Whole-directory test discovery is therefore not a portable EveOS gate. Run the applicable upstream component tests when changing Harness internals; use the EveOS merger smoke for the shared boundary, and use explicit native runtime qualification for model/GPU behavior.
 
-Real runtime qualification additionally verifies explicit startup, verified ownership, stopped/degraded UI, model selection, streaming/cancellation through the generic Harness, and clean shutdown. Phase 1 does not claim persistent TLO continuity; that contract begins when the TLO Bridge is implemented in Phase 2.
+Real runtime qualification additionally verifies explicit startup, verified ownership, stopped/degraded UI, model selection, streaming/cancellation through the generic Harness, and clean shutdown. TLO continuity begins at the EveOS adapter in Phase 2: the browser resends its bounded page-local transcript while the adapter injects only the selected Agent Management projection.
 
 The native-Windows qualification pass on 2026-09-19 booted the Harness from EveOS and completed real `MODEL_OK` chat responses with all four installed catalog entries: Qwen3.6 NVFP4, Qwen3 Coder FP8, GPT-OSS 20B MXFP4, and Gemma 4 Q4_0 GGUF. GPT-OSS uses a bounded 1K eager profile on the 6 GB RTX 4050 so its minimum MoE and KV cache plan fits while EveOS remains active. Failed model transitions retain the previously working model, and the final gate returns the Harness to the default Qwen3.6 profile before clean shutdown.
+
+The Phase 2 qualification pass on 2026-09-20 used the trusted `bonsai2-27b-ptq1` entry through the complete TLO route. It proved ordered streaming, a unique-token second-turn recall, in-flight cancellation, zero remaining active requests, unchanged managed-process identity across turns, clean Local MoE shutdown, and Agent Management persistence across an EveOS restart. The stopped view remained usable with Send disabled and did not auto-start either runtime.

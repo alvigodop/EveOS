@@ -10,6 +10,10 @@ from server_modules.agent_management_api import (
     handle_get_request as _handle_agent_management_get,
     handle_post_request as _handle_agent_management_post,
 )
+from server_modules.tlo_chat import (
+    handle_get_request as _handle_tlo_get,
+    handle_post_request as _handle_tlo_post,
+)
 from server_modules.eve_state_store_backup import (
     read_state_from_root as _read_state_from_root_backup,
     write_card_layer_backup_to_root as _write_card_layer_backup_to_root_backup,
@@ -414,6 +418,8 @@ def _build_api_deps():
 
 
 def handle_get_request(handler, path, query):
+    if _handle_tlo_get(handler, path, query):
+        return True
     if _handle_agent_management_get(handler, path, query):
         return True
     if path == "/api/eve-state/modular/progress":
@@ -423,6 +429,8 @@ def handle_get_request(handler, path, query):
 
 
 def handle_post_request(handler, path):
+    if _handle_tlo_post(handler, path):
+        return True
     if _handle_agent_management_post(handler, path):
         return True
     with _STATE_LOCK:
