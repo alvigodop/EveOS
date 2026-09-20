@@ -4,7 +4,8 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Gemini Integration
-    "js/modules/gemini/search_monitor/searchMonitorAiHome.js?v=6dafd7a16080",
+    "js/modules/gemini/search_monitor/agentNexus.js?v=43b30a8c844d",
+    "js/modules/gemini/search_monitor/searchMonitorAiHome.js?v=d54619d19ac9",
     "js/modules/gemini/gemini-init.js?v=13239e4da41e",
     "js/modules/gemini/server_control/geminiServerNetwork.js?v=9edb7c790707",
     "js/modules/gemini/server_control/eveosControlPlane.js?v=7ca8a4a236bf",

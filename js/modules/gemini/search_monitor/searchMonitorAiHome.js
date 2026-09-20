@@ -19,6 +19,8 @@
     let onGeminiOpen = null;
 
     function markup() {
+        const agentNexusMarkup = window.EveOSAgentNexus?.markup?.()
+            || '<p class="eveos-ai-provider-message">Agent Nexus module is unavailable.</p>';
         return `
             <div class="gemini-monitor-shell-toolbar">
                 <div class="gemini-monitor-shell-copy">
@@ -148,17 +150,13 @@
                         <span class="eveos-ai-provider-icon eveos-ai-provider-icon--agent">A</span>
                         <span class="eveos-ai-provider-heading">
                             <strong>Agent Nexus</strong>
-                            <small>Independent EveOS agents and their provider assignments</small>
+                            <small>TLO, Nexus Browser, and private local agent profiles</small>
                         </span>
-                        <span class="eveos-ai-provider-pill">Phase 2</span>
+                        <span class="eveos-ai-provider-pill">Foundation</span>
                         <i class="material-icons eveos-ai-provider-chevron" aria-hidden="true">expand_more</i>
                     </summary>
                     <div class="eveos-ai-provider-body">
-                        <article class="eveos-agent-card" data-agent-id="tlo">
-                            <span class="eveos-agent-avatar">T</span>
-                            <span><strong>TLO</strong><small>Placeholder only · birth, memory, tools, and autonomy arrive in Phase 2.</small></span>
-                            <span class="eveos-ai-provider-pill">Not initialized</span>
-                        </article>
+                        ${agentNexusMarkup}
                     </div>
                 </details>
             </div>
@@ -308,6 +306,7 @@
     function bind(container, options) {
         boundRoot = container;
         onGeminiOpen = options?.onGeminiOpen || null;
+        window.EveOSAgentNexus?.bind?.(container);
         const gemini = container.querySelector('[data-ai-provider="gemini"]');
         const localMoe = container.querySelector('[data-ai-provider="local-moe"]');
         gemini?.addEventListener('toggle', function () {

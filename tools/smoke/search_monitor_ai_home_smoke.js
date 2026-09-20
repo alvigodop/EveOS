@@ -6,6 +6,7 @@ const path = require('path');
 const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
+const agentNexusPath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'agentNexus.js');
 const aiHomePath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'searchMonitorAiHome.js');
 const initPath = path.join(ROOT, 'js', 'modules', 'gemini', 'gemini-init.js');
 const loaderPath = path.join(
@@ -16,6 +17,7 @@ const manifestPath = path.join(ROOT, 'js', 'config', 'manifest', 'scripts.parts'
 const viewportCssPath = path.join(
     ROOT, 'css', 'modules', 'gemini', 'gemini_link_surfaces.viewport.css'
 );
+const agentNexusSource = fs.readFileSync(agentNexusPath, 'utf8');
 const source = fs.readFileSync(aiHomePath, 'utf8');
 const initSource = fs.readFileSync(initPath, 'utf8');
 const loaderSource = fs.readFileSync(loaderPath, 'utf8');
@@ -39,6 +41,7 @@ let localMoeResponse = {
 const windowMock = {
     setTimeout,
     clearTimeout,
+    location: { protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:8765' },
     open() {},
     EveOSLocalControl: {
         baseUrl: () => 'http://127.0.0.1:9082',
@@ -48,6 +51,9 @@ const windowMock = {
         }
     }
 };
+vm.runInNewContext(agentNexusSource, {
+    window: windowMock, console, setTimeout, clearTimeout, AbortController, URLSearchParams
+}, { filename: agentNexusPath });
 vm.runInNewContext(source, { window: windowMock, console, setTimeout, clearTimeout }, { filename: aiHomePath });
 
 function assert(condition, message) {
@@ -63,8 +69,14 @@ function assert(condition, message) {
     }
     assert(markup.includes('Search Monitor Assistant'), 'Compact Search Monitor Assistant was removed');
     assert(markup.includes('data-eveos-control-plane'), 'Top localhost control is missing');
-    assert(markup.includes('data-agent-id="tlo"') && markup.includes('Placeholder only'),
-        'Agent Nexus does not keep TLO as a Phase 2 placeholder');
+    assert(markup.includes('data-agent-id="tlo"') && markup.includes('data-agent-tool-id="nexus-browser"'),
+        'Agent Nexus does not expose TLO and Nexus Browser as distinct peers');
+    assert(markup.includes('data-agent-nexus-view="management"') && markup.includes('Agent Management'),
+        'Agent Nexus is missing the private Agent Management surface');
+    assert(agentNexusSource.includes('/api/eve-state/modular/agent-management'),
+        'Agent Nexus is not wired to versioned local Agent Management');
+    assert(!agentNexusSource.includes('/api/local-moe/start'),
+        'Opening Agent Nexus can start Local MoE instead of remaining passive');
     assert(!/<details[^>]+data-ai-provider="(?:gemini|local-moe|agents)"[^>]*\sopen(?:\s|>)/.test(markup),
         'A provider is expanded by default');
     assert(source.includes('/api/local-moe/start') && source.includes('/api/local-moe/stop'),
@@ -81,8 +93,9 @@ function assert(condition, message) {
         'Opening Workspace still boots Gemini before its provider is opened');
     assert(loaderSource.includes("getElementById('gemini-provider-runtime-host')"),
         'Gemini full UI is not scoped to its provider body');
-    assert(manifestSource.indexOf('searchMonitorAiHome.js') < manifestSource.indexOf('gemini-init.js'),
-        'AI Home module must load before gemini-init');
+    assert(manifestSource.indexOf('agentNexus.js') < manifestSource.indexOf('searchMonitorAiHome.js')
+        && manifestSource.indexOf('searchMonitorAiHome.js') < manifestSource.indexOf('gemini-init.js'),
+        'Agent Nexus and AI Home modules are not registered in dependency order');
     assert(
         /#loadingIndicator:not\(\.compact\):not\(\.wide-mode\):not\(\.fullscreen-mode\)[^{]+\.gemini-monitor-shell-toolbar\s*\{[^}]*flex-direction:\s*column/s
             .test(viewportCssSource),

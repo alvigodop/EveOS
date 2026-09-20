@@ -1,0 +1,206 @@
+.eveos-agent-nexus-intro {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 11px 12px;
+    border: 1px solid rgba(34, 211, 238, 0.14);
+    border-radius: 12px;
+    background: rgba(8, 20, 29, 0.72);
+}
+
+.eveos-agent-nexus-intro strong,
+.eveos-agent-management-head strong {
+    color: #f4fbff;
+    font-size: 0.8rem;
+}
+
+.eveos-agent-nexus-intro span,
+.eveos-agent-management-head small {
+    color: rgba(230, 246, 255, 0.56);
+    font-size: 0.68rem;
+    line-height: 1.45;
+}
+
+.eveos-agent-nexus-nav,
+.eveos-agent-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 11px;
+}
+
+.eveos-agent-nexus-nav button,
+.eveos-agent-tabs button,
+.eveos-agent-nexus-secondary,
+.eveos-agent-management-head button,
+.eveos-agent-form-actions button {
+    appearance: none;
+    border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 999px;
+    background: rgba(8, 19, 28, 0.82);
+    color: rgba(230, 246, 255, 0.72);
+    cursor: pointer;
+    font: 700 0.68rem/1 inherit;
+    padding: 8px 11px;
+}
+
+.eveos-agent-nexus-nav button:hover,
+.eveos-agent-tabs button:hover,
+.eveos-agent-nexus-secondary:hover,
+.eveos-agent-management-head button:hover,
+.eveos-agent-form-actions button:hover,
+.eveos-agent-nexus-nav button.is-active,
+.eveos-agent-tabs button.is-active {
+    border-color: rgba(34, 211, 238, 0.62);
+    background: rgba(8, 145, 178, 0.2);
+    color: #e9fbff;
+}
+
+.eveos-agent-nexus-panel {
+    margin-top: 11px;
+}
+
+.eveos-agent-nexus-panel[hidden] {
+    display: none !important;
+}
+
+.eveos-agent-avatar--browser {
+    background: linear-gradient(145deg, rgba(8, 145, 178, 0.88), rgba(37, 99, 235, 0.7));
+}
+
+.eveos-agent-nexus-facts {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.eveos-agent-nexus-facts > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.eveos-agent-nexus-facts small {
+    color: rgba(230, 246, 255, 0.46);
+    font-size: 0.59rem;
+    text-transform: uppercase;
+}
+
+.eveos-agent-nexus-facts strong {
+    color: rgba(244, 251, 255, 0.86);
+    font-size: 0.68rem;
+}
+
+.eveos-agent-nexus-secondary {
+    margin-top: 8px;
+}
+
+.eveos-agent-management-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.eveos-agent-management-head > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.eveos-agent-management-status {
+    margin: 9px 0 0;
+    color: rgba(230, 246, 255, 0.56);
+    font-size: 0.68rem;
+}
+
+.eveos-agent-management-status[data-state="ok"] {
+    color: rgba(134, 239, 172, 0.82);
+}
+
+.eveos-agent-management-status[data-state="error"] {
+    color: rgba(253, 164, 175, 0.9);
+}
+
+.eveos-agent-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.eveos-agent-form[hidden] {
+    display: none !important;
+}
+
+.eveos-agent-form label {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+    color: rgba(230, 246, 255, 0.62);
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.eveos-agent-form label > small {
+    color: rgba(230, 246, 255, 0.38);
+    font-size: 0.58rem;
+    font-weight: 500;
+}
+
+.eveos-agent-form input,
+.eveos-agent-form textarea,
+.eveos-agent-form select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 1px solid rgba(34, 211, 238, 0.15);
+    border-radius: 9px;
+    outline: none;
+    background: rgba(3, 10, 16, 0.78);
+    color: #eefbff;
+    font: 500 0.7rem/1.45 inherit;
+    padding: 8px 9px;
+    resize: vertical;
+}
+
+.eveos-agent-form input:focus,
+.eveos-agent-form textarea:focus,
+.eveos-agent-form select:focus {
+    border-color: rgba(34, 211, 238, 0.68);
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.1);
+}
+
+.eveos-agent-form .is-wide {
+    grid-column: 1 / -1;
+}
+
+.eveos-agent-form-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.eveos-agent-form-actions span {
+    color: rgba(230, 246, 255, 0.38);
+    font-size: 0.6rem;
+}
+
+@media (max-width: 620px) {
+    .eveos-agent-nexus-facts,
+    .eveos-agent-form {
+        grid-template-columns: 1fr;
+    }
+
+    .eveos-agent-form .is-wide {
+        grid-column: 1;
+    }
+}

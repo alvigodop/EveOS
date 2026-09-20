@@ -1,0 +1,35 @@
+{
+  "schema": "eveos.agent-management",
+  "schemaVersion": 1,
+  "updatedAt": "2026-01-01T00:00:00Z",
+  "agents": [
+    {
+      "id": "example-local-agent",
+      "displayName": "Example Local Agent",
+      "role": "Demonstrates the public Agent Management shape",
+      "identity": "This is fake template data. Replace it only in the ignored local store.",
+      "workingRules": ["Keep private user data out of tracked files."],
+      "providerBinding": {
+        "provider": "local-moe",
+        "modelId": "",
+        "profile": ""
+      },
+      "allowedTools": ["example-tool"],
+      "permissions": [],
+      "privateNotes": ["Fake note for schema demonstration only."],
+      "scopes": [
+        {
+          "id": "default",
+          "label": "Default",
+          "instructions": "Use only this example scope.",
+          "context": ["No real user or agent context belongs in this file."],
+          "allowedTools": ["example-tool"]
+        }
+      ],
+      "provenance": {
+        "source": "local-user",
+        "updatedAt": "2026-01-01T00:00:00Z"
+      }
+    }
+  ]
+}
