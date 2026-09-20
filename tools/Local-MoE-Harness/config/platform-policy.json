@@ -1,7 +1,14 @@
 {
   "schema_version": 1,
   "linux": {
-    "models": {}
+    "models": {
+      "bonsai2-27b-ptq1": {
+        "selectable": false,
+        "validation": "windows_only",
+        "support": "not-provisioned",
+        "note": "The pinned Prism llama.cpp package and launcher integrated by EveOS are Windows CUDA builds. Linux selection stays disabled until an equivalent pinned Linux runtime is provisioned and qualified."
+      }
+    }
   },
   "windows": {
     "models": {
@@ -32,6 +39,12 @@
         "validation": "windows_validated",
         "support": "validated-project-path",
         "note": "Native Windows GGUF inference is hardware-qualified with the tracked prebuilt kernel and compiler-free runtime path."
+      },
+      "bonsai2-27b-ptq1": {
+        "selectable": true,
+        "validation": "windows_validated",
+        "support": "validated-project-path",
+        "note": "Ternary Bonsai 2 27B PTQ1_0 is hardware-qualified on the 6 GB RTX 4050 through the pinned Prism llama.cpp fork. Exact artifact hash, tuned 56-layer/4K CUDA offload, health, identity, chat, SSE streaming, EveOS-owned stop/start, and cross-backend switching to Qwen and back passed."
       }
     }
   }

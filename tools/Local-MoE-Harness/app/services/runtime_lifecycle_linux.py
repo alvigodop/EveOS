@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class RuntimeLifecycle:
-    """Own one local FreeToken process and its selected registry model."""
+    """Own one local OpenAI-compatible runtime and its selected registry model."""
 
     def __init__(
         self,
@@ -111,6 +111,12 @@ class RuntimeLifecycle:
     def active_record(self) -> ModelRecord:
         model_id = self.active_model_id or self.registry.selected_model_id()
         return self.registry.require(model_id)
+
+    def active_runtime_backend(self) -> str:
+        return self.active_record().runtime_backend
+
+    def supports_dynamic_cache(self) -> bool:
+        return self.active_runtime_backend() == "freetoken"
 
     def active_profile(self) -> dict[str, Any]:
         profile_name = self.active_profile_name or "normal"
@@ -278,6 +284,13 @@ class RuntimeLifecycle:
             )
         else:
             environment.pop("LOCAL_MOE_RECOVERY", None)
+        runtime_profiles = record.data.get("runtime_options", {}).get("profiles", {})
+        runtime_profile = runtime_profiles.get(profile_name, {})
+        gpu_layers = runtime_profile.get("gpu_layers")
+        if gpu_layers is None:
+            environment.pop("LOCAL_MOE_GPU_LAYERS", None)
+        else:
+            environment["LOCAL_MOE_GPU_LAYERS"] = str(int(gpu_layers))
         return environment
 
     async def _start_process(
@@ -317,7 +330,7 @@ class RuntimeLifecycle:
             except OSError:
                 pass
             self.last_error = (
-                f"FreeToken exited immediately with code {process.returncode}. "
+                f"Local model runtime exited immediately with code {process.returncode}. "
                 f"Check {self.log_path}."
             )
             self.startup_stage = "failed"
@@ -357,7 +370,7 @@ class RuntimeLifecycle:
         while asyncio.get_running_loop().time() < deadline:
             pid = self._read_pid()
             if not self._pid_alive(pid):
-                self.last_error = "FreeToken process exited before readiness."
+                self.last_error = "Local model runtime exited before readiness."
                 self.startup_stage = "failed"
                 return False
 
@@ -393,7 +406,7 @@ class RuntimeLifecycle:
                             }
                             if record.served_model_name not in ids:
                                 self.last_error = (
-                                    "FreeToken became ready with an unexpected model: "
+                                    "Local runtime became ready with an unexpected model: "
                                     f"expected {record.served_model_name}, got {sorted(ids)}"
                                 )
                                 self.startup_stage = "failed"
@@ -406,7 +419,7 @@ class RuntimeLifecycle:
             await asyncio.sleep(1.0)
 
         self.last_error = (
-            f"FreeToken did not become ready within {int(timeout_seconds)} seconds."
+            f"Local model runtime did not become ready within {int(timeout_seconds)} seconds."
         )
         self.startup_stage = "failed"
         return False
@@ -447,7 +460,7 @@ class RuntimeLifecycle:
                 )
                 self.startup_stage = "ready"
                 return {"health": response.json(), "models": models}
-        self.last_error = f"Ready FreeToken model is outside the registry: {served_ids}"
+        self.last_error = f"Ready local runtime model is outside the registry: {served_ids}"
         return {"health": response.json(), "models": models}
 
     async def _select_profile_name(
@@ -585,7 +598,7 @@ class RuntimeLifecycle:
             return {
                 **local,
                 "started": False,
-                "error": "FreeToken local runtime files are incomplete.",
+                "error": "Local model runtime files are incomplete.",
             }
         return await self.start_model(
             self.registry.selected_model_id(), wait_until_ready=False

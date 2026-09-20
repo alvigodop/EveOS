@@ -29,15 +29,17 @@ from .services.system_metrics import system_snapshot
 
 settings = load_settings()
 model_registry = ModelRegistry(ROOT)
-adapter = FreeTokenAdapter(
-    settings["runtime_base_url"], settings.get("request_timeout_seconds", 300)
-)
 runtime_lifecycle = RuntimeLifecycle(
     ROOT,
     settings["runtime_base_url"],
     settings.get("runtime_model"),
     settings=settings,
     registry=model_registry,
+)
+adapter = FreeTokenAdapter(
+    settings["runtime_base_url"],
+    settings.get("request_timeout_seconds", 300),
+    runtime_provider=runtime_lifecycle.active_runtime_backend,
 )
 gpu_coexistence = GpuCoexistenceManager(
     adapter, settings, runtime_lifecycle=runtime_lifecycle
@@ -157,7 +159,7 @@ async def require_ready_runtime() -> dict:
     raise HTTPException(
         status_code=503,
         detail={
-            "message": f"Local FreeToken model is not ready yet ({phase}).",
+            "message": f"Local model runtime is not ready yet ({phase}).",
             "runtime": runtime,
             "lifecycle": runtime_lifecycle.local_status(),
         },
@@ -170,7 +172,7 @@ def choose_model(req_model: str | None, runtime: dict) -> str:
     if not model:
         raise HTTPException(
             status_code=409,
-            detail="FreeToken is ready but did not report a served model.",
+            detail="The local runtime is ready but did not report a served model.",
         )
     if req_model:
         active_id = runtime_lifecycle.active_model_id or model_registry.selected_model_id()
@@ -187,7 +189,7 @@ def choose_model(req_model: str | None, runtime: dict) -> str:
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    "The requested model is not the active FreeToken model. "
+                    "The requested model is not the active local model. "
                     "Select it through /api/models/select before generation."
                 ),
             )
@@ -437,7 +439,7 @@ async def api_status():
             active_model_id=runtime_lifecycle.active_model_id
         ),
         "settings": {
-            "runtime": settings["runtime"],
+            "runtime": runtime_lifecycle.active_runtime_backend(),
             "runtime_base_url": settings["runtime_base_url"],
             "model_root": settings["model_root"],
             "runtime_autostart": settings.get("runtime_autostart", True),

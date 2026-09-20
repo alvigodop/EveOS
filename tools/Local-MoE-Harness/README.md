@@ -1,6 +1,6 @@
 # Local MoE Harness
 
-A self-contained browser control center for running large local models through FreeToken on either **Linux/WSL2** or **native Windows**.
+A self-contained browser control center for running large local models through trusted OpenAI-compatible backends on either **Linux/WSL2** or **native Windows**. FreeToken remains the primary MoE engine; PrismML's pinned llama.cpp fork serves Bonsai's custom ternary GGUF format.
 
 The harness provides trusted model registration, guarded model switching, GPU-pressure-aware startup profiles, conversation handling, streaming, cancellation, performance telemetry, and a browser UI. Model weights are never downloaded automatically.
 
@@ -31,6 +31,7 @@ Local-MoE-Harness/
   .venv/                 harness Python environment
   .venvs/freetoken/      FreeToken environment
   runtime/freetoken/     pinned Linux/WSL source runtime
+  runtime/prism-llama/   pinned native-Windows Bonsai runtime
   models/                default model-weight location + HF cache
   .cache/                package, engine, compiler and JIT caches
   .tmp/                  temporary workspace
@@ -95,6 +96,7 @@ Current catalog:
 - Qwen3 Coder 30B A3B FP8 — validated coding specialist and selectable on both Linux/WSL and native Windows
 - GPT-OSS 20B — validated Linux/WSL alternate and hardware-qualified native-Windows model using the bounded 1K eager profile on the 6 GB RTX 4050 reference machine
 - Gemma 4 26B A4B Q4_0 GGUF — validated Linux/WSL alternate and hardware-qualified native-Windows GGUF reference model
+- Ternary Bonsai 2 27B PTQ1_0 — hardware-qualified native-Windows alternate using PrismML's pinned custom llama.cpp runtime; 56-layer/4K normal and 32-layer/2K busy profiles
 
 Cold switching requires authoritative `/health` readiness and exact `/v1/models` identity. Failed switches restore the previous usable model. Switching also clears compact in-process conversation memory.
 
@@ -138,4 +140,4 @@ Linux/WSL clean-room installation and the established model lifecycle are valida
 
 ## Third-party software
 
-This harness is MIT licensed. FreeToken is an independent Apache-2.0 project maintained by FlashML. See `THIRD_PARTY_NOTICES.md`.
+This harness is MIT licensed. FreeToken and PrismML's Bonsai/runtime projects are independent upstream projects. See `THIRD_PARTY_NOTICES.md`.

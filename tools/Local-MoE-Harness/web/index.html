@@ -14,7 +14,7 @@
         <div class="hero-copy">
           <p class="eyebrow">LOCAL INFERENCE LAB</p>
           <h1>Local MoE Harness</h1>
-          <p class="sub">Chat, probe and benchmark a self-contained local FreeToken runtime on Linux/WSL or native Windows.</p>
+          <p class="sub">Chat, probe and benchmark self-contained local model runtimes on Linux/WSL or native Windows.</p>
         </div>
         <div id="runtime-pill" class="pill">Checking runtime…</div>
       </div>
@@ -38,7 +38,7 @@
     </section>
 
     <section class="model-manager" aria-label="Local model selection">
-      <div class="model-manager-summary"><div><span class="label">MODEL</span><strong id="selected-model-name">Loading model registry…</strong><p id="selected-model-note">Model changes use a controlled FreeToken restart.</p></div><button type="button" id="change-model">Change model</button></div>
+      <div class="model-manager-summary"><div><span class="label">MODEL</span><strong id="selected-model-name">Loading model registry…</strong><p id="selected-model-note">Model changes use a controlled local-runtime restart.</p></div><button type="button" id="change-model">Change model</button></div>
       <div id="model-panel" class="model-panel hidden">
         <div class="model-panel-head"><div><strong>Local model library</strong><p>Switching starts a fresh conversation. Available checkpoints are never downloaded automatically.</p></div><button type="button" id="close-model-panel">Close</button></div>
         <div id="model-switch-progress" class="model-switch-progress hidden" role="status"></div>
@@ -62,7 +62,7 @@
         <div><span>Runtime filesystem</span><strong id="wsl-virtual-disk">—</strong></div>
         <div><span>Virtual-disk detail</span><strong id="wsl-vhdx-size">—</strong></div>
         <div><span>RAM available</span><strong id="wsl-ram-available">—</strong></div>
-        <div><span>FreeToken RSS / PSS</span><strong id="freetoken-memory">—</strong></div>
+        <div><span>Runtime RSS / PSS</span><strong id="freetoken-memory">—</strong></div>
         <div><span>Context margin</span><strong id="context-margin">—</strong></div>
         <div><span>Raw history limit</span><strong id="history-limit">—</strong></div>
         <div><span>Compact memory</span><strong id="memory-limit">—</strong></div>
@@ -79,7 +79,7 @@
     </section>
   </main>
   <script src="/static/model-ui.js?v=20260910.2"></script>
-  <script src="/static/app.js?v=20260910.1"></script>
+  <script src="/static/app.js?v=20260919.1"></script>
   <script src="/static/model-location-ui.js?v=20260910.2"></script>
 </body>
 </html>

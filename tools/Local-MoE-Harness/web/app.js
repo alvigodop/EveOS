@@ -74,7 +74,7 @@ function renderModelRegistry() {
     'selected-model-note',
     active
       ? `${modelUi.availabilityLabel(active)} · ${modelUi.validationLabel(active.validation)} · ${active.kind.toUpperCase()} · ${active.quantization}`
-      : 'Model changes use a controlled FreeToken restart.'
+      : 'Model changes use a controlled local-runtime restart.'
   );
 
   const progress = $('model-switch-progress');
@@ -128,8 +128,8 @@ async function switchModel(model) {
   if (modelSwitchInProgress || currentAbortCtrl) return;
   const hasConversation = conversationHistory.length > 0 || $('chat').childElementCount > 0;
   const warning = hasConversation
-    ? `Switch to ${model.display_name}? This restarts FreeToken and clears the current conversation.`
-    : `Switch to ${model.display_name}? This restarts the local FreeToken runtime.`;
+    ? `Switch to ${model.display_name}? This restarts the local runtime and clears the current conversation.`
+    : `Switch to ${model.display_name}? This restarts the local model runtime.`;
   if (!window.confirm(warning)) return;
 
   modelSwitchInProgress = true;
@@ -350,6 +350,7 @@ async function refreshStatus() {
       if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
       const runtime = data.runtime || {};
       const lifecycle = data.runtime_lifecycle || {};
+      const runtimeLabel = runtime.runtime === 'prism-llama' ? 'Prism llama' : 'FreeToken';
       modelCatalog = Array.isArray(data.model_registry) ? data.model_registry : [];
       modelSwitchState = data.model_switch || {status: 'idle', stage: 'idle'};
       modelSwitchInProgress = modelSwitchState.status === 'switching' || Boolean(data.gpu_coexistence?.model_switching);
@@ -383,13 +384,13 @@ async function refreshStatus() {
         pill.classList.add('down');
         scheduleStatusPoll(1200);
       } else if (runtimeReady) {
-        pill.textContent = 'FreeToken ready';
+        pill.textContent = `${runtimeLabel} ready`;
         pill.classList.add('ready');
         if (startBtn) startBtn.classList.add('hidden');
         scheduleStatusPoll(8000);
       } else if (runtime.health_status === 'loading' || lifecycle.managed_running) {
         const phase = runtime.phase && runtime.phase !== 'unknown' ? ` · ${runtime.phase}` : '';
-        pill.textContent = `FreeToken loading${phase}`;
+        pill.textContent = `${runtimeLabel} loading${phase}`;
         pill.classList.add('down');
         if (startBtn) {
           startBtn.classList.remove('hidden');
@@ -398,7 +399,7 @@ async function refreshStatus() {
         }
         scheduleStatusPoll(3000);
       } else {
-        pill.textContent = runtime.reachable ? 'FreeToken not ready' : 'FreeToken offline';
+        pill.textContent = runtime.reachable ? `${runtimeLabel} not ready` : `${runtimeLabel} offline`;
         pill.classList.add('down');
         if (startBtn) {
           startBtn.classList.remove('hidden');
@@ -813,7 +814,7 @@ $('chat-form').addEventListener('submit', async (e) => {
   const text = $('prompt').value.trim();
   if (!text) return;
   if (!runtimeReady && !(await refreshStatus())) {
-    addMessage('assistant', 'The local model is not ready yet. Start it if needed and wait for “FreeToken ready” before sending.');
+    addMessage('assistant', 'The local model is not ready yet. Start it if needed and wait for the runtime-ready status before sending.');
     return;
   }
 

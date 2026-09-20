@@ -39,6 +39,8 @@ Keep performance-sensitive model weights on a filesystem that is native to the p
 
 When choosing a cross-OS or removable location, validate the exact setup with a real model startup and a short generation/benchmark before deleting the previous copy. If capacity matters more than startup/I/O speed, a slower external location can still be a useful tradeoff.
 
+On native Windows, the trusted installer stages downloads on local NTFS before copying to a WSL-backed or other external model location. This avoids unsupported Windows file locks on `\\wsl.localhost` while keeping the final checkpoint only at the configured location; the staging directory is removed after validation.
+
 ## Removable/offline models
 
 A linked path does not have to remain online permanently. If an external drive is disconnected, the Harness remembers the path but marks the model unavailable/not installed. Reconnect the drive and refresh the model panel before switching to it.
@@ -49,7 +51,7 @@ The Harness does not silently copy model weights back into its own directory.
 
 Filesystem-location editing is allowed only from a loopback/local browser session. Remote clients do not receive the absolute model paths through `/api/models` and cannot change the model-location state.
 
-If the model is currently running under the Harness-managed FreeToken runtime, use **Stop local model** in the storage section before changing that model's path. This stops only the managed model process; the Harness web UI remains available so the location can be changed and the model restarted afterward.
+If the model is currently running under a Harness-managed runtime, use **Stop local model** in the storage section before changing that model's path. This stops only the managed model process; the Harness web UI remains available so the location can be changed and the model restarted afterward.
 
 ## Moving an existing model safely
 

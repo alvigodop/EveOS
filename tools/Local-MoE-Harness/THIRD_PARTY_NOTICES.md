@@ -13,6 +13,12 @@ Local MoE Harness uses FreeToken as its inference runtime.
 
 FreeToken is maintained independently by FlashML; this harness is not an official FlashML product.
 
+## PrismML Bonsai and llama.cpp fork
+
+The optional Bonsai backend downloads hash-pinned native-Windows release archives from PrismML's custom `llama.cpp` fork. That fork is required for Bonsai's PTQ1_0/PQ2_0 tensors and activation transform; stock llama.cpp is not substituted. Runtime archives, release tag, upstream demo commit, and SHA-256 values are declared in `config/windows-runtime.json`.
+
+Model weights are fetched separately from `prism-ml/Ternary-Bonsai-2-27B-gguf` at the immutable revision recorded in `config/models.json`. PrismML and llama.cpp are maintained independently; this harness is not an official PrismML or llama.cpp product.
+
 ## uv
 
 Native-Windows setup bootstraps the official uv x64 Windows archive into `tools/uv` and verifies the pinned SHA-256 before use. uv is maintained by Astral.

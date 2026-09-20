@@ -11,7 +11,7 @@ from .runtime_lifecycle_linux import RuntimeLifecycle as LinuxRuntimeLifecycle
 
 
 class RuntimeLifecycle(LinuxRuntimeLifecycle):
-    """Native-Windows FreeToken lifecycle using only project-local runtime files."""
+    """Native-Windows lifecycle for project-local model runtimes."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -19,6 +19,8 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         self.venv = self.root / ".venvs" / "freetoken"
         self.ft_python = self.venv / "Scripts" / "python.exe"
         self.runtime_dir = self.root / "runtime" / "freetoken"
+        self.prism_script = self.root / "scripts" / "run-prism-llama-windows.ps1"
+        self.prism_runtime_dir = self.root / "runtime" / "prism-llama" / "windows-cuda"
 
     @staticmethod
     def _pid_alive(pid: int | None) -> bool:
@@ -38,6 +40,8 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         root = str(self.root).lower()
         return root in command and (
             "run-freetoken-windows.ps1" in command
+            or "run-prism-llama-windows.ps1" in command
+            or "llama-server.exe" in command
             or (
                 str(self.ft_python).lower() in command
                 and "freetoken.cli" in command
@@ -56,10 +60,17 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             pid = None
 
         missing: list[str] = []
-        if not self.script.is_file():
-            missing.append(str(self.script))
-        if not self.ft_python.is_file():
-            missing.append(str(self.ft_python))
+        backend = self.active_runtime_backend()
+        if backend == "prism-llama":
+            if not self.prism_script.is_file():
+                missing.append(str(self.prism_script))
+            if not any(self.prism_runtime_dir.rglob("llama-server.exe")):
+                missing.append(str(self.prism_runtime_dir / "llama-server.exe"))
+        else:
+            if not self.script.is_file():
+                missing.append(str(self.script))
+            if not self.ft_python.is_file():
+                missing.append(str(self.ft_python))
 
         return {
             "managed_pid": pid,
@@ -73,6 +84,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             "startup_stage": self.startup_stage,
             "last_error": self.last_error,
             "platform_runtime": "native-windows",
+            "runtime_backend": backend,
         }
 
     async def stop_managed(self) -> None:
@@ -82,7 +94,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             if not self._pid_is_managed_runtime(pid):
                 self.last_error = (
                     f"Refusing to stop PID {pid}: it is not this harness's "
-                    "project-local FreeToken process."
+                    "project-local model runtime."
                 )
                 try:
                     self.pid_path.unlink()
@@ -114,6 +126,22 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         self.startup_stage = "stopped"
 
     def _process_args(self, record: ModelRecord) -> list[str]:
+        if record.runtime_backend == "prism-llama":
+            return [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(self.prism_script),
+                "-ModelPath",
+                str(record.runtime_path),
+                "-Port",
+                str(self.port),
+                "-ServedModelName",
+                record.served_model_name,
+            ]
         return [
             "powershell.exe",
             "-NoProfile",
@@ -166,7 +194,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             except OSError:
                 pass
             self.last_error = (
-                f"FreeToken exited immediately with code {process.returncode}. "
+                f"Local model runtime exited immediately with code {process.returncode}. "
                 f"Check {self.log_path}."
             )
             self.startup_stage = "failed"
@@ -190,7 +218,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         self.active_profile_name = None
         self.startup_stage = "blocked_external_runtime"
         self.last_error = (
-            f"A FreeToken server is already reachable on port {self.port}, but it "
+            f"A model server is already reachable on port {self.port}, but it "
             "was not launched from this tool folder. Self-contained mode refuses "
             "to adopt external runtimes."
         )

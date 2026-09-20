@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import AsyncIterator
+from typing import AsyncIterator, Callable
 
 import httpx
 
@@ -9,9 +9,17 @@ from .base import RuntimeAdapter
 
 
 class FreeTokenAdapter(RuntimeAdapter):
-    def __init__(self, base_url: str, timeout: float = 300.0):
+    """Adapter for FreeToken and compatible llama.cpp HTTP endpoints."""
+
+    def __init__(
+        self,
+        base_url: str,
+        timeout: float = 300.0,
+        runtime_provider: Callable[[], str] | None = None,
+    ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.runtime_provider = runtime_provider
 
     async def status(self) -> dict:
         """Report FreeToken reachability, loading state, readiness, and models.
@@ -49,7 +57,7 @@ class FreeTokenAdapter(RuntimeAdapter):
         result = {
             "ready": health_status == "ok",
             "reachable": reachable,
-            "runtime": "freetoken",
+            "runtime": self.runtime_provider() if self.runtime_provider else "freetoken",
             "base_url": self.base_url,
             "latency_ms": latency_ms,
             "health_status": health_status or ("unknown" if reachable else "offline"),
@@ -66,7 +74,7 @@ class FreeTokenAdapter(RuntimeAdapter):
         if models_error:
             result["models_error"] = models_error
         if not reachable:
-            result["error"] = health_error or models_error or "FreeToken is unreachable."
+            result["error"] = health_error or models_error or "Local model runtime is unreachable."
 
         return result
 

@@ -2,12 +2,12 @@
 
 ## Lifecycle contract
 
-FreeToken serves one model per `ft serve` process. The harness therefore treats model replacement as a cold lifecycle operation:
+Each supported backend serves one model per managed process. The harness therefore treats model replacement as a cold lifecycle operation:
 
 1. exclude new generation and refuse a switch while a request is active;
-2. stop only the harness-owned FreeToken process group;
+2. stop only the harness-owned runtime process group;
 3. resolve the selected registry ID to a trusted local path and model-specific profile;
-4. start FreeToken and wait for authoritative `GET /health` readiness;
+4. start the model's registry-approved backend and wait for authoritative `GET /health` readiness;
 5. require `/v1/models` to return the configured served-model identity;
 6. persist the new local selection and clear incompatible conversation memory;
 7. restore the previous installed model, then default Qwen, if any target check fails.
@@ -49,6 +49,13 @@ Pinned FreeToken `0ab982f...` supported the Qwen3-MoE architecture but its older
 | `Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8` | Qwen3 MoE, block FP8 | 31,195,082,196 bytes selected root files | `fi` attention + offload `fp8_block` experts | Validated selectable coding specialist | Second and final Qwen slot. Passed exact block-FP8 hardware canaries, near-4K context, streaming, tool calls, cancellation, debugging, multi-file reasoning, and iterative correction. |
 | `openai/gpt-oss-20b` | MoE, MXFP4 | 13.79 GB selected root files | hybrid | Validated alternate | Passed identity, generation, streaming, 3,690-token context, UI, persistence, cancellation, and return-to-Qwen gates. Harmony remains FreeToken-owned. |
 | `google/gemma-4-26B-A4B-it-qat-q4_0-gguf` | MoE, QAT Q4_0 GGUF | 14,439,363,584 bytes | offload | Validated alternate | Official Google text checkpoint passed 2K canary, normal 4K, streaming, context, cold switching, identity, and return-to-Qwen gates. |
+| `prism-ml/Ternary-Bonsai-2-27B-gguf` | Dense Qwen3.5-derived ternary, PTQ1_0 GGUF | 5,946,648,928 bytes | Prism llama.cpp CUDA/CPU split | Windows-validated alternate | Requires PrismML's custom kernels. Passed immutable hash, 4K startup, identity, chat, SSE, owned stop/start, and Bonsai → Qwen → Bonsai switching. |
+
+### Bonsai 2 validation
+
+The text-only PTQ1_0 pack is pinned at Hugging Face revision `6ed5e12bf84b7a63069882c91dd9e9218647d17b`; its GGUF SHA-256 is `53107f530aa52eb00912263ab1ee29bd199261c87cd7b4ad4ca1318c1fe33ee3`. It is intentionally served by PrismML's pinned `prism-b10709-9a9394a` llama.cpp release because stock llama.cpp does not implement the required PTQ1_0/PQ2_0 tensors and Hadamard activation transform.
+
+On the 6 GB RTX 4050 reference machine, the final normal profile offloads 56 layers with a 4K context, uses about 5,337/6,141 MiB VRAM at idle, and completed the exact-answer canary in 15.01 seconds at 2.40 prompt tok/s and 2.09 decode tok/s. This is roughly 2.8x the decode rate of the initial safe 40-layer profile. The busy profile remains a conservative 32-layer/2K split, and recovery is CPU-only. `default_reasoning_effort` is `none` so ordinary Harness chat does not spend its output budget on hidden reasoning. Prism llama does not expose FreeToken's live MoE cache API, so coexistence telemetry stays active while cache resize transitions are capability-disabled.
 
 The active registry intentionally contains only validated models and candidates that are still actionable. Conclusively rejected hardware experiments are documented below rather than retained as permanent UI cards.
 

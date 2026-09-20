@@ -72,6 +72,18 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         args = self.lifecycle._process_args(record)
         self.assertEqual(self._model_argument(args), str(record.local_path))
 
+    def test_bonsai_uses_prism_backend_and_profile_offload(self):
+        record = self.registry.require("bonsai2-27b-ptq1")
+        args = self.lifecycle._process_args(record)
+        environment = self.lifecycle._profile_environment(record, "normal")
+        self.assertIn("run-prism-llama-windows.ps1", " ".join(args))
+        self.assertEqual(self._model_argument(args), str(record.runtime_path))
+        self.assertEqual(args[args.index("-ServedModelName") + 1], record.served_model_name)
+        self.assertEqual(environment["LOCAL_MOE_GPU_LAYERS"], "56")
+        self.lifecycle.active_model_id = record.id
+        self.assertEqual(self.lifecycle.active_runtime_backend(), "prism-llama")
+        self.assertFalse(self.lifecycle.supports_dynamic_cache())
+
     async def test_fast8k_launcher_request_maps_to_busy_qwen_profile(self):
         record = self.registry.require("qwen36-nvfp4")
         self.lifecycle.preflight_gpu_check = AsyncMock(return_value=(False, {}))

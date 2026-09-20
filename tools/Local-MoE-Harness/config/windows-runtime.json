@@ -21,5 +21,22 @@
         "scope": "python/freetoken/models/qwen3_moe/"
       }
     ]
+  },
+  "prism_llama": {
+    "release_tag": "prism-b10709-9a9394a",
+    "demo_commit": "17b143e889a45c090816b520e79a50c996164e1f",
+    "variant": "win-cuda-13.3-x64",
+    "archives": [
+      {
+        "filename": "llama-prism-b10709-9a9394a-bin-win-cuda-13.3-x64.zip",
+        "url": "https://github.com/PrismML-Eng/llama.cpp/releases/download/prism-b10709-9a9394a/llama-prism-b10709-9a9394a-bin-win-cuda-13.3-x64.zip",
+        "sha256": "d656f217172c489706df40951e46bef647eb1a81eb8eeb1398c8f38bd7fa9725"
+      },
+      {
+        "filename": "cudart-llama-bin-win-cuda-13.3-x64.zip",
+        "url": "https://github.com/PrismML-Eng/llama.cpp/releases/download/prism-b10709-9a9394a/cudart-llama-bin-win-cuda-13.3-x64.zip",
+        "sha256": "1462a050eb4c684921ba51dcc4cc488a036674c3e73e9945ee705b854808d03e"
+      }
+    ]
   }
 }

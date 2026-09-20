@@ -122,7 +122,8 @@ function assert(condition, message) {
         url: 'http://127.0.0.1:5180/'
     };
     await api.refreshLocalMoe();
-    assert(inlineHost.hidden === false && inlineFrame.src === localMoeResponse.url,
+    assert(inlineHost.hidden === false && inlineFrame.src.startsWith(localMoeResponse.url)
+        && inlineFrame.src.includes('eveos_embed='),
         'Running Local MoE did not mount its inline Harness workspace');
     localMoeResponse = { ...localMoeResponse, running: false, state: 'stopped', runtimeReady: false };
     await api.refreshLocalMoe();

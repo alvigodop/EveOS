@@ -137,6 +137,40 @@
         "busy": {"label": "Gemma Q4_0 Busy 2K", "kv_tokens": 2048, "prefill_tokens": 512, "d2d": 0, "memory_ratio": 0.82, "graph": 0, "moe_slots": null, "startup_timeout": 360, "request_timeout": 1200},
         "recovery": {"label": "Gemma Q4_0 Recovery 2K", "kv_tokens": 2048, "prefill_tokens": 512, "d2d": 0, "memory_ratio": 0.82, "graph": 0, "moe_slots": null, "startup_timeout": 360, "request_timeout": 1200}
       }
+    },
+    {
+      "id": "bonsai2-27b-ptq1",
+      "display_name": "Ternary Bonsai 2 27B PTQ1_0",
+      "hf_repo": "prism-ml/Ternary-Bonsai-2-27B-gguf",
+      "revision": "6ed5e12bf84b7a63069882c91dd9e9218647d17b",
+      "served_model_name": "prism-ml/Ternary-Bonsai-2-27B-gguf",
+      "local_path": "models/gguf/prism-ml--Ternary-Bonsai-2-27B-gguf",
+      "serve_file": "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+      "runtime_backend": "prism-llama",
+      "architecture": "Qwen3_5ForConditionalGeneration",
+      "kind": "dense",
+      "quantization": "PTQ1_0 ternary GGUF",
+      "validation": "candidate",
+      "selectable": true,
+      "download": {
+        "expected_bytes": 5946648928,
+        "files": ["Ternary-Bonsai-2-27B-PTQ1_0.gguf"]
+      },
+      "required_files": ["Ternary-Bonsai-2-27B-PTQ1_0.gguf"],
+      "notes": "Windows-validated text-only model using PrismML's custom llama.cpp fork. PTQ1_0 is preferred for this Ada 6 GB GPU; the tuned 56-layer/4K profile reaches about 2.1 decode tok/s, with safer 32-layer/2K and CPU recovery profiles for GPU pressure.",
+      "default_reasoning_effort": "none",
+      "runtime_options": {
+        "profiles": {
+          "normal": {"gpu_layers": 56},
+          "busy": {"gpu_layers": 32},
+          "recovery": {"gpu_layers": 0}
+        }
+      },
+      "profiles": {
+        "normal": {"label": "Bonsai Hybrid 4K", "kv_tokens": 4096, "prefill_tokens": 1024, "d2d": 0, "memory_ratio": 0.80, "graph": 0, "moe_slots": null, "startup_timeout": 360, "request_timeout": 1200},
+        "busy": {"label": "Bonsai Busy 2K", "kv_tokens": 2048, "prefill_tokens": 512, "d2d": 0, "memory_ratio": 0.70, "graph": 0, "moe_slots": null, "startup_timeout": 420, "request_timeout": 1800},
+        "recovery": {"label": "Bonsai CPU Recovery 2K", "kv_tokens": 2048, "prefill_tokens": 512, "d2d": 0, "memory_ratio": 0.60, "graph": 0, "moe_slots": null, "startup_timeout": 600, "request_timeout": 2400}
+      }
     }
   ]
 }

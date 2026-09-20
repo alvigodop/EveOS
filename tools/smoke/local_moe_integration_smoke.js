@@ -24,6 +24,11 @@ const suites = [
         args: ['tools/Local-MoE-Harness/tests/test-model-ui.js']
     },
     {
+        id: 'bonsai-runtime-contract',
+        command: 'python',
+        args: ['tools/smoke/local_moe_bonsai_smoke.py']
+    },
+    {
         id: 'search-monitor-embed',
         command: process.execPath,
         args: ['tools/smoke/search_monitor_ai_home_smoke.js']

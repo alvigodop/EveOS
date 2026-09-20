@@ -2,6 +2,8 @@
 (function () {
     'use strict';
 
+    const LOCAL_MOE_EMBED_VERSION = '20260919.1';
+
     if (window.EveOSSearchMonitorAiHome) return;
 
     const STATUS_PATH = '/api/local-moe/status';
@@ -214,7 +216,8 @@
             return;
         }
         if (shouldShow && frame.dataset.localMoeUrl !== status.url) {
-            frame.src = status.url;
+            const separator = status.url.includes('?') ? '&' : '?';
+            frame.src = `${status.url}${separator}eveos_embed=${LOCAL_MOE_EMBED_VERSION}`;
             frame.dataset.localMoeUrl = status.url;
         }
     }

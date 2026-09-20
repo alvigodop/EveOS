@@ -77,6 +77,7 @@ class ModelRegistryTests(unittest.TestCase):
                 "qwen3-coder-30b-fp8",
                 "gpt-oss-20b",
                 "gemma4-26b-q4_0-gguf",
+                "bonsai2-27b-ptq1",
             }
             <= models.keys()
         )
@@ -90,6 +91,29 @@ class ModelRegistryTests(unittest.TestCase):
         )
         self.assertEqual(models["gemma4-26b-q4_0-gguf"]["validation"], "validated")
         self.assertEqual(models["qwen3-coder-30b-fp8"]["validation"], "validated")
+
+    def test_bonsai_is_pinned_to_prism_runtime(self):
+        registry = ModelRegistry(self.root)
+        record = registry.require("bonsai2-27b-ptq1")
+        self.assertEqual(record.runtime_backend, "prism-llama")
+        self.assertEqual(
+            record.data["revision"],
+            "6ed5e12bf84b7a63069882c91dd9e9218647d17b",
+        )
+        self.assertEqual(
+            record.data["serve_file"],
+            "Ternary-Bonsai-2-27B-PTQ1_0.gguf",
+        )
+        self.assertEqual(
+            record.data["runtime_options"]["profiles"],
+            {
+                "normal": {"gpu_layers": 56},
+                "busy": {"gpu_layers": 32},
+                "recovery": {"gpu_layers": 0},
+            },
+        )
+        self.assertEqual(record.data["default_reasoning_effort"], "none")
+        self.assertEqual(record.data["download"]["expected_bytes"], 5946648928)
 
     def test_qwen_coder_is_pinned_validated_and_selectable(self):
         registry = ModelRegistry(self.root)

@@ -152,7 +152,14 @@ def _managed_harness_pid() -> int | None:
 def _managed_runtime_pid() -> int | None:
     return _owned_pid(
         _runtime_pid_path(),
-        ("run-freetoken-windows.ps1", "run-freetoken.sh", "windows-freetoken-entry.py", "freetoken"),
+        (
+            "run-freetoken-windows.ps1",
+            "run-freetoken.sh",
+            "windows-freetoken-entry.py",
+            "freetoken",
+            "run-prism-llama-windows.ps1",
+            "llama-server.exe",
+        ),
     )
 
 

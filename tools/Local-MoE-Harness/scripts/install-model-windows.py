@@ -97,6 +97,14 @@ hf_hub_download(repo_id=sys.argv[1], filename=sys.argv[2], revision=sys.argv[3],
         fail(f"download failed for {filename} (exit {proc.returncode}).")
 
 
+def is_project_local(path: Path) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(ROOT.resolve())
+        return True
+    except ValueError:
+        return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Install one trusted model entirely inside this tool folder.")
     parser.add_argument("model_id")
@@ -143,12 +151,51 @@ def main() -> int:
         print(f"[Model Install] SAFE: {record.id}; payload {remote_bytes / GB:.2f} GB; tool-volume free {free / GB:.2f} GB; reserve {reserve / GB:.2f} GB.")
         return 0
 
+    if record.runtime_backend == "prism-llama":
+        setup_script = ROOT / "scripts" / "setup-prism-llama-windows.ps1"
+        proc = subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(setup_script),
+            ],
+            cwd=ROOT,
+            check=False,
+        )
+        if proc.returncode != 0:
+            fail(f"Prism llama runtime setup failed (exit {proc.returncode}).")
+
     record.local_path.mkdir(parents=True, exist_ok=True)
+    staging_dir = record.local_path
+    staged_external = not is_project_local(record.local_path)
+    if staged_external:
+        staging_dir = ROOT / ".tmp" / "model-downloads" / record.id
+        staging_dir.mkdir(parents=True, exist_ok=True)
+        staging_free = shutil.disk_usage(staging_dir).free
+        local_reserve = 10 * GIB
+        if staging_free < remote_bytes + local_reserve:
+            fail(
+                "local NTFS staging needs "
+                f"{format_storage_size(remote_bytes + local_reserve)} free; "
+                f"only {format_storage_size(staging_free)} is available."
+            )
     for filename in filenames:
-        download_file(str(record.data["hf_repo"]), revision, filename, record.local_path)
+        download_file(str(record.data["hf_repo"]), revision, filename, staging_dir)
+        if staged_external:
+            source = staging_dir / filename
+            destination = record.local_path / filename
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, destination)
 
     if not registry.is_installed(record):
         fail("download finished but required checkpoint files are incomplete.")
+    if staged_external:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        shutil.rmtree(record.local_path / ".cache", ignore_errors=True)
     print(f"[Model Install] INSTALLED: {record.id} at {record.local_path}")
     return 0
 

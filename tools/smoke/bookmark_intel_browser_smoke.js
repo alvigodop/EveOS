@@ -171,7 +171,8 @@ async function main() {
             };
         });
 
-        const expandButton = await page.waitForSelector('#bookmark-intel-scraper-panel-container .btn-bi-expand');
+        const expandButton = page.locator('#bookmark-intel-scraper-panel-container .btn-bi-expand');
+        await expandButton.waitFor({ state: 'visible' });
         await expandButton.click();
         await page.waitForTimeout(120);
 

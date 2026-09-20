@@ -81,6 +81,13 @@ class GpuCoexistenceManager:
         self._state_lock = asyncio.Lock()
         self._stopping = False
 
+    def _dynamic_cache_supported(self) -> bool:
+        return bool(
+            self.runtime_lifecycle
+            and hasattr(self.runtime_lifecycle, "supports_dynamic_cache")
+            and self.runtime_lifecycle.supports_dynamic_cache()
+        )
+
     async def start(self) -> None:
         if not self.enabled or (self._task and not self._task.done()):
             return
@@ -89,7 +96,7 @@ class GpuCoexistenceManager:
             if self.runtime_lifecycle
             else "normal"
         )
-        if startup_mode.startswith("coexistence"):
+        if startup_mode.startswith("coexistence") and self._dynamic_cache_supported():
             self.mode = "coexistence"
             try:
                 cache_doc = await self.adapter.cache_status(timeout_seconds=5.0)
@@ -137,6 +144,11 @@ class GpuCoexistenceManager:
             await asyncio.sleep(self.poll_seconds)
 
     async def _record_idle_sample(self, sample: GpuSample) -> None:
+        if not self._dynamic_cache_supported():
+            self.pending_transition = None
+            self._enter_count = 0
+            self._exit_count = 0
+            return
         if self.mode == "normal" and sample.util_pct < self.enter_util_pct:
             if self.pending_transition == "coexistence":
                 self.pending_transition = None
@@ -186,7 +198,12 @@ class GpuCoexistenceManager:
             await self._request_transition(self.pending_transition)
 
     async def _request_transition(self, target: str) -> None:
-        if not self.enabled or target not in {"normal", "coexistence"}:
+        if (
+            not self.enabled
+            or not self._dynamic_cache_supported()
+            or target not in {"normal", "coexistence"}
+        ):
+            self.pending_transition = None
             return
 
         async with self._state_lock:
@@ -399,6 +416,7 @@ class GpuCoexistenceManager:
         sample = asdict(self.latest_sample) if self.latest_sample else None
         return {
             "enabled": self.enabled,
+            "dynamic_cache_supported": self._dynamic_cache_supported(),
             "mode": self.mode,
             "startup_gpu_mode": getattr(self.runtime_lifecycle, "startup_gpu_mode", "normal") if self.runtime_lifecycle else "normal",
             "gpu": sample,

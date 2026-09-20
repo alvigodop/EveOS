@@ -28,6 +28,10 @@ class ModelRecord:
         return str(self.data["served_model_name"])
 
     @property
+    def runtime_backend(self) -> str:
+        return str(self.data.get("runtime_backend") or "freetoken")
+
+    @property
     def selectable(self) -> bool:
         return bool(self.data.get("selectable"))
 
@@ -128,6 +132,22 @@ class ModelRegistry:
                     ) from exc
             if raw.get("selectable"):
                 self._validate_profiles(model_id, raw.get("profiles"))
+            backend = raw.get("runtime_backend", "freetoken")
+            if backend not in {"freetoken", "prism-llama"}:
+                raise ModelRegistryError(f"{model_id}: unsupported runtime_backend")
+            runtime_profiles = raw.get("runtime_options", {}).get("profiles", {})
+            if backend == "prism-llama":
+                if set(runtime_profiles) != {"normal", "busy", "recovery"}:
+                    raise ModelRegistryError(
+                        f"{model_id}: prism-llama requires runtime options for every profile"
+                    )
+                for name, options in runtime_profiles.items():
+                    if not isinstance(options, dict) or not isinstance(
+                        options.get("gpu_layers"), int
+                    ) or int(options["gpu_layers"]) < 0:
+                        raise ModelRegistryError(
+                            f"{model_id}: invalid {name} prism-llama runtime options"
+                        )
             self._validate_download(model_id, raw.get("download"), required)
             records[model_id] = ModelRecord(dict(raw), local_path, runtime_path)
         return records
@@ -289,6 +309,7 @@ class ModelRegistry:
                         else None
                     ),
                     "notes": record.data.get("notes"),
+                    "runtime_backend": record.runtime_backend,
                 }
             )
         return result
