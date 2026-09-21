@@ -18,7 +18,13 @@ async function waitForApp(page) {
         && !!window.EveLibrary?.Storage
         && !!window.EveLibrary?.ConnectionsAPI?.promoteLinkWithData
         && !!window.EveLibrary?.ConnectionsAPI?.getLinkedEntry
+        && window.__eveCoreDataLoaded === true
+        && !!window.__EVE_DEFERRED_SCRIPT_STATE?.completedAt
     ), undefined, { timeout: 180000 });
+    await page.evaluate(async () => {
+        await Promise.resolve(window.EveLibrary?.ConnectionsAPI?.loadConnections?.({ initialOnly: true }));
+    });
+    await page.waitForTimeout(350);
 }
 
 async function main() {
@@ -116,6 +122,8 @@ async function main() {
                     globalLinks: simplify(typeof links !== 'undefined' ? links : null),
                     stateLinks: simplify(window.eveState?.links),
                     helperLinks: simplify(typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : null),
+                    coreDataLoaded: window.__eveCoreDataLoaded === true,
+                    deferredScriptsCompletedAt: window.__EVE_DEFERRED_SCRIPT_STATE?.completedAt || null,
                     renderedRows: Array.from(document.querySelectorAll('.nx-dv-bookmark-row[data-link-id]'))
                         .map((row) => row.getAttribute('data-link-id'))
                 };
