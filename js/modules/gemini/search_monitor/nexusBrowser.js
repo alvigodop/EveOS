@@ -114,7 +114,11 @@
             render(snapshot);
             return snapshot;
         } catch (error) {
-            render({ state: 'unavailable', running: false, extensionReady: true }, error?.message || 'Local Control is offline.');
+            const control = window.EveOSControlPlane?.getState?.() || {};
+            const message = control.controllerAvailable
+                ? 'Local Control is online, but Nexus Browser status is temporarily unreachable. Search Monitor will retry automatically.'
+                : (error?.message || 'Local Control is offline.');
+            render({ state: 'unavailable', running: false, extensionReady: true }, message);
             return null;
         }
     }
