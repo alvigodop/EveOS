@@ -158,6 +158,27 @@ async function main() {
         await page.evaluate((linkId) => {
             const row = document.querySelector(`.nx-dv-bookmark-row[data-link-id="${linkId}"]`);
             if (!row) throw new Error('Linked bookmark row disappeared before edit');
+            const patchApi = window.EveOS?.NebulaJsonPatch;
+            if (!patchApi?.previewTransaction) throw new Error('Nebula previewTransaction is unavailable');
+            const originalPreviewTransaction = patchApi.previewTransaction;
+            window.__nexusLinkedLibraryMicroPreview = null;
+            patchApi.previewTransaction = function (transaction) {
+                const preview = originalPreviewTransaction.apply(this, arguments);
+                window.__nexusLinkedLibraryMicroPreview = {
+                    patchOps: Array.isArray(transaction?.patches)
+                        ? transaction.patches.map((patch) => String(patch?.op || ''))
+                        : [],
+                    patchChanges: Array.isArray(transaction?.patches)
+                        ? transaction.patches.map((patch) => ({ op: String(patch?.op || ''), changes: patch?.changes || {} }))
+                        : [],
+                    previewOps: Array.isArray(preview?.previews)
+                        ? preview.previews.map((entry) => String(entry?.op || ''))
+                        : [],
+                    errors: Array.isArray(preview?.errors) ? preview.errors.slice() : [],
+                    warnings: Array.isArray(preview?.warnings) ? preview.warnings.slice() : []
+                };
+                return preview;
+            };
             const setValue = (selector, value) => {
                 const field = row.querySelector(selector);
                 if (!field) throw new Error('Missing linked Library micro field: ' + selector);
@@ -175,12 +196,27 @@ async function main() {
             preview.click();
         }, seed.linkId);
 
-        await page.waitForFunction(() => {
+        await page.waitForTimeout(250);
+        const previewState = await page.evaluate(() => {
             const diff = document.querySelector('[data-nx-dv-diff="micro"]');
-            return !!(diff && !diff.hidden
-                && diff.textContent.includes('set-bookmark-notes')
-                && diff.textContent.includes('set-linked-library-fields'));
-        }, undefined, { timeout: 10000 });
+            return {
+                captured: window.__nexusLinkedLibraryMicroPreview || null,
+                diffExists: !!diff,
+                diffHidden: diff ? !!diff.hidden : null,
+                diffText: diff?.textContent || ''
+            };
+        });
+        const previewOps = previewState.captured?.previewOps || [];
+        assert(previewState.captured, `Nebula preview transaction was not captured: ${JSON.stringify(previewState)}`);
+        assert(previewOps.includes('set-bookmark-notes'),
+            `Linked micro preview omitted bookmark notes patch: ${JSON.stringify(previewState)}`);
+        assert(previewOps.includes('set-linked-library-fields'),
+            `Linked micro preview omitted Library fields patch: ${JSON.stringify(previewState)}`);
+        assert(previewState.diffExists && previewState.diffHidden === false,
+            `Linked micro diff did not render: ${JSON.stringify(previewState)}`);
+        assert(previewState.diffText.includes('set-bookmark-notes')
+            && previewState.diffText.includes('set-linked-library-fields'),
+            `Linked micro diff omitted preview operations: ${JSON.stringify(previewState)}`);
 
         await page.evaluate(() => {
             const save = document.querySelector('[data-nx-dv-action="save-micro"]');
