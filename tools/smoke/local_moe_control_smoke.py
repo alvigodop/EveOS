@@ -102,6 +102,8 @@ def check_start_passes_canonical_ports() -> None:
             "Start lost the canonical Harness port")
     require(environment["FREETOKEN_PORT"] == str(local_moe_control.RUNTIME_PORT),
             "Start lost the canonical runtime port")
+    require(environment["LOCAL_MOE_RUNTIME_AUTOSTART"] == "0",
+            "EveOS-managed Harness launch did not keep model startup explicit")
     require(Path(launch["cwd"]).resolve() == local_moe_control._tool_root().resolve(),
             "Harness did not launch from its isolated tool root")
     if local_moe_control.os.name == "nt":
