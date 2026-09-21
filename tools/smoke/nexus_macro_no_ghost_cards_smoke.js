@@ -102,12 +102,36 @@ async function main() {
         await page.locator('#nxDatapackViewBtn').click();
         await page.waitForSelector('#nxDatapackViewPanel', { timeout: 10000 });
 
-        const before = await page.evaluate(() => ({
-            gatewayCards: Array.from(document.querySelectorAll('.nx-dv-card')).map((node) => node.getAttribute('data-category-name')),
-            dashboardCards: Array.from(document.querySelectorAll('.category-card')).map((node) => node.getAttribute('data-card-category')),
-            order: window.EveCategoryOrder.getOrder('main').slice()
-        }));
-        assert(before.gatewayCards.join('|') === 'Browser|Start', `Gateway should omit stale order-only ghost cards before save: ${JSON.stringify(before)}`);
+        const before = await page.evaluate(() => {
+            const simplifyLinks = (value) => (Array.isArray(value) ? value : []).map((link) => ({
+                id: String(link?.id || ''),
+                workspace: String(link?.workspace || ''),
+                category: String(link?.category || '')
+            }));
+            const liveFromHelper = typeof window.getLiveLinks === 'function'
+                ? window.getLiveLinks()
+                : null;
+            const scopeMode = window.EveOS?.SearchAdvanced?.UI?.getCurrentScopeMode?.() || '';
+            const resolvedScope = window.EveOS?.SearchAdvanced?.UI?.getResolvedScope?.(scopeMode) || null;
+            return {
+                gatewayCards: Array.from(document.querySelectorAll('.nx-dv-card')).map((node) => ({
+                    workspaceId: node.getAttribute('data-workspace-id'),
+                    categoryName: node.getAttribute('data-category-name')
+                })),
+                dashboardCards: Array.from(document.querySelectorAll('.category-card')).map((node) => node.getAttribute('data-card-category')),
+                order: window.EveCategoryOrder.getOrder('main').slice(),
+                scopeMode,
+                resolvedScope,
+                windowLinks: simplifyLinks(window.links),
+                globalLinks: simplifyLinks(typeof links !== 'undefined' ? links : null),
+                stateLinks: simplifyLinks(window.eveState?.links),
+                helperLinks: simplifyLinks(liveFromHelper),
+                mainNewTestSummary: window.EveOS?.SearchAdvanced?.Index?.getCardSummary?.('main', 'NewTest') || null,
+                otherNewTestSummary: window.EveOS?.SearchAdvanced?.Index?.getCardSummary?.('other-tab', 'NewTest') || null,
+                mainNewTestFolders: window.bookmarkFolders?.['main::NewTest'] || null
+            };
+        });
+        assert(before.gatewayCards.map((entry) => entry.categoryName).join('|') === 'Browser|Start', `Gateway should omit stale order-only ghost cards before save: ${JSON.stringify(before)}`);
         assert(before.dashboardCards.includes('Browser') && before.dashboardCards.includes('Start'), `Dashboard should render material cards: ${JSON.stringify(before)}`);
         assert(!before.dashboardCards.includes('Detached Nodes') && !before.dashboardCards.includes('NewTest'), `Dashboard should not render ghost cards: ${JSON.stringify(before)}`);
 
