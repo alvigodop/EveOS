@@ -86,6 +86,12 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.lifecycle.active_runtime_backend(), "prism-llama")
         self.assertFalse(self.lifecycle.supports_dynamic_cache())
 
+    def test_headed_runtime_title_uses_registry_metadata(self):
+        record = self.registry.require("qwen36-nvfp4")
+        title = self.lifecycle._console_title(record)
+        self.assertIn(str(record.data["display_name"]), title)
+        self.assertNotIn("ModelRecord", title)
+
     def test_windows_runtime_headed_default_is_explicit(self):
         if os.name != "nt":
             self.skipTest("Windows-only console policy")
