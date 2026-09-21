@@ -199,27 +199,58 @@ async function extensionReload() {
   await saveAndPrint('search-monitor-runtime-extension-reload');
 }
 
-async function qualify() {
-  await startStack();
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  console.log('SEARCH_MONITOR_LIVE_QUALIFICATION starting; services will remain running afterward.');
-  const result = spawnSync(npm, ['run', '--silent', 'smoke:search-monitor-live'], {
+function runLiveQualificationStage(label, script, env) {
+  console.log(`LIVE_STAGE ${label} START ${script}`);
+  const result = spawnSync(process.execPath, [path.join(ROOT, script)], {
     cwd: ROOT,
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      EVEOS_LIVE_MODEL_TIMEOUT_MS: String(modelTimeoutMs),
-      EVEOS_RUNTIME_INCLUDE_GEMINI: includeGemini ? '1' : '0',
-    },
+    env,
     windowsHide: false,
   });
   const exitCode = Number.isInteger(result.status) ? result.status : 1;
-  await saveAndPrint('search-monitor-runtime-qualification', {
-    qualification: { exitCode, includeGemini, servicesLeftRunning: true },
-  });
-  if (exitCode !== 0) {
-    throw new Error(`Live Search Monitor qualification failed with exit code ${exitCode}. Services were intentionally left running.`);
+  const spawnError = result.error ? String(result.error.message || result.error) : '';
+  if (exitCode === 0 && !spawnError) console.log(`LIVE_STAGE ${label} PASS`);
+  return { label, script, exitCode, spawnError, signal: result.signal || null };
+}
+
+async function qualify() {
+  await startStack();
+  console.log('SEARCH_MONITOR_LIVE_QUALIFICATION starting; services will remain running afterward.');
+  const env = {
+    ...process.env,
+    EVEOS_LIVE_MODEL_TIMEOUT_MS: String(modelTimeoutMs),
+    EVEOS_RUNTIME_INCLUDE_GEMINI: includeGemini ? '1' : '0',
+  };
+  const stages = [
+    ['runtime-generation', 'tools/smoke/search_monitor_live_runtime_smoke.mjs'],
+    ['localhost-browser', 'tools/smoke/search_monitor_live_browser_smoke.js'],
+  ];
+  const stageResults = [];
+  for (const [label, script] of stages) {
+    const result = runLiveQualificationStage(label, script, env);
+    stageResults.push(result);
+    if (result.exitCode !== 0 || result.spawnError) {
+      await saveAndPrint('search-monitor-runtime-qualification', {
+        qualification: {
+          ok: false,
+          failedStage: label,
+          includeGemini,
+          servicesLeftRunning: true,
+          stages: stageResults,
+        },
+      });
+      const detail = result.spawnError || `exit code ${result.exitCode}${result.signal ? ` / signal ${result.signal}` : ''}`;
+      throw new Error(`Live Search Monitor ${label} stage failed: ${detail}. Services were intentionally left running.`);
+    }
   }
+  await saveAndPrint('search-monitor-runtime-qualification', {
+    qualification: {
+      ok: true,
+      includeGemini,
+      servicesLeftRunning: true,
+      stages: stageResults,
+    },
+  });
   console.log('SEARCH_MONITOR_RUNTIME_QUALIFIED');
   console.log('LEAVE_RUNNING true');
 }
