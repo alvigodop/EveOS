@@ -71,6 +71,8 @@ def assert_static_contract() -> None:
     assert "world_book_control.restore_desired_state_async" in server
     control = (ROOT / "server_modules" / "world_book_control.py").read_text(encoding="utf-8")
     assert "launch.ps1" in control
+    assert 'headless_for("worldBook")' in control
+    assert '"CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE"' in control
 
     handler = (tool / "worldbook_runtime" / "layers" / "80_http_handler.py").read_text(encoding="utf-8")
     assert 'parsed.path == "/api/health"' in handler
@@ -238,10 +240,14 @@ def assert_lifecycle_contract() -> None:
         original_port = world_book_control.WORLD_BOOK_PORT
         original_entry = world_book_control._entry_point
         original_preference = world_book_control._preference_path
+        original_headless = world_book_control.eveos_console_prefs.headless_for
         try:
             world_book_control.WORLD_BOOK_PORT = port
             world_book_control._entry_point = lambda: fake_server
             world_book_control._preference_path = lambda: preference
+            # The lifecycle smoke uses a throwaway fake server. Keep that helper
+            # hidden while production remains explicitly headed by default.
+            world_book_control.eveos_console_prefs.headless_for = lambda _service=None: True
 
             started = world_book_control.start_server()
             assert started["ok"] and wait_until(lambda: world_book_control.get_status()["running"])
@@ -261,6 +267,7 @@ def assert_lifecycle_contract() -> None:
             world_book_control.WORLD_BOOK_PORT = original_port
             world_book_control._entry_point = original_entry
             world_book_control._preference_path = original_preference
+            world_book_control.eveos_console_prefs.headless_for = original_headless
 
 
 if __name__ == "__main__":
