@@ -41,6 +41,20 @@ requireCondition(
   'TLO readiness wait can run before the explicit Local MoE model start stage'
 );
 requireCondition(
+  runtimeCliSource.includes('spawnSync(process.execPath')
+    && runtimeCliSource.includes('search_monitor_live_runtime_smoke.mjs')
+    && runtimeCliSource.includes('search_monitor_live_browser_smoke.js'),
+  'live qualification no longer launches its Node smoke stages directly'
+);
+requireCondition(
+  !runtimeCliSource.includes("spawnSync(npm, ['run', '--silent', 'smoke:search-monitor-live']"),
+  'live qualification reintroduced the opaque Windows npm.cmd shim'
+);
+requireCondition(
+  runtimeCliSource.includes('spawnError') && runtimeCliSource.includes('failedStage'),
+  'live qualification no longer records stage-specific spawn diagnostics'
+);
+requireCondition(
   consolePrefsSource.includes('DEFAULT_HEADLESS = False'),
   'EveOS terminal preference default is no longer explicitly headed'
 );
