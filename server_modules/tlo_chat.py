@@ -10,8 +10,7 @@ import threading
 from dataclasses import dataclass, field
 from http import HTTPStatus
 
-from server_modules import agent_management_store, eveos_ports, local_moe_control
-from server_modules.agent_management_api import authorize_local_ui
+from server_modules import agent_management_store, eveos_ports, gemini_control, local_moe_control
 from server_modules.eve_state_store_api_helpers import query_value, send_json
 
 
@@ -41,6 +40,18 @@ class TloChatError(ValueError):
         super().__init__(message)
         self.status = status
         self.state = state
+
+
+def _authorize_tlo_ui(handler) -> bool:
+    """Allow only loopback EveOS UI callers, including the supported file:// surface."""
+    if gemini_control.request_can_control(handler):
+        return True
+    send_json(handler, HTTPStatus.FORBIDDEN, {
+        "ok": False,
+        "state": "forbidden",
+        "error": "TLO requires a local EveOS page.",
+    })
+    return False
 
 
 def _clean_text(value, field_name: str, maximum: int, *, required=False) -> str:
@@ -357,7 +368,7 @@ def _stream_chat(handler, payload: dict) -> None:
 def handle_get_request(handler, path, query) -> bool:
     if path != f"{BASE_PATH}/status":
         return False
-    if not authorize_local_ui(handler):
+    if not _authorize_tlo_ui(handler):
         return True
     try:
         send_json(handler, HTTPStatus.OK, status_payload(query_value(query, "scopeId", "default")))
@@ -374,7 +385,7 @@ def handle_get_request(handler, path, query) -> bool:
 def handle_post_request(handler, path) -> bool:
     if path not in {f"{BASE_PATH}/chat/stream", f"{BASE_PATH}/chat/cancel"}:
         return False
-    if not authorize_local_ui(handler):
+    if not _authorize_tlo_ui(handler):
         return True
     try:
         payload = _read_body(handler)
