@@ -14,7 +14,7 @@ import threading
 import time
 from pathlib import Path
 
-from . import eveos_exposure, eveos_ports, gemini_control
+from . import eveos_console_prefs, eveos_exposure, eveos_ports, gemini_control
 
 
 WORLD_BOOK_PORT = eveos_ports.service_port("WORLD_BOOK_PORT")
@@ -236,16 +236,20 @@ def start_server(*, persist: bool = True) -> dict:
         if not entry.is_file():
             return {**current, "ok": False, "state": "error", "message": f"World Book entry point was not found: {entry}"}
 
+        headless = eveos_console_prefs.headless_for("worldBook")
         flags = 0
         if os.name == "nt":
-            flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            flags |= getattr(subprocess, "CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE", 0)
         environment = os.environ.copy()
         environment["PYTHONUNBUFFERED"] = "1"
         environment["PYTHONUTF8"] = "1"
         environment["PYTHONIOENCODING"] = "utf-8"
         _PROCESS = subprocess.Popen(
             _launch_command(entry), cwd=str(entry.parent), stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=environment, creationflags=flags,
+            stdout=subprocess.DEVNULL if headless else None,
+            stderr=subprocess.DEVNULL if headless else None,
+            env=environment, creationflags=flags,
         )
 
     deadline = time.monotonic() + 3.0
