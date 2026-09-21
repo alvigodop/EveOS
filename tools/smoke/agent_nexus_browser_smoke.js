@@ -41,7 +41,7 @@ async function main() {
         name: 'agent-nexus-browser',
         viewport: { width: 1600, height: 1200 }
     }, async ({ page, browserMode, events }) => {
-        await page.route(/http:\/\/(?:127\.0\.0\.1|localhost):\d+\/api\//, async (route) => {
+        await page.route(/http:\/\/(?:127\.0\.0\.1|localhost):\d+\/api\/(?:eve-state\/modular\/(?:tlo|agent-management)|nexus-browser)/, async (route) => {
             const request = route.request();
             const url = new URL(request.url());
             const entry = { method: request.method(), path: url.pathname };
