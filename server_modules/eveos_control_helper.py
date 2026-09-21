@@ -314,7 +314,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         controlled_paths = {
-            "/api/eveos-server/start", "/api/eveos-server/stop",
+            "/api/eveos-server/start", "/api/eveos-server/stop", "/api/eveos-server/stop-web",
             "/api/gemini-server/start", "/api/gemini-server/stop",
             "/api/world-book/start", "/api/world-book/stop", "/api/world-book/launch",
             "/api/piano-player/start", "/api/piano-player/stop", "/api/piano-player/launch", "/api/piano-player/setup",
@@ -337,6 +337,9 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         actions = {
             "/api/eveos-server/start": lambda: eveos_web_control.start_server(port=_request_web_port(self)),
             "/api/eveos-server/stop": lambda: _stop_everything(_request_web_port(self)),
+            "/api/eveos-server/stop-web": lambda: _stop_tool(
+                lambda: eveos_web_control.stop_server(port=_request_web_port(self))
+            ),
             "/api/gemini-server/start": gemini_control.start_server,
             "/api/gemini-server/stop": lambda: _stop_tool(gemini_control.stop_server),
             "/api/world-book/start": world_book_control.start_server,
