@@ -12,6 +12,9 @@ function requireCondition(condition, message) {
 const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const profileSource = fs.readFileSync(path.join(ROOT, 'tools', 'smoke', 'eveos_profile_runner.mjs'), 'utf8');
 const controlSource = fs.readFileSync(path.join(ROOT, 'server_modules', 'eveos_control_helper.py'), 'utf8');
+const consolePrefsSource = fs.readFileSync(path.join(ROOT, 'server_modules', 'eveos_console_prefs.py'), 'utf8');
+const controlBatchSource = fs.readFileSync(path.join(ROOT, 'tools', 'batch', 'start-eveos-control.bat'), 'utf8');
+const sharedRuntimeSource = fs.readFileSync(path.join(ROOT, 'tools', 'runtime', 'search-monitor-runtime.shared.mjs'), 'utf8');
 const cli = path.join(ROOT, 'tools', 'runtime', 'search-monitor-runtime.mjs');
 const runtimeCliSource = fs.readFileSync(cli, 'utf8');
 const sessionPath = path.join(ROOT, 'data', 'runtime', 'search-monitor-runtime-session.json');
@@ -36,6 +39,26 @@ requireCondition(
 requireCondition(
   runtimeCliSource.indexOf('await ensureLocalModelRuntime') < runtimeCliSource.indexOf('tlo = await waitForTloReady(modelTimeoutMs)'),
   'TLO readiness wait can run before the explicit Local MoE model start stage'
+);
+requireCondition(
+  consolePrefsSource.includes('DEFAULT_HEADLESS = False'),
+  'EveOS terminal preference default is no longer explicitly headed'
+);
+requireCondition(
+  !controlBatchSource.includes(' /min "'),
+  'Local Control launcher still starts minimized instead of a normal headed terminal'
+);
+requireCondition(
+  sharedRuntimeSource.includes('call "${launcher}"'),
+  'Windows Local Control launch is not using safe cmd call quoting'
+);
+requireCondition(
+  sharedRuntimeSource.includes("body: { service: 'default', headless: false }"),
+  'Search Monitor runtime no longer forces the global terminal default to headed'
+);
+requireCondition(
+  sharedRuntimeSource.includes('body: { service: service.key, headless: false }'),
+  'Search Monitor runtime no longer forces each spawned service terminal to headed'
 );
 requireCondition(controlSource.includes('"/api/eveos-server/stop-web"'), 'control plane is missing scoped EveOS web stop');
 requireCondition(
