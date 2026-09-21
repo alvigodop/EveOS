@@ -80,7 +80,7 @@ def exposure_passthrough(payload, *_args, **_kwargs):
 
 def web_matrix(root):
     entry = fake_file(root, "web/python-server.py")
-    port = eveos_web_control.WEB_PORT
+    port = eveos_web_control.EVEOS_WEB_PORT
 
     def one(label, *, health=None, busy=False, process=None):
         with (
