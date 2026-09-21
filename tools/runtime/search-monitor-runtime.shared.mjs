@@ -281,6 +281,19 @@ export async function tloStatus() {
   return result.payload;
 }
 
+export async function ensureLocalModelRuntime(timeoutMs = 30_000) {
+  const current = await safeJson(`http://127.0.0.1:${PORTS.LOCAL_MOE_HARNESS_PORT}/api/status`, { timeoutMs: 5000 });
+  if (current.payload?.runtime?.ready === true) return current.payload;
+  const start = await safeJson(`http://127.0.0.1:${PORTS.LOCAL_MOE_HARNESS_PORT}/api/runtime/start`, {
+    method: 'POST',
+    timeoutMs,
+  });
+  if (!start.ok) {
+    throw new Error(`Local MoE model runtime start failed: ${start.payload?.detail?.message || start.payload?.detail || start.error || start.text || 'unknown error'}`);
+  }
+  return start.payload;
+}
+
 export async function waitForTloReady(timeoutMs = 600_000) {
   return waitUntil(async () => {
     const status = await tloStatus();
