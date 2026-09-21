@@ -110,6 +110,14 @@ const harnessControl = fs.readFileSync(
   path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'control-windows.ps1'),
   'utf8'
 );
+const harnessLauncher = fs.readFileSync(
+  path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-harness-windows.ps1'),
+  'utf8'
+);
+const harnessConfig = fs.readFileSync(
+  path.join(ROOT, 'tools', 'Local-MoE-Harness', 'app', 'config.py'),
+  'utf8'
+);
 requireCondition(
   windowsRuntimeSource.includes('CREATE_NEW_CONSOLE')
     && windowsRuntimeSource.includes('Get-Content -LiteralPath')
@@ -132,6 +140,16 @@ requireCondition(
 requireCondition(
   harnessControl.includes('if ($Headless)') && harnessControl.includes('} else {'),
   'manual Local MoE control no longer defaults to a headed Harness window'
+);
+requireCondition(
+  harnessLauncher.includes('LOCAL_MOE_RUNTIME_AUTOSTART = "0"')
+    && harnessLauncher.includes('$EveManaged'),
+  'EveOS-managed Harness launch no longer suppresses boot-time model autostart'
+);
+requireCondition(
+  harnessConfig.includes('LOCAL_MOE_RUNTIME_AUTOSTART')
+    && harnessConfig.includes('_environment_bool'),
+  'Harness config no longer supports explicit runtime autostart override'
 );
 
 if (process.platform === 'win32') {
