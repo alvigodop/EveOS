@@ -88,19 +88,39 @@ async function startStack() {
   console.log(`SEARCH_MONITOR_RUNTIME_START control=${control.started ? 'started' : 'already-running'}`);
   for (const name of wanted) {
     const before = await serviceStatus(name);
+    const wasRunning = before?.running === true;
     console.log(`START ${SEARCH_MONITOR_SERVICES[name].label}: ${before?.state || 'unknown'}`);
-    const result = await startService(name, name === 'localMoe' ? 45_000 : 30_000);
-    if (result.started) startedServices.add(name);
-    writeRuntimeSession({
-      schema: 'eveos.search-monitor-runtime-session',
-      schemaVersion: 1,
-      head: (await runtimeSnapshot()).head,
-      startedAt: session.startedAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      startedServices: [...startedServices],
-      includeGemini,
-    });
-    console.log(`READY ${SEARCH_MONITOR_SERVICES[name].label}: ${result.status?.state || 'running'}`);
+    try {
+      const timeoutMs = name === 'localMoe' ? modelTimeoutMs : 30_000;
+      const result = await startService(name, timeoutMs);
+      if (result.started) startedServices.add(name);
+      writeRuntimeSession({
+        schema: 'eveos.search-monitor-runtime-session',
+        schemaVersion: 1,
+        head: (await runtimeSnapshot()).head,
+        startedAt: session.startedAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        startedServices: [...startedServices],
+        includeGemini,
+      });
+      console.log(`READY ${SEARCH_MONITOR_SERVICES[name].label}: ${result.status?.state || 'running'}`);
+    } catch (error) {
+      const after = await serviceStatus(name);
+      if (!wasRunning && (after?.running === true || after?.state === 'starting')) {
+        startedServices.add(name);
+        writeRuntimeSession({
+          schema: 'eveos.search-monitor-runtime-session',
+          schemaVersion: 1,
+          head: (await runtimeSnapshot()).head,
+          startedAt: session.startedAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          startedServices: [...startedServices],
+          includeGemini,
+          lastStartFailure: { service: name, message: String(error?.message || error) },
+        });
+      }
+      throw error;
+    }
   }
 
   let tlo = null;
