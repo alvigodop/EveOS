@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { ROOT, SEARCH_MONITOR_SERVICES } from '../runtime/search-monitor-runtime.shared.mjs';
+import { ROOT, SEARCH_MONITOR_SERVICES, runWindowsBatchSync } from '../runtime/search-monitor-runtime.shared.mjs';
 
 function requireCondition(condition, message) {
   if (!condition) throw new Error(`ASSERT FAILED: ${message}`);
@@ -49,8 +49,8 @@ requireCondition(
   'Local Control launcher still starts minimized instead of a normal headed terminal'
 );
 requireCondition(
-  sharedRuntimeSource.includes('call "${launcher}"'),
-  'Windows Local Control launch is not using safe cmd call quoting'
+  sharedRuntimeSource.includes("['/d', '/c', 'call', batchPath, ...args]"),
+  'Windows batch invocation no longer passes call and the quoted path as separate argv pieces'
 );
 requireCondition(
   sharedRuntimeSource.includes("body: { service: 'default', headless: false }"),
@@ -110,6 +110,26 @@ requireCondition(
   harnessControl.includes('if ($Headless)') && harnessControl.includes('} else {'),
   'manual Local MoE control no longer defaults to a headed Harness window'
 );
+
+if (process.platform === 'win32') {
+  const probeRoot = fs.mkdtempSync(path.join(process.env.TEMP || process.env.TMP || ROOT, 'EveOS Runtime Batch Probe-'));
+  try {
+    const probeBatch = path.join(probeRoot, 'quoted launcher probe.bat');
+    fs.writeFileSync(probeBatch, '@echo off\r\necho EVEOS_BATCH_QUOTE_OK\r\nexit /b 0\r\n', 'utf8');
+    const invoked = runWindowsBatchSync(probeBatch, {
+      cwd: ROOT,
+      stdio: 'pipe',
+      encoding: 'utf8',
+      env: { ...process.env, EVEOS_HEADLESS: '' },
+    });
+    requireCondition(
+      invoked.status === 0 && String(invoked.stdout || '').includes('EVEOS_BATCH_QUOTE_OK'),
+      `Windows batch path-with-spaces probe failed: ${invoked.stderr || invoked.stdout || invoked.error?.message || 'unknown error'}`
+    );
+  } finally {
+    fs.rmSync(probeRoot, { recursive: true, force: true });
+  }
+}
 
 if (process.platform === 'win32') {
   const powershellScripts = [
