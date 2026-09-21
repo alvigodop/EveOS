@@ -20,7 +20,7 @@ const SKIP_PARTS = ['/node_modules/', '/data/runtime/', '/test-results/', '/.git
 const PROFILES = Object.freeze({
   fast: ['smoke:file-size', 'smoke:regressions', 'smoke:capability-surfaces', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:nexus-browser', 'smoke:watchfusion'],
   deep: [
-    'smoke:file-size', 'smoke:regressions', 'smoke:control-plane', 'smoke:capability-surfaces', 'smoke:core-storage', 'smoke:world-book',
+    'smoke:file-size', 'smoke:regressions', 'smoke:control-plane', 'smoke:capability-surfaces', 'smoke:core-storage', 'smoke:knowledge-cache', 'smoke:world-book',
     'smoke:local-moe', 'smoke:agent-nexus', 'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
     'smoke:audioflix-piano', 'smoke:piano-queue', 'smoke:piano-metadata', 'smoke:nexus-browser', 'smoke:watchfusion'
   ],
