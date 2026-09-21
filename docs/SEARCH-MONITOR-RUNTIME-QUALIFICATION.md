@@ -66,13 +66,15 @@ The runtime generation smoke:
 - requires non-empty model output and a clean SSE [DONE];
 - records model, generation duration, Nexus extension/target state, listeners, and runtime status.
 
-The real localhost browser smoke:
-- opens the real EveOS localhost page, not file:// and not mocked APIs;
+The real Search Monitor browser smoke:
+- opens the real EveOS localhost page first, not mocked APIs;
 - expands Search Monitor and enters Workspace explicitly;
 - verifies the Local MoE provider is online;
 - opens Agent Nexus and requires TLO Ready with an enabled composer;
 - requires Nexus Browser Online and extension source readiness;
-- opens Agent Management and verifies the real TLO local profile surface.
+- opens Agent Management and verifies the real TLO local profile surface;
+- then reopens the same real Search Monitor from the normal file:// EveOS.html entrypoint and requires Local MoE, TLO, and Nexus Browser to converge to the same healthy state;
+- treats failed file-origin requests to the Local MoE, TLO, or Nexus status APIs as qualification failures instead of benign browser noise.
 
 The browser stage uses the shared AI-control diagnostic wrapper. On failure it can retain a screenshot, HTML snapshot, Playwright trace, console/page/request diagnostics, and the runtime smoke records a separate JSON runtime snapshot.
 
@@ -87,6 +89,8 @@ The most recent state is also copied to:
     data/runtime/smoke-results/LAST-SEARCH-MONITOR-RUNTIME.json
 
 Snapshots include current Git HEAD, Local Control identity, per-service status/identity, TLO readiness, Local MoE details, Nexus diagnostics, registered-port listeners, runtime-session ownership, and bounded tails from known runtime logs when those logs exist.
+
+Search Monitor runtime surfaces also consume the existing control-plane status heartbeat while Workspace is open. This rechecks Local MoE plus the visible Agent Nexus peers so an early fetch failure cannot leave TLO or Nexus Browser permanently stale after the runtime recovers. A reachable EveOS web server with an unreachable TLO API is reported as API reachability trouble, not as `EveOS offline`.
 
 A failed qualification is self-contained in the invoking terminal. Before any scoped teardown, it captures the runtime snapshot and bounded relevant log tails, prints them under `SEARCH_MONITOR_FAILURE_SCOPE`, and records a `FAILURE_SCOPE_SNAPSHOT`. It then health-checks the participating services and stops only a clearly attributable session-owned unhealthy component. A failed model/runtime health check can stop the managed FreeToken/Prism child while leaving the Local MoE Harness alive. Browser/UI assertion failures preserve healthy servers rather than guessing. Unowned services are never terminated.
 
