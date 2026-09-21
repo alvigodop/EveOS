@@ -1,5 +1,5 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { runBrowserSmoke } = require('./browser-smoke-diagnostics.shared');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -16,19 +16,15 @@ function isBenignConsoleError(entry) {
 }
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1600, height: 1200 } });
-    const pageErrors = [];
-    const consoleErrors = [];
-
-    page.on('pageerror', (error) => {
-        pageErrors.push(error && error.stack ? error.stack : String(error));
-    });
-    page.on('console', (msg) => {
-        if (msg.type() === 'error') consoleErrors.push(msg.text());
-    });
-
-    try {
+    await runBrowserSmoke({
+        name: 'search-monitor-boot',
+        viewport: { width: 1600, height: 1200 }
+    }, async ({ page, events }) => {
+        const pageErrors = events.pageErrors;
+        const consoleErrors = [];
+        page.on('console', (msg) => {
+            if (msg.type() === 'error') consoleErrors.push(msg.text());
+        });
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 240000 });
 
         await page.waitForFunction(() => {
@@ -87,17 +83,13 @@ async function main() {
 
         await page.waitForFunction(() => !!window.LoadingIndicator?._initialized, undefined, { timeout: 120000 });
 
-        await page.evaluate(() => {
-            document.getElementById('loadingIndicator')?.click();
-        });
+        await page.evaluate(() => window.SearchMonitorBoot?.collapse?.());
         await page.waitForFunction(() => {
             const indicator = document.getElementById('loadingIndicator');
             return !!indicator && indicator.classList.contains('compact');
         }, undefined, { timeout: 10000 });
 
-        await page.evaluate(() => {
-            document.getElementById('loadingIndicator')?.click();
-        });
+        await page.evaluate(() => window.SearchMonitorBoot?.expand?.());
         await page.waitForFunction(() => {
             const indicator = document.getElementById('loadingIndicator');
             return !!indicator && !indicator.classList.contains('compact');
@@ -201,9 +193,7 @@ async function main() {
         }
 
         console.log(`SEARCH_MONITOR_BOOT_SMOKE_OK ${JSON.stringify({ ...result, modeControlState })}`);
-    } finally {
-        await browser.close();
-    }
+    });
 }
 
 main().catch((error) => {
