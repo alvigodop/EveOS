@@ -122,19 +122,48 @@ async function requireLiveService(name) {
   return { status, identity: identity.payload };
 }
 
+async function waitForNexusInventoryStable(timeoutMs = 12_000, settleMs = 1_500) {
+  const deadline = Date.now() + timeoutMs;
+  let signature = '', stableSince = 0, latest = null;
+  while (Date.now() < deadline) {
+    latest = await serviceStatus('nexusBrowser');
+    const sessions = latest?.extensionSessions || {};
+    const ready = latest?.extensionConnected === true && sessions.primaryReady === true;
+    const primaryTabs = Number(sessions.primaryTabs);
+    const onlineTargets = Number(latest?.onlineTargets || 0);
+    const current = `${Number(sessions.connected || 0)}:${Number.isFinite(primaryTabs) ? primaryTabs : 'na'}:${onlineTargets}`;
+    if (current !== signature) { signature = current; stableSince = Date.now(); }
+    if (ready && Number.isFinite(primaryTabs) && primaryTabs === onlineTargets && Date.now() - stableSince >= settleMs) return latest;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  const sessions = latest?.extensionSessions || {};
+  throw new Error(
+    `Nexus provider inventory did not settle: onlineTargets=${Number(latest?.onlineTargets || 0)} `
+    + `primaryTabs=${sessions.primaryTabs ?? 'unknown'} sessions=${sessions.connected ?? 'unknown'}`
+  );
+}
+
 async function main() {
   const control = await controlHealth();
   requireCondition(control?.service === 'eveos-control-plane', 'EveOS Local Control is not running or branded correctly.');
 
   const web = await requireLiveService('web');
   const localMoe = await requireLiveService('localMoe');
-  const nexusBrowser = await requireLiveService('nexusBrowser');
+  let nexusBrowser = await requireLiveService('nexusBrowser');
   let gemini = null;
   if (INCLUDE_GEMINI) gemini = await requireLiveService('gemini');
 
   requireCondition(localMoe.status.port === PORTS.LOCAL_MOE_HARNESS_PORT, 'Local MoE Harness port drifted from registry.');
   requireCondition(localMoe.status.runtimePort === PORTS.FREETOKEN_PORT, 'FreeToken runtime port drifted from registry.');
   requireCondition(nexusBrowser.status.port === PORTS.NEXUS_BROWSER_PORT, 'Nexus Browser port drifted from registry.');
+  if (nexusBrowser.status.extensionConnected === true) {
+    nexusBrowser = { ...nexusBrowser, status: await waitForNexusInventoryStable() };
+    const sessions = nexusBrowser.status.extensionSessions || {};
+    requireCondition(
+      Number(nexusBrowser.status.onlineTargets || 0) === Number(sessions.primaryTabs),
+      `Nexus public provider count drifted from authoritative extension inventory: online=${nexusBrowser.status.onlineTargets} primary=${sessions.primaryTabs}`
+    );
+  }
 
   console.log(`WAIT LIVE MODEL up to ${Math.round(MODEL_TIMEOUT_MS / 1000)}s`);
   const tlo = await waitForTloReady(MODEL_TIMEOUT_MS);
@@ -164,6 +193,7 @@ async function main() {
           extensionConnected: nexusBrowser.status.extensionConnected,
           onlineTargets: nexusBrowser.status.onlineTargets,
           localTargets: nexusBrowser.status.localTargets,
+          extensionSessions: nexusBrowser.status.extensionSessions || null,
         },
         gemini: gemini ? { state: gemini.status.state, running: gemini.status.running } : null,
       },
@@ -186,6 +216,7 @@ async function main() {
     durationMs: generation.durationMs,
     nexusExtensionConnected: nexusBrowser.status.extensionConnected === true,
     nexusOnlineTargets: Number(nexusBrowser.status.onlineTargets || 0),
+    nexusExtensionSessions: nexusBrowser.status.extensionSessions || null,
     snapshot: artifact.json,
   }));
 }
