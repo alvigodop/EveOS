@@ -26,6 +26,10 @@ EveOS inherits WatchFusion's output-efficient verification discipline.
 - Successful profile output should stay compact: one stable summary line is enough.
 - On failure, print only bounded relevant context (fewer than 40 direct lines) and save full captured stdout/stderr under ignored `data/runtime/smoke-results/` diagnostics.
 - Use verbose output only when explicitly diagnosing a failure.
+- For chat-driven/manual qualification, prefer `npm run test:handoff -- --base <sha> --script <focused-script> --profile <none|fast|deep|security>`. Add `--final` only when the uncached full `verify` gate is warranted.
+- The handoff runner is the normal human-operator evidence path: it records exact HEAD/origin alignment, worktree state, changed files, Node/Python/Playwright identity, registered-port listeners, per-command duration, bounded failure context, and ignored full JSON/log artifacts under `data/runtime/smoke-results/`.
+- Do not require Nova/Astro merely to collect routine test evidence that the handoff runner can produce. Reserve local agents for diagnosis or repair that actually needs browser/computer-use/hardware judgment.
+- The handoff runner refuses a dirty worktree by default. Use `--allow-dirty` only when the dirty state is deliberate and report it explicitly.
 - Never reduce coverage, skip a required test, suppress a meaningful warning, or weaken an assertion merely to save output/tokens.
 
 ## Agent execution efficiency
