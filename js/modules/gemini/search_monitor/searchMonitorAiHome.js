@@ -178,6 +178,10 @@
     function requestErrorMessage(error, fallback) {
         const message = String(error?.message || '').trim();
         if (!message || /failed to fetch|network|abort/i.test(message)) {
+            const control = window.EveOSControlPlane?.getState?.() || {};
+            if (control.controllerAvailable) {
+                return 'Local Control is online, but Local MoE status is temporarily unreachable. Search Monitor will retry automatically.';
+            }
             return fallback || 'Local Control is offline. Start it from the localhost control above, then refresh.';
         }
         return message;
