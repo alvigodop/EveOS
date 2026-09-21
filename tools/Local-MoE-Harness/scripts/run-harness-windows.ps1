@@ -5,6 +5,15 @@ if (-not (Test-Path $Python)) { throw "Project-local harness environment is miss
 $HarnessPort = if ($env:LOCAL_MOE_HARNESS_PORT) { [int]$env:LOCAL_MOE_HARNESS_PORT } else { 5180 }
 $FreeTokenPort = if ($env:FREETOKEN_PORT) { [int]$env:FREETOKEN_PORT } else { 1919 }
 
+# EveOS-managed launches provide both canonical ports. Keep the Harness HTTP
+# service independent from the model child so runtime qualification can prove
+# Harness -> model -> TLO as separate stages. Standalone launches retain the
+# checked-in runtime_autostart setting unless this variable is explicitly set.
+$EveManaged = [bool]$env:LOCAL_MOE_HARNESS_PORT -and [bool]$env:FREETOKEN_PORT
+if ($EveManaged -and -not $env:LOCAL_MOE_RUNTIME_AUTOSTART) {
+    $env:LOCAL_MOE_RUNTIME_AUTOSTART = "0"
+}
+
 $Existing = Get-NetTCPConnection -LocalPort $FreeTokenPort -State Listen -ErrorAction SilentlyContinue
 if ($Existing) {
     $Managed = $false
