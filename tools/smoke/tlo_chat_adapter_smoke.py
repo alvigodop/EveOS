@@ -107,10 +107,10 @@ class FakeConnection:
 
 
 class FakeHandler:
-    def __init__(self, payload=None):
+    def __init__(self, payload=None, *, origin="http://127.0.0.1:8765", host="127.0.0.1"):
         body = json.dumps(payload).encode("utf-8") if payload is not None else b""
-        self.client_address = ("127.0.0.1", 50000)
-        self.headers = {"Origin": "http://127.0.0.1:8765", "Content-Length": str(len(body))}
+        self.client_address = (host, 50000)
+        self.headers = {"Origin": origin, "Content-Length": str(len(body))}
         self.rfile = io.BytesIO(body)
         self.wfile = io.BytesIO()
         self.status = None
@@ -167,6 +167,24 @@ def run():
                 require(stopped["state"] == "stopped" and not stopped["canChat"], "Stopped state is not usable")
                 start.assert_not_called()
                 read_harness.assert_not_called()
+
+            with patch.object(tlo_chat.local_moe_control, "get_status", return_value=lifecycle()), \
+                    patch.object(tlo_chat, "_harness_json", return_value=harness_status()):
+                file_status = FakeHandler(origin="null")
+                require(
+                    tlo_chat.handle_get_request(file_status, f"{tlo_chat.BASE_PATH}/status", {"scopeId": ["default"]}),
+                    "File-origin TLO status route was not handled"
+                )
+                require(
+                    file_status.status == 200 and json.loads(file_status.wfile.getvalue())["canChat"] is True,
+                    "Supported file-origin EveOS page could not read TLO readiness"
+                )
+                remote_status = FakeHandler(origin="https://example.invalid")
+                require(
+                    tlo_chat.handle_get_request(remote_status, f"{tlo_chat.BASE_PATH}/status", {"scopeId": ["default"]}),
+                    "Remote-origin TLO status route was not handled"
+                )
+                require(remote_status.status == 403, "Remote web origin could read TLO status")
 
             with patch.object(tlo_chat.local_moe_control, "get_status", return_value=lifecycle()), \
                     patch.object(tlo_chat, "_harness_json", return_value=harness_status()), \
