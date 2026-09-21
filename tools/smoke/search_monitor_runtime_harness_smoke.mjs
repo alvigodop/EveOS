@@ -34,7 +34,7 @@ requireCondition(
   'live runtime sequence no longer explicitly starts the Local MoE model stage'
 );
 requireCondition(
-  runtimeCliSource.indexOf('ensureLocalModelRuntime') < runtimeCliSource.indexOf('waitForTloReady(modelTimeoutMs)'),
+  runtimeCliSource.indexOf('await ensureLocalModelRuntime') < runtimeCliSource.indexOf('tlo = await waitForTloReady(modelTimeoutMs)'),
   'TLO readiness wait can run before the explicit Local MoE model start stage'
 );
 requireCondition(controlSource.includes('"/api/eveos-server/stop-web"'), 'control plane is missing scoped EveOS web stop');
