@@ -306,11 +306,25 @@ def helper_http_smoke():
                     "web start route failed for localhost:3000")
         assert_true(payload.get("port") == 3000, "web start route dropped the requesting port")
 
+        status_code, payload = request_json(port, "POST", "/api/eveos-server/stop-web",
+                                            origin="http://127.0.0.1:3000")
+        assert_true(status_code == 200 and payload.get("running") is False,
+                    "scoped web stop route failed for localhost:3000")
+        assert_true(payload.get("port") == 3000, "scoped web stop targeted the wrong port")
+        assert_true("stoppedAlso" not in payload,
+                    "scoped web stop accidentally used Global Stop semantics")
+
+        status_code, payload = request_json(port, "POST", "/api/eveos-server/start",
+                                            origin="http://127.0.0.1:3000")
+        assert_true(status_code == 200 and payload.get("running") is True,
+                    "web restart before Global Stop failed")
+
         status_code, payload = request_json(port, "POST", "/api/eveos-server/stop",
                                             origin="http://127.0.0.1:3000")
         assert_true(status_code == 200 and payload.get("running") is False,
-                    "web stop route failed for localhost:3000")
-        assert_true(payload.get("port") == 3000, "web stop route targeted the wrong port")
+                    "Global Stop web stage failed for localhost:3000")
+        assert_true(payload.get("port") == 3000, "Global Stop targeted the wrong web port")
+        assert_true("stoppedAlso" in payload, "Global Stop no longer reports managed child teardown")
 
         status_code, payload = request_json(port, "POST", "/api/world-book/start")
         assert_true(status_code == 200 and payload.get("running") is True, "World Book start route failed")
