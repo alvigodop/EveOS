@@ -238,6 +238,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
 
         args = self._process_args(record)
         headless = self._headless_requested(environment)
+        self.log_path.touch(exist_ok=True)
         if headless:
             self._stop_console_monitor()
         else:
