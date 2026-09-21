@@ -144,7 +144,7 @@ export async function ensureControlPlane({ timeoutMs = 30_000 } = {}) {
   if (process.platform === 'win32') {
     const cmd = process.env.ComSpec || 'cmd.exe';
     const launcher = path.join(ROOT, 'tools', 'batch', 'start-eveos-control.bat');
-    const result = spawnSync(cmd, ['/d', '/c', `"${launcher}"`], {
+    const result = spawnSync(cmd, ['/d', '/s', '/c', `call "${launcher}"`], {
       cwd: ROOT,
       stdio: 'inherit',
       env: { ...process.env, EVEOS_HEADLESS: '' },
@@ -176,6 +176,14 @@ export async function configureHeadedServices(serviceNames) {
     body: { keepLocalControlAfterToolStop: true },
   });
   if (!keep.ok) throw new Error(`Could not keep Local Control alive: ${keep.payload?.message || keep.text}`);
+
+  const headedDefault = await requestJson(`${CONTROL_BASE}/api/control-plane/consoles`, {
+    method: 'POST',
+    body: { service: 'default', headless: false },
+  });
+  if (!headedDefault.ok) {
+    throw new Error(`Could not enforce headed-by-default terminals: ${headedDefault.payload?.message || headedDefault.text}`);
+  }
 
   for (const name of serviceNames) {
     const service = SEARCH_MONITOR_SERVICES[name];
