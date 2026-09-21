@@ -63,8 +63,9 @@ requireCondition(
 requireCondition(
   liveBrowserSource.includes("const FILE_URL = 'file:///")
     && liveBrowserSource.includes("'file-origin'")
-    && liveBrowserSource.includes('requiredStatusRequest'),
-  'live Search Monitor browser qualification no longer covers the real file-origin entrypoint'
+    && liveBrowserSource.includes('requiredRuntimeRequest')
+    && liveBrowserSource.includes('File-origin TLO chat did not complete cleanly'),
+  'live Search Monitor browser qualification no longer covers the real file-origin entrypoint and chat path'
 );
 requireCondition(
   runtimeCliSource.includes('function scopeQualificationFailure(')
