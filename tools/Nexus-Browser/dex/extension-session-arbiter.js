@@ -46,7 +46,7 @@ function createExtensionSessionArbiter({ isOpen = () => true, now = () => Date.n
       const replacement = best(socket, { requireTabs: true });
       if (replacement) primary = replacement;
     } else if (socket !== primary && state.tabs.length > 0
-        && (!primaryState?.hasSnapshot || primaryState.tabs.length === 0)) {
+        && (!primaryState?.hasSnapshot || state.tabs.length > primaryState.tabs.length)) {
       primary = socket;
     }
     return current();
