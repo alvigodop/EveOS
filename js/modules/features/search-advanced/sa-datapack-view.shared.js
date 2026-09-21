@@ -253,7 +253,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             Object.keys(summary.cards).forEach(function (cardKey) {
                 const bucket = summary.cards[cardKey];
                 if (normalizeWorkspaceId(bucket?.workspaceId) !== ws) return;
-                if (Number(bucket?.bookmarkCount || 0) <= 0 && Number(bucket?.folderCount || 0) <= 0) return;
+                if (Number(bucket?.bookmarkCount || 0) <= 0 && Number(bucket?.realFolderCount || 0) <= 0) return;
                 addMaterialName(bucket?.categoryName || String(cardKey).slice((ws + '::').length));
             });
         }

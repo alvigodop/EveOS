@@ -26,6 +26,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             recordCount: 0,
             cardCount: 0,
             folderCount: 0,
+            realFolderCount: 0,
+            smartViewCount: 0,
             bookmarkCount: 0,
             doneBookmarkCount: 0,
             libraryCount: 0,
@@ -46,8 +48,14 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
     function accumulateStructureBucket(bucket, record, visibility, health, freshness) {
         bucket.recordCount += 1;
         if (record?.type === 'card') bucket.cardCount += 1;
-        if (record?.type === 'folder') bucket.folderCount += 1;
-        if (record?.type === 'smartView') bucket.folderCount += 1;
+        if (record?.type === 'folder') {
+            bucket.folderCount += 1;
+            bucket.realFolderCount += 1;
+        }
+        if (record?.type === 'smartView') {
+            bucket.folderCount += 1;
+            bucket.smartViewCount += 1;
+        }
         if (record?.type === 'bookmark') bucket.bookmarkCount += 1;
         if (record?.type === 'bookmark' && record?.provenance?.done) bucket.doneBookmarkCount += 1;
         if (record?.type === 'library') bucket.libraryCount += 1;
