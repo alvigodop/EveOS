@@ -49,7 +49,7 @@ async function main() {
                 hideStats: []
             });
             window.eveState.config = nextConfig;
-            window.eveState.links = [{
+            const testLinks = [{
                 id: linkId,
                 title: 'Linked Bookmark Seed',
                 url: 'https://example.com/bookmark-seed',
@@ -58,6 +58,11 @@ async function main() {
                 notes: 'Bookmark seed note',
                 identifiers: ['reading']
             }];
+            if (typeof window.setLiveLinks === 'function') {
+                window.setLiveLinks(testLinks);
+            } else {
+                window.eveState.links = testLinks;
+            }
             window.eveState.bookmarkFolders = {};
             window.EveLibrary.State.setAllLibraries({});
             window.EveLibrary.ConnectionsCore?.invalidateEntryIndex?.();
@@ -97,7 +102,26 @@ async function main() {
             window.EveOS.SearchAdvanced.DatapackView.openCardInternals('main', seedState.categoryName);
         }, seed);
         await page.waitForSelector('.nx-dv-micro-overlay', { timeout: 10000 });
-        await page.waitForSelector(`.nx-dv-bookmark-row[data-link-id="${seed.linkId}"]`, { timeout: 10000 });
+        try {
+            await page.waitForSelector(`.nx-dv-bookmark-row[data-link-id="${seed.linkId}"]`, { timeout: 10000 });
+        } catch (error) {
+            const diagnostics = await page.evaluate((seedState) => {
+                const simplify = (value) => (Array.isArray(value) ? value : []).map((link) => ({
+                    id: String(link?.id || ''),
+                    workspace: String(link?.workspace || ''),
+                    category: String(link?.category || '')
+                }));
+                return {
+                    requested: seedState,
+                    globalLinks: simplify(typeof links !== 'undefined' ? links : null),
+                    stateLinks: simplify(window.eveState?.links),
+                    helperLinks: simplify(typeof window.getLiveLinks === 'function' ? window.getLiveLinks() : null),
+                    renderedRows: Array.from(document.querySelectorAll('.nx-dv-bookmark-row[data-link-id]'))
+                        .map((row) => row.getAttribute('data-link-id'))
+                };
+            }, seed);
+            throw new Error('Linked Library bookmark row did not materialize: ' + JSON.stringify(diagnostics));
+        }
 
         const initial = await page.evaluate((linkId) => {
             const row = document.querySelector(`.nx-dv-bookmark-row[data-link-id="${linkId}"]`);

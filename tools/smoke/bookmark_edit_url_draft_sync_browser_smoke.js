@@ -83,13 +83,15 @@ async function main() {
 
                 const urlInput = document.getElementById('newUrl');
                 const sourceInput = document.getElementById('libSourceUrl');
-                const summaryInput = document.getElementById('libSummary');
+                const rawSummaryInput = document.getElementById('libSummary');
+                const humanNotesInput = document.getElementById('libHumanNotes');
                 const chapterInput = document.getElementById('libGraphicChapter');
-                if (!urlInput || !sourceInput || !summaryInput || !chapterInput) {
+                if (!urlInput || !sourceInput || !rawSummaryInput || !humanNotesInput || !chapterInput) {
                     throw new Error('Expected bookmark edit/library fields to exist');
                 }
 
-                summaryInput.value = 'Draft notes typed by user';
+                humanNotesInput.value = 'Draft notes typed by user';
+                humanNotesInput.dispatchEvent(new Event('input', { bubbles: true }));
                 chapterInput.value = '42';
                 urlInput.value = 'https://new.example/two';
                 urlInput.dispatchEvent(new Event('input', { bubbles: true }));
@@ -100,7 +102,8 @@ async function main() {
                     updateCallCount: updateCalls.length,
                     url: urlInput.value,
                     sourceUrl: sourceInput.value,
-                    summary: summaryInput.value,
+                    summary: rawSummaryInput.value,
+                    humanNotes: humanNotesInput.value,
                     chapter: chapterInput.value,
                     persistedSourceUrl: api.getLinkedEntry('draft-link')?.entry?.sourceUrl || ''
                 };
@@ -130,8 +133,9 @@ async function main() {
         if (result.afterInput.sourceUrl !== 'https://new.example/two') {
             throw new Error(`Expected Source URL draft to mirror bookmark URL, saw ${result.afterInput.sourceUrl}`);
         }
-        if (result.afterInput.summary !== 'Draft notes typed by user') {
-            throw new Error(`Expected notes draft to survive URL edit, saw ${result.afterInput.summary}`);
+        if (result.afterInput.humanNotes !== 'Draft notes typed by user'
+            || result.afterInput.summary !== 'Draft notes typed by user') {
+            throw new Error(`Expected human/raw notes draft to survive URL edit, saw ${JSON.stringify(result.afterInput)}`);
         }
         if (result.afterInput.chapter !== '42') {
             throw new Error(`Expected chapter draft to survive URL edit, saw ${result.afterInput.chapter}`);
