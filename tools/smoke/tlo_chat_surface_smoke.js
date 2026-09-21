@@ -37,6 +37,8 @@ async function run() {
         && source.includes('/api/eve-state/modular/tlo/chat/cancel'),
         'TLO chat is not connected to the EveOS streaming/cancel adapter');
     requireContract(!source.includes('/api/local-moe/start'), 'Opening TLO can start Local MoE');
+    requireContract(source.includes("api_unreachable") && source.includes('retry automatically'),
+        'TLO status no longer distinguishes a reachable EveOS server from an unreachable TLO API');
     requireContract(manifest.indexOf('tloChat.js') < manifest.indexOf('agentNexus.js'),
         'TLO chat is not loaded before the Agent Nexus facade');
     requireContract(/@media \(max-width: 620px\)/.test(css), 'TLO chat lacks its narrow-layout contract');
