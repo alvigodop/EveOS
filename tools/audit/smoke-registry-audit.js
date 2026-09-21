@@ -15,9 +15,9 @@
  *
  * Registering all of them at once is not realistic -- many need Playwright, and some are genuinely
  * failing and need triage. So this is a ratchet, not a cliff: the current backlog is recorded in
- * smoke-registry-baseline.json and tolerated. The audit fails only when the backlog GROWS, i.e.
- * someone adds a new smoke and forgets to wire it up. Shrinking it is always allowed, and drops the
- * baseline as you go.
+ * smoke-registry-baseline.json and tolerated. The audit fails when the backlog grows, and also when
+ * the baseline can shrink so that tightening happens as an explicit committed repo change rather
+ * than silently mutating tracked files during verification.
  *
  * Fix a failure by adding the smoke to an npm chain or invoking it from an already registered
  * smoke orchestrator -- not by editing the baseline.
@@ -103,13 +103,10 @@ function main() {
     }, null, 2));
 
     if (fixed.length) {
-        // Ratchet down automatically, so progress is never lost to a stale baseline.
-        fs.writeFileSync(BASELINE, JSON.stringify({
-            note: 'Smokes not reachable from any npm script. Shrink this list; never grow it.',
-            unregistered
-        }, null, 2) + '\n', 'utf8');
-        console.log(`smoke registry: ${fixed.length} smoke(s) newly wired up — baseline tightened`);
-        console.log(`  ${fixed.join('\n  ')}`);
+        console.error('\nsmoke registry baseline can shrink — these smokes are now reachable:');
+        console.error(`  ${fixed.join('\n  ')}`);
+        console.error('\nUpdate the committed baseline in a focused repo change before treating verify as green.');
+        return 2;
     }
 
     if (added.length) {
