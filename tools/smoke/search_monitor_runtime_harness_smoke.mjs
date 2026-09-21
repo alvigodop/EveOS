@@ -68,6 +68,12 @@ requireCondition(
   'live Search Monitor browser qualification no longer covers the real file-origin entrypoint and chat path'
 );
 requireCondition(
+  liveBrowserSource.includes('completedStreamAbortIsBenign')
+    && liveBrowserSource.includes('ERR_ABORTED')
+    && liveBrowserSource.includes('strictFileFailures'),
+  'file-origin TLO smoke no longer distinguishes a completed SSE close abort from a real runtime failure'
+);
+requireCondition(
   runtimeCliSource.includes('function scopeQualificationFailure(')
     && runtimeCliSource.includes('FAILURE_LOG_TAIL')
     && runtimeCliSource.includes('FAILURE_SCOPE_SNAPSHOT'),
