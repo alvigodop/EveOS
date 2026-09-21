@@ -183,7 +183,7 @@ function relevantFailureLines(output) {
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter(Boolean);
-  const matched = lines.filter((line) => /error|fail|traceback|assert|expected|received|timeout|exception|not found|blocked|conflict|at\s+\S+/i.test(line));
+  const matched = lines.filter((line) => /error|fail|traceback|assert|expected|received|timeout|exception|not found|blocked|conflict|diagnostic|screenshot|trace\.zip|at\s+\S+/i.test(line));
   return (matched.length ? matched : lines).slice(-MAX_FAILURE_LINES);
 }
 
