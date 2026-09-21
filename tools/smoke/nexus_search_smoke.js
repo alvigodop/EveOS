@@ -42,6 +42,7 @@ async function waitForApp(page) {
     && !!window.EveOS?.SearchAdvanced?.SearchVectors
     && !!window.EveOS?.SearchAdvanced?.Navigation
     && !!window.EveOS?.SearchAdvanced?.Locators
+    && !!window.EveOS?.SearchAdvanced?.Index
     && !!window.EveOS?.API?.SearchInternals?.saveScopedStorageValueAsync
     && !!window.EveOS?.API?.Cache?.storeQuery
   ), undefined, { timeout: 120000 });
@@ -62,6 +63,8 @@ async function seedState(page, seed) {
     }
 
     try {
+      localStorage.removeItem('eve.nexusIndex.v1');
+      localStorage.removeItem('eve.nexusIndex.v2');
       localStorage.setItem('eveV22Data', JSON.stringify(links));
       localStorage.setItem('eveV22Config', JSON.stringify(config));
       localStorage.setItem('eveV22BookmarkFolders', JSON.stringify(bookmarkFolders));
@@ -83,12 +86,77 @@ async function seedState(page, seed) {
       }
     }, 'Alpha');
 
+    // Direct test seeding bypasses EveOS mutation helpers, so publish the same
+    // mutation signal used by the production state layer before searching.
+    window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+      detail: { source: 'nexus-search-smoke-seed' }
+    }));
+
+    // Build the index from the synthetic seed instead of inheriting a persisted
+    // snapshot from whichever EveOS dataset happened to run on this machine.
+    const index = window.EveOS.SearchAdvanced.Index;
+    await index.rebuild({ force: true, reason: 'nexus-search-smoke-seed' });
+    const seededSnapshot = index.getSnapshot?.();
+    const seededTitles = Array.isArray(seededSnapshot?.records)
+      ? seededSnapshot.records.map((record) => String(record?.title || ''))
+      : [];
+    if (!seededTitles.includes('Alpha Folder Bookmark') || !seededTitles.includes('Alpha Test Article')) {
+      throw new Error('Nexus smoke seed did not reach the rebuilt index: ' + JSON.stringify({
+        buildState: index.getBuildState?.() || null,
+        recordCount: seededSnapshot?.records?.length || 0,
+        sampleTitles: seededTitles.slice(0, 12)
+      }));
+    }
+
     if (typeof window.renderSidebar === 'function') window.renderSidebar();
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   }, seed);
 }
 
-async function runSmoke(page) {
+async function collectFailureDiagnostics(page, runtimeDiagnostics) {
+  const browserState = await page.evaluate(() => {
+    const index = window.EveOS?.SearchAdvanced?.Index;
+    const snapshot = index?.getSnapshot?.();
+    const results = document.getElementById('esResults');
+    const monitor = document.getElementById('loadingIndicator');
+    return {
+      query: document.getElementById('esQuery')?.value || '',
+      runButton: {
+        disabled: !!document.getElementById('esRunBtn')?.disabled,
+        text: document.getElementById('esRunBtn')?.textContent || ''
+      },
+      activeVectors: Array.from(document.querySelectorAll('.nx-vector-slot.nx-active'))
+        .map((node) => node.getAttribute('data-vector')),
+      meta: document.getElementById('esMeta')?.textContent || '',
+      resultGroupCount: document.querySelectorAll('#esResults .nx-group-title').length,
+      resultText: String(results?.textContent || '').trim().slice(0, 1200),
+      resultHtml: String(results?.innerHTML || '').slice(0, 1600),
+      monitor: {
+        status: monitor?.querySelector('#searchStatus')?.textContent || '',
+        statusLabel: monitor?.querySelector('#searchStatusLabel')?.textContent || '',
+        progress: monitor?.querySelector('#wikisSearched')?.textContent || '',
+        progressLabel: monitor?.querySelector('#wikisSearchedLabel')?.textContent || '',
+        results: monitor?.querySelector('#resultsFound')?.textContent || '',
+        resultsLabel: monitor?.querySelector('#resultsFoundLabel')?.textContent || '',
+        trace: monitor?.querySelector('#nexusTrace')?.textContent || ''
+      },
+      index: {
+        buildState: index?.getBuildState?.() || null,
+        recordCount: snapshot?.records?.length || 0,
+        sampleTitles: Array.isArray(snapshot?.records)
+          ? snapshot.records.slice(0, 12).map((record) => String(record?.title || ''))
+          : []
+      }
+    };
+  });
+  return {
+    browserState,
+    pageErrors: (runtimeDiagnostics?.pageErrors || []).slice(-8),
+    consoleErrors: (runtimeDiagnostics?.consoleErrors || []).slice(-8)
+  };
+}
+
+async function runSmoke(page, runtimeDiagnostics) {
   await page.evaluate(() => window.SearchMonitorBoot.expand());
   await page.waitForSelector('#loadingIndicator:not(.compact) .monitor-nexus-toggle', { timeout: 10000 });
 
@@ -115,7 +183,12 @@ async function runSmoke(page) {
 
   await page.fill('#esQuery', 'Alpha');
   await page.locator('#esRunBtn').click();
-  await page.waitForFunction(() => document.querySelectorAll('#esResults .nx-group-title').length > 0, undefined, { timeout: 15000 });
+  try {
+    await page.waitForFunction(() => document.querySelectorAll('#esResults .nx-group-title').length > 0, undefined, { timeout: 15000 });
+  } catch (error) {
+    const diagnostics = await collectFailureDiagnostics(page, runtimeDiagnostics);
+    throw new Error('Nexus initial result render timed out: ' + JSON.stringify(diagnostics));
+  }
   await page.evaluate(() => {
     document.querySelectorAll('#esResults .nx-result-group.collapsed [data-nx-collapse-group]').forEach((header) => header.click());
   });
@@ -212,17 +285,36 @@ async function runSmoke(page) {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1600, height: 980 } });
   const screenshotPath = path.join(REPO_ROOT, 'output', 'playwright', 'nexus_search_smoke.png');
+  const failureScreenshotPath = path.join(REPO_ROOT, 'output', 'playwright', 'nexus_search_smoke_failure.png');
+  const runtimeDiagnostics = { pageErrors: [], consoleErrors: [] };
+  page.on('pageerror', (error) => {
+    runtimeDiagnostics.pageErrors.push(String(error?.message || error || '').slice(0, 600));
+  });
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning') {
+      runtimeDiagnostics.consoleErrors.push((message.type() + ': ' + message.text()).slice(0, 600));
+    }
+  });
 
   try {
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
-    await runSmoke(page);
+    await runSmoke(page, runtimeDiagnostics);
     await page.screenshot({ path: screenshotPath, fullPage: true });
     console.log(JSON.stringify({
       ok: true,
       screenshotPath
     }, null, 2));
+  } catch (error) {
+    await page.screenshot({ path: failureScreenshotPath, fullPage: true }).catch(() => {});
+    console.error(JSON.stringify({
+      ok: false,
+      failureScreenshotPath,
+      pageErrors: runtimeDiagnostics.pageErrors.slice(-8),
+      consoleErrors: runtimeDiagnostics.consoleErrors.slice(-8)
+    }, null, 2));
+    throw error;
   } finally {
     await browser.close();
   }
