@@ -99,7 +99,7 @@ export function requestJson(url, { method = 'GET', body = null, timeoutMs = 5000
         });
       });
     });
-    request.setTimeout(timeoutMs, () => request.destroy(new Error(`timeout after ${timeoutMs}ms`)));
+    request.setTimeout(timeoutMs, () => request.destroy(new Error(`${method} ${target.pathname}${target.search} timed out after ${timeoutMs}ms`)));
     request.on('error', reject);
     if (encoded) request.write(encoded);
     request.end();
@@ -187,6 +187,7 @@ export async function configureHeadedServices(serviceNames) {
   if (!headedDefault.ok) {
     throw new Error(`Could not enforce headed-by-default terminals: ${headedDefault.payload?.message || headedDefault.text}`);
   }
+  let preferences = headedDefault.payload;
 
   for (const name of serviceNames) {
     const service = SEARCH_MONITOR_SERVICES[name];
@@ -196,13 +197,15 @@ export async function configureHeadedServices(serviceNames) {
       body: { service: service.key, headless: false },
     });
     if (!result.ok) throw new Error(`Could not make ${service.label} headed: ${result.payload?.message || result.text}`);
+    preferences = result.payload;
+    const saved = (preferences?.services || []).find((item) => item.key === service.key);
+    if (!saved || saved.headless) throw new Error(`${service.label} did not persist headed terminal preference.`);
   }
 
-  const overview = await requestJson(`${CONTROL_BASE}/api/control-plane/consoles`);
-  if (overview.payload?.envForced) {
+  if (preferences?.envForced) {
     throw new Error('EVEOS_HEADLESS is forcing hidden services in the existing Local Control process. Restart Local Control without EVEOS_HEADLESS.');
   }
-  return overview.payload;
+  return preferences;
 }
 
 export async function serviceStatus(name) {
