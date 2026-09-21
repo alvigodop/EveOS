@@ -42,7 +42,6 @@
     "audioflix_port_authz_persist_smoke.py",
     "audioflix_port_file_range_smoke.py",
     "audioflix_portify_folder_smoke.js",
-    "audioflix_proxy_streaming_smoke.py",
     "audioflix_regrant_click_smoke.js",
     "audioflix_savepath_availability_smoke.js",
     "audioflix_scope_links_smoke.js",
@@ -262,7 +261,6 @@
     "unidex_unified_5k_progressive_browser_smoke.js",
     "unidex_unified_masonry_browser_smoke.js",
     "unidex_unified_subtabs_browser_smoke.js",
-    "wiki_fandom_cache_richness_smoke.js",
     "workspace_switch_browser_smoke.js",
     "workspace_switch_progressive_cards_browser_smoke.js"
   ]
