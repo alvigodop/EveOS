@@ -86,13 +86,14 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode) {
     assert(nexus.state === 'Online', `Nexus Browser is not online from ${entryMode}: ${JSON.stringify(nexus)}`);
     assert(/Connected|Ready/i.test(nexus.extension), `Nexus Browser extension readiness is missing from ${entryMode}: ${JSON.stringify(nexus)}`);
 
-    return {
-        entryMode,
-        url: page.url(),
-        localMoe: document ? undefined : undefined,
-        tlo,
-        nexus
-    };
+    const localMoe = await page.evaluate(() => ({
+        state: document.querySelector('[data-local-moe-state]')?.textContent?.trim() || '',
+        runtime: document.querySelector('[data-local-moe-runtime]')?.textContent?.trim() || '',
+        model: document.querySelector('[data-local-moe-model]')?.textContent?.trim() || ''
+    }));
+    assert(localMoe.state === 'Online', `Local MoE is not online from ${entryMode}: ${JSON.stringify(localMoe)}`);
+    assert(/Ready/i.test(localMoe.runtime), `Local MoE runtime is not ready from ${entryMode}: ${JSON.stringify(localMoe)}`);
+    return { entryMode, url: page.url(), localMoe, tlo, nexus };
 }
 
 async function main() {
