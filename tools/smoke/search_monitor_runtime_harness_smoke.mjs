@@ -60,6 +60,18 @@ requireCondition(
   sharedRuntimeSource.includes('body: { service: service.key, headless: false }'),
   'Search Monitor runtime no longer forces each spawned service terminal to headed'
 );
+requireCondition(
+  !sharedRuntimeSource.includes('const overview = await requestJson(`${CONTROL_BASE}/api/control-plane/consoles`)'),
+  'runtime startup reintroduced the expensive cold full-console overview probe'
+);
+requireCondition(
+  sharedRuntimeSource.includes('did not persist headed terminal preference'),
+  'runtime startup no longer verifies headed preferences from the cheap POST response'
+);
+requireCondition(
+  sharedRuntimeSource.includes('${method} ${target.pathname}${target.search} timed out after'),
+  'runtime HTTP timeout errors no longer identify the exact request'
+);
 
 const headedControllers = {
   web: ['server_modules/eveos_web_control.py', 'headless_mode()'],
