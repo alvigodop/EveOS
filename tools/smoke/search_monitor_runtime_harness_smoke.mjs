@@ -17,6 +17,10 @@ const controlBatchSource = fs.readFileSync(path.join(ROOT, 'tools', 'batch', 'st
 const sharedRuntimeSource = fs.readFileSync(path.join(ROOT, 'tools', 'runtime', 'search-monitor-runtime.shared.mjs'), 'utf8');
 const cli = path.join(ROOT, 'tools', 'runtime', 'search-monitor-runtime.mjs');
 const runtimeCliSource = fs.readFileSync(cli, 'utf8');
+const liveBrowserSource = fs.readFileSync(
+  path.join(ROOT, 'tools', 'smoke', 'search_monitor_live_browser_smoke.js'),
+  'utf8'
+);
 const sessionPath = path.join(ROOT, 'data', 'runtime', 'search-monitor-runtime-session.json');
 const sessionBefore = fs.existsSync(sessionPath) ? fs.readFileSync(sessionPath, 'utf8') : null;
 
@@ -55,6 +59,12 @@ requireCondition(
     && runtimeCliSource.includes('qualificationFailure')
     && runtimeCliSource.includes('stageResults'),
   'live qualification no longer records stage-specific spawn diagnostics'
+);
+requireCondition(
+  liveBrowserSource.includes("const FILE_URL = 'file:///")
+    && liveBrowserSource.includes("'file-origin'")
+    && liveBrowserSource.includes('requiredStatusRequest'),
+  'live Search Monitor browser qualification no longer covers the real file-origin entrypoint'
 );
 requireCondition(
   runtimeCliSource.includes('function scopeQualificationFailure(')
