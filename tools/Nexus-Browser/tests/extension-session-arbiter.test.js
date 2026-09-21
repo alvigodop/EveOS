@@ -46,6 +46,24 @@ test('populated session promotes over an empty primary', () => {
   assert.equal(state.snapshot.tabs.length, 14);
 });
 
+test('richer populated session becomes authoritative without smaller-session flapping', () => {
+  const arbiter = createExtensionSessionArbiter({ isOpen: (socket) => socket.open });
+  const small = fakeSocket('small');
+  const rich = fakeSocket('rich');
+
+  arbiter.register(small);
+  arbiter.update(small, { tabs: tabs(1, 'small') });
+  arbiter.register(rich);
+  let state = arbiter.update(rich, { tabs: tabs(14, 'rich') });
+
+  assert.equal(state.socket, rich);
+  assert.equal(state.snapshot.tabs.length, 14);
+
+  state = arbiter.update(small, { tabs: tabs(2, 'small') });
+  assert.equal(state.socket, rich);
+  assert.equal(state.snapshot.tabs.length, 14);
+});
+
 test('real zero-tab state is preserved when all live sessions report zero', () => {
   const arbiter = createExtensionSessionArbiter({ isOpen: (socket) => socket.open });
   const a = fakeSocket('a');
