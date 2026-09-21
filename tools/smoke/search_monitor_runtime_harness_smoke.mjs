@@ -74,6 +74,11 @@ requireCondition(
   'file-origin TLO smoke no longer distinguishes a completed SSE close abort from a real runtime failure'
 );
 requireCondition(
+  liveBrowserSource.includes('Nexus Browser iframe did not load')
+    && liveBrowserSource.includes('embeddedNexus'),
+  'live Search Monitor browser qualification no longer proves the embedded Nexus workspace'
+);
+requireCondition(
   runtimeCliSource.includes('function scopeQualificationFailure(')
     && runtimeCliSource.includes('FAILURE_LOG_TAIL')
     && runtimeCliSource.includes('FAILURE_SCOPE_SNAPSHOT'),
