@@ -24,6 +24,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         self.runtime_dir = self.root / "runtime" / "freetoken"
         self.prism_script = self.root / "scripts" / "run-prism-llama-windows.ps1"
         self.prism_runtime_dir = self.root / "runtime" / "prism-llama" / "windows-cuda"
+        self.console_pid_path = self.state_dir / "runtime-console.pid"
 
     @staticmethod
     def _pid_alive(pid: int | None) -> bool:
@@ -33,6 +34,56 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             return psutil.Process(pid).is_running()
         except psutil.Error:
             return False
+
+    def _console_pid(self) -> int | None:
+        try:
+            return int(self.console_pid_path.read_text(encoding="ascii").strip())
+        except (OSError, ValueError):
+            return None
+
+    def _stop_console_monitor(self) -> None:
+        pid = self._console_pid()
+        if pid and self._pid_alive(pid):
+            try:
+                process = psutil.Process(pid)
+                process.terminate()
+                process.wait(timeout=3)
+            except psutil.TimeoutExpired:
+                try:
+                    process.kill()
+                except psutil.Error:
+                    pass
+            except psutil.Error:
+                pass
+        try:
+            self.console_pid_path.unlink()
+        except OSError:
+            pass
+
+    def _ensure_console_monitor(self, record: ModelRecord) -> int:
+        pid = self._console_pid()
+        if pid and self._pid_alive(pid):
+            return pid
+        try:
+            self.console_pid_path.unlink()
+        except OSError:
+            pass
+        log_path = str(self.log_path).replace("'", "''")
+        title = f"EveOS Local MoE Runtime - {record.display_name}".replace("'", "''")
+        command = (
+            f"$Host.UI.RawUI.WindowTitle='{title}'; "
+            "Write-Host '[EveOS] Live Local MoE runtime log (managed by EveOS).'; "
+            f"Get-Content -LiteralPath '{log_path}' -Tail 40 -Wait"
+        )
+        flags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+        flags |= int(getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        monitor = subprocess.Popen(
+            ["powershell.exe", "-NoProfile", "-Command", command],
+            cwd=str(self.root),
+            creationflags=flags,
+        )
+        self.console_pid_path.write_text(f"{monitor.pid}\n", encoding="ascii")
+        return monitor.pid
 
     def _pid_is_managed_runtime(self, pid: int) -> bool:
         try:
@@ -88,6 +139,8 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             "last_error": self.last_error,
             "platform_runtime": "native-windows",
             "runtime_backend": backend,
+            "console_pid": self._console_pid(),
+            "console_visible": self._pid_alive(self._console_pid()),
         }
 
     async def stop_managed(self) -> None:
@@ -126,6 +179,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             self.pid_path.unlink()
         except OSError:
             pass
+        self._stop_console_monitor()
         self.startup_stage = "stopped"
 
     def _process_args(self, record: ModelRecord) -> list[str]:
@@ -184,20 +238,23 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
 
         args = self._process_args(record)
         headless = self._headless_requested(environment)
+        if headless:
+            self._stop_console_monitor()
+        else:
+            self._ensure_console_monitor(record)
+        log_file = self.log_path.open("ab", buffering=0)
         creationflags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-        creationflags |= int(getattr(
-            subprocess,
-            "CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE",
-            0,
-        ))
-        process = await asyncio.create_subprocess_exec(
-            *args,
-            cwd=str(self.root),
-            stdout=asyncio.subprocess.DEVNULL if headless else None,
-            stderr=asyncio.subprocess.STDOUT if headless else None,
-            env=environment,
-            creationflags=creationflags,
-        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *args,
+                cwd=str(self.root),
+                stdout=log_file,
+                stderr=asyncio.subprocess.STDOUT,
+                env=environment,
+                creationflags=creationflags,
+            )
+        finally:
+            log_file.close()
 
         self.pid_path.write_text(f"{process.pid}\n", encoding="utf-8")
         self.active_model_id = record.id
