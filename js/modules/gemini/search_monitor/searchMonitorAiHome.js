@@ -17,6 +17,8 @@
     let localMoeLoaded = false;
     let lastLocalMoeStatus = null;
     let onGeminiOpen = null;
+    let workspaceActive = false;
+    let controlHeartbeatBound = false;
 
     function markup() {
         const agentNexusMarkup = window.EveOSAgentNexus?.markup?.()
@@ -303,10 +305,24 @@
         else invokeLocalMoe(action);
     }
 
+    function handleControlHeartbeat() {
+        if (!workspaceActive || !boundRoot) return;
+        refreshLocalMoe();
+        const agents = boundRoot.querySelector('[data-ai-provider="agents"]');
+        if (agents?.open) {
+            window.EveOSTloChat?.refreshStatus?.();
+            window.EveOSNexusBrowser?.refresh?.();
+        }
+    }
+
     function bind(container, options) {
         boundRoot = container;
         onGeminiOpen = options?.onGeminiOpen || null;
         window.EveOSAgentNexus?.bind?.(container);
+        if (!controlHeartbeatBound) {
+            controlHeartbeatBound = true;
+            window.addEventListener('eve:eveos-control-plane-status', handleControlHeartbeat);
+        }
         const gemini = container.querySelector('[data-ai-provider="gemini"]');
         const localMoe = container.querySelector('[data-ai-provider="local-moe"]');
         const agents = container.querySelector('[data-ai-provider="agents"]');
@@ -324,6 +340,7 @@
     }
 
     function setWorkspaceActive(active) {
+        workspaceActive = !!active;
         if (active && !localMoeLoaded) refreshLocalMoe();
         const gemini = boundRoot?.querySelector('[data-ai-provider="gemini"]');
         if (active && gemini?.open) onGeminiOpen?.();
