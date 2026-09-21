@@ -18,16 +18,19 @@ const FINGERPRINT_FILES = new Set(['requirements.txt', 'package.json', 'package-
 const SKIP_PARTS = ['/node_modules/', '/data/runtime/', '/test-results/', '/.git/', '/js/vendor/', '/public/vendor/'];
 
 const PROFILES = Object.freeze({
-  fast: ['smoke:file-size', 'smoke:regressions', 'smoke:capability-surfaces', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:nexus-browser', 'smoke:watchfusion'],
+  fast: ['smoke:file-size', 'smoke:regressions', 'smoke:capability-surfaces', 'smoke:capability-behavior', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:nexus-browser', 'smoke:watchfusion'],
   deep: [
-    'smoke:file-size', 'smoke:regressions', 'smoke:control-plane', 'smoke:capability-surfaces', 'smoke:core-storage', 'smoke:knowledge-cache', 'smoke:world-book',
-    'smoke:local-moe', 'smoke:agent-nexus', 'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
+    'smoke:file-size', 'smoke:regressions', 'smoke:control-plane', 'smoke:capability-surfaces', 'smoke:capability-behavior',
+    'smoke:core-storage', 'smoke:knowledge-cache', 'smoke:world-book', 'smoke:nexus-functional',
+    'smoke:audioflix-backup-roundtrip', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
     'smoke:audioflix-piano', 'smoke:piano-queue', 'smoke:piano-metadata', 'smoke:nexus-browser', 'smoke:watchfusion'
   ],
   security: ['smoke:server-security', 'smoke:browser-emulator-security', 'smoke:watchfusion-security', 'smoke:agent-nexus', 'smoke:nexus-browser-security'],
   'ai-control': [
     'smoke:chat-handoff',
     'smoke:capability-surfaces',
+    'smoke:capability-behavior',
+    'smoke:nexus-functional',
     'smoke:search-monitor-runtime-harness',
     'smoke:agent-nexus',
     'smoke:local-moe',
