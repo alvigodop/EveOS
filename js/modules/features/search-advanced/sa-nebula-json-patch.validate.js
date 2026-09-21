@@ -14,6 +14,8 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
         normalizeFolderId,
         normalizeIdentifierList,
         getLinkApi,
+        getLinkedLibraryForBookmark,
+        normalizeLibraryPatchFields,
         getFolderById,
         getCategoryNamesForWorkspace
     } = h;
