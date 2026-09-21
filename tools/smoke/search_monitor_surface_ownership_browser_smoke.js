@@ -28,9 +28,48 @@ async function pointerClick(page, selector) {
     if (!box) throw new Error(`Missing pointer geometry for ${selector}`);
     const x = box.x + (box.width / 2);
     const y = box.y + (box.height / 2);
+    const hit = await page.evaluate(({ x, y, selector }) => {
+        const compactRect = (element) => {
+            if (!element) return null;
+            const rect = element.getBoundingClientRect();
+            return {
+                left: Math.round(rect.left),
+                top: Math.round(rect.top),
+                right: Math.round(rect.right),
+                bottom: Math.round(rect.bottom),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height)
+            };
+        };
+        const describe = (element) => {
+            if (!element) return null;
+            return {
+                tag: element.tagName || '',
+                id: element.id || '',
+                className: typeof element.className === 'string' ? element.className : '',
+                owner: element.dataset?.surfaceOwner || '',
+                owned: element.dataset?.searchMonitorOwned || ''
+            };
+        };
+        const surface = document.getElementById('surface-ownership-smoke');
+        const indicator = document.getElementById('loadingIndicator');
+        const target = document.querySelector(selector);
+        return {
+            point: { x: Math.round(x), y: Math.round(y) },
+            hit: describe(document.elementFromPoint(x, y)),
+            button: describe(target),
+            buttonRect: compactRect(target),
+            surfaceRect: compactRect(surface),
+            monitorRect: compactRect(indicator),
+            surfaceZ: surface ? getComputedStyle(surface).zIndex : '',
+            monitorZ: indicator ? getComputedStyle(indicator).zIndex : '',
+            monitorClasses: indicator?.className || ''
+        };
+    }, { x, y, selector });
     await page.mouse.move(x, y);
     await page.mouse.down();
     await page.mouse.up();
+    return hit;
 }
 
 async function readState(page) {
@@ -66,6 +105,29 @@ async function main() {
         await page.evaluate(() => {
             document.getElementById('surface-ownership-smoke')?.remove();
             window.__surfaceOwnershipClicks = 0;
+            window.__surfaceOwnershipEvents = [];
+            if (!window.__surfaceOwnershipCaptureBound) {
+                window.__surfaceOwnershipCaptureBound = true;
+                const describe = (element) => ({
+                    tag: element?.tagName || '',
+                    id: element?.id || '',
+                    className: typeof element?.className === 'string' ? element.className : ''
+                });
+                ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach((type) => {
+                    window.addEventListener(type, (event) => {
+                        window.__surfaceOwnershipEvents.push({
+                            type,
+                            target: describe(event.target),
+                            path: typeof event.composedPath === 'function'
+                                ? event.composedPath()
+                                    .filter((node) => node && node !== window && node !== document)
+                                    .slice(0, 8)
+                                    .map(describe)
+                                : []
+                        });
+                    }, true);
+                });
+            }
 
             const surface = document.createElement('section');
             surface.id = 'surface-ownership-smoke';
@@ -107,13 +169,50 @@ async function main() {
             `registerSurface did not stamp ownership markers: ${JSON.stringify(registeredBefore)}`
         );
 
-        await pointerClick(page, '#surface-ownership-smoke-button');
+        const registeredHit = await pointerClick(page, '#surface-ownership-smoke-button');
         await page.waitForTimeout(100);
 
-        const registeredAfter = await readState(page);
+        const registeredAfter = await page.evaluate(() => ({
+            ...(function () {
+                const indicator = document.getElementById('loadingIndicator');
+                const surface = document.getElementById('surface-ownership-smoke');
+                return {
+                    compact: indicator?.classList.contains('compact') ?? null,
+                    clicks: window.__surfaceOwnershipClicks || 0,
+                    owner: surface?.dataset?.surfaceOwner || '',
+                    owned: surface?.dataset?.searchMonitorOwned || '',
+                    present: !!surface
+                };
+            })(),
+            events: (window.__surfaceOwnershipEvents || []).slice()
+        }));
+
+        let registeredDirect = null;
+        if (registeredAfter.clicks !== 1 || registeredAfter.compact !== false) {
+            await page.evaluate(() => window.SearchMonitorBoot.expand());
+            await monitorCompact(page, false, 'registered direct comparator expand');
+            registeredDirect = await page.evaluate(() => {
+                window.__surfaceOwnershipEvents = [];
+                document.getElementById('surface-ownership-smoke-button')?.click();
+                const indicator = document.getElementById('loadingIndicator');
+                const surface = document.getElementById('surface-ownership-smoke');
+                return {
+                    compact: indicator?.classList.contains('compact') ?? null,
+                    clicks: window.__surfaceOwnershipClicks || 0,
+                    owner: surface?.dataset?.surfaceOwner || '',
+                    owned: surface?.dataset?.searchMonitorOwned || '',
+                    events: (window.__surfaceOwnershipEvents || []).slice()
+                };
+            });
+        }
+
         assert(
             registeredAfter.clicks === 1 && registeredAfter.compact === false,
-            `Registered portaled click did not survive top-layer gate: ${JSON.stringify(registeredAfter)}`
+            `Registered portaled click did not survive top-layer gate: ${JSON.stringify({
+                registeredHit,
+                registeredAfter,
+                registeredDirect
+            })}`
         );
 
         await page.evaluate(() => {
