@@ -27,6 +27,7 @@ const PROFILES = Object.freeze({
   security: ['smoke:server-security', 'smoke:watchfusion-security', 'smoke:agent-nexus', 'smoke:nexus-browser-security'],
   'ai-control': [
     'smoke:chat-handoff',
+    'smoke:search-monitor-runtime-harness',
     'smoke:agent-nexus',
     'smoke:local-moe',
     'smoke:nexus-browser',
