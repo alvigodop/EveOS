@@ -25,4 +25,15 @@ assert(output.includes('PROFILE none'), 'chat handoff profile marker missing');
 assert(output.includes('RUN smoke:regressions'), 'chat handoff planned script missing');
 assert(/HEAD [0-9a-f]{40}/i.test(output), 'chat handoff exact HEAD missing');
 
+const aiControl = spawnSync(process.execPath, [RUNNER, '--plan', '--profile', 'ai-control'], {
+  cwd: ROOT,
+  encoding: 'utf8',
+  windowsHide: true,
+  timeout: 30_000
+});
+const aiOutput = [aiControl.stdout, aiControl.stderr].filter(Boolean).join('\n');
+assert(aiControl.status === 0, `ai-control handoff plan failed: ${aiOutput || aiControl.error?.message || 'unknown error'}`);
+assert(aiOutput.includes('PROFILE ai-control'), 'ai-control profile marker missing');
+assert(aiOutput.includes('RUN test:ai-control'), 'ai-control handoff did not resolve to the focused test profile');
+
 console.log('EVEOS_CHAT_HANDOFF_SMOKE_OK');
