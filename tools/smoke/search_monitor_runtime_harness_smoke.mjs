@@ -175,6 +175,7 @@ if (process.platform === 'win32') {
 if (process.platform === 'win32') {
   const powershellScripts = [
     path.join(ROOT, 'tools', 'batch', 'start-eveos-control.bat'),
+    path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-harness-windows.ps1'),
     path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-freetoken-windows.ps1'),
     path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-prism-llama-windows.ps1'),
     path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'control-windows.ps1'),
