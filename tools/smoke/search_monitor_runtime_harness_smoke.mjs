@@ -110,6 +110,34 @@ requireCondition(
   harnessControl.includes('if ($Headless)') && harnessControl.includes('} else {'),
   'manual Local MoE control no longer defaults to a headed Harness window'
 );
+
+if (process.platform === 'win32') {
+  const powershellScripts = [
+    path.join(ROOT, 'tools', 'batch', 'start-eveos-control.bat'),
+    path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-freetoken-windows.ps1'),
+    path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-prism-llama-windows.ps1'),
+    path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'control-windows.ps1'),
+  ].filter((script) => script.toLowerCase().endsWith('.ps1'));
+  for (const script of powershellScripts) {
+    const escaped = script.replace(/'/g, "''");
+    const command = [
+      '$tokens = $null',
+      '$errors = $null',
+      `[System.Management.Automation.Language.Parser]::ParseFile('${escaped}', [ref]$tokens, [ref]$errors) | Out-Null`,
+      'if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }'
+    ].join('; ');
+    const parsed = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: 30000
+    });
+    requireCondition(
+      parsed.status === 0,
+      `PowerShell launcher syntax failed for ${path.relative(ROOT, script)}: ${parsed.stderr || parsed.stdout || parsed.error?.message || 'unknown error'}`
+    );
+  }
+}
 requireCondition(controlSource.includes('"/api/eveos-server/stop-web"'), 'control plane is missing scoped EveOS web stop');
 requireCondition(
   controlSource.includes('eveos_web_control.stop_server(port=_request_web_port(self))'),
