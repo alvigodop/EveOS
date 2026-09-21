@@ -27,8 +27,8 @@ function benignConsoleError(text) {
         || /ERR_FAILED 403 \(Forbidden\)/i.test(text);
 }
 
-function requiredStatusRequest(url) {
-    return /\/api\/(?:local-moe\/status|nexus-browser\/status|eve-state\/modular\/tlo\/status)/.test(url);
+function requiredRuntimeRequest(url) {
+    return /\/api\/(?:local-moe\/status|nexus-browser\/status|eve-state\/modular\/tlo\/(?:status|chat\/stream|chat\/cancel))/.test(url);
 }
 
 async function waitForStatus(page, selector, expected, entryMode, requiredFailures) {
@@ -55,7 +55,7 @@ async function waitForStatus(page, selector, expected, entryMode, requiredFailur
     }
 }
 
-async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures) {
+async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures, exerciseTloChat = false) {
     await page.goto(entryUrl, { waitUntil: 'domcontentloaded', timeout: 240000 });
     await page.waitForFunction(() => (
         !!window.SearchMonitorBoot
@@ -96,6 +96,29 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures)
     assert(tlo.provider === 'Local MoE', `TLO provider drifted from ${entryMode}: ${JSON.stringify(tlo)}`);
     assert(tlo.sendDisabled === false, `TLO composer remained disabled from ${entryMode}`);
 
+    let chat = null;
+    if (exerciseTloChat) {
+        const prompt = 'Reply with a short confirmation that file-origin TLO chat is working.';
+        await page.locator('[data-tlo-input]').fill(prompt);
+        await page.locator('[data-tlo-send]').click();
+        await page.waitForFunction(() => {
+            const turns = [...document.querySelectorAll('.eveos-tlo-turn.is-assistant p')];
+            const latest = turns.at(-1)?.textContent?.trim() || '';
+            const send = document.querySelector('[data-tlo-send]');
+            return latest.length > 0 && send?.disabled === false;
+        }, undefined, { timeout: 120000 });
+        chat = await page.evaluate(() => {
+            const turns = [...document.querySelectorAll('.eveos-tlo-turn.is-assistant p')];
+            return {
+                response: turns.at(-1)?.textContent?.trim() || '',
+                sendDisabled: document.querySelector('[data-tlo-send]')?.disabled === true,
+                state: document.querySelector('[data-tlo-state]')?.textContent?.trim() || ''
+            };
+        });
+        assert(chat.response.length > 0 && chat.sendDisabled === false && chat.state === 'Ready',
+            `File-origin TLO chat did not complete cleanly: ${JSON.stringify(chat)}`);
+    }
+
     await page.locator('[data-agent-nexus-view="nexus-browser"]').first().click();
     await waitForStatus(page, '[data-nexus-browser-state]', 'Online', entryMode, requiredFailures);
     const nexus = await page.evaluate(() => ({
@@ -114,7 +137,7 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures)
     }));
     assert(localMoe.state === 'Online', `Local MoE is not online from ${entryMode}: ${JSON.stringify(localMoe)}`);
     assert(/Ready/i.test(localMoe.runtime), `Local MoE runtime is not ready from ${entryMode}: ${JSON.stringify(localMoe)}`);
-    return { entryMode, url: page.url(), localMoe, tlo, nexus };
+    return { entryMode, url: page.url(), localMoe, tlo, nexus, chat };
 }
 
 async function main() {
@@ -128,7 +151,7 @@ async function main() {
             if (message.type() === 'error') consoleErrors.push(message.text());
         });
         page.on('requestfailed', (request) => {
-            if (requiredStatusRequest(request.url())) {
+            if (requiredRuntimeRequest(request.url())) {
                 requiredFailures.push({
                     kind: 'network',
                     url: request.url(),
@@ -137,7 +160,7 @@ async function main() {
             }
         });
         page.on('response', (response) => {
-            if (requiredStatusRequest(response.url()) && response.status() >= 400) {
+            if (requiredRuntimeRequest(response.url()) && response.status() >= 400) {
                 requiredFailures.push({
                     kind: 'http',
                     url: response.url(),
@@ -173,7 +196,7 @@ async function main() {
         }
 
         const beforeFileFailures = requiredFailures.length;
-        const fileOrigin = await openRuntimeWorkspace(page, FILE_URL, 'file-origin', requiredFailures);
+        const fileOrigin = await openRuntimeWorkspace(page, FILE_URL, 'file-origin', requiredFailures, true);
         const fileStatusFailures = requiredFailures.slice(beforeFileFailures);
         assert(fileStatusFailures.length === 0,
             `Required Search Monitor status requests failed from file origin: ${JSON.stringify(fileStatusFailures)}`);
