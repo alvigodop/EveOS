@@ -31,6 +31,10 @@ EveOS inherits WatchFusion's output-efficient verification discipline.
 - The handoff runner is the normal human-operator evidence path: it records exact HEAD/origin alignment, worktree state, changed files, Node/Python/Playwright identity, registered-port listeners, per-command duration, bounded failure context, and ignored full JSON/log artifacts under `data/runtime/smoke-results/`.
 - Do not require Nova/Astro merely to collect routine test evidence that the handoff runner can produce. Reserve local agents for diagnosis or repair that actually needs browser/computer-use/hardware judgment.
 - The handoff runner refuses a dirty worktree by default. Use `--allow-dirty` only when the dirty state is deliberate and report it explicitly.
+- Search Monitor live runtime qualification is explicit only: use `npm run runtime:search-monitor:qualify` when real localhost/process/model/browser state must be proven. Never add the live gate to normal `verify` or deterministic smoke profiles.
+- Live runtime qualification must leave its headed service terminals running after success or failure so chat/manual diagnosis can inspect the exact runtime state. Teardown is a separate explicit `runtime:search-monitor:stop` or `runtime:search-monitor:restart` action.
+- Normal Search Monitor runtime stop may stop only services recorded as started by that runtime session. `--all` is the explicit override; underlying controllers still verify branded identity/ownership and must never kill by port alone.
+- Preserve `LAST-SEARCH-MONITOR-RUNTIME.json` and browser/runtime diagnostics on live failures; do not clean them up before evidence is collected unless continued execution is unsafe or resource pressure requires it.
 - Never reduce coverage, skip a required test, suppress a meaningful warning, or weaken an assertion merely to save output/tokens.
 
 ## Agent execution efficiency
