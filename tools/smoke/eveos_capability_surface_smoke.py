@@ -114,6 +114,41 @@ def bool_field(payload, key, name):
     require(isinstance(payload.get(key), bool), f"{name}.{key} must be boolean")
 
 
+def validate_coherence(name, payload):
+    if name == "gemini" and payload["running"]:
+        require(payload["websocketReady"] is True and payload["statusReady"] is True,
+                "running Gemini must have ready websocket + status endpoints")
+        require(payload["portConflict"] is False, "running Gemini cannot also report a port conflict")
+    elif name in {"worldBook", "piano", "bookmarkIntel"} and payload["running"]:
+        require(bool(str(payload.get("appVersion") or "").strip()),
+                f"running {name} must identify its appVersion")
+    elif name == "watchFusion":
+        if payload["running"]:
+            require(payload["dependenciesReady"] is True, "running WatchFusion must have dependenciesReady")
+            require(payload["setupRequired"] is False, "running WatchFusion cannot require setup")
+        require(isinstance(payload["components"], dict), "WatchFusion components must be an object")
+    elif name == "localMoe":
+        if payload["runtimeReady"]:
+            require(payload["running"] is True and payload["runtimeReachable"] is True,
+                    "Local MoE runtimeReady requires running + runtimeReachable")
+            require(str(payload["runtimeHealth"]).lower() == "ok",
+                    f"Local MoE runtimeReady requires runtimeHealth=ok, got {payload['runtimeHealth']!r}")
+        require(payload["explicitStartRequired"] is True,
+                "Local MoE must remain explicit-start")
+    elif name == "nexusBrowser":
+        for key in ("onlineTargets", "localTargets", "dexRooms"):
+            require(isinstance(payload[key], int) and payload[key] >= 0,
+                    f"Nexus Browser {key} must be a non-negative integer")
+        if payload["extensionConnected"]:
+            require(payload["running"] is True and payload["extensionReady"] is True,
+                    "connected Nexus extension requires running + extensionReady")
+        sessions = payload["extensionSessions"]
+        require(isinstance(sessions, dict), "Nexus extensionSessions must be an object")
+        if payload["extensionConnected"] and sessions.get("primaryReady") is True:
+            require(int(sessions.get("primaryTabs") or 0) == payload["onlineTargets"],
+                    "Nexus onlineTargets drifted from authoritative primaryTabs")
+
+
 def normalized_status(name, payload):
     require(isinstance(payload, dict), f"{name} status must be an object")
     for key in ("ok", "controllerAvailable", "state", "running", "message"):
@@ -163,6 +198,7 @@ def normalized_status(name, payload):
             for key, value in payload["components"].items()
             if isinstance(value, dict)
         }
+    validate_coherence(name, payload)
     return summary
 
 
@@ -194,11 +230,17 @@ def main():
     ):
         require(endpoint in control_source, f"lifecycle status endpoint missing from Local Control: {endpoint}")
 
-    print("EVEOS_CAPABILITY_SURFACE_SMOKE_OK " + json.dumps({
+    result = {
         "tools": tool_states,
         "embedded": embedded,
         "bridges": bridges,
-    }, sort_keys=True, separators=(",", ":")))
+    }
+    result_dir = ROOT / "data" / "runtime" / "smoke-results"
+    result_dir.mkdir(parents=True, exist_ok=True)
+    snapshot = result_dir / "LAST-EVEOS-CAPABILITY-STATE.json"
+    snapshot.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print("EVEOS_CAPABILITY_SURFACE_SMOKE_OK " + json.dumps(result, sort_keys=True, separators=(",", ":")))
+    print(f"CAPABILITY_STATE_SNAPSHOT {snapshot.relative_to(ROOT).as_posix()}")
 
 
 if __name__ == "__main__":
