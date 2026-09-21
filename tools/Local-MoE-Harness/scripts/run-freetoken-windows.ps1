@@ -25,7 +25,6 @@ $env:LOCALAPPDATA = Join-Path $Root ".cache\windows\LocalAppData"
 $env:TEMP = Join-Path $Root ".tmp"
 $env:TMP = Join-Path $Root ".tmp"
 $env:LOCAL_MOE_PROJECT_ROOT = $Root
-$LogPath = Join-Path $Root "logs\freetoken-server.log"
 
 $MemoryRatio = if ($env:LOCAL_MOE_MEMORY_RATIO) { $env:LOCAL_MOE_MEMORY_RATIO } else { "0.90" }
 $KvTokens = if ($env:LOCAL_MOE_KV_RESERVE_TOKENS) { $env:LOCAL_MOE_KV_RESERVE_TOKENS } else { "4096" }
@@ -43,6 +42,5 @@ Write-Host "[FreeToken/Windows] Engine: $FtPython $EntryPoint"
 Write-Host "[FreeToken/Windows] Model: $ModelPath"
 Write-Host "[FreeToken/Windows] Cache root: $(Join-Path $Root '.cache')"
 Write-Host "[FreeToken/Windows] GGUF policy: release-qualified prebuilt only; no compiler/JIT fallback"
-& $FtPython $EntryPoint @Args 2>&1 | Tee-Object -FilePath $LogPath -Append
-$ExitCode = $LASTEXITCODE
-exit $ExitCode
+& $FtPython $EntryPoint @Args
+exit $LASTEXITCODE
