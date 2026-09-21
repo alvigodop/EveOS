@@ -60,6 +60,11 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         except OSError:
             pass
 
+    @staticmethod
+    def _console_title(record: ModelRecord) -> str:
+        label = str(record.data.get("display_name") or record.id)
+        return f"EveOS Local MoE Runtime - {label}".replace("'", "''")
+
     def _ensure_console_monitor(self, record: ModelRecord) -> int:
         pid = self._console_pid()
         if pid and self._pid_alive(pid):
@@ -69,7 +74,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         except OSError:
             pass
         log_path = str(self.log_path).replace("'", "''")
-        title = f"EveOS Local MoE Runtime - {record.display_name}".replace("'", "''")
+        title = self._console_title(record)
         command = (
             f"$Host.UI.RawUI.WindowTitle='{title}'; "
             "Write-Host '[EveOS] Live Local MoE runtime log (managed by EveOS).'; "
