@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -223,6 +224,10 @@ def main():
         }
 
     control_source = (ROOT / "server_modules" / "eveos_control_helper.py").read_text(encoding="utf-8")
+    status_block = control_source.split("status_specs = (", 1)[1].split("for key, label, status_fn, ports in status_specs:", 1)[0]
+    registered_lifecycle = set(re.findall(r'\("([A-Za-z][A-Za-z0-9]*)",\s*"[^"]+"', status_block))
+    require(registered_lifecycle == set(TOOLS),
+            f"capability smoke lifecycle inventory drifted: control={sorted(registered_lifecycle)} smoke={sorted(TOOLS)}")
     for endpoint in (
         "/api/eveos-server/status", "/api/gemini-server/status", "/api/world-book/status",
         "/api/piano-player/status", "/api/watchfusion/status", "/api/bookmark-intel/status",
@@ -230,10 +235,18 @@ def main():
     ):
         require(endpoint in control_source, f"lifecycle status endpoint missing from Local Control: {endpoint}")
 
+    baseline_path = ROOT / "tools" / "audit" / "smoke-registry-baseline.json"
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8")).get("unregistered") or []
     result = {
         "tools": tool_states,
         "embedded": embedded,
         "bridges": bridges,
+        "coverage": {
+            "lifecycleTools": len(tool_states),
+            "embeddedCapabilities": len(embedded),
+            "registeredBridges": len(bridges),
+            "unregisteredSmokeBacklog": len(baseline),
+        },
     }
     result_dir = ROOT / "data" / "runtime" / "smoke-results"
     result_dir.mkdir(parents=True, exist_ok=True)
