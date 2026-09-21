@@ -15,7 +15,28 @@ if ($Port -lt 1024 -or $Port -gt 65535) { throw "Invalid runtime port: $Port" }
 $Context = 4096
 if ($env:LOCAL_MOE_KV_RESERVE_TOKENS -match '^\d+$') { $Context = [int]$env:LOCAL_MOE_KV_RESERVE_TOKENS }
 $GpuLayers = 32
-if ($env:LOCAL_MOE_GPU_LAYERS -match '^\d+$') { $GpuLayers = [int]$env:LOCAL_MOE_GPU_LAYERS }
+if ($env:LOCAL_MOE_GPU_LAYERS -match '^\d+$BinDir = $Server.Directory.FullName
+$env:PATH = "$BinDir;$env:PATH"
+& $Server.FullName `
+    --model $ModelPath `
+    --alias $ServedModelName `
+    --host "127.0.0.1" `
+    --port $Port `
+    --ctx-size $Context `
+    --n-gpu-layers $GpuLayers `
+    --flash-attn on `
+    --parallel 1 `
+    --temp 1.0 `
+    --top-p 0.95 `
+    --top-k 20 `
+    --jinja 2>&1 | Tee-Object -FilePath $LogPath -Append
+$ExitCode = $LASTEXITCODE
+exit $ExitCode
+) { $GpuLayers = [int]$env:LOCAL_MOE_GPU_LAYERS }
+
+$Logs = Join-Path $Root "logs"
+New-Item -ItemType Directory -Force -Path $Logs | Out-Null
+$LogPath = Join-Path $Logs "freetoken-server.log"
 
 $BinDir = $Server.Directory.FullName
 $env:PATH = "$BinDir;$env:PATH"
