@@ -122,24 +122,51 @@ async function requireLiveService(name) {
   return { status, identity: identity.payload };
 }
 
+function nexusDiagnostics() {
+  return new Promise((resolve, reject) => {
+    const request = http.get({
+      hostname: '127.0.0.1',
+      port: PORTS.NEXUS_BROWSER_PORT,
+      path: '/diagnostics',
+      headers: { Connection: 'close' },
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        try {
+          if (Number(response.statusCode || 0) !== 200) throw new Error(`HTTP ${response.statusCode}`);
+          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        } catch (error) {
+          reject(new Error(`Nexus diagnostics failed: ${error.message}`));
+        }
+      });
+    });
+    request.setTimeout(3000, () => request.destroy(new Error('Nexus diagnostics timed out after 3000ms')));
+    request.on('error', reject);
+  });
+}
+
 async function waitForNexusInventoryStable(timeoutMs = 12_000, settleMs = 1_500) {
   const deadline = Date.now() + timeoutMs;
-  let signature = '', stableSince = 0, latest = null;
+  let signature = '', stableSince = 0, latest = null, diagnostics = null;
   while (Date.now() < deadline) {
-    latest = await serviceStatus('nexusBrowser');
-    const sessions = latest?.extensionSessions || {};
-    const ready = latest?.extensionConnected === true && sessions.primaryReady === true;
-    const primaryTabs = Number(sessions.primaryTabs);
-    const onlineTargets = Number(latest?.onlineTargets || 0);
-    const current = `${Number(sessions.connected || 0)}:${Number.isFinite(primaryTabs) ? primaryTabs : 'na'}:${onlineTargets}`;
+    [latest, diagnostics] = await Promise.all([serviceStatus('nexusBrowser'), nexusDiagnostics()]);
+    const sessions = diagnostics?.extensionSessions || {};
+    const primaryTabs = Number(sessions.primaryTabs), onlineTargets = Number(latest?.onlineTargets || 0);
+    const directTargets = Number(diagnostics?.onlineTargets || 0);
+    const ready = latest?.extensionConnected === true && diagnostics?.extensionConnected === true
+      && sessions.primaryReady === true;
+    const current = `${Number(sessions.connected || 0)}:${Number.isFinite(primaryTabs) ? primaryTabs : 'na'}:${directTargets}:${onlineTargets}`;
     if (current !== signature) { signature = current; stableSince = Date.now(); }
-    if (ready && Number.isFinite(primaryTabs) && primaryTabs === onlineTargets && Date.now() - stableSince >= settleMs) return latest;
+    if (ready && Number.isFinite(primaryTabs) && primaryTabs === directTargets && primaryTabs === onlineTargets
+        && Date.now() - stableSince >= settleMs) return { status: latest, diagnostics };
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  const sessions = latest?.extensionSessions || {};
+  const sessions = diagnostics?.extensionSessions || {};
   throw new Error(
-    `Nexus provider inventory did not settle: onlineTargets=${Number(latest?.onlineTargets || 0)} `
-    + `primaryTabs=${sessions.primaryTabs ?? 'unknown'} sessions=${sessions.connected ?? 'unknown'}`
+    `Nexus provider inventory did not settle: control=${Number(latest?.onlineTargets || 0)} `
+    + `direct=${Number(diagnostics?.onlineTargets || 0)} primaryTabs=${sessions.primaryTabs ?? 'unknown'} `
+    + `sessions=${sessions.connected ?? 'unknown'}`
   );
 }
 
@@ -157,8 +184,9 @@ async function main() {
   requireCondition(localMoe.status.runtimePort === PORTS.FREETOKEN_PORT, 'FreeToken runtime port drifted from registry.');
   requireCondition(nexusBrowser.status.port === PORTS.NEXUS_BROWSER_PORT, 'Nexus Browser port drifted from registry.');
   if (nexusBrowser.status.extensionConnected === true) {
-    nexusBrowser = { ...nexusBrowser, status: await waitForNexusInventoryStable() };
-    const sessions = nexusBrowser.status.extensionSessions || {};
+    const inventory = await waitForNexusInventoryStable();
+    nexusBrowser = { ...nexusBrowser, status: inventory.status, diagnostics: inventory.diagnostics };
+    const sessions = nexusBrowser.diagnostics.extensionSessions || {};
     requireCondition(
       Number(nexusBrowser.status.onlineTargets || 0) === Number(sessions.primaryTabs),
       `Nexus public provider count drifted from authoritative extension inventory: online=${nexusBrowser.status.onlineTargets} primary=${sessions.primaryTabs}`
@@ -193,7 +221,7 @@ async function main() {
           extensionConnected: nexusBrowser.status.extensionConnected,
           onlineTargets: nexusBrowser.status.onlineTargets,
           localTargets: nexusBrowser.status.localTargets,
-          extensionSessions: nexusBrowser.status.extensionSessions || null,
+          extensionSessions: nexusBrowser.diagnostics?.extensionSessions || nexusBrowser.status.extensionSessions || null,
         },
         gemini: gemini ? { state: gemini.status.state, running: gemini.status.running } : null,
       },
@@ -216,7 +244,7 @@ async function main() {
     durationMs: generation.durationMs,
     nexusExtensionConnected: nexusBrowser.status.extensionConnected === true,
     nexusOnlineTargets: Number(nexusBrowser.status.onlineTargets || 0),
-    nexusExtensionSessions: nexusBrowser.status.extensionSessions || null,
+    nexusExtensionSessions: nexusBrowser.diagnostics?.extensionSessions || nexusBrowser.status.extensionSessions || null,
     snapshot: artifact.json,
   }));
 }
