@@ -45,7 +45,7 @@ function sourceContract() {
     check(!sensing.includes('127-0-0-1.sslip.io'), 'WF-SENSING-NO-SSLIP', 'watchfusion.runtime-sensing.js still includes sslip candidate origin');
     check(sensing.includes('http://127.0.0.1:'), 'WF-SENSING-LOOPBACK-CANONICAL', 'watchfusion.runtime-sensing.js missing literal loopback candidate origin');
 
-    check(/^from \\. import .*\\bwatchfusion_control\\b/m.test(helper), 'WF-CONTROL-IMPORT', 'control plane does not import WatchFusion lifecycle');
+    check(/^from \. import .*\bwatchfusion_control\b/m.test(helper), 'WF-CONTROL-IMPORT', 'control plane does not import WatchFusion lifecycle');
     check(helper.includes('"/api/watchfusion/status"'), 'WF-CONTROL-STATUS', 'WatchFusion status route is missing');
     check(helper.includes('"/api/watchfusion/start"') && helper.includes('watchfusion_control.start_server'), 'WF-CONTROL-START', 'WatchFusion start route is missing');
     check(helper.includes('"/api/watchfusion/stop"') && helper.includes('watchfusion_control.stop_server'), 'WF-CONTROL-STOP', 'WatchFusion stop route is missing');
