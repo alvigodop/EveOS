@@ -189,7 +189,14 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
             setCompact(false);
             indicator.classList.remove('compact');
             indicator.classList.add('visible');
-            document.addEventListener('click', state.boundHandleOutsideClick, true);
+            // SearchMonitorBoot owns the registry-aware top-layer gate in the live build.
+            // Do not install this legacy gate alongside it: the fallback handler cannot see
+            // SearchMonitorBoot's ownedSurfaces Set and would consume valid portaled-child clicks.
+            if (!window.__searchMonitorTopLayerGateBound) {
+                document.addEventListener('click', state.boundHandleOutsideClick, true);
+            } else {
+                document.removeEventListener('click', state.boundHandleOutsideClick, true);
+            }
             ensureWideToggle(indicator);
 
             // Restore wide mode preference
@@ -231,7 +238,10 @@ window.LoadingIndicatorModules = window.LoadingIndicatorModules || {};
                 + '#gemini-new-chat-confirm, #eve-inline-prompt-overlay, .modal-overlay, '
                 + '[role="dialog"], [data-eve-dialog]'
             );
-            if (!indicator.contains(target) && !isDialog) {
+            const isRegisteredSurface = target && typeof target.closest === 'function' && target.closest(
+                '[data-search-monitor-owned="true"], [data-surface-owner="search-monitor"]'
+            );
+            if (!indicator.contains(target) && !isDialog && !isRegisteredSurface) {
                 event.preventDefault();
                 event.stopImmediatePropagation();
                 collapse();
