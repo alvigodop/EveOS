@@ -141,6 +141,7 @@ function Start-Harness {
         $ErrLog = Join-Path $Logs "harness-server-error.log"
         $Args = @("-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", "`"$HarnessScript`"")
         $Headless = ($env:EVEOS_HEADLESS -match '^(1|true|yes|on)
+        Set-Content -Encoding ASCII -Path $HarnessPidPath -Value $Process.Id
         Write-Host "[Control] Harness launcher PID: $($Process.Id)"
     }
     Write-Host "[Control] Waiting for localhost:$HarnessPort..."
@@ -179,6 +180,7 @@ while ($true) {
     Write-Host ""; Read-Host "Press Enter to continue" | Out-Null
 }
 ) -or ($env:LOCAL_MOE_HEADLESS -match '^(1|true|yes|on)
+        Set-Content -Encoding ASCII -Path $HarnessPidPath -Value $Process.Id
         Write-Host "[Control] Harness launcher PID: $($Process.Id)"
     }
     Write-Host "[Control] Waiting for localhost:$HarnessPort..."
