@@ -151,7 +151,7 @@ function environmentSnapshot(base, fetchResult) {
     branch: git(['branch', '--show-current']),
     head,
     originMain,
-    syncedToOriginMain: !!head && head === originMain,
+    syncedToOriginMain: fetchResult?.ok === true && !!head && head === originMain,
     fetchOrigin: fetchResult,
     worktreeClean: !status,
     worktreeStatus: status.split(/\r?\n/).filter(Boolean),
@@ -268,6 +268,19 @@ function main() {
     console.log(`RUN ${plan.join(' -> ') || '(none)'}`);
     if (environment.changedFiles.length) console.log(`CHANGED ${environment.changedFiles.join(', ')}`);
     return;
+  }
+
+  if (environment.branch !== 'main' && !args.includes('--allow-branch')) {
+    console.error(`EVEOS CHAT HANDOFF REFUSED: expected branch main, found '${environment.branch || 'unknown'}'. Use --allow-branch only when intentional.`);
+    process.exit(2);
+  }
+
+  if (environment.fetchOrigin?.ok && !environment.syncedToOriginMain && !args.includes('--allow-diverged')) {
+    console.error('EVEOS CHAT HANDOFF REFUSED: local HEAD does not match freshly fetched origin/main.');
+    console.error(`  HEAD        ${environment.head || 'unknown'}`);
+    console.error(`  origin/main ${environment.originMain || 'unknown'}`);
+    console.error('  Reconcile/pull the intended revision first, or use --allow-diverged only when intentional.');
+    process.exit(2);
   }
 
   if (!environment.worktreeClean && !args.includes('--allow-dirty')) {
