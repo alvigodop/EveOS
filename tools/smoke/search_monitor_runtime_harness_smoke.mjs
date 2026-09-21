@@ -55,6 +55,30 @@ requireCondition(
   'live qualification no longer records stage-specific spawn diagnostics'
 );
 requireCondition(
+  runtimeCliSource.includes('function scopeQualificationFailure(')
+    && runtimeCliSource.includes('FAILURE_LOG_TAIL')
+    && runtimeCliSource.includes('FAILURE_SCOPE_SNAPSHOT'),
+  'live qualification no longer prints a single-terminal scoped failure bundle'
+);
+requireCondition(
+  runtimeCliSource.indexOf("const snapshot = await runtimeSnapshot({") < runtimeCliSource.indexOf("stopped.push(await stopModelRuntimeForFailure())"),
+  'failure scoping no longer captures evidence before stopping the attributable component'
+);
+requireCondition(
+  runtimeCliSource.includes('/api/runtime/stop')
+    && runtimeCliSource.includes('FreeToken/Prism child stopped; Harness left running.'),
+  'generation failure scoping no longer stops only the model child'
+);
+requireCondition(
+  runtimeCliSource.includes("sessionOwns(name)")
+    && runtimeCliSource.includes("not session-owned"),
+  'failure scoping lost session ownership protection'
+);
+requireCondition(
+  runtimeCliSource.includes('all participating servers are healthy; preserving them for a UI/assertion failure'),
+  'browser failure scoping no longer preserves healthy services'
+);
+requireCondition(
   consolePrefsSource.includes('DEFAULT_HEADLESS = False'),
   'EveOS terminal preference default is no longer explicitly headed'
 );
