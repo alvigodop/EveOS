@@ -47,6 +47,7 @@ const windowMock = {
     clearTimeout,
     location: { protocol: 'http:', hostname: '127.0.0.1', origin: 'http://127.0.0.1:8765' },
     open() {},
+    addEventListener() {},
     EveOSLocalControl: {
         baseUrl: () => 'http://127.0.0.1:9082',
         async fetchJson(url, options) {
@@ -88,6 +89,13 @@ function assert(condition, message) {
         'A provider is expanded by default');
     assert(source.includes('/api/local-moe/start') && source.includes('/api/local-moe/stop'),
         'Local MoE lifecycle routes are missing');
+    assert(source.includes('eve:eveos-control-plane-status')
+        && source.includes('EveOSTloChat?.refreshStatus?.()')
+        && source.includes('EveOSNexusBrowser?.refresh?.()'),
+        'Search Monitor runtime peers no longer recover from the control-plane heartbeat');
+    assert(tloChatSource.includes("api_unreachable")
+        && tloChatSource.includes('EveOSControlPlane?.getState?.()'),
+        'TLO no longer distinguishes API reachability from EveOS server state');
     assert(markup.includes('data-local-moe-frame') && markup.includes('Local MoE models and chat'),
         'Local MoE chat is not embedded in its provider workspace');
     assert(markup.includes('sandbox="allow-forms allow-scripts allow-same-origin"'),
