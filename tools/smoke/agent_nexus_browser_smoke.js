@@ -48,7 +48,7 @@ async function main() {
             'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
         };
 
-        await page.route(/http:\/\/(?:127\.0\.0\.1|localhost):\d+\/api\/(?:eve-state\/modular\/(?:tlo|agent-management)|nexus-browser)/, async (route) => {
+        await page.route(/http:\/\/(?:127\.0\.0\.1|localhost):\d+\/api\/(?:eve-state\/modular\/(?:tlo|agent-management)|nexus-browser|local-moe)/, async (route) => {
             const request = route.request();
             const url = new URL(request.url());
             const entry = { method: request.method(), path: url.pathname };
@@ -112,6 +112,26 @@ async function main() {
                 return;
             }
 
+            if (url.pathname === '/api/local-moe/status' && request.method() === 'GET') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    headers: corsHeaders,
+                    body: JSON.stringify({
+                        ok: true,
+                        running: false,
+                        state: 'stopped',
+                        setupReady: true,
+                        runtimeReady: false,
+                        runtimeHealth: 'Offline',
+                        port: 5180,
+                        runtimePort: 1919,
+                        message: 'Local MoE is stopped.'
+                    })
+                });
+                return;
+            }
+
             if (url.pathname === '/api/nexus-browser/status') {
                 await route.fulfill({
                     status: 200,
@@ -155,11 +175,19 @@ async function main() {
             && !!document.querySelector('[data-ai-provider="agents"]')
         ), undefined, { timeout: 120000 });
 
-        const monitor = page.locator('#loadingIndicator');
-        if (await monitor.evaluate((node) => node.classList.contains('compact'))) {
-            await monitor.click();
-        }
-        await page.waitForFunction(() => !document.getElementById('loadingIndicator')?.classList.contains('compact'));
+        await page.evaluate(() => window.SearchMonitorBoot?.expand?.());
+        await page.waitForFunction(() => (
+            !document.getElementById('loadingIndicator')?.classList.contains('compact')
+        ), undefined, { timeout: 10000 });
+
+        await page.locator('[data-gemini-monitor-view-btn="full"]').click();
+        await page.waitForFunction(() => {
+            const root = document.getElementById('gemini-ui-root');
+            const workspace = root?.querySelector('[data-ai-home-workspace]');
+            return root?.dataset.geminiMonitorView === 'full'
+                && !!workspace
+                && window.getComputedStyle(workspace).display !== 'none';
+        }, undefined, { timeout: 10000 });
 
         const agents = page.locator('[data-ai-provider="agents"]');
         const agentSummary = agents.locator('summary');
@@ -232,6 +260,9 @@ async function main() {
         assert(mutatingLifecycle.length === 0,
             `Passive Agent Nexus navigation mutated a runtime: ${JSON.stringify(mutatingLifecycle)}`);
 
+        const localMoeStatusReads = requests.filter((entry) => (
+            entry.path === '/api/local-moe/status' && entry.method === 'GET'
+        ));
         const tloStatusReads = requests.filter((entry) => entry.path === '/api/eve-state/modular/tlo/status');
         const nexusStatusReads = requests.filter((entry) => entry.path === '/api/nexus-browser/status');
         const managementReads = requests.filter((entry) => (
@@ -240,6 +271,7 @@ async function main() {
         const managementWrites = requests.filter((entry) => (
             entry.path === '/api/eve-state/modular/agent-management/save' && entry.method === 'POST'
         ));
+        assert(localMoeStatusReads.length >= 1, 'Entering Workspace did not perform the passive Local MoE status read');
         assert(tloStatusReads.length >= 1, 'Opening Agent Nexus did not perform a passive TLO status read');
         assert(nexusStatusReads.length >= 1, 'Opening Nexus Browser did not perform a passive status read');
         assert(managementReads.length === 1, `Agent Management loaded ${managementReads.length} times instead of once`);
@@ -249,6 +281,7 @@ async function main() {
         console.log('AGENT_NEXUS_BROWSER_SMOKE_OK ' + JSON.stringify({
             browserMode,
             requests: requests.length,
+            localMoeStatusReads: localMoeStatusReads.length,
             tloStatusReads: tloStatusReads.length,
             nexusStatusReads: nexusStatusReads.length,
             managementReads: managementReads.length,
