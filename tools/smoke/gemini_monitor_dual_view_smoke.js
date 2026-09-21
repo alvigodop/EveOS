@@ -1,5 +1,5 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { runBrowserSmoke } = require('./browser-smoke-diagnostics.shared');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -16,19 +16,15 @@ function isBenignConsoleError(entry) {
 }
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1600, height: 1280 } });
-    const pageErrors = [];
-    const consoleErrors = [];
-
-    page.on('pageerror', (error) => {
-        pageErrors.push(error && error.stack ? error.stack : String(error));
-    });
-    page.on('console', (msg) => {
-        if (msg.type() === 'error') consoleErrors.push(msg.text());
-    });
-
-    try {
+    await runBrowserSmoke({
+        name: 'gemini-monitor-dual-view',
+        viewport: { width: 1600, height: 1280 }
+    }, async ({ page, events }) => {
+        const pageErrors = events.pageErrors;
+        const consoleErrors = [];
+        page.on('console', (msg) => {
+            if (msg.type() === 'error') consoleErrors.push(msg.text());
+        });
         await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 240000 });
         await page.waitForFunction(() => (
             !!document.getElementById('loadingIndicator')
@@ -167,9 +163,7 @@ async function main() {
         }
 
         console.log(`GEMINI_MONITOR_DUAL_VIEW_SMOKE_OK ${JSON.stringify(result)}`);
-    } finally {
-        await browser.close();
-    }
+    });
 }
 
 main().catch((error) => {
