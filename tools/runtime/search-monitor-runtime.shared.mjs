@@ -302,8 +302,8 @@ export async function ensureLocalModelRuntime(timeoutMs = 30_000) {
     method: 'POST',
     timeoutMs,
   });
-  if (!start.ok) {
-    throw new Error(`Local MoE model runtime start failed: ${start.payload?.detail?.message || start.payload?.detail || start.error || start.text || 'unknown error'}`);
+  if (!start.ok || start.payload?.lifecycle?.startup_stage === 'failed') {
+    throw new Error(`Local MoE model runtime start failed: ${start.payload?.lifecycle?.last_error || start.payload?.detail?.message || start.payload?.detail || start.error || start.text || 'unknown error'}`);
   }
   return start.payload;
 }
