@@ -133,7 +133,7 @@ function failureContext(value) {
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter(Boolean);
-  const relevant = lines.filter((line) => /error|fail|traceback|assert|expected|received|timeout|not found|exception|at\s+\S+/i.test(line));
+  const relevant = lines.filter((line) => /error|fail|traceback|assert|expected|received|timeout|not found|exception|diagnostic|screenshot|trace\.zip|at\s+\S+/i.test(line));
   return (relevant.length ? relevant : lines)
     .slice(0, MAX_FAILURE_LINES)
     .map((line) => line.slice(0, MAX_FAILURE_LINE_CHARS))
