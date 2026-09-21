@@ -282,7 +282,12 @@ async function scopeQualificationFailure(stage, details = {}) {
 
   const stopped = [];
   if (stage === 'runtime-generation') {
-    stopped.push(await stopModelRuntimeForFailure());
+    const unhealthy = unhealthyServiceNames(snapshot);
+    const localMoeHealthy = snapshot.services?.localMoe?.status?.running === true && snapshot.services?.localMoe?.identity?.ready === true;
+    const modelUnhealthy = localMoeHealthy && (snapshot.localMoe?.runtime?.ready !== true || snapshot.tlo?.canChat !== true);
+    if (modelUnhealthy) stopped.push(await stopModelRuntimeForFailure());
+    stopped.push(...await stopScopedServices(unhealthy.filter((name) => name !== 'localMoe' || !localMoeHealthy)));
+    if (!modelUnhealthy && unhealthy.length === 0) console.error('FAILURE_STOP none: generation stage failed but all participating servers are healthy; preserving them for diagnosis.');
   } else if (stage === 'localhost-browser') {
     const unhealthy = unhealthyServiceNames(snapshot);
     const localMoeHealthy = snapshot.services?.localMoe?.status?.running === true
@@ -378,7 +383,7 @@ Commands:
   stop                 Stop only services recorded as started by this runtime session.
   stop --all           Explicitly stop all Search Monitor runtime services (Local Control stays up).
   restart [--gemini]   Stop session-owned services, then start the requested stack again.
-  qualify [--gemini]   Start stack, run real model + browser live smokes, leave services running.
+  qualify [--gemini]   Start stack, run live smokes; auto-scope failures and stop only attributable owned components.
   extension-reload     Run Nexus Browser's existing extension reload qualification.
 
 Options:
