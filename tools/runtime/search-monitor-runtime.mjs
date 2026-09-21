@@ -7,6 +7,7 @@ import {
   clearRuntimeSession,
   configureHeadedServices,
   ensureControlPlane,
+  ensureLocalModelRuntime,
   runtimeSession,
   runtimeSnapshot,
   serviceStatus,
@@ -104,6 +105,8 @@ async function startStack() {
 
   let tlo = null;
   if (!noModelWait) {
+    console.log('START Local MoE model runtime stage');
+    await ensureLocalModelRuntime(Math.min(modelTimeoutMs, 120_000));
     console.log(`WAITING for real TLO/Local MoE model readiness (timeout ${Math.round(modelTimeoutMs / 1000)}s)...`);
     tlo = await waitForTloReady(modelTimeoutMs);
     console.log(`READY TLO: ${tlo.agent?.activeModelId || 'active model'}`);
