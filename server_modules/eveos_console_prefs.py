@@ -35,6 +35,7 @@ from pathlib import Path
 # service missing here is invisible in settings even if it is running.
 KNOWN_SERVICES = ("web", "gemini", "localMoe", "worldBook", "bookmarkIntel", "piano", "watchFusion", "nexusBrowser")
 _TRUE = {"1", "true", "yes", "on"}
+DEFAULT_HEADLESS = False
 
 
 def _path() -> Path:
@@ -51,7 +52,7 @@ def read_all() -> dict:
     if not isinstance(services, dict):
         services = {}
     return {
-        "default": bool(payload.get("default")),
+        "default": bool(payload.get("default", DEFAULT_HEADLESS)),
         "services": {str(k): bool(v) for k, v in services.items() if k in KNOWN_SERVICES},
         "keepLocalControlAfterToolStop": bool(payload.get("keepLocalControlAfterToolStop", False)),
     }
