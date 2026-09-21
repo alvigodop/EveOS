@@ -11,7 +11,7 @@ const MIME = Object.freeze({
 });
 
 function setSecurityHeaders(res) {
-  res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; img-src 'self' data:; frame-ancestors http://127.0.0.1:* http://localhost:*");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; img-src 'self' data:; frame-ancestors http://127.0.0.1:* http://localhost:* file:");
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Content-Type-Options', 'nosniff');
 }
