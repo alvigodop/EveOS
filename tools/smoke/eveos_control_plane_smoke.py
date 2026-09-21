@@ -175,6 +175,9 @@ def helper_http_smoke():
         H.eveos_web_control.get_status, H.eveos_web_control.start_server, H.eveos_web_control.stop_server,
         H.world_book_control.get_status, H.world_book_control.start_server, H.world_book_control.stop_server,
         H.watchfusion_control.get_status, H.watchfusion_control.start_server, H.watchfusion_control.stop_server,
+        H.nexus_browser_control.get_status, H.nexus_browser_control.start_server,
+        H.nexus_browser_control.stop_server, H.nexus_browser_control.setup_runtime,
+        H.nexus_browser_control.open_extension_folder,
         H.piano_player_control.stop_server, H.gemini_control.stop_server,
     )
     calls = []
@@ -212,6 +215,11 @@ def helper_http_smoke():
         "desiredRunning": False, "state": "stopped", "port": 9085,
         "url": "http://127-0-0-1.sslip.io:9085/", "message": "WatchFusion is stopped.",
     }
+    nexus_state = {
+        "ok": True, "controllerAvailable": True, "installed": True, "running": False,
+        "state": "stopped", "port": 9088, "url": "http://127.0.0.1:9088/",
+        "dependenciesReady": True, "extensionReady": True, "message": "Nexus Browser is ready.",
+    }
 
     def set_world_running(enabled):
         world_state.update(running=enabled, desiredRunning=enabled,
@@ -225,6 +233,11 @@ def helper_http_smoke():
                            message="WatchFusion is online." if enabled else "WatchFusion is stopped.")
         return dict(watch_state)
 
+    def set_nexus_running(enabled):
+        nexus_state.update(running=enabled, state="running" if enabled else "stopped",
+                           message="Nexus Browser is online." if enabled else "Nexus Browser is stopped.")
+        return dict(nexus_state)
+
     H._discover_file_web_port = lambda: discovery["port"]
     H.eveos_web_control.get_status = get_status
     H.eveos_web_control.start_server = lambda *, persist=True, port=None: set_running(True, port)
@@ -235,6 +248,12 @@ def helper_http_smoke():
     H.watchfusion_control.get_status = lambda: dict(watch_state)
     H.watchfusion_control.start_server = lambda: set_watch_running(True)
     H.watchfusion_control.stop_server = lambda: set_watch_running(False)
+    H.nexus_browser_control.get_status = lambda: dict(nexus_state)
+    H.nexus_browser_control.start_server = lambda: set_nexus_running(True)
+    H.nexus_browser_control.stop_server = lambda: set_nexus_running(False)
+    H.nexus_browser_control.setup_runtime = lambda: {**nexus_state, "ok": True, "dependenciesReady": True}
+    H.nexus_browser_control.open_extension_folder = lambda: {**nexus_state, "ok": True,
+                                                               "extensionPath": "tools/Nexus-Browser/extension"}
     H.piano_player_control.stop_server = lambda: {"ok": True, "running": False}
     H.gemini_control.stop_server = lambda: {"ok": True, "running": False}
 
@@ -308,6 +327,22 @@ def helper_http_smoke():
         status_code, payload = request_json(port, "POST", "/api/watchfusion/stop")
         assert_true(status_code == 200 and payload.get("running") is False,
                     "WatchFusion stop route failed")
+
+        status_code, payload = request_json(port, "GET", "/api/nexus-browser/status")
+        assert_true(status_code == 200 and payload.get("port") == 9088,
+                    "Nexus Browser status route failed")
+        status_code, payload = request_json(port, "POST", "/api/nexus-browser/setup")
+        assert_true(status_code == 200 and payload.get("dependenciesReady") is True,
+                    "Nexus Browser setup route failed")
+        status_code, payload = request_json(port, "POST", "/api/nexus-browser/extension")
+        assert_true(status_code == 200 and payload.get("extensionPath") == "tools/Nexus-Browser/extension",
+                    "Nexus Browser extension route failed")
+        status_code, payload = request_json(port, "POST", "/api/nexus-browser/start")
+        assert_true(status_code == 200 and payload.get("running") is True,
+                    "Nexus Browser start route failed")
+        status_code, payload = request_json(port, "POST", "/api/nexus-browser/stop")
+        assert_true(status_code == 200 and payload.get("running") is False,
+                    "Nexus Browser stop route failed")
     finally:
         server.shutdown()
         server.server_close()
@@ -317,6 +352,9 @@ def helper_http_smoke():
             H.eveos_web_control.get_status, H.eveos_web_control.start_server, H.eveos_web_control.stop_server,
             H.world_book_control.get_status, H.world_book_control.start_server, H.world_book_control.stop_server,
             H.watchfusion_control.get_status, H.watchfusion_control.start_server, H.watchfusion_control.stop_server,
+            H.nexus_browser_control.get_status, H.nexus_browser_control.start_server,
+            H.nexus_browser_control.stop_server, H.nexus_browser_control.setup_runtime,
+            H.nexus_browser_control.open_extension_folder,
             H.piano_player_control.stop_server, H.gemini_control.stop_server,
         ) = original
 

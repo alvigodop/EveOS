@@ -13,16 +13,9 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
-from . import bookmark_intel_control
-from . import eveos_console_prefs
-from . import eveos_ports
-from . import eveos_web_control
-from . import gemini_control
-from . import gemini_credentials
-from . import local_moe_control
-from . import piano_player_control
-from . import watchfusion_control
-from . import world_book_control
+from . import bookmark_intel_control, eveos_console_prefs, eveos_ports, eveos_web_control
+from . import gemini_control, gemini_credentials, local_moe_control, nexus_browser_control
+from . import piano_player_control, watchfusion_control, world_book_control
 from .eveos_http_cors import eveos_cors_origin
 
 
@@ -158,6 +151,7 @@ def _console_overview(web_port=None) -> dict:
          lambda s: [s.get("port")]),
         ("localMoe", "Local MoE Harness", local_moe_control.get_status,
          lambda s: [s.get("port"), s.get("runtimePort")]),
+        ("nexusBrowser", "Nexus Browser", nexus_browser_control.get_status, lambda s: [s.get("port")]),
     )
     for key, label, status_fn, ports in status_specs:
         try:
@@ -203,6 +197,7 @@ def _stop_tool(stop) -> dict:
 def _stop_everything(web_port=None) -> dict:
     also = {}
     for name, stop in (("localMoe", local_moe_control.stop_server),
+                       ("nexusBrowser", nexus_browser_control.stop_server),
                        ("watchFusion", watchfusion_control.stop_server),
                        ("piano", piano_player_control.stop_server),
                        ("worldBook", world_book_control.stop_server),
@@ -304,6 +299,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/local-moe/status":
             self._send(local_moe_control.get_status())
             return
+        if path == "/api/nexus-browser/status": self._send(nexus_browser_control.get_status()); return
         if path == "/api/control-plane/consoles":
             self._send(_console_overview(_request_web_port(self)))
             return
@@ -325,6 +321,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/watchfusion/start", "/api/watchfusion/stop", "/api/watchfusion/launch", "/api/watchfusion/setup",
             "/api/bookmark-intel/start", "/api/bookmark-intel/stop",
             "/api/local-moe/start", "/api/local-moe/stop", "/api/local-moe/launch", "/api/local-moe/setup",
+            "/api/nexus-browser/start", "/api/nexus-browser/stop", "/api/nexus-browser/setup", "/api/nexus-browser/extension",
             "/api/gemini-credentials", "/api/control-plane/consoles",
         }
         if path in controlled_paths and not gemini_control.request_can_control(self):
@@ -358,6 +355,10 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/local-moe/stop": lambda: _stop_tool(local_moe_control.stop_server),
             "/api/local-moe/launch": local_moe_control.open_launcher,
             "/api/local-moe/setup": local_moe_control.open_setup,
+            "/api/nexus-browser/start": nexus_browser_control.start_server,
+            "/api/nexus-browser/stop": lambda: _stop_tool(nexus_browser_control.stop_server),
+            "/api/nexus-browser/setup": nexus_browser_control.setup_runtime,
+            "/api/nexus-browser/extension": nexus_browser_control.open_extension_folder,
         }
         action = actions.get(path)
 
@@ -429,7 +430,7 @@ def main() -> int:
     print(f"  Consoles: {'headless' if eveos_web_control.headless_mode() else 'visible'}"
           " (set EVEOS_HEADLESS=1 to hide spawned servers)")
     print(f"  Control: http://127.0.0.1:{args.port}/api/control-plane/status")
-    print("  Manages EveOS localhost, Gemini, Local MoE, World Book, Piano, WatchFusion, and Bookmark Intel independently.")
+    print("  Manages EveOS localhost, Gemini, Local MoE, Nexus Browser, World Book, Piano, WatchFusion, and Bookmark Intel independently.")
     print("  Press Ctrl+C to stop the control plane")
     eveos_web_control.restore_desired_state_async()
     world_book_control.restore_desired_state_async()

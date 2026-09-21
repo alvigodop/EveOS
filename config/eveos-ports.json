@@ -14,6 +14,7 @@
     "GEMINI_CONTROL_PORT": { "port": 9082, "service": "EveOS local control plane" },
     "GEMINI_WS_PORT": { "port": 9085, "service": "Gemini Live WebSocket" },
     "GEMINI_STATUS_PORT": { "port": 9086, "service": "Gemini Live status" },
-    "WATCHFUSION_PORT": { "port": 9087, "service": "WatchFusion" }
+    "WATCHFUSION_PORT": { "port": 9087, "service": "WatchFusion" },
+    "NEXUS_BROWSER_PORT": { "port": 9088, "service": "Nexus Browser" }
   }
 }

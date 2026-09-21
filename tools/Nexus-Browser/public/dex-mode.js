@@ -1,0 +1,393 @@
+(() => {
+  const protocol = globalThis.BrowserAiBridgeDexProtocol;
+  const memberApi = globalThis.BrowserAiBridgeDexMembers;
+  const controlApi = globalThis.BrowserAiBridgeDexProviderControl;
+  const stateSyncApi = globalThis.BrowserAiBridgeDexStateSync;
+  const runtimeApi = globalThis.BrowserAiBridgeDexRuntimeClient;
+  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi) {
+    throw new Error('Dex helpers must load before Dex Mode.');
+  }
+
+  const STORAGE_KEY = 'browser-ai-bridge.dex.rooms.v1';
+  const SERVER_SESSION_KEY = 'browser-ai-bridge.dex.server-session.v1';
+  const RELOAD_REASON_KEY = 'browser-ai-bridge.dex.reload-reason.v1';
+  const state = {
+    ws: null,
+    reconnectTimer: null,
+    rooms: [],
+    activeRoomId: null,
+    tabs: [],
+    providers: [],
+    onlineTarget: null,
+    localTargets: [],
+    localTypes: [],
+    reloading: false,
+    runtimeRole: 'unknown',
+    lastRelayFinalAt: 0,
+    lastRelayFinalProvider: ''
+  };
+  const el = Object.fromEntries([
+    'baseModeTab','dexModeTab','baseModePanel','dexModePanel','dexRoomList','dexNewRoom',
+    'dexRoomName','dexUserName','dexAutoRelay','dexMaxTurns','dexSaveRoom','dexClearChat','dexDeleteRoom',
+    'dexRoomStatus','dexMemberClass','dexMemberType','dexMemberTarget','dexMemberName',
+    'dexAddMember','dexCancelMemberEdit','dexMemberRelayEnabled','dexMemberList','dexTranscript','dexPrompt','dexSend','dexStopRelay',
+    'dexContinueRelay','dexDiagnostics'
+  ].map((id) => [id, document.getElementById(id)]));
+
+  const uid = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+  const now = () => new Date().toISOString();
+  const activeRoom = () => state.rooms.find((room) => room.id === state.activeRoomId) || null;
+
+  function defaultRoom(index = state.rooms.length + 1) {
+    return {
+      id: uid('room'),
+      name: `Dex Room ${index}`,
+      userName: 'User',
+      members: [],
+      messages: [],
+      settings: { autoRelay: true, maxTurns: 8, contextMessages: 8 },
+      relay: { active: false, remaining: 0, waitingFor: null, lastStopReason: 'Idle' },
+      createdAt: now(),
+      updatedAt: now()
+    };
+  }
+
+  function normalizeRoom(room) {
+    const base = defaultRoom();
+    const value = { ...base, ...room };
+    value.members = Array.isArray(room?.members) ? room.members : [];
+    value.messages = Array.isArray(room?.messages) ? room.messages : [];
+    value.settings = { ...base.settings, ...(room?.settings || {}) };
+    value.settings.maxTurns = protocol.clampInt(value.settings.maxTurns, 1, protocol.MAX_RELAY_TURNS, 8);
+    value.settings.contextMessages = protocol.clampInt(value.settings.contextMessages, 2, 20, 8);
+    value.relay = { ...base.relay, ...(room?.relay || {}) };
+    return value;
+  }
+
+  let stateSync = null;
+  function send(payload) {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return false;
+    state.ws.send(JSON.stringify(payload));
+    return true;
+  }
+
+  function loadRooms() {
+    stateSync = stateSyncApi.createSync({
+      state, storageKey: STORAGE_KEY, normalizeRoom, defaultRoom, send, now
+    });
+    stateSync.loadLocal();
+  }
+
+  function persist(options = {}) {
+    stateSync?.persist(state.runtimeRole === 'standby' ? { ...options, remote: false } : options);
+  }
+
+  function log(message) {
+    const stamp = new Date().toLocaleTimeString();
+    const current = el.dexDiagnostics.textContent.trim();
+    el.dexDiagnostics.textContent = `[${stamp}] ${message}\n${current}`.slice(0, 12000);
+  }
+
+  function roomMessage(room, senderKind, senderId, senderName, text, persistNow = true) {
+    const message = {
+      id: uid('msg'), senderKind, senderId, senderName,
+      text: protocol.cleanText(text), at: now()
+    };
+    room.messages.push(message);
+    room.updatedAt = now();
+    if (persistNow) persist();
+    return message;
+  }
+
+  function setMode(mode) {
+    const dex = mode === 'dex';
+    document.body.dataset.bridgeMode = dex ? 'dex' : 'base';
+    el.baseModePanel.hidden = dex;
+    el.dexModePanel.hidden = !dex;
+    el.baseModeTab.classList.toggle('active', !dex);
+    el.dexModeTab.classList.toggle('active', dex);
+    if (!dex) runtime.stopAllRelays('Base Mode opened');
+    if (dex) renderAll();
+  }
+
+  function handleServerSession(id) {
+    const next = String(id || '');
+    if (!next) return false;
+    const previous = sessionStorage.getItem(SERVER_SESSION_KEY);
+    sessionStorage.setItem(SERVER_SESSION_KEY, next);
+    if (!previous || previous === next || state.reloading) return false;
+    state.reloading = true;
+    sessionStorage.setItem(RELOAD_REASON_KEY, 'Bridge server restarted; Dex viewer/controller reloaded with current scripts.');
+    log('Bridge server restart detected · reloading Dex viewer/controller...');
+    setTimeout(() => location.reload(), 80);
+    return true;
+  }
+
+  function updateHealth(msg) {
+    const tabId = Number(msg?.tabId);
+    const target = state.tabs.find((tab) => Number(tab.id) === tabId && tab.providerId === msg.providerId);
+    if (target) target.health = msg.health || null;
+    if (state.onlineTarget && Number(state.onlineTarget.id) === tabId) state.onlineTarget.health = msg.health || null;
+    renderAll();
+  }
+
+  function hostAccessUiMessage(msg) {
+    if (msg?.code !== 'HOST_ACCESS_REQUIRED') return null;
+    const site = msg.detail?.pattern || 'this provider site';
+    if (msg?.detail?.allSitesDeclared) {
+      return `Chrome is withholding EveOS Nexus Browser's all-sites access for ${site}. Open the extension menu → This can read and change site data → On all sites once, then retry the Dex relay.`;
+    }
+    return `Chrome site access is required for ${site}. Allow EveOS Nexus Browser on this site in Chrome's extension Site access, then retry the Dex relay.`;
+  }
+
+  function handleSocketMessage(msg) {
+    if (runtime.handleMessage(msg)) return;
+    if (msg.type === 'server_session') { handleServerSession(msg.id); return; }
+    if (msg.type === 'error') {
+      const accessMessage = hostAccessUiMessage(msg);
+      log(accessMessage || `${msg.code || 'ERROR'}: ${msg.message || 'Unknown error'}`);
+      if (accessMessage) {
+        const room = activeRoom();
+        if (room) {
+          room.relay.lastStopReason = 'Site access required';
+          roomMessage(room, 'system', null, 'Dex', accessMessage);
+          renderAll();
+        }
+      }
+      return;
+    }
+    if (msg.type === 'dex_runtime_role') {
+      state.runtimeRole = msg.role === 'standby' ? 'standby' : 'controller';
+      el.dexModePanel.inert = state.runtimeRole === 'standby';
+      log(`Dex UI role: ${state.runtimeRole} · localhost owns relay scheduling and recovery.`);
+      return;
+    }
+    if (msg.type === 'dex_state_snapshot') {
+      const result = stateSync?.applyRemote(msg.snapshot);
+      if (result?.applied) {
+        renderAll();
+        log('Dex state synchronized from localhost scheduler.');
+      }
+      return;
+    }
+    if (msg.type === 'provider_control_request') {
+      const result = providerControl.handle(msg);
+      if (result?.ok && controlApi.MUTATING_ACTIONS.has(String(msg.command?.action || '').trim().toLowerCase())) {
+        stateSync?.flush();
+      }
+      send({ type: 'provider_control_result', requestId: msg.requestId, source: msg.source, result });
+      return;
+    }
+    if (msg.type === 'provider_health_update') { updateHealth(msg); return; }
+    if (msg.type === 'tabs_update') {
+      state.tabs = Array.isArray(msg.tabs) ? msg.tabs : [];
+      if (Array.isArray(msg.providers)) state.providers = msg.providers;
+      if ('target' in msg) state.onlineTarget = msg.target || null;
+      memberController.renderBuilder();
+      return;
+    }
+    if (msg.type === 'local_targets_update') {
+      state.localTargets = Array.isArray(msg.targets) ? msg.targets : [];
+      memberController.renderBuilder();
+      return;
+    }
+    if (msg.type === 'target_classes_update') {
+      state.localTypes = Array.isArray(msg.localTargetTypes) ? msg.localTargetTypes : [];
+      memberController.renderBuilder();
+      return;
+    }
+    if (msg.type === 'target_selected') {
+      state.onlineTarget = msg.target || null;
+      return;
+    }
+    if (msg.type === 'response_final') {
+      const observedAt = Number(msg.observedAt || Date.now());
+      state.lastRelayFinalAt = observedAt;
+      state.lastRelayFinalProvider = msg.providerName || msg.providerId || 'provider';
+      const settleMs = Number(msg.detail?.adapterSettleMs);
+      log(`Relay timing: ${state.lastRelayFinalProvider} final settled${Number.isFinite(settleMs) ? ` in ${settleMs} ms` : ''}.`);
+      return;
+    }
+    if (msg.type === 'prompt_accepted') {
+      const acceptedAt = Number(msg.observedAt || Date.now());
+      if (state.lastRelayFinalAt) {
+        const handoffMs = Math.max(0, acceptedAt - state.lastRelayFinalAt);
+        log(`Relay timing: ${state.lastRelayFinalProvider || 'previous provider'} → ${msg.providerName || msg.providerId || 'provider'} accepted in ${handoffMs} ms.`);
+        state.lastRelayFinalAt = 0; state.lastRelayFinalProvider = '';
+      }
+      return;
+    }
+    if (msg.type === 'dex_scheduler_event') {
+      log(`Localhost scheduler: ${msg.event || 'event'}${msg.memberId ? ` · ${msg.memberId}` : ''}.`);
+    }
+  }
+
+  function connectSocket() {
+    clearTimeout(state.reconnectTimer);
+    const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${scheme}://${location.host}/ws`);
+    state.ws = ws;
+    ws.addEventListener('open', () => {
+      send({ type: 'hello', role: 'ui', clientKind: 'dex' });
+      send({ type: 'request_tabs' });
+      send({ type: 'request_local_targets' });
+      log('Dex viewer/controller connected.');
+    });
+    ws.addEventListener('message', (event) => {
+      try { handleSocketMessage(JSON.parse(event.data)); }
+      catch (error) { log(`Bad Dex bridge event: ${error.message}`); }
+    });
+    ws.addEventListener('close', () => {
+      state.ws = null;
+      state.reconnectTimer = setTimeout(connectSocket, 1200);
+    });
+    ws.addEventListener('error', () => {});
+  }
+
+  const memberController = memberApi.createController({
+    state, el, protocol, activeRoom, persist, log, renderAll, uid
+  });
+  const runtime = runtimeApi.createController({
+    state, send, persist, roomMessage, renderAll, log
+  });
+  const providerControl = controlApi.createController({
+    state,
+    roomMessage,
+    startRelay: runtime.startRelay,
+    stopRoom: runtime.stopRoom,
+    persist,
+    renderAll,
+    log,
+    createRoom: defaultRoom,
+    uid
+  });
+
+  function renderRooms() {
+    el.dexRoomList.replaceChildren();
+    for (const room of state.rooms) {
+      const button = document.createElement('button');
+      button.className = `dex-room-item${room.id === state.activeRoomId ? ' active' : ''}`;
+      button.textContent = `${room.name} · ${room.members.length}`;
+      button.addEventListener('click', () => {
+        memberController.clear();
+        state.activeRoomId = room.id;
+        renderAll();
+      });
+      el.dexRoomList.append(button);
+    }
+  }
+
+  function renderTranscript(room) {
+    el.dexTranscript.replaceChildren();
+    if (!room) return;
+    for (const message of room.messages) {
+      const article = document.createElement('article');
+      article.className = `dex-message ${message.senderKind}`;
+      const meta = document.createElement('div');
+      meta.className = 'dex-message-meta';
+      meta.textContent = message.senderKind === 'user'
+        ? `User (${message.senderName})`
+        : message.senderName || 'Dex';
+      const body = document.createElement('div');
+      body.className = 'dex-message-body';
+      body.textContent = message.senderKind === 'system'
+        ? message.text
+        : protocol.messageWrapper(message);
+      article.append(meta, body);
+      el.dexTranscript.append(article);
+    }
+    el.dexTranscript.scrollTop = el.dexTranscript.scrollHeight;
+  }
+
+  function renderAll() {
+    const room = activeRoom();
+    renderRooms();
+    if (!room) return;
+    el.dexRoomName.value = room.name;
+    el.dexUserName.value = room.userName;
+    el.dexAutoRelay.checked = !!room.settings.autoRelay;
+    el.dexMaxTurns.value = room.settings.maxTurns;
+    el.dexRoomStatus.textContent = room.relay.active
+      ? `Relay running on localhost · ${room.relay.remaining} turn(s) left${room.relay.waitingFor ? ' · waiting for agent' : ''}`
+      : `Relay stopped · ${room.relay.lastStopReason || 'Idle'}`;
+    memberController.render(room);
+    renderTranscript(room);
+    const editing = memberController.isEditing();
+    const busy = controlApi.roomBusy(state, room);
+    el.dexSend.disabled = !room.members.length || busy || editing;
+    el.dexContinueRelay.disabled = !room.messages.length || busy || editing;
+    el.dexStopRelay.disabled = !busy;
+    el.dexClearChat.disabled = !room.messages.length || busy;
+    el.dexClearChat.textContent = room.messages.length ? `Clear chat (${room.messages.length})` : 'Clear chat';
+  }
+
+  el.baseModeTab.addEventListener('click', () => setMode('base'));
+  el.dexModeTab.addEventListener('click', () => setMode('dex'));
+  el.dexNewRoom.addEventListener('click', () => {
+    memberController.clear();
+    const room = defaultRoom();
+    state.rooms.push(room);
+    state.activeRoomId = room.id;
+    persist();
+    renderAll();
+  });
+  el.dexSaveRoom.addEventListener('click', () => {
+    const room = activeRoom();
+    if (!room) return;
+    room.name = protocol.cleanName(el.dexRoomName.value, room.name);
+    room.userName = protocol.cleanName(el.dexUserName.value, 'User');
+    room.settings.autoRelay = el.dexAutoRelay.checked;
+    room.settings.maxTurns = protocol.clampInt(el.dexMaxTurns.value, 1, protocol.MAX_RELAY_TURNS, 8);
+    room.updatedAt = now();
+    persist();
+    renderAll();
+  });
+  el.dexClearChat.addEventListener('click', () => {
+    const room = activeRoom();
+    if (!room || controlApi.roomBusy(state, room)) return log('Stop the relay before clearing room chat.');
+    if (!confirm(`Clear ${room.messages.length} message(s) from "${room.name}"? Participants and room settings stay intact.`)) return;
+    const cleared = controlApi.clearRoomHistory(room);
+    persist();
+    renderAll();
+    log(`Cleared ${cleared} message(s) from ${room.name}.`);
+  });
+  el.dexDeleteRoom.addEventListener('click', () => {
+    const room = activeRoom();
+    if (!room || controlApi.roomBusy(state, room)) return log('Stop the relay before deleting a room.');
+    state.rooms = state.rooms.filter((item) => item.id !== room.id);
+    if (!state.rooms.length) state.rooms.push(defaultRoom(1));
+    memberController.clear();
+    state.activeRoomId = state.rooms[0].id;
+    persist();
+    renderAll();
+  });
+  el.dexSend.addEventListener('click', () => {
+    const room = activeRoom();
+    const text = protocol.cleanText(el.dexPrompt.value);
+    if (!room || !text || controlApi.roomBusy(state, room)) return;
+    const message = roomMessage(room, 'user', 'user', room.userName, text, false);
+    el.dexPrompt.value = '';
+    runtime.startRelay(room, message, room.settings.autoRelay ? room.settings.maxTurns : 1);
+  });
+  el.dexPrompt.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      el.dexSend.click();
+    }
+  });
+  el.dexStopRelay.addEventListener('click', () => runtime.stopRoom(activeRoom(), 'Stopped by user'));
+  el.dexContinueRelay.addEventListener('click', () => {
+    const room = activeRoom();
+    if (room && !controlApi.roomBusy(state, room)) runtime.continueRelay(room, room.settings.maxTurns);
+  });
+
+  loadRooms();
+  setMode(new URLSearchParams(location.search).get('mode') === 'dex' ? 'dex' : 'base');
+  renderAll();
+  const reloadReason = sessionStorage.getItem(RELOAD_REASON_KEY);
+  if (reloadReason) {
+    sessionStorage.removeItem(RELOAD_REASON_KEY);
+    log(reloadReason);
+  }
+  connectSocket();
+})();

@@ -1,0 +1,125 @@
+.eveos-nexus-browser-facts {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 9px;
+}
+
+.eveos-nexus-browser-facts > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+    padding: 9px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.eveos-nexus-browser-facts small {
+    color: rgba(230, 246, 255, 0.46);
+    font-size: 0.59rem;
+    text-transform: uppercase;
+}
+
+.eveos-nexus-browser-facts strong {
+    overflow: hidden;
+    color: rgba(244, 251, 255, 0.86);
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.eveos-nexus-browser-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 9px;
+}
+
+.eveos-nexus-browser-actions button {
+    appearance: none;
+    border: 1px solid rgba(34, 211, 238, 0.2);
+    border-radius: 999px;
+    background: rgba(8, 19, 28, 0.82);
+    color: rgba(230, 246, 255, 0.76);
+    cursor: pointer;
+    font: 700 0.66rem/1 inherit;
+    padding: 8px 11px;
+}
+
+.eveos-nexus-browser-actions button:hover:not(:disabled) {
+    border-color: rgba(34, 211, 238, 0.62);
+    background: rgba(8, 145, 178, 0.2);
+    color: #e9fbff;
+}
+
+.eveos-nexus-browser-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.eveos-nexus-browser-note {
+    margin: 9px 0 0;
+    color: rgba(230, 246, 255, 0.45);
+    font-size: 0.63rem;
+    line-height: 1.45;
+}
+
+.eveos-nexus-browser-inline {
+    overflow: hidden;
+    margin-top: 11px;
+    border: 1px solid rgba(34, 211, 238, 0.18);
+    border-radius: 13px;
+    background: #071017;
+}
+
+.eveos-nexus-browser-inline[hidden] {
+    display: none !important;
+}
+
+.eveos-nexus-browser-inline-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 11px;
+    border-bottom: 1px solid rgba(34, 211, 238, 0.12);
+}
+
+.eveos-nexus-browser-inline-head > span:first-child {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.eveos-nexus-browser-inline-head strong {
+    color: #f4fbff;
+    font-size: 0.73rem;
+}
+
+.eveos-nexus-browser-inline-head small {
+    color: rgba(230, 246, 255, 0.45);
+    font-size: 0.6rem;
+}
+
+.eveos-nexus-browser-inline iframe {
+    display: block;
+    width: 100%;
+    height: min(64vh, 720px);
+    min-height: 430px;
+    border: 0;
+    background: #081019;
+}
+
+@media (max-width: 620px) {
+    .eveos-nexus-browser-facts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .eveos-nexus-browser-inline iframe {
+        height: 68vh;
+        min-height: 360px;
+    }
+}

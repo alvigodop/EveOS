@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EveOS Nexus Browser</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/activity-code.css">
+  <link rel="stylesheet" href="/target-classes.css">
+  <link rel="stylesheet" href="/dex-mode.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">POC · MULTI-ORIGIN AI TARGET BRIDGE</p>
+        <h1>Nexus Browser</h1>
+      </div>
+      <div id="bridgeBadge" class="badge offline">Extension offline</div>
+    </header>
+
+    <nav class="mode-tabs" aria-label="Bridge mode">
+      <button id="baseModeTab" class="mode-tab active" type="button">Base Mode</button>
+      <button id="dexModeTab" class="mode-tab" type="button">Dex Mode</button>
+    </nav>
+
+    <div id="baseModePanel">
+      <section class="target-card">
+        <div class="target-row">
+          <label for="targetClassSelect">Target class</label>
+          <select id="targetClassSelect">
+            <option value="online-origin">Online-Origin Targets</option>
+            <option value="local-origin">Local-Origin Targets</option>
+          </select>
+        </div>
+
+        <div id="onlineTargetControls" class="target-class-panel">
+          <div class="target-row">
+            <label for="providerSelect">Target type</label>
+            <select id="providerSelect"></select>
+          </div>
+          <div class="target-row">
+            <label for="tabSelect">Open chat</label>
+            <div class="target-actions">
+              <select id="tabSelect"></select>
+              <button id="refreshTabs" class="secondary">Refresh tabs</button>
+              <button id="connectTarget">Connect target</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="localTargetControls" class="target-class-panel" hidden>
+          <div class="target-row">
+            <label for="localTypeSelect">Target type</label>
+            <select id="localTypeSelect"></select>
+          </div>
+          <div class="target-row">
+            <label for="localTargetSelect">Local agent</label>
+            <div class="target-actions">
+              <select id="localTargetSelect"></select>
+              <button id="refreshLocalTargets" class="secondary">Refresh local</button>
+              <button id="connectLocalTarget">Connect target</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="targetStatus" class="subtle">No target selected.</div>
+      </section>
+
+      <section id="transcript" class="transcript" aria-live="polite"></section>
+
+      <section class="composer">
+        <textarea id="prompt" rows="4" placeholder="Type here. Enter sends to the selected target."></textarea>
+        <div class="composer-actions">
+          <button id="captureLatest" class="secondary">Capture latest</button>
+          <button id="sendPrompt">Send to target</button>
+        </div>
+      </section>
+
+      <section class="diagnostics">
+        <div class="diagnostics-title diagnostics-title-row">
+          <span>Bridge diagnostics</span>
+          <button id="copyBridgeDiagnostics" class="secondary diagnostics-copy" type="button">Copy</button>
+        </div>
+        <pre id="diagnostics"></pre>
+      </section>
+    </div>
+
+    <section id="dexModePanel" hidden>
+      <div class="dex-layout">
+        <aside class="dex-sidebar">
+          <div class="dex-sidebar-head">
+            <h2>Rooms</h2>
+            <button id="dexNewRoom" type="button">+ Room</button>
+          </div>
+          <p class="dex-note">Rooms persist in this browser. Each room binds named participants to specific online chats or local agent sessions.</p>
+          <div id="dexRoomList" class="dex-room-list"></div>
+        </aside>
+
+        <div class="dex-main">
+          <section class="dex-card">
+            <div class="dex-section-head">
+              <h2>Room identity</h2>
+              <div class="dex-settings-actions">
+                <button id="dexSaveRoom" type="button">Save</button>
+                <button id="dexClearChat" class="secondary" type="button">Clear chat</button>
+                <button id="dexDeleteRoom" class="secondary" type="button">Delete</button>
+              </div>
+            </div>
+            <div class="dex-settings-grid">
+              <div class="dex-field">
+                <label for="dexRoomName">Room name</label>
+                <input id="dexRoomName" type="text" maxlength="80">
+              </div>
+              <div class="dex-field">
+                <label for="dexUserName">Your room name</label>
+                <input id="dexUserName" type="text" maxlength="48" placeholder="Drift">
+              </div>
+              <label class="dex-inline-check" for="dexAutoRelay">
+                <input id="dexAutoRelay" type="checkbox" checked>
+                Auto relay
+              </label>
+              <div class="dex-field dex-number">
+                <label for="dexMaxTurns">Turn budget</label>
+                <input id="dexMaxTurns" type="number" min="1" value="8">
+              </div>
+            </div>
+            <div id="dexRoomStatus" class="dex-room-status">Relay stopped · Idle</div>
+          </section>
+
+          <section class="dex-card">
+            <div class="dex-section-head">
+              <h2>Participants</h2>
+            </div>
+            <div class="dex-member-builder">
+              <div class="dex-field">
+                <label for="dexMemberClass">Target class</label>
+                <select id="dexMemberClass">
+                  <option value="online-origin">Online-Origin</option>
+                  <option value="local-origin">Local-Origin</option>
+                </select>
+              </div>
+              <div class="dex-field">
+                <label for="dexMemberType">Provider / type</label>
+                <select id="dexMemberType"></select>
+              </div>
+              <div class="dex-field">
+                <label for="dexMemberTarget">Specific chat / agent</label>
+                <select id="dexMemberTarget"></select>
+              </div>
+              <div class="dex-field">
+                <label for="dexMemberName">Room name</label>
+                <input id="dexMemberName" type="text" maxlength="48" placeholder="Eve">
+              </div>
+              <label class="dex-inline-check" for="dexMemberRelayEnabled">
+                <input id="dexMemberRelayEnabled" type="checkbox" checked>
+                Participates in relay
+              </label>
+              <div class="dex-member-builder-actions">
+                <button id="dexAddMember" type="button">Add agent</button>
+                <button id="dexCancelMemberEdit" class="secondary" type="button" hidden>Cancel</button>
+              </div>
+            </div>
+            <p class="dex-note">Edit a participant to move its room identity to a new provider chat or local session without resetting this room's transcript.</p>
+            <div id="dexMemberList" class="dex-member-list"></div>
+          </section>
+
+          <section id="dexTranscript" class="dex-transcript" aria-live="polite"></section>
+
+          <section class="dex-composer">
+            <textarea id="dexPrompt" rows="4" placeholder="Send a message into this Dex room. Enter sends; Shift+Enter adds a line."></textarea>
+            <div class="dex-composer-actions">
+              <div class="dex-relay-actions">
+                <button id="dexStopRelay" class="secondary" type="button">Stop relay</button>
+                <button id="dexContinueRelay" class="secondary" type="button">Continue relay</button>
+              </div>
+              <button id="dexSend" type="button">Send to room</button>
+            </div>
+            <p class="dex-note">Dex serializes agent turns, adds speaker wrappers, keeps a bounded recent-room context, and stops on its turn budget, repeated replies, [[DEX:DONE]], [[DEX:USER]], or non-relayed [[DEX:NOTE]] room notes.</p>
+          </section>
+
+          <details class="dex-diagnostics">
+            <summary>Dex diagnostics</summary>
+            <div class="dex-diagnostics-actions">
+              <button id="copyDexDiagnostics" class="secondary diagnostics-copy" type="button">Copy</button>
+            </div>
+            <pre id="dexDiagnostics"></pre>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="/search-results.js"></script>
+  <script src="/activity-ui.js"></script>
+  <script src="/app.js"></script>
+  <script src="/diagnostics-copy.js"></script>
+  <script src="/activity-code-renderer.js"></script>
+  <script src="/dex-provider-health.js"></script>
+  <script src="/dex-protocol.js"></script>
+  <script src="/dex-members.js"></script>
+  <script src="/dex-room-admin.js"></script>
+  <script src="/dex-agent-continuity.js"></script>
+  <script src="/dex-provider-participants.js"></script>
+  <script src="/dex-provider-control.js"></script>
+  <script src="/dex-state-sync.js"></script>
+  <script src="/dex-runtime-client.js"></script>
+  <script src="/dex-mode.js"></script>
+</body>
+</html>

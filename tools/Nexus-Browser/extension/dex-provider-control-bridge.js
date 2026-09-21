@@ -1,0 +1,173 @@
+(() => {
+  const runtimeConfig = globalThis.NexusBrowserRuntimeConfig
+    || (typeof require === 'function' ? require('./runtime-config') : null);
+  if (!runtimeConfig) throw new Error('Nexus Browser runtime configuration is unavailable.');
+  const WS_URL = runtimeConfig.websocketUrl;
+  const HEALTH_URL = runtimeConfig.healthUrl;
+  const pending = new Map();
+  let socket = null;
+  let connecting = null;
+
+  const uid = () => `provider-control-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
+
+  function providerForUrl(url) {
+    return globalThis.BrowserAiBridgeProviders?.providerForUrl?.(String(url || '')) || null;
+  }
+
+  function sourceFromSender(sender, provider) {
+    const tab = sender?.tab || {};
+    return {
+      targetClassId: 'online-origin',
+      targetId: tab.id,
+      providerId: provider.id,
+      providerName: provider.name,
+      url: String(tab.url || ''),
+      title: String(tab.title || provider.name)
+    };
+  }
+
+  function formatResult(result = {}) {
+    const data = result.data == null ? '' : `\nData: ${JSON.stringify(result.data)}`;
+    const status = result.ok ? 'OK' : `ERROR ${result.code || 'DEX_CONTROL_FAILED'}`;
+    return [
+      '[DEX TOOL RESULT]',
+      `${status}: ${result.message || 'No message.'}${data}`,
+      '',
+      'If another Dex control action is needed, end your next reply with one trailing marker.',
+      'Use [[DEX:CMD {"action":"help"}]] for the full room-admin command set.',
+      'Common: [[DEX:CMD {"action":"status"}]] or [[DEX:CMD {"action":"send","text":"<message>","relay":true}]].',
+      'Otherwise do not emit a Dex command.'
+    ].join('\n');
+  }
+
+  async function injectResult(source, requestId, result) {
+    if (!source?.targetId || !globalThis.chrome?.tabs?.sendMessage) return;
+    if (result?.ok && result?.silent) return;
+    const provider = providerForUrl(source.url);
+    const freshness = globalThis.BrowserAiBridgeProviderAdapterFreshness;
+    if (!provider || !freshness?.ensure) throw new Error('Dex result delivery could not resolve provider adapter freshness.');
+    await freshness.ensure(Number(source.targetId), provider, chrome);
+    await chrome.tabs.sendMessage(Number(source.targetId), {
+      type: 'send_prompt',
+      requestId: `dex-control-result-${requestId}`,
+      text: formatResult(result),
+      delivery: { kind: 'dex-control-result' }
+    });
+  }
+
+  function sameTarget(a = {}, b = {}) {
+    if (a.targetClassId !== b.targetClassId || a.providerId !== b.providerId) return false;
+    if (a.targetId != null && b.targetId != null) return String(a.targetId) === String(b.targetId);
+    return !!a.url && !!b.url && a.url === b.url;
+  }
+
+  async function injectOriginReceipt(receipt, requestId) {
+    const target = receipt?.originTarget;
+    if (!target?.targetId || !globalThis.chrome?.tabs?.sendMessage || !receipt?.text) return;
+    const provider = providerForUrl(target.url);
+    const freshness = globalThis.BrowserAiBridgeProviderAdapterFreshness;
+    if (!provider || !freshness?.ensure) throw new Error('Dex origin receipt delivery could not resolve provider adapter freshness.');
+    await freshness.ensure(Number(target.targetId), provider, chrome);
+    await chrome.tabs.sendMessage(Number(target.targetId), {
+      type: 'send_prompt',
+      requestId: `dex-control-origin-receipt-${requestId}`,
+      text: receipt.text,
+      delivery: { kind: 'dex-control-origin-receipt', controlRequestId: requestId }
+    });
+  }
+
+  function handleServerMessage(raw) {
+    let msg;
+    try { msg = JSON.parse(String(raw?.data ?? raw)); } catch { return; }
+    if (msg?.type !== 'provider_control_result') return;
+    const entry = pending.get(msg.requestId);
+    const source = entry?.source || msg.source;
+    const result = msg.result || { ok: false, message: 'Dex provider-control returned no result.' };
+    pending.delete(msg.requestId);
+    injectResult(source, msg.requestId, result).catch(() => {});
+    if (msg.originReceipt?.originTarget && (!sameTarget(msg.originReceipt.originTarget, source) || result?.silent)) {
+      injectOriginReceipt(msg.originReceipt, msg.requestId).catch(() => {});
+    }
+  }
+
+  function attachSocket(ws) {
+    ws.addEventListener('message', handleServerMessage);
+    ws.addEventListener('close', () => {
+      if (socket === ws) socket = null;
+      connecting = null;
+    });
+    ws.addEventListener('error', () => {});
+    return ws;
+  }
+
+  async function localRelayReady(fetchImpl = globalThis.fetch) {
+    if (typeof fetchImpl !== 'function') return false;
+    try {
+      const response = await fetchImpl(HEALTH_URL, { cache: 'no-store' });
+      return !!response?.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  function ensureSocket() {
+    if (socket?.readyState === WebSocket.OPEN) return Promise.resolve(socket);
+    if (connecting) return connecting;
+    connecting = (async () => {
+      if (!(await localRelayReady())) throw new Error('Dex provider-control bridge localhost is offline.');
+      return new Promise((resolve, reject) => {
+        const ws = attachSocket(new WebSocket(WS_URL));
+        const timer = setTimeout(() => reject(new Error('Dex provider-control bridge connection timed out.')), 5000);
+        ws.addEventListener('open', () => {
+          clearTimeout(timer);
+          socket = ws;
+          ws.send(JSON.stringify({ type: 'hello', role: 'provider-control-extension' }));
+          resolve(ws);
+        }, { once: true });
+        ws.addEventListener('error', () => {
+          clearTimeout(timer);
+          reject(new Error('Dex provider-control bridge could not reach localhost.'));
+        }, { once: true });
+      });
+    })().finally(() => {
+      connecting = null;
+    });
+    return connecting;
+  }
+
+  async function handleContentMessage(msg, sender) {
+    if (msg?.type !== 'dex_provider_command') return;
+    const provider = providerForUrl(sender?.tab?.url);
+    if (!provider || !sender?.tab?.id || msg.providerId !== provider.id) return;
+    const requestId = uid();
+    const source = sourceFromSender(sender, provider);
+    pending.set(requestId, { source, at: Date.now() });
+    try {
+      const ws = await ensureSocket();
+      ws.send(JSON.stringify({ type: 'provider_control_request', requestId, source, command: msg.command || {} }));
+    } catch (error) {
+      pending.delete(requestId);
+      await injectResult(source, requestId, { ok: false, code: 'DEX_CONTROL_OFFLINE', message: error.message }).catch(() => {});
+    }
+  }
+
+  function prunePending(maxAgeMs = 120000) {
+    const now = Date.now();
+    for (const [requestId, entry] of pending) {
+      if (now - entry.at > maxAgeMs) pending.delete(requestId);
+    }
+  }
+
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    chrome.runtime.onMessage.addListener((msg, sender) => {
+      if (msg?.type !== 'dex_provider_command') return;
+      handleContentMessage(msg, sender).catch(() => {});
+    });
+    setInterval(prunePending, 30000);
+    ensureSocket().catch(() => {});
+  }
+
+  const api = { pending, uid, sourceFromSender, formatResult, sameTarget, injectOriginReceipt, handleContentMessage, handleServerMessage, prunePending, localRelayReady, ensureSocket };
+  globalThis.BrowserAiBridgeDexProviderControlBridge = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})();

@@ -169,6 +169,11 @@ function scheduleStatusPoll(delayMs = 8000) {
   if (statusPollTimer) clearTimeout(statusPollTimer);
   statusPollTimer = setTimeout(() => {
     statusPollTimer = null;
+    const modelPanel = $('model-panel');
+    if (modelPanel && !modelPanel.classList.contains('hidden') && !modelSwitchInProgress) {
+      scheduleStatusPoll(2000);
+      return;
+    }
     if (document.activeElement?.closest?.('#chat-form')) {
       scheduleStatusPoll(2000);
       return;

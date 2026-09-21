@@ -7,6 +7,7 @@ const vm = require('vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const tloChatPath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'tloChat.js');
+const nexusBrowserPath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'nexusBrowser.js');
 const agentNexusPath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'agentNexus.js');
 const aiHomePath = path.join(ROOT, 'js', 'modules', 'gemini', 'search_monitor', 'searchMonitorAiHome.js');
 const initPath = path.join(ROOT, 'js', 'modules', 'gemini', 'gemini-init.js');
@@ -19,6 +20,7 @@ const viewportCssPath = path.join(
     ROOT, 'css', 'modules', 'gemini', 'gemini_link_surfaces.viewport.css'
 );
 const tloChatSource = fs.readFileSync(tloChatPath, 'utf8');
+const nexusBrowserSource = fs.readFileSync(nexusBrowserPath, 'utf8');
 const agentNexusSource = fs.readFileSync(agentNexusPath, 'utf8');
 const source = fs.readFileSync(aiHomePath, 'utf8');
 const initSource = fs.readFileSync(initPath, 'utf8');
@@ -57,6 +59,7 @@ const sharedContext = {
     window: windowMock, console, setTimeout, clearTimeout, AbortController, URLSearchParams
 };
 vm.runInNewContext(tloChatSource, sharedContext, { filename: tloChatPath });
+vm.runInNewContext(nexusBrowserSource, sharedContext, { filename: nexusBrowserPath });
 vm.runInNewContext(agentNexusSource, sharedContext, { filename: agentNexusPath });
 vm.runInNewContext(source, { window: windowMock, console, setTimeout, clearTimeout }, { filename: aiHomePath });
 
@@ -93,11 +96,14 @@ function assert(condition, message) {
         'Local MoE still requires a separate tab instead of its inline workspace');
     assert(harnessAppSource.includes("document.activeElement?.closest?.('#chat-form')"),
         'Harness status polling can replace live controls while inline chat has focus');
+    assert(harnessAppSource.includes("!modelPanel.classList.contains('hidden') && !modelSwitchInProgress"),
+        'Harness status polling can replace model-switch controls while the library is open');
     assert(!initSource.includes("requestGeminiBoot('full-monitor-view')"),
         'Opening Workspace still boots Gemini before its provider is opened');
     assert(loaderSource.includes("getElementById('gemini-provider-runtime-host')"),
         'Gemini full UI is not scoped to its provider body');
-    assert(manifestSource.indexOf('tloChat.js') < manifestSource.indexOf('agentNexus.js')
+    assert(manifestSource.indexOf('tloChat.js') < manifestSource.indexOf('nexusBrowser.js')
+        && manifestSource.indexOf('nexusBrowser.js') < manifestSource.indexOf('agentNexus.js')
         && manifestSource.indexOf('agentNexus.js') < manifestSource.indexOf('searchMonitorAiHome.js')
         && manifestSource.indexOf('searchMonitorAiHome.js') < manifestSource.indexOf('gemini-init.js'),
         'Agent Nexus and AI Home modules are not registered in dependency order');

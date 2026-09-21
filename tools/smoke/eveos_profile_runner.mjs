@@ -16,13 +16,13 @@ const CODE_EXTENSIONS = new Set(['.js', '.mjs', '.py', '.html', '.css', '.json',
 const SKIP_PARTS = ['/node_modules/', '/data/runtime/', '/test-results/', '/.git/', '/js/vendor/', '/public/vendor/'];
 
 const PROFILES = Object.freeze({
-  fast: ['smoke:file-size', 'smoke:regressions', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:watchfusion'],
+  fast: ['smoke:file-size', 'smoke:regressions', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:nexus-browser', 'smoke:watchfusion'],
   deep: [
     'smoke:file-size', 'smoke:regressions', 'smoke:control-plane', 'smoke:world-book',
     'smoke:local-moe', 'smoke:agent-nexus', 'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
-    'smoke:audioflix-piano', 'smoke:piano-queue', 'smoke:piano-metadata', 'smoke:watchfusion'
+    'smoke:audioflix-piano', 'smoke:piano-queue', 'smoke:piano-metadata', 'smoke:nexus-browser', 'smoke:watchfusion'
   ],
-  security: ['smoke:server-security', 'smoke:watchfusion-security', 'smoke:agent-nexus']
+  security: ['smoke:server-security', 'smoke:watchfusion-security', 'smoke:agent-nexus', 'smoke:nexus-browser-security']
 });
 
 function argValue(args, name, fallback = '') {

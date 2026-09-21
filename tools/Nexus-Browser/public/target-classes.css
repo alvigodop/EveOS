@@ -1,0 +1,9 @@
+.target-class-panel { display: grid; gap: 12px; margin-top: 12px; }
+.target-class-panel[hidden] { display: none; }
+#targetClassSelect { max-width: 360px; }
+#localTargetControls .target-actions { align-items: center; }
+#localTargetSelect option { white-space: normal; }
+@media (max-width: 760px) {
+  #targetClassSelect { max-width: none; }
+  .target-actions { grid-template-columns: 1fr; }
+}

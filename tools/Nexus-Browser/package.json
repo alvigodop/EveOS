@@ -1,0 +1,33 @@
+{
+  "name": "eveos-nexus-browser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Localhost bridge for online authenticated AI chats and local agent sessions.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node scripts/bridge-supervisor.js",
+    "console": "node scripts/local-agent-console.js",
+    "test": "node --test tests/*.test.js",
+    "start:raw": "node server.js",
+    "doctor": "node scripts/bridge-doctor.js",
+    "qualify": "node scripts/qualify.js",
+    "qualify:live": "node scripts/live-qualify.js",
+    "stabilize": "node scripts/qualify.js --area resilience --verify",
+    "handoff": "node scripts/handoff.js",
+    "handoff:verify": "node scripts/handoff.js --verify",
+    "providers:verify": "node scripts/provider-manifest.js --verify",
+    "providers:sync": "node scripts/provider-manifest.js --write",
+    "validate:shared": "npm run stabilize && npm run providers:verify && npm run doctor",
+    "extension:reload": "node scripts/dexctl.js reload-extension",
+    "extension:refresh": "npm run validate:shared && npm run extension:reload",
+    "soak:headed": "node scripts/headed-soak.js",
+    "diagnose": "node scripts/failure-snapshot.js",
+    "rooms:cleanup-disposable": "node scripts/dexctl.js cleanup-disposable-rooms"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}

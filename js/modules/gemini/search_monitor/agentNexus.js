@@ -15,10 +15,12 @@
     function markup() {
         const tloMarkup = window.EveOSTloChat?.markup?.()
             || '<p class="eveos-ai-provider-message">TLO Chat module is unavailable.</p>';
+        const nexusBrowserMarkup = window.EveOSNexusBrowser?.markup?.()
+            || '<p class="eveos-ai-provider-message">Nexus Browser module is unavailable.</p>';
         return `
             <div class="eveos-agent-nexus-intro">
                 <strong>Two peers, separate responsibilities</strong>
-                <span>TLO is a Local MoE-backed agent. Nexus Browser is the headed browser transport graduating from Browser AI Bridge.</span>
+                <span>TLO is a Local MoE-backed agent. Nexus Browser provides Headed / observable provider work with a Headless local-control option.</span>
             </div>
             <div class="eveos-agent-nexus-nav" role="tablist" aria-label="Agent Nexus surfaces">
                 <button type="button" class="is-active" data-agent-nexus-view="tlo" role="tab" aria-selected="true">TLO</button>
@@ -29,17 +31,7 @@
                 ${tloMarkup}
             </section>
             <section class="eveos-agent-nexus-panel" data-agent-nexus-panel="nexus-browser" hidden>
-                <article class="eveos-agent-card" data-agent-tool-id="nexus-browser">
-                    <span class="eveos-agent-avatar eveos-agent-avatar--browser">N</span>
-                    <span><strong>Nexus Browser</strong><small>Headed browser AI targeting, routing, and response capture.</small></span>
-                    <span class="eveos-ai-provider-pill">Migration staged</span>
-                </article>
-                <div class="eveos-agent-nexus-facts">
-                    <span><small>Default transport</small><strong>Headed / observable</strong></span>
-                    <span><small>Headless</small><strong>Unavailable until proven</strong></span>
-                    <span><small>Runtime</small><strong>Not imported yet</strong></span>
-                </div>
-                <p class="eveos-ai-provider-message">The private POC remains the reference source while its public core and exact-once contracts are migrated by responsibility.</p>
+                ${nexusBrowserMarkup}
             </section>
             <section class="eveos-agent-nexus-panel" data-agent-nexus-panel="management" hidden>
                 <div class="eveos-agent-management-head">
@@ -264,6 +256,7 @@
         });
         if (view === 'management') loadManagement(false);
         if (view === 'tlo') window.EveOSTloChat?.activate?.();
+        if (view === 'nexus-browser') window.EveOSNexusBrowser?.activate?.();
     }
 
     function handleClick(event) {
@@ -288,6 +281,7 @@
         if (boundRoots.has(container)) return;
         boundRoots.add(container);
         window.EveOSTloChat?.bind?.(container);
+        window.EveOSNexusBrowser?.bind?.(container);
         container.addEventListener('click', handleClick);
         container.addEventListener('submit', (event) => {
             if (!event.target.matches('[data-agent-management-form]')) return;

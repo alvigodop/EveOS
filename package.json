@@ -11,12 +11,14 @@
     "test:security": "node tools/smoke/eveos_profile_runner.mjs --profile security",
     "build:audioflix-genai": "esbuild tools/bundles/audioflix-genai.entry.mjs --bundle --format=iife --platform=browser --target=es2020 --minify --outfile=js/vendor/audioflix-genai.js",
     "build:asset-versions": "node tools/audit/sync-runtime-asset-versions.js --write",
+    "build:nexus-browser-port": "node tools/audit/sync-nexus-browser-port.js --write",
     "docs:capture-dashboard": "node tools/docs/capture-readme-dashboard.js",
     "audit": "node tools/audit/eveos-repo-audit.js",
     "audit:asset-versions": "node tools/audit/sync-runtime-asset-versions.js",
     "audit:runtime-assets": "node tools/audit/runtime-asset-reachability-audit.js",
     "audit:smoke-registry": "node tools/audit/smoke-registry-audit.js",
     "audit:ports": "node tools/audit/eveos-port-registry-audit.js && python tools/smoke/eveos_port_registry_smoke.py",
+    "audit:nexus-browser-port": "node tools/audit/sync-nexus-browser-port.js",
     "audit:python": "python tools/audit/compile_tracked_python.py",
     "smoke:audioflix-spotify-match": "python tools/smoke/audioflix_spotify_match_smoke.py",
     "smoke:audioflix-instagram-public": "python tools/smoke/audioflix_instagram_public_smoke.py",
@@ -54,10 +56,12 @@
     "smoke:tlo-chat-surface": "node tools/smoke/tlo_chat_surface_smoke.js",
     "smoke:agent-nexus-surface": "node tools/smoke/agent_nexus_surface_smoke.js",
     "smoke:agent-nexus": "node tools/smoke/agent_nexus_integration_smoke.js",
+    "smoke:nexus-browser": "node tools/smoke/nexus_browser_integration_smoke.js",
+    "smoke:nexus-browser-security": "node tools/smoke/nexus_browser_security_smoke.js",
     "smoke:local-moe": "node tools/smoke/local_moe_integration_smoke.js",
     "smoke:local-moe:bonsai": "python tools/smoke/local_moe_bonsai_smoke.py",
     "smoke:local-moe:lifecycle": "python tools/smoke/local_moe_control_smoke.py",
-    "verify": "npm run build:audioflix-genai && npm run build:asset-versions && npm run audit:asset-versions && npm run audit:runtime-assets && npm run audit && npm run audit:python && npm run audit:smoke-registry && npm run audit:ports && npm run smoke:runtime-cache && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:python-launcher && npm run smoke:server-startup && npm run smoke:control-plane-startup && npm run smoke:control-plane && npm run smoke:watchfusion && npm run smoke:regressions && npm run smoke:matrix && npm run smoke:world-book && npm run smoke:bookmark-intel && npm run smoke:local-moe && npm run smoke:agent-nexus && npm run smoke:search-monitor && npm run smoke:gemini-audio && npm run smoke:server-security && npm run smoke:audioflix-spotify && npm run smoke:audioflix-state && npm run smoke:audioflix-instagram && npm run smoke:audioflix-volume && npm run smoke:audioflix-playback && npm run smoke:audioflix-piano && npm run smoke:piano-queue && npm run smoke:piano-metadata && npm run smoke:audioflix-soundlab && npm run smoke:gemini-context"
+    "verify": "npm run build:audioflix-genai && npm run build:nexus-browser-port && npm run build:asset-versions && npm run audit:nexus-browser-port && npm run audit:asset-versions && npm run audit:runtime-assets && npm run audit && npm run audit:python && npm run audit:smoke-registry && npm run audit:ports && npm run smoke:runtime-cache && npm run smoke:file-size && npm run smoke:launcher && npm run smoke:python-launcher && npm run smoke:server-startup && npm run smoke:control-plane-startup && npm run smoke:control-plane && npm run smoke:watchfusion && npm run smoke:nexus-browser && npm run smoke:regressions && npm run smoke:matrix && npm run smoke:world-book && npm run smoke:bookmark-intel && npm run smoke:local-moe && npm run smoke:agent-nexus && npm run smoke:search-monitor && npm run smoke:gemini-audio && npm run smoke:server-security && npm run smoke:audioflix-spotify && npm run smoke:audioflix-state && npm run smoke:audioflix-instagram && npm run smoke:audioflix-volume && npm run smoke:audioflix-playback && npm run smoke:audioflix-piano && npm run smoke:piano-queue && npm run smoke:piano-metadata && npm run smoke:audioflix-soundlab && npm run smoke:gemini-context"
   },
   "engines": {
     "node": ">=20"

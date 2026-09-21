@@ -1,0 +1,176 @@
+.mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.mode-tab {
+  background: #121823;
+  border-color: #303c50;
+  color: #aeb9ca;
+}
+.mode-tab.active {
+  background: #315fae;
+  border-color: #668bd0;
+  color: #fff;
+}
+#dexModePanel[hidden], #baseModePanel[hidden] { display: none; }
+.dex-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+}
+.dex-sidebar, .dex-card, .dex-composer {
+  border: 1px solid #252e3b;
+  background: rgba(17, 21, 29, .92);
+  border-radius: 16px;
+  padding: 14px;
+  min-width: 0;
+}
+.dex-sidebar {
+  align-self: start;
+  position: sticky;
+  top: 12px;
+}
+.dex-sidebar-head, .dex-section-head, .dex-settings-actions, .dex-relay-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dex-sidebar h2, .dex-card h2 { margin: 0; font-size: 15px; }
+.dex-room-list { display: grid; gap: 7px; margin-top: 12px; }
+.dex-room-item {
+  width: 100%;
+  text-align: left;
+  background: #111721;
+  border-color: #2d384a;
+  color: #c3cede;
+}
+.dex-room-item.active { background: #203b67; border-color: #456da9; color: #fff; }
+.dex-main { display: grid; gap: 14px; min-width: 0; }
+.dex-settings-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto auto;
+  gap: 9px;
+  margin-top: 12px;
+  align-items: end;
+}
+.dex-field { display: grid; gap: 6px; min-width: 0; }
+.dex-field label { color: #9eacc0; font-size: 11px; font-weight: 700; }
+.dex-inline-check {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #c2ccda;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dex-inline-check input { width: auto; }
+.dex-number { max-width: 92px; }
+.dex-room-status { margin-top: 10px; color: #8fa1b7; font-size: 12px; }
+.dex-member-builder {
+  display: grid;
+  grid-template-columns: 140px 160px minmax(200px, 1fr) 150px auto;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: end;
+}
+.dex-member-builder-actions, .dex-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dex-member-builder-actions { flex-wrap: wrap; }
+.dex-member-list { display: grid; gap: 7px; margin-top: 10px; }
+.dex-member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid #293447;
+  border-radius: 10px;
+  background: #0e141d;
+  color: #aeb9c9;
+  font-size: 12px;
+  min-width: 0;
+}
+.dex-member.editing {
+  border-color: #668bd0;
+  box-shadow: 0 0 0 1px rgba(102, 139, 208, .28);
+}
+.dex-member > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.dex-member strong { color: #eef3fa; }
+.dex-member button { padding: 6px 9px; font-size: 11px; }
+.dex-transcript {
+  min-height: 390px;
+  max-height: 58vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #252e3b;
+  border-radius: 16px;
+  background: rgba(8, 11, 16, .9);
+}
+.dex-message {
+  max-width: 86%;
+  margin: 0 0 12px;
+  padding: 11px 13px;
+  border: 1px solid #2d3746;
+  border-radius: 14px;
+  background: #131923;
+}
+.dex-message.user { margin-left: auto; background: #17315c; border-color: #2d5591; }
+.dex-message.agent { margin-right: auto; }
+.dex-message.system { max-width: 100%; background: #19171d; border-color: #453b4d; color: #c9becf; }
+.dex-message-meta {
+  margin-bottom: 5px;
+  color: #8d9cb0;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+.dex-message-body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.48;
+}
+.dex-composer textarea { min-height: 96px; resize: vertical; }
+.dex-composer-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+  flex-wrap: wrap;
+}
+.dex-diagnostics {
+  border: 1px solid #252e3b;
+  border-radius: 12px;
+  background: #0c1016;
+  padding: 10px 12px;
+}
+.dex-diagnostics summary { cursor: pointer; color: #8999ae; font-size: 12px; }
+.dex-diagnostics pre {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #8394aa;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.dex-note {
+  margin: 8px 0 0;
+  color: #77879d;
+  font-size: 11px;
+  line-height: 1.45;
+}
+@media (max-width: 880px) {
+  .dex-layout { grid-template-columns: 1fr; }
+  .dex-sidebar { position: static; }
+  .dex-settings-grid, .dex-member-builder { grid-template-columns: 1fr; }
+  .dex-number { max-width: none; }
+  .dex-message { max-width: 96%; }
+}

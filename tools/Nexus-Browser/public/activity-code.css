@@ -1,0 +1,41 @@
+.activity-code-narration {
+  white-space: pre-wrap;
+}
+
+.activity-code-output-label {
+  margin-top: 8px;
+  color: #8796aa;
+  font: 600 10px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-transform: none;
+}
+
+.activity-code-block {
+  margin-top: 7px;
+  overflow: hidden;
+  border: 1px solid #273344;
+  border-radius: 8px;
+  background: #090d13;
+}
+
+.activity-code-label {
+  padding: 5px 8px;
+  border-bottom: 1px solid #202a38;
+  background: #0f1620;
+  color: #8999ae;
+  font: 600 10px/1.3 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.activity-code-block pre {
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  padding: 8px 9px;
+  color: #c8d5e8;
+  white-space: pre;
+  tab-size: 2;
+  font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.activity-code-block code {
+  font: inherit;
+}

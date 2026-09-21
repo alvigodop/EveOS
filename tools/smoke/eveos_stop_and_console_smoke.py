@@ -143,6 +143,7 @@ def main():
 
     original = (
         H.local_moe_control.stop_server,
+        H.nexus_browser_control.stop_server,
         H.watchfusion_control.stop_server,
         H.piano_player_control.stop_server,
         H.world_book_control.stop_server,
@@ -153,6 +154,7 @@ def main():
     )
     try:
         H.local_moe_control.stop_server = lambda: calls.append("localMoe") or {"ok": True}
+        H.nexus_browser_control.stop_server = lambda: calls.append("nexusBrowser") or {"ok": True}
         H.watchfusion_control.stop_server = lambda: calls.append("watchFusion") or {"ok": True}
         H.piano_player_control.stop_server = lambda: calls.append("piano") or {"ok": True}
         H.world_book_control.stop_server = lambda: calls.append("worldBook") or {"ok": True}
@@ -163,10 +165,10 @@ def main():
 
         payload = H._stop_everything()
 
-        expected = ["localMoe", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel", "web"]
+        expected = ["localMoe", "nexusBrowser", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel", "web"]
         check(calls == expected,
               f"managed dependents stop before the EveOS web surface (got {calls})")
-        for key in ("localMoe", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel"):
+        for key in ("localMoe", "nexusBrowser", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel"):
             check(payload.get("stoppedAlso", {}).get(key) == "stopped", f"{key} is reported")
         check(payload.get("controlPlaneStopping") is True,
               "the control plane closes itself, so Global Stop leaves nothing running")
@@ -212,6 +214,7 @@ def main():
     finally:
         (
             H.local_moe_control.stop_server,
+            H.nexus_browser_control.stop_server,
             H.watchfusion_control.stop_server,
             H.piano_player_control.stop_server,
             H.world_book_control.stop_server,

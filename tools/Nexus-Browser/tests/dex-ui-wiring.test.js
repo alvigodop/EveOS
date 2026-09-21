@@ -1,0 +1,119 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const ROOT = path.resolve(__dirname, '..');
+const html = fs.readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+const dexMode = fs.readFileSync(path.join(ROOT, 'public', 'dex-mode.js'), 'utf8');
+const runtimeClient = fs.readFileSync(path.join(ROOT, 'public', 'dex-runtime-client.js'), 'utf8');
+const dexMembers = fs.readFileSync(path.join(ROOT, 'public', 'dex-members.js'), 'utf8');
+const providerControl = fs.readFileSync(path.join(ROOT, 'public', 'dex-provider-control.js'), 'utf8');
+const providerHealth = fs.readFileSync(path.join(ROOT, 'public', 'dex-provider-health.js'), 'utf8');
+const server = fs.readFileSync(path.join(ROOT, 'server.js'), 'utf8');
+const scheduler = fs.readFileSync(path.join(ROOT, 'dex', 'server-scheduler.js'), 'utf8');
+const recovery = fs.readFileSync(path.join(ROOT, 'dex', 'server-scheduler-recovery.js'), 'utf8');
+
+test('Base Mode remains present and Dex Mode is a separate sibling panel', () => {
+  assert.match(html, /id="baseModeTab"[^>]*>Base Mode</);
+  assert.match(html, /id="dexModeTab"[^>]*>Dex Mode</);
+  assert.match(html, /id="baseModePanel"/);
+  assert.match(html, /id="dexModePanel" hidden/);
+  assert.match(html, /id="targetClassSelect"/);
+  assert.match(html, /id="providerSelect"/);
+  assert.match(html, /id="localTargetSelect"/);
+});
+
+test('Dex UI uses the shared relay-budget ceiling instead of a stale HTML cap', () => {
+  assert.match(html, /id="dexMaxTurns"[^>]*min="1"/);
+  assert.doesNotMatch(html, /id="dexMaxTurns"[^>]*max="50"/);
+  assert.match(dexMode, /protocol\.MAX_RELAY_TURNS/);
+  assert.doesNotMatch(dexMode, /maxTurns, 1, 50/);
+});
+
+test('Dex UI exposes room identity, member binding, relay controls and separate transcript', () => {
+  for (const id of [
+    'dexRoomList', 'dexRoomName', 'dexUserName', 'dexMemberClass', 'dexMemberType',
+    'dexMemberTarget', 'dexMemberName', 'dexMemberRelayEnabled', 'dexMemberList',
+    'dexTranscript', 'dexPrompt', 'dexSend', 'dexStopRelay', 'dexContinueRelay', 'dexClearChat'
+  ]) assert.match(html, new RegExp(`id="${id}"`), `Missing Dex UI control ${id}`);
+
+  assert.match(html, /\/dex-protocol\.js/);
+  assert.match(html, /\/dex-runtime-client\.js/);
+  assert.match(html, /\/dex-mode\.js/);
+  assert.match(html, /\/dex-mode\.css/);
+  assert.doesNotMatch(html, /\/dex-recovery\.js/);
+  assert.doesNotMatch(html, /\/dex-scheduler\.js/);
+});
+
+test('browser Dex runtime is viewer/controller only and cannot own provider transport', () => {
+  assert.match(dexMode, /browser-ai-bridge\.dex\.rooms\.v1/);
+  assert.doesNotMatch(dexMode, /state\.turn/);
+  assert.doesNotMatch(dexMode, /state\.queue/);
+  assert.doesNotMatch(dexMode, /BrowserAiBridgeDexRecovery/);
+  assert.doesNotMatch(dexMode, /type:\s*['"]send_prompt['"]/);
+  assert.doesNotMatch(dexMode, /type:\s*['"]select_target['"]/);
+  assert.doesNotMatch(dexMode, /type:\s*['"]ensure_target['"]/);
+  assert.doesNotMatch(dexMode, /type:\s*['"]capture_latest['"]/);
+  assert.match(runtimeClient, /dex_relay_start/);
+  assert.match(runtimeClient, /dex_relay_stop/);
+  assert.match(runtimeClient, /dex_relay_continue/);
+});
+
+test('localhost server owns scheduling, exact target routing, timeout and recovery', () => {
+  assert.match(server, /createDexServerScheduler/);
+  assert.match(server, /dexScheduler\.startRelay/);
+  assert.match(server, /dexScheduler\.stopRelay/);
+  assert.match(server, /dexScheduler\.continueRelay/);
+  assert.match(server, /dexScheduler\.handleTransportEvent/);
+  assert.match(server, /DEX_SERVER_SCHEDULER_OWNS_TRANSPORT/);
+  assert.match(scheduler, /protocol\.nextMemberIndex|stateApi\.enqueueNext/);
+  assert.match(scheduler, /TURN_TIMEOUT_MS/);
+  assert.match(scheduler, /type:\s*'select_target'/);
+  assert.match(scheduler, /type:\s*'send_prompt'/);
+  assert.match(recovery, /type:\s*'capture_latest'/);
+  assert.doesNotMatch(recovery, /type:\s*'send_prompt'/);
+});
+
+test('Dex detects a restarted bridge process only as a viewer refresh concern', () => {
+  assert.match(server, /SERVER_SESSION_ID/);
+  assert.match(server, /type: 'server_session'/);
+  assert.match(dexMode, /SERVER_SESSION_KEY/);
+  assert.match(dexMode, /handleServerSession/);
+  assert.match(dexMode, /viewer\/controller reloaded/);
+  assert.doesNotMatch(dexMode, /recover the already-dispatched reply after reconnect/);
+});
+
+test('server runtime state wins reconnect races while browser still mirrors room data locally', () => {
+  assert.match(server, /mergeClientSnapshot/);
+  assert.match(dexMode, /Dex state synchronized from localhost scheduler/);
+  assert.match(dexMode, /stateSync\?\.applyRemote/);
+});
+
+test('Dex exposes safe room-chat clearing without deleting room identity or participants', () => {
+  assert.match(html, /id="dexClearChat"[^>]*>Clear chat</);
+  assert.match(dexMode, /controlApi\.clearRoomHistory\(room\)/);
+  assert.match(dexMode, /controlApi\.roomBusy\(state, room\)/);
+  assert.match(dexMode, /Participants and room settings stay intact/);
+});
+
+test('Dex participant UI exposes headed relay participation control', () => {
+  assert.match(html, /id="dexMemberRelayEnabled"[^>]*type="checkbox"/);
+  assert.match(html, /Participates in relay/);
+  assert.match(dexMode, /dexMemberRelayEnabled/);
+});
+
+
+test('all browser Dex helpers remain free of live queue/current-turn ownership', () => {
+  for (const [name, source] of [
+    ['dex-mode', dexMode],
+    ['dex-members', dexMembers],
+    ['dex-provider-control', providerControl],
+    ['dex-provider-health', providerHealth]
+  ]) {
+    assert.doesNotMatch(source, /state\.turn/, name);
+    assert.doesNotMatch(source, /state\.queue/, name);
+    assert.doesNotMatch(source, /BrowserAiBridgeDexRecovery/, name);
+    assert.doesNotMatch(source, /BrowserAiBridgeDexScheduler/, name);
+  }
+});

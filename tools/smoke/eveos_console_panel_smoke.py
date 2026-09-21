@@ -114,7 +114,7 @@ def check_backend(store):
 
 def check_overview():
     original = (H.eveos_web_control.get_status, H.gemini_control.get_status,
-                H.world_book_control.get_status)
+                H.world_book_control.get_status, H.nexus_browser_control.get_status)
     try:
         H.eveos_web_control.get_status = lambda *a, **k: {"running": True, "port": 8765}
         H.gemini_control.get_status = lambda: {"running": False, "websocketPort": 9085,
@@ -122,6 +122,8 @@ def check_overview():
         # A status call that blows up must not take the whole panel with it: one broken service
         # should read as one broken row, not an empty section implying nothing is running.
         H.world_book_control.get_status = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        H.nexus_browser_control.get_status = lambda: {"running": False, "port": 9088,
+                                                       "message": "Nexus Browser is ready."}
 
         payload = H._console_overview()
         by_key = {service["key"]: service for service in payload["services"]}
@@ -135,6 +137,8 @@ def check_overview():
               "a running service reports its port")
         check(by_key["gemini"]["ports"] == [9085, 9086],
               "Gemini reports BOTH its ports, so a port collision is visible from settings")
+        check(by_key["nexusBrowser"]["ports"] == [9088],
+              "Nexus Browser reports its registry-owned port")
         check(by_key["worldBook"]["running"] is False
               and "boom" in by_key["worldBook"]["message"],
               "a service whose status call fails is reported, not dropped from the list")
@@ -162,7 +166,7 @@ def check_overview():
               "the cheap reply carries no lifecycle state, so stale values cannot be rendered")
     finally:
         (H.eveos_web_control.get_status, H.gemini_control.get_status,
-         H.world_book_control.get_status) = original
+         H.world_book_control.get_status, H.nexus_browser_control.get_status) = original
 
 
 def check_gemini_spawn_visibility():
@@ -253,9 +257,9 @@ def check_panel_contract():
     check(r"Manual fallback: tools\\batch\\start-eveos-control.bat" in panel,
           "the BAT launcher is preserved only as secondary manual fallback")
 
-    for key in ("web", "gemini", "worldBook", "piano", "watchFusion"):
+    for key in ("web", "gemini", "worldBook", "piano", "watchFusion", "nexusBrowser"):
         check(f"'{key}'" in panel, f"disconnected payload specifies service key '{key}'")
-    for label in ("EveOS localhost", "Gemini Live Link", "World Book", "Piano Auto Player", "WatchFusion"):
+    for label in ("EveOS localhost", "Gemini Live Link", "World Book", "Piano Auto Player", "WatchFusion", "Nexus Browser"):
         check(f"'{label}'" in panel, f"disconnected payload specifies service label '{label}'")
 
     check("state.textContent = unavailable ? 'unavailable' :" in panel,

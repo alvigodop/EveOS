@@ -22,7 +22,8 @@
         ['piano', 'Piano Auto Player', [['PIANO_PLAYER_PORT', 8771]]],
         ['watchFusion', 'WatchFusion', [['WATCHFUSION_PORT', 9087]]],
         ['bookmarkIntel', 'Bookmark Intel', [['BOOKMARK_INTEL_PORT', 9077]]],
-        ['localMoe', 'Local MoE Harness', [['LOCAL_MOE_HARNESS_PORT', 5180], ['FREETOKEN_PORT', 1919]]]
+        ['localMoe', 'Local MoE Harness', [['LOCAL_MOE_HARNESS_PORT', 5180], ['FREETOKEN_PORT', 1919]]],
+        ['nexusBrowser', 'Nexus Browser', [['NEXUS_BROWSER_PORT', 9088]]]
     ];
     let lastPayload = null;
     let livePreviewOpen = false;

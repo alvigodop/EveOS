@@ -25,6 +25,7 @@ def main():
     registered = eveos_ports.registered_ports()
     check(registered["GEMINI_WS_PORT"] == 9085, "Gemini Live WebSocket assignment changed unexpectedly")
     check(registered["WATCHFUSION_PORT"] == 9087, "WatchFusion assignment is not the migrated port")
+    check(registered["NEXUS_BROWSER_PORT"] == 9088, "Nexus Browser assignment changed unexpectedly")
     check(not eveos_ports.conflicts(effective=False), "canonical registry contains a duplicate port")
 
     env = os.environ.copy()

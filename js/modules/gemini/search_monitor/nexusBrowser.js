@@ -1,0 +1,165 @@
+/* Nexus Browser: EveOS-owned lifecycle shell around the isolated headed-browser runtime. */
+(function () {
+    'use strict';
+
+    if (window.EveOSNexusBrowser) return;
+
+    const STATUS_PATH = '/api/nexus-browser/status';
+    const ACTION_PATHS = Object.freeze({
+        start: '/api/nexus-browser/start',
+        stop: '/api/nexus-browser/stop',
+        setup: '/api/nexus-browser/setup',
+        extension: '/api/nexus-browser/extension'
+    });
+    const boundRoots = new WeakSet();
+    let root = null;
+    let status = null;
+    let busy = false;
+
+    function markup() {
+        return `
+            <article class="eveos-agent-card eveos-nexus-browser-identity" data-agent-tool-id="nexus-browser">
+                <span class="eveos-agent-avatar eveos-agent-avatar--browser">N</span>
+                <span><strong>Nexus Browser</strong><small>Headed AI targeting, exact-once routing, Dex rooms, and local-agent transport.</small></span>
+                <span class="eveos-ai-provider-pill" data-nexus-browser-state>Checking</span>
+            </article>
+            <div class="eveos-nexus-browser-facts" aria-label="Nexus Browser runtime status">
+                <span><small>Extension</small><strong data-nexus-browser-extension>Checking…</strong></span>
+                <span><small>Targets</small><strong data-nexus-browser-targets>—</strong></span>
+                <span><small>Dex rooms</small><strong data-nexus-browser-rooms>—</strong></span>
+                <span><small>Port</small><strong data-nexus-browser-port>Registry</strong></span>
+            </div>
+            <p class="eveos-ai-provider-message" data-nexus-browser-message>
+                Checking the runtime without starting it…
+            </p>
+            <div class="eveos-nexus-browser-actions">
+                <button type="button" data-nexus-browser-action="setup">Install runtime</button>
+                <button type="button" data-nexus-browser-action="start">Start</button>
+                <button type="button" data-nexus-browser-action="stop">Stop</button>
+                <button type="button" data-nexus-browser-action="refresh">Refresh</button>
+                <button type="button" data-nexus-browser-action="extension">Extension folder</button>
+                <button type="button" data-nexus-browser-action="detached">Open detached</button>
+            </div>
+            <p class="eveos-nexus-browser-note">
+                The unpacked extension lives inside EveOS. Load it once from the Extension folder; runtime start/stop stays under EveOS and Global Stop.
+            </p>
+            <section class="eveos-nexus-browser-inline" data-nexus-browser-inline hidden aria-label="Nexus Browser workspace">
+                <div class="eveos-nexus-browser-inline-head">
+                    <span><strong>Browser transport & Dex</strong><small>Embedded EveOS workspace</small></span>
+                    <span class="eveos-ai-provider-pill">Headed</span>
+                </div>
+                <iframe data-nexus-browser-frame title="Nexus Browser workspace"
+                    sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+                    allow="clipboard-read; clipboard-write" referrerpolicy="no-referrer"></iframe>
+            </section>
+        `;
+    }
+
+    function text(selector, value) {
+        const node = root?.querySelector(selector);
+        if (node) node.textContent = value;
+    }
+
+    function runtimeUrl(snapshot = status) {
+        return snapshot?.url || window.EveOSPortRegistry?.url?.('NEXUS_BROWSER_PORT') || '';
+    }
+
+    function stateLabel(value) {
+        const labels = { running: 'Online', stopped: 'Stopped', starting: 'Starting', blocked: 'Port blocked', external: 'External', error: 'Error' };
+        return labels[value] || String(value || 'Unavailable').replace(/_/g, ' ');
+    }
+
+    function render(snapshot, overrideMessage) {
+        status = snapshot || null;
+        const running = snapshot?.running === true;
+        const extension = snapshot?.extensionConnected ? 'Connected' : snapshot?.extensionReady ? 'Ready · offline' : 'Missing';
+        text('[data-nexus-browser-state]', busy ? 'Working' : stateLabel(snapshot?.state));
+        text('[data-nexus-browser-extension]', extension);
+        text('[data-nexus-browser-targets]', `${Number(snapshot?.onlineTargets || 0)} online · ${Number(snapshot?.localTargets || 0)} local`);
+        text('[data-nexus-browser-rooms]', String(Number(snapshot?.dexRooms || 0)));
+        text('[data-nexus-browser-port]', String(snapshot?.port || window.EveOSPortRegistry?.get?.('NEXUS_BROWSER_PORT') || 'Registry'));
+        text('[data-nexus-browser-message]', overrideMessage || snapshot?.message || 'Nexus Browser status is unavailable.');
+        for (const button of root?.querySelectorAll('[data-nexus-browser-action]') || []) {
+            const action = button.dataset.nexusBrowserAction;
+            button.disabled = busy
+                || (action === 'start' && (running || snapshot?.dependenciesReady !== true))
+                || (action === 'stop' && !running)
+                || (action === 'setup' && (running || snapshot?.setupAvailable !== true))
+                || (action === 'extension' && snapshot?.extensionReady !== true)
+                || (action === 'detached' && !running);
+        }
+        const inline = root?.querySelector('[data-nexus-browser-inline]');
+        const frame = root?.querySelector('[data-nexus-browser-frame]');
+        if (inline) inline.hidden = !running;
+        if (frame) {
+            if (running) {
+                const next = runtimeUrl(snapshot);
+                if (next && frame.src !== next) frame.src = next;
+            } else if (frame.getAttribute('src') && frame.getAttribute('src') !== 'about:blank') {
+                frame.src = 'about:blank';
+            }
+        }
+    }
+
+    async function controlRequest(path, options, timeoutMs) {
+        const control = window.EveOSLocalControl;
+        if (!control) throw new Error('EveOS Local Control is unavailable.');
+        const payload = await control.fetchJson(`${control.baseUrl()}${path}`, options, timeoutMs);
+        return payload?.payload || payload;
+    }
+
+    async function refresh() {
+        try {
+            const snapshot = await controlRequest(STATUS_PATH, null, 5000);
+            render(snapshot);
+            return snapshot;
+        } catch (error) {
+            render({ state: 'unavailable', running: false, extensionReady: true }, error?.message || 'Local Control is offline.');
+            return null;
+        }
+    }
+
+    async function invoke(action) {
+        if (busy || !ACTION_PATHS[action]) return null;
+        busy = true;
+        render(status || { state: 'stopped', running: false }, `${action === 'setup' ? 'Installing' : `${action}ing`} Nexus Browser…`);
+        try {
+            await window.EveOSLocalControl?.ensure?.({ timeoutMs: 45000 });
+            const timeout = action === 'setup' ? 10 * 60 * 1000 : action === 'stop' ? 30000 : 15000;
+            const snapshot = await controlRequest(ACTION_PATHS[action], { method: 'POST' }, timeout);
+            render(snapshot);
+            return snapshot;
+        } catch (error) {
+            render(status || { state: 'error', running: false }, error?.message || `Nexus Browser ${action} failed.`);
+            return null;
+        } finally {
+            busy = false;
+            render(status);
+        }
+    }
+
+    function handleClick(event) {
+        const button = event.target.closest('[data-nexus-browser-action]');
+        if (!button) return;
+        event.preventDefault();
+        const action = button.dataset.nexusBrowserAction;
+        if (action === 'refresh') refresh();
+        else if (action === 'detached') {
+            const url = runtimeUrl();
+            if (url) window.open(url, '_blank', 'noopener,noreferrer');
+        } else invoke(action);
+    }
+
+    function bind(container) {
+        root = container;
+        if (boundRoots.has(container)) return;
+        boundRoots.add(container);
+        container.addEventListener('click', handleClick);
+    }
+
+    function activate() {
+        return refresh();
+    }
+
+    window.EveOSNexusBrowser = Object.freeze({ markup, bind, activate, refresh });
+})();

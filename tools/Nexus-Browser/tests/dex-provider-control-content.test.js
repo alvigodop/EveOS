@@ -1,0 +1,131 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const content = require('../extension/content/dex-provider-control.js');
+
+const source = fs.readFileSync(path.join(__dirname, '..', 'extension', 'content', 'dex-provider-control.js'), 'utf8');
+
+test('provider command parser accepts only known trailing JSON control markers', () => {
+  const parsed = content.parseTrailingCommand('Ready.\n\n[[DEX:CMD {"action":"rooms"}]]');
+  assert.equal(parsed.command.action, 'rooms');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"unknown"}]]'), null);
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD not-json]]'), null);
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"rooms"}]]\nmore prose'), null);
+});
+
+test('provider command parser ignores markers inside fenced examples', () => {
+  const text = 'Example only:\n```\n[[DEX:CMD {"action":"rooms"}]]\n```';
+  assert.equal(content.parseTrailingCommand(text), null);
+});
+
+test('provider command parser carries structured send data without rewriting it', () => {
+  const parsed = content.parseTrailingCommand('[[DEX:CMD {"action":"send","text":"hello Astro","relay":true}]]');
+  assert.deepEqual(parsed.command, { action: 'send', text: 'hello Astro', relay: true });
+});
+
+test('provider command extraction falls back to the latest raw assistant node', () => {
+  const answerApi = {
+    latestAssistantText: () => 'Projected answer without the control marker.',
+    assistantNodes: () => [{ innerText: '[[DEX:CMD {"action":"rooms"}]]' }]
+  };
+  assert.equal(content.latestCandidateText(answerApi), '[[DEX:CMD {"action":"rooms"}]]');
+});
+
+test('provider command extraction scans split blocks in the latest assistant turn', () => {
+  const turn = {};
+  const makeNode = (text) => ({ innerText: text, closest: () => turn });
+  const answerApi = {
+    latestAssistantText: () => 'Projected answer without the control marker.',
+    assistantNodes: () => [
+      makeNode('Earlier prose.'),
+      makeNode('[[DEX:CMD {"action":"send","text":"hi Astro","relay":true}]]'),
+      makeNode('Copy\nRead aloud')
+    ]
+  };
+  const candidate = content.latestCandidateText(answerApi);
+  assert.equal(content.parseTrailingCommand(candidate).command.text, 'hi Astro');
+});
+
+test('provider command extraction never replays a marker from an older assistant turn', () => {
+  const oldTurn = {};
+  const newTurn = {};
+  const node = (text, turn) => ({ innerText: text, closest: () => turn });
+  const answerApi = {
+    latestAssistantText: () => 'Newest reply has no command.',
+    assistantNodes: () => [
+      node('[[DEX:CMD {"action":"rooms"}]]', oldTurn),
+      node('Newest reply has no command.', newTurn)
+    ]
+  };
+  assert.equal(content.latestCandidateText(answerApi), 'Newest reply has no command.');
+});
+
+test('provider command watcher coalesces mutation storms instead of starving the sampler', () => {
+  assert.match(source, /function schedule\(delay = 900\) \{\s*if \(timer !== null\) return;/);
+  assert.match(source, /timer = setTimeout\(\(\) => \{\s*timer = null;\s*sample\(\);/);
+  assert.doesNotMatch(source, /function schedule[\s\S]{0,160}clearTimeout\(timer\)/);
+  assert.match(source, /attributeFilter: \['aria-busy'\]/);
+});
+
+test('provider command watcher never executes while generation is active', () => {
+  assert.equal(content.commandReady(false, content.SETTLED_MS - 1), false);
+  assert.equal(content.commandReady(false, content.SETTLED_MS), true);
+  assert.equal(content.commandReady(true, content.SETTLED_MS), false);
+  assert.equal(content.commandReady(true, 60000), false);
+});
+
+test('provider command watcher stabilizes the exact marker before runtime dispatch', () => {
+  assert.match(source, /candidateFingerprint = fingerprint;\s*candidateSince = observedAt;\s*schedule\(SETTLED_MS\);/);
+  assert.match(source, /commandReady\(generationActive\(runtime\), stableMs\)/);
+  assert.match(source, /chrome\.runtime\.sendMessage\(\{\s*type: 'dex_provider_command'/);
+});
+
+test('provider command parser accepts agent-admin actions for headed room control', () => {
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"onboard"}]]').command.action, 'onboard');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"checkpoint","note":"next step"}]]').command.action, 'checkpoint');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"read_checkpoint"}]]').command.action, 'read_checkpoint');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"rename_self","name":"Nova"}]]').command.action, 'rename_self');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"set_self_relay","enabled":false}]]').command.action, 'set_self_relay');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"targets"}]]').command.action, 'targets');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"clear_chat"}]]').command.action, 'clear_chat');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"delete_room","room":"Old Room"}]]').command.action, 'delete_room');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"create_room","name":"Eve + Muse"}]]').command.action, 'create_room');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"rename_room","room":"Eve + Muse","name":"Research"}]]').command.action, 'rename_room');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"configure_room","room":"Research","maxTurns":20}]]').command.action, 'configure_room');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"remove_agent","room":"Research","member":"agent-1"}]]').command.action, 'remove_agent');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"stop_relay","room":"Research"}]]').command.action, 'stop_relay');
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"continue_relay","room":"Research","turns":4}]]').command.action, 'continue_relay');
+  const handoff = content.parseTrailingCommand('[[DEX:CMD {"action":"handoff_room","room":"Eve + Muse","text":"continue stress test","turns":8}]]');
+  assert.equal(handoff.command.action, 'handoff_room');
+  assert.equal(handoff.command.room, 'Eve + Muse');
+  const add = content.parseTrailingCommand('[[DEX:CMD {"action":"add_agent","room":"Eve + Muse","targetClassId":"online-origin","targetId":30,"name":"Muse"}]]');
+  assert.equal(add.command.action, 'add_agent');
+  assert.equal(add.command.targetId, 30);
+  const spawn = content.parseTrailingCommand('[[DEX:CMD {"action":"spawn_agent","room":"Eve + Muse","providerId":"muse","name":"Researcher"}]]');
+  assert.equal(spawn.command.action, 'spawn_agent');
+  assert.equal(spawn.command.providerId, 'muse');
+  const despawn = content.parseTrailingCommand('[[DEX:CMD {"action":"despawn_agent","room":"Eve + Muse","member":"Researcher"}]]');
+  assert.equal(despawn.command.action, 'despawn_agent');
+});
+
+
+
+test('provider command parser tolerates known assistant action-bar labels after the marker', () => {
+  const parsed = content.parseTrailingCommand([
+    'Ready.',
+    '[[DEX:CMD {"action":"rooms"}]]',
+    'Copy',
+    'Good response',
+    'Bad response',
+    'Read aloud',
+    'Share'
+  ].join('\n'));
+  assert.equal(parsed.command.action, 'rooms');
+});
+
+test('provider command parser still rejects arbitrary prose after a command marker', () => {
+  assert.equal(content.parseTrailingCommand('[[DEX:CMD {"action":"rooms"}]]\nthis is not UI chrome'), null);
+  assert.equal(content.ignorableUiSuffix('Copy\nShare'), true);
+  assert.equal(content.ignorableUiSuffix('Copy\nrun this command'), false);
+});

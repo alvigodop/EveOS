@@ -168,7 +168,7 @@ assert(watchfusionRemote.includes('ensure-cloudflared.ps1'),
 
 const portsConfig = JSON.parse(read(path.join(ROOT, 'config', 'eveos-ports.json')));
 for (const key of [
-    'EVEOS_WEB_PORT', 'WORLD_BOOK_PORT', 'PIANO_PLAYER_PORT', 'WATCHFUSION_PORT',
+    'EVEOS_WEB_PORT', 'WORLD_BOOK_PORT', 'PIANO_PLAYER_PORT', 'WATCHFUSION_PORT', 'NEXUS_BROWSER_PORT',
     'GEMINI_WS_PORT', 'GEMINI_STATUS_PORT', 'GEMINI_CONTROL_PORT',
     'LIGHTPANDA_BRIDGE_PORT', 'CAMOFOX_BRIDGE_PORT', 'WIKIMEDIA_BRIDGE_PORT', 'POPUP_BRIDGE_PORT'
 ]) {

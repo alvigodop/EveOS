@@ -1,0 +1,125 @@
+{
+  "manifest_version": 3,
+  "name": "EveOS Nexus Browser",
+  "version": "1.0.0",
+  "description": "EveOS headed-browser transport for authenticated AI tabs, exact-target routing, and Dex rooms.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "tabs",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://chat.deepseek.com/*",
+    "https://grok.com/*",
+    "https://x.com/i/grok*",
+    "https://claude.ai/*",
+    "https://chatgpt.com/*",
+    "https://gemini.google.com/*",
+    "https://aistudio.google.com/*",
+    "https://muse.ai/*"
+  ],
+  "background": {
+    "service_worker": "service-worker-entry.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.deepseek.com/*"
+      ],
+      "js": [
+        "content/provider-adapter-revision.js",
+        "content/deepseek-input.js",
+        "content/deepseek-answer.js",
+        "content/deepseek.js",
+        "content/activity-search.js",
+        "content/activity.js",
+        "content/search-recovery.js",
+        "content/dex-provider-control.js",
+        "content/provider-health.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://grok.com/*",
+        "https://x.com/i/grok*"
+      ],
+      "js": [
+        "content/provider-adapter-revision.js",
+        "content/grok-input.js",
+        "content/grok-answer.js",
+        "content/grok.js",
+        "content/grok-activity.js",
+        "content/dex-provider-control.js",
+        "content/provider-health.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "content/provider-adapter-revision.js",
+        "content/claude-input.js",
+        "content/claude-answer.js",
+        "content/claude.js",
+        "content/claude-activity-search.js",
+        "content/claude-activity-command.js",
+        "content/claude-activity.js",
+        "content/dex-provider-control.js",
+        "content/provider-health.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "content/provider-adapter-revision.js",
+        "content/response-deadline.js",
+        "content/chatgpt-page-state.js",
+        "content/chatgpt-input.js",
+        "content/chatgpt-answer.js",
+        "content/chatgpt.js",
+        "content/dex-provider-control.js",
+        "content/provider-health.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://gemini.google.com/*",
+        "https://aistudio.google.com/*"
+      ],
+      "js": [
+        "content/provider-adapter-revision.js",
+        "content/gemini-input.js",
+        "content/gemini-answer.js",
+        "content/gemini.js",
+        "content/dex-provider-control.js",
+        "content/provider-health.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://muse.ai/*"
+      ],
+      "js": [
+        "content/provider-adapter-revision.js",
+        "content/prompt-delivery.js",
+        "content/muse-input.js",
+        "content/muse-answer.js",
+        "content/muse.js",
+        "content/dex-provider-control.js",
+        "content/provider-health.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

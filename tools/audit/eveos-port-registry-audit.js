@@ -42,7 +42,7 @@ for (const [port, owners] of byPort) {
 for (const required of [
     'EVEOS_WEB_PORT', 'WORLD_BOOK_PORT', 'PIANO_PLAYER_PORT',
     'GEMINI_CONTROL_PORT', 'GEMINI_WS_PORT', 'GEMINI_STATUS_PORT',
-    'WATCHFUSION_PORT', 'LIGHTPANDA_BRIDGE_PORT', 'CAMOFOX_BRIDGE_PORT',
+    'WATCHFUSION_PORT', 'NEXUS_BROWSER_PORT', 'LIGHTPANDA_BRIDGE_PORT', 'CAMOFOX_BRIDGE_PORT',
     'WIKIMEDIA_BRIDGE_PORT', 'POPUP_BRIDGE_PORT'
 ]) {
     check(Boolean(ports[required]), `required service is not registered: ${required}`);
@@ -90,7 +90,8 @@ const managedPythonPortConsumers = [
     ['server_modules/gemini_control.py', 'GEMINI_STATUS_PORT'],
     ['server_modules/world_book_control.py', 'WORLD_BOOK_PORT'],
     ['server_modules/piano_player_control.py', 'PIANO_PLAYER_PORT'],
-    ['server_modules/watchfusion_control.py', 'WATCHFUSION_PORT']
+    ['server_modules/watchfusion_control.py', 'WATCHFUSION_PORT'],
+    ['server_modules/nexus_browser_control.py', 'NEXUS_BROWSER_PORT']
 ];
 for (const [relative, key] of managedPythonPortConsumers) {
     const text = read(relative);
@@ -111,6 +112,12 @@ check(!/DEFAULT_PORT\s*=\s*\d+/.test(controlHelper),
 
 const watchControl = read('server_modules/watchfusion_control.py');
 check(watchControl.includes('eveos_ports.service_port("WATCHFUSION_PORT")'), 'WatchFusion lifecycle bypasses the registry');
+
+const nexusControl = read('server_modules/nexus_browser_control.py');
+check(nexusControl.includes('eveos_ports.service_port("NEXUS_BROWSER_PORT")'), 'Nexus Browser lifecycle bypasses the registry');
+const nexusRuntimeConfig = read('tools/Nexus-Browser/runtime-config.js');
+check(nexusRuntimeConfig.includes("NEXUS_BROWSER_PORT"), 'Nexus Browser runtime does not consume the registry key');
+check(!/servicePort\([^)]*\)\s*\|\|\s*\d+/.test(nexusRuntimeConfig), 'Nexus Browser runtime reintroduced a literal default port');
 
 const watchConfig = read('tools/WatchFusion/src/server/config.js');
 check(watchConfig.includes("registeredPort('WATCHFUSION_PORT')"), 'WatchFusion server does not resolve its default port from the registry');

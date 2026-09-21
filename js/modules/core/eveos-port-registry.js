@@ -20,7 +20,8 @@
         GEMINI_CONTROL_PORT: 9082,
         GEMINI_WS_PORT: 9085,
         GEMINI_STATUS_PORT: 9086,
-        WATCHFUSION_PORT: 9087
+        WATCHFUSION_PORT: 9087,
+        NEXUS_BROWSER_PORT: 9088
     });
 
     function get(name, fallback = 0) {
