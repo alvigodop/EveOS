@@ -84,6 +84,14 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.lifecycle.active_runtime_backend(), "prism-llama")
         self.assertFalse(self.lifecycle.supports_dynamic_cache())
 
+    def test_windows_runtime_headed_default_is_explicit(self):
+        if os.name != "nt":
+            self.skipTest("Windows-only console policy")
+        self.assertFalse(self.lifecycle._headless_requested({}))
+        self.assertFalse(self.lifecycle._headless_requested({"EVEOS_HEADLESS": ""}))
+        self.assertTrue(self.lifecycle._headless_requested({"EVEOS_HEADLESS": "1"}))
+        self.assertTrue(self.lifecycle._headless_requested({"LOCAL_MOE_HEADLESS": "true"}))
+
     async def test_fast8k_launcher_request_maps_to_busy_qwen_profile(self):
         record = self.registry.require("qwen36-nvfp4")
         self.lifecycle.preflight_gpu_check = AsyncMock(return_value=(False, {}))
