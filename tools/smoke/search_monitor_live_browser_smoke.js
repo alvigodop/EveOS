@@ -139,6 +139,25 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures,
     assert(nexus.state === 'Online', `Nexus Browser is not online from ${entryMode}: ${JSON.stringify(nexus)}`);
     assert(/Connected|Ready/i.test(nexus.extension), `Nexus Browser extension readiness is missing from ${entryMode}: ${JSON.stringify(nexus)}`);
 
+    await page.waitForFunction(() => {
+        const frame = document.querySelector('[data-nexus-browser-frame]');
+        return /^http:\/\/127\.0\.0\.1:\d+\//.test(frame?.src || '');
+    }, undefined, { timeout: 10000 });
+    await page.waitForFunction(() => (
+        [...document.querySelectorAll('iframe')].some((frame) => {
+            try {
+                return /^http:\/\/127\.0\.0\.1:\d+\//.test(frame.contentWindow?.location?.href || '');
+            } catch (_) {
+                return true;
+            }
+        })
+    ), undefined, { timeout: 10000 });
+    const embeddedNexus = page.frames().find((frame) => /^http:\/\/127\.0\.0\.1:\d+\//.test(frame.url()) && /:9088\//.test(frame.url()));
+    assert(!!embeddedNexus, `Nexus Browser iframe did not load from ${entryMode}`);
+    await embeddedNexus.waitForLoadState('domcontentloaded', { timeout: 15000 });
+    const embeddedTitle = await embeddedNexus.title();
+    assert(embeddedTitle.length > 0, `Nexus Browser iframe rendered no document title from ${entryMode}`);
+
     const localMoe = await page.evaluate(() => ({
         state: document.querySelector('[data-local-moe-state]')?.textContent?.trim() || '',
         runtime: document.querySelector('[data-local-moe-runtime]')?.textContent?.trim() || '',
@@ -146,7 +165,7 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures,
     }));
     assert(localMoe.state === 'Online', `Local MoE is not online from ${entryMode}: ${JSON.stringify(localMoe)}`);
     assert(/Ready/i.test(localMoe.runtime), `Local MoE runtime is not ready from ${entryMode}: ${JSON.stringify(localMoe)}`);
-    return { entryMode, url: page.url(), localMoe, tlo, nexus, chat };
+    return { entryMode, url: page.url(), localMoe, tlo, nexus, embeddedNexus: { url: embeddedNexus.url(), title: embeddedTitle }, chat };
 }
 
 async function main() {
