@@ -88,9 +88,14 @@
         }
         apiBase = '';
         status = null;
+        const control = window.EveOSControlPlane?.getState?.() || {};
+        const webOnline = control.webRunning === true;
         renderStatus({
-            state: 'eveos_offline', canChat: false,
-            message: lastError?.message || 'EveOS localhost is unavailable.',
+            state: webOnline ? 'api_unreachable' : 'eveos_offline',
+            canChat: false,
+            message: webOnline
+                ? 'EveOS localhost is online, but the TLO API is unreachable from this page. Search Monitor will retry automatically.'
+                : (lastError?.message || 'EveOS localhost is unavailable.'),
             agent: { displayName: 'TLO', role: 'Local EveOS agent', scopeId: 'default', provider: 'local-moe' }
         });
         return null;
@@ -106,7 +111,8 @@
             ready: 'Ready', stopped: 'Stopped', harness_stopped: 'Stopped', starting: 'Starting',
             harness_starting: 'Starting', runtime_starting: 'Loading', runtime_offline: 'Runtime offline',
             model_switching: 'Switching', model_mismatch: 'Model mismatch', model_untrusted: 'Model blocked',
-            stream_interrupted: 'Interrupted', eveos_offline: 'EveOS offline', profile_invalid: 'Profile error'
+            stream_interrupted: 'Interrupted', eveos_offline: 'EveOS offline', api_unreachable: 'API unreachable',
+            profile_invalid: 'Profile error'
         };
         return labels[value] || String(value || 'Unavailable').replace(/_/g, ' ');
     }
