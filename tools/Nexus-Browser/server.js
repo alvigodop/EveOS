@@ -393,8 +393,8 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => {
     providerControlRouting.dropSocket(ws); qualificationRouting.dropSocket(ws);
     if (ws.role === 'extension') {
-      const wasPrimary = extensionSessions.isPrimary(ws), state = syncExtensionAuthority(extensionSessions.drop(ws));
-      if (wasPrimary) {
+      const state = syncExtensionAuthority(extensionSessions.drop(ws));
+      if (state.wasPrimary) {
         providerTargetSpawnRouting.failAll();
         console.log(`[bridge] extension primary disconnected; ${state.socket ? `promoted standby with ${lastTabs.length} tab(s)` : 'no standby available'}`);
         broadcastUi(extensionStatus());
