@@ -60,6 +60,22 @@ requireCondition(
   sharedRuntimeSource.includes('body: { service: service.key, headless: false }'),
   'Search Monitor runtime no longer forces each spawned service terminal to headed'
 );
+
+const headedControllers = {
+  web: ['server_modules/eveos_web_control.py', 'headless_mode()'],
+  gemini: ['server_modules/gemini_control.py', 'headless_for("gemini")'],
+  localMoe: ['server_modules/local_moe_control.py', 'headless_for("localMoe")'],
+  worldBook: ['server_modules/world_book_control.py', 'headless_for("worldBook")'],
+  bookmarkIntel: ['server_modules/bookmark_intel_control.py', 'headless_for("bookmarkIntel")'],
+  piano: ['server_modules/piano_player_control.py', 'headless_for("piano")'],
+  watchFusion: ['server_modules/watchfusion_control.py', 'headless_for("watchFusion")'],
+  nexusBrowser: ['server_modules/nexus_browser_control.py', 'headless_for("nexusBrowser")'],
+};
+for (const [service, [relative, marker]] of Object.entries(headedControllers)) {
+  const controller = fs.readFileSync(path.join(ROOT, relative), 'utf8');
+  requireCondition(controller.includes(marker), `${service} no longer uses the shared headed/headless terminal preference`);
+  requireCondition(controller.includes('CREATE_NEW_CONSOLE'), `${service} has no headed Windows console launch path`);
+}
 requireCondition(controlSource.includes('"/api/eveos-server/stop-web"'), 'control plane is missing scoped EveOS web stop');
 requireCondition(
   controlSource.includes('eveos_web_control.stop_server(port=_request_web_port(self))'),
