@@ -26,6 +26,8 @@ Pass "-- --model-timeout-ms <ms>" when model startup needs a different upper bou
 
 The runtime CLI uses the existing EveOS Local Control plane rather than owning a second lifecycle implementation.
 
+For EveOS-managed launches, Local MoE Harness startup and model-runtime startup are separate stages. The Harness starts with boot-time model autostart disabled; only the explicit runtime stage starts FreeToken/Prism. This makes `--no-model-wait` a true Harness-only/service-only start and prevents a model failure from taking down FastAPI startup.
+
 All managed service terminals are headed by default. Headless mode is an explicit override, not a default. Before a live Search Monitor start or qualification, the runtime CLI resets the global console default to headed and also clears headless mode for each participating service. On Windows, Local Control opens in a normal visible terminal rather than a minimized or hidden console. Local MoE keeps the proven model-engine stdout/stderr path captured directly into `freetoken-server.log`, and opens a separate visible FreeToken/Prism runtime console that tails that authoritative log live. This avoids changing engine I/O semantics while keeping the model stage headed and inspectable.
 
 On Windows, Local Control is bootstrapped through the existing tools/batch/start-eveos-control.bat launcher. The controller then starts service-owned processes with their existing verified lifecycle modules. Service console preferences are set to headed for this session, so the spawned web, Local MoE, Nexus Browser, and optional Gemini processes retain their own visible terminals.
