@@ -265,6 +265,9 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             + '</div>'
             + '</div>';
         document.body.appendChild(overlay);
+        if (window.SearchMonitorBoot?.registerSurface) {
+            window.SearchMonitorBoot.registerSurface({ element: overlay, owner: 'search-monitor' });
+        }
         return state;
     }
 
@@ -315,6 +318,7 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
 
     function closeCardInternals() {
         document.querySelectorAll('.nx-dv-micro-overlay').forEach(function (node) {
+            window.SearchMonitorBoot?.unregisterSurface?.(node);
             node.remove();
         });
     }
