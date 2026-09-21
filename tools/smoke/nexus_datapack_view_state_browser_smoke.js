@@ -219,11 +219,25 @@ async function runSmoke(page) {
     await page.evaluate(() => {
         const row = document.querySelector('.nx-dv-bookmark-row[data-link-id="a1"]');
         if (!row) throw new Error('Missing bookmark row for a1');
-        row.querySelector('[data-nx-dv-field="bookmarkTitle"]').value = 'Alpha One Edited';
-        row.querySelector('[data-nx-dv-field="bookmarkUrl"]').value = 'https://example.com/a1-edited';
-        row.querySelector('[data-nx-dv-field="bookmarkNotes"]').value = 'Edited note from Nebula JSON transaction';
-        row.querySelector('[data-nx-dv-field="bookmarkIdentifiers"]').value = 'reading, favorite';
-        row.querySelector('[data-nx-dv-field="bookmarkFolderId"]').value = 'f1';
+        const titleField = row.querySelector('[data-nx-dv-field="bookmarkTitle"]');
+        const urlField = row.querySelector('[data-nx-dv-field="bookmarkUrl"]');
+        const notesField = row.querySelector('[data-nx-dv-field="bookmarkNotes"]');
+        const identifiersField = row.querySelector('[data-nx-dv-field="bookmarkIdentifiers"]');
+        const folderField = row.querySelector('[data-nx-dv-field="bookmarkFolderId"]');
+        const readonlyNote = row.querySelector('.nx-dv-bookmark-readonly-note');
+        if (!titleField || !urlField || !identifiersField || !folderField) {
+            throw new Error('Missing editable micro fields for unlinked bookmark a1');
+        }
+        if (notesField) {
+            throw new Error('Unlinked bookmark a1 unexpectedly exposes editable notes');
+        }
+        if (!readonlyNote || !readonlyNote.textContent.includes('only exposed here when this bookmark is linked to Library')) {
+            throw new Error('Unlinked bookmark a1 is missing the Library-linked notes guard');
+        }
+        titleField.value = 'Alpha One Edited';
+        urlField.value = 'https://example.com/a1-edited';
+        identifiersField.value = 'reading, favorite';
+        folderField.value = 'f1';
         document.querySelector('[data-nx-dv-action="preview-micro"]').click();
     });
     await page.waitForFunction(() => {
@@ -243,7 +257,7 @@ async function runSmoke(page) {
     if (
         microResult.editedLink?.title !== 'Alpha One Edited'
         || microResult.editedLink?.url !== 'https://example.com/a1-edited'
-        || microResult.editedLink?.notes !== 'Edited note from Nebula JSON transaction'
+        || microResult.editedLink?.notes !== 'Root note'
         || microResult.editedLink?.folderId !== 'f1'
         || (microResult.editedLink?.identifiers || []).join('|') !== 'reading|favorite'
         || microResult.overlayOpen
