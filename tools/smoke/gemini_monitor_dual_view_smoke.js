@@ -30,6 +30,8 @@ async function main() {
             !!document.getElementById('loadingIndicator')
             && !!document.getElementById('gemini-ui-root')
             && !!window.SearchMonitorBoot
+            && !!window.EveOSSearchMonitorAiHome
+            && !!document.getElementById('search-monitor-assistant-pane')
         ), undefined, { timeout: 120000 });
 
         await page.evaluate(() => {
@@ -72,7 +74,7 @@ async function main() {
             }
 
             const root = document.getElementById('gemini-ui-root');
-            const summaryPane = box('#gemini-monitor-summary-pane');
+            const summaryPane = box('#search-monitor-assistant-pane');
             const workspace = box('#gemini-ui-root .mdl-layout__container');
             const liveLinkCard = box('#gemini-live-link-card');
             const liveLinkSettings = document.getElementById('geminiLiveLinkSettingsButton');
