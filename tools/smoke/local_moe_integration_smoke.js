@@ -24,6 +24,11 @@ const suites = [
         args: ['tools/Local-MoE-Harness/tests/test-model-ui.js']
     },
     {
+        id: 'windows-runtime-lifecycle',
+        command: 'python',
+        args: ['tools/Local-MoE-Harness/tests/test_runtime_lifecycle.py']
+    },
+    {
         id: 'bonsai-runtime-contract',
         command: 'python',
         args: ['tools/smoke/local_moe_bonsai_smoke.py']
