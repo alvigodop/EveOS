@@ -47,15 +47,34 @@ async function main() {
             return !!root && root.dataset.geminiMonitorView === 'full';
         }, undefined, { timeout: 10000 });
 
-        await page.waitForTimeout(20000);
-        await page.evaluate(() => {
+        const passiveWorkspace = await page.evaluate(() => {
             const root = document.getElementById('gemini-ui-root');
-            if (root) root.dataset.geminiFullReady = '0';
-            window.dispatchEvent(new CustomEvent('eve:gemini-workspace-ready'));
+            const summary = document.getElementById('search-monitor-assistant-pane');
+            const workspace = root?.querySelector('.gemini-monitor-workspace-shell');
+            const provider = root?.querySelector('[data-ai-provider="gemini"]');
+            return {
+                summaryDisplay: summary ? window.getComputedStyle(summary).display : '',
+                workspaceDisplay: workspace ? window.getComputedStyle(workspace).display : '',
+                geminiProviderOpen: provider?.open === true,
+                fullUiPresent: !!root?.querySelector('.mdl-layout__container'),
+                fullReady: root?.dataset.geminiFullReady || ''
+            };
         });
+        if (passiveWorkspace.summaryDisplay !== 'none'
+            || passiveWorkspace.workspaceDisplay === 'none'
+            || passiveWorkspace.geminiProviderOpen
+            || passiveWorkspace.fullUiPresent) {
+            throw new Error(`Workspace mode violated passive provider isolation: ${JSON.stringify(passiveWorkspace)}`);
+        }
+
+        await page.locator('[data-ai-provider="gemini"] > summary').click();
+        await page.waitForFunction(() => (
+            document.querySelector('[data-ai-provider="gemini"]')?.open === true
+        ), undefined, { timeout: 10000 });
         await page.waitForFunction(() => (
             document.getElementById('gemini-ui-root')?.dataset.geminiFullReady === '1'
-        ), undefined, { timeout: 10000 });
+            && !!document.querySelector('#gemini-provider-runtime-host .mdl-layout__container')
+        ), undefined, { timeout: 120000 });
 
         const result = await page.evaluate(() => {
             function box(selector) {
@@ -75,7 +94,7 @@ async function main() {
 
             const root = document.getElementById('gemini-ui-root');
             const summaryPane = box('#search-monitor-assistant-pane');
-            const workspace = box('#gemini-ui-root .mdl-layout__container');
+            const workspace = box('#gemini-provider-runtime-host .mdl-layout__container');
             const liveLinkCard = box('#gemini-live-link-card');
             const liveLinkSettings = document.getElementById('geminiLiveLinkSettingsButton');
             const selfTalkActions = box('.gemini-agentic-card--self-talk .gemini-agentic-card-actions');
@@ -90,6 +109,7 @@ async function main() {
                 savedMode: window.localStorage?.getItem('eve.geminiMonitorView') || '',
                 summaryPane,
                 workspace,
+                providerOpen: document.querySelector('[data-ai-provider="gemini"]')?.open === true,
                 liveLinkCard,
                 liveLinkCollapsed: document.getElementById('gemini-live-link-card')?.classList.contains('is-settings-collapsed') || false,
                 liveLinkSettingsExpanded: liveLinkSettings?.getAttribute('aria-expanded') || '',
@@ -112,8 +132,11 @@ async function main() {
         if (result.compact) {
             throw new Error(`Search Monitor collapsed while switching Gemini workspace mode: ${JSON.stringify(result)}`);
         }
-        if (!result.summaryPane || result.summaryPane.display === 'none' || result.summaryPane.height < 120) {
-            throw new Error(`Compact summary pane should remain visible in workspace mode: ${JSON.stringify(result)}`);
+        if (!result.summaryPane || result.summaryPane.display !== 'none') {
+            throw new Error(`Compact summary pane should be hidden in workspace mode: ${JSON.stringify(result)}`);
+        }
+        if (!result.providerOpen) {
+            throw new Error(`Gemini provider did not remain explicitly open after activation: ${JSON.stringify(result)}`);
         }
         if (!result.workspace || result.workspace.display === 'none' || result.workspace.height < 220) {
             throw new Error(`Full Gemini workspace did not render in monitor: ${JSON.stringify(result)}`);
