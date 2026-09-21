@@ -8,7 +8,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { chromium } = require('playwright');
+const { runBrowserSmoke } = require('./browser-smoke-diagnostics.shared');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const BOOT = path.join(ROOT, 'js', 'modules', 'core', 'search-monitor-boot.js');
@@ -44,9 +44,10 @@ async function main() {
         <script src="${fileUrl(BOOT)}"></script>
     </body>`);
 
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
-    try {
+    await runBrowserSmoke({
+        name: 'search-monitor-peer-panel',
+        viewport: { width: 1280, height: 900 }
+    }, async ({ page }) => {
         await page.goto(fileUrl(fixture), { waitUntil: 'load' });
         const result = await page.evaluate(() => {
             const indicator = document.getElementById('loadingIndicator');
@@ -140,10 +141,8 @@ async function main() {
         assert(result.secondEscapeClosedMonitor, 'second Escape collapses Search Monitor');
         console.log('search monitor explicit overlay ownership contract OK');
         console.log('SEARCH_MONITOR_PEER_PANEL_SMOKE_OK');
-    } finally {
-        await browser.close();
-        fs.rmSync(fixture, { force: true });
-    }
+    });
+    fs.rmSync(fixture, { force: true });
 }
 
 main().catch((error) => { console.error(error); process.exit(1); });
