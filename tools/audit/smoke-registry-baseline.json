@@ -1,5 +1,5 @@
 {
-  "note": "Smokes not reachable from any npm script. Shrink this list; never grow it.",
+  "note": "Smokes not reachable from any npm script chain. Shrink this list through explicit committed test wiring; never grow it.",
   "unregistered": [
     "api_cache_manager_smoke.js",
     "api_cache_ttl_smoke.js",
@@ -149,7 +149,6 @@
     "folder_view_auto_restore_scroll_browser_smoke.js",
     "folder_view_root_exit_browser_smoke.js",
     "full_backup_path_budget_browser_smoke.js",
-    "gemini_agent_space_stream_browser_smoke.js",
     "gemini_chat_history_storage_smoke.py",
     "gemini_chat_image_attachment_smoke.js",
     "gemini_context_data_stream_smoke.js",
@@ -164,8 +163,6 @@
     "gemini_mode2_relay_smoke.js",
     "gemini_mode2_text_input_smoke.js",
     "gemini_modular_context_relay_smoke.js",
-    "gemini_monitor_dual_view_smoke.js",
-    "gemini_monitor_embed_smoke.js",
     "gemini_reconnect_memory_gate_smoke.js",
     "gemini_reconnect_persistence_smoke.js",
     "gemini_scope_mode_ui_parity_smoke.js",
@@ -232,7 +229,6 @@
     "related_url_icon_editor_browser_smoke.js",
     "scraper_visual_shell_smoke.js",
     "script_loader_preserves_visible_content_smoke.js",
-    "search_monitor_boot_smoke.js",
     "settings_shortcuts_browser_smoke.js",
     "sidebar_add_drop_promote_browser_smoke.js",
     "sidebar_click_expand_browser_smoke.js",
