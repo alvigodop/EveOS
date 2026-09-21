@@ -123,7 +123,8 @@ async function collectFailureDiagnostics(page, runtimeDiagnostics) {
       query: document.getElementById('esQuery')?.value || '',
       runButton: {
         disabled: !!document.getElementById('esRunBtn')?.disabled,
-        text: document.getElementById('esRunBtn')?.textContent || ''
+        text: document.getElementById('esRunBtn')?.textContent || '',
+        onclickType: typeof document.getElementById('esRunBtn')?.onclick
       },
       activeVectors: Array.from(document.querySelectorAll('.nx-vector-slot.nx-active'))
         .map((node) => node.getAttribute('data-vector')),
@@ -179,6 +180,14 @@ async function runSmoke(page, runtimeDiagnostics) {
   }));
   if (!vectorStates.knowledge) {
     throw new Error('Knowledge vector is not active by default');
+  }
+
+  const primaryBindings = await page.evaluate(() => ({
+    run: typeof document.getElementById('esRunBtn')?.onclick,
+    clear: typeof document.getElementById('esClearBtn')?.onclick
+  }));
+  if (primaryBindings.run !== 'function') {
+    throw new Error('Nexus primary search action is not bound: ' + JSON.stringify(primaryBindings));
   }
 
   await page.fill('#esQuery', 'Alpha');

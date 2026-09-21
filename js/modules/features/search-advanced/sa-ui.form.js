@@ -77,6 +77,17 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
             button.textContent = isLoading ? 'Loading Gemini...' : 'Gemini';
         }
 
+        function ensurePrimaryBindings() {
+            const runBtn = fields.byId?.('esRunBtn');
+            const clearBtn = fields.byId?.('esClearBtn');
+            if (runBtn) runBtn.onclick = onRunSearch;
+            if (clearBtn) clearBtn.onclick = onClearFilters;
+            return {
+                runBound: typeof runBtn?.onclick === 'function',
+                clearBound: typeof clearBtn?.onclick === 'function'
+            };
+        }
+
         function bindEvents() {
             const runBtn = fields.byId?.('esRunBtn');
             const clearBtn = fields.byId?.('esClearBtn');
@@ -157,7 +168,11 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         }
 
         function createModalIfNeeded() {
-            if (fields.byId?.('expandedSearchModal')) return;
+            const existingModal = fields.byId?.('expandedSearchModal');
+            if (existingModal) {
+                ensurePrimaryBindings();
+                return;
+            }
             document.body.insertAdjacentHTML('beforeend', modalTemplate);
             bindEvents();
             // Initialize Nexus Search vector toggles and stats.
@@ -166,7 +181,8 @@ window.EveOS.SearchAdvanced.Modules = window.EveOS.SearchAdvanced.Modules || {};
         }
 
         return Object.assign({}, fields, {
-            createModalIfNeeded
+            createModalIfNeeded,
+            ensurePrimaryBindings
         });
     };
 })();
