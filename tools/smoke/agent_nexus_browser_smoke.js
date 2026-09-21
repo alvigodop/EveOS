@@ -1,0 +1,246 @@
+#!/usr/bin/env node
+'use strict';
+
+const path = require('node:path');
+const { runBrowserSmoke } = require('./browser-smoke-diagnostics.shared');
+
+const ROOT = path.resolve(__dirname, '..', '..');
+const FILE_URL = 'file:///' + path.join(ROOT, 'EveOS.html').replace(/\\/g, '/');
+
+function assert(condition, message) {
+    if (!condition) throw new Error(`ASSERT FAILED: ${message}`);
+}
+
+function baseAgent(overrides = {}) {
+    return {
+        id: 'tlo',
+        displayName: 'TLO',
+        role: 'Local EveOS agent',
+        identity: 'Local test identity',
+        workingRules: ['Stay scoped'],
+        providerBinding: { provider: 'local-moe', modelId: '', profile: '' },
+        allowedTools: ['nexus-browser'],
+        permissions: [],
+        privateNotes: ['PRIVATE_BROWSER_SMOKE_SENTINEL'],
+        scopes: [{
+            id: 'default',
+            label: 'Default',
+            instructions: 'Use the default local scope.',
+            context: [],
+            allowedTools: ['nexus-browser']
+        }],
+        ...overrides
+    };
+}
+
+async function main() {
+    const requests = [];
+    let savedAgent = baseAgent();
+
+    await runBrowserSmoke({
+        name: 'agent-nexus-browser',
+        viewport: { width: 1600, height: 1200 }
+    }, async ({ page, browserMode, events }) => {
+        await page.route(/http:\/\/(?:127\.0\.0\.1|localhost):\d+\/api\//, async (route) => {
+            const request = route.request();
+            const url = new URL(request.url());
+            const entry = { method: request.method(), path: url.pathname };
+            requests.push(entry);
+
+            if (url.pathname === '/api/eve-state/modular/tlo/status') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        ok: true,
+                        state: 'stopped',
+                        canChat: false,
+                        message: 'Local MoE is stopped.',
+                        agent: {
+                            id: 'tlo',
+                            displayName: 'TLO',
+                            role: 'Local EveOS agent',
+                            provider: 'local-moe',
+                            scopeId: 'default',
+                            activeModelId: ''
+                        }
+                    })
+                });
+                return;
+            }
+
+            if (url.pathname === '/api/eve-state/modular/agent-management' && request.method() === 'GET') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        ok: true,
+                        persisted: true,
+                        store: {
+                            schema: 'eveos.agent-management',
+                            schemaVersion: 1,
+                            agents: [savedAgent]
+                        }
+                    })
+                });
+                return;
+            }
+
+            if (url.pathname === '/api/eve-state/modular/agent-management/save' && request.method() === 'POST') {
+                const payload = request.postDataJSON();
+                savedAgent = payload.agent;
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({ ok: true, agent: savedAgent })
+                });
+                return;
+            }
+
+            if (url.pathname === '/api/nexus-browser/status') {
+                await route.fulfill({
+                    status: 200,
+                    contentType: 'application/json',
+                    body: JSON.stringify({
+                        ok: true,
+                        service: 'nexus-browser-control',
+                        state: 'stopped',
+                        running: false,
+                        dependenciesReady: true,
+                        setupAvailable: false,
+                        extensionReady: true,
+                        extensionConnected: false,
+                        onlineTargets: 0,
+                        localTargets: 0,
+                        dexRooms: 0,
+                        port: 9088,
+                        message: 'Nexus Browser is ready and stopped.'
+                    })
+                });
+                return;
+            }
+
+            // A start/stop/setup action is never expected during passive navigation in this smoke.
+            await route.fulfill({
+                status: 409,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: false, message: `Unexpected mutation: ${request.method()} ${url.pathname}` })
+            });
+        });
+
+        await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 240000 });
+        await page.waitForFunction(() => (
+            !!window.SearchMonitorBoot
+            && !!window.EveOSSearchMonitorAiHome
+            && !!window.EveOSAgentNexus
+            && !!window.EveOSTloChat
+            && !!window.EveOSNexusBrowser
+            && !!document.querySelector('[data-ai-provider="agents"]')
+        ), undefined, { timeout: 120000 });
+
+        const monitor = page.locator('#loadingIndicator');
+        if (await monitor.evaluate((node) => node.classList.contains('compact'))) {
+            await monitor.click();
+        }
+        await page.waitForFunction(() => !document.getElementById('loadingIndicator')?.classList.contains('compact'));
+
+        const agents = page.locator('[data-ai-provider="agents"]');
+        const agentSummary = agents.locator('summary');
+        await agentSummary.click();
+        await page.waitForFunction(() => document.querySelector('[data-ai-provider="agents"]')?.open === true);
+
+        const tloPanel = page.locator('[data-agent-nexus-panel="tlo"]');
+        assert(await tloPanel.isVisible(), 'TLO must be the default visible Agent Nexus panel');
+        await page.waitForFunction(() => (
+            document.querySelector('[data-tlo-state]')?.textContent?.trim() === 'Stopped'
+        ), undefined, { timeout: 10000 });
+
+        await page.locator('[data-agent-nexus-view="nexus-browser"]').first().click();
+        const browserPanel = page.locator('[data-agent-nexus-panel="nexus-browser"]');
+        assert(await browserPanel.isVisible(), 'Nexus Browser panel did not become visible');
+        await page.waitForFunction(() => (
+            document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() === 'Stopped'
+        ), undefined, { timeout: 10000 });
+
+        await page.locator('[data-agent-nexus-view="management"]').first().click();
+        const managementPanel = page.locator('[data-agent-nexus-panel="management"]');
+        assert(await managementPanel.isVisible(), 'Agent Management panel did not become visible');
+        await page.waitForFunction(() => (
+            document.querySelector('[data-agent-management-form]')?.hidden === false
+            && document.querySelector('[data-agent-management-status]')?.textContent?.includes('loaded')
+        ), undefined, { timeout: 10000 });
+
+        const nameField = page.locator('[data-agent-management-form] [name="displayName"]');
+        assert(await nameField.inputValue() === 'TLO', 'Agent Management did not load the persisted profile');
+        assert(
+            await page.locator('[data-agent-management-form] [name="privateNotes"]').inputValue()
+                === 'PRIVATE_BROWSER_SMOKE_SENTINEL',
+            'Private notes were not available inside the explicitly opened private management surface'
+        );
+
+        await nameField.fill('TLO Browser Smoke');
+        await page.locator('[data-agent-management-form] [data-agent-management-action="save"]').click();
+        await page.waitForFunction(() => (
+            document.querySelector('[data-agent-management-status]')?.textContent?.includes('saved to the private local store')
+        ), undefined, { timeout: 10000 });
+        assert(savedAgent.displayName === 'TLO Browser Smoke', 'Agent Management save did not send the edited profile');
+
+        await page.locator('[data-agent-management-action="new"]').click();
+        const draftId = await page.locator('[data-agent-management-form] [name="id"]').inputValue();
+        assert(/^agent-\d+$/.test(draftId), `New-agent action did not create a local draft: ${draftId}`);
+
+        const geometry = await page.evaluate(() => {
+            const monitorNode = document.getElementById('loadingIndicator');
+            const agentsNode = document.querySelector('[data-ai-provider="agents"]');
+            const nav = document.querySelector('.eveos-agent-nexus-nav');
+            const rect = (node) => {
+                if (!node) return null;
+                const box = node.getBoundingClientRect();
+                return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+            };
+            return { monitor: rect(monitorNode), agents: rect(agentsNode), nav: rect(nav) };
+        });
+        assert(geometry.monitor && geometry.agents && geometry.nav, 'Agent Nexus geometry could not be measured');
+        assert(geometry.agents.width > 300 && geometry.nav.width > 250, 'Agent Nexus collapsed below usable desktop width');
+        assert(
+            geometry.agents.left >= geometry.monitor.left - 1
+            && geometry.agents.right <= geometry.monitor.right + 1,
+            'Agent Nexus escaped the Search Monitor bounds'
+        );
+
+        const mutatingLifecycle = requests.filter((entry) => (
+            entry.method !== 'GET'
+            && /\/api\/(?:local-moe|nexus-browser)\/(?:start|stop|setup)/.test(entry.path)
+        ));
+        assert(mutatingLifecycle.length === 0,
+            `Passive Agent Nexus navigation mutated a runtime: ${JSON.stringify(mutatingLifecycle)}`);
+
+        const tloStatusReads = requests.filter((entry) => entry.path === '/api/eve-state/modular/tlo/status');
+        const nexusStatusReads = requests.filter((entry) => entry.path === '/api/nexus-browser/status');
+        const managementReads = requests.filter((entry) => (
+            entry.path === '/api/eve-state/modular/agent-management' && entry.method === 'GET'
+        ));
+        const managementWrites = requests.filter((entry) => (
+            entry.path === '/api/eve-state/modular/agent-management/save' && entry.method === 'POST'
+        ));
+        assert(tloStatusReads.length >= 1, 'Opening Agent Nexus did not perform a passive TLO status read');
+        assert(nexusStatusReads.length >= 1, 'Opening Nexus Browser did not perform a passive status read');
+        assert(managementReads.length === 1, `Agent Management loaded ${managementReads.length} times instead of once`);
+        assert(managementWrites.length === 1, `Agent Management saved ${managementWrites.length} times instead of once`);
+        assert(events.pageErrors.length === 0, `Page errors detected: ${events.pageErrors.join('\n')}`);
+
+        console.log('AGENT_NEXUS_BROWSER_SMOKE_OK ' + JSON.stringify({
+            browserMode,
+            requests: requests.length,
+            tloStatusReads: tloStatusReads.length,
+            nexusStatusReads: nexusStatusReads.length,
+            managementReads: managementReads.length,
+            managementWrites: managementWrites.length
+        }));
+    });
+}
+
+main().catch((error) => {
+    console.error(error?.stack || error?.message || String(error));
+    process.exit(1);
+});
