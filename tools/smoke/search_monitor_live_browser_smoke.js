@@ -31,7 +31,31 @@ function requiredStatusRequest(url) {
     return /\/api\/(?:local-moe\/status|nexus-browser\/status|eve-state\/modular\/tlo\/status)/.test(url);
 }
 
-async function openRuntimeWorkspace(page, entryUrl, entryMode) {
+async function waitForStatus(page, selector, expected, entryMode, requiredFailures) {
+    try {
+        await page.waitForFunction(
+            ({ selector, expected }) => document.querySelector(selector)?.textContent?.trim() === expected,
+            { selector, expected },
+            { timeout: 30000 }
+        );
+    } catch (error) {
+        const snapshot = await page.evaluate(() => ({
+            localMoe: document.querySelector('[data-local-moe-state]')?.textContent?.trim() || '',
+            localMoeMessage: document.querySelector('[data-local-moe-message]')?.textContent?.trim() || '',
+            tlo: document.querySelector('[data-tlo-state]')?.textContent?.trim() || '',
+            tloMessage: document.querySelector('[data-tlo-message]')?.textContent?.trim() || '',
+            nexus: document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() || '',
+            nexusMessage: document.querySelector('[data-nexus-browser-message]')?.textContent?.trim() || ''
+        }));
+        throw new Error(
+            `Search Monitor ${entryMode} status convergence timed out waiting for ${selector}=${expected}; `
+            + `visible=${JSON.stringify(snapshot)} requiredFailures=${JSON.stringify(requiredFailures.slice(-8))}; `
+            + (error?.message || String(error))
+        );
+    }
+}
+
+async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures) {
     await page.goto(entryUrl, { waitUntil: 'domcontentloaded', timeout: 240000 });
     await page.waitForFunction(() => (
         !!window.SearchMonitorBoot
@@ -53,14 +77,12 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode) {
             && window.getComputedStyle(workspace).display !== 'none';
     }, undefined, { timeout: 10000 });
 
-    await page.waitForFunction(() => document.querySelector('[data-local-moe-state]')?.textContent?.trim() === 'Online',
-        undefined, { timeout: 30000 });
+    await waitForStatus(page, '[data-local-moe-state]', 'Online', entryMode, requiredFailures);
     const agents = page.locator('[data-ai-provider="agents"]');
     await agents.locator(':scope > summary').click();
     await page.waitForFunction(() => document.querySelector('[data-ai-provider="agents"]')?.open === true,
         undefined, { timeout: 10000 });
-    await page.waitForFunction(() => document.querySelector('[data-tlo-state]')?.textContent?.trim() === 'Ready',
-        undefined, { timeout: 30000 });
+    await waitForStatus(page, '[data-tlo-state]', 'Ready', entryMode, requiredFailures);
 
     const tlo = await page.evaluate(() => ({
         state: document.querySelector('[data-tlo-state]')?.textContent?.trim() || '',
@@ -75,8 +97,7 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode) {
     assert(tlo.sendDisabled === false, `TLO composer remained disabled from ${entryMode}`);
 
     await page.locator('[data-agent-nexus-view="nexus-browser"]').first().click();
-    await page.waitForFunction(() => document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() === 'Online',
-        undefined, { timeout: 30000 });
+    await waitForStatus(page, '[data-nexus-browser-state]', 'Online', entryMode, requiredFailures);
     const nexus = await page.evaluate(() => ({
         state: document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() || '',
         extension: document.querySelector('[data-nexus-browser-extension]')?.textContent?.trim() || '',
@@ -109,13 +130,24 @@ async function main() {
         page.on('requestfailed', (request) => {
             if (requiredStatusRequest(request.url())) {
                 requiredFailures.push({
+                    kind: 'network',
                     url: request.url(),
                     error: request.failure()?.errorText || 'request failed'
                 });
             }
         });
+        page.on('response', (response) => {
+            if (requiredStatusRequest(response.url()) && response.status() >= 400) {
+                requiredFailures.push({
+                    kind: 'http',
+                    url: response.url(),
+                    status: response.status(),
+                    statusText: response.statusText()
+                });
+            }
+        });
 
-        const localhost = await openRuntimeWorkspace(page, LOCALHOST_URL, 'localhost');
+        const localhost = await openRuntimeWorkspace(page, LOCALHOST_URL, 'localhost', requiredFailures);
 
         await page.locator('[data-agent-nexus-view="management"]').first().click();
         await page.waitForFunction(() => {
@@ -141,7 +173,7 @@ async function main() {
         }
 
         const beforeFileFailures = requiredFailures.length;
-        const fileOrigin = await openRuntimeWorkspace(page, FILE_URL, 'file-origin');
+        const fileOrigin = await openRuntimeWorkspace(page, FILE_URL, 'file-origin', requiredFailures);
         const fileStatusFailures = requiredFailures.slice(beforeFileFailures);
         assert(fileStatusFailures.length === 0,
             `Required Search Monitor status requests failed from file origin: ${JSON.stringify(fileStatusFailures)}`);
