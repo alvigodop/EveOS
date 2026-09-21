@@ -26,7 +26,8 @@ const suites = [
     {
         id: 'windows-runtime-lifecycle',
         command: 'python',
-        args: ['tools/Local-MoE-Harness/tests/test_runtime_lifecycle.py']
+        args: ['tests/test_runtime_lifecycle.py'],
+        cwd: path.join(ROOT, 'tools', 'Local-MoE-Harness')
     },
     {
         id: 'bonsai-runtime-contract',
@@ -42,7 +43,7 @@ const suites = [
 
 function runSuite(suite) {
     const result = spawnSync(suite.command, suite.args, {
-        cwd: ROOT,
+        cwd: suite.cwd || ROOT,
         encoding: 'utf8',
         windowsHide: true,
         maxBuffer: MAX_CAPTURE_CHARS
