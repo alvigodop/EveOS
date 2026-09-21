@@ -291,7 +291,7 @@ export async function stopService(name, timeoutMs = 45_000) {
 }
 
 export async function tloStatus() {
-  const result = await safeJson(`${WEB_BASE}/api/eve-state/modular/tlo/status?scopeId=default`, { timeoutMs: 7000 });
+  const result = await safeJson(`${WEB_BASE}/api/eve-state/modular/tlo/status?scopeId=default`, { timeoutMs: 15000 });
   return result.payload;
 }
 
@@ -310,17 +310,16 @@ export async function ensureLocalModelRuntime(timeoutMs = 30_000) {
 
 export async function waitForTloReady(timeoutMs = 600_000) {
   return waitUntil(async () => {
+    const probe = await safeJson(`http://127.0.0.1:${PORTS.LOCAL_MOE_HARNESS_PORT}/api/status`, { timeoutMs: 7000 });
+    const lifecycle = probe.payload?.runtime_lifecycle || {}, runtime = probe.payload?.runtime || {};
+    if (lifecycle.startup_stage === 'failed') throw new Error(`Local model startup failed: ${lifecycle.last_error || runtime.error || 'runtime exited before readiness'}`);
+    if (runtime.ready !== true) return { ready: false, value: { state: lifecycle.startup_stage || 'runtime_starting', agent: { activeModelId: lifecycle.active_model_id }, message: lifecycle.last_error || runtime.error || 'Local model is still loading.' } };
     const status = await tloStatus();
     return { ready: status?.ok === true && status?.canChat === true && status?.state === 'ready', value: status };
-  }, {
-    timeoutMs,
-    intervalMs: 1500,
-    label: 'TLO / Local MoE model',
-    progress: (status) => {
-      const model = status?.agent?.activeModelId || status?.agent?.configuredModelId || 'model';
-      console.log(`WAIT TLO: ${status?.state || 'unavailable'} · ${model} · ${status?.message || ''}`);
-    },
-  });
+  }, { timeoutMs, intervalMs: 1500, label: 'TLO / Local MoE model', progress: (status) => {
+    const model = status?.agent?.activeModelId || status?.agent?.configuredModelId || 'model';
+    console.log(`WAIT TLO: ${status?.state || 'unavailable'} · ${model} · ${status?.message || ''}`);
+  } });
 }
 
 function readSession() {
