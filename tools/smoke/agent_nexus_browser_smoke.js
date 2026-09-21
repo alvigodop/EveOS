@@ -36,6 +36,7 @@ function baseAgent(overrides = {}) {
 async function main() {
     const requests = [];
     let savedAgent = baseAgent();
+    let runtimeReady = false;
 
     await runBrowserSmoke({
         name: 'agent-nexus-browser',
@@ -66,16 +67,16 @@ async function main() {
                     headers: corsHeaders,
                     body: JSON.stringify({
                         ok: true,
-                        state: 'stopped',
-                        canChat: false,
-                        message: 'Local MoE is stopped.',
+                        state: runtimeReady ? 'ready' : 'stopped',
+                        canChat: runtimeReady,
+                        message: runtimeReady ? 'TLO is ready through the active Local MoE model.' : 'Local MoE is stopped.',
                         agent: {
                             id: 'tlo',
                             displayName: 'TLO',
                             role: 'Local EveOS agent',
                             provider: 'local-moe',
                             scopeId: 'default',
-                            activeModelId: ''
+                            activeModelId: runtimeReady ? 'qwen36-nvfp4' : ''
                         }
                     })
                 });
@@ -119,14 +120,14 @@ async function main() {
                     headers: corsHeaders,
                     body: JSON.stringify({
                         ok: true,
-                        running: false,
-                        state: 'stopped',
+                        running: runtimeReady,
+                        state: runtimeReady ? 'running' : 'stopped',
                         setupReady: true,
-                        runtimeReady: false,
-                        runtimeHealth: 'Offline',
+                        runtimeReady,
+                        runtimeHealth: runtimeReady ? 'ok' : 'Offline',
                         port: 5180,
                         runtimePort: 1919,
-                        message: 'Local MoE is stopped.'
+                        message: runtimeReady ? 'Local MoE Harness is online and managed by EveOS.' : 'Local MoE is stopped.'
                     })
                 });
                 return;
@@ -140,17 +141,17 @@ async function main() {
                     body: JSON.stringify({
                         ok: true,
                         service: 'nexus-browser-control',
-                        state: 'stopped',
-                        running: false,
+                        state: runtimeReady ? 'running' : 'stopped',
+                        running: runtimeReady,
                         dependenciesReady: true,
                         setupAvailable: false,
                         extensionReady: true,
-                        extensionConnected: false,
-                        onlineTargets: 0,
-                        localTargets: 0,
-                        dexRooms: 0,
+                        extensionConnected: runtimeReady,
+                        onlineTargets: runtimeReady ? 14 : 0,
+                        localTargets: runtimeReady ? 1 : 0,
+                        dexRooms: runtimeReady ? 1 : 0,
                         port: 9088,
-                        message: 'Nexus Browser is ready and stopped.'
+                        message: runtimeReady ? 'Nexus Browser is online.' : 'Nexus Browser is ready and stopped.'
                     })
                 });
                 return;
@@ -200,11 +201,23 @@ async function main() {
             document.querySelector('[data-tlo-state]')?.textContent?.trim() === 'Stopped'
         ), undefined, { timeout: 10000 });
 
+        runtimeReady = true;
+        await page.evaluate(() => {
+            window.dispatchEvent(new CustomEvent('eve:eveos-control-plane-status', {
+                detail: { controllerAvailable: true, webRunning: true, serverState: 'running' }
+            }));
+        });
+        await page.waitForFunction(() => (
+            document.querySelector('[data-local-moe-state]')?.textContent?.trim() === 'Online'
+            && document.querySelector('[data-tlo-state]')?.textContent?.trim() === 'Ready'
+            && document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() === 'Online'
+        ), undefined, { timeout: 10000 });
+
         await page.locator('[data-agent-nexus-view="nexus-browser"]').first().click();
         const browserPanel = page.locator('[data-agent-nexus-panel="nexus-browser"]');
         assert(await browserPanel.isVisible(), 'Nexus Browser panel did not become visible');
         await page.waitForFunction(() => (
-            document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() === 'Stopped'
+            document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() === 'Online'
         ), undefined, { timeout: 10000 });
 
         await page.locator('[data-agent-nexus-view="management"]').first().click();
@@ -285,7 +298,8 @@ async function main() {
             tloStatusReads: tloStatusReads.length,
             nexusStatusReads: nexusStatusReads.length,
             managementReads: managementReads.length,
-            managementWrites: managementWrites.length
+            managementWrites: managementWrites.length,
+            statusRecovery: true
         }));
     });
 }
