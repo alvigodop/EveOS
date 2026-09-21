@@ -76,6 +76,40 @@ for (const [service, [relative, marker]] of Object.entries(headedControllers)) {
   requireCondition(controller.includes(marker), `${service} no longer uses the shared headed/headless terminal preference`);
   requireCondition(controller.includes('CREATE_NEW_CONSOLE'), `${service} has no headed Windows console launch path`);
 }
+
+const windowsRuntimeSource = fs.readFileSync(
+  path.join(ROOT, 'tools', 'Local-MoE-Harness', 'app', 'services', 'runtime_lifecycle_windows.py'),
+  'utf8'
+);
+const freeTokenLauncher = fs.readFileSync(
+  path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-freetoken-windows.ps1'),
+  'utf8'
+);
+const prismLauncher = fs.readFileSync(
+  path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'run-prism-llama-windows.ps1'),
+  'utf8'
+);
+const harnessControl = fs.readFileSync(
+  path.join(ROOT, 'tools', 'Local-MoE-Harness', 'scripts', 'control-windows.ps1'),
+  'utf8'
+);
+requireCondition(
+  windowsRuntimeSource.includes('"CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE"'),
+  'FreeToken/Prism runtime no longer defaults to a headed Windows console'
+);
+requireCondition(
+  windowsRuntimeSource.includes('LOCAL_MOE_HEADLESS') && windowsRuntimeSource.includes('EVEOS_HEADLESS'),
+  'Local MoE model runtime lost its explicit-only headless override'
+);
+requireCondition(
+  freeTokenLauncher.includes('Tee-Object -FilePath $LogPath -Append')
+    && prismLauncher.includes('Tee-Object -FilePath $LogPath -Append'),
+  'headed model runtime no longer preserves the shared startup log'
+);
+requireCondition(
+  harnessControl.includes('if ($Headless)') && harnessControl.includes('} else {'),
+  'manual Local MoE control no longer defaults to a headed Harness window'
+);
 requireCondition(controlSource.includes('"/api/eveos-server/stop-web"'), 'control plane is missing scoped EveOS web stop');
 requireCondition(
   controlSource.includes('eveos_web_control.stop_server(port=_request_web_port(self))'),
