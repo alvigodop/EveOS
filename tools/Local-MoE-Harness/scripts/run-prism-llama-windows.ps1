@@ -17,10 +17,6 @@ if ($env:LOCAL_MOE_KV_RESERVE_TOKENS -match '^\d+$') { $Context = [int]$env:LOCA
 $GpuLayers = 32
 if ($env:LOCAL_MOE_GPU_LAYERS -match '^\d+$') { $GpuLayers = [int]$env:LOCAL_MOE_GPU_LAYERS }
 
-$Logs = Join-Path $Root "logs"
-New-Item -ItemType Directory -Force -Path $Logs | Out-Null
-$LogPath = Join-Path $Logs "freetoken-server.log"
-
 $BinDir = $Server.Directory.FullName
 $env:PATH = "$BinDir;$env:PATH"
 & $Server.FullName `
@@ -35,6 +31,5 @@ $env:PATH = "$BinDir;$env:PATH"
     --temp 1.0 `
     --top-p 0.95 `
     --top-k 20 `
-    --jinja 2>&1 | Tee-Object -FilePath $LogPath -Append
-$ExitCode = $LASTEXITCODE
-exit $ExitCode
+    --jinja
+exit $LASTEXITCODE
