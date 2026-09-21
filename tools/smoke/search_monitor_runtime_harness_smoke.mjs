@@ -13,6 +13,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 
 const profileSource = fs.readFileSync(path.join(ROOT, 'tools', 'smoke', 'eveos_profile_runner.mjs'), 'utf8');
 const controlSource = fs.readFileSync(path.join(ROOT, 'server_modules', 'eveos_control_helper.py'), 'utf8');
 const cli = path.join(ROOT, 'tools', 'runtime', 'search-monitor-runtime.mjs');
+const runtimeCliSource = fs.readFileSync(cli, 'utf8');
 const sessionPath = path.join(ROOT, 'data', 'runtime', 'search-monitor-runtime-session.json');
 const sessionBefore = fs.existsSync(sessionPath) ? fs.readFileSync(sessionPath, 'utf8') : null;
 
@@ -27,6 +28,14 @@ for (const name of requiredServices) {
 requireCondition(
   SEARCH_MONITOR_SERVICES.web.stopPath.includes('/api/eveos-server/stop-web'),
   'Search Monitor stop would use Global Stop instead of scoped web shutdown'
+);
+requireCondition(
+  runtimeCliSource.includes('ensureLocalModelRuntime'),
+  'live runtime sequence no longer explicitly starts the Local MoE model stage'
+);
+requireCondition(
+  runtimeCliSource.indexOf('ensureLocalModelRuntime') < runtimeCliSource.indexOf('waitForTloReady(modelTimeoutMs)'),
+  'TLO readiness wait can run before the explicit Local MoE model start stage'
 );
 requireCondition(controlSource.includes('"/api/eveos-server/stop-web"'), 'control plane is missing scoped EveOS web stop');
 requireCondition(
