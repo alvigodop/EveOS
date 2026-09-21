@@ -72,6 +72,11 @@ requireCondition(
   sharedRuntimeSource.includes('${method} ${target.pathname}${target.search} timed out after'),
   'runtime HTTP timeout errors no longer identify the exact request'
 );
+requireCondition(
+  sharedRuntimeSource.includes('Local model startup failed:')
+    && sharedRuntimeSource.includes('runtime_lifecycle'),
+  'runtime qualification no longer fails fast on authoritative model startup failure'
+);
 
 const headedControllers = {
   web: ['server_modules/eveos_web_control.py', 'headless_mode()'],
@@ -106,17 +111,23 @@ const harnessControl = fs.readFileSync(
   'utf8'
 );
 requireCondition(
-  windowsRuntimeSource.includes('"CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE"'),
-  'FreeToken/Prism runtime no longer defaults to a headed Windows console'
+  windowsRuntimeSource.includes('CREATE_NEW_CONSOLE')
+    && windowsRuntimeSource.includes('Get-Content -LiteralPath')
+    && windowsRuntimeSource.includes('runtime-console.pid'),
+  'Local MoE no longer exposes the model runtime through a dedicated headed console'
+);
+requireCondition(
+  windowsRuntimeSource.includes('stdout=log_file')
+    && windowsRuntimeSource.includes('stderr=asyncio.subprocess.STDOUT'),
+  'Local MoE model engine no longer preserves the proven direct startup-log capture path'
 );
 requireCondition(
   windowsRuntimeSource.includes('LOCAL_MOE_HEADLESS') && windowsRuntimeSource.includes('EVEOS_HEADLESS'),
   'Local MoE model runtime lost its explicit-only headless override'
 );
 requireCondition(
-  freeTokenLauncher.includes('Tee-Object -FilePath $LogPath -Append')
-    && prismLauncher.includes('Tee-Object -FilePath $LogPath -Append'),
-  'headed model runtime no longer preserves the shared startup log'
+  !freeTokenLauncher.includes('Tee-Object') && !prismLauncher.includes('Tee-Object'),
+  'model launchers reintroduced a PowerShell output pipeline that can change runtime semantics'
 );
 requireCondition(
   harnessControl.includes('if ($Headless)') && harnessControl.includes('} else {'),
