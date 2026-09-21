@@ -275,6 +275,7 @@ def start_server() -> dict:
         environment.update({
             "LOCAL_MOE_HARNESS_PORT": str(HARNESS_PORT),
             "FREETOKEN_PORT": str(RUNTIME_PORT),
+            "LOCAL_MOE_RUNTIME_AUTOSTART": "0",
             "PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
         })
         headless = eveos_console_prefs.headless_for("localMoe")
