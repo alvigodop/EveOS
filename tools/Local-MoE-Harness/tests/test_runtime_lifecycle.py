@@ -5,11 +5,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from app.services.model_registry import ModelRegistry
-from app.services.runtime_lifecycle import RuntimeLifecycle
-
 
 ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.services.model_registry import ModelRegistry
+from app.services.runtime_lifecycle import RuntimeLifecycle
 
 
 class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
