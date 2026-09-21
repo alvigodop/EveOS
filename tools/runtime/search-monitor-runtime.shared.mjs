@@ -121,6 +121,13 @@ export async function controlHealth() {
     : null;
 }
 
+export function runWindowsBatchSync(batchPath, options = {}) {
+  const { args = [], cwd = ROOT, env = process.env, stdio = 'inherit', encoding } = options;
+  return spawnSync(env.ComSpec || process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'call', batchPath, ...args], {
+    cwd, stdio, env, windowsHide: false, ...(encoding ? { encoding } : {}),
+  });
+}
+
 async function waitUntil(check, { timeoutMs, intervalMs = 300, label, progress } = {}) {
   const deadline = Date.now() + timeoutMs;
   let last = null;
@@ -142,13 +149,9 @@ export async function ensureControlPlane({ timeoutMs = 30_000 } = {}) {
   if (existing) return { started: false, health: existing };
 
   if (process.platform === 'win32') {
-    const cmd = process.env.ComSpec || 'cmd.exe';
     const launcher = path.join(ROOT, 'tools', 'batch', 'start-eveos-control.bat');
-    const result = spawnSync(cmd, ['/d', '/s', '/c', `call "${launcher}"`], {
-      cwd: ROOT,
-      stdio: 'inherit',
-      env: { ...process.env, EVEOS_HEADLESS: '' },
-      windowsHide: false,
+    const result = runWindowsBatchSync(launcher, {
+      cwd: ROOT, stdio: 'inherit', env: { ...process.env, EVEOS_HEADLESS: '' },
     });
     if (result.error || result.status !== 0) {
       throw new Error(`EveOS Local Control launcher failed (${result.status ?? 'spawn error'}): ${compactError(result.error)}`);
