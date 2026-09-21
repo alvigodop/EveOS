@@ -128,6 +128,10 @@ async function collectFailureDiagnostics(page, runtimeDiagnostics) {
       },
       activeVectors: Array.from(document.querySelectorAll('.nx-vector-slot.nx-active'))
         .map((node) => node.getAttribute('data-vector')),
+      surfaceOwnership: {
+        searchMonitorOwned: document.getElementById('expandedSearchModal')?.dataset?.searchMonitorOwned || '',
+        surfaceOwner: document.getElementById('expandedSearchModal')?.dataset?.surfaceOwner || ''
+      },
       meta: document.getElementById('esMeta')?.textContent || '',
       resultGroupCount: document.querySelectorAll('#esResults .nx-group-title').length,
       resultText: String(results?.textContent || '').trim().slice(0, 1200),
@@ -171,6 +175,17 @@ async function runSmoke(page, runtimeDiagnostics) {
     const modal = document.getElementById('expandedSearchModal');
     return !!modal && modal.style.display === 'flex';
   }, undefined, { timeout: 10000 });
+
+  const nexusSurfaceOwnership = await page.evaluate(() => {
+    const modal = document.getElementById('expandedSearchModal');
+    return {
+      searchMonitorOwned: modal?.dataset?.searchMonitorOwned || '',
+      surfaceOwner: modal?.dataset?.surfaceOwner || ''
+    };
+  });
+  if (nexusSurfaceOwnership.searchMonitorOwned !== 'true' || nexusSurfaceOwnership.surfaceOwner !== 'search-monitor') {
+    throw new Error('Nexus modal is not registered as a Search Monitor surface: ' + JSON.stringify(nexusSurfaceOwnership));
+  }
 
   const vectorStates = await page.evaluate(() => ({
     google: document.querySelector('.nx-vector-slot[data-vector="google"]')?.classList.contains('nx-active') || false,

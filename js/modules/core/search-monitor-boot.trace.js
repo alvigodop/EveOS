@@ -140,6 +140,13 @@ window.SearchMonitorBootTrace = (function () {
                 scopeMode: scopeMode,
                 scope: scopeMode === 'all' ? {} : null
             });
+            const nexusSurface = document.getElementById('expandedSearchModal');
+            if (nexusSurface && window.SearchMonitorBoot?.registerSurface) {
+                window.SearchMonitorBoot.registerSurface({
+                    element: nexusSurface,
+                    owner: 'search-monitor'
+                });
+            }
             return true;
         }
         if (typeof window.openExpandedSearchFromMain === 'function') {

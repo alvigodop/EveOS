@@ -267,10 +267,6 @@ window.EveOS.SearchAdvanced = window.EveOS.SearchAdvanced || {};
             State.updateSettings({ scopeMode: scopeModeOverride });
         }
 
-        // saveConfig/state hydration can replace modal controls after their initial
-        // event wiring. Re-attach the primary actions after that transition.
-        ui.ensurePrimaryBindings?.();
-
         const modal = byId('expandedSearchModal');
         if (modal) {
             // Stack ABOVE whatever surface is on screen — including the Search Monitor, which reaches
