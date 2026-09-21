@@ -1,6 +1,7 @@
 import io
 import sys
 import unittest
+from unittest.mock import patch
 
 from app.config import load_settings
 
@@ -10,6 +11,17 @@ class ConfigTests(unittest.TestCase):
         settings = load_settings()
         self.assertTrue(settings["runtime_base_url"].startswith("http"))
         self.assertTrue(settings["model_root"])
+
+    def test_runtime_autostart_environment_override(self):
+        with patch.dict("os.environ", {"LOCAL_MOE_RUNTIME_AUTOSTART": "0"}, clear=False):
+            self.assertFalse(load_settings()["runtime_autostart"])
+        with patch.dict("os.environ", {"LOCAL_MOE_RUNTIME_AUTOSTART": "1"}, clear=False):
+            self.assertTrue(load_settings()["runtime_autostart"])
+
+    def test_invalid_runtime_autostart_override_fails_closed(self):
+        with patch.dict("os.environ", {"LOCAL_MOE_RUNTIME_AUTOSTART": "sometimes"}, clear=False):
+            with self.assertRaisesRegex(ValueError, "LOCAL_MOE_RUNTIME_AUTOSTART"):
+                load_settings()
 
 
 if __name__ == "__main__":
