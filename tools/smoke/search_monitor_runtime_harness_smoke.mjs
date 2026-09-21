@@ -51,7 +51,9 @@ requireCondition(
   'live qualification reintroduced the opaque Windows npm.cmd shim'
 );
 requireCondition(
-  runtimeCliSource.includes('spawnError') && runtimeCliSource.includes('failedStage'),
+  runtimeCliSource.includes('spawnError')
+    && runtimeCliSource.includes('qualificationFailure')
+    && runtimeCliSource.includes('stageResults'),
   'live qualification no longer records stage-specific spawn diagnostics'
 );
 requireCondition(
