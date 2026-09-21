@@ -7,6 +7,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def _environment_bool(name: str, fallback: bool) -> bool:
+    raw = str(os.environ.get(name, "")).strip().lower()
+    if not raw:
+        return fallback
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean flag, got {raw!r}")
+
+
 def _environment_port(name: str, fallback: int) -> int:
     raw = str(os.environ.get(name, "")).strip()
     if not raw:
@@ -34,6 +45,10 @@ def load_settings() -> dict:
     settings["runtime_base_url"] = os.environ.get(
         "LOCAL_MOE_RUNTIME_BASE_URL", f"http://127.0.0.1:{runtime_port}"
     ).rstrip("/")
+    settings["runtime_autostart"] = _environment_bool(
+        "LOCAL_MOE_RUNTIME_AUTOSTART",
+        bool(settings.get("runtime_autostart", True)),
+    )
 
     # Context profiles can provide their measured normal MoE residency so the
     # coexistence manager restores the correct cache geometry for 12K vs 8K.
