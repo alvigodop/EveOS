@@ -24,7 +24,16 @@ const PROFILES = Object.freeze({
     'smoke:local-moe', 'smoke:agent-nexus', 'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
     'smoke:audioflix-piano', 'smoke:piano-queue', 'smoke:piano-metadata', 'smoke:nexus-browser', 'smoke:watchfusion'
   ],
-  security: ['smoke:server-security', 'smoke:watchfusion-security', 'smoke:agent-nexus', 'smoke:nexus-browser-security']
+  security: ['smoke:server-security', 'smoke:watchfusion-security', 'smoke:agent-nexus', 'smoke:nexus-browser-security'],
+  'ai-control': [
+    'smoke:chat-handoff',
+    'smoke:agent-nexus',
+    'smoke:local-moe',
+    'smoke:nexus-browser',
+    'smoke:nexus-browser-security',
+    'smoke:search-monitor',
+    'smoke:search-monitor-browser'
+  ]
 });
 
 function argValue(args, name, fallback = '') {
