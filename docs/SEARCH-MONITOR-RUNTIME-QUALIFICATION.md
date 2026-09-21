@@ -32,7 +32,7 @@ All managed service terminals are headed by default. Headless mode is an explici
 
 On Windows, Local Control is bootstrapped through the existing tools/batch/start-eveos-control.bat launcher. The controller then starts service-owned processes with their existing verified lifecycle modules. Service console preferences are set to headed for this session, so the spawned web, Local MoE, Nexus Browser, and optional Gemini processes retain their own visible terminals.
 
-The command that launched the qualification exits independently. The services are intentionally left running after start and qualify.
+The command that launched the qualification exits independently. Normal start leaves the services running. A successful qualify also leaves them running; a failed qualify first captures scoped evidence, then stops only a clearly attributable session-owned unhealthy component when safe.
 
 A runtime-session file under ignored data/runtime/ records only the services the CLI actually started. Normal stop shuts down only those session-owned services. Existing services that were already online before the session are not stopped. "stop --all" is the explicit override for shutting down every Search Monitor runtime service.
 
@@ -88,7 +88,7 @@ The most recent state is also copied to:
 
 Snapshots include current Git HEAD, Local Control identity, per-service status/identity, TLO readiness, Local MoE details, Nexus diagnostics, registered-port listeners, runtime-session ownership, and bounded tails from known runtime logs when those logs exist.
 
-A failed qualification intentionally leaves the services running so the terminal state, service consoles, trace, and runtime snapshot remain available for diagnosis. Use "npm run runtime:search-monitor:stop" only after the evidence has been collected.
+A failed qualification is self-contained in the invoking terminal. Before any scoped teardown, it captures the runtime snapshot and bounded relevant log tails, prints them under `SEARCH_MONITOR_FAILURE_SCOPE`, and records a `FAILURE_SCOPE_SNAPSHOT`. It then health-checks the participating services and stops only a clearly attributable session-owned unhealthy component. A failed model/runtime health check can stop the managed FreeToken/Prism child while leaving the Local MoE Harness alive. Browser/UI assertion failures preserve healthy servers rather than guessing. Unowned services are never terminated.
 
 ## Extension recovery
 
