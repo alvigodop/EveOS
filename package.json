@@ -84,6 +84,7 @@
     "smoke:audioflix-backup-roundtrip": "node tools/smoke/audioflix_json_backup_roundtrip_smoke.js",
     "smoke:nexus-functional": "node tools/smoke/nexus_search_smoke.js",
     "smoke:dashboard-core": "node tools/smoke/workspace_switch_browser_smoke.js && node tools/smoke/bulk_import_persistence_failure_smoke.js && node tools/smoke/category_folder_manager_browser_smoke.js && node tools/smoke/dashboard_adaptive_hydration_workspace_switch_browser_smoke.js && node tools/smoke/sidebar_deep_pointer_drag_browser_smoke.js && node tools/smoke/category_delete_modal_browser_smoke.js && node tools/smoke/dashboard_masonry_scroll_restore_browser_smoke.js && node tools/smoke/dashboard_stale_index_fallback_browser_smoke.js",
+    "smoke:dashboard-hidden-state": "node tools/smoke/dashboard_adaptive_hydration_memory_browser_smoke.js && node tools/smoke/dashboard_delayed_unload_guard_browser_smoke.js && node tools/smoke/dashboard_large_pack_late_interaction_browser_smoke.js && node tools/smoke/dashboard_small_pack_no_warmup_rerender_browser_smoke.js && node tools/smoke/dashboard_startup_deferred_favicon_smoke.js && node tools/smoke/dashboard_startup_scroll_index_idle_browser_smoke.js && node tools/smoke/card_move_stale_index_render_browser_smoke.js && node tools/smoke/dashboard_datapack_card_link_resolver_smoke.js",
     "smoke:coverage-map": "node tools/smoke/eveos_smoke_coverage_map.js"
   },
   "engines": {
