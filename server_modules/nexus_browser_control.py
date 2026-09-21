@@ -188,6 +188,9 @@ def _status(message="") -> dict:
         "onlineTargets": int(diagnostics.get("onlineTargets") or 0),
         "localTargets": int(diagnostics.get("localTargets") or 0),
         "dexRooms": int(diagnostics.get("dexRooms") or 0),
+        "extensionSessions": diagnostics.get("extensionSessions") or {
+            "connected": 0, "primaryReady": False, "primaryTabs": None, "standby": [],
+        },
         "message": message or (
             "Nexus Browser is online." if running else
             f"Port {NEXUS_BROWSER_PORT} belongs to a different service." if blocked else
