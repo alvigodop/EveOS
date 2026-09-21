@@ -10,6 +10,9 @@ from .model_registry import ModelRecord
 from .runtime_lifecycle_linux import RuntimeLifecycle as LinuxRuntimeLifecycle
 
 
+_TRUE = {"1", "true", "yes", "on"}
+
+
 class RuntimeLifecycle(LinuxRuntimeLifecycle):
     """Native-Windows lifecycle for project-local model runtimes."""
 
@@ -156,6 +159,15 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             str(self.port),
         ]
 
+    @staticmethod
+    def _headless_requested(environment: dict[str, str]) -> bool:
+        value = (
+            environment.get("LOCAL_MOE_HEADLESS")
+            or environment.get("EVEOS_HEADLESS")
+            or ""
+        )
+        return str(value).strip().lower() in _TRUE
+
     async def _start_process(
         self,
         record: ModelRecord,
@@ -171,19 +183,21 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             self._log_start_offset = 0
 
         args = self._process_args(record)
-        log_file = self.log_path.open("ab", buffering=0)
+        headless = self._headless_requested(environment)
         creationflags = int(getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
-        try:
-            process = await asyncio.create_subprocess_exec(
-                *args,
-                cwd=str(self.root),
-                stdout=log_file,
-                stderr=asyncio.subprocess.STDOUT,
-                env=environment,
-                creationflags=creationflags,
-            )
-        finally:
-            log_file.close()
+        creationflags |= int(getattr(
+            subprocess,
+            "CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE",
+            0,
+        ))
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            cwd=str(self.root),
+            stdout=asyncio.subprocess.DEVNULL if headless else None,
+            stderr=asyncio.subprocess.STDOUT if headless else None,
+            env=environment,
+            creationflags=creationflags,
+        )
 
         self.pid_path.write_text(f"{process.pid}\n", encoding="utf-8")
         self.active_model_id = record.id
