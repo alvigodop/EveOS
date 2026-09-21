@@ -1,5 +1,5 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { runBrowserSmoke } = require('./browser-smoke-diagnostics.shared');
 
 const root = path.resolve(__dirname, '..', '..');
 const fileUrl = 'file:///' + path.join(root, 'EveOS.html').replace(/\\/g, '/');
@@ -9,12 +9,11 @@ function assert(condition, message) {
 }
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-    const pageErrors = [];
-    page.on('pageerror', (error) => pageErrors.push(error?.stack || String(error)));
-
-    try {
+    await runBrowserSmoke({
+        name: 'gemini-agent-space-stream',
+        viewport: { width: 1440, height: 1000 }
+    }, async ({ page, events }) => {
+        const pageErrors = events.pageErrors;
         await page.goto(fileUrl, { waitUntil: 'load', timeout: 240000 });
         await page.waitForFunction(() => !!window.EveGeminiAskBar?.ready, undefined, { timeout: 120000 });
 
@@ -144,9 +143,7 @@ async function main() {
         assert(pageErrors.length === 0, `page errors:\n${pageErrors.join('\n')}`);
 
         console.log(`GEMINI_AGENT_SPACE_STREAM_BROWSER_SMOKE_OK ${JSON.stringify(result)}`);
-    } finally {
-        await browser.close();
-    }
+    });
 }
 
 main().catch((error) => {
