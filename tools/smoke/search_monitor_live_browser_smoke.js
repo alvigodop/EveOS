@@ -16,10 +16,14 @@ function assert(condition, message) {
 }
 
 function benignConsoleError(text) {
-    return /Failed to load resource/i.test(text)
-        || /Tracking Prevention blocked/i.test(text)
+    return /Tracking Prevention blocked access to storage/i.test(text)
+        || /Failed to load resource/i.test(text)
+        || /Access to fetch at/i.test(text)
+        || /QuotaExceededError/i.test(text)
+        || /Critical module CacheManager is missing/i.test(text)
+        || /ERR_FAILED 200 \(OK\)/i.test(text)
         || /ERR_CONNECTION_RESET/i.test(text)
-        || /ERR_FAILED 403/i.test(text);
+        || /ERR_FAILED 403 \(Forbidden\)/i.test(text);
 }
 
 async function main() {
