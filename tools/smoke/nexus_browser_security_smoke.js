@@ -17,5 +17,10 @@ assert.equal(websocketOriginAllowed('http://127.0.0.1:9088', 9088), true, 'Owned
 assert.equal(websocketOriginAllowed('chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 9088), true, 'Chrome extension origin is blocked');
 assert.equal(websocketOriginAllowed('http://127.0.0.1:8765', 9088), false, 'Unowned local origin can open the control websocket');
 assert.match(httpSurface, /Content-Security-Policy/);
+assert.match(
+    httpSurface,
+    /frame-ancestors http:\/\/127\.0\.0\.1:\* http:\/\/localhost:\* file:/,
+    'Nexus Browser no longer permits the supported local file:// EveOS parent'
+);
 assert.match(server, /websocketOriginAllowed\(req\.headers\.origin, PORT\)/);
 console.log('NEXUS_BROWSER_SECURITY_SMOKE_OK');
