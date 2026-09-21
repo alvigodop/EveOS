@@ -30,6 +30,12 @@ const suites = [
         cwd: path.join(ROOT, 'tools', 'Local-MoE-Harness')
     },
     {
+        id: 'harness-config',
+        command: 'python',
+        args: ['tests/test_config.py'],
+        cwd: path.join(ROOT, 'tools', 'Local-MoE-Harness')
+    },
+    {
         id: 'bonsai-runtime-contract',
         command: 'python',
         args: ['tools/smoke/local_moe_bonsai_smoke.py']
