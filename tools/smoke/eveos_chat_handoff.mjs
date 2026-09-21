@@ -18,7 +18,8 @@ const PROFILE_SCRIPTS = Object.freeze({
   none: [],
   fast: ['test:smoke'],
   deep: ['test:deep'],
-  security: ['test:security']
+  security: ['test:security'],
+  'ai-control': ['test:ai-control']
 });
 
 function argValues(args, name) {
@@ -247,7 +248,7 @@ function buildPlan(args, scripts) {
   const profileDefault = explicit.length ? 'none' : 'fast';
   const profile = argValue(args, '--profile', profileDefault).toLowerCase();
   if (!Object.hasOwn(PROFILE_SCRIPTS, profile)) {
-    throw new Error(`Unknown profile '${profile}'. Use none, fast, deep, or security.`);
+    throw new Error(`Unknown profile '${profile}'. Use none, fast, deep, security, or ai-control.`);
   }
   const plan = [...explicit, ...PROFILE_SCRIPTS[profile]];
   if (args.includes('--final')) plan.push('verify');
