@@ -4,10 +4,11 @@
 /**
  * smoke-registry-audit.js
  *
- * A smoke test that no npm script runs is not a test. It is a file.
+ * A smoke test that no npm script chain reaches is not a test. It is a file.
  *
- * This repo has hundreds of smokes under tools/smoke and only a few dozen reachable from
- * `npm run verify`. The rest never execute, so they cannot report anything -- and they rot. A real
+ * This repo has hundreds of smokes under tools/smoke and only a subset reachable from
+ * npm scripts, sometimes through registered orchestration smokes. The rest never execute, so they
+ * cannot report anything -- and they rot. A real
  * example: server_monitor_contract_smoke.js still asserted the retired Gemini ports 9083/9084 long
  * after the monitor moved to 9085/9086. The production code was correct and the test was wrong, and
  * nothing said so for weeks, because nothing ran it.
@@ -18,7 +19,8 @@
  * someone adds a new smoke and forgets to wire it up. Shrinking it is always allowed, and drops the
  * baseline as you go.
  *
- * Fix a failure by adding the smoke to a chain in package.json -- not by editing the baseline.
+ * Fix a failure by adding the smoke to an npm chain or invoking it from an already registered
+ * smoke orchestrator -- not by editing the baseline.
  */
 const fs = require('fs');
 const path = require('path');
@@ -44,8 +46,33 @@ function main() {
         .filter(isEntryPoint)
         .sort();
 
-    const unregistered = all.filter((name) => !manifest.includes(name));
-    const registered = all.length - unregistered.length;
+    const sourceByName = new Map(all.map((name) => [
+        name,
+        fs.readFileSync(path.join(SMOKE_DIR, name), 'utf8'),
+    ]));
+    const direct = all.filter((name) => manifest.includes(name));
+    const reachable = new Set(direct);
+
+    // Registered orchestration smokes can intentionally invoke narrower smoke entry points.
+    // Follow those references transitively so the registry measures actual npm reachability
+    // instead of requiring every nested probe to have a duplicate package.json script.
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const parent of [...reachable]) {
+            const source = sourceByName.get(parent) || '';
+            for (const candidate of all) {
+                if (reachable.has(candidate) || candidate === parent) continue;
+                if (!source.includes(candidate)) continue;
+                reachable.add(candidate);
+                changed = true;
+            }
+        }
+    }
+
+    const unregistered = all.filter((name) => !reachable.has(name));
+    const registered = reachable.size;
+    const transitiveRegistered = registered - direct.length;
 
     let baseline = [];
     try {
@@ -67,6 +94,8 @@ function main() {
     console.log(JSON.stringify({
         totalEntryPoints: all.length,
         registered,
+        directRegistered: direct.length,
+        transitiveRegistered,
         unregistered: unregistered.length,
         baseline: baseline.length,
         newlyUnregistered: added.length,
@@ -84,9 +113,9 @@ function main() {
     }
 
     if (added.length) {
-        console.error('\nsmoke registry FAILED — these smokes are not run by any npm script:');
+        console.error('\nsmoke registry FAILED — these smokes are not reachable from any npm script chain:');
         console.error(`  ${added.join('\n  ')}`);
-        console.error('\nAdd them to a chain in package.json. Do not edit the baseline to silence this.');
+        console.error('\nAdd them to an npm chain or invoke them from a registered smoke orchestrator. Do not edit the baseline to silence this.');
         return 1;
     }
 
