@@ -30,6 +30,9 @@ async function main() {
             !!document.getElementById('loadingIndicator')
             && !!document.getElementById('gemini-ui-root')
             && !!window.SearchMonitorBoot
+            && !!window.EveOSSearchMonitorAiHome
+            && !!document.getElementById('search-monitor-assistant-pane')
+            && !!document.querySelector('[data-eveos-control-plane]')
         ), undefined, { timeout: 120000 });
 
         await page.evaluate(() => {
@@ -77,8 +80,8 @@ async function main() {
 
             const root = box('#gemini-ui-root');
             const indicator = box('#loadingIndicator');
-            const summaryPane = box('#gemini-monitor-summary-pane');
-            const serverControl = box('[data-gemini-server-control]');
+            const summaryPane = box('#search-monitor-assistant-pane');
+            const serverControl = box('[data-eveos-control-plane]');
             const container = box('#gemini-ui-root .mdl-layout__container');
             const hiddenRightColumn = document.querySelector('#gemini-ui-root .right-column')
                 ? window.getComputedStyle(document.querySelector('#gemini-ui-root .right-column')).display
@@ -94,8 +97,8 @@ async function main() {
                 indicator,
                 summaryPane,
                 serverControl,
-                serverStatus: document.querySelector('[data-gemini-server-status]')?.textContent || '',
-                serverAction: document.querySelector('[data-gemini-server-action-label]')?.textContent || '',
+                serverStatus: document.querySelector('[data-eveos-control-status]')?.textContent || '',
+                serverAction: document.querySelector('[data-eveos-control-action-label]')?.textContent || '',
                 container,
                 hiddenRightColumn,
                 hiddenVideoSection,
