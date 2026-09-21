@@ -41,16 +41,29 @@ async function main() {
         name: 'agent-nexus-browser',
         viewport: { width: 1600, height: 1200 }
     }, async ({ page, browserMode, events }) => {
+        events.mockRequests = requests;
+        const corsHeaders = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+        };
+
         await page.route(/http:\/\/(?:127\.0\.0\.1|localhost):\d+\/api\/(?:eve-state\/modular\/(?:tlo|agent-management)|nexus-browser)/, async (route) => {
             const request = route.request();
             const url = new URL(request.url());
             const entry = { method: request.method(), path: url.pathname };
             requests.push(entry);
 
+            if (request.method() === 'OPTIONS') {
+                await route.fulfill({ status: 204, headers: corsHeaders, body: '' });
+                return;
+            }
+
             if (url.pathname === '/api/eve-state/modular/tlo/status') {
                 await route.fulfill({
                     status: 200,
                     contentType: 'application/json',
+                    headers: corsHeaders,
                     body: JSON.stringify({
                         ok: true,
                         state: 'stopped',
@@ -73,6 +86,7 @@ async function main() {
                 await route.fulfill({
                     status: 200,
                     contentType: 'application/json',
+                    headers: corsHeaders,
                     body: JSON.stringify({
                         ok: true,
                         persisted: true,
@@ -92,6 +106,7 @@ async function main() {
                 await route.fulfill({
                     status: 200,
                     contentType: 'application/json',
+                    headers: corsHeaders,
                     body: JSON.stringify({ ok: true, agent: savedAgent })
                 });
                 return;
@@ -101,6 +116,7 @@ async function main() {
                 await route.fulfill({
                     status: 200,
                     contentType: 'application/json',
+                    headers: corsHeaders,
                     body: JSON.stringify({
                         ok: true,
                         service: 'nexus-browser-control',
@@ -124,6 +140,7 @@ async function main() {
             await route.fulfill({
                 status: 409,
                 contentType: 'application/json',
+                headers: corsHeaders,
                 body: JSON.stringify({ ok: false, message: `Unexpected mutation: ${request.method()} ${url.pathname}` })
             });
         });
