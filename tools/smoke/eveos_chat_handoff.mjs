@@ -225,6 +225,13 @@ function renderTextReport(report, artifacts = {}) {
   }
   if (env.changedFiles.length) lines.push(`CHANGED ${env.changedFiles.join(', ')}`);
   if (!env.worktreeClean) lines.push(...env.worktreeStatus.map((line) => `DIRTY ${line}`));
+  if (report.postState) {
+    lines.push(`POST_HEAD ${report.postState.head || 'unknown'}`);
+    lines.push(`POST_WORKTREE ${report.postState.worktreeClean ? 'clean' : 'DIRTY'}`);
+    if (!report.postState.worktreeClean) {
+      lines.push(...report.postState.worktreeStatus.map((line) => `POST_DIRTY ${line}`));
+    }
+  }
   const failed = report.results.find((item) => !item.ok);
   if (failed) {
     lines.push('FAILURE_CONTEXT');
@@ -310,11 +317,18 @@ function main() {
     if (!item.ok) break;
   }
 
+  const postStatus = git(['status', '--short']);
+  const postState = {
+    head: git(['rev-parse', 'HEAD']),
+    worktreeClean: !postStatus,
+    worktreeStatus: postStatus.split(/\r?\n/).filter(Boolean)
+  };
   const report = {
     schemaVersion: 1,
     profile,
     plan,
     environment,
+    postState,
     results,
     pass: results.filter((item) => item.ok).length,
     fail: results.filter((item) => !item.ok).length,
@@ -323,6 +337,14 @@ function main() {
   const artifacts = writeArtifacts(report, outputs);
   console.log(renderTextReport(report, artifacts));
   if (report.fail) process.exit(1);
+  if (
+    (postState.head && environment.head && postState.head !== environment.head)
+    || (!postState.worktreeClean && !args.includes('--allow-post-dirty'))
+  ) {
+    console.error('EVEOS CHAT HANDOFF INCOMPLETE: tests passed but the tested source state changed during qualification.');
+    console.error('Inspect the POST_* lines and generated diff before treating this SHA as qualified.');
+    process.exit(3);
+  }
 }
 
 try {
