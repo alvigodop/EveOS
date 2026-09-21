@@ -3,11 +3,13 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
   ROOT,
+  PORTS,
   SEARCH_MONITOR_SERVICES,
   clearRuntimeSession,
   configureHeadedServices,
   ensureControlPlane,
   ensureLocalModelRuntime,
+  requestJson,
   runtimeSession,
   runtimeSnapshot,
   serviceStatus,
@@ -199,6 +201,112 @@ async function extensionReload() {
   await saveAndPrint('search-monitor-runtime-extension-reload');
 }
 
+function sessionOwns(name) {
+  const session = runtimeSession();
+  return Array.isArray(session.startedServices) && session.startedServices.includes(name);
+}
+
+function printFailureLogTails(stage, snapshot) {
+  const entries = Object.entries(snapshot.logs || {});
+  const selected = stage === 'runtime-generation'
+    ? entries.filter(([name]) => /Local-MoE-Harness\/logs/i.test(name))
+    : entries.filter(([name]) => /eveos-web|nexus-browser|Local-MoE-Harness\/logs/i.test(name));
+  console.error(`FAILURE_EVIDENCE stage=${stage} logs=${selected.length}`);
+  for (const [name, lines] of selected) {
+    console.error(`--- FAILURE_LOG_TAIL ${name} ---`);
+    for (const line of lines) console.error(line);
+  }
+}
+
+async function stopModelRuntimeForFailure() {
+  if (!sessionOwns('localMoe')) {
+    console.error('FAILURE_STOP SKIP model-runtime: Local MoE is not session-owned.');
+    return { component: 'model-runtime', stopped: false, reason: 'unowned' };
+  }
+  try {
+    const result = await requestJson(
+      `http://127.0.0.1:${PORTS.LOCAL_MOE_HARNESS_PORT}/api/runtime/stop`,
+      { method: 'POST', timeoutMs: 30_000 },
+    );
+    if (!result.ok) throw new Error(result.payload?.detail || result.text || 'runtime stop failed');
+    console.error('FAILURE_STOPPED model-runtime: FreeToken/Prism child stopped; Harness left running.');
+    return { component: 'model-runtime', stopped: true };
+  } catch (error) {
+    console.error(`FAILURE_STOP_FAILED model-runtime: ${error?.message || error}`);
+    return { component: 'model-runtime', stopped: false, reason: String(error?.message || error) };
+  }
+}
+
+function unhealthyServiceNames(snapshot) {
+  const names = stackNames();
+  return names.filter((name) => {
+    const item = snapshot.services?.[name] || {};
+    const status = item.status || {};
+    const identityReady = item.identity?.ready === true;
+    return status.running !== true || !identityReady;
+  });
+}
+
+async function stopScopedServices(names) {
+  const stopped = [];
+  for (const name of [...new Set(names)]) {
+    if (!SEARCH_MONITOR_SERVICES[name]) continue;
+    if (!sessionOwns(name)) {
+      console.error(`FAILURE_STOP SKIP ${SEARCH_MONITOR_SERVICES[name].label}: not session-owned.`);
+      stopped.push({ component: name, stopped: false, reason: 'unowned' });
+      continue;
+    }
+    try {
+      const result = await stopService(name);
+      console.error(`FAILURE_STOPPED ${SEARCH_MONITOR_SERVICES[name].label}: ${result.status?.state || 'stopped'}`);
+      stopped.push({ component: name, stopped: true });
+      const session = runtimeSession();
+      const remaining = (session.startedServices || []).filter((value) => value !== name);
+      if (remaining.length) writeRuntimeSession({ ...session, updatedAt: new Date().toISOString(), startedServices: remaining });
+      else clearRuntimeSession();
+    } catch (error) {
+      console.error(`FAILURE_STOP_FAILED ${SEARCH_MONITOR_SERVICES[name].label}: ${error?.message || error}`);
+      stopped.push({ component: name, stopped: false, reason: String(error?.message || error) });
+    }
+  }
+  return stopped;
+}
+
+async function scopeQualificationFailure(stage, details = {}) {
+  const snapshot = await runtimeSnapshot({
+    qualificationFailure: { stage, ...details },
+  });
+  console.error('===== SEARCH_MONITOR_FAILURE_SCOPE BEGIN =====');
+  printSnapshot(snapshot);
+  printFailureLogTails(stage, snapshot);
+
+  const stopped = [];
+  if (stage === 'runtime-generation') {
+    stopped.push(await stopModelRuntimeForFailure());
+  } else if (stage === 'localhost-browser') {
+    const unhealthy = unhealthyServiceNames(snapshot);
+    const localMoeHealthy = snapshot.services?.localMoe?.status?.running === true
+      && snapshot.services?.localMoe?.identity?.ready === true;
+    const modelUnhealthy = localMoeHealthy
+      && (snapshot.localMoe?.runtime?.ready !== true || snapshot.tlo?.canChat !== true);
+    if (modelUnhealthy) stopped.push(await stopModelRuntimeForFailure());
+    stopped.push(...await stopScopedServices(unhealthy.filter((name) => name !== 'localMoe' || !localMoeHealthy)));
+    if (!modelUnhealthy && unhealthy.length === 0) {
+      console.error('FAILURE_STOP none: all participating servers are healthy; preserving them for a UI/assertion failure.');
+    }
+  } else {
+    stopped.push(...await stopScopedServices(unhealthyServiceNames(snapshot)));
+  }
+
+  const artifact = writeSnapshot({
+    ...snapshot,
+    qualificationFailure: { stage, ...details, stopped },
+  }, 'search-monitor-runtime-failure-scope');
+  console.error(`FAILURE_SCOPE_SNAPSHOT ${artifact.json}`);
+  console.error('===== SEARCH_MONITOR_FAILURE_SCOPE END =====');
+  return { snapshot, stopped, artifact };
+}
+
 function runLiveQualificationStage(label, script, env) {
   console.log(`LIVE_STAGE ${label} START ${script}`);
   const result = spawnSync(process.execPath, [path.join(ROOT, script)], {
@@ -214,8 +322,14 @@ function runLiveQualificationStage(label, script, env) {
 }
 
 async function qualify() {
-  await startStack();
-  console.log('SEARCH_MONITOR_LIVE_QUALIFICATION starting; services will remain running afterward.');
+  try {
+    await startStack();
+  } catch (error) {
+    await scopeQualificationFailure('stack-start', { message: String(error?.message || error) });
+    error.eveosFailureScoped = true;
+    throw error;
+  }
+  console.log('SEARCH_MONITOR_LIVE_QUALIFICATION starting; failure scoping is automatic.');
   const env = {
     ...process.env,
     EVEOS_LIVE_MODEL_TIMEOUT_MS: String(modelTimeoutMs),
@@ -230,17 +344,15 @@ async function qualify() {
     const result = runLiveQualificationStage(label, script, env);
     stageResults.push(result);
     if (result.exitCode !== 0 || result.spawnError) {
-      await saveAndPrint('search-monitor-runtime-qualification', {
-        qualification: {
-          ok: false,
-          failedStage: label,
-          includeGemini,
-          servicesLeftRunning: true,
-          stages: stageResults,
-        },
-      });
       const detail = result.spawnError || `exit code ${result.exitCode}${result.signal ? ` / signal ${result.signal}` : ''}`;
-      throw new Error(`Live Search Monitor ${label} stage failed: ${detail}. Services were intentionally left running.`);
+      await scopeQualificationFailure(label, {
+        message: detail,
+        includeGemini,
+        stages: stageResults,
+      });
+      const error = new Error(`Live Search Monitor ${label} stage failed: ${detail}. Failure evidence was printed and the attributable session-owned component was stopped when safe.`);
+      error.eveosFailureScoped = true;
+      throw error;
     }
   }
   await saveAndPrint('search-monitor-runtime-qualification', {
@@ -248,6 +360,7 @@ async function qualify() {
       ok: true,
       includeGemini,
       servicesLeftRunning: true,
+      failureScoping: 'capture-then-stop-attributable-owned-component',
       stages: stageResults,
     },
   });
@@ -317,10 +430,12 @@ async function main() {
 
 main().catch(async (error) => {
   console.error(`SEARCH_MONITOR_RUNTIME_FAILED: ${error?.stack || error?.message || error}`);
-  try {
-    const snapshot = await runtimeSnapshot({ failure: { command, message: String(error?.message || error) } });
-    const artifact = writeSnapshot(snapshot, 'search-monitor-runtime-failure');
-    console.error(`[RUNTIME_DIAGNOSTIC] ${artifact.json}`);
-  } catch (_) {}
+  if (!error?.eveosFailureScoped) {
+    try {
+      const snapshot = await runtimeSnapshot({ failure: { command, message: String(error?.message || error) } });
+      const artifact = writeSnapshot(snapshot, 'search-monitor-runtime-failure');
+      console.error(`[RUNTIME_DIAGNOSTIC] ${artifact.json}`);
+    } catch (_) {}
+  }
   process.exitCode = 1;
 });
