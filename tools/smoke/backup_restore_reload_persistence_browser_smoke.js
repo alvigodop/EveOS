@@ -2,15 +2,27 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const http = require('http');
+const net = require('net');
 const { spawn } = require('child_process');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 3047;
+
 const LOG_FILE = path.join(os.tmpdir(), 'eve-backup-restore-reload-persistence-browser-smoke.log');
 
 function logStep(message) {
     fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
+}
+
+function findFreePort() {
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const port = server.address().port;
+            server.close(() => resolve(port));
+        });
+    });
 }
 
 async function waitForStatus(url, timeoutMs = 30000) {
@@ -192,10 +204,11 @@ async function readReloadedState(page) {
 
 async function main() {
     fs.writeFileSync(LOG_FILE, '');
+    const port = await findFreePort();
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-backup-restore-reload-store-'));
     let browser = null;
     let beforeReload = null;
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -207,7 +220,7 @@ async function main() {
 
     try {
         logStep('main:waitForStatus:start');
-        await waitForStatus(`http://localhost:${PORT}/api/status`);
+        await waitForStatus(`http://localhost:${port}/api/status`);
         logStep('main:waitForStatus:done');
 
         browser = await chromium.launch({ headless: true });
@@ -226,7 +239,7 @@ async function main() {
             localStorage.setItem('eveLibraryConnections', JSON.stringify(payload.connections));
         }, seed);
 
-        await page.goto(`http://localhost:${PORT}/EveOS.html`, {
+        await page.goto(`http://localhost:${port}/EveOS.html`, {
             waitUntil: 'domcontentloaded',
             timeout: 120000
         });
