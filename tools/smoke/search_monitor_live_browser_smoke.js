@@ -31,6 +31,15 @@ function requiredRuntimeRequest(url) {
     return /\/api\/(?:local-moe\/status|nexus-browser\/status|eve-state\/modular\/tlo\/(?:status|chat\/stream|chat\/cancel))/.test(url);
 }
 
+function completedStreamAbortIsBenign(failure, fileOrigin) {
+    return failure?.kind === 'network'
+        && /\/api\/eve-state\/modular\/tlo\/chat\/stream(?:[?#]|$)/.test(failure.url || '')
+        && /ERR_ABORTED/i.test(failure.error || '')
+        && !!fileOrigin?.chat?.response
+        && fileOrigin.chat.sendDisabled === false
+        && fileOrigin.chat.state === 'Ready';
+}
+
 async function waitForStatus(page, selector, expected, entryMode, requiredFailures) {
     try {
         await page.waitForFunction(
@@ -197,9 +206,11 @@ async function main() {
 
         const beforeFileFailures = requiredFailures.length;
         const fileOrigin = await openRuntimeWorkspace(page, FILE_URL, 'file-origin', requiredFailures, true);
-        const fileStatusFailures = requiredFailures.slice(beforeFileFailures);
-        assert(fileStatusFailures.length === 0,
-            `Required Search Monitor status requests failed from file origin: ${JSON.stringify(fileStatusFailures)}`);
+        const fileOriginFailures = requiredFailures.slice(beforeFileFailures);
+        const benignStreamAborts = fileOriginFailures.filter((failure) => completedStreamAbortIsBenign(failure, fileOrigin));
+        const strictFileFailures = fileOriginFailures.filter((failure) => !completedStreamAbortIsBenign(failure, fileOrigin));
+        assert(strictFileFailures.length === 0,
+            `Required Search Monitor runtime requests failed from file origin: ${JSON.stringify(strictFileFailures)}`);
 
         assert(events.pageErrors.length === 0, `Page errors detected:\n${events.pageErrors.join('\n')}`);
         const criticalConsoleErrors = consoleErrors.filter((entry) => !benignConsoleError(entry));
@@ -211,7 +222,8 @@ async function main() {
             fileOrigin,
             management,
             gemini,
-            requiredStatusFailures: requiredFailures.length
+            requiredRuntimeFailures: requiredFailures.length,
+            benignCompletedStreamAborts: benignStreamAborts.length
         }));
     });
 }
