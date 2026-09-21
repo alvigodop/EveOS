@@ -21,6 +21,10 @@ const liveBrowserSource = fs.readFileSync(
   path.join(ROOT, 'tools', 'smoke', 'search_monitor_live_browser_smoke.js'),
   'utf8'
 );
+const liveRuntimeSource = fs.readFileSync(
+  path.join(ROOT, 'tools', 'smoke', 'search_monitor_live_runtime_smoke.mjs'),
+  'utf8'
+);
 const sessionPath = path.join(ROOT, 'data', 'runtime', 'search-monitor-runtime-session.json');
 const sessionBefore = fs.existsSync(sessionPath) ? fs.readFileSync(sessionPath, 'utf8') : null;
 
@@ -77,6 +81,12 @@ requireCondition(
   liveBrowserSource.includes('Nexus Browser iframe did not load')
     && liveBrowserSource.includes('embeddedNexus'),
   'live Search Monitor browser qualification no longer proves the embedded Nexus workspace'
+);
+requireCondition(
+  liveRuntimeSource.includes('waitForNexusInventoryStable')
+    && liveRuntimeSource.includes('extensionSessions')
+    && liveRuntimeSource.includes('Nexus public provider count drifted from authoritative extension inventory'),
+  'live runtime qualification no longer guards authoritative Nexus provider inventory stability'
 );
 requireCondition(
   runtimeCliSource.includes('function scopeQualificationFailure(')
