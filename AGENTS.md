@@ -19,6 +19,7 @@ EveOS inherits WatchFusion's output-efficient verification discipline.
   - `npm run --silent test:smoke` — deterministic fast profile; fingerprint-matched prior passes may be reused.
   - `npm run --silent test:deep` — broader subsystem checks when shared runtime/state/control code changed.
   - `npm run --silent test:security` — security-sensitive changes.
+  - `npm run --silent test:ai-control` — Search Monitor, Agent Nexus, TLO/Local MoE, and Nexus Browser changes, including the focused browser lane.
 - `npm run verify` remains the final uncached repository gate. Run it once when the implementation is ready for final verification.
 - Do not rerun an unchanged passing suite when source, tests, dependencies, configuration, and relevant environment have not changed.
 - Fast-pass reuse is allowed only for the deterministic fast profile and only when the content/environment fingerprint matches exactly.
@@ -26,7 +27,7 @@ EveOS inherits WatchFusion's output-efficient verification discipline.
 - Successful profile output should stay compact: one stable summary line is enough.
 - On failure, print only bounded relevant context (fewer than 40 direct lines) and save full captured stdout/stderr under ignored `data/runtime/smoke-results/` diagnostics.
 - Use verbose output only when explicitly diagnosing a failure.
-- For chat-driven/manual qualification, prefer `npm run test:handoff -- --base <sha> --script <focused-script> --profile <none|fast|deep|security>`. Add `--final` only when the uncached full `verify` gate is warranted.
+- For chat-driven/manual qualification, prefer `npm run test:handoff -- --base <sha> --script <focused-script> --profile <none|fast|deep|security|ai-control>`. Use `ai-control` for Search Monitor/Agent Nexus/TLO/Nexus Browser work. Add `--final` only when the uncached full `verify` gate is warranted.
 - The handoff runner is the normal human-operator evidence path: it records exact HEAD/origin alignment, worktree state, changed files, Node/Python/Playwright identity, registered-port listeners, per-command duration, bounded failure context, and ignored full JSON/log artifacts under `data/runtime/smoke-results/`.
 - Do not require Nova/Astro merely to collect routine test evidence that the handoff runner can produce. Reserve local agents for diagnosis or repair that actually needs browser/computer-use/hardware judgment.
 - The handoff runner refuses a dirty worktree by default. Use `--allow-dirty` only when the dirty state is deliberate and report it explicitly.
@@ -58,6 +59,7 @@ EveOS inherits WatchFusion's output-efficient verification discipline.
 ## Browser Qualification & Verification
 
 - Playwright is the primary authoritative automated baseline for browser qualification, UI geometry, and pointer verification.
+- High-value AI-control browser smokes should write ignored failure evidence under `data/runtime/smoke-results/` (screenshot, DOM snapshot, trace, and console/page/request diagnostics) so a human terminal operator can hand sufficient evidence back to chat without a local diagnostic agent.
 - Camoufox is available as a secondary environment for real-world anti-bot, media, and provider behavior without committing it as a required runtime dependency.
 - Test real pointer interactions (`mouse.move`, `mouse.down`, `mouse.up`, `mouse.click`) and DOM geometry rects (`getBoundingClientRect()`) rather than merely asserting DOM presence.
 
