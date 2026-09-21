@@ -197,25 +197,58 @@ async function main() {
         }, seed.linkId);
 
         await page.waitForTimeout(250);
-        const previewState = await page.evaluate(() => {
+        const clickPreviewState = await page.evaluate(() => {
+            const overlay = document.querySelector('.nx-dv-micro-overlay');
             const diff = document.querySelector('[data-nx-dv-diff="micro"]');
             return {
                 captured: window.__nexusLinkedLibraryMicroPreview || null,
                 diffExists: !!diff,
                 diffHidden: diff ? !!diff.hidden : null,
-                diffText: diff?.textContent || ''
+                diffText: diff?.textContent || '',
+                searchMonitorBoot: !!window.SearchMonitorBoot,
+                registerSurfaceType: typeof window.SearchMonitorBoot?.registerSurface,
+                overlayOwner: overlay?.dataset?.surfaceOwner || '',
+                overlaySearchMonitorOwned: overlay?.dataset?.searchMonitorOwned || '',
+                indicatorClass: document.getElementById('loadingIndicator')?.className || ''
             };
         });
-        const previewOps = previewState.captured?.previewOps || [];
-        assert(previewState.captured, `Nebula preview transaction was not captured: ${JSON.stringify(previewState)}`);
+
+        let directPreviewState = null;
+        if (!clickPreviewState.captured) {
+            directPreviewState = await page.evaluate(() => {
+                const overlay = document.querySelector('.nx-dv-micro-overlay');
+                const result = window.EveOS?.SearchAdvanced?.DatapackView?.saveMicroChanges?.(
+                    overlay,
+                    { previewOnly: true }
+                );
+                const diff = document.querySelector('[data-nx-dv-diff="micro"]');
+                return {
+                    result,
+                    captured: window.__nexusLinkedLibraryMicroPreview || null,
+                    diffExists: !!diff,
+                    diffHidden: diff ? !!diff.hidden : null,
+                    diffText: diff?.textContent || ''
+                };
+            });
+        }
+
+        const previewState = {
+            click: clickPreviewState,
+            direct: directPreviewState
+        };
+        const effectiveCapture = clickPreviewState.captured || directPreviewState?.captured || null;
+        const previewOps = effectiveCapture?.previewOps || [];
+
+        assert(clickPreviewState.captured,
+            `Preview click did not reach Nexus transaction path: ${JSON.stringify(previewState)}`);
         assert(previewOps.includes('set-bookmark-notes'),
             `Linked micro preview omitted bookmark notes patch: ${JSON.stringify(previewState)}`);
         assert(previewOps.includes('set-linked-library-fields'),
             `Linked micro preview omitted Library fields patch: ${JSON.stringify(previewState)}`);
-        assert(previewState.diffExists && previewState.diffHidden === false,
-            `Linked micro diff did not render: ${JSON.stringify(previewState)}`);
-        assert(previewState.diffText.includes('set-bookmark-notes')
-            && previewState.diffText.includes('set-linked-library-fields'),
+        assert(clickPreviewState.diffExists && clickPreviewState.diffHidden === false,
+            `Linked micro diff did not render from click: ${JSON.stringify(previewState)}`);
+        assert(clickPreviewState.diffText.includes('set-bookmark-notes')
+            && clickPreviewState.diffText.includes('set-linked-library-fields'),
             `Linked micro diff omitted preview operations: ${JSON.stringify(previewState)}`);
 
         await page.evaluate(() => {
