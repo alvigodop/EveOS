@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +14,7 @@ const MAX_FAILURE_LINE_CHARS = 700;
 const MAX_CAPTURE_CHARS = 3 * 1024 * 1024;
 // Docs-only edits should not invalidate a reusable fast code-smoke pass.
 const CODE_EXTENSIONS = new Set(['.js', '.mjs', '.py', '.html', '.css', '.json', '.bat', '.ps1']);
+const FINGERPRINT_FILES = new Set(['requirements.txt', 'package.json', 'package-lock.json', 'config/eveos-ports.json']);
 const SKIP_PARTS = ['/node_modules/', '/data/runtime/', '/test-results/', '/.git/', '/js/vendor/', '/public/vendor/'];
 
 const PROFILES = Object.freeze({
@@ -42,14 +44,54 @@ function trackedInputs() {
   ]);
   return [...candidates]
     .map((relative) => relative.replace(/\\/g, '/'))
-    .filter((relative) => CODE_EXTENSIONS.has(path.extname(relative).toLowerCase()))
+    .filter((relative) => CODE_EXTENSIONS.has(path.extname(relative).toLowerCase()) || FINGERPRINT_FILES.has(relative))
     .filter((relative) => !SKIP_PARTS.some((part) => `/${relative}`.includes(part)))
     .sort();
 }
 
+function commandIdentity(command, args) {
+  const result = spawnSync(command, args, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 15000
+  });
+  if (result.status !== 0) return '';
+  return String(result.stdout || result.stderr || '').trim();
+}
+
+function pythonIdentity() {
+  const candidates = process.platform === 'win32'
+    ? [['python', ['--version']], ['py', ['-3', '--version']]]
+    : [['python3', ['--version']], ['python', ['--version']]];
+  for (const [command, args] of candidates) {
+    const identity = commandIdentity(command, args);
+    if (identity) return identity;
+  }
+  return '';
+}
+
+function runtimeFingerprintFacts() {
+  const envKeys = [
+    'PW_BROWSER_NAME', 'PLAYWRIGHT_BROWSER_NAME',
+    'PW_BROWSER_CHANNEL', 'PLAYWRIGHT_BROWSER_CHANNEL',
+    'PW_EXECUTABLE_PATH', 'PLAYWRIGHT_EXECUTABLE_PATH',
+    'PW_CDP_ENDPOINT', 'PLAYWRIGHT_CDP_ENDPOINT',
+    'PW_BROWSER_WS_ENDPOINT', 'PLAYWRIGHT_BROWSER_WS_ENDPOINT'
+  ];
+  return {
+    platform: process.platform,
+    arch: process.arch,
+    osRelease: os.release(),
+    node: process.versions.node,
+    python: pythonIdentity(),
+    browserEnv: Object.fromEntries(envKeys.map((key) => [key, process.env[key] || '']))
+  };
+}
+
 function inputFingerprint() {
   const hash = crypto.createHash('sha256');
-  hash.update(`${process.platform}:${process.arch}:${process.versions.node}\n`);
+  hash.update(JSON.stringify(runtimeFingerprintFacts()) + '\n');
   for (const relative of trackedInputs()) {
     const absolute = path.join(ROOT, relative);
     let stat;
