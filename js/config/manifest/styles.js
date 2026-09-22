@@ -3,7 +3,7 @@ window.EveModuleManifestParts = window.EveModuleManifestParts || {};
 window.EveModuleManifestParts.styles = [
         // UI Modules
         'css/v1_folder.css?v=c5c9278d6b7d',
-        'js/modules/ui/sidebar.css?v=10504d0ea77c',
+        'js/modules/ui/sidebar.css?v=faa983433240',
         'js/modules/ui/tab-nav-history.css?v=4f81e57c076d',
         'js/modules/ui/dashboard/dashboard.css?v=849489501c27',
         'js/modules/ui/dashboard/unidex-view.css?v=1bc1d2625977',
