@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const path = require('path');
 
 function assert(condition, message) {
@@ -6,12 +6,13 @@ function assert(condition, message) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const { browser } = await launchChromiumOrConnect({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
   const repoRoot = process.env.REPO_ROOT || path.resolve(__dirname, '..', '..');
   const url = 'file:///' + path.resolve(repoRoot, 'EveOS.html').replace(/\\/g, '/');
 
   await page.goto(url, { waitUntil: 'load' });
+  await waitForEveCoreHydrated(page);
   await page.waitForFunction(() => Boolean(window.EveOS?.DatapackIndex && window.DashboardCategories && window.EveLibrary?.ConnectionsAPI), null, { timeout: 30000 });
   await page.waitForTimeout(9000);
 
