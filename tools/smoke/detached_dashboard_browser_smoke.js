@@ -41,7 +41,7 @@ async function main() {
         await waitForEveCoreHydrated(page);
         await waitForApp(page);
 
-        const result = await page.evaluate((eventFactorySrc) => {
+        const result = await page.evaluate(async (eventFactorySrc) => {
             const makeEvent = eval('(' + eventFactorySrc + ')');
 
             const seed = {
@@ -115,7 +115,24 @@ async function main() {
             });
             detachedApi.persistDetachedStore();
 
+            const previousRenderAt = Number(window.__eveDashboardLastRenderAt || 0);
             window.renderDashboard();
+            await new Promise((resolve, reject) => {
+                const startedAt = performance.now();
+                const check = () => {
+                    const renderAt = Number(window.__eveDashboardLastRenderAt || 0);
+                    if (!window._eveDashRenderPending && renderAt > previousRenderAt) {
+                        resolve();
+                        return;
+                    }
+                    if (performance.now() - startedAt > 5000) {
+                        reject(new Error('Timed out waiting for detached dashboard render'));
+                        return;
+                    }
+                    requestAnimationFrame(check);
+                };
+                requestAnimationFrame(check);
+            });
 
             let detachedCard = document.querySelector('.category-card[data-detached-parking-card="1"]');
             const detachedFolderEl = Array.from(detachedCard?.querySelectorAll('.bookmark-folder-group') || [])
