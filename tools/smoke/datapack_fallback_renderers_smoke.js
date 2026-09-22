@@ -84,7 +84,13 @@ function assert(condition, message) {
     target.textContent = 'hover target';
     document.body.appendChild(target);
     window.showBookmarkCoverHover({ currentTarget: target }, linkId);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    const hoverDeadline = performance.now() + 1500;
+    while (performance.now() < hoverDeadline) {
+      const pendingOverlay = document.getElementById('bookmark-cover-hover-overlay');
+      if (pendingOverlay?.classList.contains('is-visible')) break;
+      await new Promise((resolve) => setTimeout(resolve, 16));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     const overlay = document.getElementById('bookmark-cover-hover-overlay');
     const overlayImage = overlay?.querySelector('.bookmark-cover-hover-image');
