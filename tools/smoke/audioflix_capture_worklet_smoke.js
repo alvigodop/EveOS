@@ -14,7 +14,7 @@ const http = require('http');
 const net = require('net');
 const path = require('path');
 const { spawn } = require('child_process');
-const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
+const { launchChromiumOrConnect } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -58,7 +58,6 @@ function waitForStatus(url, timeoutMs = 30000) {
         const page = await browser.newPage();
         await page.addInitScript(() => { try { localStorage.clear(); } catch {} window.__eveSmokeNoAutoGemini = true; });
         await page.goto(`http://localhost:${port}/EveOS.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => !!window.EveAudioflixAudioCapture?.ready, undefined, { timeout: 120000 });
 
         const result = await page.evaluate(async () => {
@@ -102,7 +101,6 @@ function waitForStatus(url, timeoutMs = 30000) {
         const fileUrl = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').split('\\').join('/');
         await filePage.addInitScript(() => { try { localStorage.clear(); } catch {} window.__eveSmokeNoAutoGemini = true; });
         await filePage.goto(fileUrl, { waitUntil: 'load', timeout: 180000 });
-        await waitForEveCoreHydrated(filePage);
         await filePage.waitForFunction(() => !!window.EveAudioflixCaptureProcessorSrc, undefined, { timeout: 120000 });
         const onFile = await filePage.evaluate(async () => {
             const ctx = new AudioContext();

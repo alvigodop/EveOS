@@ -8,6 +8,7 @@ const readModule = (file) => fs.readFileSync(path.join(MODULE_DIR, file), 'utf8'
 // in the context before it loads.
 const localizeSource = readModule('audioflix.native.localize.js');
 const spotifySource = readModule('audioflix.native.spotify.js');
+const instagramSource = readModule('audioflix.native.instagram.js');
 const source = readModule('audioflix.native.js');
 
 let fetchCount = 0;
@@ -63,6 +64,7 @@ const context = vm.createContext({
 });
 vm.runInContext(localizeSource, context, { filename: 'audioflix.native.localize.js' });
 vm.runInContext(spotifySource, context, { filename: 'audioflix.native.spotify.js' });
+vm.runInContext(instagramSource, context, { filename: 'audioflix.native.instagram.js' });
 vm.runInContext(source, context, { filename: 'audioflix.native.js' });
 
 (async () => {
