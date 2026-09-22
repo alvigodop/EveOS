@@ -80,10 +80,9 @@ async function getSidebarRenderCounter(page) {
 }
 
 async function clickWorkspaceToggleLane(page, workspaceId) {
-    const item = page.locator(`#sidebar .ws-item[data-ws-id="${workspaceId}"]`).first();
-    const box = await item.boundingBox();
-    if (!box) throw new Error(`Missing sidebar item box for ${workspaceId}`);
-    await page.mouse.click(box.x + 16, box.y + (box.height / 2));
+    const toggle = page.locator(`#sidebar .ws-item[data-ws-id="${workspaceId}"] .ws-toggle`).first();
+    await toggle.waitFor({ state: 'visible', timeout: 10000 });
+    await toggle.click();
 }
 
 async function clickWorkspaceContentLane(page, workspaceId) {
