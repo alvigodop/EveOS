@@ -22,11 +22,19 @@ const stored = {
     musicGroups: ['Fav'], musicGroupMap: { a: ['Fav'] }
 };
 
+const storage = {
+    eveAudioflixFallbackState: JSON.stringify(stored)
+};
+
 const ctx = {
     console, Date, JSON, Math, Object, Array, String, Number, Boolean, Set, Map, RegExp,
     CustomEvent: class CustomEvent { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
     setTimeout, clearTimeout,
-    localStorage: { getItem: () => JSON.stringify(stored), setItem() {}, removeItem() {} },
+    localStorage: {
+        getItem(key) { return Object.prototype.hasOwnProperty.call(storage, key) ? storage[key] : null; },
+        setItem(key, value) { storage[key] = String(value); },
+        removeItem(key) { delete storage[key]; }
+    },
     document: {
         getElementById() { return null; },
         createElement() { return { id: '', textContent: '' }; },
