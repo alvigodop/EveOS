@@ -181,7 +181,7 @@ window.modalTemplate += `
                     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px;">
                         <label style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:0.78rem; opacity:0.82;">Python Server Port</span>
-                            <input type="number" id="integrationsServerPort" min="1" max="65535" step="1" placeholder="3000" onchange="saveSettingsIntegrationsBridges()">
+                            <input type="number" id="integrationsServerPort" min="1" max="65535" step="1" placeholder="8765" onchange="saveSettingsIntegrationsBridges()">
                         </label>
                         <label style="display:flex; flex-direction:column; gap:4px;">
                             <span style="font-size:0.78rem; opacity:0.82;">Lightpanda Port</span>
