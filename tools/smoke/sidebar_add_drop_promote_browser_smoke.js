@@ -134,11 +134,6 @@ async function runSmoke(page, browserDiagnostics) {
         x: sourceBox.x + Math.min(Math.max(sourceBox.width * 0.5, 4), Math.max(sourceBox.width - 4, 4)),
         y: sourceBox.y + Math.min(Math.max(sourceBox.height * 0.5, 4), Math.max(sourceBox.height - 4, 4))
     };
-    const targetPoint = {
-        x: addDropBox.x + Math.min(Math.max(addDropBox.width * 0.5, 4), Math.max(addDropBox.width - 4, 4)),
-        y: addDropBox.y + Math.min(Math.max(addDropBox.height * 0.5, 4), Math.max(addDropBox.height - 4, 4))
-    };
-
     await page.bringToFront();
     await page.evaluate(() => {
         try { window.focus(); } catch (error) { /* best effort */ }
@@ -173,9 +168,64 @@ async function runSmoke(page, browserDiagnostics) {
         }));
         throw new Error(`Pointer drag did not arm: ${JSON.stringify({ geometry, preGestureFocus, readiness }, null, 2)}`);
     }
-    await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 8 });
+    let liveTargetPoint = null;
+    let reachedAddDrop = false;
+    const targetTracking = [];
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+        liveTargetPoint = await page.evaluate(() => {
+            const target = document.querySelector('#sidebar .ws-add');
+            if (!target || !target.isConnected) return null;
+            const rect = target.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) return null;
+            return {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2,
+                rect: {
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height
+                }
+            };
+        });
+        if (!liveTargetPoint) break;
 
-    const duringDrag = await page.evaluate(() => {
+        await page.mouse.move(liveTargetPoint.x, liveTargetPoint.y, { steps: attempt === 0 ? 8 : 2 });
+        const targetState = await page.evaluate(() => {
+            const target = document.querySelector('#sidebar .ws-add');
+            if (!target) return { highlighted: false, hitIsAdd: false, rect: null };
+            const rect = target.getBoundingClientRect();
+            const hit = document.elementFromPoint(
+                rect.left + rect.width / 2,
+                rect.top + rect.height / 2
+            );
+            return {
+                highlighted: target.classList.contains('ws-drop-target'),
+                hitIsAdd: !!(hit instanceof Element && hit.closest('.ws-add') === target),
+                rect: {
+                    left: rect.left,
+                    top: rect.top,
+                    width: rect.width,
+                    height: rect.height
+                }
+            };
+        });
+        targetTracking.push({ attempt, point: liveTargetPoint, state: targetState });
+        if (targetState.highlighted) {
+            reachedAddDrop = true;
+            break;
+        }
+        if (targetState.hitIsAdd) {
+            await page.mouse.move(liveTargetPoint.x + 0.5, liveTargetPoint.y, { steps: 1 });
+            reachedAddDrop = await page.evaluate(() => (
+                !!document.querySelector('#sidebar .ws-add.ws-drop-target')
+            ));
+            if (reachedAddDrop) break;
+        }
+        await page.waitForTimeout(20);
+    }
+
+    const duringDrag = await page.evaluate(({ targetTracking, reachedAddDrop }) => {
         const addTarget = document.querySelector('#sidebar .ws-add');
         const lifecycle = window.__sidebarPreviewLifecycle || {};
         return {
@@ -195,6 +245,8 @@ async function runSmoke(page, browserDiagnostics) {
             pointerClassEvents: Array.isArray(window.__sidebarPointerClassLog) ? window.__sidebarPointerClassLog.slice() : [],
             hitTests: Array.isArray(window.__sidebarHitTestLog) ? window.__sidebarHitTestLog.slice() : [],
             dropClassEvents: Array.isArray(window.__sidebarDropClassLog) ? window.__sidebarDropClassLog.slice() : [],
+            targetTracking,
+            reachedAddDrop,
             elementAtTarget: (() => {
                 const rect = addTarget?.getBoundingClientRect?.();
                 if (!rect) return '';
@@ -202,7 +254,7 @@ async function runSmoke(page, browserDiagnostics) {
                 return node?.className || node?.tagName || '';
             })()
         };
-    });
+    }, { targetTracking, reachedAddDrop });
 
     await page.mouse.up();
     await page.waitForTimeout(180);
@@ -248,6 +300,8 @@ async function runSmoke(page, browserDiagnostics) {
             pointerClassEventsDuringDrag: dragState.pointerClassEvents,
             hitTestsDuringDrag: dragState.hitTests,
             dropClassEventsDuringDrag: dragState.dropClassEvents,
+            targetTrackingDuringDrag: dragState.targetTracking,
+            reachedAddDropDuringDrag: dragState.reachedAddDrop,
             elementAtTarget: dragState.elementAtTarget,
             dropApplyEvents: Array.isArray(window.__sidebarDropApplyLog) ? window.__sidebarDropApplyLog.slice() : [],
             previewAfterDrop: !!document.querySelector('.ws-pointer-drag-preview'),
