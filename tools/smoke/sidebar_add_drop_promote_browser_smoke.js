@@ -60,67 +60,64 @@ async function seedState(page) {
 }
 
 async function runSmoke(page) {
-    const source = page.locator('#sidebar .ws-item[data-ws-id="deep"]');
-    const addDrop = page.locator('#sidebar .ws-add');
+    await page.waitForFunction(async () => {
+        const source = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
+        const target = document.querySelector('#sidebar .ws-add');
+        if (!source || !target || !source.isConnected || !target.isConnected) return false;
+        if (typeof target.__eveSidebarApplyPointerDrop !== 'function') return false;
+        const sourceRect = source.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+        if (sourceRect.width <= 0 || sourceRect.height <= 0 || targetRect.width <= 0 || targetRect.height <= 0) return false;
+        const sourceIdentity = source;
+        const targetIdentity = target;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return sourceIdentity.isConnected
+            && targetIdentity.isConnected
+            && document.querySelector('#sidebar .ws-item[data-ws-id="deep"]') === sourceIdentity
+            && document.querySelector('#sidebar .ws-add') === targetIdentity;
+    }, undefined, { timeout: 10000 });
 
-    if (await source.count() !== 1 || await addDrop.count() !== 1) {
-        throw new Error(`Sidebar Add/Drop promote setup failed: ${JSON.stringify({
-            sourceCount: await source.count(),
-            addDropCount: await addDrop.count()
-        }, null, 2)}`);
-    }
-
-    const hasPointerDrop = await addDrop.evaluate((node) => (
-        typeof node.__eveSidebarApplyPointerDrop === 'function'
-    ));
-    if (!hasPointerDrop) {
-        throw new Error('Sidebar Add/Drop promote setup failed: Add/Drop lacks pointer drop handler');
-    }
-
-    await source.scrollIntoViewIfNeeded();
-    await addDrop.scrollIntoViewIfNeeded();
-    const sourceBox = await source.boundingBox();
-    const addDropBox = await addDrop.boundingBox();
-    if (!sourceBox || !addDropBox) {
-        const visibility = await page.evaluate(() => {
-            const sourceNode = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
-            const targetNode = document.querySelector('#sidebar .ws-add');
-            const describe = (node) => {
-                if (!node) return null;
-                const style = window.getComputedStyle(node);
-                const hiddenAncestors = [];
-                let cursor = node;
-                while (cursor && cursor instanceof Element) {
-                    if (cursor.hidden || cursor.classList.contains('is-collapsed')) {
-                        hiddenAncestors.push({
-                            tag: cursor.tagName,
-                            className: cursor.className,
-                            hidden: !!cursor.hidden
-                        });
-                    }
-                    cursor = cursor.parentElement;
+    const geometry = await page.evaluate(() => {
+        const sourceNode = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
+        const targetNode = document.querySelector('#sidebar .ws-add');
+        const describe = (node) => {
+            if (!node) return null;
+            const style = window.getComputedStyle(node);
+            const rect = node.getBoundingClientRect();
+            const hiddenAncestors = [];
+            let cursor = node;
+            while (cursor && cursor instanceof Element) {
+                if (cursor.hidden || cursor.classList.contains('is-collapsed')) {
+                    hiddenAncestors.push({
+                        tag: cursor.tagName,
+                        className: cursor.className,
+                        hidden: !!cursor.hidden
+                    });
                 }
-                return {
-                    connected: node.isConnected,
-                    offsetParent: !!node.offsetParent,
-                    display: style.display,
-                    visibility: style.visibility,
-                    rect: node.getBoundingClientRect().toJSON?.() || null,
-                    hiddenAncestors
-                };
-            };
+                cursor = cursor.parentElement;
+            }
             return {
-                source: describe(sourceNode),
-                target: describe(targetNode),
-                sidebarClassName: document.getElementById('sidebar')?.className || '',
-                collapsedTabs: Array.isArray(config?.collapsedTabs) ? config.collapsedTabs.slice() : []
+                connected: node.isConnected,
+                offsetParent: !!node.offsetParent,
+                display: style.display,
+                visibility: style.visibility,
+                rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+                hiddenAncestors
             };
-        });
-        throw new Error(`Sidebar Add/Drop promote setup failed: missing rendered bounds ${JSON.stringify({
-            sourceBox,
-            addDropBox,
-            visibility
-        }, null, 2)}`);
+        };
+        return {
+            source: describe(sourceNode),
+            target: describe(targetNode),
+            hasPointerDrop: typeof targetNode?.__eveSidebarApplyPointerDrop === 'function',
+            sidebarClassName: document.getElementById('sidebar')?.className || '',
+            collapsedTabs: Array.isArray(config?.collapsedTabs) ? config.collapsedTabs.slice() : []
+        };
+    });
+
+    const sourceBox = geometry.source?.rect || null;
+    const addDropBox = geometry.target?.rect || null;
+    if (!sourceBox || !addDropBox || sourceBox.width <= 0 || sourceBox.height <= 0 || addDropBox.width <= 0 || addDropBox.height <= 0 || !geometry.hasPointerDrop) {
+        throw new Error(`Sidebar Add/Drop promote setup failed: unstable rendered geometry ${JSON.stringify(geometry, null, 2)}`);
     }
 
     await page.evaluate(() => {
