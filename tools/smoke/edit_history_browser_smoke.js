@@ -1,11 +1,11 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const fileUrl = 'file:///' + path.join(repoRoot, 'EveOS.html').replace(/\\/g, '/');
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const pageErrors = [];
     page.on('pageerror', (error) => {
@@ -14,6 +14,7 @@ async function main() {
 
     try {
         await page.goto(fileUrl, { waitUntil: 'load', timeout: 180000 });
+        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => (
             !!window.EveEditHistory?.recordDataMutation
             && !!window.EveEditHistory?.restoreEntry
