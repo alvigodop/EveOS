@@ -14,7 +14,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             window.EveAudioflixSpotifyUi?.createActions?.(ctx),
             window.EveAudioflixInstagramUi?.createActions?.(ctx)
         ].filter(Boolean);
-        const stopItemPlayback = (id) => Promise.allSettled([window.EveAudioflixAudio?.stopItemLayers?.(id), window.EveAudioflixNative?.clearVoices?.(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id)]);
+        const stopItemPlayback = (id, preserveProvider = false) => Promise.allSettled([window.EveAudioflixAudio?.stopItemLayers?.(id, preserveProvider), window.EveAudioflixNative?.clearVoices?.(id), window.EveAudioflixNative?.clearVoices?.('hk:' + id)]);
         async function handleAction(actionTarget, e) {
             const action = actionTarget.dataset.afAction, id = actionTarget.dataset.afId, type = actionTarget.dataset.afType;
             if (action?.startsWith('piano-')) return window.EveAudioflixPianoUi?.handleAction?.(actionTarget, e);
@@ -377,7 +377,8 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 return;
             }
             if (action === 'pause') { window.EveAudioflixAudio?.pause?.(); return; }
-            if (action === 'play') { if (item) try { ctx.stopRepeater(id); await stopItemPlayback(id); await window.EveAudioflixAudio?.playItem?.({ ...item, type: type || item.type }); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; ctx.rerender(); } return; }
+            if (action === 'play') { if (item) try { ctx.stopRepeater(id); const active = window.EveAudioflixAudio?.getPlaybackState?.();
+                await stopItemPlayback(id, active?.browserOnly === true && String(active.item?.id || active.item?.url || '') === String(id || '')); await window.EveAudioflixAudio?.playItem?.({ ...item, type: type || item.type }); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; ctx.rerender(); } return; }
             if (action === 'remove') { window.EveAudioflixState?.removeItem?.(type, id); ctx.rerender(); return; }
             if (action === 'select-output') { try { await window.EveAudioflixAudio?.selectOutput?.(); } catch (err) { ctx.playbackStatus = err.message || 'Output selection failed'; } ctx.rerender(); return; }
             if (action === 'unlock-output-names') {

@@ -335,11 +335,11 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         stopNativeItem: (id) => window.EveAudioflixNative?.stopStream?.({ allDevices: true, itemId: id })
     });
     const layerPlay = layerController.layerPlay;
-    async function stopItemLayers(itemId) {
+    async function stopItemLayers(itemId, preserveProvider = false) {
         waveformController?.stop?.();
         const pending = [...layerController.stopItemLayers(itemId), window.EveAudioflixNative?.stopStream?.({ allDevices: true, itemId: String(itemId || '') })];
         const currentId = String(currentItem?.id || currentItem?.url || '');
-        if (currentId && currentId === String(itemId || '')) {
+        if (currentId && currentId === String(itemId || '') && !(preserveProvider && urlPlayback?.isActive?.() && urlPlayback?.matches?.(itemId))) {
             const stoppedItem = currentItem;
             await musicCapture?.stop?.().catch(() => false);
             await urlPlayback?.stop?.().catch?.(() => {});

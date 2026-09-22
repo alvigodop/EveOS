@@ -207,11 +207,16 @@ const assert = (condition, message) => {
         'regular card resumes Spotify after the expanded Internal Player closes'
     );
     assert(
-        await page.evaluate((before) => window.__spotifyUiTotals.created === before.created, controllerBeforeClose),
-        'regular card resume does not rebuild the Spotify controller'
+        await page.evaluate((before) => window.__spotifyUiTotals.created === before.created
+            && window.__spotifyUiTotals.destroy === before.destroy, controllerBeforeClose),
+        'regular card resume preserves the existing Spotify controller without destroying it'
     );
 
     await page.evaluate(() => window.EveAudioflixAudio.stopAll());
+    assert(
+        await page.evaluate((before) => window.__spotifyUiTotals.destroy === before.destroy + 1, controllerBeforeClose),
+        'explicit stop destroys the resumed Spotify controller exactly once'
+    );
     const secondId = seeded.ids[1];
     await page.evaluate(() => { window.__spotifyBlockNextPlay = true; });
     await page.click(`[data-af-action="play"][data-af-type="music"][data-af-id="${secondId}"]`);
