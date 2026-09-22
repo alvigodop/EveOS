@@ -35,7 +35,7 @@ const bridgedUrl = 'http://127.0.0.1:3040/api/proxy?url=' + encodeURIComponent(w
 async function fetchStub(url, options = {}) {
     fetchCalls.push({ url, options });
 
-    if (url === 'http://127.0.0.1:3000/api/status') return makeResponse(false, {}, 404);
+    if (url === 'http://127.0.0.1:8765/api/status') return makeResponse(false, {}, 404);
     if (url === 'http://127.0.0.1:3037/api/status') return makeResponse(false, {}, 404);
     if (url === 'http://127.0.0.1:3038/api/status') return makeResponse(false, {}, 404);
     if (url === 'http://127.0.0.1:3039/api/status') return makeResponse(false, {}, 404);
