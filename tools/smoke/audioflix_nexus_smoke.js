@@ -4,7 +4,7 @@
  * Nexus Audio Link query logic (audioflix.nexus.js) over the real state store:
  *   1. Free-text search matches title / artist / folder / group.
  *   2. Facets bucket artists, folders, groups, and duration minutes (with the :36 round-up edge).
- *   3. dupReport separates exact-name, look-alike, and shared-artist clusters.
+ *   3. dupReport separates hard identity matches, soft title/file matches, and shared-artist clusters.
  *   4. durationMatch "around"/"below" agree with the facet buckets at the boundary (3:36 -> 3, 3:38 -> 4).
  */
 const fs = require('fs');
@@ -34,8 +34,8 @@ function makeCtx(stored) {
 
 function load(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.recovery.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
-    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.recovery.js')
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.duplicates.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');
@@ -73,7 +73,7 @@ const SEED = {
 
     // 3. dupReport
     const rep = X.dupReport('music');
-    assert(rep.exact.length === 0, 'no exact-name dups (all titles differ)');
+    assert(rep.exact.length === 0, 'no hard duplicate pairs (no shared URL/path/provider identity)');
     assert(rep.similar.length === 1 && rep.similar[0].map((x) => x.id).sort().join() === 'a,c', 'soft duplicate = a,c (matching title, different duration)');
     assert(rep.sameArtist.find((s) => s.artist === 'kavinsky').items.length === 3, 'shared-artist Kavinsky cluster = 3');
     console.log('dupReport OK');
