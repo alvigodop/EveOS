@@ -7,10 +7,21 @@ const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, 
 async function measureWorkspace(page) {
   await page.goto(FILE_URL, { waitUntil: 'load', timeout: 240000 });
   await waitForEveCoreHydrated(page);
-  await page.waitForFunction(() => !!window.SearchMonitorBoot, undefined, { timeout: 120000 });
-  await page.evaluate(() => window.SearchMonitorBoot.expand());
   await page.waitForFunction(() => (
-    !!window.__GEMINI_WORKSPACE_READY
+    !!window.SearchMonitorBoot
+    && !!document.querySelector('[data-gemini-monitor-view-btn="full"]')
+    && !!document.querySelector('[data-ai-provider="gemini"] > summary')
+  ), undefined, { timeout: 120000 });
+  await page.evaluate(() => window.SearchMonitorBoot.expand());
+  await page.click('[data-gemini-monitor-view-btn="full"]');
+  await page.waitForFunction(() => (
+    document.getElementById('gemini-ui-root')?.dataset.geminiMonitorView === 'full'
+  ), undefined, { timeout: 10000 });
+  await page.locator('[data-ai-provider="gemini"] > summary').waitFor({ state: 'visible', timeout: 30000 });
+  await page.click('[data-ai-provider="gemini"] > summary');
+  await page.waitForFunction(() => (
+    document.querySelector('[data-ai-provider="gemini"]')?.open === true
+    && !!window.__GEMINI_WORKSPACE_READY
     && !!document.getElementById('chatLog')
     && !!document.getElementById('systemLog')
   ), undefined, { timeout: 180000 });
@@ -18,8 +29,6 @@ async function measureWorkspace(page) {
   await page.evaluate(() => {
     const indicator = document.getElementById('loadingIndicator');
     indicator?.classList.add('wide-mode', 'gemini-monitor-workspace-active');
-    const root = document.getElementById('gemini-ui-root');
-    if (root) root.dataset.geminiMonitorView = 'full';
   });
 
   return page.evaluate(() => {
