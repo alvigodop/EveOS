@@ -92,11 +92,23 @@ async function launchChromiumOrConnect(options) {
     }
 }
 
+async function waitForEveCoreHydrated(page, timeoutMs) {
+    const timeout = Math.max(1000, Number(timeoutMs || 0) || 180000);
+    await page.waitForFunction(() => {
+        const summary = window.__eveLastCoreDataLoadSummary;
+        return !!summary && Number(summary.completedAt || 0) > 0;
+    }, undefined, { timeout });
+    await page.evaluate(() => new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+}
+
 module.exports = {
     chromium,
     firefox,
     webkit,
     launchChromiumOrConnect,
+    waitForEveCoreHydrated,
     getCdpEndpoint,
     getBrowserChannel,
     getBrowserName,
