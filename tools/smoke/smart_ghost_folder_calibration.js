@@ -74,7 +74,7 @@ global.window.EveLibrary = {
       return this._entries[entryId] || null;
     },
     _entries: {
-      'entry-1': { id: 'entry-1', image: 'https://img.example.com/library-cover.jpg' },
+      'entry-1': { id: 'entry-1', image: 'https://assets.eveos.local/library-cover.jpg' },
       'entry-note-ok': { id: 'entry-note-ok', summary: 'Already has notes' },
       'entry-note-missing': {
         id: 'entry-note-missing',
@@ -157,9 +157,9 @@ load('js/modules/features/bookmark-folders/bookmark-folders.core.js');
 global.eveState.links = [
   { id: 'domain-favicon', url: 'https://mangadex.org/title/123', title: 'Domain Favicon Only' },
   { id: 'local-missing-icon', url: 'file:///C:/Users/alvin/test.html', title: 'Local Missing Icon' },
-  { id: 'primary-cover', url: 'https://site.example.com/a', title: 'Primary Cover', coverImage: 'https://img.example.com/primary.jpg' },
-  { id: 'extra-cover', url: 'https://site.example.com/b', title: 'Extra Cover', coverImages: ['https://img.example.com/random-a.jpg'] },
-  { id: 'fixed-cover', url: 'https://site.example.com/c', title: 'Fixed Cover', coverImages: ['https://img.example.com/random-b.jpg'], fixedCoverImage: 'https://img.example.com/random-b.jpg' },
+  { id: 'primary-cover', url: 'https://site.example.com/a', title: 'Primary Cover', coverImage: 'https://assets.eveos.local/primary.jpg' },
+  { id: 'extra-cover', url: 'https://site.example.com/b', title: 'Extra Cover', coverImages: ['https://assets.eveos.local/random-a.jpg'] },
+  { id: 'fixed-cover', url: 'https://site.example.com/c', title: 'Fixed Cover', coverImages: ['https://assets.eveos.local/random-b.jpg'], fixedCoverImage: 'https://assets.eveos.local/random-b.jpg' },
   { id: 'library-cover', url: 'https://site.example.com/d', title: 'Library Cover' },
   { id: 'missing-cover', url: 'https://site.example.com/e', title: 'Missing Cover' },
   { id: 'note-ok-bookmark', url: 'https://site.example.com/note-ok', title: 'Library Notes Present' },
