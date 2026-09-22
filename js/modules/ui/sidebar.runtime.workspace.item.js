@@ -165,7 +165,7 @@
             item.style.setProperty('--ws-group-color', renderOptions.groupColor || '#00d4ff');
         }
         function startWorkspaceDrag(e) {
-            if (isSortModeActive()) {
+            if (!nativeWorkspaceDragEnabled || isSortModeActive()) {
                 if (e && typeof e.preventDefault === 'function') e.preventDefault();
                 if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
                 return false;
