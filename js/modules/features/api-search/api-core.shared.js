@@ -14,7 +14,7 @@ window.EveOS.API = window.EveOS.API || {};
         camofoxPort: 3038,
         wikimediaPort: 3039,
         popupPort: 3040,
-        serverPort: 3000,
+        serverPort: 8765,
         statusTimeoutMs: 350
     };
 
@@ -41,12 +41,21 @@ window.EveOS.API = window.EveOS.API || {};
         rt.CAMOFOX_BRIDGE_PORT = resolvePort(overrides.camofoxPort, BRIDGE_DEFAULTS.camofoxPort);
         rt.WIKIMEDIA_BRIDGE_PORT = resolvePort(overrides.wikimediaPort, BRIDGE_DEFAULTS.wikimediaPort);
         rt.POPUP_BRIDGE_PORT = resolvePort(overrides.popupPort, BRIDGE_DEFAULTS.popupPort);
-        rt.SERVER_PORT = resolvePort(overrides.serverPort, BRIDGE_DEFAULTS.serverPort);
+        const canonicalServerPort = resolvePort(
+            window.EveOSPortRegistry?.get?.('EVEOS_WEB_PORT', BRIDGE_DEFAULTS.serverPort),
+            BRIDGE_DEFAULTS.serverPort
+        );
+        const configuredServerPort = resolvePort(overrides.serverPort, 0);
+        const legacyDefaultPort = configuredServerPort === 3000 ? configuredServerPort : 0;
+        rt.SERVER_PORT = configuredServerPort && !legacyDefaultPort ? configuredServerPort : canonicalServerPort;
         rt.LIGHTPANDA_BASE = `http://${rt.LOCAL_HOST}:${rt.BRIDGE_PORT}`;
         rt.CAMOFOX_BASE = `http://${rt.LOCAL_HOST}:${rt.CAMOFOX_BRIDGE_PORT}`;
         rt.WIKIMEDIA_BASE = `http://${rt.LOCAL_HOST}:${rt.WIKIMEDIA_BRIDGE_PORT}`;
         rt.POPUP_BRIDGE_BASE = `http://${rt.LOCAL_HOST}:${rt.POPUP_BRIDGE_PORT}`;
         rt.SERVER_BASE = `http://${rt.LOCAL_HOST}:${rt.SERVER_PORT}`;
+        rt.LEGACY_SERVER_BASE = legacyDefaultPort && legacyDefaultPort !== rt.SERVER_PORT
+            ? `http://${rt.LOCAL_HOST}:${legacyDefaultPort}`
+            : '';
         const statusTimeout = Number(overrides.statusTimeoutMs);
         rt.BRIDGE_STATUS_TIMEOUT_MS = Number.isFinite(statusTimeout) && statusTimeout >= 50 && statusTimeout <= 10000
             ? Math.round(statusTimeout)
@@ -129,15 +138,20 @@ window.EveOS.API = window.EveOS.API || {};
         if (rt._serviceProbePromise && !force) return rt._serviceProbePromise;
 
         rt._serviceProbePromise = (async function () {
-            const [serverStatus, lightpandaStatus, camofoxStatus, wikimediaStatus, popupStatus] = await Promise.all([
+            const [serverStatus, legacyServerStatus, lightpandaStatus, camofoxStatus, wikimediaStatus, popupStatus] = await Promise.all([
                 probeStatus(rt.SERVER_BASE, rt.SERVER_STATUS_TIMEOUT_MS),
+                rt.LEGACY_SERVER_BASE
+                    ? probeStatus(rt.LEGACY_SERVER_BASE, rt.SERVER_STATUS_TIMEOUT_MS)
+                    : Promise.resolve(null),
                 probeStatus(rt.LIGHTPANDA_BASE, rt.BRIDGE_STATUS_TIMEOUT_MS),
                 probeStatus(rt.CAMOFOX_BASE, rt.BRIDGE_STATUS_TIMEOUT_MS),
                 probeStatus(rt.WIKIMEDIA_BASE, rt.BRIDGE_STATUS_TIMEOUT_MS),
                 probeStatus(rt.POPUP_BRIDGE_BASE, rt.BRIDGE_STATUS_TIMEOUT_MS)
             ]);
 
-            rt._activeProxyBase = serverStatus ? rt.SERVER_BASE : '';
+            rt._activeProxyBase = serverStatus
+                ? rt.SERVER_BASE
+                : (legacyServerStatus ? rt.LEGACY_SERVER_BASE : '');
             rt._bridgeAvailability.lightpanda = Boolean(lightpandaStatus);
             rt._bridgeAvailability.camofox = Boolean(camofoxStatus);
             rt._bridgeAvailability.popup = Boolean(popupStatus);
@@ -148,7 +162,8 @@ window.EveOS.API = window.EveOS.API || {};
             rt._bridgeAvailability.wikimedia = Boolean(wikimediaStatus || rt._bridgeAvailability.popupWikimedia);
 
             if (rt._activeProxyBase) {
-                console.log(`API Core: Local proxy server detected (${serverStatus?.service || 'server'})`);
+                const activeServerStatus = serverStatus || legacyServerStatus;
+                console.log(`API Core: Local proxy server detected (${activeServerStatus?.service || 'server'})`);
             }
         })();
 
