@@ -71,7 +71,7 @@ async function main() {
       trafficEvents: document.querySelectorAll('.gemini-server-inspector-event').length,
       visible: !document.getElementById('geminiServerInspectorPanel')?.hidden
     }));
-    ['EveOS Page', 'Lifecycle Controller', 'Gemini WebSocket', 'Gemini Status Server'].forEach((name) => {
+    ['EveOS Page', 'Local Control Plane', 'Gemini Backend', 'World Book', 'Gemini WebSocket', 'Gemini Status Server'].forEach((name) => {
       if (!inspector.cards.includes(name)) {
         throw new Error(`Missing inspector card "${name}": ${JSON.stringify(inspector)}`);
       }
