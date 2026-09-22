@@ -176,7 +176,62 @@ async function runSmoke(page, browserDiagnostics) {
         const sourceNode = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
         window.__sidebarPointerEventLog = [];
         window.__sidebarPointerClassLog = [];
+        window.__sidebarPointerTimerLog = [];
+        window.__sidebarPointerHandlerLog = [];
+        window.__sidebarPointerWindowLog = [];
         if (sourceNode) {
+            const originalPointerDown = sourceNode.onpointerdown;
+            if (typeof originalPointerDown === 'function') {
+                sourceNode.onpointerdown = function instrumentedPointerDown(event) {
+                    window.__sidebarPointerHandlerLog.push({
+                        phase: 'before',
+                        pointerId: Number(event.pointerId || 0),
+                        button: Number(event.button ?? -1),
+                        targetClassName: event.target instanceof Element ? String(event.target.className || '') : ''
+                    });
+                    const result = originalPointerDown.call(this, event);
+                    window.__sidebarPointerHandlerLog.push({
+                        phase: 'after',
+                        pointerId: Number(event.pointerId || 0),
+                        defaultPrevented: !!event.defaultPrevented
+                    });
+                    return result;
+                };
+            }
+
+            const nativeSetTimeout = window.setTimeout;
+            const nativeClearTimeout = window.clearTimeout;
+            const trackedTimers = new Map();
+            window.__sidebarPointerOriginalSetTimeout = nativeSetTimeout;
+            window.__sidebarPointerOriginalClearTimeout = nativeClearTimeout;
+            window.setTimeout = function instrumentedSetTimeout(callback, delay, ...args) {
+                const numericDelay = Number(delay || 0);
+                let timerId = 0;
+                const wrapped = function (...callbackArgs) {
+                    if (numericDelay === 180 || numericDelay === 45) {
+                        window.__sidebarPointerTimerLog.push({ phase: 'fired', delay: numericDelay, timerId: Number(timerId || 0) });
+                    }
+                    trackedTimers.delete(timerId);
+                    return callback.apply(this, callbackArgs);
+                };
+                timerId = nativeSetTimeout.call(this, wrapped, delay, ...args);
+                trackedTimers.set(timerId, numericDelay);
+                if (numericDelay === 180 || numericDelay === 45) {
+                    window.__sidebarPointerTimerLog.push({ phase: 'scheduled', delay: numericDelay, timerId: Number(timerId || 0) });
+                }
+                return timerId;
+            };
+            window.clearTimeout = function instrumentedClearTimeout(timerId) {
+                const numericDelay = trackedTimers.get(timerId);
+                if (numericDelay === 180 || numericDelay === 45) {
+                    window.__sidebarPointerTimerLog.push({ phase: 'cleared', delay: numericDelay, timerId: Number(timerId || 0) });
+                }
+                trackedTimers.delete(timerId);
+                return nativeClearTimeout.call(this, timerId);
+            };
+
+            window.addEventListener('blur', () => window.__sidebarPointerWindowLog.push('blur'), true);
+            window.addEventListener('focus', () => window.__sidebarPointerWindowLog.push('focus'), true);
             const logEvent = (event) => {
                 window.__sidebarPointerEventLog.push({
                     type: event.type,
@@ -192,7 +247,7 @@ async function runSmoke(page, browserDiagnostics) {
                     targetClosestToggle: !!(event.target instanceof Element && event.target.closest('.ws-toggle'))
                 });
             };
-            ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'dragstart', 'dragend', 'mousedown', 'mousemove', 'mouseup']
+            ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'gotpointercapture', 'lostpointercapture', 'dragstart', 'dragend', 'mousedown', 'mousemove', 'mouseup']
                 .forEach((type) => sourceNode.addEventListener(type, logEvent, true));
             const classObserver = new MutationObserver(() => {
                 window.__sidebarPointerClassLog.push({
@@ -230,7 +285,10 @@ async function runSmoke(page, browserDiagnostics) {
             sourcePointerMoveType: typeof document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.onpointermove,
             sourcePointerUpType: typeof document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.onpointerup,
             pointerEvents: Array.isArray(window.__sidebarPointerEventLog) ? window.__sidebarPointerEventLog.slice() : [],
-            pointerClassEvents: Array.isArray(window.__sidebarPointerClassLog) ? window.__sidebarPointerClassLog.slice() : []
+            pointerClassEvents: Array.isArray(window.__sidebarPointerClassLog) ? window.__sidebarPointerClassLog.slice() : [],
+            pointerHandlerEvents: Array.isArray(window.__sidebarPointerHandlerLog) ? window.__sidebarPointerHandlerLog.slice() : [],
+            pointerTimerEvents: Array.isArray(window.__sidebarPointerTimerLog) ? window.__sidebarPointerTimerLog.slice() : [],
+            pointerWindowEvents: Array.isArray(window.__sidebarPointerWindowLog) ? window.__sidebarPointerWindowLog.slice() : []
         }));
         throw new Error(`Pointer drag did not arm: ${JSON.stringify({ geometry, readiness }, null, 2)}`);
     }
@@ -270,6 +328,14 @@ async function runSmoke(page, browserDiagnostics) {
         if (window.__sidebarPreviewOriginalAppendChild && document.body) {
             document.body.appendChild = window.__sidebarPreviewOriginalAppendChild;
             window.__sidebarPreviewOriginalAppendChild = null;
+        }
+        if (window.__sidebarPointerOriginalSetTimeout) {
+            window.setTimeout = window.__sidebarPointerOriginalSetTimeout;
+            window.__sidebarPointerOriginalSetTimeout = null;
+        }
+        if (window.__sidebarPointerOriginalClearTimeout) {
+            window.clearTimeout = window.__sidebarPointerOriginalClearTimeout;
+            window.__sidebarPointerOriginalClearTimeout = null;
         }
         window.__sidebarPreviewObserver?.disconnect?.();
         window.__sidebarPointerClassObserver?.disconnect?.();
