@@ -1,5 +1,5 @@
 const path = require('path');
-const { launchChromiumOrConnect } = require('./playwright-browser');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -74,7 +74,7 @@ function buildPayload() {
 
     try {
         await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
-        await page.waitForFunction(() => window.__eveCoreDataLoaded === true, undefined, { timeout: 180000 });
+        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => document.querySelectorAll('.category-card[data-card-hydrate-on-demand="1"]').length >= 1, undefined, {
             timeout: 120000
         });

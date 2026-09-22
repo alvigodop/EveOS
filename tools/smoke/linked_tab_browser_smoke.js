@@ -1,5 +1,5 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -281,12 +281,13 @@ async function runSmoke(page) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const { browser } = await launchChromiumOrConnect({ headless: true });
   const page = await browser.newPage();
   try {
     console.log('LINKED_TAB_BROWSER_SMOKE: Starting...');
     console.log('  URL: ' + FILE_URL);
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await waitForEveCoreHydrated(page);
     await waitForApp(page);
     await page.evaluate(() => window.__eveWaitForCoreData?.(120000) || true);
     await seedState(page, buildSeedPayload());
