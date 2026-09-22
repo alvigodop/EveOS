@@ -59,27 +59,31 @@ async function seedState(page, seed) {
       // file:// can reject localStorage writes
     }
 
-    let configBaselinePrimed = false;
-    if (typeof window.saveConfig === 'function') {
-      try {
-        await window.saveConfig({
-          immediate: true,
-          source: 'unidex-summary-seed',
-          meta: { skipEditHistory: true }
-        });
-        configBaselinePrimed = true;
-      } catch (error) {
-        // fall back to direct invalidation below
-      }
-    }
-    if (!configBaselinePrimed) {
-      window.dispatchEvent(new CustomEvent('eve:state-mutated', {
-        detail: { source: 'unidex-summary-seed' }
-      }));
-    }
+    window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+      detail: { source: 'unidex-summary-seed' }
+    }));
     await window.EveOS.DatapackIndex.rebuild({ reason: 'unidex-summary-seed' });
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   }, seed);
+}
+
+async function settleRenderedConfigBaseline(page) {
+  await page.waitForSelector('.unidex-shell .unidex-tabs', { timeout: 15000 });
+  await page.evaluate(async () => {
+    if (typeof window.saveConfig === 'function') {
+      await window.saveConfig({
+        immediate: true,
+        source: 'unidex-summary-render-baseline',
+        meta: { skipEditHistory: true }
+      });
+    }
+    await window.EveOS.DatapackIndex.rebuild({
+      reason: 'unidex-summary-render-baseline'
+    });
+  });
+  await page.waitForFunction(() => (
+    !!window.EveOS?.DatapackIndex?.hasUsableSnapshot?.()
+  ), undefined, { timeout: 15000 });
 }
 
 async function injectTrackedDrift(page) {
@@ -192,6 +196,7 @@ async function main() {
     await waitForEveCoreHydrated(page);
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
+    await settleRenderedConfigBaseline(page);
     await injectTrackedDrift(page);
     const smoke = await runSmoke(page);
     console.log(JSON.stringify({
