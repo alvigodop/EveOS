@@ -59,7 +59,24 @@ async function seedState(page, seed) {
       // file:// can reject localStorage writes
     }
 
-    window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'unidex-summary-seed' } }));
+    let configBaselinePrimed = false;
+    if (typeof window.saveConfig === 'function') {
+      try {
+        await window.saveConfig({
+          immediate: true,
+          source: 'unidex-summary-seed',
+          meta: { skipEditHistory: true }
+        });
+        configBaselinePrimed = true;
+      } catch (error) {
+        // fall back to direct invalidation below
+      }
+    }
+    if (!configBaselinePrimed) {
+      window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+        detail: { source: 'unidex-summary-seed' }
+      }));
+    }
     await window.EveOS.DatapackIndex.rebuild({ reason: 'unidex-summary-seed' });
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   }, seed);
