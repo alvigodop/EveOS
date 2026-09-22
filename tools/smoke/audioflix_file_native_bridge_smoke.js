@@ -1,7 +1,7 @@
 const path = require('path');
 const net = require('net');
 const { spawn } = require('child_process');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -52,7 +52,7 @@ async function main() {
         const apiPayload = await waitForServer(server, logs, baseUrl);
         if (!apiPayload.bridge) throw new Error('Audioflix API did not report bridge=true.');
 
-        browser = await chromium.launch({ headless: true });
+        ({ browser } = await launchChromiumOrConnect({ headless: true }));
         const page = await browser.newPage({ viewport: { width: 1280, height: 820 } });
         const pageErrors = [];
         page.on('pageerror', (error) => pageErrors.push(error?.stack || String(error)));
@@ -61,6 +61,7 @@ async function main() {
             try { localStorage.clear(); } catch { }
         });
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => !!window.EveAudioflixNative && !!window.EveAudioflixState, undefined, {
             timeout: 60000
         });

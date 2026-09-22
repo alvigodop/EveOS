@@ -11,12 +11,24 @@
 const fs = require('fs');
 const os = require('os');
 const http = require('http');
+const net = require('net');
 const path = require('path');
 const { spawn } = require('child_process');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 3051;
+
+async function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const probe = net.createServer();
+        probe.unref();
+        probe.once('error', reject);
+        probe.listen(0, '127.0.0.1', () => {
+            const { port } = probe.address();
+            probe.close((error) => error ? reject(error) : resolve(port));
+        });
+    });
+}
 
 function waitForStatus(url, timeoutMs = 30000) {
     const start = Date.now();
@@ -34,17 +46,19 @@ function waitForStatus(url, timeoutMs = 30000) {
 }
 
 (async () => {
+    const port = await getFreePort();
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-capture-worklet-'));
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT, stdio: ['ignore', 'pipe', 'pipe']
     });
     let browser = null;
     try {
-        await waitForStatus(`http://localhost:${PORT}/api/status`);
-        browser = await chromium.launch({ headless: true });
+        await waitForStatus(`http://localhost:${port}/api/status`);
+        ({ browser } = await launchChromiumOrConnect({ headless: true }));
         const page = await browser.newPage();
         await page.addInitScript(() => { try { localStorage.clear(); } catch {} window.__eveSmokeNoAutoGemini = true; });
-        await page.goto(`http://localhost:${PORT}/EveOS.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+        await page.goto(`http://localhost:${port}/EveOS.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => !!window.EveAudioflixAudioCapture?.ready, undefined, { timeout: 120000 });
 
         const result = await page.evaluate(async () => {
@@ -88,6 +102,7 @@ function waitForStatus(url, timeoutMs = 30000) {
         const fileUrl = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').split('\\').join('/');
         await filePage.addInitScript(() => { try { localStorage.clear(); } catch {} window.__eveSmokeNoAutoGemini = true; });
         await filePage.goto(fileUrl, { waitUntil: 'load', timeout: 180000 });
+        await waitForEveCoreHydrated(filePage);
         await filePage.waitForFunction(() => !!window.EveAudioflixCaptureProcessorSrc, undefined, { timeout: 120000 });
         const onFile = await filePage.evaluate(async () => {
             const ctx = new AudioContext();
