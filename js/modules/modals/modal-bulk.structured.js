@@ -56,18 +56,6 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
         const trimmed = line.trim();
         if (!trimmed) return;
 
-        const inlineUrlTitlePair = extractInlineUrlTitlePair(trimmed);
-        if (inlineUrlTitlePair) {
-            if (!url) {
-                url = inlineUrlTitlePair.url;
-            }
-            if (inlineUrlTitlePair.title && !explicitTitleAssigned) {
-                title = inlineUrlTitlePair.title;
-                bodyTitleAssigned = true;
-            }
-            return;
-        }
-
         let processedAsCoreKey = false;
         const colonIdx = trimmed.indexOf(':');
 
@@ -113,6 +101,20 @@ function processStructuredFile(content, fileName, targetCategory, folderId = '',
             } else if (key === 'notes' || key === 'summary') {
                 notesArr.push(val);
                 processedAsCoreKey = true;
+            }
+        }
+
+        if (!processedAsCoreKey) {
+            const inlineUrlTitlePair = extractInlineUrlTitlePair(trimmed);
+            if (inlineUrlTitlePair) {
+                if (!url) {
+                    url = inlineUrlTitlePair.url;
+                }
+                if (inlineUrlTitlePair.title && !explicitTitleAssigned) {
+                    title = inlineUrlTitlePair.title;
+                    bodyTitleAssigned = true;
+                }
+                return;
             }
         }
 
