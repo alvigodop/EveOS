@@ -230,8 +230,18 @@ async function runSmoke(page, browserDiagnostics) {
                 return nativeClearTimeout.call(this, timerId);
             };
 
-            window.addEventListener('blur', () => window.__sidebarPointerWindowLog.push('blur'), true);
-            window.addEventListener('focus', () => window.__sidebarPointerWindowLog.push('focus'), true);
+            const logWindowState = (type) => {
+                window.__sidebarPointerWindowLog.push({
+                    type,
+                    at: performance.now(),
+                    hasFocus: document.hasFocus(),
+                    visibilityState: document.visibilityState,
+                    activeTag: document.activeElement?.tagName || '',
+                    activeClassName: document.activeElement instanceof Element ? String(document.activeElement.className || '') : ''
+                });
+            };
+            window.addEventListener('blur', () => logWindowState('blur'), true);
+            window.addEventListener('focus', () => logWindowState('focus'), true);
             const logEvent = (event) => {
                 window.__sidebarPointerEventLog.push({
                     type: event.type,
@@ -270,6 +280,18 @@ async function runSmoke(page, browserDiagnostics) {
         y: addDropBox.y + Math.min(Math.max(addDropBox.height * 0.5, 4), Math.max(addDropBox.height - 4, 4))
     };
 
+    await page.bringToFront();
+    await page.evaluate(() => {
+        try { window.focus(); } catch (error) { /* best effort */ }
+    });
+    await page.waitForFunction(() => document.visibilityState === 'visible', undefined, { timeout: 5000 });
+    const preGestureFocus = await page.evaluate(() => ({
+        hasFocus: document.hasFocus(),
+        visibilityState: document.visibilityState,
+        activeTag: document.activeElement?.tagName || '',
+        activeClassName: document.activeElement instanceof Element ? String(document.activeElement.className || '') : ''
+    }));
+
     await page.mouse.move(sourcePoint.x, sourcePoint.y);
     await page.mouse.down();
     try {
@@ -290,7 +312,7 @@ async function runSmoke(page, browserDiagnostics) {
             pointerTimerEvents: Array.isArray(window.__sidebarPointerTimerLog) ? window.__sidebarPointerTimerLog.slice() : [],
             pointerWindowEvents: Array.isArray(window.__sidebarPointerWindowLog) ? window.__sidebarPointerWindowLog.slice() : []
         }));
-        throw new Error(`Pointer drag did not arm: ${JSON.stringify({ geometry, readiness }, null, 2)}`);
+        throw new Error(`Pointer drag did not arm: ${JSON.stringify({ geometry, preGestureFocus, readiness }, null, 2)}`);
     }
     await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 8 });
 
