@@ -131,6 +131,15 @@
     touch-action: none;
 }
 
+#sidebar .ws-item[data-ws-id],
+#sidebar .ws-item[data-ws-id] *,
+#sidebar .ws-group-header,
+#sidebar .ws-group-header * {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+}
+
 #sidebar.ws-sort-mode-active .ws-item[data-ws-id]:active,
 #sidebar.ws-sort-mode-active .ws-group-header:active {
     cursor: grabbing;
