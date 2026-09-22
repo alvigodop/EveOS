@@ -59,7 +59,8 @@ async function seedState(page) {
     });
 }
 
-async function runSmoke(page) {
+async function runSmoke(page, browserDiagnostics) {
+    const diagnostics = browserDiagnostics || { pageErrors: [], consoleErrors: [] };
     await page.waitForFunction(async () => {
         const source = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
         const target = document.querySelector('#sidebar .ws-add');
@@ -214,9 +215,15 @@ async function runSmoke(page) {
             rootOrder: config.workspaces.map(ws => ws.id),
             deepGroupId: deep ? String(deep.groupId || '') : '',
             deepParentId: deepParent ? String(deepParent.id || '') : '',
-            groupRoots
+            groupRoots,
+            pageErrors: Array.isArray(dragState.pageErrors) ? dragState.pageErrors : [],
+            consoleErrors: Array.isArray(dragState.consoleErrors) ? dragState.consoleErrors : []
         };
-    }, duringDrag);
+    }, {
+        ...duringDrag,
+        pageErrors: diagnostics.pageErrors.slice(),
+        consoleErrors: diagnostics.consoleErrors.slice()
+    });
 
     if (!result.highlightedDuringDrag || !result.previewDuringDrag || result.previewAfterDrop) {
         throw new Error(`Expected Add/Drop highlight and transient pointer preview: ${JSON.stringify(result, null, 2)}`);
@@ -235,11 +242,19 @@ async function runSmoke(page) {
 (async () => {
     const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+    const browserDiagnostics = { pageErrors: [], consoleErrors: [] };
+    page.on('pageerror', (error) => {
+        browserDiagnostics.pageErrors.push(String(error && error.stack ? error.stack : error));
+    });
+    page.on('console', (message) => {
+        if (message.type() !== 'error') return;
+        browserDiagnostics.consoleErrors.push(message.text());
+    });
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 120000 });
         await waitForApp(page);
         await seedState(page);
-        await runSmoke(page);
+        await runSmoke(page, browserDiagnostics);
         console.log('SIDEBAR_ADD_DROP_PROMOTE_BROWSER_SMOKE_OK');
     } finally {
         await browser.close();
