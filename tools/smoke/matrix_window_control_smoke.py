@@ -75,7 +75,12 @@ def direct_contract():
         matrix_control._stop_enforcement = lambda token: calls.append(("stop", token)) or True
         matrix_control._set_taskbar_autohide = lambda token, hwnd, enabled: (
             calls.append(("taskbar", token, hwnd, enabled))
-            or {"ok": True, "supported": True, "taskbarAutoHide": bool(enabled)}
+            or {
+                "ok": True,
+                "supported": True,
+                "taskbarAutoHide": bool(enabled),
+                "edgeGuard": bool(enabled),
+            }
         )
 
         bad = matrix_control.apply_request({"token": "../bad", "enabled": True})
@@ -105,8 +110,10 @@ def direct_contract():
             unlocked.get("backgroundLocked") is False and unlocked.get("enforcement") == "off",
             f"unlock result mismatch: {unlocked}",
         )
-        assert_true(taskbar_on.get("taskbarAutoHide") is True,
-                    f"taskbar enable mismatch: {taskbar_on}")
+        assert_true(
+            taskbar_on.get("taskbarAutoHide") is True and taskbar_on.get("edgeGuard") is True,
+            f"taskbar enable mismatch: {taskbar_on}",
+        )
         assert_true(taskbar_off.get("taskbarAutoHide") is False,
                     f"taskbar restore mismatch: {taskbar_off}")
         assert_true(calls == [

@@ -13,6 +13,9 @@ from ctypes import wintypes
 TITLE_PREFIX = "Matrix Code Rain v2.0 · EveOS Detached · "
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 GWL_EXSTYLE = -20
+WS_EX_TOPMOST = 0x00000008
+WS_EX_TRANSPARENT = 0x00000020
+WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_APPWINDOW = 0x00040000
 WS_EX_NOACTIVATE = 0x08000000
 SWP_NOSIZE = 0x0001
@@ -20,6 +23,11 @@ SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
 SWP_FRAMECHANGED = 0x0020
 SWP_NOOWNERZORDER = 0x0200
+WS_POPUP = 0x80000000
+SS_BLACKRECT = 0x00000004
+SW_HIDE = 0
+SW_SHOWNOACTIVATE = 4
+PM_REMOVE = 0x0001
 ABM_GETSTATE = 0x00000004
 ABM_SETSTATE = 0x0000000A
 ABS_AUTOHIDE = 0x00000001
@@ -83,6 +91,53 @@ def _shell32():
     shell32.SHAppBarMessage.argtypes = [wintypes.DWORD, ctypes.POINTER(APPBARDATA)]
     shell32.SHAppBarMessage.restype = ctypes.c_size_t
     return shell32
+
+
+def _edge_guard_loop(stop_event: threading.Event) -> None:
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.CreateWindowExW.argtypes = [
+        wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
+        ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+        wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID,
+    ]
+    user32.CreateWindowExW.restype = wintypes.HWND
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.UpdateWindow.argtypes = [wintypes.HWND]
+    user32.DestroyWindow.argtypes = [wintypes.HWND]
+    user32.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+    user32.PeekMessageW.argtypes = [
+        ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT,
+        wintypes.UINT, wintypes.UINT,
+    ]
+    width = int(user32.GetSystemMetrics(0))
+    height = int(user32.GetSystemMetrics(1))
+    if width <= 0 or height <= 2:
+        return
+    styles = WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+    hwnd = user32.CreateWindowExW(
+        styles, "STATIC", "", WS_POPUP | SS_BLACKRECT,
+        0, height - 2, width, 2, None, None, None, None,
+    )
+    if not hwnd:
+        return
+    point = wintypes.POINT()
+    message = wintypes.MSG()
+    shown = False
+    try:
+        while not stop_event.wait(0.010):
+            while user32.PeekMessageW(ctypes.byref(message), hwnd, 0, 0, PM_REMOVE):
+                user32.TranslateMessage(ctypes.byref(message))
+                user32.DispatchMessageW(ctypes.byref(message))
+            near_edge = user32.GetCursorPos(ctypes.byref(point)) and point.y >= height - 3
+            if near_edge and shown:
+                user32.ShowWindow(hwnd, SW_HIDE)
+                shown = False
+            elif not near_edge and not shown:
+                user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+                user32.UpdateWindow(hwnd)
+                shown = True
+    finally:
+        user32.DestroyWindow(hwnd)
 
 
 def _find_matrix_window(token: str):
@@ -282,14 +337,22 @@ def _set_taskbar_autohide(token: str, hwnd, enabled: bool) -> dict:
                 name=f"EveMatrixTaskbar:{token[:10]}",
                 daemon=True,
             )
+            edge_thread = threading.Thread(
+                target=_edge_guard_loop,
+                args=(stop_event,),
+                name=f"EveMatrixTaskbarEdge:{token[:10]}",
+                daemon=True,
+            )
             _TASKBAR_SESSION.update({
                 "token": token,
                 "hwnd": hwnd_value,
                 "originalState": int(original),
                 "stop": stop_event,
                 "thread": thread,
+                "edgeThread": edge_thread,
             })
             thread.start()
+            edge_thread.start()
 
     return {
         "ok": True,
@@ -298,6 +361,7 @@ def _set_taskbar_autohide(token: str, hwnd, enabled: bool) -> dict:
         "taskbarRestored": False,
         "taskbarOriginalState": int(original),
         "taskbarState": current,
+        "edgeGuard": True,
     }
 
 
