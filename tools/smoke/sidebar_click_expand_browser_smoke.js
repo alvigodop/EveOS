@@ -126,7 +126,25 @@ async function main() {
             throw new Error(`Expected branch expand to avoid prebuilding hidden preview host, got ${JSON.stringify(preHoverPreviewState)}`);
         }
 
-        await page.locator('#sidebar').dblclick({ position: { x: 6, y: 6 } });
+        const shellPoint = await page.evaluate(() => {
+            const sidebar = document.getElementById('sidebar');
+            if (!sidebar) return null;
+            const rect = sidebar.getBoundingClientRect();
+            const candidates = [];
+            for (let y = rect.top + 4; y < rect.bottom - 4; y += Math.max(12, Math.floor(rect.height / 20))) {
+                for (let x = rect.left + 4; x < rect.right - 4; x += Math.max(12, Math.floor(rect.width / 12))) {
+                    const node = document.elementFromPoint(x, y);
+                    if (!(node instanceof Element) || !sidebar.contains(node)) continue;
+                    if (node.closest('.ws-hover-reveal, .ws-item, .ws-group-header, .ws-toggle, .ws-order-slot')) continue;
+                    candidates.push({ x, y, className: node.className || '', tag: node.tagName });
+                }
+            }
+            return candidates[0] || null;
+        });
+        if (!shellPoint) {
+            throw new Error('Expected a non-interactive sidebar shell point for real double-click collapse');
+        }
+        await page.mouse.dblclick(shellPoint.x, shellPoint.y);
         await page.waitForFunction(() => {
             const sidebar = document.getElementById('sidebar');
             return !window.config?.sidebarExpanded && !sidebar?.classList.contains('is-expanded');
