@@ -106,7 +106,10 @@ async function waitForHydratedCardLinks(page, selector, expectedTitle, label) {
 
 async function seedState(page, seed) {
   await page.evaluate(async (payload) => {
-    config = JSON.parse(JSON.stringify(payload.config));
+    const normalizedConfigBase = (config && typeof config === 'object')
+      ? JSON.parse(JSON.stringify(config))
+      : {};
+    config = Object.assign(normalizedConfigBase, JSON.parse(JSON.stringify(payload.config)));
     links = JSON.parse(JSON.stringify(payload.links));
     window.config = config;
     window.links = links;
