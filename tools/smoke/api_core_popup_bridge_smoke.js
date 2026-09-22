@@ -35,13 +35,14 @@ function makeResponse(ok, payload, status = 200) {
     };
 }
 
-async function runScenario(protocol, statusMap, targetUrl) {
+async function runScenario(protocol, statusMap, targetUrl, bridges = {}) {
     const fetchCalls = [];
     const context = {
         window: {
             location: { protocol },
             EveOS: { API: {} }
         },
+        config: { bridges },
         console,
         fetch: async function fetchStub(url) {
             fetchCalls.push(url);
@@ -68,7 +69,7 @@ async function runScenario(protocol, statusMap, targetUrl) {
     const Core = context.window.EveOS.API.Core;
     await Core.ensureLocalServicesProbed();
     const popupUrl = await Core.getPopupViewerUrl(targetUrl);
-    return { popupUrl, fetchCalls };
+    return { popupUrl, fetchCalls, activeProxyBase: context.window.EveOS.API.CoreRuntime._activeProxyBase };
 }
 
 (async () => {
@@ -78,7 +79,7 @@ async function runScenario(protocol, statusMap, targetUrl) {
     const serverStatus = makeResponse(true, { status: 'ok', service: 'server' });
 
     const fileMode = await runScenario('file:', {
-        'http://127.0.0.1:3000/api/status': serverStatus,
+        'http://127.0.0.1:8765/api/status': serverStatus,
         'http://127.0.0.1:3037/api/status': statusDown,
         'http://127.0.0.1:3038/api/status': statusDown,
         'http://127.0.0.1:3039/api/status': statusDown,
@@ -91,7 +92,7 @@ async function runScenario(protocol, statusMap, targetUrl) {
     );
 
     const localhostMode = await runScenario('http:', {
-        'http://127.0.0.1:3000/api/status': serverStatus,
+        'http://127.0.0.1:8765/api/status': serverStatus,
         'http://127.0.0.1:3037/api/status': statusDown,
         'http://127.0.0.1:3038/api/status': statusDown,
         'http://127.0.0.1:3039/api/status': statusDown,
@@ -99,8 +100,26 @@ async function runScenario(protocol, statusMap, targetUrl) {
     }, targetUrl);
 
     assert(
-        localhostMode.popupUrl === `http://127.0.0.1:3000/api/popup-view?url=${encodeURIComponent(targetUrl)}`,
-        `Expected localhost mode to use the full server popup view endpoint, got: ${localhostMode.popupUrl}`
+        localhostMode.popupUrl === `http://127.0.0.1:8765/api/popup-view?url=${encodeURIComponent(targetUrl)}`,
+        `Expected localhost mode to use the canonical full server popup view endpoint, got: ${localhostMode.popupUrl}`
+    );
+
+    const legacyMode = await runScenario('http:', {
+        'http://127.0.0.1:8765/api/status': statusDown,
+        'http://127.0.0.1:3000/api/status': serverStatus,
+        'http://127.0.0.1:3037/api/status': statusDown,
+        'http://127.0.0.1:3038/api/status': statusDown,
+        'http://127.0.0.1:3039/api/status': statusDown,
+        'http://127.0.0.1:3040/api/status': statusDown
+    }, targetUrl, { serverPort: 3000 });
+
+    assert(
+        legacyMode.activeProxyBase === 'http://127.0.0.1:3000',
+        `Expected legacy persisted port 3000 to remain a fallback when canonical 8765 is offline, got: ${legacyMode.activeProxyBase}`
+    );
+    assert(
+        legacyMode.popupUrl === `http://127.0.0.1:3000/api/popup-view?url=${encodeURIComponent(targetUrl)}`,
+        `Expected legacy fallback server to provide popup view, got: ${legacyMode.popupUrl}`
     );
 
     console.log('API_CORE_POPUP_BRIDGE_SMOKE_OK');
