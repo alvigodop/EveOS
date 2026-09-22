@@ -73,15 +73,21 @@ function assert(condition, message) {
                 configurable: true,
                 get() { return window.__matrixFakeFullscreen ? document.documentElement : null; }
             });
-            document.documentElement.requestFullscreen = async (options) => {
-                window.__matrixFullscreenOptions = options || null;
-                window.__matrixFakeFullscreen = true;
-                document.dispatchEvent(new Event('fullscreenchange'));
-            };
-            document.exitFullscreen = async () => {
-                window.__matrixFakeFullscreen = false;
-                document.dispatchEvent(new Event('fullscreenchange'));
-            };
+            Object.defineProperty(document.documentElement, 'requestFullscreen', {
+                configurable: true,
+                value: async (options) => {
+                    window.__matrixFullscreenOptions = options || null;
+                    window.__matrixFakeFullscreen = true;
+                    document.dispatchEvent(new Event('fullscreenchange'));
+                }
+            });
+            Object.defineProperty(document, 'exitFullscreen', {
+                configurable: true,
+                value: async () => {
+                    window.__matrixFakeFullscreen = false;
+                    document.dispatchEvent(new Event('fullscreenchange'));
+                }
+            });
         });
 
         await page.click('#matrixImmersiveFullscreenButton');

@@ -204,6 +204,8 @@ async function waitForStatus(url, timeoutMs = 30000) {
             || !detachedState.pathname.endsWith('/tools/workshop/MatrixBackground-V2-Upgrading.html')
             || detachedState.detachedMode !== '1'
             || detachedState.windowToken.length < 8
+            || !/^\d+$/.test(detachedState.controlPort)
+            || Number(detachedState.controlPort) <= 0
             || detachedState.canvasCount < 1
             || detachedState.parent.open
             || detachedState.parent.frameSrc !== 'about:blank'

@@ -46,7 +46,13 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
         const url = new URL(getSourceUrl());
         url.searchParams.set('eveMatrixDetached', '1');
         url.searchParams.set('eveMatrixWindowToken', detachedWindowToken);
-        const controlPort = Number(window.EveOSLocalControl?.port?.() || 0);
+        const controlPort = Number(
+            window.EveOSLocalControl?.port?.()
+            || window.EveOSPortRegistry?.get?.('GEMINI_CONTROL_PORT', 0)
+            || window.config?.bridges?.localControlPort
+            || window.config?.bridges?.geminiControlPort
+            || 0
+        );
         if (controlPort > 0) url.searchParams.set('eveMatrixControlPort', String(controlPort));
         return url.href;
     }
