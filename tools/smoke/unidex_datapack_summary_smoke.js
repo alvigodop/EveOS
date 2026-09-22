@@ -65,7 +65,7 @@ async function seedState(page, seed) {
   }, seed);
 }
 
-async function injectRawDrift(page) {
+async function injectTrackedDrift(page) {
   await page.evaluate(() => {
     const driftLink = {
       id: 'gamma-drift',
@@ -80,12 +80,33 @@ async function injectRawDrift(page) {
     links = nextLinks;
     window.links = nextLinks;
     if (window.eveState) window.eveState.links = nextLinks;
+    window.dispatchEvent(new CustomEvent('eve:state-mutated', {
+      detail: { source: 'unidex-summary-drift' }
+    }));
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   });
 }
 
 async function runSmoke(page) {
   await page.waitForSelector('.unidex-shell .unidex-tabs', { timeout: 15000 });
+
+  await page.waitForFunction(() => {
+    const indexApi = window.EveOS?.DatapackIndex;
+    const gammaSummary = indexApi?.getCardSummary?.('main', 'Gamma');
+    return !!indexApi?.hasUsableSnapshot?.()
+      && Number(gammaSummary?.bookmarkCount || 0) === 1;
+  }, undefined, { timeout: 15000 });
+
+  await page.evaluate(() => {
+    if (typeof window.renderDashboard === 'function') window.renderDashboard();
+  });
+
+  await page.waitForFunction(() => {
+    const mainTab = Array.from(document.querySelectorAll('.unidex-tab-btn')).find((button) => (
+      String(button.querySelector('.unidex-tab-main')?.textContent || '').includes('Main')
+    ));
+    return String(mainTab?.querySelector('.unidex-tab-count')?.textContent || '').trim() === '3 links';
+  }, undefined, { timeout: 15000 });
 
   const tabsStage = await page.evaluate(() => {
     return Array.from(document.querySelectorAll('.unidex-tab-btn')).map((button) => ({
@@ -96,8 +117,8 @@ async function runSmoke(page) {
 
   const mainTab = tabsStage.find((entry) => entry.text.includes('Main'));
   const childTab = tabsStage.find((entry) => entry.text.includes('Child'));
-  if (!mainTab || mainTab.count !== '2 links') {
-    throw new Error('Main tab count should stay pinned to indexed datapack count: ' + JSON.stringify(tabsStage));
+  if (!mainTab || mainTab.count !== '3 links') {
+    throw new Error('Main tab count should reconcile to the rebuilt datapack count: ' + JSON.stringify(tabsStage));
   }
   if (!childTab || childTab.count !== '1 links') {
     throw new Error('Child tab count should stay pinned to indexed datapack count: ' + JSON.stringify(tabsStage));
@@ -121,14 +142,19 @@ async function runSmoke(page) {
   if (!alphaCard || alphaCard.total !== '2' || alphaCard.meta !== 'Done: 1 | Pending: 1') {
     throw new Error('Alpha card should reflect indexed bookmark and done counts: ' + JSON.stringify(cardsStage));
   }
-  if (gammaCard) {
-    throw new Error('Gamma drift card should not appear without reindexing: ' + JSON.stringify(cardsStage));
+  if (!gammaCard || gammaCard.total !== '1' || gammaCard.meta !== 'Done: 0 | Pending: 1') {
+    throw new Error('Gamma card should appear after datapack reconciliation: ' + JSON.stringify(cardsStage));
   }
   if (!cardsStage.subtabCounts.includes('1 links')) {
     throw new Error('Child subtab section should reflect indexed count: ' + JSON.stringify(cardsStage));
   }
 
-  return { tabsStage, cardsStage };
+  const indexState = await page.evaluate(() => window.EveOS?.DatapackIndex?.getBuildState?.() || null);
+  if (indexState?.dirty) {
+    throw new Error('Datapack index should be clean after Unidex reconciliation: ' + JSON.stringify(indexState));
+  }
+
+  return { tabsStage, cardsStage, indexState };
 }
 
 async function main() {
@@ -149,7 +175,7 @@ async function main() {
     await waitForEveCoreHydrated(page);
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
-    await injectRawDrift(page);
+    await injectTrackedDrift(page);
     const smoke = await runSmoke(page);
     console.log(JSON.stringify({
       ok: true,
