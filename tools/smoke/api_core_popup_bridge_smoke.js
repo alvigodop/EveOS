@@ -4,6 +4,7 @@ const vm = require('vm');
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const scriptPaths = [
+    'js/modules/core/eveos-port-registry.js',
     'js/modules/features/api-search/api-core.shared.js',
     'js/modules/features/api-search/api-core.fetch.js',
     'js/modules/features/api-search/api-core.wikimedia.js',
