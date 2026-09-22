@@ -1,5 +1,5 @@
 const path = require('path');
-const { launchChromiumOrConnect } = require('./playwright-browser');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -116,6 +116,7 @@ async function main() {
 
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+        await waitForEveCoreHydrated(page);
         await waitForApp(page);
         await seedGroupOverviewPins(page);
         await page.waitForFunction(() => document.querySelectorAll('#dock-container .dock-item').length >= 4, undefined, { timeout: 15000 });
