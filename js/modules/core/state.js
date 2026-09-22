@@ -100,7 +100,7 @@ let config = {
         }
     },
     bridges: {
-        serverPort: 3000,
+        serverPort: 8765,
         lightpandaPort: 3037,
         camofoxPort: 3038,
         wikimediaPort: 3039,
