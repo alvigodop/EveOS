@@ -68,8 +68,8 @@ context.prompt = function () {
 };
 
 const vmContext = vm.createContext(context);
-const code = fs.readFileSync(path.join(repoRoot, 'js/modules/core/categories.js'), 'utf8');
-vm.runInContext(code, vmContext, { filename: 'js/modules/core/categories.js' });
+const code = fs.readFileSync(path.join(repoRoot, 'js/modules/core/categories.ui.js'), 'utf8');
+vm.runInContext(code, vmContext, { filename: 'js/modules/core/categories.ui.js' });
 
 (async () => {
     const anchor = { id: 'card-order-anchor' };
