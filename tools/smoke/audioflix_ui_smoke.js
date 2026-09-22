@@ -178,13 +178,22 @@ async function main() {
     await page.dispatchEvent('.audioflix-hotkey-input', 'change');
     await page.waitForFunction((id) => (window.EveAudioflixState.getSnapshot().soundGroupMap[id] || []).includes('Memes'), soundId, { timeout: 5000 });
     await page.click('.audioflix-info-close-action');
-    // Frontend shows one active group at a time, with a selector pill and number hotkeys.
+    // Frontend opens at All Groups until the user chooses a focus. Select the real group pill
+    // before asserting the active-group grid and hotkey path.
     await page.click('[data-af-action="toggle-view-mode"]');
+    await page.waitForSelector('.audioflix-group-pill[data-af-group="Memes"]', { timeout: 5000 });
+    await page.click('.audioflix-group-pill[data-af-group="Memes"]');
     await page.waitForFunction(() => {
+        const state = window.EveAudioflixState?.getSnapshot?.();
         const pill = document.querySelector('.audioflix-group-pill[data-af-group="Memes"]');
         const grid = document.querySelector('.audioflix-item-grid[data-af-active-group="Memes"]');
         const badge = grid && grid.querySelector('.audioflix-hotkey-badge');
-        return !!pill && !!grid && /Smoke Chime/.test(grid.textContent || '') && !!badge && badge.textContent === '1';
+        return state?.activeFrontendGroup === 'Memes'
+            && !!pill
+            && !!grid
+            && /Smoke Chime/.test(grid.textContent || '')
+            && !!badge
+            && badge.textContent === '1';
     }, undefined, { timeout: 5000 });
     const groupRendersInFrontend = true;
     // Hotkey: pressing "1" plays the first sound of the active group.

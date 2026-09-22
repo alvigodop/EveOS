@@ -39,7 +39,7 @@ function makeCtx(stored) {
 }
 
 function load(ctx) {
-    ['audioflix.state.schema.js', 'audioflix.state.groups.js', 'audioflix.state.js',
+    ['audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js', 'audioflix.state.js',
         'audioflix.nexus.js', 'audioflix.classifiers.js']
         .forEach((f) => runScript(ctx, 'js/modules/features/audioflix/' + f));
     return { S: ctx.window.EveAudioflixState, C: ctx.window.EveAudioflixClassifiers };
