@@ -16,6 +16,9 @@ const SKIP_DIRS = new Set([
 const SKIP_PREFIXES = [
     path.join('data', 'modular-state'),
     path.join('data', 'modular-packs'),
+    // Generated local smoke/runtime evidence is intentionally ignored by Git and
+    // must not be audited as first-party source.
+    path.join('data', 'runtime'),
     path.join('tools', 'camofox-runtime', 'node_modules'),
     path.join('tools', 'Local-MoE-Harness', 'state'),
     path.join('tools', 'Local-MoE-Harness', 'tools', 'downloads'),
