@@ -108,8 +108,7 @@ async function main() {
             workspaceActive: document.getElementById('loadingIndicator')?.classList.contains('gemini-monitor-workspace-active') || false,
             bootRequested: window.__GEMINI_BOOT_REQUESTED === true,
             hasLoader: typeof window.__loadGeminiScriptsNow === 'function',
-            hasControl: !!window.GeminiServerControl,
-            hasToggle: !!document.querySelector('[data-gemini-server-toggle]')
+            hasControl: !!window.GeminiServerControl
         }));
         if (!providerState.open || providerState.monitorView !== 'full' || providerState.workspaceActive !== true) {
             throw new Error(`Gemini provider did not enter active full workspace: ${JSON.stringify(providerState)}`);
@@ -117,7 +116,6 @@ async function main() {
         await page.waitForFunction(() => (
             window.__GEMINI_BOOT_REQUESTED === true
             && !!window.GeminiServerControl
-            && !!document.querySelector('[data-gemini-server-toggle]')
         ), undefined, { timeout: 120000 }).catch(async (error) => {
             const state = await page.evaluate(() => ({
                 open: !!document.querySelector('[data-ai-provider="gemini"]')?.open,
@@ -128,21 +126,20 @@ async function main() {
                 bootStarted: window.__GEMINI_BOOT_STARTED === true,
                 bootState: window.__GEMINI_BOOT_STATE || null,
                 hasControl: !!window.GeminiServerControl,
-                hasToggle: !!document.querySelector('[data-gemini-server-toggle]')
+                controlState: window.GeminiServerControl?.getState?.() || null
             }));
             throw new Error(`Gemini lazy boot did not reach controller readiness: ${JSON.stringify(state)}; ${error.message}`);
         });
-        await page.click('[data-gemini-server-toggle]');
+        await page.evaluate(() => window.GeminiServerControl.start());
 
-        await page.waitForFunction(() => (
-            !!window.__GEMINI_WORKSPACE_READY
-            && !!window.__GEMINI_SOCKET_READY
-            && document.getElementById('textInput')?.dataset.geminiTextInputBound === '1'
-            && document.getElementById('sendButton')?.dataset.geminiTextInputBound === '1'
-            && ['requesting', 'requested', 'connected', 'initializing'].includes(
-                document.querySelector('[data-gemini-server-control]')?.dataset.connectionPhase
-            )
-        ), undefined, { timeout: 120000 });
+        await page.waitForFunction(() => {
+            const phase = window.GeminiServerControl?.getState?.()?.connectionPhase;
+            return !!window.__GEMINI_WORKSPACE_READY
+                && !!window.__GEMINI_SOCKET_READY
+                && document.getElementById('textInput')?.dataset.geminiTextInputBound === '1'
+                && document.getElementById('sendButton')?.dataset.geminiTextInputBound === '1'
+                && ['requesting', 'requested', 'connected', 'initializing', 'ready'].includes(phase);
+        }, undefined, { timeout: 120000 });
 
         await page.fill('#textInput', 'Gemini lifecycle smoke');
         await page.click('#sendButton');

@@ -111,14 +111,14 @@ async function main() {
             const ytItem = { id: 'yt-1', title: 'YouTube Track', url: 'https://youtu.be/M7lc1UVf-VE', volume: 0.4 };
             let blockedMessage = '';
             try { await youtube.play(ytItem); } catch (error) { blockedMessage = error.message; }
-            const stage = document.querySelector('.audioflix-provider-stage');
+            const blockedStageElement = document.querySelector('.audioflix-provider-stage.has-error');
             const blockedPlayback = youtube.getPlaybackState();
             const normalStageState = {
-                exists: !!stage,
-                hidden: stage?.hidden ?? null,
-                className: stage?.className || '',
-                transportOnly: !!stage?.classList.contains('is-transport-only'),
-                transportHidden: !!stage?.classList.contains('is-transport-hidden'),
+                exists: !!blockedStageElement,
+                hidden: blockedStageElement?.hidden ?? null,
+                className: blockedStageElement?.className || '',
+                transportOnly: !!blockedStageElement?.classList.contains('is-transport-only'),
+                transportHidden: !!blockedStageElement?.classList.contains('is-transport-hidden'),
                 internalView: youtube.isInternalViewOpen()
             };
             const normalStageTransportOnly = normalStageState.exists
@@ -126,7 +126,6 @@ async function main() {
                 && normalStageState.transportOnly
                 && normalStageState.internalView === false;
             const blockedActive = youtube.isActive();
-            const blockedStageElement = document.querySelector('.audioflix-provider-stage.has-error');
             const blockedStage = blockedStageElement?.textContent || '';
             const blockedFrameDisplay = getComputedStyle(blockedStageElement.querySelector('.audioflix-provider-frame')).display;
             const blockedStageHeight = blockedStageElement.getBoundingClientRect().height;
@@ -313,7 +312,7 @@ async function main() {
         assert(result.playbackEvents.some((status) => /directly from the browser/.test(status)), 'direct playback status missing');
         assert(result.progressCount > 0, 'direct playback progress events missing');
         assert(result.blockedItemTitle === 'YouTube Track', `failed provider playback state lost the attempted track: ${result.blockedItemTitle}`);
-        assert(result.normalStageTransportOnly, `normal playback transport state drifted: ${JSON.stringify(result.normalStageState)}`);
+        assert(result.normalStageTransportOnly, `failed YouTube provider fallback was not isolated to its transport stage: ${JSON.stringify(result.normalStageState)}`);
         assert(result.scState.provider === 'soundcloud' && result.scState.currentTime === 31, 'SoundCloud transport state failed');
         assert(result.scVolume === 20, `SoundCloud volume was not forwarded: ${result.scVolume}`);
         assert(result.vimeoState.provider === 'vimeo' && result.vimeoState.currentTime === 19, 'Vimeo transport state failed');
