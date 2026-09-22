@@ -173,6 +173,59 @@ async function runSmoke(page, browserDiagnostics) {
         observer.observe(document.body, { childList: true, subtree: true });
         window.__sidebarPreviewObserver = observer;
 
+        window.__sidebarHitTestLog = [];
+        const nativeElementFromPoint = document.elementFromPoint.bind(document);
+        window.__sidebarOriginalElementFromPoint = document.elementFromPoint;
+        document.elementFromPoint = function instrumentedElementFromPoint(x, y) {
+            const node = nativeElementFromPoint(x, y);
+            if (window.__sidebarHitTestLog.length < 120) {
+                window.__sidebarHitTestLog.push({
+                    x: Number(x || 0),
+                    y: Number(y || 0),
+                    tag: node instanceof Element ? node.tagName : '',
+                    className: node instanceof Element ? String(node.className || '') : '',
+                    wsId: node instanceof Element ? String(node.closest('.ws-item[data-ws-id]')?.dataset?.wsId || '') : '',
+                    isAdd: !!(node instanceof Element && node.closest('.ws-add')),
+                    isOrderSlot: !!(node instanceof Element && node.closest('.ws-order-slot')),
+                    isGroup: !!(node instanceof Element && node.closest('.ws-group-header, .ws-group-body'))
+                });
+            }
+            return node;
+        };
+
+        window.__sidebarDropApplyLog = [];
+        const addApplyTarget = document.querySelector('#sidebar .ws-add');
+        const outsideApplyTarget = document.querySelector('#sidebar .ws-item[data-ws-id="outside"]');
+        if (addApplyTarget && typeof addApplyTarget.__eveSidebarApplyPointerDrop === 'function') {
+            const originalAddApply = addApplyTarget.__eveSidebarApplyPointerDrop;
+            addApplyTarget.__eveSidebarApplyPointerDrop = function instrumentedAddDropApply(dragId) {
+                const result = originalAddApply.call(this, dragId);
+                window.__sidebarDropApplyLog.push({ target: 'add', dragId: String(dragId || ''), result: !!result });
+                return result;
+            };
+        }
+        if (outsideApplyTarget && typeof outsideApplyTarget.__eveSidebarApplyPointerDrop === 'function') {
+            const originalOutsideApply = outsideApplyTarget.__eveSidebarApplyPointerDrop;
+            outsideApplyTarget.__eveSidebarApplyPointerDrop = function instrumentedOutsideDropApply(dragId) {
+                const result = originalOutsideApply.call(this, dragId);
+                window.__sidebarDropApplyLog.push({ target: 'outside', dragId: String(dragId || ''), result: !!result });
+                return result;
+            };
+        }
+
+        window.__sidebarDropClassLog = [];
+        [addApplyTarget, outsideApplyTarget].forEach((node) => {
+            if (!node) return;
+            const observer = new MutationObserver(() => {
+                window.__sidebarDropClassLog.push({
+                    target: node.classList.contains('ws-add') ? 'add' : String(node.dataset.wsId || ''),
+                    at: performance.now(),
+                    className: String(node.className || '')
+                });
+            });
+            observer.observe(node, { attributes: true, attributeFilter: ['class'] });
+        });
+
         const sourceNode = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
         window.__sidebarPointerEventLog = [];
         window.__sidebarPointerClassLog = [];
@@ -334,6 +387,8 @@ async function runSmoke(page, browserDiagnostics) {
             sourceDraggable: !!document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.draggable,
             pointerEvents: Array.isArray(window.__sidebarPointerEventLog) ? window.__sidebarPointerEventLog.slice() : [],
             pointerClassEvents: Array.isArray(window.__sidebarPointerClassLog) ? window.__sidebarPointerClassLog.slice() : [],
+            hitTests: Array.isArray(window.__sidebarHitTestLog) ? window.__sidebarHitTestLog.slice() : [],
+            dropClassEvents: Array.isArray(window.__sidebarDropClassLog) ? window.__sidebarDropClassLog.slice() : [],
             elementAtTarget: (() => {
                 const rect = addTarget?.getBoundingClientRect?.();
                 if (!rect) return '';
@@ -359,6 +414,10 @@ async function runSmoke(page, browserDiagnostics) {
             window.clearTimeout = window.__sidebarPointerOriginalClearTimeout;
             window.__sidebarPointerOriginalClearTimeout = null;
         }
+        if (window.__sidebarOriginalElementFromPoint) {
+            document.elementFromPoint = window.__sidebarOriginalElementFromPoint;
+            window.__sidebarOriginalElementFromPoint = null;
+        }
         window.__sidebarPreviewObserver?.disconnect?.();
         window.__sidebarPointerClassObserver?.disconnect?.();
         const helpers = window.EveWorkspaceHelpers;
@@ -381,7 +440,10 @@ async function runSmoke(page, browserDiagnostics) {
             sourceDraggableDuringDrag: dragState.sourceDraggable,
             pointerEventsDuringDrag: dragState.pointerEvents,
             pointerClassEventsDuringDrag: dragState.pointerClassEvents,
+            hitTestsDuringDrag: dragState.hitTests,
+            dropClassEventsDuringDrag: dragState.dropClassEvents,
             elementAtTarget: dragState.elementAtTarget,
+            dropApplyEvents: Array.isArray(window.__sidebarDropApplyLog) ? window.__sidebarDropApplyLog.slice() : [],
             previewAfterDrop: !!document.querySelector('.ws-pointer-drag-preview'),
             rootOrder: config.workspaces.map(ws => ws.id),
             deepGroupId: deep ? String(deep.groupId || '') : '',
