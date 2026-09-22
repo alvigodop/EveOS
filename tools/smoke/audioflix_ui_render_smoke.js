@@ -27,14 +27,21 @@ const ctx = {
     CustomEvent: class CustomEvent { constructor(type, options) { this.type = type; this.detail = options?.detail; } },
     setTimeout, clearTimeout,
     localStorage: { getItem: () => JSON.stringify(stored), setItem() {}, removeItem() {} },
+    document: {
+        getElementById() { return null; },
+        createElement() { return { id: '', textContent: '' }; },
+        head: { appendChild() {} },
+        addEventListener() {}
+    },
     config: {},
     window: { dispatchEvent() {}, addEventListener() {} }
 };
 ctx.window.window = ctx.window;
+ctx.window.document = ctx.document;
 ctx.window.localStorage = ctx.localStorage;
 ctx.window.setTimeout = setTimeout; ctx.window.clearTimeout = clearTimeout;
 
-['audioflix.paths.js', 'audioflix.state.schema.js', 'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.nexus.js',
+['audioflix.paths.js', 'audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.nexus.js',
     'audioflix.classifiers.js', 'audioflix.localize.audit.js', 'audioflix.localize.port.js', 'audioflix.localize.js',
     'audioflix.ui.render.js', 'audioflix.ui.localize.js', 'audioflix.nexus.ui.js']
     .forEach((f) => runScript(ctx, 'js/modules/features/audioflix/' + f));

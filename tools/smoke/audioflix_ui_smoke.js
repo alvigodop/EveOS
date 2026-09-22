@@ -74,6 +74,12 @@ async function main() {
         window.__audioflixNativePlayCount = 0;
         window.fetch = async (url, options = {}) => {
             const text = String(url || '');
+            if (/\/api\/status(?:$|[?#])/.test(text)) {
+                return new Response(JSON.stringify({
+                    ok: true,
+                    service: 'eveos-local-server'
+                }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+            }
             if (text.includes('/api/audioflix/')) {
                 if (text.includes('/api/audioflix/devices')) {
                     return new Response(JSON.stringify({

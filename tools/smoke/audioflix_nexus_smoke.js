@@ -37,6 +37,7 @@ function load(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.recovery.js')
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.duplicates.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');
     return ctx.window.EveAudioflixNexus;
 }
@@ -45,7 +46,7 @@ const SEED = {
     music: [
         { id: 'a', title: 'Night Drive', artist: 'Kavinsky', folder: 'Synthwave', duration: 194, url: 'https://y/a' },   // 3:14
         { id: 'b', title: 'Night Drive (Remix)', artist: 'Kavinsky', folder: 'Synthwave', duration: 218, url: 'https://y/b' }, // 3:38 -> around 4
-        { id: 'c', title: 'Nightdrive', artist: 'Other', folder: 'Chill', duration: 182, url: 'https://y/c' },            // 3:02
+        { id: 'c', title: 'Night Drive', artist: 'Other', folder: 'Chill', duration: 182, url: 'https://y/c' },            // 3:02
         { id: 'd', title: 'Sunset', artist: 'Kavinsky', folder: 'Chill', duration: 216, url: 'https://y/d' }              // 3:36 -> around 3
     ],
     musicGroups: ['Fav'], musicGroupMap: { a: ['Fav'], c: ['Fav'] }
@@ -73,7 +74,7 @@ const SEED = {
     // 3. dupReport
     const rep = X.dupReport('music');
     assert(rep.exact.length === 0, 'no exact-name dups (all titles differ)');
-    assert(rep.similar.length === 1 && rep.similar[0].map((x) => x.id).sort().join() === 'a,c', 'similar cluster = a,c (Night Drive / Nightdrive)');
+    assert(rep.similar.length === 1 && rep.similar[0].map((x) => x.id).sort().join() === 'a,c', 'soft duplicate = a,c (matching title, different duration)');
     assert(rep.sameArtist.find((s) => s.artist === 'kavinsky').items.length === 3, 'shared-artist Kavinsky cluster = 3');
     console.log('dupReport OK');
 
