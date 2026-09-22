@@ -8,7 +8,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/api-search/api-cache.storage.js?v=78669e6d5381",
     "js/modules/features/api-search/api-cache.query.js?v=dcc3e98d130b",
     "js/modules/features/api-search/api-cache.js?v=097ea3c90df5",
-    "js/modules/features/api-search/api-core.shared.js?v=c14d50dfcd51",
+    "js/modules/features/api-search/api-core.shared.js?v=84d65ad6719d",
     "js/modules/features/api-search/api-core.fetch.js?v=8822cd8b630f",
     "js/modules/features/api-search/api-core.wikimedia.js?v=bd314cec3b93",
     "js/modules/features/api-search/api-core.js?v=692c7edbfacd",

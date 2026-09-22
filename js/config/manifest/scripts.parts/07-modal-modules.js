@@ -6,7 +6,7 @@ window.EveModuleManifestScriptChunks.push([
     // Modal Modules
     "js/modules/modals/templates/tpl-core.js?v=ca96bf0f74a4",
     "js/modules/modals/templates/tpl-settings.backup.js?v=bc728e9e62cc",
-    "js/modules/modals/templates/tpl-settings.js?v=44858505d6ec",
+    "js/modules/modals/templates/tpl-settings.js?v=174fa3e206cd",
     "js/modules/modals/templates/tpl-bulk.js?v=97345b20a002",
     "js/modules/modals/templates/tpl-emoji.js?v=772c72038d40",
     "js/modules/modals/templates/tpl-folder-actions.js?v=92b2983a2315",
