@@ -1,5 +1,5 @@
 const path = require('path');
-const { launchChromiumOrConnect } = require('./playwright-browser');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -125,11 +125,22 @@ async function runSmoke(page, browserDiagnostics) {
         window.__sidebarPreviewLifecycle = {
             added: 0,
             removed: 0,
+            appendAttempts: 0,
             lastAddedText: '',
+            appendTexts: [],
             events: []
         };
         window.__sidebarPreviewObserver?.disconnect?.();
         const state = window.__sidebarPreviewLifecycle;
+        window.__sidebarPreviewOriginalAppendChild = document.body.appendChild;
+        document.body.appendChild = function instrumentedSidebarAppendChild(node) {
+            if (node instanceof Element && node.classList.contains('ws-pointer-drag-preview')) {
+                state.appendAttempts += 1;
+                state.appendTexts.push(String(node.textContent || '').trim());
+                state.events.push('append-attempt');
+            }
+            return window.__sidebarPreviewOriginalAppendChild.call(this, node);
+        };
         const observer = new MutationObserver((records) => {
             for (const record of records) {
                 for (const node of record.addedNodes || []) {
@@ -179,6 +190,8 @@ async function runSmoke(page, browserDiagnostics) {
             preview: !!document.querySelector('.ws-pointer-drag-preview'),
             previewAdded: Number(lifecycle.added || 0),
             previewRemoved: Number(lifecycle.removed || 0),
+            previewAppendAttempts: Number(lifecycle.appendAttempts || 0),
+            previewAppendTexts: Array.isArray(lifecycle.appendTexts) ? lifecycle.appendTexts.slice() : [],
             previewEvents: Array.isArray(lifecycle.events) ? lifecycle.events.slice() : [],
             previewText: String(lifecycle.lastAddedText || ''),
             dragActive: !!document.querySelector('#sidebar.ws-drag-active'),
@@ -196,6 +209,11 @@ async function runSmoke(page, browserDiagnostics) {
     await page.waitForTimeout(180);
 
     const result = await page.evaluate((dragState) => {
+        if (window.__sidebarPreviewOriginalAppendChild && document.body) {
+            document.body.appendChild = window.__sidebarPreviewOriginalAppendChild;
+            window.__sidebarPreviewOriginalAppendChild = null;
+        }
+        window.__sidebarPreviewObserver?.disconnect?.();
         const helpers = window.EveWorkspaceHelpers;
         const deep = helpers.findById(config.workspaces, 'deep');
         const deepParent = helpers.findParent(config.workspaces, 'deep');
@@ -206,6 +224,8 @@ async function runSmoke(page, browserDiagnostics) {
             previewDuringDrag: dragState.preview,
             previewAddedDuringDrag: dragState.previewAdded,
             previewRemovedDuringDrag: dragState.previewRemoved,
+            previewAppendAttemptsDuringDrag: dragState.previewAppendAttempts,
+            previewAppendTextsDuringDrag: dragState.previewAppendTexts,
             previewEventsDuringDrag: dragState.previewEvents,
             previewTextDuringDrag: dragState.previewText,
             dragActiveDuringDrag: dragState.dragActive,
@@ -253,6 +273,7 @@ async function runSmoke(page, browserDiagnostics) {
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 120000 });
         await waitForApp(page);
+        await waitForEveCoreHydrated(page);
         await seedState(page);
         await runSmoke(page, browserDiagnostics);
         console.log('SIDEBAR_ADD_DROP_PROMOTE_BROWSER_SMOKE_OK');
