@@ -31,7 +31,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/modals/modal-bulk.runtime.ui.js?v=4ff9645da483",
     "js/modules/modals/modal-bulk.runtime.js?v=8e44033c883f",
     "js/modules/modals/modal-bulk.structured.helpers.js?v=ed1e6d940334",
-    "js/modules/modals/modal-bulk.structured.js?v=5bc2dfedde67",
+    "js/modules/modals/modal-bulk.structured.js?v=ba7e427f93ad",
     "js/modules/modals/modal-bulk.process.helpers.js?v=4ec42c00b7ad",
     "js/modules/modals/modal-bulk.process.js?v=c131d151d524",
     "js/modules/modals/modal-bulk.js?v=4ed7978de725",
