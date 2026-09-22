@@ -123,46 +123,13 @@ async function seedState(page, seed) {
     }
 
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'exact-scope-seed' } }));
-    await window.EveOS.DatapackIndex.rebuild({ reason: 'exact-scope-seed' });
+    await window.EveOS.DatapackIndex.ensureFresh({
+      reason: 'exact-scope-seed',
+      force: true,
+      forceFull: true
+    });
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
   }, seed);
-}
-
-async function waitForStableDatapackSnapshot(page) {
-  await page.waitForFunction(() => {
-    const indexApi = window.EveOS?.DatapackIndex;
-    const buildState = typeof indexApi?.getBuildState === 'function' ? indexApi.getBuildState() : null;
-    return !!buildState
-      && !buildState.dirty
-      && !buildState.building
-      && Number(buildState.builtAt || 0) > 0
-      && (typeof indexApi?.hasReadableLinkSnapshot !== 'function' || indexApi.hasReadableLinkSnapshot())
-      && (typeof indexApi?.hasReadableStructureSnapshot !== 'function' || indexApi.hasReadableStructureSnapshot());
-  }, undefined, { timeout: 15000 });
-
-  const before = await page.evaluate(() => {
-    const state = window.EveOS.DatapackIndex.getBuildState();
-    return {
-      builtAt: Number(state?.builtAt || 0),
-      revision: Number(state?.revision || 0)
-    };
-  });
-
-  // Unidex summary warmups use a 1.4 s deferred rebuild. Hold the clean
-  // snapshot through that window so raw-drift injection cannot race a
-  // pending startup/config rebuild from the synthetic seed.
-  await page.waitForTimeout(1700);
-
-  await page.waitForFunction((expected) => {
-    const indexApi = window.EveOS?.DatapackIndex;
-    const state = typeof indexApi?.getBuildState === 'function' ? indexApi.getBuildState() : null;
-    return !!state
-      && !state.dirty
-      && !state.building
-      && Number(state.builtAt || 0) >= expected.builtAt
-      && (typeof indexApi?.hasReadableLinkSnapshot !== 'function' || indexApi.hasReadableLinkSnapshot())
-      && (typeof indexApi?.hasReadableStructureSnapshot !== 'function' || indexApi.hasReadableStructureSnapshot());
-  }, before, { timeout: 15000 });
 }
 
 async function injectRawDrift(page) {
@@ -321,7 +288,6 @@ async function main() {
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
-    await waitForStableDatapackSnapshot(page);
     await injectRawDrift(page);
     const smoke = await runSmoke(page);
     console.log(JSON.stringify({
