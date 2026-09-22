@@ -7,6 +7,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
         const getWorkspaceById = deps?.getWorkspaceById;
         const getWorkspaceLinks = deps?.getWorkspaceLinks;
         const getWorkspaceAndSubTabLinks = deps?.getWorkspaceAndSubTabLinks;
+        const getCardsUnifiedMode = deps?.getCardsUnifiedMode || (() => false);
         const isTaskModeCategory = deps?.isTaskModeCategory;
         const escapeHtml = deps?.escapeHtml;
         const ensureLibraryReadyForEntries = deps?.ensureLibraryReadyForEntries;
@@ -37,7 +38,10 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                 return;
             }
 
-            const stResult = getWorkspaceAndSubTabLinks ? getWorkspaceAndSubTabLinks(workspace.id, searchStr) : null;
+            const unifiedCards = !!getCardsUnifiedMode();
+            const stResult = unifiedCards && getWorkspaceAndSubTabLinks
+                ? getWorkspaceAndSubTabLinks(workspace.id, searchStr)
+                : null;
             const workspaceLinks = stResult ? stResult.links : getWorkspaceLinks(workspace.id, searchStr);
             const entries = workspaceLinks.filter(function (link) {
                 return (link.category || 'Unsorted') === state.selectedCategory;
