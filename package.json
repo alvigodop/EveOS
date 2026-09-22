@@ -124,7 +124,11 @@
     "smoke:audioflix-mocked-contracts": "node tools/smoke/audioflix_durability_smoke.js && node tools/smoke/audioflix_file_url_playback_smoke.js && node tools/smoke/audioflix_localize_smoke.js && node tools/smoke/audioflix_music_native_capture_smoke.js && node tools/smoke/audioflix_spotify_localize_smoke.js && node tools/smoke/audioflix_spotify_playlist_smoke.js && node tools/smoke/audioflix_spotify_scraper_smoke.js",
     "smoke:gemini-mocked-contracts": "node tools/smoke/gemini_chat_image_attachment_smoke.js && node tools/smoke/gemini_context_extreme_pack_smoke.js && node tools/smoke/gemini_dynamic_lifecycle_browser_smoke.js && node tools/smoke/gemini_modular_context_relay_smoke.js && node tools/smoke/gemini_scope_mode_ui_parity_smoke.js && node tools/smoke/gemini_screen_share_controls_browser_smoke.js && node tools/smoke/gemini_screen_share_silent_payload_smoke.js && node tools/smoke/gemini_speech_recognition_autosend_smoke.js && node tools/smoke/gemini_workspace_layout_browser_smoke.js && node tools/smoke/gemini_workspace_scroll_reach_browser_smoke.js",
     "smoke:mocked-ui-contracts": "node tools/smoke/nexus_gemini_button_smoke.js && node tools/smoke/non_scraper_facades.js && node tools/smoke/script_loader_preserves_visible_content_smoke.js",
-    "smoke:mocked-local-contracts": "npm run --silent smoke:audioflix-mocked-contracts && npm run --silent smoke:gemini-mocked-contracts && npm run --silent smoke:mocked-ui-contracts"
+    "smoke:mocked-local-contracts": "npm run --silent smoke:audioflix-mocked-contracts && npm run --silent smoke:gemini-mocked-contracts && npm run --silent smoke:mocked-ui-contracts",
+    "smoke:selfhost-library-browser-contracts": "node tools/smoke/duplicate_sensor_browser_smoke.js && node tools/smoke/library_folder_browser_smoke.js && node tools/smoke/nested_folder_hatch_browser_smoke.js && node tools/smoke/quick_pins_browser_smoke.js",
+    "smoke:selfhost-smart-browser-contracts": "node tools/smoke/smart_views_5k_index_browser_smoke.js && node tools/smoke/smart_views_browser_smoke.js && node tools/smoke/smart_views_loopback_browser_smoke.js",
+    "smoke:selfhost-data-browser-contracts": "node tools/smoke/matrix_datapack_phone_browser_smoke.js && node tools/smoke/system_views_skip_ghosts_placeholder_browser_smoke.js",
+    "smoke:selfhost-browser-contracts": "npm run --silent smoke:selfhost-library-browser-contracts && npm run --silent smoke:selfhost-smart-browser-contracts && npm run --silent smoke:selfhost-data-browser-contracts"
   },
   "engines": {
     "node": ">=20"
