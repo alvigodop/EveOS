@@ -2,15 +2,27 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const http = require('http');
+const net = require('net');
 const { spawn } = require('child_process');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 3031;
 const LOG_FILE = path.join(os.tmpdir(), 'eve-quick-pins-browser-smoke.log');
 
 function logStep(message) {
     fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] ${message}\n`);
+}
+
+async function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.unref();
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const { port } = server.address();
+            server.close((error) => error ? reject(error) : resolve(port));
+        });
+    });
 }
 
 async function waitForStatus(url, timeoutMs = 30000) {
@@ -205,10 +217,11 @@ async function runQuickPinsSmoke(page) {
 }
 
 async function main() {
+    const port = await getFreePort();
     fs.writeFileSync(LOG_FILE, '');
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-quick-pins-store-'));
     let browser = null;
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -220,7 +233,7 @@ async function main() {
 
     try {
         logStep('waitForStatus:start');
-        await waitForStatus(`http://localhost:${PORT}/api/status`);
+        await waitForStatus(`http://localhost:${port}/api/status`);
         logStep('waitForStatus:done');
 
         browser = await chromium.launch({ headless: true });
@@ -234,7 +247,7 @@ async function main() {
             localStorage.setItem('eveV22QuickPins', JSON.stringify(payload.quickPins));
         }, seed);
 
-        await page.goto(`http://localhost:${PORT}/EveOS.html`, {
+        await page.goto(`http://localhost:${port}/EveOS.html`, {
             waitUntil: 'domcontentloaded',
             timeout: 120000
         });

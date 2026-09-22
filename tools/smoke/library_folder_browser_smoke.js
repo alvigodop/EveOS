@@ -2,16 +2,28 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const http = require('http');
+const net = require('net');
 const { spawn } = require('child_process');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 3026;
 const LOG_FILE = path.join(os.tmpdir(), 'eve-library-folder-browser-smoke.log');
 
 function logStep(message) {
     const line = `[${new Date().toISOString()}] ${message}\n`;
     fs.appendFileSync(LOG_FILE, line);
+}
+
+async function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.unref();
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const { port } = server.address();
+            server.close((error) => error ? reject(error) : resolve(port));
+        });
+    });
 }
 
 async function waitForStatus(url, timeoutMs = 30000) {
@@ -151,12 +163,13 @@ async function runBrowserSmoke(page) {
 }
 
 async function main() {
+    const port = await getFreePort();
     fs.writeFileSync(LOG_FILE, '');
     logStep('main:start');
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-lib-browser-store-'));
     logStep(`main:modularRoot:${modularRoot}`);
     let browser = null;
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -168,7 +181,7 @@ async function main() {
 
     try {
         logStep('main:waitForStatus:start');
-        await waitForStatus(`http://localhost:${PORT}/api/status`);
+        await waitForStatus(`http://localhost:${port}/api/status`);
         logStep('main:waitForStatus:done');
 
         logStep('main:browser:launch:start');
@@ -188,7 +201,7 @@ async function main() {
         logStep('main:browser:addInitScript:done');
 
         logStep('main:browser:goto:start');
-        await page.goto(`http://localhost:${PORT}/EveOS.html`, {
+        await page.goto(`http://localhost:${port}/EveOS.html`, {
             waitUntil: 'domcontentloaded',
             timeout: 120000
         });
