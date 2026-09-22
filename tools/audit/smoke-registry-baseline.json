@@ -1,7 +1,6 @@
 {
   "note": "Smokes not reachable from any npm script chain. Shrink this list through explicit committed test wiring; never grow it.",
   "unregistered": [
-    "api_card_settings_browser_smoke.js",
     "api_live_provider_acceptance_smoke.js",
     "api_provider_matrix_live_smoke.js",
     "audioflix_bookmark_focus_browser_smoke.js",
@@ -58,14 +57,11 @@
     "bulk_select_folder_move_and_merge_smoke.js",
     "bulk_selection_browser_smoke.js",
     "bulk_structured_title_smoke.js",
-    "cache_hygiene_no_dump_smoke.js",
     "card_bookmark_reveal_toggle_smoke.js",
     "card_move_custom_confirm_browser_smoke.js",
     "card_move_custom_confirm_smoke.js",
     "card_order_inline_prompt_smoke.js",
     "card_prefix_category_order_smoke.js",
-    "comick_display_smoke.js",
-    "comick_snapshot_smoke.js",
     "constellation_header_layout_browser_smoke.js",
     "constellation_linked_library_node_merge_smoke.js",
     "constellation_map_stability.js",
