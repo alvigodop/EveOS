@@ -74,8 +74,24 @@ async function main() {
                 }]
             }, container);
 
+            const resultGroup = container.querySelector('.nx-result-group');
+            const groupHeader = resultGroup?.querySelector('[data-nx-collapse-group]');
+            const beforeHydration = {
+                hasGroup: !!resultGroup,
+                hasHeader: !!groupHeader,
+                hydrated: resultGroup?.dataset?.nxHydrated === 'true',
+                actionNames: Array.from(container.querySelectorAll('[data-nx-action]'))
+                    .map((node) => node.getAttribute('data-nx-action'))
+            };
+            groupHeader?.click();
+
             const jsonButton = container.querySelector('[data-nx-action="json-state"]');
             const validateButton = container.querySelector('[data-nx-action="json-validate"]');
+            const afterHydration = {
+                hydrated: resultGroup?.dataset?.nxHydrated === 'true',
+                actionNames: Array.from(container.querySelectorAll('[data-nx-action]'))
+                    .map((node) => node.getAttribute('data-nx-action'))
+            };
             jsonButton?.click();
             const validation = window.EveOS.NebulaJsonLink.executeAction('validate', entityLink);
             window.EveOS.SearchAdvanced.DatapackView.openCardInternals = originalOpenCardInternals;
@@ -83,7 +99,9 @@ async function main() {
                 hasJsonButton: !!jsonButton,
                 hasValidateButton: !!validateButton,
                 opened,
-                validationOk: validation.ok || validation.valid
+                validationOk: validation.ok || validation.valid,
+                beforeHydration,
+                afterHydration
             };
         });
 
