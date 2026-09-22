@@ -2,11 +2,23 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const http = require('http');
+const net = require('net');
 const { spawn } = require('child_process');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 3034;
+
+function findFreePort() {
+    return new Promise((resolve, reject) => {
+        const server = net.createServer();
+        server.on('error', reject);
+        server.listen(0, '127.0.0.1', () => {
+            const address = server.address();
+            const port = Number(address && address.port);
+            server.close((error) => error ? reject(error) : resolve(port));
+        });
+    });
+}
 
 async function waitForStatus(url, timeoutMs = 30000) {
     const start = Date.now();
@@ -200,9 +212,10 @@ async function runSmoke(page) {
 }
 
 async function main() {
+    const port = await findFreePort();
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-full-backup-budget-'));
     let browser = null;
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -213,10 +226,10 @@ async function main() {
     server.stderr.on('data', (chunk) => { serverStderr += String(chunk); });
 
     try {
-        await waitForStatus(`http://localhost:${PORT}/api/status`);
+        await waitForStatus(`http://localhost:${port}/api/status`);
         browser = await chromium.launch({ headless: true, channel: 'msedge' });
         const page = await browser.newPage();
-        await page.goto(`http://localhost:${PORT}/EveOS.html`, {
+        await page.goto(`http://localhost:${port}/EveOS.html`, {
             waitUntil: 'domcontentloaded',
             timeout: 120000
         });

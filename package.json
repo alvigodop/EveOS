@@ -91,7 +91,8 @@
     "smoke:coverage-map": "node tools/smoke/eveos_smoke_coverage_map.js",
     "smoke:storage-reconciliation": "node tools/smoke/backup_restore_reload_persistence_browser_smoke.js && node tools/smoke/backup_restore_target_remap_browser_smoke.js && node tools/smoke/modular_startup_shrink_guard_browser_smoke.js && node tools/smoke/storage_legacy_fallback_browser_smoke.js && node tools/smoke/data_transfer_nested_tab_folder_import.js && node tools/smoke/data_transfer_nested_workspace_folder_layout.js",
     "smoke:surface-ownership": "node tools/smoke/search_monitor_surface_ownership_browser_smoke.js",
-    "smoke:backup-topology-reconciliation": "node tools/smoke/data_transfer_full_backup_store_route.js && node tools/smoke/data_transfer_file_protocol_folder_fallback.js && node tools/smoke/nebula_folder_backup_links_smoke.js && node tools/smoke/nebula_folder_import_entity_links_smoke.js && node tools/smoke/backup_mismatch_report_browser_smoke.js && python tools/smoke/folder_layer_api_roundtrip.py && node tools/smoke/folder_layer_backup_browser_smoke.js"
+    "smoke:backup-topology-reconciliation": "node tools/smoke/data_transfer_full_backup_store_route.js && node tools/smoke/data_transfer_file_protocol_folder_fallback.js && node tools/smoke/nebula_folder_backup_links_smoke.js && node tools/smoke/nebula_folder_import_entity_links_smoke.js && node tools/smoke/backup_mismatch_report_browser_smoke.js && python tools/smoke/folder_layer_api_roundtrip.py && node tools/smoke/folder_layer_backup_browser_smoke.js",
+    "smoke:backup-scalability-path-budget": "python tools/smoke/modular_nested_workspace_backup.py && node tools/smoke/full_backup_path_budget_browser_smoke.js"
   },
   "engines": {
     "node": ">=20"
