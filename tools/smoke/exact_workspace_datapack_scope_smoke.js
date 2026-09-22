@@ -132,6 +132,82 @@ async function seedState(page, seed) {
   }, seed);
 }
 
+async function installDatapackTrace(page) {
+  await page.evaluate(() => {
+    const indexApi = window.EveOS?.DatapackIndex;
+    window.__exactScopeTrace = [];
+    const pushTrace = (kind, detail) => {
+      const state = typeof indexApi?.getBuildState === 'function' ? indexApi.getBuildState() : null;
+      window.__exactScopeTrace.push({
+        at: Date.now(),
+        kind,
+        detail: detail || null,
+        state: state ? {
+          dirty: !!state.dirty,
+          building: !!state.building,
+          revision: Number(state.revision || 0),
+          builtAt: Number(state.builtAt || 0),
+          lastReason: String(state.lastReason || ''),
+          planMode: String(state.lastInvalidationPlan?.mode || '')
+        } : null
+      });
+      if (window.__exactScopeTrace.length > 80) window.__exactScopeTrace.shift();
+    };
+
+    window.addEventListener('eve:state-mutated', (event) => {
+      const detail = event?.detail || {};
+      pushTrace('state-mutated', {
+        source: String(detail.source || ''),
+        kind: String(detail.kind || ''),
+        meta: detail.meta || null
+      });
+      queueMicrotask(() => pushTrace('state-mutated-settled', {
+        source: String(detail.source || '')
+      }));
+    });
+
+    if (indexApi && typeof indexApi.ensureFresh === 'function' && !indexApi.__exactScopeEnsureWrapped) {
+      const originalEnsureFresh = indexApi.ensureFresh.bind(indexApi);
+      indexApi.ensureFresh = async function (options) {
+        pushTrace('ensureFresh:before', options || null);
+        try {
+          const result = await originalEnsureFresh(options);
+          pushTrace('ensureFresh:after', options || null);
+          return result;
+        } catch (error) {
+          pushTrace('ensureFresh:error', {
+            options: options || null,
+            error: String(error?.message || error || '')
+          });
+          throw error;
+        }
+      };
+      indexApi.__exactScopeEnsureWrapped = true;
+    }
+
+    if (indexApi && typeof indexApi.rebuild === 'function' && !indexApi.__exactScopeRebuildWrapped) {
+      const originalRebuild = indexApi.rebuild.bind(indexApi);
+      indexApi.rebuild = async function (options) {
+        pushTrace('rebuild:before', options || null);
+        try {
+          const result = await originalRebuild(options);
+          pushTrace('rebuild:after', options || null);
+          return result;
+        } catch (error) {
+          pushTrace('rebuild:error', {
+            options: options || null,
+            error: String(error?.message || error || '')
+          });
+          throw error;
+        }
+      };
+      indexApi.__exactScopeRebuildWrapped = true;
+    }
+
+    pushTrace('trace-installed', null);
+  });
+}
+
 async function injectRawDrift(page) {
   await page.evaluate(() => {
     const driftLink = {
@@ -196,7 +272,8 @@ async function collectUnidexScopeDiagnostics(page) {
         ? indexApi.getCardSummary('main', 'Alpha')
         : null,
       liveTargetLinks: liveLinks.filter((link) => targetIds.has(String(link?.id || ''))).map(compactLink),
-      snapshotTargetRecords: snapshotRecords
+      snapshotTargetRecords: snapshotRecords,
+      trace: Array.isArray(window.__exactScopeTrace) ? window.__exactScopeTrace.slice() : []
     };
   });
 }
@@ -287,6 +364,7 @@ async function main() {
   try {
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
     await waitForApp(page);
+    await installDatapackTrace(page);
     await seedState(page, buildSeedPayload());
     await injectRawDrift(page);
     const smoke = await runSmoke(page);
