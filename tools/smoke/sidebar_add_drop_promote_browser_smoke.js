@@ -110,6 +110,12 @@ async function runSmoke(page, browserDiagnostics) {
             source: describe(sourceNode),
             target: describe(targetNode),
             hasPointerDrop: typeof targetNode?.__eveSidebarApplyPointerDrop === 'function',
+            pointerRuntimeReady: !!window.EveSidebarRuntime?.workspacePointerDragReady,
+            attachPointerType: typeof window.EveSidebarRuntime?.attachNestedWorkspacePointerDrag,
+            sourcePointerDownType: typeof sourceNode?.onpointerdown,
+            sourcePointerMoveType: typeof sourceNode?.onpointermove,
+            sourcePointerUpType: typeof sourceNode?.onpointerup,
+            sourceLostCaptureType: typeof sourceNode?.onlostpointercapture,
             sidebarClassName: document.getElementById('sidebar')?.className || '',
             collapsedTabs: Array.isArray(config?.collapsedTabs) ? config.collapsedTabs.slice() : []
         };
@@ -180,7 +186,10 @@ async function runSmoke(page, browserDiagnostics) {
                     clientX: Number(event.clientX || 0),
                     clientY: Number(event.clientY || 0),
                     className: sourceNode.className || '',
-                    draggable: !!sourceNode.draggable
+                    draggable: !!sourceNode.draggable,
+                    targetTag: event.target instanceof Element ? event.target.tagName : '',
+                    targetClassName: event.target instanceof Element ? String(event.target.className || '') : '',
+                    targetClosestToggle: !!(event.target instanceof Element && event.target.closest('.ws-toggle'))
                 });
             };
             ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'dragstart', 'dragend', 'mousedown', 'mousemove', 'mouseup']
@@ -208,10 +217,23 @@ async function runSmoke(page, browserDiagnostics) {
 
     await page.mouse.move(sourcePoint.x, sourcePoint.y);
     await page.mouse.down();
-    await page.waitForFunction(() => (
-        !!document.querySelector('#sidebar.ws-drag-active')
-        && !!document.querySelector('.ws-pointer-drag-preview')
-    ), undefined, { timeout: 1500 });
+    try {
+        await page.waitForFunction(() => (
+            !!document.querySelector('#sidebar.ws-drag-active')
+            && !!document.querySelector('.ws-pointer-drag-preview')
+        ), undefined, { timeout: 1500 });
+    } catch (error) {
+        const readiness = await page.evaluate(() => ({
+            runtimeReady: !!window.EveSidebarRuntime?.workspacePointerDragReady,
+            attachPointerType: typeof window.EveSidebarRuntime?.attachNestedWorkspacePointerDrag,
+            sourcePointerDownType: typeof document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.onpointerdown,
+            sourcePointerMoveType: typeof document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.onpointermove,
+            sourcePointerUpType: typeof document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.onpointerup,
+            pointerEvents: Array.isArray(window.__sidebarPointerEventLog) ? window.__sidebarPointerEventLog.slice() : [],
+            pointerClassEvents: Array.isArray(window.__sidebarPointerClassLog) ? window.__sidebarPointerClassLog.slice() : []
+        }));
+        throw new Error(`Pointer drag did not arm: ${JSON.stringify({ geometry, readiness }, null, 2)}`);
+    }
     await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 8 });
 
     const duringDrag = await page.evaluate(() => {
