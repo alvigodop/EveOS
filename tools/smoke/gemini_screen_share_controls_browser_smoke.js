@@ -88,13 +88,31 @@ async function main() {
 
     await page.click('[data-gemini-monitor-view-btn="full"]');
     await page.waitForFunction(() => (
-      !!window.__GEMINI_WORKSPACE_READY
+      document.getElementById('gemini-ui-root')?.dataset.geminiMonitorView === 'full'
+    ), undefined, { timeout: 10000 });
+    await page.locator('[data-ai-provider="gemini"] > summary').waitFor({ state: 'visible', timeout: 30000 });
+    await page.click('[data-ai-provider="gemini"] > summary');
+    await page.waitForFunction(() => (
+      document.querySelector('[data-ai-provider="gemini"]')?.open === true
+      && !!window.__GEMINI_WORKSPACE_READY
       && !!window.ScreenShareMMCommunicationPanel?.CapturePreferences
       && !!document.getElementById('screenCaptureSettingsButton')
     ), undefined, { timeout: 120000 });
 
-    const buttonEnabled = await page.evaluate(() => !document.getElementById('screenCaptureSettingsButton')?.disabled);
-    if (!buttonEnabled) throw new Error('Screen capture settings should be available before sharing starts.');
+    const buttonState = await page.evaluate(() => {
+      const button = document.getElementById('screenCaptureSettingsButton');
+      if (!button) return { exists: false, enabled: false, visible: false };
+      const rect = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      return {
+        exists: true,
+        enabled: !button.disabled,
+        visible: rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+      };
+    });
+    if (!buttonState.enabled || !buttonState.visible) {
+      throw new Error(`Screen capture settings should be visible and available before sharing starts: ${JSON.stringify(buttonState)}`);
+    }
 
     await page.click('#screenCaptureSettingsButton');
     await page.waitForFunction(() => document.getElementById('screenCaptureSettingsDialog')?.open, undefined, {
