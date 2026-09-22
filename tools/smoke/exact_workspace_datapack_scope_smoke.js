@@ -40,6 +40,68 @@ async function waitForApp(page) {
   await page.waitForTimeout(250);
 }
 
+async function waitForHydratedCardLinks(page, selector, expectedTitle, label) {
+  await page.waitForSelector(selector, { timeout: 15000 });
+  const card = page.locator(selector).first();
+  const before = await card.evaluate((node) => ({
+    deferred: node.getAttribute('data-card-deferred') === '1',
+    onDemand: node.getAttribute('data-card-hydrate-on-demand') === '1',
+    hydrating: node.getAttribute('data-card-hydrating') === '1'
+  }));
+  if (before.deferred && before.onDemand) {
+    await card.hover();
+  }
+
+  try {
+    await page.waitForFunction(({ selector, expectedTitle }) => {
+      const node = document.querySelector(selector);
+      if (!node || node.getAttribute('data-card-deferred') === '1') return false;
+      const titles = Array.from(node.querySelectorAll('li a'))
+        .map((anchor) => String(anchor.textContent || '').trim())
+        .filter(Boolean);
+      return titles.includes(expectedTitle);
+    }, { selector, expectedTitle }, { timeout: 15000 });
+  } catch (error) {
+    const diagnostics = await page.evaluate(({ selector }) => {
+      const node = document.querySelector(selector);
+      const workspaceId = String(node?.getAttribute('data-card-workspace') || '').trim();
+      const categoryName = String(node?.getAttribute('data-card-category') || '').trim();
+      const liveLinks = typeof window.getLiveLinks === 'function'
+        ? window.getLiveLinks()
+        : (Array.isArray(window.links) ? window.links : []);
+      return {
+        activeWorkspace: String(window.config?.activeWorkspace || ''),
+        cardExists: !!node,
+        deferred: node?.getAttribute('data-card-deferred') === '1',
+        onDemand: node?.getAttribute('data-card-hydrate-on-demand') === '1',
+        hydrating: node?.getAttribute('data-card-hydrating') === '1',
+        anchorTitles: Array.from(node?.querySelectorAll('li a') || [])
+          .map((anchor) => String(anchor.textContent || '').trim())
+          .filter(Boolean),
+        scopedLinks: liveLinks
+          .filter((link) => (
+            String(link?.workspace || 'main').trim() === workspaceId
+            && String(link?.category || 'Unsorted').trim() === categoryName
+          ))
+          .map((link) => ({
+            id: String(link?.id || ''),
+            title: String(link?.title || ''),
+            workspace: String(link?.workspace || ''),
+            category: String(link?.category || '')
+          }))
+      };
+    }, { selector });
+    throw new Error(label + ' did not hydrate expected bookmark: ' + JSON.stringify(diagnostics));
+  }
+
+  return page.evaluate((selector) => {
+    const node = document.querySelector(selector);
+    return Array.from(node?.querySelectorAll('li a') || [])
+      .map((anchor) => String(anchor.textContent || '').trim())
+      .filter(Boolean);
+  }, selector);
+}
+
 async function seedState(page, seed) {
   await page.evaluate(async (payload) => {
     config = JSON.parse(JSON.stringify(payload.config));
@@ -85,21 +147,19 @@ async function injectRawDrift(page) {
   });
 }
 
-async function readDashboardCardTitles(page, workspaceId) {
-  return page.evaluate((wsId) => {
-    const card = document.querySelector(`.category-card[data-card-category="Alpha"][data-card-workspace="${wsId}"]`);
-    return Array.from(card?.querySelectorAll('li a') || [])
-      .map((node) => String(node.textContent || '').trim())
-      .filter(Boolean);
-  }, workspaceId);
-}
-
 async function runSmoke(page) {
-  await page.waitForSelector('.category-card[data-card-category="Alpha"][data-card-workspace="main"]', { timeout: 15000 });
-  await page.waitForSelector('.category-card[data-card-category="Alpha"][data-card-workspace="child"]', { timeout: 15000 });
-
-  const mainDashboardTitles = await readDashboardCardTitles(page, 'main');
-  const childDashboardTitles = await readDashboardCardTitles(page, 'child');
+  const mainDashboardTitles = await waitForHydratedCardLinks(
+    page,
+    '.category-card[data-card-category="Alpha"][data-card-workspace="main"]',
+    'Main Alpha One',
+    'Exact-scope main Alpha card'
+  );
+  const childDashboardTitles = await waitForHydratedCardLinks(
+    page,
+    '.category-card[data-card-category="Alpha"][data-card-workspace="child"]',
+    'Child Alpha One',
+    'Exact-scope child Alpha card'
+  );
 
   if (!mainDashboardTitles.includes('Main Alpha One') || mainDashboardTitles.includes('Child Alpha One') || mainDashboardTitles.includes('Main Alpha Drift')) {
     throw new Error('Main dashboard card leaked cross-workspace or drift links: ' + JSON.stringify(mainDashboardTitles));
