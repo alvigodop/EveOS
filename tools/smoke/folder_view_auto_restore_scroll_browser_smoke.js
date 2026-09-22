@@ -1,5 +1,5 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -58,11 +58,12 @@ async function seedState(page, payload) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const { browser } = await launchChromiumOrConnect({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 
   try {
     await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await waitForEveCoreHydrated(page);
     await waitForApp(page);
     await seedState(page, buildSeedPayload());
 

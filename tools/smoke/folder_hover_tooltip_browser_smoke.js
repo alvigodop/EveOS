@@ -1,5 +1,5 @@
 const path = require('path');
-const { launchChromiumOrConnect } = require('./playwright-browser');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -14,6 +14,7 @@ async function main() {
 
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => !!window.EveFolderHoverTooltip, undefined, { timeout: 180000 });
 
         await page.evaluate(() => {

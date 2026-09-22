@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const path = require('path');
 
 function assert(condition, message) {
@@ -8,7 +8,7 @@ function assert(condition, message) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const { browser } = await launchChromiumOrConnect({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
   const repoRoot = process.env.REPO_ROOT || path.resolve(__dirname, '..', '..');
   const url = 'file:///' + path.resolve(repoRoot, 'EveOS.html').replace(/\\/g, '/');
@@ -16,7 +16,7 @@ function assert(condition, message) {
   const folderId = 'folder-reveal-smoke';
 
   await page.goto(url, { waitUntil: 'load' });
-  await page.waitForTimeout(9000);
+  await waitForEveCoreHydrated(page);
 
   const result = await page.evaluate(async ({ targetCategory, targetFolderId }) => {
     const rawLinks = (typeof window.getLiveLinks === 'function')
