@@ -128,7 +128,10 @@
     "smoke:selfhost-library-browser-contracts": "node tools/smoke/duplicate_sensor_browser_smoke.js && node tools/smoke/library_folder_browser_smoke.js && node tools/smoke/nested_folder_hatch_browser_smoke.js && node tools/smoke/quick_pins_browser_smoke.js",
     "smoke:selfhost-smart-browser-contracts": "node tools/smoke/smart_views_5k_index_browser_smoke.js && node tools/smoke/smart_views_browser_smoke.js && node tools/smoke/smart_views_loopback_browser_smoke.js",
     "smoke:selfhost-data-browser-contracts": "node tools/smoke/matrix_datapack_phone_browser_smoke.js && node tools/smoke/system_views_skip_ghosts_placeholder_browser_smoke.js",
-    "smoke:selfhost-browser-contracts": "npm run --silent smoke:selfhost-library-browser-contracts && npm run --silent smoke:selfhost-smart-browser-contracts && npm run --silent smoke:selfhost-data-browser-contracts"
+    "smoke:selfhost-browser-contracts": "npm run --silent smoke:selfhost-library-browser-contracts && npm run --silent smoke:selfhost-smart-browser-contracts && npm run --silent smoke:selfhost-data-browser-contracts",
+    "smoke:audioflix-local-service-contracts": "python tools/smoke/audioflix_localize_endpoint_smoke.py && node tools/smoke/audioflix_native_probe_smoke.js && python tools/smoke/audioflix_port_authz_persist_smoke.py && python tools/smoke/audioflix_port_file_range_smoke.py && python tools/smoke/audioflix_spotify_session_smoke.py",
+    "smoke:audioflix-local-browser-contracts": "node tools/smoke/audioflix_capture_worklet_smoke.js && node tools/smoke/audioflix_file_native_bridge_smoke.js && node tools/smoke/audioflix_spotify_browser_smoke.js",
+    "smoke:audioflix-local-native-contracts": "npm run --silent smoke:audioflix-local-service-contracts && npm run --silent smoke:audioflix-local-browser-contracts"
   },
   "engines": {
     "node": ">=20"
