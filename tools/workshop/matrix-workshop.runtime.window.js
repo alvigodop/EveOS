@@ -32,17 +32,36 @@
         node.classList.toggle('is-error', !!isError);
     }
 
+    function normalizeControlBase(value) {
+        try {
+            const url = new URL(String(value || ''));
+            const port = Number(url.port || 0);
+            if (
+                url.protocol === 'http:'
+                && (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
+                && Number.isInteger(port)
+                && port >= 1
+                && port <= 65535
+            ) {
+                return `http://127.0.0.1:${port}`;
+            }
+        } catch (error) {}
+        return '';
+    }
+
     function getControlBase() {
         try {
-            const openerBase = window.opener?.EveOSLocalControl?.baseUrl?.();
-            if (openerBase) return String(openerBase);
+            const openerBase = normalizeControlBase(window.opener?.EveOSLocalControl?.baseUrl?.());
+            if (openerBase) return openerBase;
         } catch (error) {}
         const resolvedPort = Number(
             controlPort
             || window.EveOSPortRegistry?.get?.('GEMINI_CONTROL_PORT', 0)
             || 0
         );
-        return resolvedPort > 0 ? `http://127.0.0.1:${resolvedPort}` : '';
+        return Number.isInteger(resolvedPort) && resolvedPort >= 1 && resolvedPort <= 65535
+            ? `http://127.0.0.1:${resolvedPort}`
+            : '';
     }
 
     async function postBackgroundLock(enabled) {

@@ -207,7 +207,19 @@ async function waitForStatus(url, timeoutMs = 30000) {
             || !detachedState.pathname.endsWith('/tools/workshop/MatrixBackground-V2-Upgrading.html')
             || detachedState.detachedMode !== '1'
             || detachedState.windowToken.length < 8
-            || !/^http:\/\/127\.0\.0\.1:\d+$/.test(detachedState.resolvedControlBase)
+            || (() => {
+                try {
+                    const controlUrl = new URL(detachedState.resolvedControlBase);
+                    const port = Number(controlUrl.port || 0);
+                    return controlUrl.protocol !== 'http:'
+                        || controlUrl.hostname !== '127.0.0.1'
+                        || !Number.isInteger(port)
+                        || port < 1
+                        || port > 65535;
+                } catch (error) {
+                    return true;
+                }
+            })()
             || detachedState.canvasCount < 1
             || detachedState.parent.open
             || detachedState.parent.frameSrc !== 'about:blank'
