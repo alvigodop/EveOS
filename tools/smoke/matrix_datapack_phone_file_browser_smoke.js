@@ -1,6 +1,6 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { launchChromiumOrConnect } = require('./playwright-browser');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -12,6 +12,7 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
         context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
         const page = await context.newPage();
         await page.goto(pathToFileURL(path.join(REPO_ROOT, 'EveOS.html')).href, {
+        await waitForEveCoreHydrated(page);
             waitUntil: 'load',
             timeout: 180000
         });
