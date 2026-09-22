@@ -112,7 +112,7 @@ async function main() {
             let blockedMessage = '';
             try { await youtube.play(ytItem); } catch (error) { blockedMessage = error.message; }
             const stage = document.querySelector('.audioflix-provider-stage');
-            const stageText = stage?.textContent || '';
+            const blockedPlayback = youtube.getPlaybackState();
             const normalStageTransportOnly = stage?.hidden === false
                 && stage.classList.contains('is-transport-only')
                 && youtube.isInternalViewOpen() === false;
@@ -262,7 +262,7 @@ async function main() {
                 playbackEvents: playbackEvents.map((event) => event.status),
                 progressCount: progressEvents.length,
                 youtubePlayerAttempts,
-                stageText,
+                blockedItemTitle: blockedPlayback.item?.title || '',
                 normalStageTransportOnly,
                 scState,
                 scVolume,
@@ -302,7 +302,7 @@ async function main() {
         assert(result.localDirectWaveformSafe === true && result.localDirectWaveformAttached, 'local internal media did not attach to the routing waveform');
         assert(result.playbackEvents.some((status) => /directly from the browser/.test(status)), 'direct playback status missing');
         assert(result.progressCount > 0, 'direct playback progress events missing');
-        assert(/YouTube Track/.test(result.stageText), 'hidden provider stage did not retain the active track');
+        assert(result.blockedItemTitle === 'YouTube Track', `failed provider playback state lost the attempted track: ${result.blockedItemTitle}`);
         assert(result.normalStageTransportOnly, 'normal playback exposed the Internal player instead of its off-screen transport');
         assert(result.scState.provider === 'soundcloud' && result.scState.currentTime === 31, 'SoundCloud transport state failed');
         assert(result.scVolume === 20, `SoundCloud volume was not forwarded: ${result.scVolume}`);

@@ -96,6 +96,8 @@ async function main() {
         ), undefined, { timeout: 120000 });
 
         await page.evaluate(() => window.SearchMonitorBoot.expand());
+        await page.click('[data-gemini-monitor-view-btn="full"]');
+        await page.locator('[data-ai-provider="gemini"] > summary').waitFor({ state: 'visible', timeout: 30000 });
         await page.click('[data-ai-provider="gemini"] > summary');
         await page.waitForFunction(() => (
             window.__GEMINI_BOOT_REQUESTED === true
@@ -103,7 +105,6 @@ async function main() {
             && !!document.querySelector('[data-gemini-server-toggle]')
         ), undefined, { timeout: 120000 });
         await page.click('[data-gemini-server-toggle]');
-        await page.click('[data-gemini-monitor-view-btn="full"]');
 
         await page.waitForFunction(() => (
             !!window.__GEMINI_WORKSPACE_READY
