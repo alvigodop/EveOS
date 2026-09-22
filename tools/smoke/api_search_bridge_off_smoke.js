@@ -368,6 +368,7 @@ function loadScript(relPath) {
 
 (async () => {
     [
+        'js/modules/core/eveos-port-registry.js',
         'js/modules/features/api-search/api-core.shared.js',
         'js/modules/features/api-search/api-core.fetch.js',
         'js/modules/features/api-search/api-core.wikimedia.js',
@@ -384,7 +385,7 @@ function loadScript(relPath) {
     assert(Array.isArray(mangadexResult.data) && mangadexResult.data[0].id === 'md-1', 'MangaDex should fall back to CodeTabs JSON proxy');
 
     const localStatusProbes = fetchCalls.filter((call) =>
-        call.url === 'http://127.0.0.1:3000/api/status'
+        call.url === 'http://127.0.0.1:8765/api/status'
         || call.url === 'http://127.0.0.1:3037/api/status'
         || call.url === 'http://127.0.0.1:3038/api/status'
         || call.url === 'http://127.0.0.1:3039/api/status'
