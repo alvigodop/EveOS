@@ -39,8 +39,52 @@ function isEntryPoint(name) {
     return !HELPER_PATTERNS.some((pattern) => pattern.test(name));
 }
 
+function getRawScriptKeys(manifest) {
+    const keys = [];
+    let inScripts = false;
+
+    for (const line of manifest.split(/\r?\n/)) {
+        if (!inScripts) {
+            if (/^\s*"scripts"\s*:\s*\{\s*$/.test(line)) inScripts = true;
+            continue;
+        }
+        if (/^\s{2}\}\s*,?\s*$/.test(line)) break;
+
+        const match = line.match(/^\s{4}"((?:\\.|[^"\\])+)":/);
+        if (!match) continue;
+        try {
+            keys.push(JSON.parse(`"${match[1]}"`));
+        } catch (_) {
+            keys.push(match[1]);
+        }
+    }
+
+    return keys;
+}
+
+function findDuplicateScriptKeys(manifest) {
+    const counts = new Map();
+    for (const key of getRawScriptKeys(manifest)) {
+        counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return [...counts.entries()]
+        .filter(([, count]) => count > 1)
+        .map(([key, count]) => ({ key, count }));
+}
+
 function main() {
     const manifest = fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8');
+    const packageJson = JSON.parse(manifest);
+    const duplicateScriptKeys = findDuplicateScriptKeys(manifest);
+    if (duplicateScriptKeys.length) {
+        console.error('smoke registry FAILED — duplicate npm script keys override earlier definitions:');
+        for (const entry of duplicateScriptKeys) {
+            console.error(`  ${entry.key} (x${entry.count})`);
+        }
+        return 1;
+    }
+
+    const effectiveScripts = Object.values(packageJson.scripts || {}).join('\n');
     const all = fs.readdirSync(SMOKE_DIR)
         .filter((name) => name.endsWith('.js') || name.endsWith('.py'))
         .filter(isEntryPoint)
@@ -50,7 +94,7 @@ function main() {
         name,
         fs.readFileSync(path.join(SMOKE_DIR, name), 'utf8'),
     ]));
-    const direct = all.filter((name) => manifest.includes(name));
+    const direct = all.filter((name) => effectiveScripts.includes(name));
     const reachable = new Set(direct);
 
     // Registered orchestration smokes can intentionally invoke narrower smoke entry points.
