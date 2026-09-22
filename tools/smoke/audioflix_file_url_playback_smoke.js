@@ -113,9 +113,18 @@ async function main() {
             try { await youtube.play(ytItem); } catch (error) { blockedMessage = error.message; }
             const stage = document.querySelector('.audioflix-provider-stage');
             const blockedPlayback = youtube.getPlaybackState();
-            const normalStageTransportOnly = stage?.hidden === false
-                && stage.classList.contains('is-transport-only')
-                && youtube.isInternalViewOpen() === false;
+            const normalStageState = {
+                exists: !!stage,
+                hidden: stage?.hidden ?? null,
+                className: stage?.className || '',
+                transportOnly: !!stage?.classList.contains('is-transport-only'),
+                transportHidden: !!stage?.classList.contains('is-transport-hidden'),
+                internalView: youtube.isInternalViewOpen()
+            };
+            const normalStageTransportOnly = normalStageState.exists
+                && normalStageState.hidden === false
+                && normalStageState.transportOnly
+                && normalStageState.internalView === false;
             const blockedActive = youtube.isActive();
             const blockedStageElement = document.querySelector('.audioflix-provider-stage.has-error');
             const blockedStage = blockedStageElement?.textContent || '';
@@ -263,6 +272,7 @@ async function main() {
                 progressCount: progressEvents.length,
                 youtubePlayerAttempts,
                 blockedItemTitle: blockedPlayback.item?.title || '',
+                normalStageState,
                 normalStageTransportOnly,
                 scState,
                 scVolume,
@@ -303,7 +313,7 @@ async function main() {
         assert(result.playbackEvents.some((status) => /directly from the browser/.test(status)), 'direct playback status missing');
         assert(result.progressCount > 0, 'direct playback progress events missing');
         assert(result.blockedItemTitle === 'YouTube Track', `failed provider playback state lost the attempted track: ${result.blockedItemTitle}`);
-        assert(result.normalStageTransportOnly, 'normal playback exposed the Internal player instead of its off-screen transport');
+        assert(result.normalStageTransportOnly, `normal playback transport state drifted: ${JSON.stringify(result.normalStageState)}`);
         assert(result.scState.provider === 'soundcloud' && result.scState.currentTime === 31, 'SoundCloud transport state failed');
         assert(result.scVolume === 20, `SoundCloud volume was not forwarded: ${result.scVolume}`);
         assert(result.vimeoState.provider === 'vimeo' && result.vimeoState.currentTime === 19, 'Vimeo transport state failed');
