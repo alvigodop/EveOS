@@ -1,11 +1,12 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
 
 async function measureWorkspace(page) {
   await page.goto(FILE_URL, { waitUntil: 'load', timeout: 240000 });
+  await waitForEveCoreHydrated(page);
   await page.waitForFunction(() => !!window.SearchMonitorBoot, undefined, { timeout: 120000 });
   await page.evaluate(() => window.SearchMonitorBoot.expand());
   await page.waitForFunction(() => (
@@ -94,7 +95,7 @@ function assertMetrics(metrics) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ headless: true });
+  const { browser } = await launchChromiumOrConnect({ headless: true });
   const pageErrors = [];
   const results = [];
 

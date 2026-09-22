@@ -11,17 +11,18 @@
 // overlapping/out of order), (e) the device stream is pre-warmed so the first chunks aren't
 // clipped by a cold open, (f) stop tears the tap down and restores local output.
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'EveOS.html').replace(/\\/g, '/');
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage();
     await page.addInitScript(() => {
         try { localStorage.clear(); } catch {}
         window.__eveSmokeNoAutoGemini = true;
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForFunction(() => !!(window.EveAudioflixAudio?.playItem
         && window.EveAudioflixAudioCapture?.ready
         && window.EveAudioflixState?.ready), undefined, { timeout: 60000 });
