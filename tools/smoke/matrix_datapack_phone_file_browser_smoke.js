@@ -12,10 +12,10 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
         context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
         const page = await context.newPage();
         await page.goto(pathToFileURL(path.join(REPO_ROOT, 'EveOS.html')).href, {
-        await waitForEveCoreHydrated(page);
             waitUntil: 'load',
             timeout: 180000
         });
+        await waitForEveCoreHydrated(page);
         await page.locator('.topbar-matrix-btn').waitFor({
             state: 'visible',
             timeout: 180000
