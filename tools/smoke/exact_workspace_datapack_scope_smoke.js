@@ -35,6 +35,8 @@ async function waitForApp(page) {
     typeof window.renderDashboard === 'function'
     && !!window.UnidexView
     && !!window.EveOS?.DatapackIndex
+    && typeof window.markCoreStateClean === 'function'
+    && typeof window.markConfigClean === 'function'
     && !!window.__EVE_DEFERRED_SCRIPT_STATE?.completedAt
   ), undefined, { timeout: 120000 });
   await page.waitForTimeout(250);
@@ -121,6 +123,12 @@ async function seedState(page, seed) {
     } catch (error) {
       // file:// can reject localStorage writes
     }
+
+    // Synthetic state replacement bypasses the normal startup loader. Mirror
+    // its baseline synchronization so the next ordinary save only reports
+    // real post-seed mutations instead of the whole fixture as changed.
+    window.markCoreStateClean();
+    window.markConfigClean(config);
 
     window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'exact-scope-seed' } }));
     await window.EveOS.DatapackIndex.ensureFresh({
