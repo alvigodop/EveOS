@@ -147,6 +147,56 @@ async function injectRawDrift(page) {
   });
 }
 
+async function collectUnidexScopeDiagnostics(page) {
+  return page.evaluate(() => {
+    const indexApi = window.EveOS?.DatapackIndex || null;
+    const liveLinks = typeof window.getLiveLinks === 'function'
+      ? window.getLiveLinks()
+      : (Array.isArray(window.eveState?.links)
+        ? window.eveState.links
+        : (Array.isArray(window.links) ? window.links : []));
+    const targetIds = new Set(['main-alpha-1', 'child-alpha-1', 'main-alpha-drift']);
+    const compactLink = (link) => ({
+      id: String(link?.id || ''),
+      title: String(link?.title || ''),
+      workspace: String(link?.workspace || ''),
+      category: String(link?.category || '')
+    });
+    const snapshotRecords = Array.isArray(indexApi?.getSnapshot?.()?.records)
+      ? indexApi.getSnapshot().records
+          .filter((record) => targetIds.has(String(record?.linkId || record?.id || '')))
+          .map((record) => ({
+            linkId: String(record?.linkId || record?.id || ''),
+            title: String(record?.title || ''),
+            workspaceId: String(record?.workspaceId || ''),
+            categoryName: String(record?.categoryName || '')
+          }))
+      : [];
+
+    return {
+      activeWorkspace: String(window.config?.activeWorkspace || ''),
+      buildState: typeof indexApi?.getBuildState === 'function' ? indexApi.getBuildState() : null,
+      hasUsableSnapshot: typeof indexApi?.hasUsableSnapshot === 'function' ? indexApi.hasUsableSnapshot() : null,
+      hasReadableLinkSnapshot: typeof indexApi?.hasReadableLinkSnapshot === 'function' ? indexApi.hasReadableLinkSnapshot() : null,
+      hasReadableStructureSnapshot: typeof indexApi?.hasReadableStructureSnapshot === 'function' ? indexApi.hasReadableStructureSnapshot() : null,
+      exactMainIds: typeof indexApi?.getExactBookmarkLinkIds === 'function'
+        ? indexApi.getExactBookmarkLinkIds({ workspaceId: 'main' })
+        : null,
+      exactMainAlphaIds: typeof indexApi?.getExactBookmarkLinkIds === 'function'
+        ? indexApi.getExactBookmarkLinkIds({ workspaceId: 'main', categoryName: 'Alpha' })
+        : null,
+      scopedMainIds: typeof indexApi?.getScopedBookmarkLinkIds === 'function'
+        ? indexApi.getScopedBookmarkLinkIds({ workspaceId: 'main' })
+        : null,
+      mainAlphaSummary: typeof indexApi?.getCardSummary === 'function'
+        ? indexApi.getCardSummary('main', 'Alpha')
+        : null,
+      liveTargetLinks: liveLinks.filter((link) => targetIds.has(String(link?.id || ''))).map(compactLink),
+      snapshotTargetRecords: snapshotRecords
+    };
+  });
+}
+
 async function runSmoke(page) {
   const mainDashboardTitles = await waitForHydratedCardLinks(
     page,
@@ -187,7 +237,11 @@ async function runSmoke(page) {
 
   const alphaCard = unidexCards.find((card) => card.title === 'Alpha');
   if (!alphaCard || alphaCard.total !== '1') {
-    throw new Error('Unidex main Alpha card should stay exact-scoped at 1 bookmark: ' + JSON.stringify(unidexCards));
+    const diagnostics = await collectUnidexScopeDiagnostics(page);
+    throw new Error('Unidex main Alpha card should stay exact-scoped at 1 bookmark: ' + JSON.stringify({
+      unidexCards,
+      diagnostics
+    }));
   }
 
   await page.locator('.unidex-card-hit', { hasText: 'Alpha' }).first().click();
@@ -198,7 +252,11 @@ async function runSmoke(page) {
   });
 
   if (!unidexEntryTitles.includes('Main Alpha One') || unidexEntryTitles.includes('Child Alpha One') || unidexEntryTitles.includes('Main Alpha Drift')) {
-    throw new Error('Unidex entries leaked cross-workspace or drift links: ' + JSON.stringify(unidexEntryTitles));
+    const diagnostics = await collectUnidexScopeDiagnostics(page);
+    throw new Error('Unidex entries leaked cross-workspace or drift links: ' + JSON.stringify({
+      unidexEntryTitles,
+      diagnostics
+    }));
   }
 
   return {
