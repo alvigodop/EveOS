@@ -59,9 +59,16 @@ async function seedState(page) {
         }
 
         window.__sidebarCollapseRenderCount = 0;
+        window.__sidebarCollapseRenderCalls = [];
         const originalRenderSidebar = window.renderSidebar;
         window.renderSidebar = function wrappedRenderSidebar(...args) {
             window.__sidebarCollapseRenderCount += 1;
+            window.__sidebarCollapseRenderCalls.push({
+                at: Date.now(),
+                stack: String(new Error('renderSidebar call').stack || '')
+                    .split('\n')
+                    .slice(1, 8)
+            });
             return originalRenderSidebar.apply(this, args);
         };
 
@@ -72,11 +79,17 @@ async function seedState(page) {
 async function resetSidebarRenderCounter(page) {
     await page.evaluate(() => {
         window.__sidebarCollapseRenderCount = 0;
+        window.__sidebarCollapseRenderCalls = [];
     });
 }
 
-async function getSidebarRenderCounter(page) {
-    return page.evaluate(() => Number(window.__sidebarCollapseRenderCount || 0));
+async function getSidebarRenderDiagnostics(page) {
+    return page.evaluate(() => ({
+        count: Number(window.__sidebarCollapseRenderCount || 0),
+        calls: Array.isArray(window.__sidebarCollapseRenderCalls)
+            ? window.__sidebarCollapseRenderCalls.slice()
+            : []
+    }));
 }
 
 async function clickWorkspaceToggleLane(page, workspaceId) {
@@ -202,9 +215,9 @@ async function main() {
                 && config.collapsedTabs.includes('main');
         }, undefined, { timeout: 10000 });
 
-        const collapseRenderCount = await getSidebarRenderCounter(page);
-        if (collapseRenderCount !== 0) {
-            throw new Error(`Expected collapsing a tab chain to avoid full sidebar rerender, got ${collapseRenderCount}`);
+        const collapseRenderDiagnostics = await getSidebarRenderDiagnostics(page);
+        if (collapseRenderDiagnostics.count !== 0) {
+            throw new Error(`Expected collapsing a tab chain to avoid full sidebar rerender: ${JSON.stringify(collapseRenderDiagnostics, null, 2)}`);
         }
 
         await resetSidebarRenderCounter(page);
@@ -227,9 +240,9 @@ async function main() {
                 && !config.collapsedTabs.includes('main');
         }, undefined, { timeout: 10000 });
 
-        const expandRenderCount = await getSidebarRenderCounter(page);
-        if (expandRenderCount !== 0) {
-            throw new Error(`Expected expanding a tab chain to avoid full sidebar rerender, got ${expandRenderCount}`);
+        const expandRenderDiagnostics = await getSidebarRenderDiagnostics(page);
+        if (expandRenderDiagnostics.count !== 0) {
+            throw new Error(`Expected expanding a tab chain to avoid full sidebar rerender: ${JSON.stringify(expandRenderDiagnostics, null, 2)}`);
         }
 
         await page.setViewportSize({ width: 1024, height: 900 });
@@ -252,9 +265,9 @@ async function main() {
                 && config.collapsedTabs.includes('main');
         }, undefined, { timeout: 10000 });
 
-        const narrowCollapseRenderCount = await getSidebarRenderCounter(page);
-        if (narrowCollapseRenderCount !== 0) {
-            throw new Error(`Expected narrow-width toggle lane collapse to avoid full sidebar rerender, got ${narrowCollapseRenderCount}`);
+        const narrowCollapseRenderDiagnostics = await getSidebarRenderDiagnostics(page);
+        if (narrowCollapseRenderDiagnostics.count !== 0) {
+            throw new Error(`Expected narrow-width toggle lane collapse to avoid full sidebar rerender: ${JSON.stringify(narrowCollapseRenderDiagnostics, null, 2)}`);
         }
 
         await resetSidebarRenderCounter(page);
@@ -277,9 +290,9 @@ async function main() {
                 && !config.collapsedTabs.includes('main');
         }, undefined, { timeout: 10000 });
 
-        const narrowExpandRenderCount = await getSidebarRenderCounter(page);
-        if (narrowExpandRenderCount !== 0) {
-            throw new Error(`Expected narrow-width toggle lane expand to avoid full sidebar rerender, got ${narrowExpandRenderCount}`);
+        const narrowExpandRenderDiagnostics = await getSidebarRenderDiagnostics(page);
+        if (narrowExpandRenderDiagnostics.count !== 0) {
+            throw new Error(`Expected narrow-width toggle lane expand to avoid full sidebar rerender: ${JSON.stringify(narrowExpandRenderDiagnostics, null, 2)}`);
         }
 
         await clickWorkspaceContentLane(page, 'main');
