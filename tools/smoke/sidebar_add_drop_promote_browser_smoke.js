@@ -208,7 +208,10 @@ async function runSmoke(page, browserDiagnostics) {
 
     await page.mouse.move(sourcePoint.x, sourcePoint.y);
     await page.mouse.down();
-    await page.waitForTimeout(240);
+    await page.waitForFunction(() => (
+        !!document.querySelector('#sidebar.ws-drag-active')
+        && !!document.querySelector('.ws-pointer-drag-preview')
+    ), undefined, { timeout: 1500 });
     await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 8 });
 
     const duringDrag = await page.evaluate(() => {
