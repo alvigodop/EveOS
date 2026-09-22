@@ -80,6 +80,12 @@ async function main() {
       throw new Error(`Inspector traffic log did not render: ${JSON.stringify(inspector)}`);
     }
 
+    await page.click('[data-gemini-server-inspector-close]');
+    await page.waitForFunction(() => {
+      const panel = document.getElementById('geminiServerInspectorPanel');
+      return !!panel && panel.hidden === true && !panel.classList.contains('is-open');
+    }, undefined, { timeout: 10000 });
+
     await page.click('[data-gemini-monitor-view-btn="full"]');
     await page.waitForFunction(() => (
       !!window.__GEMINI_WORKSPACE_READY
