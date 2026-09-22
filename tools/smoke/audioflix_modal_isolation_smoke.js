@@ -34,13 +34,21 @@ async function main() {
         undefined, { timeout: 120000 });
 
     // A library big enough that a full rebuild would be the expensive path.
-    const firstId = await page.evaluate(() => {
+    const firstId = await page.evaluate(async () => {
         const S = window.EveAudioflixState;
+        const persisted = new Promise((resolve) => {
+            const onChanged = (event) => {
+                window.removeEventListener('eve:audioflix-state-changed', onChanged);
+                resolve(event?.detail?.reason || '');
+            };
+            window.addEventListener('eve:audioflix-state-changed', onChanged);
+        });
         let first = '';
         for (let i = 0; i < 60; i += 1) {
             const added = S.addItem('music', { title: `Track ${i}`, url: `https://example.test/${i}.mp3`, folder: 'Bulk' });
             if (i === 0) first = added.id;
         }
+        await persisted;
         return first;
     });
 
