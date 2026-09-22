@@ -1,5 +1,5 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -100,12 +100,13 @@ async function assertUnifiedEntriesRestored(page) {
 }
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.message || String(error)));
     try {
         await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+        await waitForEveCoreHydrated(page);
         await waitForApp(page);
         await seedLegacyStorageAndReload(page);
         await assertUnifiedEntriesRestored(page);
