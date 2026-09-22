@@ -1,15 +1,9 @@
 {
   "note": "Smokes not reachable from any npm script chain. Shrink this list through explicit committed test wiring; never grow it.",
   "unregistered": [
-    "api_cache_manager_smoke.js",
-    "api_cache_ttl_smoke.js",
     "api_card_settings_browser_smoke.js",
-    "api_knowledge_grouping_smoke.js",
     "api_live_provider_acceptance_smoke.js",
     "api_provider_matrix_live_smoke.js",
-    "api_scraper_merge_smoke.js",
-    "api_search_bridge_off_smoke.js",
-    "api_search_stale_results_smoke.js",
     "audioflix_bookmark_focus_browser_smoke.js",
     "audioflix_browser_folder_reconcile_smoke.js",
     "audioflix_bulk_manager_smoke.js",
