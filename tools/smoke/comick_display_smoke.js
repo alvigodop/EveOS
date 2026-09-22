@@ -116,7 +116,7 @@ const context = {
                 },
                 Core: {
                     get ACTIVE_PROXY_URL() {
-                        return 'http://127.0.0.1:3000/api/proxy?url=';
+                        return 'http://127.0.0.1:8765/api/proxy?url=';
                     },
                     async ensureLocalServicesProbed() {
                         return;
