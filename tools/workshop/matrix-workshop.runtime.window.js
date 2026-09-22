@@ -9,7 +9,9 @@
     const token = String(params.get('eveMatrixWindowToken') || '').trim();
     const controlPort = Number(params.get('eveMatrixControlPort') || 0);
     let actualLocked = false;
+    let taskbarAutoHideActive = false;
     let requestSerial = 0;
+    let taskbarRequestSerial = 0;
 
     function readPreference() {
         try { return localStorage.getItem(PREF_KEY) === '1'; }
@@ -64,14 +66,15 @@
             : '';
     }
 
-    async function postBackgroundLock(enabled) {
+    async function postWindowControl(action, enabled, options = {}) {
         const base = getControlBase();
         if (!base) throw new Error('EveOS Local Control is unavailable');
         const response = await fetch(`${base}/api/matrix-window/control`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'EveOS' },
-            body: JSON.stringify({ token, enabled: !!enabled }),
-            cache: 'no-store'
+            body: JSON.stringify({ token, action, enabled: !!enabled }),
+            cache: 'no-store',
+            keepalive: options.keepalive === true
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.ok !== true) {
@@ -109,7 +112,7 @@
         const serial = ++requestSerial;
         setStatus(wanted ? 'Locking Matrix behind other windows…' : 'Unlocking Matrix foreground behavior…');
         try {
-            const payload = await postBackgroundLock(wanted);
+            const payload = await postWindowControl('background-lock', wanted);
             if (serial !== requestSerial) return payload;
             actualLocked = payload.backgroundLocked === true;
             if (checkbox) checkbox.checked = actualLocked;
@@ -132,6 +135,32 @@
         const button = document.getElementById('matrixImmersiveFullscreenButton');
         if (button) button.textContent = active ? 'Exit Immersive Fullscreen' : 'Immersive Fullscreen';
         document.body.classList.toggle('matrix-immersive-fullscreen', active);
+    }
+
+    function setImmersiveStatus(message, isError = false) {
+        const node = document.getElementById('matrixImmersiveStatus');
+        if (!node) return;
+        node.textContent = String(message || '');
+        node.classList.toggle('is-error', !!isError);
+    }
+
+    async function syncImmersiveTaskbar(active) {
+        if (!detached || !token) return { ok: true, deferred: true };
+        const serial = ++taskbarRequestSerial;
+        try {
+            const payload = await postWindowControl('immersive-taskbar', active);
+            if (serial !== taskbarRequestSerial) return payload;
+            taskbarAutoHideActive = active && payload.taskbarAutoHide === true;
+            setImmersiveStatus(active
+                ? 'Windows taskbar auto-hide active · move pointer to the bottom edge to reveal it.'
+                : 'Previous Windows taskbar behavior restored.');
+            return payload;
+        } catch (error) {
+            if (serial !== taskbarRequestSerial) return { ok: false, message: String(error) };
+            taskbarAutoHideActive = false;
+            setImmersiveStatus(`Taskbar auto-hide unavailable: ${error?.message || error}`, true);
+            return { ok: false, message: String(error?.message || error) };
+        }
     }
 
     async function toggleImmersiveFullscreen() {
@@ -165,14 +194,23 @@
         setBackgroundLock(readPreference(), { persist: false, apply: true });
     }
 
-    document.addEventListener('fullscreenchange', updateFullscreenUi);
+    document.addEventListener('fullscreenchange', () => {
+        updateFullscreenUi();
+        syncImmersiveTaskbar(!!document.fullscreenElement);
+    });
+    window.addEventListener('pagehide', () => {
+        if (!taskbarAutoHideActive) return;
+        postWindowControl('immersive-taskbar', false, { keepalive: true }).catch(() => {});
+    });
     window.EveMatrixWindowMode = Object.freeze({
         isDetached: () => detached,
         getWindowToken: () => token,
         getControlBase,
         getBackgroundLockPreference: readPreference,
         isBackgroundLocked: () => actualLocked,
+        isTaskbarAutoHideActive: () => taskbarAutoHideActive,
         setBackgroundLock,
+        syncImmersiveTaskbar,
         toggleImmersiveFullscreen
     });
 

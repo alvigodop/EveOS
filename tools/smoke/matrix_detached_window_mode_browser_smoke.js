@@ -26,8 +26,9 @@ function assert(condition, message) {
             body: JSON.stringify({
                 ok: true,
                 supported: true,
-                backgroundLocked: body.enabled === true,
-                message: body.enabled ? 'locked' : 'unlocked'
+                backgroundLocked: body.action === 'background-lock' && body.enabled === true,
+                taskbarAutoHide: body.action === 'immersive-taskbar' && body.enabled === true,
+                message: body.enabled ? 'enabled' : 'disabled'
             })
         });
     });
@@ -55,14 +56,22 @@ function assert(condition, message) {
         await page.check('#matrixBackgroundLockCheckbox');
         await page.waitForFunction(() => window.EveMatrixWindowMode.isBackgroundLocked() === true);
         assert(
-            controlCalls.some(call => call.token === TOKEN && call.enabled === true),
+            controlCalls.some(call => (
+                call.token === TOKEN
+                && call.action === 'background-lock'
+                && call.enabled === true
+            )),
             `background-lock POST missing: ${JSON.stringify(controlCalls)}`
         );
 
         await page.uncheck('#matrixBackgroundLockCheckbox');
         await page.waitForFunction(() => window.EveMatrixWindowMode.isBackgroundLocked() === false);
         assert(
-            controlCalls.some(call => call.token === TOKEN && call.enabled === false),
+            controlCalls.some(call => (
+                call.token === TOKEN
+                && call.action === 'background-lock'
+                && call.enabled === false
+            )),
             `background-unlock POST missing: ${JSON.stringify(controlCalls)}`
         );
 
@@ -102,6 +111,17 @@ function assert(condition, message) {
                 && /Exit Immersive/.test(entered.label),
             `immersive fullscreen entry mismatch: ${JSON.stringify(entered)}`
         );
+        await page.waitForFunction(() => (
+            window.EveMatrixWindowMode?.isTaskbarAutoHideActive?.() === true
+        ));
+        assert(
+            controlCalls.some(call => (
+                call.token === TOKEN
+                && call.action === 'immersive-taskbar'
+                && call.enabled === true
+            )),
+            `immersive taskbar enable POST missing: ${JSON.stringify(controlCalls)}`
+        );
 
         await page.click('#matrixImmersiveFullscreenButton');
         const exited = await page.evaluate(() => ({
@@ -111,6 +131,17 @@ function assert(condition, message) {
         }));
         assert(!exited.active && !exited.bodyClass && /Immersive Fullscreen/.test(exited.label),
             `immersive fullscreen exit mismatch: ${JSON.stringify(exited)}`);
+        await page.waitForFunction(() => (
+            window.EveMatrixWindowMode?.isTaskbarAutoHideActive?.() === false
+        ));
+        assert(
+            controlCalls.some(call => (
+                call.token === TOKEN
+                && call.action === 'immersive-taskbar'
+                && call.enabled === false
+            )),
+            `immersive taskbar restore POST missing: ${JSON.stringify(controlCalls)}`
+        );
 
         console.log('MATRIX_DETACHED_WINDOW_MODE_BROWSER_SMOKE_OK', JSON.stringify({
             boot, controlCalls, entered, exited

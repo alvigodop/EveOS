@@ -54,6 +54,7 @@ def direct_contract():
         matrix_control._apply_window_lock,
         matrix_control._start_enforcement,
         matrix_control._stop_enforcement,
+        matrix_control._set_taskbar_autohide,
     )
     calls = []
     try:
@@ -66,32 +67,56 @@ def direct_contract():
                 "supported": True,
                 "backgroundLocked": bool(enabled),
                 "noActivateApplied": bool(enabled),
+                "appWindowApplied": True,
                 "hwnd": hwnd,
             }
         )
         matrix_control._start_enforcement = lambda token, hwnd: calls.append(("start", token, hwnd))
         matrix_control._stop_enforcement = lambda token: calls.append(("stop", token)) or True
+        matrix_control._set_taskbar_autohide = lambda token, hwnd, enabled: (
+            calls.append(("taskbar", token, hwnd, enabled))
+            or {"ok": True, "supported": True, "taskbarAutoHide": bool(enabled)}
+        )
 
         bad = matrix_control.apply_request({"token": "../bad", "enabled": True})
         assert_true(bad.get("ok") is False, f"invalid token was accepted: {bad}")
 
         token = "abcDEF12_345"
-        locked = matrix_control.apply_request({"token": token, "enabled": True})
-        unlocked = matrix_control.apply_request({"token": token, "enabled": False})
+        locked = matrix_control.apply_request({
+            "token": token, "action": "background-lock", "enabled": True
+        })
+        unlocked = matrix_control.apply_request({
+            "token": token, "action": "background-lock", "enabled": False
+        })
+        taskbar_on = matrix_control.apply_request({
+            "token": token, "action": "immersive-taskbar", "enabled": True
+        })
+        taskbar_off = matrix_control.apply_request({
+            "token": token, "action": "immersive-taskbar", "enabled": False
+        })
+
         assert_true(
-            locked.get("backgroundLocked") is True and locked.get("enforcement") == "continuous",
+            locked.get("backgroundLocked") is True
+            and locked.get("enforcement") == "continuous"
+            and locked.get("appWindowApplied") is True,
             f"continuous lock result mismatch: {locked}",
         )
         assert_true(
             unlocked.get("backgroundLocked") is False and unlocked.get("enforcement") == "off",
             f"unlock result mismatch: {unlocked}",
         )
+        assert_true(taskbar_on.get("taskbarAutoHide") is True,
+                    f"taskbar enable mismatch: {taskbar_on}")
+        assert_true(taskbar_off.get("taskbarAutoHide") is False,
+                    f"taskbar restore mismatch: {taskbar_off}")
         assert_true(calls == [
             ("apply", 321, True),
             ("start", token, 321),
             ("stop", token),
             ("apply", 321, False),
-        ], f"native enforcement calls mismatch: {calls}")
+            ("taskbar", token, 321, True),
+            ("taskbar", token, None, False),
+        ], f"native control calls mismatch: {calls}")
     finally:
         (
             matrix_control.is_supported,
@@ -99,6 +124,7 @@ def direct_contract():
             matrix_control._apply_window_lock,
             matrix_control._start_enforcement,
             matrix_control._stop_enforcement,
+            matrix_control._set_taskbar_autohide,
         ) = original
 
 
@@ -111,7 +137,6 @@ def route_contract():
             "ok": True,
             "supported": True,
             "backgroundLocked": bool(body.get("enabled")),
-            "enforcement": "continuous" if body.get("enabled") else "off",
         }
     )
     port = free_port()
@@ -119,14 +144,14 @@ def route_contract():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        status, payload = post_json(port, {"token": "routeToken12", "enabled": True})
+        body = {"token": "routeToken12", "action": "background-lock", "enabled": True}
+        status, payload = post_json(port, body)
         assert_true(status == 200 and payload.get("backgroundLocked") is True,
                     f"local Matrix route failed: {status} {payload}")
-        assert_true(calls == [{"token": "routeToken12", "enabled": True}],
-                    f"Matrix route body mismatch: {calls}")
+        assert_true(calls == [body], f"Matrix route body mismatch: {calls}")
 
         forbidden_status, _ = post_json(
-            port, {"token": "routeToken12", "enabled": False}, origin="https://example.com"
+            port, body, origin="https://example.com"
         )
         assert_true(forbidden_status == 403, "non-local origin was allowed to control Matrix window")
     finally:

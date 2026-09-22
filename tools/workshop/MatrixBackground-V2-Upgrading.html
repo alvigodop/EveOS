@@ -366,7 +366,12 @@
                 </div>
                 <button id="matrixImmersiveFullscreenButton" onclick="toggleFullscreen()">Immersive Fullscreen</button>
                 <div class="matrix-window-mode-copy">
-                    Hides browser chrome. Windows taskbar edge reveal follows your Windows auto-hide setting.
+                    Hides browser chrome. In detached Matrix, EveOS temporarily enables Windows taskbar auto-hide;
+                    move the pointer to the bottom edge to reveal it. Your previous taskbar behavior is restored
+                    when immersive mode exits or the Matrix window closes.
+                </div>
+                <div id="matrixImmersiveStatus" class="matrix-window-mode-status">
+                    Taskbar behavior is unchanged until immersive mode is entered.
                 </div>
                 <button onclick="saveSettings()">Save Settings</button>
                 <button onclick="loadSettings()">Load Settings</button>
