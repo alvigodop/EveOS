@@ -296,9 +296,9 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         };
     });
 
-    // 6. Legacy datapacks with no Audioflix key are still full-pack replacements. They must
-    // clear the previous pack's clips instead of leaking them into the newly loaded pack.
-    const absentClearsOk = await page.evaluate(() => {
+    // 6. Backups created before Audioflix existed have no Audioflix key. Restoring one must
+    // preserve the current library/settings because absence is not an explicit request to clear it.
+    const absentPreservesOk = await page.evaluate(() => {
         window.EveAudioflixState.update({
             nativeBridgeBase: 'http://127.0.0.1:9876',
             routeMode: 'manual'
@@ -309,17 +309,8 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         if (legacy.bookmarks?.config) delete legacy.bookmarks.config.audioflix;
         window.EveDataStore.Store.applyState(legacy);
         const a = window.EveAudioflixState.ensure();
-        return a.soundboard.length === 0
+        return a.soundboard.some((item) => item.id === 'leak-check')
             && a.music.length === 0
-            && a.ports.length === 0
-            && a.scopeBindings.length === 0
-            && a.musicGroups.length === 0
-            && Object.keys(a.musicGroupMap).length === 0
-            && a.musicPlaylists.length === 0
-            && a.musicPortConnections.length === 0
-            && a.musicClassifiers.length === 0
-            && Object.keys(a.localizeScopeDirs).length === 0
-            && a.dupDismissedPairs.length === 0
             && a.nativeBridgeBase === 'http://127.0.0.1:9876'
             && a.routeMode === 'manual';
     });
@@ -351,7 +342,7 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
     if (!restoreOk) fails.push('applyState() did NOT restore audioflix ports/groups');
     if (!clearResult.cleared) fails.push('explicitly empty Audioflix state was repopulated by fallback data');
     if (clearResult.stopCalls !== 1) fails.push('datapack replacement did not stop previous Audioflix playback');
-    if (!absentClearsOk) fails.push('legacy datapack without Audioflix leaked the previous pack audio');
+    if (!absentPreservesOk) fails.push('legacy datapack without Audioflix did not preserve current Audioflix state');
     if (!pagehideFlushOk) fails.push('pending Audioflix edit was lost during pagehide');
     if (fails.length) { console.error('FAIL: ' + fails.join('; ')); process.exit(1); }
     console.log('AUDIOFLIX_DURABILITY_RT_OK');

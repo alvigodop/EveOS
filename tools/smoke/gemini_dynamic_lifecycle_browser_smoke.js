@@ -91,11 +91,17 @@ async function main() {
         await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => (
             !!window.SearchMonitorBoot
-            && !!window.GeminiServerControl
-            && !!document.querySelector('[data-gemini-server-toggle]')
+            && !!document.querySelector('[data-ai-provider="gemini"] > summary')
+            && !!document.querySelector('[data-gemini-monitor-view-btn="full"]')
         ), undefined, { timeout: 120000 });
 
         await page.evaluate(() => window.SearchMonitorBoot.expand());
+        await page.click('[data-ai-provider="gemini"] > summary');
+        await page.waitForFunction(() => (
+            window.__GEMINI_BOOT_REQUESTED === true
+            && !!window.GeminiServerControl
+            && !!document.querySelector('[data-gemini-server-toggle]')
+        ), undefined, { timeout: 120000 });
         await page.click('[data-gemini-server-toggle]');
         await page.click('[data-gemini-monitor-view-btn="full"]');
 
