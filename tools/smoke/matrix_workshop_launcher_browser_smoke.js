@@ -183,9 +183,14 @@ async function waitForStatus(url, timeoutMs = 30000) {
         await page.locator('[data-matrix-detach]').click();
         const detachedPage = await detachedPagePromise;
         await detachedPage.waitForLoadState('load', { timeout: 60000 });
+        const detachedUrl = new URL(detachedPage.url());
         const detachedState = {
             title: await detachedPage.title(),
             url: detachedPage.url(),
+            pathname: detachedUrl.pathname,
+            detachedMode: detachedUrl.searchParams.get('eveMatrixDetached'),
+            windowToken: detachedUrl.searchParams.get('eveMatrixWindowToken') || '',
+            controlPort: detachedUrl.searchParams.get('eveMatrixControlPort') || '',
             canvasCount: await detachedPage.locator('canvas').count(),
             parent: await page.evaluate(() => ({
                 open: document.getElementById('matrix-workshop-overlay')?.classList.contains('is-open') || false,
@@ -195,8 +200,10 @@ async function waitForStatus(url, timeoutMs = 30000) {
             }))
         };
         if (
-            detachedState.title !== 'Matrix Code Rain v2.0'
-            || !detachedState.url.endsWith('/tools/workshop/MatrixBackground-V2-Upgrading.html')
+            !detachedState.title.startsWith('Matrix Code Rain v2.0 · EveOS Detached · ')
+            || !detachedState.pathname.endsWith('/tools/workshop/MatrixBackground-V2-Upgrading.html')
+            || detachedState.detachedMode !== '1'
+            || detachedState.windowToken.length < 8
             || detachedState.canvasCount < 1
             || detachedState.parent.open
             || detachedState.parent.frameSrc !== 'about:blank'

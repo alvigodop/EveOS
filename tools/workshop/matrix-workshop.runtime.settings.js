@@ -26,6 +26,7 @@
                     y: bouncyPhoneWidget.style.top
                 },
                 datapackPhone: window.EveMatrixDatapackPhone?.exportSettings?.() || null,
+                backgroundLockEnabled: window.EveMatrixWindowMode?.getBackgroundLockPreference?.() || false,
 
                 // Effect colors and properties
                 gradientColors: gradientColors,
@@ -150,6 +151,12 @@
                 }
                 if (settings.datapackPhone && window.EveMatrixDatapackPhone?.applySettings) {
                     window.EveMatrixDatapackPhone.applySettings(settings.datapackPhone);
+                }
+                if (Object.prototype.hasOwnProperty.call(settings, 'backgroundLockEnabled')) {
+                    window.EveMatrixWindowMode?.setBackgroundLock?.(
+                        Boolean(settings.backgroundLockEnabled),
+                        { persist: true, apply: true }
+                    );
                 }
 
                 // Apply effect colors and properties

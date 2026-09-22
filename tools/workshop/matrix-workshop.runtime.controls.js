@@ -122,6 +122,7 @@
             document.getElementById('lineVariationValue').textContent = lineVariation + '%';
 
             window.EveMatrixDatapackPhone?.toggle(false);
+            window.EveMatrixWindowMode?.setBackgroundLock?.(false, { persist: true, apply: true });
             initializeColumns();
         }
 

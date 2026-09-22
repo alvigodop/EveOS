@@ -8,9 +8,11 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     const SOURCE_PATH = 'tools/workshop/MatrixBackground-V2-Upgrading.html';
     const HEADER_PREF_KEY = 'eveMatrixWorkshopHeaderHidden';
     const DETACHED_WINDOW_NAME = 'eveMatrixWorkshopWindow';
+    const DETACHED_LOCK_PREF_KEY = 'eveMatrixDetachedBackgroundLock';
     let previousFocus = null;
     let previousBodyOverflow = '';
     let detachedWindow = null;
+    let detachedWindowToken = '';
     let currentScope = null;
 
     function getLauncher() {
@@ -28,6 +30,30 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
 
     function getSourceUrl() {
         return new URL(SOURCE_PATH, window.location.href).href;
+    }
+
+    function createDetachedWindowToken() {
+        if (window.crypto?.getRandomValues) {
+            const bytes = new Uint8Array(10);
+            window.crypto.getRandomValues(bytes);
+            return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+        }
+        return Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
+    }
+
+    function getDetachedSourceUrl() {
+        detachedWindowToken = createDetachedWindowToken();
+        const url = new URL(getSourceUrl());
+        url.searchParams.set('eveMatrixDetached', '1');
+        url.searchParams.set('eveMatrixWindowToken', detachedWindowToken);
+        const controlPort = Number(window.EveOSLocalControl?.port?.() || 0);
+        if (controlPort > 0) url.searchParams.set('eveMatrixControlPort', String(controlPort));
+        return url.href;
+    }
+
+    function readDetachedLockPreference() {
+        try { return localStorage.getItem(DETACHED_LOCK_PREF_KEY) === '1'; }
+        catch (error) { return false; }
     }
 
     function getDetachedWindowFeatures() {
@@ -229,13 +255,13 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
 
     ns.detach = function detachMatrixWorkshop() {
         if (detachedWindow && !detachedWindow.closed) {
-            detachedWindow.focus();
+            if (!readDetachedLockPreference()) detachedWindow.focus();
             ns.close();
             return detachedWindow;
         }
 
         detachedWindow = window.open(
-            getSourceUrl(),
+            getDetachedSourceUrl(),
             DETACHED_WINDOW_NAME,
             getDetachedWindowFeatures()
         );
@@ -245,7 +271,7 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
             return null;
         }
 
-        detachedWindow.focus();
+        if (!readDetachedLockPreference()) detachedWindow.focus();
         ns.close();
         return detachedWindow;
     };
@@ -258,6 +284,9 @@ window.EveMatrixWorkshop = window.EveMatrixWorkshop || {};
     ns.setScope = setScope;
     ns.getDetachedWindow = function getDetachedWindow() {
         return detachedWindow;
+    };
+    ns.getDetachedWindowToken = function getDetachedWindowToken() {
+        return detachedWindowToken;
     };
     ns.openAll = function openAllMatrix() {
         ns.open({ scope: 'all' });

@@ -152,7 +152,6 @@
     "linked_tab_browser_smoke.js",
     "matrix_datapack_phone_browser_smoke.js",
     "matrix_datapack_phone_file_browser_smoke.js",
-    "matrix_workshop_launcher_browser_smoke.js",
     "modal_bulk_runtime_smoke.js",
     "modular_nested_workspace_backup.py",
     "nebula_folder_backup_links_smoke.js",

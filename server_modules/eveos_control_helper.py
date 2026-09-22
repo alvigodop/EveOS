@@ -14,10 +14,9 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
 from . import bookmark_intel_control, eveos_console_prefs, eveos_ports, eveos_web_control
-from . import gemini_control, gemini_credentials, local_moe_control, nexus_browser_control
+from . import gemini_control, gemini_credentials, local_moe_control, matrix_window_control, nexus_browser_control
 from . import piano_player_control, watchfusion_control, world_book_control
 from .eveos_http_cors import eveos_cors_origin
-
 
 DEFAULT_PORT = eveos_ports.service_port("GEMINI_CONTROL_PORT")
 MAIN_LAUNCHER_PORT = 3000
@@ -322,7 +321,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/bookmark-intel/start", "/api/bookmark-intel/stop",
             "/api/local-moe/start", "/api/local-moe/stop", "/api/local-moe/launch", "/api/local-moe/setup",
             "/api/nexus-browser/start", "/api/nexus-browser/stop", "/api/nexus-browser/setup", "/api/nexus-browser/extension",
-            "/api/gemini-credentials", "/api/control-plane/consoles",
+            "/api/gemini-credentials", "/api/control-plane/consoles", "/api/matrix-window/control",
         }
         if path in controlled_paths and not gemini_control.request_can_control(self):
             self._send({
@@ -362,6 +361,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/nexus-browser/stop": lambda: _stop_tool(nexus_browser_control.stop_server),
             "/api/nexus-browser/setup": nexus_browser_control.setup_runtime,
             "/api/nexus-browser/extension": nexus_browser_control.open_extension_folder,
+            "/api/matrix-window/control": lambda: matrix_window_control.apply_request(gemini_credentials.read_json_body(self) or {}),
         }
         action = actions.get(path)
 
