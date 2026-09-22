@@ -57,7 +57,7 @@ async function seedState(page, seed) {
 }
 
 async function mutateAndDirty(page) {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
     const driftLink = {
       id: 'gamma-1',
       title: 'Gamma One',
@@ -76,14 +76,24 @@ async function mutateAndDirty(page) {
     } catch (error) {
       // file:// can reject localStorage writes
     }
+
+    let persistedViaSaveData = false;
     if (typeof window.saveData === 'function') {
       try {
-        window.saveData();
+        await window.saveData({
+          immediate: true,
+          skipRender: true,
+          skipSuggestions: true,
+          source: 'dirty-rebuild-drift'
+        });
+        persistedViaSaveData = true;
       } catch (error) {
-        // best-effort persistence for smoke realism
+        // fall back to a direct invalidation below
       }
     }
-    window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'dirty-rebuild-drift' } }));
+    if (!persistedViaSaveData) {
+      window.dispatchEvent(new CustomEvent('eve:state-mutated', { detail: { source: 'dirty-rebuild-drift' } }));
+    }
     if (typeof window.renderDashboard === 'function') window.renderDashboard();
     return typeof window.EveOS?.DatapackIndex?.getBuildState === 'function'
       ? window.EveOS.DatapackIndex.getBuildState()
