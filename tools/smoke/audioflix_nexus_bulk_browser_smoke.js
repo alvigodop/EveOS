@@ -1,11 +1,11 @@
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error?.stack || String(error)));
@@ -17,6 +17,7 @@ async function main() {
         window.__eveSmokeNoAutoGemini = true;
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForFunction(() => (
         !!window.EveAudioflix?.openNexus
         && !!window.EveAudioflixBulk?.applyMusicChanges

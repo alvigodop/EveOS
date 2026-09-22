@@ -4,11 +4,11 @@
 // click is a silent no-op (the "stuck Re-grant" Drift hit). This drives a REAL click on the
 // rendered Re-grant button with a spy picker and asserts the picker was invoked.
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'EveOS.html').replace(/\\/g, '/');
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage();
     await page.addInitScript(() => {
         try { localStorage.clear(); } catch {}
@@ -22,6 +22,7 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         };
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForFunction(() => !!(window.EveAudioflix && window.EveAudioflix.ready)
         && !!(window.EveAudioflixState && window.EveAudioflixState.ready)
         && !!(window.EveAudioflixFsPorts && window.EveAudioflixFsPorts.ready), undefined, { timeout: 60000 });

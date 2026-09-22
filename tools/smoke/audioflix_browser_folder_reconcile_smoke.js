@@ -6,11 +6,11 @@
 // supported() is false and reconcile() no-ops. Here we stub showDirectoryPicker to a function
 // so supported() is true and the real IndexedDB reconcile path runs.
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'EveOS.html').replace(/\\/g, '/');
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage();
     await page.addInitScript(() => {
         try { localStorage.clear(); } catch {}
@@ -22,6 +22,7 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         }
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForFunction(() => !!(window.EveAudioflixState && window.EveAudioflixState.ready)
         && !!(window.EveAudioflixFsPorts && window.EveAudioflixFsPorts.ready)
         && !!(window.EveAudioflixUiActionsLocalize && window.EveAudioflixUiActionsLocalize.ready),

@@ -12,7 +12,7 @@
  * Runs on file:// with no server, which is the state being fixed.
  */
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -20,7 +20,7 @@ const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, 
 function assert(cond, msg) { if (!cond) throw new Error('ASSERT FAILED: ' + msg); }
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const pageErrors = [];
     page.on('pageerror', (e) => { console.error('[BROWSER ERROR]', e); pageErrors.push(String(e)); });
@@ -30,6 +30,7 @@ async function main() {
         window.__eveSmokeNoAutoGemini = true;
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForFunction(
         () => !!window.EveAudioflix?.open && !!window.EveAudioflixState && !!window.__EVE_DEFERRED_SCRIPT_STATE?.completedAt,
         undefined, { timeout: 120000 });

@@ -4,12 +4,12 @@
 // a server Port under the SAME id (per-item settings keyed by ported_<id>_* stay valid), left the
 // browserFolders mirror, and its path is present in a fresh backup capture.
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'EveOS.html').replace(/\\/g, '/');
 const FOLDER_PATH = 'C:/Users/alvin/Sounds/Echo-Like-Connect';
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage();
     await page.addInitScript(() => {
         try { localStorage.clear(); } catch {}
@@ -17,6 +17,7 @@ const FOLDER_PATH = 'C:/Users/alvin/Sounds/Echo-Like-Connect';
         if (typeof window.showDirectoryPicker !== 'function') window.showDirectoryPicker = async () => { const e = new Error('cancel'); e.name = 'AbortError'; throw e; };
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForFunction(() => !!(window.EveAudioflix && window.EveAudioflix.ready)
         && !!(window.EveAudioflixState && window.EveAudioflixState.ready)
         && !!(window.EveAudioflixFsPorts && window.EveAudioflixFsPorts.ready)
