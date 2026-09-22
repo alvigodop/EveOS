@@ -60,79 +60,87 @@ async function seedState(page) {
 }
 
 async function runSmoke(page) {
-    const result = await page.evaluate(async () => {
-        const source = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
-        const addDrop = document.querySelector('#sidebar .ws-add');
-        if (!source || !addDrop) {
-            return {
-                ok: false,
-                reason: 'Missing deep source or Add/Drop target',
-                sourceFound: !!source,
-                addDropFound: !!addDrop
-            };
-        }
-        if (typeof addDrop.__eveSidebarApplyPointerDrop !== 'function') {
-            return {
-                ok: false,
-                reason: 'Add/Drop lacks pointer drop handler'
-            };
-        }
+    const source = page.locator('#sidebar .ws-item[data-ws-id="deep"]');
+    const addDrop = page.locator('#sidebar .ws-add');
 
-        const originalElementFromPoint = document.elementFromPoint.bind(document);
-        document.elementFromPoint = function () { return addDrop; };
+    if (await source.count() !== 1 || await addDrop.count() !== 1) {
+        throw new Error(`Sidebar Add/Drop promote setup failed: ${JSON.stringify({
+            sourceCount: await source.count(),
+            addDropCount: await addDrop.count()
+        }, null, 2)}`);
+    }
 
-        source.dispatchEvent(new PointerEvent('pointerdown', {
-            bubbles: true,
-            cancelable: true,
-            pointerId: 51,
-            button: 0,
-            clientX: 40,
-            clientY: 260
-        }));
-        await new Promise(resolve => setTimeout(resolve, 380));
-        source.dispatchEvent(new PointerEvent('pointermove', {
-            bubbles: true,
-            cancelable: true,
-            pointerId: 51,
-            button: 0,
-            clientX: 44,
-            clientY: 520
-        }));
+    const hasPointerDrop = await addDrop.evaluate((node) => (
+        typeof node.__eveSidebarApplyPointerDrop === 'function'
+    ));
+    if (!hasPointerDrop) {
+        throw new Error('Sidebar Add/Drop promote setup failed: Add/Drop lacks pointer drop handler');
+    }
 
-        const highlightedDuringDrag = addDrop.classList.contains('ws-drop-target');
-        const previewDuringDrag = !!document.querySelector('.ws-pointer-drag-preview');
+    await source.scrollIntoViewIfNeeded();
+    await addDrop.scrollIntoViewIfNeeded();
+    const sourceBox = await source.boundingBox();
+    const addDropBox = await addDrop.boundingBox();
+    if (!sourceBox || !addDropBox) {
+        throw new Error(`Sidebar Add/Drop promote setup failed: missing rendered bounds ${JSON.stringify({
+            sourceBox,
+            addDropBox
+        })}`);
+    }
 
-        source.dispatchEvent(new PointerEvent('pointerup', {
-            bubbles: true,
-            cancelable: true,
-            pointerId: 51,
-            button: 0,
-            clientX: 44,
-            clientY: 520
-        }));
-        document.elementFromPoint = originalElementFromPoint;
-        await new Promise(resolve => setTimeout(resolve, 160));
+    const sourcePoint = {
+        x: sourceBox.x + Math.min(Math.max(sourceBox.width * 0.5, 4), Math.max(sourceBox.width - 4, 4)),
+        y: sourceBox.y + Math.min(Math.max(sourceBox.height * 0.5, 4), Math.max(sourceBox.height - 4, 4))
+    };
+    const targetPoint = {
+        x: addDropBox.x + Math.min(Math.max(addDropBox.width * 0.5, 4), Math.max(addDropBox.width - 4, 4)),
+        y: addDropBox.y + Math.min(Math.max(addDropBox.height * 0.5, 4), Math.max(addDropBox.height - 4, 4))
+    };
 
+    await page.mouse.move(sourcePoint.x, sourcePoint.y);
+    await page.mouse.down();
+    await page.waitForTimeout(240);
+    await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 8 });
+
+    const duringDrag = await page.evaluate(() => {
+        const addTarget = document.querySelector('#sidebar .ws-add');
+        return {
+            highlighted: !!addTarget?.classList.contains('ws-drop-target'),
+            preview: !!document.querySelector('.ws-pointer-drag-preview'),
+            dragActive: !!document.querySelector('#sidebar.ws-drag-active'),
+            sortModeActive: !!document.querySelector('#sidebar.ws-sort-mode-active'),
+            elementAtTarget: (() => {
+                const rect = addTarget?.getBoundingClientRect?.();
+                if (!rect) return '';
+                const node = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                return node?.className || node?.tagName || '';
+            })()
+        };
+    });
+
+    await page.mouse.up();
+    await page.waitForTimeout(180);
+
+    const result = await page.evaluate((dragState) => {
         const helpers = window.EveWorkspaceHelpers;
         const deep = helpers.findById(config.workspaces, 'deep');
         const deepParent = helpers.findParent(config.workspaces, 'deep');
         const groupRoots = window.EveSidebarGroups.getGroupRoots('group-a', config).map(ws => ws.id);
-
         return {
             ok: true,
-            highlightedDuringDrag,
-            previewDuringDrag,
+            highlightedDuringDrag: dragState.highlighted,
+            previewDuringDrag: dragState.preview,
+            dragActiveDuringDrag: dragState.dragActive,
+            sortModeActiveDuringDrag: dragState.sortModeActive,
+            elementAtTarget: dragState.elementAtTarget,
             previewAfterDrop: !!document.querySelector('.ws-pointer-drag-preview'),
             rootOrder: config.workspaces.map(ws => ws.id),
             deepGroupId: deep ? String(deep.groupId || '') : '',
             deepParentId: deepParent ? String(deepParent.id || '') : '',
             groupRoots
         };
-    });
+    }, duringDrag);
 
-    if (!result.ok) {
-        throw new Error(`Sidebar Add/Drop promote setup failed: ${JSON.stringify(result, null, 2)}`);
-    }
     if (!result.highlightedDuringDrag || !result.previewDuringDrag || result.previewAfterDrop) {
         throw new Error(`Expected Add/Drop highlight and transient pointer preview: ${JSON.stringify(result, null, 2)}`);
     }
