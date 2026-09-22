@@ -138,6 +138,7 @@ load('js/modules/features/bookmark-folders/bookmark-folders.shared.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.helpers.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-sensors.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.helpers.js');
+load('js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.definitions.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghost-recursion.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.ghosts.js');
 load('js/modules/features/bookmark-folders/bookmark-folders.view.js');
