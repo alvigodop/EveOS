@@ -1,9 +1,9 @@
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const { pathToFileURL } = require('url');
 const path = require('path');
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const { browser } = await launchChromiumOrConnect({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const pageErrors = [];
   const consoleErrors = [];
@@ -20,6 +20,7 @@ const path = require('path');
 
   try {
     await page.goto(targetUrl, { waitUntil: 'load', timeout: 30000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForTimeout(14000);
 
     const summary = await page.evaluate(() => {

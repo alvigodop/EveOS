@@ -1,6 +1,6 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { launchChromiumOrConnect } = require('./playwright-browser');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -19,6 +19,7 @@ function assert(condition, message) {
             waitUntil: 'load',
             timeout: 180000
         });
+        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => (
             typeof window.openBookmarkFocusModal === 'function'
             && typeof window.bookmarkFocusOpenAudioflixLinker === 'function'

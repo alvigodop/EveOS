@@ -7,11 +7,11 @@
 // Only" export, and asserts each parameter survives BOTH the produced JSON file and a wipe +
 // restore (into live state and the fallback store a reload reads).
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'EveOS.html').replace(/\\/g, '/');
 
 (async () => {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
     const page = await browser.newPage();
     await page.addInitScript(() => {
         try { localStorage.clear(); } catch {}
@@ -21,6 +21,7 @@ const FILE_URL = 'file:///' + path.join(path.resolve(__dirname, '..', '..'), 'Ev
         URL.createObjectURL = (blob) => { try { window.__eveCapturedBackupBlobs.push(blob); } catch {} return originalCreate(blob); };
     });
     await page.goto(FILE_URL, { waitUntil: 'load', timeout: 180000 });
+    await waitForEveCoreHydrated(page);
     await page.waitForFunction(() => !!window.EveAudioflixState
         && !!(window.EveDataStore && window.EveDataStore.Store && window.EveDataStore.Store.applyState)
         && typeof window.exportDataJsonOnly === 'function', undefined, { timeout: 60000 });
