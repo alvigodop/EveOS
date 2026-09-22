@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -11,7 +12,13 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PORT = 3028
+PORT = None
+
+
+def free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
 
 
 def request_json(path, method="GET", payload=None, timeout=30):
@@ -192,6 +199,8 @@ def walk_files(root):
 
 
 def main():
+    global PORT
+    PORT = free_port()
     modular_root = tempfile.mkdtemp(prefix="eve-folder-api-store-")
     backup_parent = tempfile.mkdtemp(prefix="eve-folder-api-backups-")
     server = subprocess.Popen(

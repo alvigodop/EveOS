@@ -90,7 +90,8 @@
     "smoke:dashboard-hidden-state": "node tools/smoke/dashboard_adaptive_hydration_memory_browser_smoke.js && node tools/smoke/dashboard_delayed_unload_guard_browser_smoke.js && node tools/smoke/dashboard_large_pack_late_interaction_browser_smoke.js && node tools/smoke/dashboard_small_pack_no_warmup_rerender_browser_smoke.js && node tools/smoke/dashboard_startup_deferred_favicon_smoke.js && node tools/smoke/dashboard_startup_scroll_index_idle_browser_smoke.js && node tools/smoke/card_move_stale_index_render_browser_smoke.js && node tools/smoke/dashboard_datapack_card_link_resolver_smoke.js",
     "smoke:coverage-map": "node tools/smoke/eveos_smoke_coverage_map.js",
     "smoke:storage-reconciliation": "node tools/smoke/backup_restore_reload_persistence_browser_smoke.js && node tools/smoke/backup_restore_target_remap_browser_smoke.js && node tools/smoke/modular_startup_shrink_guard_browser_smoke.js && node tools/smoke/storage_legacy_fallback_browser_smoke.js && node tools/smoke/data_transfer_nested_tab_folder_import.js && node tools/smoke/data_transfer_nested_workspace_folder_layout.js",
-    "smoke:surface-ownership": "node tools/smoke/search_monitor_surface_ownership_browser_smoke.js"
+    "smoke:surface-ownership": "node tools/smoke/search_monitor_surface_ownership_browser_smoke.js",
+    "smoke:backup-topology-reconciliation": "node tools/smoke/data_transfer_full_backup_store_route.js && node tools/smoke/data_transfer_file_protocol_folder_fallback.js && node tools/smoke/nebula_folder_backup_links_smoke.js && node tools/smoke/nebula_folder_import_entity_links_smoke.js && node tools/smoke/backup_mismatch_report_browser_smoke.js && python tools/smoke/folder_layer_api_roundtrip.py && node tools/smoke/folder_layer_backup_browser_smoke.js"
   },
   "engines": {
     "node": ">=20"
