@@ -1,5 +1,5 @@
 // Bulk folder-move and merge browser smoke orchestration.
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const { FILE_URL, waitForApp } = require('./bulk_select_folder_move_and_merge_smoke.fixture');
 const {
     runCardMoveWholeFolderPhase,
@@ -16,7 +16,7 @@ const {
 } = require('./bulk_select_folder_move_and_merge_smoke.ui-phases');
 
 async function main() {
-    const browser = await chromium.launch();
+    const { browser } = await launchChromiumOrConnect();
     const context = await browser.newContext();
     const page = await context.newPage();
 

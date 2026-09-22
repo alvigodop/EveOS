@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 const path = require('path');
 
 function assert(condition, message) {
@@ -9,6 +9,7 @@ function assert(condition, message) {
 
 async function waitForBoot(page) {
   await page.goto(page.__eveUrl, { waitUntil: 'load' });
+  await waitForEveCoreHydrated(page);
   await page.waitForFunction(() => Boolean(window.openBulkModal && window.EveBulkImport?._api?.processBulk), null, { timeout: 30000 });
   await page.waitForTimeout(9000);
 }
@@ -159,7 +160,7 @@ async function runSmartExtractScenario(page) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const { browser } = await launchChromiumOrConnect({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1600, height: 1100 } });
   const repoRoot = process.env.REPO_ROOT || path.resolve(__dirname, '..', '..');
   page.__eveUrl = 'file:///' + path.resolve(repoRoot, 'EveOS.html').replace(/\\/g, '/');
