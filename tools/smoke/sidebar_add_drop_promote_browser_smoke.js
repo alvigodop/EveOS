@@ -1,6 +1,6 @@
 const path = require('path');
 const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
-const { installSidebarPointerTrace } = require('./sidebar-pointer-trace');
+const { installSidebarPointerTrace } = require('./sidebar-pointer-trace.shared');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
