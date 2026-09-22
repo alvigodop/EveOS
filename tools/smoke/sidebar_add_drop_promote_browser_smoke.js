@@ -82,11 +82,82 @@ async function runSmoke(page) {
     const sourceBox = await source.boundingBox();
     const addDropBox = await addDrop.boundingBox();
     if (!sourceBox || !addDropBox) {
+        const visibility = await page.evaluate(() => {
+            const sourceNode = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
+            const targetNode = document.querySelector('#sidebar .ws-add');
+            const describe = (node) => {
+                if (!node) return null;
+                const style = window.getComputedStyle(node);
+                const hiddenAncestors = [];
+                let cursor = node;
+                while (cursor && cursor instanceof Element) {
+                    if (cursor.hidden || cursor.classList.contains('is-collapsed')) {
+                        hiddenAncestors.push({
+                            tag: cursor.tagName,
+                            className: cursor.className,
+                            hidden: !!cursor.hidden
+                        });
+                    }
+                    cursor = cursor.parentElement;
+                }
+                return {
+                    connected: node.isConnected,
+                    offsetParent: !!node.offsetParent,
+                    display: style.display,
+                    visibility: style.visibility,
+                    rect: node.getBoundingClientRect().toJSON?.() || null,
+                    hiddenAncestors
+                };
+            };
+            return {
+                source: describe(sourceNode),
+                target: describe(targetNode),
+                sidebarClassName: document.getElementById('sidebar')?.className || '',
+                collapsedTabs: Array.isArray(config?.collapsedTabs) ? config.collapsedTabs.slice() : []
+            };
+        });
         throw new Error(`Sidebar Add/Drop promote setup failed: missing rendered bounds ${JSON.stringify({
             sourceBox,
-            addDropBox
-        })}`);
+            addDropBox,
+            visibility
+        }, null, 2)}`);
     }
+
+    await page.evaluate(() => {
+        window.__sidebarPreviewLifecycle = {
+            added: 0,
+            removed: 0,
+            lastAddedText: '',
+            events: []
+        };
+        window.__sidebarPreviewObserver?.disconnect?.();
+        const state = window.__sidebarPreviewLifecycle;
+        const observer = new MutationObserver((records) => {
+            for (const record of records) {
+                for (const node of record.addedNodes || []) {
+                    if (!(node instanceof Element)) continue;
+                    const preview = node.matches?.('.ws-pointer-drag-preview')
+                        ? node
+                        : node.querySelector?.('.ws-pointer-drag-preview');
+                    if (!preview) continue;
+                    state.added += 1;
+                    state.lastAddedText = String(preview.textContent || '').trim();
+                    state.events.push('added');
+                }
+                for (const node of record.removedNodes || []) {
+                    if (!(node instanceof Element)) continue;
+                    const preview = node.matches?.('.ws-pointer-drag-preview')
+                        ? node
+                        : node.querySelector?.('.ws-pointer-drag-preview');
+                    if (!preview) continue;
+                    state.removed += 1;
+                    state.events.push('removed');
+                }
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        window.__sidebarPreviewObserver = observer;
+    });
 
     const sourcePoint = {
         x: sourceBox.x + Math.min(Math.max(sourceBox.width * 0.5, 4), Math.max(sourceBox.width - 4, 4)),
@@ -104,9 +175,14 @@ async function runSmoke(page) {
 
     const duringDrag = await page.evaluate(() => {
         const addTarget = document.querySelector('#sidebar .ws-add');
+        const lifecycle = window.__sidebarPreviewLifecycle || {};
         return {
             highlighted: !!addTarget?.classList.contains('ws-drop-target'),
             preview: !!document.querySelector('.ws-pointer-drag-preview'),
+            previewAdded: Number(lifecycle.added || 0),
+            previewRemoved: Number(lifecycle.removed || 0),
+            previewEvents: Array.isArray(lifecycle.events) ? lifecycle.events.slice() : [],
+            previewText: String(lifecycle.lastAddedText || ''),
             dragActive: !!document.querySelector('#sidebar.ws-drag-active'),
             sortModeActive: !!document.querySelector('#sidebar.ws-sort-mode-active'),
             elementAtTarget: (() => {
@@ -130,6 +206,10 @@ async function runSmoke(page) {
             ok: true,
             highlightedDuringDrag: dragState.highlighted,
             previewDuringDrag: dragState.preview,
+            previewAddedDuringDrag: dragState.previewAdded,
+            previewRemovedDuringDrag: dragState.previewRemoved,
+            previewEventsDuringDrag: dragState.previewEvents,
+            previewTextDuringDrag: dragState.previewText,
             dragActiveDuringDrag: dragState.dragActive,
             sortModeActiveDuringDrag: dragState.sortModeActive,
             elementAtTarget: dragState.elementAtTarget,
