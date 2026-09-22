@@ -166,6 +166,35 @@ async function runSmoke(page, browserDiagnostics) {
         });
         observer.observe(document.body, { childList: true, subtree: true });
         window.__sidebarPreviewObserver = observer;
+
+        const sourceNode = document.querySelector('#sidebar .ws-item[data-ws-id="deep"]');
+        window.__sidebarPointerEventLog = [];
+        window.__sidebarPointerClassLog = [];
+        if (sourceNode) {
+            const logEvent = (event) => {
+                window.__sidebarPointerEventLog.push({
+                    type: event.type,
+                    pointerId: Number(event.pointerId || 0),
+                    button: Number(event.button ?? -1),
+                    buttons: Number(event.buttons ?? 0),
+                    clientX: Number(event.clientX || 0),
+                    clientY: Number(event.clientY || 0),
+                    className: sourceNode.className || '',
+                    draggable: !!sourceNode.draggable
+                });
+            };
+            ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'dragstart', 'dragend', 'mousedown', 'mousemove', 'mouseup']
+                .forEach((type) => sourceNode.addEventListener(type, logEvent, true));
+            const classObserver = new MutationObserver(() => {
+                window.__sidebarPointerClassLog.push({
+                    at: performance.now(),
+                    className: sourceNode.className || '',
+                    connected: sourceNode.isConnected
+                });
+            });
+            classObserver.observe(sourceNode, { attributes: true, attributeFilter: ['class'] });
+            window.__sidebarPointerClassObserver = classObserver;
+        }
     });
 
     const sourcePoint = {
@@ -196,6 +225,10 @@ async function runSmoke(page, browserDiagnostics) {
             previewText: String(lifecycle.lastAddedText || ''),
             dragActive: !!document.querySelector('#sidebar.ws-drag-active'),
             sortModeActive: !!document.querySelector('#sidebar.ws-sort-mode-active'),
+            sourceClassName: document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.className || '',
+            sourceDraggable: !!document.querySelector('#sidebar .ws-item[data-ws-id="deep"]')?.draggable,
+            pointerEvents: Array.isArray(window.__sidebarPointerEventLog) ? window.__sidebarPointerEventLog.slice() : [],
+            pointerClassEvents: Array.isArray(window.__sidebarPointerClassLog) ? window.__sidebarPointerClassLog.slice() : [],
             elementAtTarget: (() => {
                 const rect = addTarget?.getBoundingClientRect?.();
                 if (!rect) return '';
@@ -214,6 +247,7 @@ async function runSmoke(page, browserDiagnostics) {
             window.__sidebarPreviewOriginalAppendChild = null;
         }
         window.__sidebarPreviewObserver?.disconnect?.();
+        window.__sidebarPointerClassObserver?.disconnect?.();
         const helpers = window.EveWorkspaceHelpers;
         const deep = helpers.findById(config.workspaces, 'deep');
         const deepParent = helpers.findParent(config.workspaces, 'deep');
@@ -230,6 +264,10 @@ async function runSmoke(page, browserDiagnostics) {
             previewTextDuringDrag: dragState.previewText,
             dragActiveDuringDrag: dragState.dragActive,
             sortModeActiveDuringDrag: dragState.sortModeActive,
+            sourceClassNameDuringDrag: dragState.sourceClassName,
+            sourceDraggableDuringDrag: dragState.sourceDraggable,
+            pointerEventsDuringDrag: dragState.pointerEvents,
+            pointerClassEventsDuringDrag: dragState.pointerClassEvents,
             elementAtTarget: dragState.elementAtTarget,
             previewAfterDrop: !!document.querySelector('.ws-pointer-drag-preview'),
             rootOrder: config.workspaces.map(ws => ws.id),
