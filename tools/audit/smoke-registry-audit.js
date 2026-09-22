@@ -164,4 +164,11 @@ function main() {
     return 0;
 }
 
-process.exit(main());
+module.exports = {
+    findDuplicateScriptKeys,
+    getRawScriptKeys
+};
+
+if (require.main === module) {
+    process.exit(main());
+}
