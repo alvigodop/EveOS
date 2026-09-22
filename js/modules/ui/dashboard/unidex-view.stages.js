@@ -53,8 +53,7 @@ window.UnidexViewModules = window.UnidexViewModules || {};
                     source: 'unidex-view-state',
                     meta: {
                         stage: currentConfig.unidexStage,
-                        workspaceId: currentConfig.unidexSelectedWorkspaceId,
-                        categoryName: currentConfig.unidexSelectedCategory
+                        nonIndexing: true
                     }
                 });
             }
