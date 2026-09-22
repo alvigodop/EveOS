@@ -30,7 +30,10 @@ def _normalize_token(value) -> str:
 
 def _user32():
     user32 = ctypes.WinDLL("user32", use_last_error=True)
-    user32.EnumWindows.argtypes = [wintypes.WNDENUMPROC, wintypes.LPARAM]
+    callback_type = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)(
+        wintypes.BOOL, wintypes.HWND, wintypes.LPARAM
+    )
+    user32.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
     user32.EnumWindows.restype = wintypes.BOOL
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
     user32.IsWindowVisible.restype = wintypes.BOOL
@@ -53,7 +56,9 @@ def _user32():
 def _find_matrix_window(token: str):
     user32 = _user32()
     matches = []
-    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    callback_type = getattr(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE)(
+        wintypes.BOOL, wintypes.HWND, wintypes.LPARAM
+    )
 
     @callback_type
     def enum_window(hwnd, _lparam):
@@ -104,7 +109,7 @@ def _apply_window_lock(hwnd, enabled: bool) -> dict:
         "ok": True,
         "supported": True,
         "backgroundLocked": bool(enabled),
-        "hwnd": int(hwnd),
+        "hwnd": int(ctypes.cast(hwnd, ctypes.c_void_p).value or 0),
     }
 
 
