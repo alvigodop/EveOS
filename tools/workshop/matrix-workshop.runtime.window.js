@@ -37,7 +37,12 @@
             const openerBase = window.opener?.EveOSLocalControl?.baseUrl?.();
             if (openerBase) return String(openerBase);
         } catch (error) {}
-        return controlPort > 0 ? `http://127.0.0.1:${controlPort}` : '';
+        const resolvedPort = Number(
+            controlPort
+            || window.EveOSPortRegistry?.get?.('GEMINI_CONTROL_PORT', 0)
+            || 0
+        );
+        return resolvedPort > 0 ? `http://127.0.0.1:${resolvedPort}` : '';
     }
 
     async function postBackgroundLock(enabled) {
@@ -90,7 +95,7 @@
             actualLocked = payload.backgroundLocked === true;
             if (checkbox) checkbox.checked = actualLocked;
             setStatus(actualLocked
-                ? 'Background locked · mouse controls stay clickable without foreground activation.'
+                ? 'Background locked · Matrix is continuously pinned behind other windows.'
                 : 'Background lock off · the next normal click can bring Matrix forward.');
             return payload;
         } catch (error) {
@@ -145,6 +150,7 @@
     window.EveMatrixWindowMode = Object.freeze({
         isDetached: () => detached,
         getWindowToken: () => token,
+        getControlBase,
         getBackgroundLockPreference: readPreference,
         isBackgroundLocked: () => actualLocked,
         setBackgroundLock,

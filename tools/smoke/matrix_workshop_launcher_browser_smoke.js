@@ -191,6 +191,9 @@ async function waitForStatus(url, timeoutMs = 30000) {
             detachedMode: detachedUrl.searchParams.get('eveMatrixDetached'),
             windowToken: detachedUrl.searchParams.get('eveMatrixWindowToken') || '',
             controlPort: detachedUrl.searchParams.get('eveMatrixControlPort') || '',
+            resolvedControlBase: await detachedPage.evaluate(
+                () => window.EveMatrixWindowMode?.getControlBase?.() || ''
+            ),
             canvasCount: await detachedPage.locator('canvas').count(),
             parent: await page.evaluate(() => ({
                 open: document.getElementById('matrix-workshop-overlay')?.classList.contains('is-open') || false,
@@ -204,8 +207,7 @@ async function waitForStatus(url, timeoutMs = 30000) {
             || !detachedState.pathname.endsWith('/tools/workshop/MatrixBackground-V2-Upgrading.html')
             || detachedState.detachedMode !== '1'
             || detachedState.windowToken.length < 8
-            || !/^\d+$/.test(detachedState.controlPort)
-            || Number(detachedState.controlPort) <= 0
+            || !/^http:\/\/127\.0\.0\.1:\d+$/.test(detachedState.resolvedControlBase)
             || detachedState.canvasCount < 1
             || detachedState.parent.open
             || detachedState.parent.frameSrc !== 'about:blank'

@@ -48,30 +48,58 @@ def post_json(port, body, origin="null"):
 
 
 def direct_contract():
-    original_supported = matrix_control.is_supported
-    original_find = matrix_control._find_matrix_window
-    original_apply = matrix_control._apply_window_lock
+    original = (
+        matrix_control.is_supported,
+        matrix_control._find_matrix_window,
+        matrix_control._apply_window_lock,
+        matrix_control._start_enforcement,
+        matrix_control._stop_enforcement,
+    )
     calls = []
     try:
         matrix_control.is_supported = lambda: True
         matrix_control._find_matrix_window = lambda token: (321, matrix_control.TITLE_PREFIX + token, 1)
         matrix_control._apply_window_lock = lambda hwnd, enabled: (
-            calls.append((hwnd, enabled))
-            or {"ok": True, "supported": True, "backgroundLocked": bool(enabled), "hwnd": hwnd}
+            calls.append(("apply", hwnd, enabled))
+            or {
+                "ok": True,
+                "supported": True,
+                "backgroundLocked": bool(enabled),
+                "noActivateApplied": bool(enabled),
+                "hwnd": hwnd,
+            }
         )
+        matrix_control._start_enforcement = lambda token, hwnd: calls.append(("start", token, hwnd))
+        matrix_control._stop_enforcement = lambda token: calls.append(("stop", token)) or True
 
         bad = matrix_control.apply_request({"token": "../bad", "enabled": True})
         assert_true(bad.get("ok") is False, f"invalid token was accepted: {bad}")
 
-        locked = matrix_control.apply_request({"token": "abcDEF12_345", "enabled": True})
-        unlocked = matrix_control.apply_request({"token": "abcDEF12_345", "enabled": False})
-        assert_true(locked.get("backgroundLocked") is True, f"lock result mismatch: {locked}")
-        assert_true(unlocked.get("backgroundLocked") is False, f"unlock result mismatch: {unlocked}")
-        assert_true(calls == [(321, True), (321, False)], f"native adapter calls mismatch: {calls}")
+        token = "abcDEF12_345"
+        locked = matrix_control.apply_request({"token": token, "enabled": True})
+        unlocked = matrix_control.apply_request({"token": token, "enabled": False})
+        assert_true(
+            locked.get("backgroundLocked") is True and locked.get("enforcement") == "continuous",
+            f"continuous lock result mismatch: {locked}",
+        )
+        assert_true(
+            unlocked.get("backgroundLocked") is False and unlocked.get("enforcement") == "off",
+            f"unlock result mismatch: {unlocked}",
+        )
+        assert_true(calls == [
+            ("apply", 321, True),
+            ("start", token, 321),
+            ("stop", token),
+            ("apply", 321, False),
+        ], f"native enforcement calls mismatch: {calls}")
     finally:
-        matrix_control.is_supported = original_supported
-        matrix_control._find_matrix_window = original_find
-        matrix_control._apply_window_lock = original_apply
+        (
+            matrix_control.is_supported,
+            matrix_control._find_matrix_window,
+            matrix_control._apply_window_lock,
+            matrix_control._start_enforcement,
+            matrix_control._stop_enforcement,
+        ) = original
 
 
 def route_contract():
@@ -79,7 +107,12 @@ def route_contract():
     calls = []
     helper.matrix_window_control.apply_request = lambda body: (
         calls.append(dict(body))
-        or {"ok": True, "supported": True, "backgroundLocked": bool(body.get("enabled"))}
+        or {
+            "ok": True,
+            "supported": True,
+            "backgroundLocked": bool(body.get("enabled")),
+            "enforcement": "continuous" if body.get("enabled") else "off",
+        }
     )
     port = free_port()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), helper.EveOSControlHandler)
