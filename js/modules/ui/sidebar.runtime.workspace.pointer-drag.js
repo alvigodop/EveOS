@@ -41,7 +41,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 document.addEventListener('pointermove', handlePointerMove, true);
                 document.addEventListener('pointerup', handlePointerUp, true);
                 document.addEventListener('pointercancel', handlePointerCancel, true);
-                window.addEventListener('blur', handleWindowBlur, true);
+                window.addEventListener('blur', handleWindowBlur);
                 pointerDrag.documentGuardsAttached = true;
             }
 
@@ -51,7 +51,7 @@ window.EveSidebarRuntime = window.EveSidebarRuntime || {};
                 document.removeEventListener('pointermove', handlePointerMove, true);
                 document.removeEventListener('pointerup', handlePointerUp, true);
                 document.removeEventListener('pointercancel', handlePointerCancel, true);
-                window.removeEventListener('blur', handleWindowBlur, true);
+                window.removeEventListener('blur', handleWindowBlur);
                 drag.documentGuardsAttached = false;
             }
 
