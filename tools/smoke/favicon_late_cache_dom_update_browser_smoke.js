@@ -1,5 +1,5 @@
 const path = require('path');
-const { launchChromiumOrConnect } = require('./playwright-browser');
+const { launchChromiumOrConnect, waitForEveCoreHydrated } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
@@ -10,6 +10,7 @@ const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, 
 
     try {
         await page.goto(FILE_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
+        await waitForEveCoreHydrated(page);
         await page.waitForFunction(() => (
             !!window.EveFaviconCacheCore
             && typeof window.EveFaviconCache?.fetchAndCache === 'function'
