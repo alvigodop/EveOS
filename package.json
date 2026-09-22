@@ -79,6 +79,7 @@
     "smoke:capability-surfaces": "python tools/smoke/eveos_capability_surface_smoke.py && python tools/smoke/gemini_credentials_smoke.py && python tools/smoke/popup_bridge_rewrite_smoke.py && python tools/smoke/camofox_cover_scoring_smoke.py && python tools/smoke/audioflix_proxy_streaming_smoke.py && npm run --silent smoke:capability-transitions && npm run --silent smoke:coverage-map",
     "smoke:api-bridge-reconciliation": "node tools/smoke/api_core_api_bridge_optin_smoke.js && node tools/smoke/api_core_browser_text_fallback_smoke.js && node tools/smoke/api_core_popup_bridge_smoke.js && node tools/smoke/api_core_wikimedia_bridge_smoke.js && node tools/smoke/social_manager_popup_bridge_browser_smoke.js",
     "smoke:api-search-state-reinforcement": "node tools/smoke/api_cache_manager_smoke.js && node tools/smoke/api_cache_ttl_smoke.js && node tools/smoke/api_knowledge_grouping_smoke.js && node tools/smoke/api_scraper_merge_smoke.js && node tools/smoke/api_search_bridge_off_smoke.js && node tools/smoke/api_search_stale_results_smoke.js",
+    "smoke:api-browser-cache-display": "node tools/smoke/api_card_settings_browser_smoke.js && node tools/smoke/cache_hygiene_no_dump_smoke.js && node tools/smoke/comick_display_smoke.js && node tools/smoke/comick_snapshot_smoke.js",
     "smoke:core-storage": "node tools/smoke/core_storage_backend_smoke.js",
     "smoke:browser-emulator-security": "node tools/smoke/browser_emulator_iframe_security_browser_smoke.js",
     "smoke:knowledge-cache": "node tools/smoke/wiki_fandom_cache_richness_smoke.js",
