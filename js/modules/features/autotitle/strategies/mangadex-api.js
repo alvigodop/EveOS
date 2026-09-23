@@ -56,19 +56,36 @@
             { label: 'allorigins', url: `https://api.allorigins.win/raw?url=${encoded}` }
         ];
 
-        for (const transport of transports) {
+        const attempts = transports.map(async (transport) => {
             try {
                 const response = await fetch(transport.url, { signal });
-                if (!response.ok) continue;
-                const payload = await response.json();
-                if (payload?.data?.attributes) {
-                    return { payload, transport: transport.label };
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
+                const payload = await response.json();
+                if (!payload?.data?.attributes) {
+                    throw new Error('response had no MangaDex manga payload');
+                }
+                console.info(`Autotitle: MangaDex API transport ${transport.label} succeeded`);
+                return { payload, transport: transport.label };
             } catch (error) {
                 if (error?.name === 'AbortError') throw error;
+                console.info(
+                    `Autotitle: MangaDex API transport ${transport.label} failed: ${error?.message || error}`
+                );
+                throw error;
             }
+        });
+
+        try {
+            return await Promise.any(attempts);
+        } catch (error) {
+            if (signal?.aborted) {
+                const aborted = new DOMException('MangaDex API transport race aborted', 'AbortError');
+                throw aborted;
+            }
+            return null;
         }
-        return null;
     }
 
     window.EveOS.Autotitle.Strategies.MangaDexApi = async function (url, signal) {
