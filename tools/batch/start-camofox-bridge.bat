@@ -23,6 +23,9 @@ set "BROWSER_VERSION=%BROWSER_ROOT%\version.json"
 set "BROWSER_EXE=%BROWSER_ROOT%\camoufox.exe"
 set "STATE_ROOT=%RUNTIME_ROOT%\state"
 set "CAMOUFOX_INSTALL_DIR=%BROWSER_ROOT%"
+set "CAMOUFOX_EXECUTABLE=%BROWSER_EXE%"
+set "CAMOUFOX_EXECUTABLE_PATH=%BROWSER_EXE%"
+set "CAMOFOX_EXECUTABLE_PATH=%BROWSER_EXE%"
 rem The official browser was already fetched by EveOS's Python downloader.
 rem Suppress @askjo's postinstall browser download; retain native addon builds.
 set "CAMOFOX_SKIP_DOWNLOAD=1"
