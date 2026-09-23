@@ -15,6 +15,11 @@ These rules apply to development and verification across EveOS.
 
 EveOS inherits WatchFusion's output-efficient verification discipline.
 
+- `npm run --silent test:guardrails` is the structural preflight after every coherent code/test batch and before stacking another qualification batch. It proves runtime asset hashes are already synchronized, the smoke registry has zero backlog, the coverage sensor remains at 100%, changed files have line-count headroom, and the 450-line hard cap still holds.
+- The smoke registry is a zero-backlog invariant. `tools/audit/smoke-registry-baseline.json` must remain empty; credential-dependent or hardware/live probes still need explicit opt-in npm registration rather than baseline exemptions.
+- Changed first-party files may not grow past the 440-line headroom guard even though the repository hard cap is 450 lines. Existing near-cap files may remain untouched, but changed responsibilities must split before they hit the hard wall.
+- Every deterministic smoke profile starts with `test:guardrails`. Focused `test:handoff -- --script ... --profile none` runs also prepend it automatically, so a narrow subsystem pass cannot hide stale assets, dormant smokes, or file-size debt.
+- Final `verify` runs structural guardrails before any asset synchronization/build writer. A stale generated asset reference is a source-state failure to commit explicitly, not something final verification should silently repair.
 - Use the smallest affected verification profile first after an ordinary edit:
   - `npm run --silent test:smoke` — deterministic fast profile; fingerprint-matched prior passes may be reused.
   - `npm run --silent test:deep` — broader subsystem checks when shared runtime/state/control code changed.
