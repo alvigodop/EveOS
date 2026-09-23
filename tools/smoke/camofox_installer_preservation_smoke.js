@@ -39,6 +39,10 @@ requireTrue(installSection.includes('npm install skipped. No native rebuild is n
     'installer does not explicitly preserve a healthy native runtime');
 requireTrue(installSection.includes('CAMOFOX_SKIP_DOWNLOAD=1') || batch.includes('set "CAMOFOX_SKIP_DOWNLOAD=1"'),
     'upstream duplicate browser download is not suppressed');
+for (const variable of ['CAMOUFOX_EXECUTABLE', 'CAMOUFOX_EXECUTABLE_PATH', 'CAMOFOX_EXECUTABLE_PATH']) {
+    requireTrue(batch.includes(`set "${variable}=%BROWSER_EXE%"`),
+        `controller is missing ${variable} EveOS-local browser binding`);
+}
 requireTrue(runtimePackage.dependencies?.['@askjo/camofox-browser'] === '1.14.0',
     'Camofox server dependency pin drifted');
 requireTrue(!runtimePackage.dependencies?.['camoufox-js'],
