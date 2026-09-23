@@ -193,14 +193,25 @@
                     const drawY = y - fontSize / 2;
 
                     if (rainOpeningWave) {
+                        // The intro is a synchronized *position* wave only.
+                        // Characters must keep changing while it falls, just like
+                        // ordinary Matrix rain; otherwise each column becomes one
+                        // repeated glyph from top to bottom.
+                        if (!sequenceEnabled) {
+                            const currentLine = Math.floor(y / fontSize);
+                            if (currentLine > 0 && currentLine % lineChangeRate === 0
+                                && Math.floor((y - fontSize) / fontSize) !== currentLine) {
+                                rainDropsChars[i] = getRandomSelectedChar();
+                            }
+                        }
+
                         const landingCenter = Math.max(fontSize / 2,
                             viewHeight - fontSize / 2);
                         if (drawY < landingCenter) {
                             ctx.fillText(rainDropsChars[i], x, drawY);
                         } else {
-                            // textBaseline='middle' plus glyph descent was the
-                            // source of the one-row black strip. Anchor the final
-                            // opening glyph by its em-box bottom instead.
+                            // Keep the black-strip fix: anchor the last intro
+                            // glyph by its em-box bottom at the physical canvas edge.
                             ctx.save();
                             ctx.textBaseline = 'bottom';
                             ctx.globalAlpha = 0.28;
@@ -376,11 +387,11 @@
                 const openingFinished = rainDrops.every(drop =>
                     drop * fontSize >= viewHeight);
                 if (openingFinished) {
+                    // Do not mass-reseed the columns here. Leaving the synchronized
+                    // heads just below the edge lets the original probabilistic
+                    // reset logic release them independently over subsequent frames.
+                    // That is the handoff from one opening waterfall to normal rain.
                     rainOpeningWave = false;
-                    // Prime only the first normal-rain cycle above the top edge.
-                    // Subsequent cycles use the original probabilistic bottom
-                    // wait/reset behavior below.
-                    rainDrops = rainDrops.map(nextRainEntry);
                 }
             }
 
