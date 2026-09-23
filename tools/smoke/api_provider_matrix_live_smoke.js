@@ -113,11 +113,20 @@ async function main() {
 
     try {
         await waitForStatus(`http://localhost:${port}/api/status`, 60000);
-        if (needsCamofox && process.platform === 'win32' && !process.env.CAMOUFOX_EXECUTABLE) {
-            const cacheMarker = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
-                'camoufox', 'camoufox', 'Cache', 'version.json');
-            if (!fs.existsSync(cacheMarker)) {
-                throw new Error(`Camofox browser is missing: ${cacheMarker}. From tools/camofox-runtime run: npx camoufox-js fetch. Do not qualify the full provider matrix until installed.`);
+        if (needsCamofox) {
+            const browserRoot = path.join(REPO_ROOT, 'tools', 'camofox-runtime', 'browser');
+            const versionMarker = path.join(browserRoot, 'version.json');
+            const browserExecutable = process.platform === 'win32'
+                ? path.join(browserRoot, 'camoufox.exe')
+                : process.platform === 'darwin'
+                    ? path.join(browserRoot, 'Camoufox.app', 'Contents', 'MacOS', 'camoufox')
+                    : path.join(browserRoot, 'camoufox-bin');
+            if (!fs.existsSync(versionMarker) || !fs.existsSync(browserExecutable)) {
+                throw new Error(
+                    `EveOS-local Camofox browser is missing or incomplete: ${browserRoot}. `
+                    + 'Run tools\\batch\\start-camofox-bridge.bat and choose Install/Update (option 1). '
+                    + 'Do not qualify the full provider matrix until both browser files are present.'
+                );
             }
         }
         const bridgeState = needsCamofox ? await camofoxPortState() : 'not-required';
