@@ -72,3 +72,21 @@ Cleanup also reports `warmTargetPreserved`, `warmTargetUrlUnchanged`, `focusStea
 `PASS` means both independent Dex invariants passed. `BLOCKED` means the environment cannot safely supply the requested live proof. `FAIL` means a qualification invariant actually failed.
 
 Unit/source review is not a substitute for the Windows + Chrome live run. The Muse split PASS is already locally proven; each additional provider should receive its own local warm-target proof before being described as live-qualified on that environment.
+
+## Future manual qualification boundaries
+
+These checks retain the actionable parts of the pre-merge engineering notes. They are not claims that a provider's current authenticated UI or an arbitrary terminal host has passed them. Use `extension/providers.js` for current declared capabilities and the live runner above for exact-once evidence; do not infer new bridge capabilities from a provider's product features.
+
+### Muse beyond foreground chat
+
+The already-proven Muse split qualification covers the foreground exact-once send/recovery contract, not native background tasks, proactive messages, approvals, or artifacts. The registry intentionally advertises bridge `chat` and `captureLatest` while leaving bridge `activity` and `searchResults` false. Before extending that surface, inspect an authenticated session for the composer and safe send control, assistant-turn ownership, busy/completion markers, long-running replies, and capture-latest behavior. Exercise approval cards as a safety check: the bridge must never interpret approval, purchase, authorization, upload, or voice controls as chat send. Background/proactive work needs an event/session model; do not force it into one foreground `requestId -> response_final` turn.
+
+### DeepSeek long answers and visible activity
+
+The DeepSeek response watcher has stateful generation tracking and a conservative quiet fallback; its automated regression lives in `tests/response-watcher.test.js`. For a future live DOM change, compare a deliberately long, search-heavy visible answer with the captured response before declaring it final. Include paragraphs, bullets, a URL, and an uninterrupted long token/string; check that pauses while generation is active do not truncate output and that rendered line breaks survive capture.
+
+The separate `extension/content/activity.js` adapter may mirror only activity the page visibly renders. During a search-heavy live turn, compare thought/search/read stages and visible source-anchor titles/URLs with the Nexus Browser activity panel; check multiple stages, then use a simple turn to ensure no invented activity appears. Do not scrape hidden reasoning, credentials, cookies, or unrelated browser state. If provider markup has changed, collect the exact visible DOM evidence before adjusting selectors; keep answer extraction isolated from activity changes.
+
+### Windows Local-Origin terminal hosts
+
+The existing-versus-spawned session proof is in `README.md`. If an ordinary visible `agy` TUI is not offered as an Existing Session, capture its PID/parent chain, terminal-host or ConPTY chain, and the console-attach helper's error code. Compare a classic console host and the actual user terminal before changing the adapter. If attachment works but long replies scroll out of the visible screen, treat capture completeness as a separate defect; do not silently replace the existing session with a spawned process. Recheck that a busy TUI and an unsent draft block injection, manual terminal use remains normal, and the Spawned Session fallback retains one managed process with a visible companion and clean shutdown.

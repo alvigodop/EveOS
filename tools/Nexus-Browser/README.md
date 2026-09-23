@@ -263,6 +263,8 @@ npm run stabilize
 
 Detailed qualification output is written under `data/runtime/nexus-browser/qualification/`; the console prints only a compact PASS/FAIL summary.
 
+Use [LIVE-QUALIFICATION.md](./LIVE-QUALIFICATION.md) for the provider-neutral live contract and the retained Muse, DeepSeek, and Windows terminal follow-up checks.
+
 ### Canonical engineering workflow
 
 The durable efficiency/reliability rules live in [ENGINEERING-EFFICIENCY.md](./ENGINEERING-EFFICIENCY.md). Use that file as the canonical change/qualification workflow instead of reconstructing commands from old chat logs.
