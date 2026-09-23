@@ -44,16 +44,13 @@ requireTrue(
 );
 
 function requireProfileStartsWithGuardrail(profileName) {
-    const escaped = profileName.replace(/[.*+?^${}()|[\]\\]/g, '\\for (const marker of [
-    "fast: ['test:guardrails',",
-    "deep: [\n    'test:guardrails',",
-    "security: ['test:guardrails',",
-    "'ai-control': [\n    'test:guardrails',"
-]) {
-    requireTrue(profileSource.includes(marker), `smoke profile guardrail wiring missing: ${marker}`);
-}');
+    requireTrue(
+        ['fast', 'deep', 'security', 'ai-control'].includes(profileName),
+        `unexpected smoke profile name: ${profileName}`
+    );
+    const quoted = profileName === 'ai-control' ? "['\"]ai-control['\"]" : profileName;
     const match = profileSource.match(
-        new RegExp(`(?:^|\\n)\\s*['"]?${escaped}['"]?\\s*:\\s*\\[\\s*['"]([^'"]+)['"]`, 'm')
+        new RegExp(`(?:^|\\n)\\s*${quoted}\\s*:\\s*\\[\\s*['\"]([^'\"]+)['\"]`, 'm')
     );
     requireTrue(match, `smoke profile declaration missing: ${profileName}`);
     requireTrue(
@@ -65,7 +62,6 @@ function requireProfileStartsWithGuardrail(profileName) {
 for (const profileName of ['fast', 'deep', 'security', 'ai-control']) {
     requireProfileStartsWithGuardrail(profileName);
 }
-
 requireTrue(
     handoffSource.includes("if (profile === 'none' && explicit.length) plan.push('test:guardrails');"),
     'focused handoff runs no longer force structural guardrails'
