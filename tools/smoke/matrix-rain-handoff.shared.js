@@ -86,6 +86,8 @@ async function probeRainHandoff(page) {
 
                 const endpointCall = crossingCalls.find(call =>
                     Math.abs(call.y - landingY) < 0.01);
+                const bridgeCall = crossingCalls.find(call =>
+                    Math.abs(call.y - crossingDrawY) < 0.01);
                 const overflowCalls = crossingCalls.concat(afterCrossingCalls)
                     .filter(call => call.y > landingY + 0.01);
 
@@ -106,6 +108,9 @@ async function probeRainHandoff(page) {
                     endpointGlowSeen: Boolean(endpointCall
                         && endpointCall.alpha <= 0.21
                         && endpointCall.shadowBlur >= endpointGlow),
+                    transitionBridgeSeen: Boolean(bridgeCall
+                        && bridgeCall.alpha <= 0.13
+                        && bridgeCall.shadowBlur === 0),
                     overflowCallCount: overflowCalls.length
                 };
             } finally {
