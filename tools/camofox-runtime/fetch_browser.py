@@ -9,11 +9,12 @@ per-user Camoufox cache is used for browser storage.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import json
 import os
 import platform
 import re
-import shutil
 import stat
 import sys
 import tempfile
@@ -21,6 +22,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+from unittest import mock
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent
@@ -69,7 +71,8 @@ def select_asset(releases: list[dict], system: str, arch: str) -> dict:
             parsed = urllib.parse.urlparse(url)
             if parsed.scheme != "https" or parsed.hostname != "github.com" or not parsed.path.startswith(OFFICIAL_ASSET_PREFIX):
                 raise RuntimeError("Official release metadata supplied an unexpected asset URL")
-            return {"url": url, **matched.groupdict(), "name": asset["name"]}
+            return {"url": url, **matched.groupdict(), "name": asset["name"],
+                    "size": asset.get("size"), "digest": asset.get("digest")}
     raise RuntimeError(
         f"No supported official Camoufox browser asset for {system}.{arch}. "
         "Do not install an unverified or incompatible browser."
@@ -90,23 +93,41 @@ def fetch_release_metadata() -> list[dict]:
     return payload
 
 
-def download_archive(url: str, destination: Path) -> None:
+def download_archive(
+    url: str, destination: Path, *, expected_size: int | None,
+    expected_digest: str | None,
+) -> None:
     request = urllib.request.Request(
         url, headers={"User-Agent": "EveOS-local-Camoufox-installer"})
     transferred = 0
     last_report = 0
+    hasher = hashlib.sha256()
     with urllib.request.urlopen(request, timeout=70) as response, destination.open("wb") as target:
         while True:
             chunk = response.read(1024 * 1024)
             if not chunk:
                 break
             target.write(chunk)
+            hasher.update(chunk)
             transferred += len(chunk)
             if transferred - last_report >= 64 * 1024 * 1024:
                 print(f"[Camofox] Downloaded {transferred // (1024 * 1024)} MiB...", flush=True)
                 last_report = transferred
     if transferred < 1024 * 1024:
         raise RuntimeError("Browser archive download was unexpectedly small")
+    if expected_size is not None and transferred != expected_size:
+        raise RuntimeError(
+            f"Official browser archive size mismatch: {transferred} != {expected_size}"
+        )
+    if expected_digest:
+        if not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", expected_digest):
+            raise RuntimeError("Official browser release reported an invalid SHA-256 digest")
+        actual = hasher.hexdigest()
+        if actual.lower() != expected_digest.split(":", 1)[1].lower():
+            raise RuntimeError("Official browser archive SHA-256 mismatch; extraction refused")
+        print("[Camofox] Official release SHA-256 verified", flush=True)
+    else:
+        print("[Camofox] Release metadata has no digest; size checked", flush=True)
 
 
 def extract_verified(archive: Path, destination: Path) -> None:
@@ -137,7 +158,10 @@ def install() -> None:
         archive = staging / "release.zip"
         unpacked = staging / "unpacked"
         unpacked.mkdir()
-        download_archive(asset["url"], archive)
+        download_archive(
+            asset["url"], archive,
+            expected_size=asset["size"], expected_digest=asset["digest"]
+        )
         extract_verified(archive, unpacked)
         if not (unpacked / executable).is_file():
             raise RuntimeError(f"Official browser archive has no {executable}")
@@ -172,6 +196,31 @@ def self_test() -> None:
         raise AssertionError("Prerelease metadata was accepted")
     except RuntimeError:
         pass
+    # Exercise the real streaming verifier without an internet connection.
+    fake_bytes = b"EveOS-Camofox-integrity" * 60000
+    fake_digest = "sha256:" + hashlib.sha256(fake_bytes).hexdigest()
+    with tempfile.TemporaryDirectory(prefix=".camofox-self-test-", dir=ROOT) as raw:
+        root = Path(raw)
+        with mock.patch.object(urllib.request, "urlopen",
+                               side_effect=lambda *args, **kwargs: io.BytesIO(fake_bytes)):
+            verified = root / "verified.zip"
+            download_archive(
+                "https://github.com/daijro/camoufox/releases/download/test/fake.zip",
+                verified, expected_size=len(fake_bytes), expected_digest=fake_digest,
+            )
+            assert verified.read_bytes() == fake_bytes
+            for size, digest in (
+                (len(fake_bytes) + 1, fake_digest),
+                (len(fake_bytes), "sha256:" + "0" * 64),
+            ):
+                try:
+                    download_archive(
+                        "https://github.com/daijro/camoufox/releases/download/test/fake.zip",
+                        root / "rejected.zip", expected_size=size, expected_digest=digest,
+                    )
+                    raise AssertionError("An invalid official archive was accepted")
+                except RuntimeError:
+                    pass
     with tempfile.TemporaryDirectory(prefix=".camofox-self-test-", dir=ROOT) as raw:
         root = Path(raw)
         archive = root / "traversal.zip"
