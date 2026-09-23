@@ -1,6 +1,55 @@
 // Resize the visible viewport without restarting the Matrix rain world.
         let initialRainSeeded = false;
 
+        function seedExpandedRainHistory(oldHeight, oldCount) {
+            const gap = viewHeight - oldHeight;
+            const continuousMode = !waterfallEnabled
+                && (!movementEnabled || precipitationMode === 'continuous');
+            if (gap <= 2 || !continuousMode || rainOpeningWave) return;
+
+            ctx.save();
+            ctx.font = `${fontSize}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = gradientMode && gradientColors ? createGradient(ctx) : color;
+            if (glowEnabled) {
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = color;
+            }
+
+            const count = Math.min(oldCount, rainDrops.length);
+            const stride = gap <= fontSize * 4 ? 2 : 3;
+            for (let column = 0; column < count; column++) {
+                const phase = Math.abs(Math.floor((rainDrops[column] || 0) * 7) + column * 11);
+                if (phase % stride !== 0) continue;
+
+                const char = rainDropsChars[column] || getRandomSelectedChar();
+                const metrics = ctx.measureText(char);
+                const descent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                    ? Math.max(1, metrics.actualBoundingBoxDescent)
+                    : fontSize * 0.4;
+                const landingY = Math.max(fontSize / 2,
+                    viewHeight - Math.ceil(descent + 1.5));
+                if (landingY <= oldHeight + 1) continue;
+
+                const x = column * fontSize + fontSize / 2;
+                const phaseOffset = ((rainDrops[column] || 0) * fontSize) % fontSize;
+                let y = oldHeight + Math.max(fontSize * 0.5,
+                    (phaseOffset + fontSize) % fontSize);
+                const rowStep = fontSize * (1 + (column % 2));
+                let trail = 0;
+                while (y <= landingY && trail < 18) {
+                    const depth = Math.max(0, Math.min(1, (y - oldHeight) / gap));
+                    ctx.globalAlpha = Math.max(0.12,
+                        Math.pow(1 - fadeSpeed, trail + 1) * (0.42 - depth * 0.16));
+                    ctx.fillText(getRandomSelectedChar(), x, y);
+                    y += rowStep;
+                    trail++;
+                }
+            }
+            ctx.restore();
+        }
+
         function seedNewRainColumns(firstColumn) {
             if (firstColumn >= rainDrops.length) return;
             ctx.save();
@@ -49,8 +98,9 @@
                 previousRain.getContext('2d').drawImage(canvas, 0, 0);
             }
 
-            // Preserve the overlapping rain pixels exactly; the newly exposed
-            // bottom starts black and is filled by streams falling into it.
+            // Preserve overlapping rain pixels exactly. If the window grows,
+            // seed only the newly exposed band with transient-looking history so
+            // a resize never reveals a uniform black box while live streams catch up.
             sizeAllCanvases();
             if (previousRain) {
                 const oldRatio = previousRain.width / oldWidth;
@@ -80,6 +130,7 @@
                 rainDropsChars[index] = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
             }
             resizeColumnState(count);
+            seedExpandedRainHistory(oldBufferHeight, oldCount);
             // The initial heads are already ready for the first animation frame;
             // seed history only for columns created by a later width expansion.
             if (initialRainSeeded) seedNewRainColumns(oldCount);
