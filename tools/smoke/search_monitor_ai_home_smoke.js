@@ -225,6 +225,46 @@ function assert(condition, message) {
     assert(requests.length === requestsBeforeReopen + 1,
         'Reopening Local MoE reused stale status instead of performing a fresh read');
 
+    const originalFetchJson = windowMock.EveOSLocalControl.fetchJson;
+    let resolveOlderStatus;
+    let resolveNewerStatus;
+    let overlapCalls = 0;
+    windowMock.EveOSLocalControl.fetchJson = async () => new Promise((resolve) => {
+        overlapCalls += 1;
+        if (overlapCalls === 1) resolveOlderStatus = resolve;
+        else resolveNewerStatus = resolve;
+    });
+    const olderRefresh = api.refreshLocalMoe();
+    const newerRefresh = api.refreshLocalMoe();
+    resolveNewerStatus({
+        ...localMoeResponse,
+        running: true,
+        state: 'running',
+        runtimeReady: true,
+        runtimeReachable: true,
+        runtimeManagedRunning: true,
+        runtimeStartupStage: 'ready',
+        runtimeHealth: 'ok',
+        message: 'Newest healthy status'
+    });
+    await newerRefresh;
+    resolveOlderStatus({
+        ...localMoeResponse,
+        running: false,
+        state: 'stopped',
+        runtimeReady: false,
+        runtimeReachable: false,
+        runtimeManagedRunning: false,
+        runtimeStartupStage: 'stopped',
+        runtimeHealth: 'offline',
+        message: 'Older stale stopped status'
+    });
+    await olderRefresh;
+    windowMock.EveOSLocalControl.fetchJson = originalFetchJson;
+    assert(textNodes.get('[data-local-moe-state]').textContent === 'Online'
+        && textNodes.get('[data-local-moe-runtime]').textContent === 'Ready',
+        'Older Local MoE status response overwrote a newer healthy response');
+
     localMoeResponse = { ...localMoeResponse, running: false, state: 'stopped', runtimeReady: false,
         runtimeReachable: false, runtimeManagedRunning: false, runtimeStartupStage: 'stopped' };
     await api.refreshLocalMoe();
