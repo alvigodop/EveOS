@@ -70,6 +70,16 @@ function findDuplicateScriptKeys(manifest) {
         .map(([key, count]) => ({ key, count }));
 }
 
+function zeroBacklogViolation(baseline, unregistered) {
+    if (baseline.length) {
+        return { code: 3, kind: 'baseline', entries: [...baseline] };
+    }
+    if (unregistered.length) {
+        return { code: 1, kind: 'unregistered', entries: [...unregistered] };
+    }
+    return null;
+}
+
 function main() {
     const manifest = fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8');
     const packageJson = JSON.parse(manifest);
@@ -144,18 +154,19 @@ function main() {
         newlyRegistered: fixed.length
     }, null, 2));
 
-    if (baseline.length) {
+    const violation = zeroBacklogViolation(baseline, unregistered);
+    if (violation?.kind === 'baseline') {
         console.error('\nsmoke registry FAILED — backlog baseline must remain empty.');
-        console.error(`  forbidden baseline entries: ${baseline.join(', ')}`);
+        console.error(`  forbidden baseline entries: ${violation.entries.join(', ')}`);
         console.error('\nRegister every smoke explicitly; credential-dependent live probes belong in opt-in npm scripts.');
-        return 3;
+        return violation.code;
     }
 
-    if (added.length) {
+    if (violation?.kind === 'unregistered') {
         console.error('\nsmoke registry FAILED — these smokes are not reachable from any npm script chain:');
-        console.error(`  ${added.join('\n  ')}`);
+        console.error(`  ${violation.entries.join('\n  ')}`);
         console.error('\nAdd them to an npm chain or invoke them from a registered smoke orchestrator.');
-        return 1;
+        return violation.code;
     }
 
     console.log('SMOKE_REGISTRY_AUDIT_OK');
@@ -164,7 +175,8 @@ function main() {
 
 module.exports = {
     findDuplicateScriptKeys,
-    getRawScriptKeys
+    getRawScriptKeys,
+    zeroBacklogViolation
 };
 
 if (require.main === module) {
