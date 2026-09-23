@@ -250,7 +250,9 @@ function buildPlan(args, scripts) {
   if (!Object.hasOwn(PROFILE_SCRIPTS, profile)) {
     throw new Error(`Unknown profile '${profile}'. Use none, fast, deep, security, or ai-control.`);
   }
-  const plan = [...explicit, ...PROFILE_SCRIPTS[profile]];
+  const plan = [];
+  if (profile === 'none' && explicit.length) plan.push('test:guardrails');
+  plan.push(...explicit, ...PROFILE_SCRIPTS[profile]);
   if (args.includes('--final')) plan.push('verify');
   const deduped = [...new Set(plan)];
   for (const script of deduped) {
