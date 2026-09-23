@@ -1,6 +1,4 @@
 {
   "note": "Smokes not reachable from any npm script chain. Shrink this list through explicit committed test wiring; never grow it.",
-  "unregistered": [
-    "audioflix_soundlab_live_smoke.js"
-  ]
+  "unregistered": []
 }
