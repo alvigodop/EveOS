@@ -51,6 +51,44 @@ async function main() {
     }))));
     console.log('AUTOTITLE_STRATEGY_TAIL ' + JSON.stringify(consoleTail.slice(-10)));
 
+    const mangaDexTransportFallback = await page.evaluate(async () => {
+        const originalFetch = window.fetch;
+        const calls = [];
+        const payload = {
+            data: {
+                attributes: {
+                    title: { 'zh-ro': 'Wǒ Wéi Xiédì' },
+                    altTitles: [{ en: "I'm an Evil God" }],
+                    description: { en: 'Synthetic MangaDex transport proof' }
+                },
+                relationships: [{
+                    type: 'cover_art',
+                    attributes: { fileName: 'synthetic-cover.jpg' }
+                }]
+            }
+        };
+        window.fetch = async (input) => {
+            const url = String(input);
+            calls.push(url);
+            const headers = { 'Content-Type': 'application/json' };
+            if (url.startsWith('https://api.mangadex.org/')) {
+                return new Response('{}', { status: 503, headers });
+            }
+            if (url.startsWith('http://127.0.0.1:8765/api/proxy?url=')) {
+                return new Response(JSON.stringify(payload), { status: 200, headers });
+            }
+            return new Response('{}', { status: 503, headers });
+        };
+        try {
+            const result = await window.EveOS.Autotitle.Strategies.MangaDexApi(
+                'https://mangadex.org/title/bf713abe-b415-45ac-8fd1-653dba578e0f'
+            );
+            return { result, calls };
+        } finally {
+            window.fetch = originalFetch;
+        }
+    });
+
     const syntheticFallback = await page.evaluate(async () => {
         const originalStrategies = window.EveOS.Autotitle.Strategies;
         window.EveOS.Autotitle.Strategies = {
@@ -255,6 +293,15 @@ async function main() {
     if (second.result?.title !== "I'm an Evil God") {
         throw new Error(`Expected English MangaDex title for second URL, got ${JSON.stringify(second)}`);
     }
+    if (mangaDexTransportFallback?.result?.title !== "I'm an Evil God") {
+        throw new Error(`Expected MangaDex fallback transport to preserve English alt title, got ${JSON.stringify(mangaDexTransportFallback)}`);
+    }
+    if (mangaDexTransportFallback?.result?.transport !== 'local-proxy'
+        || mangaDexTransportFallback?.calls?.length !== 2
+        || !mangaDexTransportFallback.calls[0].startsWith('https://api.mangadex.org/')
+        || !mangaDexTransportFallback.calls[1].startsWith('http://127.0.0.1:8765/api/proxy?url=')) {
+        throw new Error(`Expected MangaDex strategy to fall back direct -> local proxy, got ${JSON.stringify(mangaDexTransportFallback)}`);
+    }
     if (!String(second.result?.coverUrl || '').includes('bf713abe-b415-45ac-8fd1-653dba578e0f')) {
         throw new Error(`Expected MangaDex cover for second URL, got ${JSON.stringify(second)}`);
     }
@@ -300,7 +347,7 @@ async function main() {
         throw new Error(`Expected headless chain to upgrade weak Lightpanda cover with Camofox poster, got ${JSON.stringify(headlessCoverUpgrade)}`);
     }
 
-    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch, galleryDirectImageCover, headlessCoverUpgrade })}`);
+    console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, mangaDexTransportFallback, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch, galleryDirectImageCover, headlessCoverUpgrade })}`);
     } finally {
         await browser.close();
     }
