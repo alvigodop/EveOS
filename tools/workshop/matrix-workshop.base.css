@@ -15,11 +15,13 @@
             position: fixed;
             top: 0;
             left: 0;
+            box-sizing: border-box;
             color: #0f0;
             background-color: rgba(0, 0, 0, 0.9);
             padding: 15px;
             padding-top: 70px;
             height: 100vh;
+            height: 100dvh;
             max-width: 400px;
             overflow-y: auto;
             overflow-x: hidden;

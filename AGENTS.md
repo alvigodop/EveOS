@@ -29,6 +29,7 @@ EveOS inherits WatchFusion's output-efficient verification discipline.
 - Do not rerun an unchanged passing suite when source, tests, dependencies, configuration, and relevant environment have not changed.
 - Fast-pass reuse is allowed only for the deterministic fast profile and only when the content/environment fingerprint matches exactly.
 - Never reuse a cached result for deep, security, browser, integration, hardware, or final verification.
+- For multi-edit bug fixes, establish the failure with one focused diagnostic or red regression, finish the coherent correction, then run the affected smoke profile. Do not rerun smoke suites after each tentative edit; run final `verify` once after the fix settles, and again only if later edits invalidate it.
 - Successful profile output should stay compact: one stable summary line is enough.
 - On failure, print only bounded relevant context (fewer than 40 direct lines) and save full captured stdout/stderr under ignored `data/runtime/smoke-results/` diagnostics.
 - Use verbose output only when explicitly diagnosing a failure.

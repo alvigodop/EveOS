@@ -24,8 +24,10 @@
             // which emits no resize event of its own.
             const backingRatio = Math.max(1, window.devicePixelRatio || 1);
             if (viewWidth !== window.innerWidth || viewHeight !== window.innerHeight
+                || rainBufferHeight !== Math.max(window.innerHeight,
+                    window.screen?.height || window.innerHeight)
                 || canvas.width !== Math.round(viewWidth * backingRatio)
-                || canvas.height !== Math.round(viewHeight * backingRatio)) {
+                || canvas.height !== Math.round(rainBufferHeight * backingRatio)) {
                 if (typeof resizeCanvases === 'function') resizeCanvases();
                 else sizeAllCanvases();
             }
@@ -65,7 +67,7 @@
 
             // Apply fade effect
             ctx.fillStyle = `rgba(0, 0, 0, ${fadeSpeed})`;
-            ctx.fillRect(0, 0, viewWidth, viewHeight);
+            ctx.fillRect(0, 0, viewWidth, rainBufferHeight);
 
             // Handle color cycling if enabled
             if (colorCycleEnabled) {
@@ -182,7 +184,7 @@
                     const y = rainDrops[i] * fontSize;
 
                     if (sequenceEnabled) {
-                        if (y > viewHeight && Math.random() > 0.975) {
+                        if (y > rainBufferHeight && Math.random() > 0.975) {
                             rainDrops[i] = 0;
                             updateSequenceCharacters();
                         }
@@ -193,13 +195,14 @@
                             rainDropsChars[i] = getRandomSelectedChar();
                         }
 
-                        if (y > viewHeight && Math.random() > 0.975) {
+                        if (y > rainBufferHeight && Math.random() > 0.975) {
                             rainDrops[i] = 0;
                         }
                     }
 
                     // Apply alpha trail effect
-                    const alpha = Math.min(1, (viewHeight - y) / (viewHeight * 0.3));
+                    const alpha = Math.max(0.2, Math.min(1,
+                        (rainBufferHeight - y) / (rainBufferHeight * 0.3)));
                     ctx.globalAlpha = alpha;
                     ctx.fillText(rainDropsChars[i], x, y - fontSize / 2);
                     ctx.globalAlpha = 1;
@@ -334,7 +337,6 @@
                 }
             }
 
-            drawResizeFillRain();
 
             // Draw additional effects
             if (gridEnabled) drawGrid();

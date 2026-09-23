@@ -218,6 +218,24 @@ def state_transition_contract():
     assert_true(taskbar_control._tray_revealed(FakeTrayApi(1152), 1920, 1200),
                 "revealed taskbar must hide the cover for normal interaction")
 
+    class FakePointerApi:
+        def __init__(self, x, y):
+            self.x, self.y = x, y
+
+        def GetCursorPos(self, pointer):
+            pointer._obj.x, pointer._obj.y = self.x, self.y
+            return True
+
+    assert_true(taskbar_control._pointer_at_bottom_edge(
+        FakePointerApi(960, 1199), 1920, 1200),
+        "taskbar edge hover must release the Matrix cover")
+    assert_true(not taskbar_control._pointer_at_bottom_edge(
+        FakePointerApi(960, 1197), 1920, 1200),
+        "ordinary Matrix pointer position must keep the edge covered")
+    assert_true(not taskbar_control._pointer_at_bottom_edge(
+        FakePointerApi(2000, 1199), 1920, 1200),
+        "pointer on another display must not release the primary edge cover")
+
     stop = threading.Event()
     taskbar_control._SESSION.update({"token": "restore12", "originalState": 0,
                                      "stop": stop, "watchdog": object()})

@@ -17,7 +17,9 @@ ABS_AUTOHIDE = 0x00000001
 WS_EX_TOPMOST = 0x00000008
 WS_EX_TRANSPARENT = 0x00000020
 WS_EX_TOOLWINDOW = 0x00000080
+WS_EX_LAYERED = 0x00080000
 WS_EX_NOACTIVATE = 0x08000000
+LWA_ALPHA = 0x00000002
 WS_POPUP = 0x80000000
 SS_BLACKRECT = 0x00000004
 SW_HIDE = 0
@@ -70,6 +72,12 @@ def _tray_revealed(user32, width: int, height: int) -> bool:
     )
 
 
+def _pointer_at_bottom_edge(user32, width: int, height: int) -> bool:
+    point = wintypes.POINT()
+    return bool(user32.GetCursorPos(ctypes.byref(point))
+                and 0 <= point.x < width and height - 2 <= point.y < height)
+
+
 def _edge_guard_loop(stop_event: threading.Event) -> None:
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     user32.CreateWindowExW.argtypes = [
@@ -84,6 +92,12 @@ def _edge_guard_loop(stop_event: threading.Event) -> None:
     user32.GetWindowRect.restype = wintypes.BOOL
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
     user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
+    user32.GetCursorPos.restype = wintypes.BOOL
+    user32.SetLayeredWindowAttributes.argtypes = [
+        wintypes.HWND, wintypes.COLORREF, wintypes.BYTE, wintypes.DWORD,
+    ]
+    user32.SetLayeredWindowAttributes.restype = wintypes.BOOL
     user32.SetWindowPos.argtypes = [
         wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
         ctypes.c_int, ctypes.c_int, wintypes.UINT,
@@ -96,12 +110,18 @@ def _edge_guard_loop(stop_event: threading.Event) -> None:
     height = int(user32.GetSystemMetrics(1))
     if width <= 0 or height <= 2:
         return
-    styles = WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+    # Layered + transparent is the Win32 mouse pass-through combination. Without
+    # layered, this topmost cover can steal the taskbar's edge-hover hit test.
+    styles = (WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_LAYERED
+              | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE)
     hwnd = user32.CreateWindowExW(
         styles, "STATIC", "EveOS Matrix Edge Guard", WS_POPUP | SS_BLACKRECT,
         0, height - 2, width, 2, None, None, None, None,
     )
     if not hwnd:
+        return
+    if not user32.SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA):
+        user32.DestroyWindow(hwnd)
         return
     message = wintypes.MSG()
     shown = False
@@ -115,7 +135,8 @@ def _edge_guard_loop(stop_event: threading.Event) -> None:
             if (current_width, current_height) != (width, height):
                 width, height = current_width, current_height
                 user32.SetWindowPos(hwnd, -1, 0, height - 2, width, 2, 0x0010)
-            should_show = not _tray_revealed(user32, width, height)
+            should_show = (not _tray_revealed(user32, width, height)
+                           and not _pointer_at_bottom_edge(user32, width, height))
             if should_show != shown:
                 user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE if should_show else SW_HIDE)
                 if should_show:
