@@ -69,11 +69,13 @@ def _append_server_log(line):
 def _server_log_tail_text():
     return "\n".join(_SERVER_LOG_TAIL)
 
-def _windows_localappdata_root():
-    return os.path.join(_local_runtime_root(), "windows-localappdata")
+def _windows_home_root():
+    return os.path.join(_local_runtime_root(), "windows-home")
 
 def _windows_camofox_cache_root():
-    return os.path.join(_windows_localappdata_root(), "camoufox", "camoufox", "Cache")
+    return os.path.join(
+        _windows_home_root(), "AppData", "Local", "camoufox", "camoufox", "Cache"
+    )
 
 def _ensure_windows_camofox_compat_cache():
     if os.name != "nt":
@@ -159,11 +161,15 @@ def _server_env(port=None):
     state_root = _local_runtime_root()
     browser_binary = _camofox_browser_binary()
     if os.name == "nt":
-        # Older preserved @askjo/camofox-browser runtimes resolve camoufox-js
-        # through LOCALAPPDATA even when newer executable overrides are unknown.
-        # Redirect only the child process to EveOS-owned state and expose browser/
-        # there through a directory junction prepared before launch.
-        env["LOCALAPPDATA"] = _windows_localappdata_root()
+        # @askjo/camofox-browser 1.4.x delegates browser discovery to
+        # camoufox-js 0.8.x, whose Windows cache root is derived from
+        # os.homedir()/USERPROFILE rather than LOCALAPPDATA. Redirect only this
+        # child process to an EveOS-owned synthetic home. The compatibility
+        # junction prepared below exposes browser/ at the legacy cache path.
+        windows_home = _windows_home_root()
+        os.makedirs(windows_home, exist_ok=True)
+        env["USERPROFILE"] = windows_home
+        env["HOME"] = windows_home
     env["CAMOUFOX_INSTALL_DIR"] = _camofox_browser_root()
     # @askjo/camofox-browser supports an explicit external executable. Set both
     # the canonical variable and compatibility aliases so the pinned server
