@@ -175,6 +175,10 @@ bin/lightpanda
 # Local Windows admin helper
 tools/windows/allow-eveos-lightpanda.ps1
 
+# Camofox browser download and persistent sessions (EveOS-local; never commit).
+tools/camofox-runtime/browser/
+tools/camofox-runtime/state/
+
 # Downloaded Cloudflare tunnel runtime (bootstrapped on demand; never tracked)
 tools/WatchFusion/tools/cloudflared.exe
 

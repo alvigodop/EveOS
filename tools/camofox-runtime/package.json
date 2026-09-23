@@ -4,6 +4,10 @@
   "type": "module",
   "description": "Standalone Camofox runtime for EveOS browser fallback scraping.",
   "dependencies": {
-    "@askjo/camofox-browser": "1.14.0"
+    "@askjo/camofox-browser": "1.14.0",
+    "camoufox-js": "0.11.5"
+  },
+  "scripts": {
+    "fetch-browser": "camoufox-js fetch"
   }
 }
