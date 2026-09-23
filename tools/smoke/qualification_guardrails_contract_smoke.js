@@ -48,7 +48,7 @@ requireTrue(
 
 for (const marker of [
     "fast: ['test:guardrails',",
-    "'test:guardrails', 'smoke:regressions'",
+    "deep: [\n    'test:guardrails',",
     "security: ['test:guardrails',",
     "'ai-control': [\n    'test:guardrails',"
 ]) {
