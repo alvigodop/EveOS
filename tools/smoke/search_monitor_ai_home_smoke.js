@@ -36,7 +36,11 @@ let localMoeResponse = {
     state: 'stopped',
     setupReady: true,
     runtimeReady: false,
+    runtimeReachable: false,
     runtimeHealth: 'offline',
+    runtimeManagedRunning: false,
+    runtimeStartupStage: 'stopped',
+    runtimeLastError: '',
     activeModel: { id: 'qwen36-nvfp4', label: 'Qwen 35B' },
     port: 5180,
     runtimePort: 1919,
@@ -106,6 +110,9 @@ function assert(condition, message) {
         'Harness status polling can replace live controls while inline chat has focus');
     assert(harnessAppSource.includes("!modelPanel.classList.contains('hidden') && !modelSwitchInProgress"),
         'Harness status polling can replace model-switch controls while the library is open');
+    assert(harnessAppSource.includes('${runtimeLabel} stopped')
+        && harnessAppSource.includes('lifecycle.startup_stage'),
+        'Harness UI no longer distinguishes an intentionally stopped model runtime from an offline Harness');
     assert(!initSource.includes("requestGeminiBoot('full-monitor-view')"),
         'Opening Workspace still boots Gemini before its provider is opened');
     assert(loaderSource.includes("getElementById('gemini-provider-runtime-host')"),
@@ -135,6 +142,17 @@ function assert(condition, message) {
         src: '',
         removeAttribute(name) { if (name === 'src') this.src = ''; }
     };
+    const textNodes = new Map([
+        ['[data-local-moe-state]', { textContent: '' }],
+        ['[data-local-moe-summary]', { textContent: '' }],
+        ['[data-local-moe-harness]', { textContent: '' }],
+        ['[data-local-moe-runtime]', { textContent: '' }],
+        ['[data-local-moe-model]', { textContent: '' }],
+        ['[data-local-moe-profile]', { textContent: '' }],
+        ['[data-local-moe-ports]', { textContent: '' }],
+        ['[data-local-moe-gpu]', { textContent: '' }],
+        ['[data-local-moe-message]', { textContent: '' }]
+    ]);
     const root = {
         addEventListener() {},
         querySelector(selector) {
@@ -142,7 +160,7 @@ function assert(condition, message) {
             if (selector === '[data-ai-provider="local-moe"]') return localMoe;
             if (selector === '[data-local-moe-inline]') return inlineHost;
             if (selector === '[data-local-moe-frame]') return inlineFrame;
-            return null;
+            return textNodes.get(selector) || null;
         },
         querySelectorAll() { return []; }
     };
@@ -163,15 +181,52 @@ function assert(condition, message) {
         ...localMoeResponse,
         running: true,
         state: 'running',
-        runtimeReady: true,
-        runtimeHealth: 'ok',
+        runtimeReady: false,
+        runtimeReachable: false,
+        runtimeManagedRunning: false,
+        runtimeStartupStage: 'stopped',
+        runtimeLastError: '',
+        runtimeHealth: 'offline',
+        message: 'Local MoE Harness is online.',
         url: 'http://127.0.0.1:5180/'
+    };
+    await api.refreshLocalMoe();
+    assert(textNodes.get('[data-local-moe-state]').textContent === 'Online'
+        && textNodes.get('[data-local-moe-harness]').textContent === 'Online',
+        'Healthy Harness was mislabeled offline when the model runtime was stopped');
+    assert(textNodes.get('[data-local-moe-runtime]').textContent === 'Stopped',
+        'Stopped model runtime was mislabeled as an offline Local MoE Harness');
+
+    localMoeResponse = {
+        ...localMoeResponse,
+        runtimeManagedRunning: true,
+        runtimeStartupStage: 'loading_weights'
+    };
+    await api.refreshLocalMoe();
+    assert(textNodes.get('[data-local-moe-runtime]').textContent === 'Loading model',
+        'Managed model startup was not rendered separately from Harness health');
+
+    localMoeResponse = {
+        ...localMoeResponse,
+        runtimeReady: true,
+        runtimeReachable: true,
+        runtimeManagedRunning: true,
+        runtimeStartupStage: 'ready',
+        runtimeHealth: 'ok'
     };
     await api.refreshLocalMoe();
     assert(inlineHost.hidden === false && inlineFrame.src.startsWith(localMoeResponse.url)
         && inlineFrame.src.includes('eveos_embed='),
         'Running Local MoE did not mount its inline Harness workspace');
-    localMoeResponse = { ...localMoeResponse, running: false, state: 'stopped', runtimeReady: false };
+
+    const requestsBeforeReopen = requests.length;
+    listeners['local:toggle']();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert(requests.length === requestsBeforeReopen + 1,
+        'Reopening Local MoE reused stale status instead of performing a fresh read');
+
+    localMoeResponse = { ...localMoeResponse, running: false, state: 'stopped', runtimeReady: false,
+        runtimeReachable: false, runtimeManagedRunning: false, runtimeStartupStage: 'stopped' };
     await api.refreshLocalMoe();
     assert(inlineHost.hidden === true && inlineFrame.src === '',
         'Stopped Local MoE did not unload its inline Harness workspace');
