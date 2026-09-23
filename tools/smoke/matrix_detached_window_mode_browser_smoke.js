@@ -71,11 +71,12 @@ function assert(condition, message) {
                 && rainHandoff.stillWaitingBelow === rainHandoff.columnCount - 1,
                 `normal rain handoff mass-reseeded into a second waterfall: ${JSON.stringify(rainHandoff)}`);
             assert(rainHandoff.endpointBoundsSafe && rainHandoff.endpointGlowSeen
+                && rainHandoff.transitionBridgeSeen
                 && rainHandoff.endpointGlowReachesEdge
                 && rainHandoff.endpointEdgeGap >= 0
                 && rainHandoff.endpointEdgeGap <= 0.5
                 && rainHandoff.overflowCallCount === 0,
-                `terminal glow/overflow guard regressed: ${JSON.stringify(rainHandoff)}`);
+                `terminal glow/bridge/overflow guard regressed: ${JSON.stringify(rainHandoff)}`);
 
             await freshPage.setViewportSize({ width: 1200, height: 600 });
             await freshPage.locator('#toggleToolbar').click();
