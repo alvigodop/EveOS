@@ -84,24 +84,28 @@
             // every canvas. Resizing a canvas resets its context state, so the transform has to be
             // reinstated here or everything reverts to blurry 1:1 after the first resize -- and
             // dragging a window between a laptop screen and an external monitor changes the ratio.
-            // A focus/fullscreen transition may change innerHeight by only the taskbar strip.
-            // Keep the last rendered rain instead of flashing a blank buffer on canvas resize.
-            const previousRain = document.createElement('canvas');
-            previousRain.width = canvas.width;
-            previousRain.height = canvas.height;
-            if (previousRain.width && previousRain.height) {
+            // Preserve a tiny taskbar-strip resize, but never scale an old rain frame across
+            // a fullscreen expansion: that paints a second, misaligned Matrix state.
+            const majorResize = Math.abs(window.innerWidth - viewWidth) > 32
+                || Math.abs(window.innerHeight - viewHeight) > 32;
+            const previousRain = majorResize ? null : document.createElement('canvas');
+            if (previousRain) {
+                previousRain.width = canvas.width;
+                previousRain.height = canvas.height;
                 previousRain.getContext('2d').drawImage(canvas, 0, 0);
             }
             const previousDrops = rainDrops;
             const previousChars = rainDropsChars;
             sizeAllCanvases();
-            if (previousRain.width && previousRain.height) {
+            if (previousRain?.width && previousRain.height) {
                 ctx.drawImage(previousRain, 0, 0, previousRain.width, previousRain.height,
                     0, 0, viewWidth, viewHeight);
             }
             buildDotGrid();
             columns = viewWidth / fontSize;
-            rainDrops = Array.from({ length: Math.ceil(columns) }, (_, index) => previousDrops[index] ?? 1);
+            rainDrops = Array.from({ length: Math.ceil(columns) }, (_, index) =>
+                !majorResize && previousDrops[index] !== undefined
+                    ? previousDrops[index] : Math.random() * (viewHeight / fontSize));
             rainDropsChars = Array.from({ length: Math.ceil(columns) }, (_, index) =>
                 previousChars[index] ?? alphabet.charAt(Math.floor(Math.random() * alphabet.length)));
             if (gridEnabled) {

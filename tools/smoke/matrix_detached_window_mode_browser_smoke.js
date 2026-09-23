@@ -165,8 +165,28 @@ function assert(condition, message) {
         assert(resized.drop >= 37 && resized.height > 0,
             `focus/viewport resize restarted Matrix rain: ${JSON.stringify(resized)}`);
 
+        const beforeFullscreenWidth = await page.evaluate(() => {
+            paused = true;
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(100, 100, 30, 30);
+            return rainDrops.length;
+        });
+        await page.setViewportSize({ width: 1920, height: 1200 });
+        await page.waitForFunction(() => viewWidth === 1920 && viewHeight === 1200);
+        const expanded = await page.evaluate((oldCount) => ({
+            oldCount,
+            count: rainDrops.length,
+            newDrops: rainDrops.slice(oldCount),
+            oldFrameRed: ctx.getImageData(165, 165, 1, 1).data[0]
+        }), beforeFullscreenWidth);
+        assert(expanded.count > expanded.oldCount && expanded.oldFrameRed === 0,
+            `fullscreen expansion painted a scaled copy of the old rain: ${JSON.stringify(expanded)}`);
+        assert(new Set(expanded.newDrops.map(Math.floor)).size > 1,
+            `new fullscreen columns all started in the same phase: ${JSON.stringify(expanded)}`);
+
         console.log('MATRIX_DETACHED_WINDOW_MODE_BROWSER_SMOKE_OK', JSON.stringify({
-            boot, rapidWrites: controlCalls.length, entered, exited, resized
+            boot, rapidWrites: controlCalls.length, entered, exited, resized,
+            fullscreenColumns: expanded.count
         }));
     } finally {
         await browser.close();
