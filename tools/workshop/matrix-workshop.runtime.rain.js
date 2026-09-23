@@ -213,7 +213,8 @@
                         if (drawY < landingY && !landsThisFrame) {
                             ctx.fillText(rainDropsChars[i], x, drawY);
                         } else if (landsThisFrame) {
-                            drawRainTerminalTransition(rainDropsChars[i], x, drawY);
+                            drawRainTerminalTransition(rainDropsChars[i], x, drawY,
+                                step * fontSize);
                         }
                         rainDrops[i] += step;
                         continue;
@@ -243,7 +244,8 @@
                         ctx.fillText(rainDropsChars[i], x, drawY);
                         ctx.globalAlpha = 1;
                     } else if (landsThisFrame) {
-                        drawRainTerminalTransition(rainDropsChars[i], x, drawY);
+                        drawRainTerminalTransition(rainDropsChars[i], x, drawY,
+                            step * fontSize);
                     }
 
                     rainDrops[i] += step;

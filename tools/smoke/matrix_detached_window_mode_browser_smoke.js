@@ -72,6 +72,7 @@ function assert(condition, message) {
                 `normal rain handoff mass-reseeded into a second waterfall: ${JSON.stringify(rainHandoff)}`);
             assert(rainHandoff.endpointBoundsSafe && rainHandoff.endpointGlowSeen
                 && rainHandoff.transitionBridgeSeen
+                && rainHandoff.transitionBridgeFitsGap
                 && rainHandoff.endpointGlowReachesEdge
                 && rainHandoff.endpointEdgeGap >= 0
                 && rainHandoff.endpointEdgeGap <= 0.5

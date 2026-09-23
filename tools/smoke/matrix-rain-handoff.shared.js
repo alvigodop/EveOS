@@ -53,10 +53,14 @@ async function probeRainHandoff(page) {
             const originalFillText = ctx.fillText;
             const terminalCalls = [];
             ctx.fillText = function (text, x, y) {
+                const callMetrics = ctx.measureText(text);
                 terminalCalls.push({
                     text, x, y,
                     alpha: ctx.globalAlpha,
-                    shadowBlur: ctx.shadowBlur
+                    shadowBlur: ctx.shadowBlur,
+                    font: ctx.font,
+                    ascent: callMetrics.actualBoundingBoxAscent,
+                    descent: callMetrics.actualBoundingBoxDescent
                 });
                 return originalFillText.call(ctx, text, x, y);
             };
@@ -87,9 +91,22 @@ async function probeRainHandoff(page) {
                 const endpointCall = crossingCalls.find(call =>
                     Math.abs(call.y - landingY) < 0.01);
                 const bridgeCall = crossingCalls.find(call =>
-                    Math.abs(call.y - crossingDrawY) < 0.01);
+                    call.y < landingY - 0.01
+                    && call.alpha <= 0.13
+                    && call.shadowBlur === 0);
                 const overflowCalls = crossingCalls.concat(afterCrossingCalls)
                     .filter(call => call.y > landingY + 0.01);
+                const glyphAscent = Number.isFinite(metrics.actualBoundingBoxAscent)
+                    ? Math.max(1, metrics.actualBoundingBoxAscent)
+                    : fontSize * 0.6;
+                const previousDrawY = crossingDrawY - stepPx;
+                const previousBottom = previousDrawY + glyphDescent;
+                const terminalTop = landingY - glyphAscent;
+                const bridgeFontSize = bridgeCall
+                    ? Number.parseFloat(bridgeCall.font) : Number.NaN;
+                const bridgeBoundsFit = Boolean(bridgeCall
+                    && bridgeCall.y - bridgeCall.ascent >= previousBottom - 0.5
+                    && bridgeCall.y + bridgeCall.descent <= terminalTop + 0.5);
 
                 return {
                     openingFinished,
@@ -109,8 +126,8 @@ async function probeRainHandoff(page) {
                         && endpointCall.alpha <= 0.21
                         && endpointCall.shadowBlur >= endpointGlow),
                     transitionBridgeSeen: Boolean(bridgeCall
-                        && bridgeCall.alpha <= 0.13
-                        && bridgeCall.shadowBlur === 0),
+                        && bridgeFontSize < fontSize),
+                    transitionBridgeFitsGap: bridgeBoundsFit,
                     overflowCallCount: overflowCalls.length
                 };
             } finally {
