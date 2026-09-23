@@ -124,7 +124,7 @@
                     <div class="eveos-ai-provider-body">
                         <div class="eveos-ai-status-grid">
                             <div><span>Harness</span><strong data-local-moe-harness>Stopped</strong></div>
-                            <div><span>Runtime</span><strong data-local-moe-runtime>Offline</strong></div>
+                            <div><span>Model runtime</span><strong data-local-moe-runtime>Stopped</strong></div>
                             <div><span>Model</span><strong data-local-moe-model>Configured model</strong></div>
                             <div><span>Profile</span><strong data-local-moe-profile>—</strong></div>
                             <div><span>Ports</span><strong data-local-moe-ports>5180 · 1919</strong></div>
@@ -204,6 +204,21 @@
         return status?.running ? 'Telemetry ready' : 'Standby';
     }
 
+    function runtimeStateLabel(status) {
+        if (!status?.running) return 'Harness stopped';
+        if (status.runtimeReady === true) return 'Ready';
+
+        const stage = String(status.runtimeStartupStage || '').trim().toLowerCase();
+        if (status.runtimeManagedRunning === true
+            || ['starting', 'loading_weights', 'checking_identity'].includes(stage)) {
+            if (stage === 'checking_identity') return 'Loading · identity check';
+            return 'Loading model';
+        }
+        if (status.runtimeLastError) return 'Needs attention';
+        if (status.runtimeReachable === true) return 'Reachable · not ready';
+        return 'Stopped';
+    }
+
     function syncLocalMoeInline(status) {
         const provider = boundRoot?.querySelector('[data-ai-provider="local-moe"]');
         const host = boundRoot?.querySelector('[data-local-moe-inline]');
@@ -236,12 +251,13 @@
         setText('[data-local-moe-state]', stateLabel);
         setText('[data-local-moe-summary]', status.message || 'Generic local inference core');
         setText('[data-local-moe-harness]', running ? 'Online' : status.state || 'Stopped');
-        setText('[data-local-moe-runtime]', status.runtimeReady ? 'Ready' : status.runtimeHealth || 'Offline');
+        setText('[data-local-moe-runtime]', runtimeStateLabel(status));
         setText('[data-local-moe-model]', status.activeModel?.label || status.activeModel?.id || 'Configured model');
         setText('[data-local-moe-profile]', status.activeProfile || '—');
         setText('[data-local-moe-ports]', `${status.port || 5180} · ${status.runtimePort || 1919}`);
         setText('[data-local-moe-gpu]', gpuLabel(status));
-        setText('[data-local-moe-message]', overrideMessage || status.message || 'Status available.');
+        setText('[data-local-moe-message]',
+            overrideMessage || status.runtimeLastError || status.message || 'Status available.');
         syncLocalMoeInline(status);
 
         const primary = boundRoot.querySelector('[data-local-moe-primary]');
@@ -334,7 +350,7 @@
             if (gemini.open) onGeminiOpen?.();
         });
         localMoe?.addEventListener('toggle', function () {
-            if (localMoe.open && !localMoeLoaded) refreshLocalMoe();
+            if (localMoe.open) refreshLocalMoe();
             else if (lastLocalMoeStatus) syncLocalMoeInline(lastLocalMoeStatus);
         });
         agents?.addEventListener('toggle', function () {
@@ -345,7 +361,7 @@
 
     function setWorkspaceActive(active) {
         workspaceActive = !!active;
-        if (active && !localMoeLoaded) refreshLocalMoe();
+        if (active) refreshLocalMoe();
         const gemini = boundRoot?.querySelector('[data-ai-provider="gemini"]');
         if (active && gemini?.open) onGeminiOpen?.();
         return !!(active && gemini?.open);
