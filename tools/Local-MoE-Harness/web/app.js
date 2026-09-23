@@ -404,7 +404,19 @@ async function refreshStatus() {
         }
         scheduleStatusPoll(3000);
       } else {
-        pill.textContent = runtime.reachable ? `${runtimeLabel} not ready` : `${runtimeLabel} offline`;
+        const startupStage = String(lifecycle.startup_stage || '').toLowerCase();
+        const intentionallyStopped = !lifecycle.managed_running
+          && ['idle', 'stopped', ''].includes(startupStage)
+          && !lifecycle.last_error;
+        if (runtime.reachable) {
+          pill.textContent = `${runtimeLabel} not ready`;
+        } else if (intentionallyStopped) {
+          pill.textContent = `${runtimeLabel} stopped`;
+        } else if (lifecycle.last_error) {
+          pill.textContent = `${runtimeLabel} needs attention`;
+        } else {
+          pill.textContent = `${runtimeLabel} unavailable`;
+        }
         pill.classList.add('down');
         if (startBtn) {
           startBtn.classList.remove('hidden');
