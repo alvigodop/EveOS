@@ -263,8 +263,18 @@
 
         const primary = boundRoot.querySelector('[data-local-moe-primary]');
         if (primary) {
-            primary.dataset.localMoeAction = running || starting ? 'stop' : 'start';
-            primary.textContent = localMoeBusy ? 'Working…' : (running || starting ? 'Stop' : 'Start');
+            const modelCanStart = running
+                && status.runtimeReady !== true
+                && status.runtimeManagedRunning !== true
+                && status.runtimeReachable !== true;
+            const shouldStop = starting
+                || (running && !modelCanStart);
+            primary.dataset.localMoeAction = shouldStop ? 'stop' : 'start';
+            primary.textContent = localMoeBusy
+                ? 'Working…'
+                : modelCanStart
+                    ? (status.runtimeLastError ? 'Retry model' : 'Start model')
+                    : shouldStop ? 'Stop' : 'Start';
             primary.disabled = localMoeBusy || blocked || (!running && status.setupReady === false);
         }
         const setup = boundRoot.querySelector('[data-local-moe-action="setup"]');
@@ -302,11 +312,20 @@
         localMoeBusy = true;
         localMoeRefreshGeneration += 1;
         let finalMessage = '';
+        const startingModelOnly = action === 'start' && lastLocalMoeStatus?.running === true;
         renderLocalMoe(lastLocalMoeStatus || {
             running: false, state: 'stopped', setupReady: true, port: 5180, runtimePort: 1919
-        }, `${action === 'setup' ? 'Opening setup' : action === 'start' ? 'Starting' : 'Stopping'}…`);
+        }, `${action === 'setup'
+            ? 'Opening setup'
+            : action === 'start'
+                ? (startingModelOnly ? 'Starting selected model' : 'Starting Local MoE')
+                : 'Stopping'}…`);
         try {
-            const status = await request(ACTION_PATHS[action], { method: 'POST' }, action === 'stop' ? 35000 : 9000);
+            const status = await request(
+                ACTION_PATHS[action],
+                { method: 'POST' },
+                action === 'stop' ? 35000 : action === 'start' ? 18000 : 9000
+            );
             renderLocalMoe(status);
             return status;
         } catch (error) {
