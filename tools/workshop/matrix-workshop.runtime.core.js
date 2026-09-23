@@ -79,6 +79,27 @@
         let speed = 50;
         let paused = false;
         let fadeSpeed = 0.05;
+        const RAIN_ENDPOINT_GLOW = 1.5;
+
+        function getRainLandingY(char) {
+            const metrics = ctx.measureText(char);
+            const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                ? Math.max(1, metrics.actualBoundingBoxDescent)
+                : fontSize * 0.4;
+            return Math.max(fontSize / 2,
+                viewHeight - Math.ceil(glyphDescent + RAIN_ENDPOINT_GLOW));
+        }
+
+        function drawRainTerminalGlyph(char, x, alpha = 0.2) {
+            const y = getRainLandingY(char);
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = RAIN_ENDPOINT_GLOW;
+            ctx.fillText(char, x, y);
+            ctx.restore();
+            return y;
+        }
         let lineChangeRate = 1; // Number of lines to pass before changing character
         let minLineChange = 1;
         let maxLineChange = 4;
