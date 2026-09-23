@@ -15,6 +15,7 @@ const loaderPath = path.join(
     ROOT, 'js', 'modules', 'gemini', 'html_loaders', 'layout', 'mdl_wrap', 'mdlLayoutWrapperUILoader.js'
 );
 const harnessAppPath = path.join(ROOT, 'tools', 'Local-MoE-Harness', 'web', 'app.js');
+const harnessIndexPath = path.join(ROOT, 'tools', 'Local-MoE-Harness', 'web', 'index.html');
 const manifestPath = path.join(ROOT, 'js', 'config', 'manifest', 'scripts.parts', '13-gemini.js');
 const viewportCssPath = path.join(
     ROOT, 'css', 'modules', 'gemini', 'gemini_link_surfaces.viewport.css'
@@ -26,6 +27,7 @@ const source = fs.readFileSync(aiHomePath, 'utf8');
 const initSource = fs.readFileSync(initPath, 'utf8');
 const loaderSource = fs.readFileSync(loaderPath, 'utf8');
 const harnessAppSource = fs.readFileSync(harnessAppPath, 'utf8');
+const harnessIndexSource = fs.readFileSync(harnessIndexPath, 'utf8');
 const manifestSource = fs.readFileSync(manifestPath, 'utf8');
 const viewportCssSource = fs.readFileSync(viewportCssPath, 'utf8');
 
@@ -113,6 +115,9 @@ function assert(condition, message) {
     assert(harnessAppSource.includes('${runtimeLabel} stopped')
         && harnessAppSource.includes('lifecycle.startup_stage'),
         'Harness UI no longer distinguishes an intentionally stopped model runtime from an offline Harness');
+    assert(source.includes("const LOCAL_MOE_EMBED_VERSION = '20260923.1';")
+        && harnessIndexSource.includes('/static/app.js?v=20260923.1'),
+        'Local MoE embed/app cache revisions are not synchronized');
     assert(!initSource.includes("requestGeminiBoot('full-monitor-view')"),
         'Opening Workspace still boots Gemini before its provider is opened');
     assert(loaderSource.includes("getElementById('gemini-provider-runtime-host')"),
