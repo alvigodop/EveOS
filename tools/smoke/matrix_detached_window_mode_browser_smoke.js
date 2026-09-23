@@ -1,6 +1,6 @@
 const path = require('path');
 const { chromium } = require('playwright');
-const { probeRainHandoff } = require('./matrix-rain-handoff-probe');
+const { probeRainHandoff } = require('./matrix-rain-handoff.shared');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const TOKEN = 'MatrixWindowModeSmoke12';
