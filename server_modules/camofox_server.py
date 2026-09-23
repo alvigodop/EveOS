@@ -69,6 +69,51 @@ def _append_server_log(line):
 def _server_log_tail_text():
     return "\n".join(_SERVER_LOG_TAIL)
 
+def _windows_localappdata_root():
+    return os.path.join(_local_runtime_root(), "windows-localappdata")
+
+def _windows_camofox_cache_root():
+    return os.path.join(_windows_localappdata_root(), "camoufox", "camoufox", "Cache")
+
+def _ensure_windows_camofox_compat_cache():
+    if os.name != "nt":
+        return None
+
+    browser_root = os.path.abspath(_camofox_browser_root())
+    cache_root = os.path.abspath(_windows_camofox_cache_root())
+    cache_binary = os.path.join(cache_root, os.path.basename(_camofox_browser_binary()))
+    cache_manifest = os.path.join(cache_root, "version.json")
+
+    if os.path.isfile(cache_manifest) and os.path.isfile(cache_binary):
+        return cache_root
+
+    if os.path.lexists(cache_root):
+        raise RuntimeError(
+            "EveOS-local Camoufox compatibility cache exists but is incomplete: "
+            f"{cache_root}. Stop Camofox and remove only this project-local cache path."
+        )
+
+    os.makedirs(os.path.dirname(cache_root), exist_ok=True)
+    result = subprocess.run(
+        ["cmd.exe", "/d", "/c", "mklink", "/J", cache_root, browser_root],
+        capture_output=True,
+        text=True,
+        check=False,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(
+            "Could not create the EveOS-local Camoufox compatibility cache junction"
+            + (f": {detail}" if detail else ".")
+        )
+
+    if not os.path.isfile(cache_manifest) or not os.path.isfile(cache_binary):
+        raise RuntimeError(
+            f"EveOS-local Camoufox compatibility cache did not expose the browser at {cache_root}."
+        )
+    return cache_root
+
 def _is_client_disconnect(exc):
     if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
         return True
@@ -113,6 +158,12 @@ def _server_env(port=None):
     env = os.environ.copy()
     state_root = _local_runtime_root()
     browser_binary = _camofox_browser_binary()
+    if os.name == "nt":
+        # Older preserved @askjo/camofox-browser runtimes resolve camoufox-js
+        # through LOCALAPPDATA even when newer executable overrides are unknown.
+        # Redirect only the child process to EveOS-owned state and expose browser/
+        # there through a directory junction prepared before launch.
+        env["LOCALAPPDATA"] = _windows_localappdata_root()
     env["CAMOUFOX_INSTALL_DIR"] = _camofox_browser_root()
     # @askjo/camofox-browser supports an explicit external executable. Set both
     # the canonical variable and compatibility aliases so the pinned server
@@ -177,6 +228,10 @@ def ensure_camofox_server():
             f"Camofox browser is missing from EveOS: {_camofox_browser_root()}. "
             "Run tools\\batch\\start-camofox-bridge.bat and select Install/Update (option 1)."
         )
+
+    compat_cache = _ensure_windows_camofox_compat_cache()
+    if compat_cache:
+        logger.info("Camofox: EveOS-local compatibility cache: %s", compat_cache)
 
     with _SERVER_LOCK:
         if _SERVER_PROCESS and _SERVER_PROCESS.poll() is None and _probe_health(timeout=3):
