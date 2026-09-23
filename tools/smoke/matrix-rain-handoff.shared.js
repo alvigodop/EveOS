@@ -71,9 +71,8 @@ async function probeRainHandoff(page) {
                 const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
                     ? Math.max(1, metrics.actualBoundingBoxDescent)
                     : fontSize * 0.4;
-                const endpointGlow = 1.5;
-                const landingY = Math.max(fontSize / 2,
-                    viewHeight - Math.ceil(glyphDescent + endpointGlow));
+                const endpointGlow = RAIN_ENDPOINT_GLOW;
+                const landingY = getRainLandingY('M');
                 const stepPx = adjustDensity(1, 'continuous') * fontSize;
                 const crossingDrawY = landingY - stepPx / 2;
                 rainDrops[0] = (crossingDrawY + fontSize / 2) / fontSize;
@@ -99,8 +98,11 @@ async function probeRainHandoff(page) {
                     stillWaitingBelow,
                     columnCount: rainDrops.length,
                     landingY,
+                    endpointEdgeGap: viewHeight - (landingY + glyphDescent),
                     endpointBoundsSafe:
-                        landingY + glyphDescent + endpointGlow <= viewHeight,
+                        landingY + glyphDescent <= viewHeight + 0.01,
+                    endpointGlowReachesEdge:
+                        landingY + glyphDescent + endpointGlow > viewHeight,
                     endpointGlowSeen: Boolean(endpointCall
                         && endpointCall.alpha <= 0.21
                         && endpointCall.shadowBlur >= endpointGlow),
