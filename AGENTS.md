@@ -7,6 +7,7 @@ These rules apply to development and verification across EveOS.
 - Keep first-party source modules at or below 450 physical lines. Split by responsibility instead of hiding logic in generated blobs.
 - Preserve domain boundaries. EveOS may own lifecycle, status, state, theme, and shared contracts while specialized tools keep their own runtimes when that isolation is useful.
 - Never kill a local process merely because it owns an expected port. Verify the service identity first.
+- After a server-side change, restart the verified EveOS-owned process before claiming a live browser test covers the new code; record its new start time/health. Refreshing Matrix or EveOS cannot reload an already-running Python control plane. Use its managed lifecycle when available and inspect launchers for unrelated state changes.
 - Treat `main` as the canonical development line unless the user explicitly asks for a branch.
 - `config/eveos-ports.json` is the single source of truth for EveOS-owned service ports. New services must register an environment key, label, and unique port there instead of introducing a new literal port in a launcher or lifecycle controller.
 - Environment port overrides are allowed for qualification/debugging, but the control-plane entry point must reject effective collisions before starting.
@@ -30,6 +31,7 @@ EveOS inherits WatchFusion's output-efficient verification discipline.
 - Fast-pass reuse is allowed only for the deterministic fast profile and only when the content/environment fingerprint matches exactly.
 - Never reuse a cached result for deep, security, browser, integration, hardware, or final verification.
 - For multi-edit bug fixes, establish the failure with one focused diagnostic or red regression, finish the coherent correction, then run the affected smoke profile. Do not rerun smoke suites after each tentative edit; run final `verify` once after the fix settles, and again only if later edits invalidate it.
+- During active human-reviewed visual tuning, batch the related screenshot-driven corrections and defer smoke suites when the user asks to hold them. Continue with bounded inspection, asset synchronization, and proven patch mechanics; after the user clears the settled behavior, run the smallest affected smoke once and the required final gate once. This schedules verification rather than weakening or skipping it.
 - Successful profile output should stay compact: one stable summary line is enough.
 - On failure, print only bounded relevant context (fewer than 40 direct lines) and save full captured stdout/stderr under ignored `data/runtime/smoke-results/` diagnostics.
 - Use verbose output only when explicitly diagnosing a failure.

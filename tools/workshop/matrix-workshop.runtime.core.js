@@ -15,9 +15,9 @@
         // backing store is separately scaled by the device pixel ratio below.
         let viewWidth = window.innerWidth;
         let viewHeight = window.innerHeight;
-        // Keep the rain world as tall as the display so a taller detached window
-        // reveals already-running streams instead of an unrendered bottom strip.
-        let rainBufferHeight = Math.max(viewHeight, window.screen?.height || viewHeight);
+        // The rain endpoint belongs to the visible window, not the display.
+        // A resize preserves existing head coordinates while new space fills naturally.
+        let rainBufferHeight = viewHeight;
 
         // Sizing a canvas purely from innerWidth/innerHeight gives it a 1:1 backing store, so on any
         // high-DPI display the browser upscales the result and the glyphs come out soft. Size the
@@ -36,12 +36,12 @@
         function sizeAllCanvases() {
             viewWidth = window.innerWidth;
             viewHeight = window.innerHeight;
-            rainBufferHeight = Math.max(viewHeight, window.screen?.height || viewHeight);
+            rainBufferHeight = viewHeight;
             const ratio = Math.max(1, window.devicePixelRatio || 1);
             const rainWidth = Math.round(viewWidth * ratio);
             const rainHeight = Math.round(rainBufferHeight * ratio);
-            // Changing width/height clears a canvas. Ordinary height drags within
-            // the display must leave this backing store untouched.
+            // Changing width/height clears a canvas; resizeCanvases restores the
+            // overlapping pixels at native resolution without stretching them.
             if (canvas.width !== rainWidth) canvas.width = rainWidth;
             if (canvas.height !== rainHeight) canvas.height = rainHeight;
             canvas.style.width = `${viewWidth}px`;
@@ -67,10 +67,18 @@
 
         let rainDrops = [];
         let rainDropsChars = [];
+        let rainOpeningWave = true;
+        function nextRainEntry() {
+            // Every stream enters through the top edge, while a wide randomized
+            // delay breaks the columns out of the opening waterfall's shared
+            // phase and restores the original independent-rain rhythm.
+            const visibleRows = Math.max(1, viewHeight / fontSize);
+            return -(Math.random() * Math.min(28, visibleRows / 2));
+        }
         for (let x = 0; x < columns; x++) {
-            // A fresh page load is a fresh rain run. Stagger heads just above the
-            // top edge so streams enter naturally instead of appearing mid-fall.
-            rainDrops[x] = -Math.random() * Math.min(28, rainBufferHeight / fontSize / 2);
+            // Original Matrix opening: one wave descends, then columns restart
+            // independently after reaching the visible bottom.
+            rainDrops[x] = 1;
             rainDropsChars[x] = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
         }
 

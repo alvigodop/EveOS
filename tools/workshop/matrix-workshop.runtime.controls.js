@@ -27,6 +27,8 @@
 
             columns = viewWidth / fontSize;
             rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainOpeningWave = true;
+            ctx.clearRect(0, 0, viewWidth, rainBufferHeight);
             rainDropsChars = Array(Math.ceil(columns)).fill().map(() =>
                 alphabet.charAt(Math.floor(Math.random() * alphabet.length))
             );

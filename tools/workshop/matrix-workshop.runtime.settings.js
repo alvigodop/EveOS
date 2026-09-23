@@ -260,6 +260,7 @@
                 // Refresh the matrix
                 columns = viewWidth / fontSize;
                 rainDrops = Array(Math.ceil(columns)).fill(1);
+                rainOpeningWave = true;
                 rainDropsChars = Array(Math.ceil(columns)).fill().map(() => getRandomSelectedChar());
 
                 // Redraw grid if enabled

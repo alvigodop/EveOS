@@ -16,7 +16,9 @@
             for (let column = firstColumn; column < rainDrops.length; column++) {
                 const headY = rainDrops[column] * fontSize;
                 const x = column * fontSize + fontSize / 2;
-                for (let trail = 0; trail < trailLength; trail++) {
+                // The live render loop owns the head glyph. Pre-seeding it here
+                // paints the same character twice on the first frame/new columns.
+                for (let trail = 1; trail < trailLength; trail++) {
                     const y = headY - trail * fontSize;
                     if (y < 0) break;
                     if (y > rainBufferHeight) continue;
@@ -35,7 +37,7 @@
             const oldCount = rainDrops.length;
             const oldBufferHeight = rainBufferHeight;
             const nextWidth = window.innerWidth;
-            const nextHeight = Math.max(window.innerHeight, window.screen?.height || 0);
+            const nextHeight = window.innerHeight;
             const nextRatio = Math.max(1, window.devicePixelRatio || 1);
             const backingChanges = canvas.width !== Math.round(nextWidth * nextRatio)
                 || canvas.height !== Math.round(nextHeight * nextRatio);
@@ -47,8 +49,8 @@
                 previousRain.getContext('2d').drawImage(canvas, 0, 0);
             }
 
-            // A height drag within the same display leaves the rain canvas untouched.
-            // Only width, display-height, or DPR changes need a new backing store.
+            // Preserve the overlapping rain pixels exactly; the newly exposed
+            // bottom starts black and is filled by streams falling into it.
             sizeAllCanvases();
             if (previousRain) {
                 const oldRatio = previousRain.width / oldWidth;
@@ -78,7 +80,9 @@
                 rainDropsChars[index] = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
             }
             resizeColumnState(count);
-            seedNewRainColumns(initialRainSeeded ? oldCount : 0);
+            // The initial heads are already ready for the first animation frame;
+            // seed history only for columns created by a later width expansion.
+            if (initialRainSeeded) seedNewRainColumns(oldCount);
             initialRainSeeded = true;
             if (gridEnabled) drawGrid();
         }

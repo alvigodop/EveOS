@@ -55,8 +55,8 @@ function main() {
         'resize no longer sizes the canvas 1:1 behind the helper\'s back');
 
     // ---- nothing may read a canvas buffer size as if it were a drawing coordinate ----
-    // The rain canvas intentionally has an offscreen backing store through screen.height;
-    // these exact reads compare physical dimensions or snapshot them, not draw positions.
+    // The canvas backing store is DPR-scaled to the visible window; these exact
+    // reads compare physical dimensions or snapshot them, not draw positions.
     const strays = [];
     all.forEach((source, index) => {
         const lines = source.split('\n');

@@ -159,6 +159,7 @@
             fontSize = parseInt(newSize);
             columns = viewWidth / fontSize;
             rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainOpeningWave = true;
             rainDropsChars = Array(Math.ceil(columns)).fill().map(() => alphabet.charAt(Math.floor(Math.random() * alphabet.length)));
         }
 

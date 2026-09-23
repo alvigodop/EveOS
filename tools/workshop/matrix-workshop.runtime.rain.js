@@ -24,8 +24,7 @@
             // which emits no resize event of its own.
             const backingRatio = Math.max(1, window.devicePixelRatio || 1);
             if (viewWidth !== window.innerWidth || viewHeight !== window.innerHeight
-                || rainBufferHeight !== Math.max(window.innerHeight,
-                    window.screen?.height || window.innerHeight)
+                || rainBufferHeight !== window.innerHeight
                 || canvas.width !== Math.round(viewWidth * backingRatio)
                 || canvas.height !== Math.round(rainBufferHeight * backingRatio)) {
                 if (typeof resizeCanvases === 'function') resizeCanvases();
@@ -65,7 +64,12 @@
                 if (fpsEl) fpsEl.textContent = `FPS: ${fps}`;
             }
 
-            // Apply fade effect
+            const continuousMode = !waterfallEnabled
+                && (!movementEnabled || precipitationMode === 'continuous');
+            if (rainOpeningWave && !continuousMode) rainOpeningWave = false;
+
+            // The opening waterfall and ordinary rain share one persistence
+            // rate. Transitioning phases must not fade the whole canvas.
             ctx.fillStyle = `rgba(0, 0, 0, ${fadeSpeed})`;
             ctx.fillRect(0, 0, viewWidth, rainBufferHeight);
 
@@ -182,32 +186,55 @@
                 } else if (!movementEnabled || precipitationMode === 'continuous') {
                     // Normal continuous rain behavior
                     const y = rainDrops[i] * fontSize;
+                    const step = adjustDensity(1, 'continuous');
+                    const drawY = y - fontSize / 2;
+                    const nextDrawY = drawY + step * fontSize;
+                    // Place the complete glyph plus its small glow against the
+                    // edge. Font metrics avoid both the old padding gap and the
+                    // clipped half-glyph caused by centering directly on it.
+                    const metrics = ctx.measureText(rainDropsChars[i]);
+                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                        ? Math.max(1, metrics.actualBoundingBoxDescent)
+                        : fontSize * 0.4;
+                    const landingY = Math.max(fontSize / 2,
+                        viewHeight - Math.ceil(glyphDescent + 1.5));
+                    const landsThisFrame = drawY < landingY && nextDrawY >= landingY;
 
-                    if (sequenceEnabled) {
-                        if (y > rainBufferHeight && Math.random() > 0.975) {
-                            rainDrops[i] = 0;
-                            updateSequenceCharacters();
-                        }
-                    } else {
+                    if (!rainOpeningWave && drawY >= landingY) {
+                        rainDrops[i] = nextRainEntry();
+                        if (sequenceEnabled) updateSequenceCharacters();
+                        else rainDropsChars[i] = getRandomSelectedChar();
+                        continue;
+                    }
+
+                    if (!sequenceEnabled) {
                         const currentLine = Math.floor(y / fontSize);
                         if (currentLine > 0 && currentLine % lineChangeRate === 0 &&
                             Math.floor((y - fontSize) / fontSize) !== currentLine) {
                             rainDropsChars[i] = getRandomSelectedChar();
                         }
-
-                        if (y > rainBufferHeight && Math.random() > 0.975) {
-                            rainDrops[i] = 0;
-                        }
                     }
 
-                    // Apply alpha trail effect
-                    const alpha = Math.max(0.2, Math.min(1,
-                        (rainBufferHeight - y) / (rainBufferHeight * 0.3)));
-                    ctx.globalAlpha = alpha;
-                    ctx.fillText(rainDropsChars[i], x, y - fontSize / 2);
-                    ctx.globalAlpha = 1;
-
-                    rainDrops[i] += adjustDensity(1, 'continuous');
+                    if (drawY < landingY && !landsThisFrame) {
+                        ctx.fillText(rainDropsChars[i], x, drawY);
+                    }
+                    if (landsThisFrame) {
+                        // The crossing frame paints only the endpoint. Repainting
+                        // the preceding row here creates the visible double band.
+                        ctx.save();
+                        ctx.globalAlpha = 0.2;
+                        ctx.shadowColor = color;
+                        ctx.shadowBlur = 1.5;
+                        ctx.fillText(rainDropsChars[i], x, landingY);
+                        ctx.restore();
+                        if (!rainOpeningWave) {
+                            rainDrops[i] = nextRainEntry();
+                            if (sequenceEnabled) updateSequenceCharacters();
+                            else rainDropsChars[i] = getRandomSelectedChar();
+                            continue;
+                        }
+                    }
+                    rainDrops[i] += step;
                 } else if (precipitationMode === 'dense') {
                     // Dense packed rain behavior
                     const y = rainDrops[i] * fontSize;
@@ -337,6 +364,24 @@
                 }
             }
 
+            if (rainOpeningWave && continuousMode) {
+                // Use the same glyph-specific landing coordinate as the render
+                // path. The old viewHeight-1 check kept the opening phase alive
+                // after every column had stopped drawing, producing a black band.
+                const openingFinished = rainDrops.every((drop, index) => {
+                    const metrics = ctx.measureText(rainDropsChars[index]);
+                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                        ? Math.max(1, metrics.actualBoundingBoxDescent)
+                        : fontSize * 0.4;
+                    const landingY = Math.max(fontSize / 2,
+                        viewHeight - Math.ceil(glyphDescent + 1.5));
+                    return drop * fontSize - fontSize / 2 >= landingY;
+                });
+                if (openingFinished) {
+                    rainOpeningWave = false;
+                    rainDrops = rainDrops.map(nextRainEntry);
+                }
+            }
 
             // Draw additional effects
             if (gridEnabled) drawGrid();

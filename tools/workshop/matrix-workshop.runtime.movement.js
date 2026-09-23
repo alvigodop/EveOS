@@ -112,6 +112,7 @@
 
             // Reset rain drops for new mode
             rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainOpeningWave = true;
             lastSpawnTimes = Array(Math.ceil(columns)).fill(Date.now());
             currentColumn = 0;
             initializeColumns();
@@ -140,6 +141,7 @@
                 document.getElementById('horizontalMovementSlider').value = '0';
                 document.getElementById('horizontalMovementValue').textContent = '0';
                 rainDrops = Array(Math.ceil(columns)).fill(1);
+                rainOpeningWave = true;
                 lastSpawnTimes = Array(Math.ceil(columns)).fill(Date.now());
                 currentColumn = 0;
             }
@@ -158,6 +160,7 @@
             // Recalculate columns and reinitialize
             columns = viewWidth / fontSize;
             rainDrops = Array(Math.ceil(columns)).fill(1);
+            rainOpeningWave = true;
             rainDropsChars = Array(Math.ceil(columns)).fill().map(() => getRandomSelectedChar());
             initializeColumns();
         }

@@ -55,9 +55,8 @@ function assert(condition, message) {
                 if (load) await freshPage.reload({ waitUntil: 'load' });
                 else await freshPage.goto(FILE_URL.split('?')[0], { waitUntil: 'load' });
                 const positions = await freshPage.evaluate(() => rainDrops.slice());
-                assert(positions.length > 10 && positions.every(position => position <= 0)
-                    && new Set(positions.map(Math.floor)).size > 10,
-                `fresh Matrix rain did not restart above the top edge on load ${load}: ${positions.slice(0, 12)}`);
+                assert(positions.length > 10 && positions.every(position => position === 1),
+                `fresh Matrix rain did not restart as one opening wave on load ${load}: ${positions.slice(0, 12)}`);
             }
             await freshPage.setViewportSize({ width: 1200, height: 600 });
             await freshPage.locator('#toggleToolbar').click();
@@ -96,8 +95,8 @@ function assert(condition, message) {
         assert(boot.checkbox && boot.fullscreenButton, `window-mode controls missing: ${JSON.stringify(boot)}`);
         const initialPhases = await page.evaluate(() =>
             new Set(rainDrops.map(drop => Math.floor(drop))).size);
-        assert(initialPhases > 10,
-            `initial rain was synchronized into a horizontal cutoff band: ${initialPhases} phases`);
+        assert(initialPhases === 1,
+            `initial Matrix wave was not synchronized: ${initialPhases} phases`);
 
         await page.click('#toggleToolbar');
         const panelGeometry = await page.evaluate(() => {
@@ -230,7 +229,6 @@ function assert(condition, message) {
             rainDrops[6] = 20;
             ctx.fillStyle = '#ff0000';
             ctx.fillRect(98, 100, 12, 30);
-            ctx.fillRect(104, 1100, 1, 2);
             return { count: rainDrops.length, backingHeight: canvas.height };
         });
         await page.setViewportSize({ width: 1920, height: 1200 });
@@ -246,10 +244,10 @@ function assert(condition, message) {
                 count: rainDrops.length,
                 keptDrop: rainDrops[0],
                 newDrops: rainDrops.slice(oldCount),
-                newRegionInk,
-                phaseCount: columnPhases.length,
-                mappedFrameRed: ctx.getImageData(104, 270, 1, 1).data[0],
-                oldFrameRed: ctx.getImageData(104, 110, 1, 1).data[0],
+            newRegionInk,
+            phaseCount: columnPhases.length,
+            mappedFrameRed: ctx.getImageData(104, 270, 1, 1).data[0],
+            oldFrameRed: ctx.getImageData(104, 110, 1, 1).data[0],
                 scaledFrameRed: ctx.getImageData(165, 165, 1, 1).data[0]
             };
         }, beforeFullscreenWidth.count);
@@ -268,14 +266,13 @@ function assert(condition, message) {
             count: rainDrops.length,
             drop: rainDrops[0],
             markerRed: ctx.getImageData(104, 110, 1, 1).data[0],
-            lowerRed: ctx.getImageData(104, 1100, 1, 1).data[0],
             backingHeight: canvas.height
         }));
         assert(returned.count === beforeFullscreenWidth.count
             && Math.abs(returned.drop - 37) < 0.01
-            && returned.markerRed > 200 && returned.lowerRed > 200
+            && returned.markerRed > 200
             && returned.backingHeight === beforeFullscreenWidth.backingHeight,
-            `window height drag lost offscreen rain history: ${JSON.stringify(returned)}`);
+            `window height drag lost existing rain history: ${JSON.stringify(returned)}`);
 
         await page.evaluate(() => {
             ctx.clearRect(0, 0, viewWidth, viewHeight);
@@ -310,34 +307,28 @@ function assert(condition, message) {
 
         await page.setViewportSize({ width: 1280, height: 801 });
         await page.waitForFunction(() => viewHeight === 801);
-        const offscreen = await page.evaluate(() => {
+        const beforeGrow = await page.evaluate(() => {
             ctx.clearRect(0, 0, viewWidth, rainBufferHeight);
-            rainDrops[6] = 60;
-            paused = false;
-            draw();
-            paused = true;
-            const pixels = ctx.getImageData(96, 940, 16, 40).data;
-            let ink = 0;
-            for (let index = 1; index < pixels.length; index += 4) {
-                if (pixels[index] > 20) ink++;
-            }
-            return { ink, head: rainDrops[6], backingHeight: canvas.height,
-                worldHeight: rainBufferHeight };
+            rainDrops[6] = 39;
+            return { head: rainDrops[6], backingHeight: canvas.height };
         });
-        assert(offscreen.ink > 0 && offscreen.worldHeight === 1200,
-            `rain stopped at the old window bottom instead of running offscreen: ${JSON.stringify(offscreen)}`);
         for (let height = 821; height <= 1001; height += 20) {
             await page.setViewportSize({ width: 1280, height });
             await page.waitForFunction((expected) => viewHeight === expected, height);
         }
-        const newBottom = await page.evaluate(() => ({
-            height: viewHeight, head: rainDrops[6], backingHeight: canvas.height,
-            ink: ctx.getImageData(96, 940, 16, 40).data
-                .filter((_value, index) => index % 4 === 1 && _value > 20).length
-        }));
-        assert(newBottom.ink > 0 && newBottom.backingHeight === offscreen.backingHeight
-            && newBottom.head === offscreen.head,
-            `incremental window drag clipped or reset the running lower stream: ${JSON.stringify(newBottom)}`);
+        const newBottom = await page.evaluate(() => {
+            const preserved = rainDrops[6] === 39;
+            rainDrops[6] = 60;
+            paused = false;
+            draw();
+            paused = true;
+            return { height: viewHeight, backingHeight: canvas.height, preserved,
+                ink: ctx.getImageData(96, 940, 16, 40).data
+                    .filter((_value, index) => index % 4 === 1 && _value > 20).length };
+        });
+        assert(newBottom.ink > 0 && newBottom.backingHeight > beforeGrow.backingHeight
+            && newBottom.preserved,
+            `newly exposed space did not accept a continuous stream: ${JSON.stringify(newBottom)}`);
         await page.evaluate(() => { paused = false; });
 
         const scaledContext = await browser.newContext({
