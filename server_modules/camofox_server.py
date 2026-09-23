@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 logger = logging.getLogger("FandomDiscoveryServer")
 
 from server_modules.camofox_runtime import (
+    _camofox_browser_binary,
     _camofox_browser_ready,
     _camofox_browser_root,
     _camofox_server_entry_path,
@@ -111,7 +112,14 @@ def _start_log_thread(pipe, prefix):
 def _server_env(port=None):
     env = os.environ.copy()
     state_root = _local_runtime_root()
+    browser_binary = _camofox_browser_binary()
     env["CAMOUFOX_INSTALL_DIR"] = _camofox_browser_root()
+    # @askjo/camofox-browser supports an explicit external executable. Set both
+    # the canonical variable and compatibility aliases so the pinned server
+    # cannot silently fall back to the per-user Camoufox cache.
+    env["CAMOUFOX_EXECUTABLE"] = browser_binary
+    env["CAMOUFOX_EXECUTABLE_PATH"] = browser_binary
+    env["CAMOFOX_EXECUTABLE_PATH"] = browser_binary
     env["CAMOFOX_PROFILE_DIR"] = os.path.join(state_root, "profiles")
     env["CAMOFOX_COOKIES_DIR"] = os.path.join(state_root, "cookies")
     env["CAMOFOX_TRACES_DIR"] = os.path.join(state_root, "traces")
@@ -188,6 +196,10 @@ def ensure_camofox_server():
                 return True
 
             _SERVER_LOG_TAIL.clear()
+            logger.info(
+                "Camofox: Starting upstream with EveOS-local browser: %s",
+                _camofox_browser_binary(),
+            )
             process = subprocess.Popen(
                 [_node_binary(), _camofox_server_entry_path()],
                 cwd=_runtime_root(),
