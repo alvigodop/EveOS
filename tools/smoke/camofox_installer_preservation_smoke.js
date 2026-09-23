@@ -14,12 +14,16 @@ function requireTrue(condition, message) {
 const batch = fs.readFileSync(batchPath, 'utf8');
 const runtimePackage = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 
-const checkIndex = batch.indexOf('node "%INSTALL_DOCTOR%" --runtime >nul 2>nul');
-const healthyIndex = batch.indexOf('Existing Camofox Node runtime is healthy; preserving node_modules.');
-const npmIndex = batch.indexOf('call npm install --no-package-lock --omit=dev');
-const browserCheck = batch.indexOf('"%EVEOS_PYTHON%" "%BROWSER_FETCHER%" --check >nul 2>nul');
-const browserFetch = batch.indexOf('"%EVEOS_PYTHON%" "%BROWSER_FETCHER%"');
-const installSection = batch.slice(batch.indexOf(':installRuntime'), batch.indexOf(':startBridge'));
+const installStart = batch.indexOf(':installRuntime');
+const installEnd = batch.indexOf(':startBridge');
+requireTrue(installStart >= 0 && installEnd > installStart, 'installer section boundaries are missing');
+const installSection = batch.slice(installStart, installEnd);
+
+const checkIndex = installSection.indexOf('node "%INSTALL_DOCTOR%" --runtime >nul 2>nul');
+const healthyIndex = installSection.indexOf('Existing Camofox Node runtime is healthy; preserving node_modules.');
+const npmIndex = installSection.indexOf('call npm install --no-package-lock --omit=dev');
+const browserCheck = installSection.indexOf('"%EVEOS_PYTHON%" "%BROWSER_FETCHER%" --check >nul 2>nul');
+const browserFetch = installSection.indexOf('"%EVEOS_PYTHON%" "%BROWSER_FETCHER%"');
 
 requireTrue(checkIndex >= 0, 'runtime doctor is missing from installer');
 requireTrue(healthyIndex > checkIndex, 'healthy-runtime preservation branch is missing');
