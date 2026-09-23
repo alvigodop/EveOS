@@ -10,6 +10,8 @@
     let store = null;
     let selectedAgentId = 'tlo';
     let busy = false;
+    let tloDefinition = null;
+    let importBundle = null;
     const draftAgentIds = new Set();
 
     function markup() {
@@ -44,10 +46,12 @@
                     <label>Agent ID<input name="id" maxlength="64" pattern="[a-z0-9][a-z0-9._-]{0,63}" required></label>
                     <label>Display name<input name="displayName" maxlength="100" required></label>
                     <label class="is-wide">Role<input name="role" maxlength="240"></label>
-                    <label class="is-wide">Identity<textarea name="identity" rows="4" maxlength="16000"></textarea></label>
+                    <label class="is-wide" data-agent-json-identity>Identity<textarea name="identity" rows="4" maxlength="16000"></textarea></label>
+                    <label class="is-wide" data-agent-tlo-definition hidden>TLO AGENT.md <small>Private local override; used for new TLO turns.</small><textarea name="tloDefinition" rows="12" maxlength="16000"></textarea><button type="button" data-agent-management-action="save-definition">Save TLO definition</button><small data-agent-tlo-source></small><small data-agent-tlo-path></small></label>
+                    <details class="is-wide eveos-agent-origin" data-agent-tlo-origin-panel hidden><summary>Origin / Creation Context (reference only)</summary><pre data-agent-tlo-origin></pre></details>
                     <label>Provider<select name="provider"><option value="local-moe">Local MoE</option><option value="unassigned">Unassigned</option></select></label>
                     <label>Model ID<input name="modelId" maxlength="160" placeholder="Use Harness selection"></label>
-                    <label class="is-wide">Working rules <small>One per line</small><textarea name="workingRules" rows="4"></textarea></label>
+                    <label class="is-wide" data-agent-json-rules>Working rules <small>One per line</small><textarea name="workingRules" rows="4"></textarea></label>
                     <label class="is-wide">Allowed tools <small>One per line</small><textarea name="allowedTools" rows="3"></textarea></label>
                     <label class="is-wide">Default scope instructions<textarea name="scopeInstructions" rows="4"></textarea></label>
                     <label class="is-wide">Private notes <small>Never included in browser projections</small><textarea name="privateNotes" rows="3"></textarea></label>
@@ -56,12 +60,29 @@
                         <span>Schema v1 · atomic local persistence</span>
                     </div>
                 </form>
+                <div class="eveos-agent-management-head">
+                    <span><strong>Private Agent Nexus transfer</strong><small>Stop Nexus Browser first. Exports include room messages; review the downloaded file before sharing.</small></span>
+                </div>
+                <div class="eveos-agent-form-actions">
+                    <button type="button" data-agent-management-action="export">Export agents + rooms</button>
+                    <label>Import JSON<input type="file" accept=".json,application/json" data-agent-portable-file></label>
+                    <button type="button" data-agent-management-action="preview">Preview import</button>
+                    <button type="button" data-agent-management-action="apply" hidden>Apply reviewed import</button>
+                </div>
+                <p class="eveos-agent-management-status" data-agent-portable-status>Import adds only new IDs; conflicts block the entire apply. Live bindings and private notes are excluded.</p>
             </section>
         `;
     }
 
     function setStatus(message, state) {
         const node = root?.querySelector('[data-agent-management-status]');
+        if (!node) return;
+        node.textContent = message;
+        node.dataset.state = state || 'idle';
+    }
+
+    function setPortableStatus(message, state) {
+        const node = root?.querySelector('[data-agent-portable-status]');
         if (!node) return;
         node.textContent = message;
         node.dataset.state = state || 'idle';
@@ -151,6 +172,19 @@
         writeField(form, 'allowedTools', (agent.allowedTools || []).join('\n'));
         writeField(form, 'scopeInstructions', scope.instructions);
         writeField(form, 'privateNotes', (agent.privateNotes || []).join('\n'));
+        const isTlo = agent.id === 'tlo';
+        form.querySelector('[data-agent-json-identity]').hidden = isTlo;
+        form.querySelector('[data-agent-json-rules]').hidden = isTlo;
+        form.querySelector('[data-agent-tlo-definition]').hidden = !isTlo;
+        form.querySelector('[data-agent-tlo-origin-panel]').hidden = !isTlo;
+        if (isTlo) {
+            writeField(form, 'tloDefinition', tloDefinition?.text || '');
+            form.querySelector('[data-agent-tlo-path]').textContent = tloDefinition?.path || '';
+            form.querySelector('[data-agent-tlo-origin]').textContent = tloDefinition?.origin || '';
+            form.querySelector('[data-agent-tlo-source]').textContent = tloDefinition?.source === 'private-file'
+                ? 'Active private AGENT.md' : tloDefinition?.source === 'legacy-profile'
+                    ? 'Existing profile text — save to create private AGENT.md' : 'Starter AGENT.md — save to customize privately';
+        }
     }
 
     function renderManagement() {
@@ -165,6 +199,8 @@
         try {
             const payload = await request(API_PATH);
             store = payload.store;
+            const definition = await request(`${API_PATH}/definition`);
+            tloDefinition = definition.definition;
             if (!store.agents.some((agent) => agent.id === selectedAgentId)) {
                 selectedAgentId = store.agents[0]?.id || '';
             }
@@ -245,6 +281,104 @@
         }
     }
 
+    async function saveTloDefinition() {
+        if (busy || selectedAgentId !== 'tlo') return;
+        const text = root?.querySelector('[name="tloDefinition"]')?.value || '';
+        busy = true;
+        setStatus('Saving TLO definition…', 'busy');
+        try {
+            const payload = await request(`${API_PATH}/definition`, {
+                method: 'POST', body: JSON.stringify({ text })
+            });
+            tloDefinition = payload.definition;
+            renderForm();
+            setStatus('TLO definition saved privately. New TLO turns use this file.', 'ok');
+        } catch (error) {
+            setStatus(error?.message || 'TLO definition could not be saved.', 'error');
+        } finally {
+            busy = false;
+        }
+    }
+
+    async function exportPortable() {
+        if (busy) return;
+        busy = true;
+        setPortableStatus('Preparing private export…', 'busy');
+        try {
+            const payload = await request(`${API_PATH}/portable/export`);
+            const blob = new Blob([JSON.stringify(payload.bundle, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `eveos-agent-nexus-${new Date().toISOString().slice(0, 10)}.json`;
+            link.click();
+            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+            setPortableStatus('Export downloaded. It contains private conversation text; store it carefully.', 'ok');
+        } catch (error) {
+            setPortableStatus(error?.message || 'Export failed.', 'error');
+        } finally {
+            busy = false;
+        }
+    }
+
+    async function previewPortable() {
+        if (busy) return;
+        const file = root?.querySelector('[data-agent-portable-file]')?.files?.[0];
+        importBundle = null;
+        root?.querySelector('[data-agent-management-action="apply"]')?.setAttribute('hidden', '');
+        if (!file || file.size > 16 * 1024 * 1024) {
+            setPortableStatus('Choose a JSON bundle smaller than 16 MB.', 'error');
+            return;
+        }
+        busy = true;
+        setPortableStatus('Validating the entire bundle without changing data…', 'busy');
+        try {
+            const candidate = JSON.parse(await file.text());
+            const payload = await request(`${API_PATH}/portable/preview`, {
+                method: 'POST', body: JSON.stringify({ bundle: candidate })
+            });
+            const plan = payload.plan;
+            const conflicts = [...plan.conflictingAgents, ...plan.conflictingRooms];
+            const summary = `${plan.incomingAgents} agents, ${plan.incomingRooms} rooms, ${plan.incomingMessages} messages. `
+                + `${plan.addedAgents.length} agents and ${plan.addedRooms.length} rooms would be added.`;
+            if (plan.canApply) {
+                importBundle = candidate;
+                root?.querySelector('[data-agent-management-action="apply"]')?.removeAttribute('hidden');
+                setPortableStatus(`${summary} Review this preview, then press Apply.`, 'ok');
+            } else {
+                setPortableStatus(`${summary} Import blocked by conflicting IDs${conflicts.length ? `: ${conflicts.join(', ')}` : ''}`
+                    + `${plan.definitionConflict ? '; private TLO definition differs' : ''}.`, 'error');
+            }
+        } catch (error) {
+            setPortableStatus(error?.message || 'Bundle validation failed.', 'error');
+        } finally {
+            busy = false;
+        }
+    }
+
+    async function applyPortable() {
+        if (busy || !importBundle) return;
+        busy = true;
+        setPortableStatus('Applying reviewed import with local backup…', 'busy');
+        try {
+            const payload = await request(`${API_PATH}/portable/apply`, {
+                method: 'POST', body: JSON.stringify({ bundle: importBundle })
+            });
+            importBundle = null;
+            root?.querySelector('[data-agent-management-action="apply"]')?.setAttribute('hidden', '');
+            store = null;
+            busy = false;
+            await loadManagement(true);
+            setPortableStatus(payload.plan.backupPath
+                ? 'Import complete. An ignored local backup was created before changes.'
+                : 'This bundle was already present; nothing changed.', 'ok');
+        } catch (error) {
+            setPortableStatus(error?.message || 'Import failed; local data was not intentionally changed.', 'error');
+        } finally {
+            busy = false;
+        }
+    }
+
     function selectView(view) {
         root?.querySelectorAll('[data-agent-nexus-panel]').forEach((panel) => {
             panel.hidden = panel.dataset.agentNexusPanel !== view;
@@ -274,6 +408,10 @@
         }
         const action = event.target.closest('[data-agent-management-action]')?.dataset.agentManagementAction;
         if (action === 'new') createDraft();
+        if (action === 'save-definition') saveTloDefinition();
+        if (action === 'export') exportPortable();
+        if (action === 'preview') previewPortable();
+        if (action === 'apply') applyPortable();
     }
 
     function bind(container) {

@@ -17,7 +17,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from server_modules import agent_management_api as api  # noqa: E402
-from server_modules import agent_management_store as store  # noqa: E402
+from server_modules import agent_management_store as store, tlo_definition  # noqa: E402
+from server_modules import tlo_chat  # noqa: E402
 
 
 def require(condition, message):
@@ -73,7 +74,9 @@ def run():
     with tempfile.TemporaryDirectory(prefix="eveos-agent-management-") as temporary:
         live_path = Path(temporary) / "agents.json"
         backup_path = Path(temporary) / "agents.backup.json"
-        with patch.object(store, "STORE_PATH", live_path), patch.object(store, "BACKUP_PATH", backup_path):
+        definition_path = Path(temporary) / "tlo" / "AGENT.md"
+        with patch.object(store, "STORE_PATH", live_path), patch.object(store, "BACKUP_PATH", backup_path), \
+                patch.object(tlo_definition, "LIVE_PATH", definition_path):
             initial, persisted = store.load_store()
             require(not persisted and [agent["id"] for agent in initial["agents"]] == ["tlo"],
                     "Missing safe non-persisted TLO bootstrap profile")
@@ -94,6 +97,31 @@ def run():
                     "Requested TLO scope was not projected")
             for forbidden in ["TLO_PRIVATE_SENTINEL", "EVE_PRIVATE_SENTINEL", "EVE_SCOPE_SENTINEL", "permissions"]:
                 require(forbidden not in encoded, f"Projection leaked forbidden field/value: {forbidden}")
+            require("Identity for TLO" in projection["agent"]["definition"],
+                    "Legacy authored identity was not preserved before file save")
+            require(not definition_path.exists(), "Projection read should not write private state")
+            saved_definition = tlo_definition.save("# TLO\n\nFILE_BACKED_SENTINEL")
+            require(saved_definition["source"] == "private-file" and definition_path.exists(),
+                    "Private definition file was not saved")
+            updated_projection = store.scoped_projection("tlo", "default")
+            prompt = tlo_chat.build_system_prompt(updated_projection)
+            metadata = updated_projection["agent"]["definitionMetadata"]
+            require(metadata["source"] == "private-file" and len(metadata["revision"]) == 16
+                    and "origin" in metadata["metadataOnly"],
+                    "Definition source/revision/metadata contract was not projected")
+            require("FILE_BACKED_SENTINEL" in prompt and "Identity for TLO" not in prompt,
+                    "File-backed definition did not become sole active TLO identity")
+            require("I am no longer just a chat box" in tlo_definition.load(tlo)["origin"] and
+                    "I am no longer just a chat box" not in prompt,
+                    "Origin metadata was lost or injected into the boot prompt")
+            require("TLO_PRIVATE_SENTINEL" not in prompt, "Private notes leaked into boot context")
+            try:
+                tlo_definition.save("\x00")
+                raise AssertionError("Invalid definition was accepted")
+            except tlo_definition.DefinitionError:
+                pass
+            require(definition_path.read_text(encoding="utf-8") == saved_definition["text"],
+                    "Rejected definition modified existing file")
 
             try:
                 store.scoped_projection("eve-engineering", "missing")
@@ -118,6 +146,12 @@ def run():
             require(api.handle_get_request(local_handler, api.BASE_PATH, {}), "Local Agent API route was not handled")
             require(local_handler.status == 200 and local_handler.payload()["store"]["schemaVersion"] == 1,
                     "Authorized local Agent Management read failed")
+            definition_handler = FakeHandler()
+            require(api.handle_get_request(definition_handler, f"{api.BASE_PATH}/definition", {}),
+                    "Definition endpoint was not claimed")
+            require(definition_handler.status == 200 and
+                    "FILE_BACKED_SENTINEL" in definition_handler.payload()["definition"]["text"],
+                    "Authorized private definition read failed")
 
             oversized = FakeHandler(body=b"{}")
             oversized.headers["Content-Length"] = str(api.MAX_BODY_BYTES + 1)
@@ -131,6 +165,11 @@ def run():
         check=False,
     )
     require(ignored.returncode == 0, "Live Agent Management store is not covered by gitignore")
+    ignored_definition = subprocess.run(
+        ["git", "check-ignore", "-q", "data/runtime/agent-management/tlo/AGENT.md"],
+        cwd=ROOT, check=False,
+    )
+    require(ignored_definition.returncode == 0, "Private TLO definition is not covered by gitignore")
     print("AGENT_MANAGEMENT_SMOKE_OK")
 
 

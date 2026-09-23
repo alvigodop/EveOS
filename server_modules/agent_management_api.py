@@ -6,7 +6,7 @@ import json
 import logging
 from http import HTTPStatus
 
-from server_modules import agent_management_store, gemini_control
+from server_modules import agent_management_store, agent_portability, gemini_control, tlo_definition
 from server_modules.eve_state_store_api_helpers import query_value, send_json
 
 
@@ -32,16 +32,16 @@ def authorize_local_ui(handler) -> bool:
     return False
 
 
-def _read_body(handler):
+def _read_body(handler, *, maximum=MAX_BODY_BYTES):
     try:
         content_length = int(handler.headers.get("Content-Length", "0"))
     except (TypeError, ValueError):
         content_length = 0
     if content_length <= 0:
         return None, "Empty request body"
-    if content_length > MAX_BODY_BYTES:
+    if content_length > maximum:
         handler.close_connection = True
-        return None, f"Request body exceeds {MAX_BODY_BYTES} bytes"
+        return None, f"Request body exceeds {maximum} bytes"
     raw = handler.rfile.read(content_length)
     try:
         payload = json.loads(raw.decode("utf-8"))
@@ -53,7 +53,7 @@ def _read_body(handler):
 
 
 def handle_get_request(handler, path, query) -> bool:
-    if path not in {BASE_PATH, f"{BASE_PATH}/projection"}:
+    if path not in {BASE_PATH, f"{BASE_PATH}/projection", f"{BASE_PATH}/definition", f"{BASE_PATH}/portable/export"}:
         return False
     if not authorize_local_ui(handler):
         return True
@@ -62,12 +62,23 @@ def handle_get_request(handler, path, query) -> bool:
             store, persisted = agent_management_store.load_store()
             send_json(handler, HTTPStatus.OK, {"ok": True, "persisted": persisted, "store": store})
             return True
+        if path == f"{BASE_PATH}/definition":
+            store, _ = agent_management_store.load_store()
+            agent = next((item for item in store["agents"] if item["id"] == "tlo"), None)
+            if not agent:
+                raise agent_management_store.AgentStoreError("TLO agent not found")
+            send_json(handler, HTTPStatus.OK, {"ok": True, "definition": tlo_definition.load(agent)})
+            return True
+        if path == f"{BASE_PATH}/portable/export":
+            send_json(handler, HTTPStatus.OK, {"ok": True, "bundle": agent_portability.export_bundle()})
+            return True
         projection = agent_management_store.scoped_projection(
             query_value(query, "agentId"),
             query_value(query, "scopeId", "default"),
         )
         send_json(handler, HTTPStatus.OK, {"ok": True, "projection": projection})
-    except agent_management_store.AgentStoreError as exc:
+    except (agent_management_store.AgentStoreError, tlo_definition.DefinitionError,
+            agent_portability.PortabilityError) as exc:
         send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
     except Exception:
         logger.exception("Agent Management read failed")
@@ -76,22 +87,34 @@ def handle_get_request(handler, path, query) -> bool:
 
 
 def handle_post_request(handler, path) -> bool:
-    if path != f"{BASE_PATH}/save":
+    if path not in {f"{BASE_PATH}/save", f"{BASE_PATH}/definition",
+                    f"{BASE_PATH}/portable/preview", f"{BASE_PATH}/portable/apply"}:
         return False
     if not authorize_local_ui(handler):
         return True
-    payload, error = _read_body(handler)
+    portable = path.startswith(f"{BASE_PATH}/portable/")
+    payload, error = _read_body(handler, maximum=agent_portability.MAX_BYTES if portable else MAX_BODY_BYTES)
     if error:
         send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": error})
         return True
     try:
+        if portable:
+            result = (agent_portability.preview(payload.get("bundle")) if path.endswith("/preview")
+                      else agent_portability.apply(payload.get("bundle")))
+            send_json(handler, HTTPStatus.OK, {"ok": True, "plan": result})
+            return True
+        if path == f"{BASE_PATH}/definition":
+            definition = tlo_definition.save(payload.get("text"))
+            send_json(handler, HTTPStatus.OK, {"ok": True, "definition": definition})
+            return True
         agent = agent_management_store.save_agent(payload.get("agent"))
         send_json(handler, HTTPStatus.OK, {
             "ok": True,
             "schemaVersion": agent_management_store.SCHEMA_VERSION,
             "agent": agent,
         })
-    except agent_management_store.AgentStoreError as exc:
+    except (agent_management_store.AgentStoreError, tlo_definition.DefinitionError,
+            agent_portability.PortabilityError) as exc:
         send_json(handler, HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
     except Exception:
         logger.exception("Agent Management save failed")

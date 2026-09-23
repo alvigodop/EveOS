@@ -41,6 +41,13 @@ requireContract(markup.includes('Headed / observable') && markup.includes('Headl
     'Nexus Browser does not state its headed/headless capability boundary');
 requireContract(markup.includes('Never included in browser projections'),
     'Private-note projection boundary is not visible to the user');
+requireContract(markup.includes('data-agent-tlo-definition') && markup.includes('data-agent-management-action="save-definition"'),
+    'File-backed TLO definition editor is missing');
+requireContract(markup.includes('data-agent-portable-file') && markup.includes('data-agent-management-action="preview"')
+    && markup.includes('data-agent-management-action="apply"'),
+    'Private portability preview/apply controls are missing');
+requireContract(css.includes('.eveos-agent-form label[hidden]'),
+    'Hidden TLO JSON fields could remain visible in the Agent Management form');
 requireContract(source.includes('/api/eve-state/modular/agent-management'),
     'Agent Nexus is not wired to Agent Management');
 requireContract(!source.includes('/api/local-moe/start') && !tloSource.includes('/api/local-moe/start'),

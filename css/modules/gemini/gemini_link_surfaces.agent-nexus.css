@@ -150,6 +150,24 @@
     font-weight: 700;
 }
 
+.eveos-agent-form label[hidden],
+.eveos-agent-form details[hidden],
+.eveos-agent-form-actions button[hidden] {
+    display: none !important;
+}
+
+.eveos-agent-origin {
+    color: rgba(230, 246, 255, 0.72);
+    font-size: 0.68rem;
+}
+
+.eveos-agent-origin pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: rgba(230, 246, 255, 0.56);
+    font: 500 0.68rem/1.5 inherit;
+}
+
 .eveos-agent-form label > small {
     color: rgba(230, 246, 255, 0.38);
     font-size: 0.58rem;
@@ -186,7 +204,21 @@
 .eveos-agent-form-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
+}
+
+.eveos-agent-form-actions label {
+    color: rgba(230, 246, 255, 0.72);
+    font-size: 0.68rem;
+}
+
+.eveos-agent-form-actions input[type="file"] {
+    display: block;
+    max-width: 100%;
+    margin-top: 4px;
+    color: inherit;
+    font: inherit;
 }
 
 .eveos-agent-form-actions span {

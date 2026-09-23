@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from server_modules import agent_management_store as store  # noqa: E402
-from server_modules import tlo_chat  # noqa: E402
+from server_modules import tlo_chat, tlo_definition  # noqa: E402
 
 
 def require(condition, message):
@@ -139,7 +139,11 @@ def run():
     with tempfile.TemporaryDirectory(prefix="eveos-tlo-chat-") as temporary:
         live_path = Path(temporary) / "agents.json"
         backup_path = Path(temporary) / "agents.backup.json"
-        with patch.object(store, "STORE_PATH", live_path), patch.object(store, "BACKUP_PATH", backup_path):
+        definition_path = Path(temporary) / "tlo" / "AGENT.md"
+        definition_path.parent.mkdir(parents=True)
+        definition_path.write_text("# TLO\nIDENTITY_TLO\nRULE_TLO\n", encoding="utf-8")
+        with patch.object(store, "STORE_PATH", live_path), patch.object(store, "BACKUP_PATH", backup_path), \
+                patch.object(tlo_definition, "LIVE_PATH", definition_path):
             store.save_agent(profile("tlo", private_note="TLO_PRIVATE_SENTINEL", context="TLO_SCOPE_SENTINEL"))
             store.save_agent(profile("other-agent", private_note="OTHER_PRIVATE_SENTINEL", context="OTHER_SCOPE_SENTINEL"))
             projection = store.scoped_projection("tlo", "default")

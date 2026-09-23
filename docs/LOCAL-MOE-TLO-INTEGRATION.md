@@ -41,6 +41,7 @@ Search Monitor's AI Home keeps the Assistant compact by default and exposes Gemi
 ## TLO conversation and context ownership
 
 - Agent Management owns TLO's durable definition. The adapter requests exactly one `tlo` projection and one selected scope, initially `default`.
+- The tracked starter is `config/agents/tlo/AGENT.md`; user edits are an ignored private override at `data/runtime/agent-management/tlo/AGENT.md`. Agent Management displays the active path and a separate tracked origin excerpt. See `docs/AGENT-NEXUS-PORTABILITY.md` for import/export and collision rules.
 - The TLO browser surface owns a bounded in-memory transcript and sends at most 40 prior user/assistant messages for continuity. Clear/new conversation resets only this page-local state.
 - Harness compact memory stays an in-process provider optimization and never becomes TLO identity or Agent Management data.
 - The EveOS adapter constructs the system prompt from allowlisted projection fields. Private notes, permissions, provenance, unrelated scopes, and other agents are structurally absent.

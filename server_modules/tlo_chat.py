@@ -108,9 +108,10 @@ def build_system_prompt(projection: dict) -> str:
     sections = [
         f"You are {display_name}, an EveOS local agent.",
         f"Role:\n{str(agent.get('role') or '').strip()}",
-        f"Identity:\n{str(agent.get('identity') or '').strip()}",
     ]
-    rules = [str(item).strip() for item in agent.get("workingRules") or [] if str(item).strip()]
+    definition = str(agent.get("definition") or "").strip()
+    sections.append(f"Agent definition:\n{definition}" if definition else f"Identity:\n{str(agent.get('identity') or '').strip()}")
+    rules = [] if definition else [str(item).strip() for item in agent.get("workingRules") or [] if str(item).strip()]
     if rules:
         sections.append("Working rules:\n" + "\n".join(f"- {item}" for item in rules))
     instructions = str(scope.get("instructions") or "").strip()
@@ -222,6 +223,8 @@ def status_payload(scope_id="default") -> dict:
             "provider": "local-moe",
             "configuredModelId": configured_model,
             "activeModelId": active_model,
+            "definition": {key: projection["agent"].get("definitionMetadata", {}).get(key)
+                           for key in ("source", "revision")},
         },
         "localMoe": {
             "running": lifecycle.get("running") is True,

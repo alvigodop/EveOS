@@ -36,6 +36,8 @@ function baseAgent(overrides = {}) {
 async function main() {
     const requests = [];
     let savedAgent = baseAgent();
+    let savedDefinition = { text: '# TLO\n\nBrowser smoke definition\n', source: 'starter-file',
+        path: 'config/agents/tlo/AGENT.md', origin: 'Origin-only browser smoke sentinel' };
     let runtimeReady = false;
 
     await runBrowserSmoke({
@@ -110,6 +112,29 @@ async function main() {
                     headers: corsHeaders,
                     body: JSON.stringify({ ok: true, agent: savedAgent })
                 });
+                return;
+            }
+
+            if (url.pathname === '/api/eve-state/modular/agent-management/definition') {
+                if (request.method() === 'POST') {
+                    savedDefinition = { ...savedDefinition, text: request.postDataJSON().text,
+                        source: 'private-file', path: 'data/runtime/agent-management/tlo/AGENT.md' };
+                }
+                await route.fulfill({ status: 200, contentType: 'application/json', headers: corsHeaders,
+                    body: JSON.stringify({ ok: true, definition: savedDefinition }) });
+                return;
+            }
+
+            if (url.pathname === '/api/eve-state/modular/agent-management/portable/preview') {
+                await route.fulfill({ status: 200, contentType: 'application/json', headers: corsHeaders,
+                    body: JSON.stringify({ ok: true, plan: { incomingAgents: 1, incomingRooms: 1,
+                        incomingMessages: 2, addedAgents: [], addedRooms: ['room-imported'],
+                        conflictingAgents: [], conflictingRooms: [], canApply: true } }) });
+                return;
+            }
+            if (url.pathname === '/api/eve-state/modular/agent-management/portable/apply') {
+                await route.fulfill({ status: 200, contentType: 'application/json', headers: corsHeaders,
+                    body: JSON.stringify({ ok: true, plan: { backupPath: 'ignored-test-backup' } }) });
                 return;
             }
 
@@ -191,7 +216,7 @@ async function main() {
         }, undefined, { timeout: 10000 });
 
         const agents = page.locator('[data-ai-provider="agents"]');
-        const agentSummary = agents.locator('summary');
+        const agentSummary = agents.locator(':scope > summary');
         await agentSummary.click();
         await page.waitForFunction(() => document.querySelector('[data-ai-provider="agents"]')?.open === true);
 
@@ -235,6 +260,19 @@ async function main() {
                 === 'PRIVATE_BROWSER_SMOKE_SENTINEL',
             'Private notes were not available inside the explicitly opened private management surface'
         );
+        const definitionEditor = page.locator('[data-agent-management-form] [name="tloDefinition"]');
+        assert(await definitionEditor.isVisible(), 'TLO file definition editor is not visible');
+        assert(await definitionEditor.inputValue() === savedDefinition.text, 'TLO definition did not load');
+        assert((await page.locator('[data-agent-tlo-path]').textContent()).includes('AGENT.md'),
+            'The active definition path was not visible');
+        assert((await page.locator('[data-agent-tlo-origin]').textContent()).includes('Origin-only browser smoke sentinel'),
+            'TLO origin metadata was not visible separately');
+        assert(!(await page.locator('[data-agent-json-identity]').isVisible()),
+            'Legacy JSON identity editor is visible beside the authoritative TLO file');
+        await definitionEditor.fill('# TLO\n\nEdited in browser');
+        await page.locator('[data-agent-management-action="save-definition"]').click();
+        await page.waitForFunction(() => document.querySelector('[data-agent-management-status]')?.textContent?.includes('definition saved'));
+        assert(savedDefinition.text.includes('Edited in browser'), 'Definition save did not use the file-backed route');
 
         await nameField.fill('TLO Browser Smoke');
         await page.locator('[data-agent-management-form] [data-agent-management-action="save"]').click();
@@ -242,6 +280,17 @@ async function main() {
             document.querySelector('[data-agent-management-status]')?.textContent?.includes('saved to the private local store')
         ), undefined, { timeout: 10000 });
         assert(savedAgent.displayName === 'TLO Browser Smoke', 'Agent Management save did not send the edited profile');
+
+        await page.locator('[data-agent-portable-file]').setInputFiles({
+            name: 'dummy-agent-nexus.json', mimeType: 'application/json',
+            buffer: Buffer.from(JSON.stringify({ schema: 'eveos.agent-nexus-portable', schemaVersion: 1 }))
+        });
+        await page.locator('[data-agent-management-action="preview"]').click();
+        await page.waitForFunction(() => !document.querySelector('[data-agent-management-action="apply"]')?.hidden);
+        assert((await page.locator('[data-agent-portable-status]').textContent()).includes('1 rooms'),
+            'Portable preview counts were not shown');
+        await page.locator('[data-agent-management-action="apply"]').click();
+        await page.waitForFunction(() => document.querySelector('[data-agent-portable-status]')?.textContent?.includes('Import complete'));
 
         await page.locator('[data-agent-management-action="new"]').click();
         const draftId = await page.locator('[data-agent-management-form] [name="id"]').inputValue();
@@ -287,7 +336,7 @@ async function main() {
         assert(localMoeStatusReads.length >= 1, 'Entering Workspace did not perform the passive Local MoE status read');
         assert(tloStatusReads.length >= 1, 'Opening Agent Nexus did not perform a passive TLO status read');
         assert(nexusStatusReads.length >= 1, 'Opening Nexus Browser did not perform a passive status read');
-        assert(managementReads.length === 1, `Agent Management loaded ${managementReads.length} times instead of once`);
+        assert(managementReads.length === 2, `Agent Management loaded ${managementReads.length} times instead of twice`);
         assert(managementWrites.length === 1, `Agent Management saved ${managementWrites.length} times instead of once`);
         assert(events.pageErrors.length === 0, `Page errors detected: ${events.pageErrors.join('\n')}`);
 

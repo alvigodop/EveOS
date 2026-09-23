@@ -13,6 +13,7 @@ const MAX_CAPTURE_CHARS = 2 * 1024 * 1024;
 const verbose = process.argv.includes('--verbose') || process.argv.includes('-v');
 const suites = [
     { id: 'agent-management-contract', command: 'python', args: ['tools/smoke/agent_management_smoke.py'] },
+    { id: 'agent-portability', command: 'python', args: ['tools/smoke/agent_portability_smoke.py'] },
     { id: 'tlo-chat-adapter', command: 'python', args: ['tools/smoke/tlo_chat_adapter_smoke.py'] },
     { id: 'tlo-chat-surface', command: process.execPath, args: ['tools/smoke/tlo_chat_surface_smoke.js'] },
     { id: 'agent-nexus-surface', command: process.execPath, args: ['tools/smoke/agent_nexus_surface_smoke.js'] }
