@@ -15,6 +15,7 @@
     let boundRoot = null;
     let localMoeBusy = false;
     let localMoeLoaded = false;
+    let localMoeRefreshGeneration = 0;
     let lastLocalMoeStatus = null;
     let onGeminiOpen = null;
     let workspaceActive = false;
@@ -278,13 +279,16 @@
 
     async function refreshLocalMoe() {
         if (!boundRoot || localMoeBusy) return lastLocalMoeStatus;
+        const generation = ++localMoeRefreshGeneration;
         setText('[data-local-moe-message]', 'Checking Local MoE infrastructure…');
         try {
             const status = await request(STATUS_PATH, null, 7000);
+            if (generation !== localMoeRefreshGeneration) return lastLocalMoeStatus;
             localMoeLoaded = true;
             renderLocalMoe(status);
             return status;
         } catch (error) {
+            if (generation !== localMoeRefreshGeneration) return lastLocalMoeStatus;
             const fallback = lastLocalMoeStatus || {
                 running: false, state: 'unavailable', setupReady: true, port: 5180, runtimePort: 1919
             };
@@ -296,6 +300,7 @@
     async function invokeLocalMoe(action) {
         if (!ACTION_PATHS[action] || localMoeBusy) return null;
         localMoeBusy = true;
+        localMoeRefreshGeneration += 1;
         let finalMessage = '';
         renderLocalMoe(lastLocalMoeStatus || {
             running: false, state: 'stopped', setupReady: true, port: 5180, runtimePort: 1919
