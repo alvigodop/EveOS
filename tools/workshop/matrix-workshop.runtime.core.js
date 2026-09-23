@@ -137,6 +137,19 @@
             columnSpeeds = new Array(Math.ceil(columns)).fill(1); // Initialize column speeds for waterfall
         }
 
+        function resizeColumnState(count) {
+            const state = [
+                [columnOffsets, () => 0], [lastSpawnTimes, () => 0],
+                [columnPhases, () => Math.random() * Math.PI * 2],
+                [columnVelocities, () => baseVerticalSpeed], [columnGaps, () => fontSize],
+                [columnDelays, () => Math.random() * lineVariation], [columnSpeeds, () => 1]
+            ];
+            state.forEach(([values, initial]) => {
+                for (let index = values.length; index < count; index++) values[index] = initial();
+                values.length = count;
+            });
+        }
+
         // ==========================================
         // FEATURE 1: INTERACTIVE PARTICLE PLAYGROUND
         // ==========================================
@@ -210,4 +223,3 @@
                 interactiveParticlesArray = [];
             }
         }
-

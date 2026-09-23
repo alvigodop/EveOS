@@ -35,8 +35,9 @@ function main() {
     const core = read('core');
     const rain = read('rain');
     const appearance = read('appearance');
+    const resize = read('resize');
     const bouncy = read('bouncy');
-    const all = [core, rain, appearance, bouncy, read('controls'), read('movement'), read('settings')];
+    const all = [core, rain, appearance, resize, bouncy, read('controls'), read('movement'), read('settings')];
 
     // ---- device pixel ratio actually consulted ----
     assert(/devicePixelRatio/.test(core), 'the canvas sizing consults devicePixelRatio');
@@ -46,10 +47,10 @@ function main() {
         'the CSS box is pinned to the layout size while the buffer grows');
 
     // ---- resize must re-apply it, or it reverts to blurry after the first resize ----
-    const resizeBody = appearance.slice(appearance.indexOf('function resizeCanvases()'));
+    const resizeBody = resize.slice(resize.indexOf('function resizeCanvases()'));
     assert(resizeBody.slice(0, resizeBody.indexOf('\n        }')).includes('sizeAllCanvases()'),
         'resizing routes through sizeAllCanvases so the DPR transform is reinstated');
-    assert(!/canvas\.height\s*=\s*window\.innerHeight/.test(appearance),
+    assert(!/canvas\.height\s*=\s*window\.innerHeight/.test(resize),
         'resize no longer sizes the canvas 1:1 behind the helper\'s back');
 
     // ---- nothing may read a canvas buffer size as if it were a drawing coordinate ----
@@ -60,6 +61,7 @@ function main() {
             if (/^\s*(\/\/|\*)/.test(line)) return;                 // prose, not code
             if (/\b\w*[Cc]anvas\.(width|height)\b/.test(line)
                 && !/element\.(width|height)\s*=/.test(line)
+                && !/const previousRain = canvas\.width && canvas\.height/.test(line)
                 && !/previousRain\.(width|height)\s*=\s*canvas\.(width|height)/.test(line)) {
                 strays.push(`file#${index} line ${n + 1}: ${line.trim().slice(0, 70)}`);
             }

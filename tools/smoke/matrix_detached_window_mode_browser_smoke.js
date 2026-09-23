@@ -167,26 +167,55 @@ function assert(condition, message) {
 
         const beforeFullscreenWidth = await page.evaluate(() => {
             paused = true;
+            rainDrops[0] = 37;
+            rainDrops[6] = 20;
             ctx.fillStyle = '#ff0000';
-            ctx.fillRect(100, 100, 30, 30);
+            ctx.fillRect(98, 100, 12, 30);
             return rainDrops.length;
         });
         await page.setViewportSize({ width: 1920, height: 1200 });
         await page.waitForFunction(() => viewWidth === 1920 && viewHeight === 1200);
-        const expanded = await page.evaluate((oldCount) => ({
-            oldCount,
-            count: rainDrops.length,
-            newDrops: rainDrops.slice(oldCount),
-            oldFrameRed: ctx.getImageData(165, 165, 1, 1).data[0]
-        }), beforeFullscreenWidth);
-        assert(expanded.count > expanded.oldCount && expanded.oldFrameRed === 0,
-            `fullscreen expansion painted a scaled copy of the old rain: ${JSON.stringify(expanded)}`);
+        const expanded = await page.evaluate((oldCount) => {
+            const pixels = ctx.getImageData(1280, 0, 640, 1200).data;
+            let newRegionInk = 0;
+            for (let index = 3; index < pixels.length; index += 4) {
+                if (pixels[index] > 0) newRegionInk++;
+            }
+            return {
+                oldCount,
+                count: rainDrops.length,
+                keptDrop: rainDrops[0],
+                newDrops: rainDrops.slice(oldCount),
+                newRegionInk,
+                phaseCount: columnPhases.length,
+                mappedFrameRed: ctx.getImageData(104, 270, 1, 1).data[0],
+                oldFrameRed: ctx.getImageData(104, 110, 1, 1).data[0],
+                scaledFrameRed: ctx.getImageData(165, 165, 1, 1).data[0]
+            };
+        }, beforeFullscreenWidth);
+        assert(expanded.count > expanded.oldCount && expanded.oldFrameRed === 0
+            && expanded.scaledFrameRed === 0 && expanded.mappedFrameRed > 200
+            && Math.abs(expanded.keptDrop - 37 * (1200 / 801)) < 0.01,
+            `fullscreen expansion must translate stream phases/trails without scaling glyphs: ${JSON.stringify(expanded)}`);
         assert(new Set(expanded.newDrops.map(Math.floor)).size > 1,
             `new fullscreen columns all started in the same phase: ${JSON.stringify(expanded)}`);
+        assert(expanded.newRegionInk > 200 && expanded.phaseCount === expanded.count,
+            `new fullscreen area lacked active rain/column state: ${JSON.stringify(expanded)}`);
+
+        await page.setViewportSize({ width: 1280, height: 801 });
+        await page.waitForFunction(() => viewWidth === 1280 && viewHeight === 801);
+        const returned = await page.evaluate(() => ({
+            count: rainDrops.length,
+            drop: rainDrops[0],
+            markerRed: ctx.getImageData(104, 110, 1, 1).data[0]
+        }));
+        assert(returned.count === beforeFullscreenWidth && Math.abs(returned.drop - 37) < 0.01
+            && returned.markerRed > 200,
+            `fullscreen round-trip shifted or reset the original stream: ${JSON.stringify(returned)}`);
 
         console.log('MATRIX_DETACHED_WINDOW_MODE_BROWSER_SMOKE_OK', JSON.stringify({
             boot, rapidWrites: controlCalls.length, entered, exited, resized,
-            fullscreenColumns: expanded.count
+            fullscreenColumns: expanded.count, returned
         }));
     } finally {
         await browser.close();
