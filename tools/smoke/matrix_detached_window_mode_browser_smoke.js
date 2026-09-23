@@ -338,15 +338,21 @@ function assert(condition, message) {
             const seededPixels = ctx.getImageData(0, 802, viewWidth, viewHeight - 802).data;
             const seededInk = seededPixels
                 .filter((_value, index) => index % 4 === 1 && _value > 20).length;
+            const terminalHeight = Math.min(viewHeight, Math.ceil(fontSize * 0.75));
+            const terminalPixels = ctx.getImageData(
+                0, viewHeight - terminalHeight, viewWidth, terminalHeight).data;
+            const terminalInk = terminalPixels
+                .filter((_value, index) => index % 4 === 1 && _value > 20).length;
             rainDrops[6] = 60;
             paused = false;
             draw();
             paused = true;
-            return { height: viewHeight, backingHeight: canvas.height, preserved, seededInk,
+            return { height: viewHeight, backingHeight: canvas.height, preserved,
+                seededInk, terminalInk,
                 ink: ctx.getImageData(96, 940, 16, 40).data
                     .filter((_value, index) => index % 4 === 1 && _value > 20).length };
         });
-        assert(newBottom.seededInk > 50 && newBottom.ink > 0
+        assert(newBottom.seededInk > 50 && newBottom.terminalInk > 10 && newBottom.ink > 0
             && newBottom.backingHeight > beforeGrow.backingHeight && newBottom.preserved,
             `newly exposed space did not accept a continuous stream: ${JSON.stringify(newBottom)}`);
         await page.evaluate(() => { paused = false; });
