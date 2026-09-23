@@ -12,10 +12,7 @@ const pkg = JSON.parse(packageSource);
 const scripts = pkg.scripts || {};
 const profileSource = fs.readFileSync(path.join(__dirname, 'eveos_profile_runner.mjs'), 'utf8');
 const handoffSource = fs.readFileSync(path.join(__dirname, 'eveos_chat_handoff.mjs'), 'utf8');
-const registrySource = fs.readFileSync(
-    path.join(ROOT, 'tools', 'audit', 'smoke-registry-audit.js'),
-    'utf8'
-);
+const { zeroBacklogViolation } = require('../audit/smoke-registry-audit.js');
 const baseline = JSON.parse(fs.readFileSync(
     path.join(ROOT, 'tools', 'audit', 'smoke-registry-baseline.json'),
     'utf8'
@@ -64,8 +61,18 @@ requireTrue(
     'smoke registry baseline must remain permanently empty'
 );
 requireTrue(
-    registrySource.includes('backlog baseline must remain empty'),
-    'smoke registry audit no longer enforces the zero-backlog invariant'
+    zeroBacklogViolation([], []) === null,
+    'zero-backlog registry rejected a fully registered smoke set'
+);
+const baselineViolation = zeroBacklogViolation(['dormant_smoke.js'], []);
+requireTrue(
+    baselineViolation?.kind === 'baseline' && baselineViolation.code === 3,
+    'zero-backlog registry no longer rejects baseline exceptions'
+);
+const registryViolation = zeroBacklogViolation([], ['new_smoke.js']);
+requireTrue(
+    registryViolation?.kind === 'unregistered' && registryViolation.code === 1,
+    'zero-backlog registry no longer rejects newly dormant smokes'
 );
 
 console.log('QUALIFICATION_GUARDRAILS_CONTRACT_SMOKE_OK');
