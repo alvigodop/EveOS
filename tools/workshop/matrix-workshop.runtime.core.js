@@ -105,6 +105,31 @@
             ctx.restore();
             return y;
         }
+
+        function drawRainTerminalTransition(char, x, bridgeY,
+            bridgeAlpha = 0.12, terminalAlpha = 0.2) {
+            const metrics = ctx.measureText(char);
+            const ascent = Number.isFinite(metrics.actualBoundingBoxAscent)
+                ? Math.max(1, metrics.actualBoundingBoxAscent)
+                : fontSize * 0.6;
+            const landingY = getRainLandingY(char);
+            const terminalTop = landingY - ascent;
+
+            // The crossing frame used to skip its ordinary glyph and jump
+            // straight to the terminal glow, leaving one full character-row
+            // black band. Draw that missing row, but clip it exactly above the
+            // terminal glyph so the two can meet without a double/overflow row.
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(0, 0, viewWidth, Math.max(0, Math.ceil(terminalTop)));
+            ctx.clip();
+            ctx.globalAlpha = bridgeAlpha;
+            ctx.shadowBlur = 0;
+            ctx.fillText(char, x, bridgeY);
+            ctx.restore();
+
+            return drawRainTerminalGlyph(char, x, terminalAlpha);
+        }
         let lineChangeRate = 1; // Number of lines to pass before changing character
         let minLineChange = 1;
         let maxLineChange = 4;
