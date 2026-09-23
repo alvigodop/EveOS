@@ -7,10 +7,12 @@ async function probeRainHandoff(page) {
         const savedChars = rainDropsChars.slice();
         const savedOpening = rainOpeningWave;
         const savedPaused = paused;
+        const savedLineChangeRate = lineChangeRate;
         try {
             let seed = 0;
             Math.random = () => ((seed = (seed + 17) % 97) / 97);
             paused = false;
+            lineChangeRate = 1;
             rainOpeningWave = true;
             rainDrops.fill(viewHeight / fontSize);
             rainDropsChars.fill('M');
@@ -25,30 +27,33 @@ async function probeRainHandoff(page) {
             for (let index = 1; index < edgePixels.length; index += 4) {
                 if (edgePixels[index] > 20) edgeInk++;
             }
+
             const openingFinished = !rainOpeningWave;
+            const openingChangedChars = rainDropsChars.filter(char => char !== 'M').length;
             const postOpeningPhases = new Set(
                 rainDrops.map(drop => Math.floor(drop))
             ).size;
 
-            rainOpeningWave = false;
-            const belowBottom = viewHeight / fontSize + 2;
-            rainDrops[0] = belowBottom;
-            Math.random = () => 0;
+            // Prove the handoff releases columns independently. Disable the
+            // ordinary line-change random call so the first random sample belongs
+            // to the first bottom-reset decision and every later one declines.
+            lineChangeRate = Number.MAX_SAFE_INTEGER;
+            let resetSample = 0;
+            Math.random = () => (resetSample++ === 0 ? 1 : 0);
             draw();
-            const heldBelowBottom = rainDrops[0];
 
-            rainDrops[0] = belowBottom;
-            Math.random = () => 1;
-            draw();
-            const probabilisticReset = rainDrops[0];
+            const bottomRow = viewHeight / fontSize;
+            const independentlyRestarted = rainDrops.filter(drop => drop < bottomRow).length;
+            const stillWaitingBelow = rainDrops.filter(drop => drop >= bottomRow).length;
 
             return {
                 openingFinished,
+                openingChangedChars,
                 postOpeningPhases,
                 edgeInk,
-                belowBottom,
-                heldBelowBottom,
-                probabilisticReset
+                independentlyRestarted,
+                stillWaitingBelow,
+                columnCount: rainDrops.length
             };
         } finally {
             Math.random = originalRandom;
@@ -56,6 +61,7 @@ async function probeRainHandoff(page) {
             rainDropsChars = savedChars;
             rainOpeningWave = savedOpening;
             paused = savedPaused;
+            lineChangeRate = savedLineChangeRate;
         }
     });
 }
