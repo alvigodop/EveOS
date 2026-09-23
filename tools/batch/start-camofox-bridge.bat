@@ -23,6 +23,9 @@ set "BROWSER_VERSION=%BROWSER_ROOT%\version.json"
 set "BROWSER_EXE=%BROWSER_ROOT%\camoufox.exe"
 set "STATE_ROOT=%RUNTIME_ROOT%\state"
 set "CAMOUFOX_INSTALL_DIR=%BROWSER_ROOT%"
+rem The official browser was already fetched by EveOS's Python downloader.
+rem Suppress @askjo's postinstall browser download; retain native addon builds.
+set "CAMOFOX_SKIP_DOWNLOAD=1"
 set "EVEOS_CAMOFOX_LOCAL_RUNTIME_ROOT=%STATE_ROOT%"
 set "CAMOFOX_PROFILE_DIR=%STATE_ROOT%\profiles"
 set "CAMOFOX_COOKIES_DIR=%STATE_ROOT%\cookies"
@@ -87,11 +90,12 @@ if exist "%RUNTIME_SERVER%" (
     echo [STATUS] Camofox Node runtime: MISSING ^(use option 1^)
 )
 if exist "%BROWSER_VERSION%" (
-    if exist "%BROWSER_EXE%" (
+    node "%INSTALL_DOCTOR%" --browser >nul 2>nul
+    if errorlevel 1 (
+        echo [STATUS] Camofox browser: INCOMPLETE ^(use option 1^)
+    ) else (
         echo [STATUS] Camofox browser: READY ^(EveOS-local^)
         echo          %BROWSER_ROOT%
-    ) else (
-        echo [STATUS] Camofox browser: INCOMPLETE ^(use option 1^)
     )
 ) else (
     echo [STATUS] Camofox browser: MISSING ^(use option 1^)
@@ -159,6 +163,7 @@ if errorlevel 1 (
 
 echo.
 echo [INFO] Installing Camofox Node server dependencies...
+echo [INFO] Browser postinstall download suppressed; using EveOS-local browser.
 echo [INFO] The server uses better-sqlite3 and may require Windows SDK.
 pushd "%RUNTIME_ROOT%"
 call npm install --no-package-lock --omit=dev
