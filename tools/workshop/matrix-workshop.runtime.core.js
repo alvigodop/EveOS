@@ -80,14 +80,19 @@
         let paused = false;
         let fadeSpeed = 0.05;
         const RAIN_ENDPOINT_GLOW = 1.5;
+        const RAIN_GLYPH_EDGE_INSET = 0.25;
 
         function getRainLandingY(char) {
             const metrics = ctx.measureText(char);
             const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
                 ? Math.max(1, metrics.actualBoundingBoxDescent)
                 : fontSize * 0.4;
+            // Keep the complete glyph fractionally inside the canvas, but do not
+            // reserve the shadow radius itself. The subtle terminal glow is meant
+            // to meet and clip at the physical edge; reserving it created the
+            // resize-size-independent ~3px black strip seen in live screenshots.
             return Math.max(fontSize / 2,
-                viewHeight - Math.ceil(glyphDescent + RAIN_ENDPOINT_GLOW));
+                viewHeight - glyphDescent - RAIN_GLYPH_EDGE_INSET);
         }
 
         function drawRainTerminalGlyph(char, x, alpha = 0.2) {
