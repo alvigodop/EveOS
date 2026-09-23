@@ -1,27 +1,44 @@
 # EveOS-local Camofox runtime
 
-Camofox is installed and run under this folder. The downloaded browser is stored
-in `browser/` and runtime state in `state/` (profiles, cookies, traces, uploads).
-Both are machine-local and ignored by Git; never commit browser binaries or
-session data.
+The browser and all persistent Camofox state stay in this repository:
 
-On Windows, run `tools\\batch\\start-camofox-bridge.bat` from the project root.
-Choose **1. Install or update Camofox runtime**. The installer installs the
-pinned Node dependencies and fetches the browser into `browser/`. Choose
-**2. Start Camofox bridge** only after the browser reports ready.
+- browser/ — downloaded official browser and version.json (not tracked by Git)
+- state/ — local sessions, cookies, profiles, traces and uploads (not tracked)
+- node_modules/ — native Node server dependencies (not tracked)
 
-EveOS sets `CAMOUFOX_INSTALL_DIR` before npm installation, browser download,
-and every Python-launched upstream browser session. Python also puts Camofox
-profiles, cookies, traces, and uploads in `state/`; no per-user AppData
-browser installation is needed. Existing external caches are neither adopted
-nor deleted.
+On Windows, open tools\batch\start-camofox-bridge.bat from the EveOS
+checkout and choose **1. Install or update**. Option 1 downloads the official
+browser using EveOS's Python standard-library fetcher BEFORE invoking npm.
+The download therefore does not depend on native Node build tools and never
+writes to the per-user Camoufox browser cache.
 
-Local Windows install checks from the EveOS repository root:
+The Node server is a separate install step: @askjo/camofox-browser uses
+better-sqlite3, which may require a working Windows C++ toolchain and Windows
+SDK. If npm reports "missing any Windows SDK", use Visual Studio Installer
+to Modify Build Tools 2022 and install the Windows 11 SDK; then retry option 1.
+A successfully downloaded browser is preserved across npm build failures.
+Do not delete node_modules while a Camofox process is running.
 
-```powershell
-Test-Path .\\tools\\camofox-runtime\\browser\\version.json
-Test-Path .\\tools\\camofox-runtime\\browser\\camoufox.exe
-```
+A leftover server.js after a failed npm install is NOT enough to report
+runtime readiness. The installer and startup script load better-sqlite3 and
+execute an in-memory SQLite query before marking the Node server ready.
 
-If either is false, use installer option 1. The localhost bridge `/api/status`
-also reports `runtimeAvailable`, `browserInstalled`, and `browserRoot`.
+Offline installer self-test and local state verification from repo root:
+
+\`\`\`powershell
+python .\tools\camofox-runtime\fetch_browser.py --self-test
+python .\tools\camofox-runtime\fetch_browser.py --check
+node .\tools\camofox-runtime\scripts\doctor.cjs
+\`\`\`
+
+The browser checker requires both browser/version.json and the platform
+executable. Runtime verification requires a loadable native SQLite addon.
+Only choose menu option **2. Start Camofox bridge** when both pass.
+The loopback bridge /api/status reports runtimeAvailable, browserInstalled
+and browserRoot separately.
+
+Keep CAMOUFOX_INSTALL_DIR pointed at tools/camofox-runtime/browser for all
+Camoufox subprocesses. EveOS's Python launcher does this automatically.
+The official browser is downloaded from daijro/camoufox GitHub releases,
+not from npm or AppData. No old user-cache browser is silently adopted or
+deleted.

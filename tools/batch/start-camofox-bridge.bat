@@ -30,6 +30,8 @@ set "CAMOFOX_TRACES_DIR=%STATE_ROOT%\traces"
 set "CAMOFOX_UPLOADS_DIR=%STATE_ROOT%\uploads"
 set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\camofox_activity.log"
 set "MONITOR_TITLE=EveOS Camofox Monitor"
+set "BROWSER_FETCHER=%RUNTIME_ROOT%\fetch_browser.py"
+set "INSTALL_DOCTOR=%RUNTIME_ROOT%\scripts\doctor.cjs"
 
 :menu
 cls
@@ -74,7 +76,13 @@ goto :menu
 
 :showStatus
 if exist "%RUNTIME_SERVER%" (
-    echo [STATUS] Camofox Node runtime: READY
+    node "%INSTALL_DOCTOR%" --runtime >nul 2>nul
+    if errorlevel 1 (
+        echo [STATUS] Camofox Node runtime: INCOMPLETE ^(native dependency missing^)
+        echo          Install Windows SDK via Visual Studio Installer, then use option 1.
+    ) else (
+        echo [STATUS] Camofox Node runtime: READY ^(native SQLite verified^)
+    )
 ) else (
     echo [STATUS] Camofox Node runtime: MISSING ^(use option 1^)
 )
@@ -120,50 +128,68 @@ if defined SERVER_PID (
 exit /b 0
 
 :installRuntime
-if not exist "%RUNTIME_ROOT%" mkdir "%RUNTIME_ROOT%" >nul 2>nul
 if not exist "%RUNTIME_PACKAGE%" (
-    echo.
-    echo [ERROR] Runtime package manifest not found: %RUNTIME_PACKAGE%
+    echo [ERROR] Runtime package manifest missing: %RUNTIME_PACKAGE%
+    pause
+    exit /b 1
+)
+if not exist "%BROWSER_FETCHER%" (
+    echo [ERROR] EveOS-local browser fetcher missing: %BROWSER_FETCHER%
     pause
     exit /b 1
 )
 
-echo.
-echo [OK] Installing or updating EveOS-local Camofox runtime...
-echo [INFO] Browser target: %BROWSER_ROOT%
-pushd "%RUNTIME_ROOT%"
-call npm install --no-package-lock --omit=dev
+rem Fetch the official browser BEFORE installing npm's native SQLite dependency.
+rem Python standard library is enough; a missing Windows SDK must not block
+rem the browser download or push it into the user's AppData.
+"%EVEOS_PYTHON%" "%BROWSER_FETCHER%" --check >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] Camofox npm install failed.
-    popd
-    pause
-    exit /b 1
-)
-
-if not exist "%BROWSER_VERSION%" (
-    echo [INFO] Fetching Camofox browser into EveOS...
-    call npm run fetch-browser
+    echo.
+    echo [INFO] Downloading official Camoufox browser directly into EveOS...
+    "%EVEOS_PYTHON%" "%BROWSER_FETCHER%"
     if errorlevel 1 (
-        echo [ERROR] EveOS-local Camofox browser fetch failed.
-        popd
+        echo [ERROR] Official EveOS-local browser download failed.
+        echo [INFO] Node dependencies have not been modified by this fetch.
         pause
         exit /b 1
     )
+) else (
+    echo [OK] EveOS-local browser is already installed.
 )
-popd
 
-if not exist "%BROWSER_VERSION%" (
-    echo [ERROR] Camofox browser manifest missing: %BROWSER_VERSION%
+echo.
+echo [INFO] Installing Camofox Node server dependencies...
+echo [INFO] The server uses better-sqlite3 and may require Windows SDK.
+pushd "%RUNTIME_ROOT%"
+call npm install --no-package-lock --omit=dev
+set "INSTALL_EXIT=!ERRORLEVEL!"
+popd
+if not "!INSTALL_EXIT!"=="0" (
+    echo.
+    echo [ERROR] Camofox Node runtime installation failed; browser download is preserved.
+    echo [HINT] If node-gyp reported "missing any Windows SDK", open Visual Studio
+    echo        Installer, Modify Build Tools 2022, and install Windows 11 SDK
+    echo        under Individual Components or Desktop development with C++.
+    echo [HINT] For EPERM cleanup warnings, close Camofox Node processes before
+    echo        retrying. EveOS will not delete node_modules automatically.
     pause
     exit /b 1
 )
-if not exist "%BROWSER_EXE%" (
-    echo [ERROR] Camofox browser executable missing: %BROWSER_EXE%
-    echo [INFO] Rerun option 1 after inspecting the browser download log.
+
+node "%INSTALL_DOCTOR%" --runtime
+if errorlevel 1 (
+    echo [ERROR] npm completed but the native SQLite addon is not loadable.
+    echo [HINT] Verify a Windows SDK is installed in Visual Studio Build Tools.
     pause
     exit /b 1
 )
-echo [OK] Camofox browser is installed inside EveOS: %BROWSER_ROOT%
+"%EVEOS_PYTHON%" "%BROWSER_FETCHER%" --check
+if errorlevel 1 (
+    echo [ERROR] Browser verification failed after installing dependencies.
+    pause
+    exit /b 1
+)
+echo [OK] Camofox browser and native Node server are ready inside EveOS.
 timeout /t 1 /nobreak >nul
 exit /b 0
 
@@ -176,25 +202,14 @@ if not exist "%BRIDGE_SCRIPT%" (
     pause
     exit /b 1
 )
-if not exist "%RUNTIME_SERVER%" (
+node "%INSTALL_DOCTOR%"
+if errorlevel 1 (
     echo.
-    echo [ERROR] Camofox runtime is not installed. Run option 1 first.
+    echo [ERROR] Camofox installation is incomplete. Use option 1 first.
+    echo [INFO] The installer checks the browser and native SQLite separately.
     pause
     exit /b 1
 )
-if not exist "%BROWSER_VERSION%" (
-    echo.
-    echo [ERROR] EveOS-local Camofox browser is missing. Run option 1 first.
-    pause
-    exit /b 1
-)
-if not exist "%BROWSER_EXE%" (
-    echo.
-    echo [ERROR] EveOS-local browser executable is missing. Run option 1 first.
-    pause
-    exit /b 1
-)
-
 for /f "tokens=5" %%P in ('netstat -aon ^| findstr /r /c:":%BRIDGE_PORT% .*LISTENING"') do (
     echo.
     echo [INFO] Bridge already running on port %BRIDGE_PORT% ^(PID %%P^).
