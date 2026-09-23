@@ -13,7 +13,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import eveos_console_prefs, eveos_ports
+from . import eveos_console_prefs, eveos_ports, local_moe_runtime_bootstrap
 
 
 HARNESS_PORT = eveos_ports.service_port("LOCAL_MOE_HARNESS_PORT")
@@ -164,38 +164,7 @@ def _managed_runtime_pid() -> int | None:
 
 
 def _live_details() -> dict:
-    payload = _http_json(HARNESS_PORT, "/api/status", timeout=4.5) or {}
-    runtime = payload.get("runtime") if isinstance(payload.get("runtime"), dict) else {}
-    lifecycle = (
-        payload.get("runtime_lifecycle")
-        if isinstance(payload.get("runtime_lifecycle"), dict)
-        else {}
-    )
-    settings = payload.get("settings") if isinstance(payload.get("settings"), dict) else {}
-    active_id = str(settings.get("active_model_id") or "")
-    active_model = next(
-        (item for item in payload.get("model_registry") or []
-         if isinstance(item, dict) and item.get("id") == active_id),
-        {},
-    )
-    return {
-        "runtimeReady": runtime.get("ready") is True,
-        "runtimeReachable": runtime.get("reachable") is True,
-        "runtimeHealth": str(runtime.get("health_status") or "unknown"),
-        "runtimeManagedRunning": lifecycle.get("managed_running") is True,
-        "runtimeStartupStage": str(lifecycle.get("startup_stage") or ""),
-        "runtimeLastError": str(lifecycle.get("last_error") or ""),
-        "activeModel": {
-            "id": active_id,
-            "label": str(active_model.get("display_name") or active_model.get("id") or active_id),
-            "validation": str(active_model.get("validation") or ""),
-        },
-        "activeProfile": str(settings.get("active_profile_label") or settings.get("active_profile") or ""),
-        "system": payload.get("system") if isinstance(payload.get("system"), dict) else {},
-        "gpuCoexistence": (
-            payload.get("gpu_coexistence") if isinstance(payload.get("gpu_coexistence"), dict) else {}
-        ),
-    }
+    return local_moe_runtime_bootstrap.live_details(_http_json, HARNESS_PORT)
 
 
 def _status(message: str = "", *, health=_UNSET, harness_pid=_UNSET) -> dict:
@@ -283,48 +252,13 @@ def _launch_command() -> list[str]:
     return [str(_tool_root() / "scripts" / "run-harness.sh")]
 
 
-def _request_runtime_start() -> dict | None:
-    return _http_json(
-        HARNESS_PORT,
-        "/api/runtime/start",
-        method="POST",
-        timeout=8.0,
-    )
-
-
-def _runtime_start_needed(status: dict) -> bool:
-    return (
-        status.get("running") is True
-        and status.get("runtimeReady") is not True
-        and status.get("runtimeManagedRunning") is not True
-        and status.get("runtimeReachable") is not True
-    )
-
-
 def _start_runtime_for_explicit_request(status: dict) -> dict:
-    if not _runtime_start_needed(status):
-        return status
-
-    accepted = _request_runtime_start()
-    refreshed = _status()
-    if accepted is None:
-        return {
-            **refreshed,
-            "runtimeStartAccepted": False,
-            "message": (
-                "Local MoE Harness is online, but model startup could not be confirmed. "
-                "Use Start model to retry."
-            ),
-        }
-    return {
-        **refreshed,
-        "runtimeStartAccepted": True,
-        "message": (
-            "Local MoE Harness is online; selected model startup was requested."
-            if refreshed.get("runtimeReady") is not True
-            else "Local MoE Harness and selected model are ready."
-        ),
-    }
+    return local_moe_runtime_bootstrap.start_runtime_for_explicit_request(
+        status,
+        http_json=_http_json,
+        harness_port=HARNESS_PORT,
+        refresh_status=_status,
+    )
 
 
 def start_server() -> dict:
