@@ -13,14 +13,12 @@
  * after the monitor moved to 9085/9086. The production code was correct and the test was wrong, and
  * nothing said so for weeks, because nothing ran it.
  *
- * Registering all of them at once is not realistic -- many need Playwright, and some are genuinely
- * failing and need triage. So this is a ratchet, not a cliff: the current backlog is recorded in
- * smoke-registry-baseline.json and tolerated. The audit fails when the backlog grows, and also when
- * the baseline can shrink so that tightening happens as an explicit committed repo change rather
- * than silently mutating tracked files during verification.
+ * EveOS now requires a zero-backlog registry: every smoke entry point must be reachable from an
+ * explicit npm script chain, including credential-dependent live probes that remain opt-in.
+ * smoke-registry-baseline.json is retained as a machine-readable invariant and must stay empty.
  *
  * Fix a failure by adding the smoke to an npm chain or invoking it from an already registered
- * smoke orchestrator -- not by editing the baseline.
+ * smoke orchestrator. Never add a smoke to the baseline to silence this audit.
  */
 const fs = require('fs');
 const path = require('path');
@@ -120,19 +118,19 @@ function main() {
 
     let baseline = [];
     try {
-        baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8')).unregistered || [];
+        const payload = JSON.parse(fs.readFileSync(BASELINE, 'utf8'));
+        if (!Array.isArray(payload?.unregistered)) {
+            throw new TypeError('baseline.unregistered must be an array');
+        }
+        baseline = payload.unregistered;
     } catch (error) {
-        // No baseline yet: record the current state so future additions are caught from here on.
-        fs.writeFileSync(BASELINE, JSON.stringify({
-            note: 'Smokes not reachable from any npm script. Shrink this list; never grow it.',
-            unregistered
-        }, null, 2) + '\n', 'utf8');
-        console.log(`smoke registry: baseline created with ${unregistered.length} unregistered smokes`);
-        return 0;
+        console.error('smoke registry FAILED — zero-backlog baseline is missing or invalid.');
+        console.error(`  ${error?.message || error}`);
+        console.error('Restore tools/audit/smoke-registry-baseline.json with an empty unregistered array.');
+        return 1;
     }
 
-    const known = new Set(baseline);
-    const added = unregistered.filter((name) => !known.has(name));
+    const added = [...unregistered];
     const fixed = baseline.filter((name) => !unregistered.includes(name));
 
     console.log(JSON.stringify({
@@ -146,17 +144,17 @@ function main() {
         newlyRegistered: fixed.length
     }, null, 2));
 
-    if (fixed.length) {
-        console.error('\nsmoke registry baseline can shrink — these smokes are now reachable:');
-        console.error(`  ${fixed.join('\n  ')}`);
-        console.error('\nUpdate the committed baseline in a focused repo change before treating verify as green.');
-        return 2;
+    if (baseline.length) {
+        console.error('\nsmoke registry FAILED — backlog baseline must remain empty.');
+        console.error(`  forbidden baseline entries: ${baseline.join(', ')}`);
+        console.error('\nRegister every smoke explicitly; credential-dependent live probes belong in opt-in npm scripts.');
+        return 3;
     }
 
     if (added.length) {
         console.error('\nsmoke registry FAILED — these smokes are not reachable from any npm script chain:');
         console.error(`  ${added.join('\n  ')}`);
-        console.error('\nAdd them to an npm chain or invoke them from a registered smoke orchestrator. Do not edit the baseline to silence this.');
+        console.error('\nAdd them to an npm chain or invoke them from a registered smoke orchestrator.');
         return 1;
     }
 
