@@ -186,6 +186,7 @@ async function main() {
             '/js/modules/features/api-search/mangadex.js?v=0.2.1',
             '/js/modules/features/api-search/jikan.js',
             '/js/modules/features/api-search/anilist.js?v=0.2.1',
+            '/js/modules/features/api-search/mangaupdates.shared.js',
             '/js/modules/features/api-search/mangaupdates.js?v=0.2.3',
             '/js/modules/features/api-search/kitsu.js?v=0.2.1',
             '/js/modules/features/api-search/tvmaze.js',
