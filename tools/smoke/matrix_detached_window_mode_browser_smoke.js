@@ -58,6 +58,71 @@ function assert(condition, message) {
                 assert(positions.length > 10 && positions.every(position => position === 1),
                 `fresh Matrix rain did not restart as one opening wave on load ${load}: ${positions.slice(0, 12)}`);
             }
+
+            const rainHandoff = await freshPage.evaluate(() => {
+                const originalRandom = Math.random;
+                const savedDrops = rainDrops.slice();
+                const savedChars = rainDropsChars.slice();
+                const savedOpening = rainOpeningWave;
+                const savedPaused = paused;
+                try {
+                    let seed = 0;
+                    Math.random = () => ((seed = (seed + 17) % 97) / 97);
+                    paused = false;
+                    rainOpeningWave = true;
+                    rainDrops.fill(viewHeight / fontSize);
+                    rainDropsChars.fill('M');
+                    ctx.clearRect(0, 0, viewWidth, viewHeight);
+                    draw();
+
+                    const edgePixels = ctx.getImageData(
+                        0, Math.max(0, viewHeight - fontSize),
+                        Math.floor(viewWidth), Math.min(fontSize, viewHeight)
+                    ).data;
+                    let edgeInk = 0;
+                    for (let index = 1; index < edgePixels.length; index += 4) {
+                        if (edgePixels[index] > 20) edgeInk++;
+                    }
+                    const postOpeningPhases = new Set(
+                        rainDrops.map(drop => Math.floor(drop))
+                    ).size;
+
+                    rainOpeningWave = false;
+                    const belowBottom = viewHeight / fontSize + 2;
+                    rainDrops[0] = belowBottom;
+                    Math.random = () => 0;
+                    draw();
+                    const heldBelowBottom = rainDrops[0];
+
+                    rainDrops[0] = belowBottom;
+                    Math.random = () => 1;
+                    draw();
+                    const probabilisticReset = rainDrops[0];
+
+                    return {
+                        openingFinished: !rainOpeningWave,
+                        postOpeningPhases,
+                        edgeInk,
+                        belowBottom,
+                        heldBelowBottom,
+                        probabilisticReset
+                    };
+                } finally {
+                    Math.random = originalRandom;
+                    rainDrops = savedDrops;
+                    rainDropsChars = savedChars;
+                    rainOpeningWave = savedOpening;
+                    paused = savedPaused;
+                }
+            });
+            assert(rainHandoff.openingFinished && rainHandoff.postOpeningPhases > 10,
+                `opening wave did not hand off to staggered normal rain: ${JSON.stringify(rainHandoff)}`);
+            assert(rainHandoff.edgeInk > 0,
+                `opening wave no longer reaches the physical bottom edge: ${JSON.stringify(rainHandoff)}`);
+            assert(rainHandoff.heldBelowBottom > rainHandoff.belowBottom
+                && rainHandoff.probabilisticReset <= 2,
+                `normal rain no longer waits/restarts probabilistically below the viewport: ${JSON.stringify(rainHandoff)}`);
+
             await freshPage.setViewportSize({ width: 1200, height: 600 });
             await freshPage.locator('#toggleToolbar').click();
             await freshPage.locator('#system-section .section-header').click();
