@@ -27,6 +27,7 @@ for (const required of [
     'audit:asset-versions',
     'audit:smoke-registry',
     'smoke:coverage-map',
+    'smoke:file-growth',
     'smoke:file-size'
 ]) {
     requireTrue(
