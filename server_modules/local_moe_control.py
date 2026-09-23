@@ -248,7 +248,19 @@ def _status(message: str = "", *, health=_UNSET, harness_pid=_UNSET) -> dict:
 
 def get_status() -> dict:
     with _LOCK:
-        return _status()
+        health = _harness_health()
+        # Healthy service identity is sufficient for read-only liveness. Windows CIM
+        # ownership verification can take several seconds and must not sit on the
+        # Search Monitor status path. Destructive lifecycle actions still call the
+        # verified _managed_harness_pid() path before terminating anything.
+        if health is not None:
+            managed_pid = (
+                _PROCESS.pid
+                if _PROCESS is not None and _PROCESS.poll() is None
+                else None
+            )
+            return _status(health=health, harness_pid=managed_pid)
+        return _status(health=None)
 
 
 def _launch_command() -> list[str]:

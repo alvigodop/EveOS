@@ -63,6 +63,27 @@ def check_status_is_passive() -> None:
     popen.assert_not_called()
 
 
+def check_healthy_status_skips_slow_windows_ownership_lookup() -> None:
+    health = {"info": {"title": "Local MoE Harness"}}
+    details = {
+        "runtimeReady": False,
+        "runtimeReachable": False,
+        "runtimeHealth": "offline",
+        "activeModel": {},
+        "activeProfile": "",
+        "system": {},
+        "gpuCoexistence": {},
+    }
+    with patch.object(local_moe_control, "_harness_health", return_value=health), \
+            patch.object(local_moe_control, "_managed_harness_pid") as managed, \
+            patch.object(local_moe_control, "_live_details", return_value=details), \
+            patch.object(local_moe_control, "_setup_ready", return_value=True):
+        status = local_moe_control.get_status()
+    managed.assert_not_called()
+    require(status["running"] is True and status["state"] == "running",
+            "Healthy Harness status did not remain online on the fast path")
+
+
 def check_owned_health_blip_stays_starting() -> None:
     with patch.object(local_moe_control, "_harness_health", return_value=None), \
             patch.object(local_moe_control, "_port_open", side_effect=lambda port: port == local_moe_control.HARNESS_PORT), \
@@ -223,6 +244,7 @@ def main() -> None:
     checks = (
         check_config_ports,
         check_status_is_passive,
+        check_healthy_status_skips_slow_windows_ownership_lookup,
         check_owned_health_blip_stays_starting,
         check_unowned_listener_stays_blocked,
         check_start_passes_canonical_ports,
