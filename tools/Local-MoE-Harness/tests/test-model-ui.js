@@ -30,5 +30,7 @@ assert.deepStrictEqual(
   ui.streamDeltaChannels({content: 'final', reasoning_content: 'thought'}),
   {content: 'final', reasoning: 'thought'}
 );
+assert.strictEqual(ui.outputTokens({default_max_tokens: 1024, conversation_kv_floor_tokens: 1024, conversation_context_margin_tokens: 128}), 448);
+assert.strictEqual(ui.outputTokens({default_max_tokens: 1024, conversation_kv_floor_tokens: 12288, conversation_context_margin_tokens: 128}), 1024);
 
-console.log('model-ui: PASS (8 mappings)');
+console.log('model-ui: PASS (10 mappings)');

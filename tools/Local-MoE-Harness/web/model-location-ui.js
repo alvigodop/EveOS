@@ -138,7 +138,7 @@
     });
 
     reset.addEventListener('click', async () => {
-      if (!window.confirm(`Return ${model.display_name} to its Harness-default model folder?`)) return;
+      if (!(await window.LocalMoeConfirm.ask(`Return ${model.display_name} to its Harness-default model folder?`, {confirmLabel: 'Reset location'}))) return;
       link.disabled = true;
       reset.disabled = true;
       feedback.textContent = 'Resetting…';
@@ -210,7 +210,7 @@
     const stopRuntime = $('stop-local-model');
     if (stopRuntime) {
       stopRuntime.addEventListener('click', async () => {
-        if (!window.confirm('Stop the Harness-managed local model? The web UI will stay open.')) return;
+        if (!(await window.LocalMoeConfirm.ask('Stop the Harness-managed local model? The web UI will stay open.', {confirmLabel: 'Stop model'}))) return;
         const original = stopRuntime.textContent;
         stopRuntime.disabled = true;
         stopRuntime.textContent = 'Stopping…';

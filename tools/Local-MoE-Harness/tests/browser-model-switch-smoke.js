@@ -59,11 +59,15 @@ const path = require('path');
     }
 
     if (gpt.installed && gpt.selectable && !gpt.active) {
-      let dismissed = false;
-      page.once('dialog', async (dialog) => { dismissed = dialog.message().includes('GPT-OSS 20B'); await dialog.dismiss(); });
+      const activeName = registry.registry.find((model) => model.active)?.display_name;
       const gptCard = page.locator('.model-card').filter({hasText: 'GPT-OSS 20B'});
       await gptCard.getByRole('button', {name: 'Switch'}).click();
-      if (!dismissed) throw new Error('model-switch confirmation was not shown');
+      const confirmation = page.getByRole('dialog', {name: 'Confirm local action'});
+      await confirmation.waitFor({state: 'visible'});
+      if (!(await confirmation.innerText()).includes('GPT-OSS 20B')) throw new Error('model-switch confirmation omitted the target model');
+      await confirmation.getByRole('button', {name: 'Cancel'}).click();
+      await confirmation.waitFor({state: 'hidden'});
+      if (await page.locator('.model-card.active h3').textContent() !== activeName) throw new Error('cancelling model switch changed the active model');
     }
 
     const screenshotPath = path.join(__dirname, '..', 'output', 'playwright', 'model-selector.png');

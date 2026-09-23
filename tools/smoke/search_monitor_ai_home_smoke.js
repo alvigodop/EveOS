@@ -112,11 +112,15 @@ function assert(condition, message) {
         'Harness status polling can replace live controls while inline chat has focus');
     assert(harnessAppSource.includes("!modelPanel.classList.contains('hidden') && !modelSwitchInProgress"),
         'Harness status polling can replace model-switch controls while the library is open');
+    assert(harnessAppSource.includes('LocalMoeConfirm.ask')
+        && !harnessAppSource.includes('window.confirm(')
+        && harnessIndexSource.includes('/static/confirmation-ui.js'),
+        'Embedded Harness model switching still depends on sandbox-blocked native dialogs');
     assert(harnessAppSource.includes('${runtimeLabel} stopped')
         && harnessAppSource.includes('lifecycle.startup_stage'),
         'Harness UI no longer distinguishes an intentionally stopped model runtime from an offline Harness');
-    assert(source.includes("const LOCAL_MOE_EMBED_VERSION = '20260923.1';")
-        && harnessIndexSource.includes('/static/app.js?v=20260923.1'),
+    assert(source.includes("const LOCAL_MOE_EMBED_VERSION = '20260923.3';")
+        && harnessIndexSource.includes('/static/app.js?v=20260923.3'),
         'Local MoE embed/app cache revisions are not synchronized');
     assert(!initSource.includes("requestGeminiBoot('full-monitor-view')"),
         'Opening Workspace still boots Gemini before its provider is opened');

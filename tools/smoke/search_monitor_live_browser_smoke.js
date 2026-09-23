@@ -87,6 +87,20 @@ async function openRuntimeWorkspace(page, entryUrl, entryMode, requiredFailures,
     }, undefined, { timeout: 10000 });
 
     await waitForStatus(page, '[data-local-moe-state]', 'Online', entryMode, requiredFailures);
+    if (entryMode === 'localhost') {
+        const localMoeProvider = page.locator('[data-ai-provider="local-moe"]');
+        await localMoeProvider.locator(':scope > summary').click();
+        const harness = page.frameLocator('[data-local-moe-frame]');
+        await harness.getByRole('button', { name: 'Change model' }).click();
+        await harness.getByRole('button', { name: 'Switch', exact: true }).first().click();
+        const confirmation = harness.getByRole('dialog', { name: 'Confirm local action' });
+        await confirmation.waitFor({ state: 'visible', timeout: 10000 });
+        assert((await confirmation.innerText()).includes('restarts the local model runtime'),
+            'Embedded model switch did not explain its runtime restart');
+        await confirmation.getByRole('button', { name: 'Cancel' }).click();
+        await confirmation.waitFor({ state: 'hidden' });
+        await waitForStatus(page, '[data-local-moe-state]', 'Online', entryMode, requiredFailures);
+    }
     const agents = page.locator('[data-ai-provider="agents"]');
     await agents.locator(':scope > summary').click();
     await page.waitForFunction(() => document.querySelector('[data-ai-provider="agents"]')?.open === true,

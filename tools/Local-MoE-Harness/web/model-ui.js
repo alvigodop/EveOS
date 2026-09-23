@@ -49,7 +49,15 @@
     return {content: typeof value.content === 'string' ? value.content : '', reasoning: typeof value.reasoning_content === 'string' ? value.reasoning_content : ''};
   }
 
-  const api = {availabilityLabel, validationLabel, actionForModel, switchStageLabel, streamDeltaChannels};
+  function outputTokens(settings) {
+    const configured = Number(settings?.default_max_tokens) || 1024;
+    const capacity = Number(settings?.conversation_kv_floor_tokens);
+    const margin = Math.max(64, Number(settings?.conversation_context_margin_tokens) || 128);
+    if (!Number.isFinite(capacity) || capacity <= 0) return Math.min(configured, 1024);
+    return Math.max(1, Math.min(configured, 1024, Math.floor((capacity - margin) / 2)));
+  }
+
+  const api = {availabilityLabel, validationLabel, actionForModel, switchStageLabel, streamDeltaChannels, outputTokens};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.LocalMoeModelUi = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

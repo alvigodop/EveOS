@@ -12,7 +12,7 @@ let modelSwitchInProgress = false;
 
 const modelUi = window.LocalMoeModelUi;
 
-const DEFAULT_MAX_TOKENS = 1024;
+let chatMaxTokens = 1024;
 const AUTO_CONTINUE_MAX_SEGMENTS = 2;
 const AUTO_CONTINUE_SEGMENT_TOKENS = 1024;
 const CONTINUATION_INSTRUCTION =
@@ -130,7 +130,7 @@ async function switchModel(model) {
   const warning = hasConversation
     ? `Switch to ${model.display_name}? This restarts the local runtime and clears the current conversation.`
     : `Switch to ${model.display_name}? This restarts the local model runtime.`;
-  if (!window.confirm(warning)) return;
+  if (!(await window.LocalMoeConfirm.ask(warning, {confirmLabel: 'Switch model'}))) return;
 
   modelSwitchInProgress = true;
   modelSwitchState = {
@@ -275,12 +275,12 @@ function renderStatusDetails(data) {
     setText('memory-limit', '—');
   }
 
-  const totalAutoTokens = DEFAULT_MAX_TOKENS + (AUTO_CONTINUE_MAX_SEGMENTS * AUTO_CONTINUE_SEGMENT_TOKENS);
+  chatMaxTokens = modelUi.outputTokens(settings);
+  const continuationTokens = Math.min(AUTO_CONTINUE_SEGMENT_TOKENS, chatMaxTokens);
   setText(
     'output-policy',
-    `${DEFAULT_MAX_TOKENS} + ${AUTO_CONTINUE_MAX_SEGMENTS}×${AUTO_CONTINUE_SEGMENT_TOKENS} · ~${totalAutoTokens} max`
+    `${chatMaxTokens} + ${AUTO_CONTINUE_MAX_SEGMENTS}×${continuationTokens} · ~${chatMaxTokens + AUTO_CONTINUE_MAX_SEGMENTS * continuationTokens} max`
   );
-
   const transitionParts = [];
   if (coexistence.pending_transition) {
     transitionParts.push(`Pending: ${formatMode(coexistence.pending_transition)}`);
@@ -894,7 +894,7 @@ $('chat-form').addEventListener('submit', async (e) => {
       message: isContinuation ? CONTINUATION_INSTRUCTION : text,
       model: activeModel,
       history: requestHistory,
-      max_tokens: isContinuation ? AUTO_CONTINUE_SEGMENT_TOKENS : DEFAULT_MAX_TOKENS
+      max_tokens: isContinuation ? Math.min(AUTO_CONTINUE_SEGMENT_TOKENS, chatMaxTokens) : chatMaxTokens
     };
 
     const resp = await fetch('/api/chat/stream', {

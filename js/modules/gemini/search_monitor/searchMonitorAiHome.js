@@ -2,7 +2,7 @@
 (function () {
     'use strict';
 
-    const LOCAL_MOE_EMBED_VERSION = '20260923.1';
+    const LOCAL_MOE_EMBED_VERSION = '20260923.3';
 
     if (window.EveOSSearchMonitorAiHome) return;
 

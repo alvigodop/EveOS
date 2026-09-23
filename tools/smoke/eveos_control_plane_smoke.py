@@ -178,6 +178,7 @@ def helper_http_smoke():
         H.nexus_browser_control.get_status, H.nexus_browser_control.start_server,
         H.nexus_browser_control.stop_server, H.nexus_browser_control.setup_runtime,
         H.nexus_browser_control.open_extension_folder,
+        H.local_moe_control.stop_server, H.bookmark_intel_control.stop_server,
         H.piano_player_control.stop_server, H.gemini_control.stop_server,
     )
     calls = []
@@ -254,6 +255,8 @@ def helper_http_smoke():
     H.nexus_browser_control.setup_runtime = lambda: {**nexus_state, "ok": True, "dependenciesReady": True}
     H.nexus_browser_control.open_extension_folder = lambda: {**nexus_state, "ok": True,
                                                                "extensionPath": "tools/Nexus-Browser/extension"}
+    H.local_moe_control.stop_server = lambda: {"ok": True, "running": False}
+    H.bookmark_intel_control.stop_server = lambda: {"ok": True, "running": False}
     H.piano_player_control.stop_server = lambda: {"ok": True, "running": False}
     H.gemini_control.stop_server = lambda: {"ok": True, "running": False}
 
@@ -369,6 +372,7 @@ def helper_http_smoke():
             H.nexus_browser_control.get_status, H.nexus_browser_control.start_server,
             H.nexus_browser_control.stop_server, H.nexus_browser_control.setup_runtime,
             H.nexus_browser_control.open_extension_folder,
+            H.local_moe_control.stop_server, H.bookmark_intel_control.stop_server,
             H.piano_player_control.stop_server, H.gemini_control.stop_server,
         ) = original
 

@@ -263,7 +263,7 @@ export async function startService(name, timeoutMs = 30_000) {
   if (['blocked', 'conflict', 'external'].includes(String(before?.state || ''))) {
     throw new Error(`${service.label} is ${before.state}: ${before.message || 'ownership conflict'}`);
   }
-  const result = await requestJson(`${CONTROL_BASE}${service.startPath}`, { method: 'POST', body: {} , timeoutMs: 15_000 });
+  const result = await requestJson(`${CONTROL_BASE}${service.startPath}`, { method: 'POST', body: {}, timeoutMs: name === 'localMoe' ? 45_000 : 15_000 });
   if (!result.ok && result.payload?.state !== 'starting') {
     throw new Error(`${service.label} start failed: ${result.payload?.message || result.text}`);
   }
