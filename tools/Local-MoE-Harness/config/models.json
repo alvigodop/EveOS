@@ -157,13 +157,13 @@
         "files": ["Ternary-Bonsai-2-27B-PTQ1_0.gguf"]
       },
       "required_files": ["Ternary-Bonsai-2-27B-PTQ1_0.gguf"],
-      "notes": "Windows-validated text-only model using PrismML's custom llama.cpp fork. PTQ1_0 is preferred for this Ada 6 GB GPU; the tuned 56-layer/4K profile reaches about 2.1 decode tok/s, with safer 32-layer/2K and CPU recovery profiles for GPU pressure.",
+      "notes": "Windows-validated text-only model using PrismML's custom llama.cpp fork. PTQ1_0 is preferred for this Ada 6 GB GPU; Prism auto-fits the normal 4K and busy 2K profiles to live VRAM, while CPU recovery remains available.",
       "default_reasoning_effort": "none",
       "runtime_options": {
         "profiles": {
-          "normal": {"gpu_layers": 56},
-          "busy": {"gpu_layers": 32},
-          "recovery": {"gpu_layers": 0}
+          "normal": {"gpu_layers": 56, "auto_fit": true, "fit_target_mb": 256},
+          "busy": {"gpu_layers": 32, "auto_fit": true, "fit_target_mb": 1024},
+          "recovery": {"gpu_layers": 0, "auto_fit": false, "fit_target_mb": 1024}
         }
       },
       "profiles": {

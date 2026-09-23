@@ -107,9 +107,9 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertEqual(
             record.data["runtime_options"]["profiles"],
             {
-                "normal": {"gpu_layers": 56},
-                "busy": {"gpu_layers": 32},
-                "recovery": {"gpu_layers": 0},
+                "normal": {"gpu_layers": 56, "auto_fit": True, "fit_target_mb": 256},
+                "busy": {"gpu_layers": 32, "auto_fit": True, "fit_target_mb": 1024},
+                "recovery": {"gpu_layers": 0, "auto_fit": False, "fit_target_mb": 1024},
             },
         )
         self.assertEqual(record.data["default_reasoning_effort"], "none")

@@ -227,10 +227,12 @@
         if (!provider || !host || !frame) return;
 
         const running = status?.running === true;
-        const shouldShow = running && provider.open === true && !!status.url;
+        const resynchronizing = !running && status?.state === 'starting'
+            && !!frame.dataset.localMoeUrl;
+        const shouldShow = (running || resynchronizing) && provider.open === true && !!status.url;
         host.hidden = !shouldShow;
 
-        if (!running) {
+        if (!running && !resynchronizing) {
             frame.removeAttribute('src');
             delete frame.dataset.localMoeUrl;
             return;

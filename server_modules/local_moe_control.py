@@ -21,6 +21,7 @@ RUNTIME_PORT = eveos_ports.service_port("FREETOKEN_PORT")
 _PROCESS = None
 _LOCK = threading.RLock()
 _UNSET = object()
+_STATUS_GRACE = local_moe_runtime_bootstrap.StatusGraceCache(8.0)
 
 
 def _project_root() -> Path:
@@ -239,7 +240,10 @@ def get_status() -> dict:
                 if _PROCESS is not None and _PROCESS.poll() is None
                 else None
             )
-            return _status(health=health, harness_pid=managed_pid)
+            return _STATUS_GRACE.remember(_status(health=health, harness_pid=managed_pid))
+        stale = _STATUS_GRACE.recover(_port_open(HARNESS_PORT))
+        if stale is not None:
+            return stale
         return _status(health=None)
 
 
@@ -309,6 +313,7 @@ def start_server() -> dict:
                 "Local MoE Harness is starting; selected model startup will be available once it is ready."
             )
         current = _status(health=health, harness_pid=_PROCESS.pid)
+        _STATUS_GRACE.remember(current)
 
     return _start_runtime_for_explicit_request(current)
 
@@ -358,6 +363,7 @@ def _terminate_owned_runtime(pid: int) -> bool:
 
 def stop_server() -> dict:
     global _PROCESS
+    _STATUS_GRACE.clear()
     with _LOCK:
         running = _harness_health() is not None
         pid = _managed_harness_pid()

@@ -26,8 +26,10 @@ require(
     "Bonsai recovery profile must support CPU-only fallback",
 )
 require(
-    record["runtime_options"]["profiles"]["normal"]["gpu_layers"] == 56,
-    "Bonsai normal profile lost its qualified offload geometry",
+    record["runtime_options"]["profiles"]["normal"] == {
+        "gpu_layers": 56, "auto_fit": True, "fit_target_mb": 256
+    },
+    "Bonsai normal profile must use high-performance VRAM auto-fit",
 )
 require(record["default_reasoning_effort"] == "none", "Bonsai must default to non-thinking chat")
 
@@ -44,8 +46,12 @@ for archive in archives:
     )
 
 launcher = (HARNESS / "scripts" / "run-prism-llama-windows.ps1").read_text(encoding="utf-8")
-require('--host "127.0.0.1"' in launcher, "Prism runtime must bind loopback only")
-require("--alias $ServedModelName" in launcher, "Prism runtime identity must be explicit")
+require('"--host", "127.0.0.1"' in launcher, "Prism runtime must bind loopback only")
+require('"--alias", $ServedModelName' in launcher, "Prism runtime identity must be explicit")
+require('"--fit", "on"' in launcher and '"--fit-target", "$FitTarget"' in launcher,
+        "Prism launcher must adapt offload to live VRAM")
+require('if ($GpuLayers -ne "auto")' in launcher,
+        "Prism auto-fit must omit the explicit n_gpu_layers override")
 require("Invoke-Expression" not in launcher, "Prism launcher must not evaluate command text")
 
 installer = (HARNESS / "scripts" / "install-model-windows.py").read_text(encoding="utf-8")

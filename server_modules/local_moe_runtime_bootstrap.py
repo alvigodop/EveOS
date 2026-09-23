@@ -3,6 +3,38 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import time
+
+
+class StatusGraceCache:
+    """Keep a verified Harness session stable across a brief health timeout."""
+
+    def __init__(self, grace_seconds: float) -> None:
+        self.grace_seconds = grace_seconds
+        self._payload: dict | None = None
+        self._healthy_at = 0.0
+
+    def remember(self, payload: dict) -> dict:
+        self._payload = dict(payload)
+        self._healthy_at = time.monotonic()
+        return payload
+
+    def recover(self, port_open: bool) -> dict | None:
+        if (
+            not port_open
+            or self._payload is None
+            or time.monotonic() - self._healthy_at >= self.grace_seconds
+        ):
+            return None
+        return {
+            **self._payload,
+            "statusStale": True,
+            "message": "Local MoE Harness is online and temporarily resynchronizing.",
+        }
+
+    def clear(self) -> None:
+        self._payload = None
+        self._healthy_at = 0.0
 
 
 def live_details(http_json: Callable, harness_port: int) -> dict:

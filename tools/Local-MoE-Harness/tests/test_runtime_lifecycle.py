@@ -1,6 +1,8 @@
 import io
+import asyncio
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -11,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.services.model_registry import ModelRegistry
+from app.adapters.freetoken import FreeTokenAdapter
 from app.services.runtime_lifecycle import RuntimeLifecycle
 
 
@@ -78,11 +81,15 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         record = self.registry.require("bonsai2-27b-ptq1")
         args = self.lifecycle._process_args(record)
         environment = self.lifecycle._profile_environment(record, "normal")
+        self.lifecycle.active_model_id = record.id
+        self.lifecycle.active_profile_name = "normal"
+        runtime_environment = self.lifecycle._runtime_environment(record, environment)
         self.assertIn("run-prism-llama-windows.ps1", " ".join(args))
         self.assertEqual(self._model_argument(args), str(record.runtime_path))
         self.assertEqual(args[args.index("-ServedModelName") + 1], record.served_model_name)
         self.assertEqual(environment["LOCAL_MOE_GPU_LAYERS"], "56")
-        self.lifecycle.active_model_id = record.id
+        self.assertEqual(runtime_environment["LOCAL_MOE_GPU_LAYERS"], "auto")
+        self.assertEqual(runtime_environment["LOCAL_MOE_GPU_FIT_TARGET_MB"], "256")
         self.assertEqual(self.lifecycle.active_runtime_backend(), "prism-llama")
         self.assertFalse(self.lifecycle.supports_dynamic_cache())
 
@@ -106,6 +113,24 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict(os.environ, {"LOCAL_MOE_CONTEXT_PROFILE": "fast8k"}, clear=False):
             name, _sample = await self.lifecycle._select_profile_name(record)
         self.assertEqual(name, "busy")
+
+
+class RuntimeStatusTests(unittest.IsolatedAsyncioTestCase):
+    async def test_concurrent_status_reads_share_one_probe(self):
+        adapter = FreeTokenAdapter("http://127.0.0.1:1919")
+        adapter._probe_status = AsyncMock(return_value={"ready": True, "models": []})
+        first, second = await asyncio.gather(adapter.status(), adapter.status())
+        self.assertTrue(first["ready"] and second["ready"])
+        adapter._probe_status.assert_awaited_once()
+
+    async def test_brief_probe_miss_retains_last_ready_status(self):
+        adapter = FreeTokenAdapter("http://127.0.0.1:1919")
+        adapter._last_ready_status = {"ready": True, "models": [{"id": "bonsai"}]}
+        adapter._last_ready_at = time.monotonic()
+        adapter._probe_status = AsyncMock(return_value={"ready": False, "latency_ms": 3000})
+        status = await adapter.status(force=True)
+        self.assertTrue(status["ready"])
+        self.assertTrue(status["stale"])
 
 
 if __name__ == "__main__":

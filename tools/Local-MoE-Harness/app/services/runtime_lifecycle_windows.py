@@ -218,6 +218,21 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
             str(self.port),
         ]
 
+    def _runtime_environment(
+        self, record: ModelRecord, environment: dict[str, str]
+    ) -> dict[str, str]:
+        if record.runtime_backend != "prism-llama":
+            return environment
+        result = environment.copy()
+        profiles = record.data.get("runtime_options", {}).get("profiles", {})
+        options = profiles.get(self.active_profile_name or "normal", {})
+        if options.get("auto_fit") is True:
+            result["LOCAL_MOE_GPU_LAYERS"] = "auto"
+        fit_target = options.get("fit_target_mb")
+        if fit_target is not None:
+            result["LOCAL_MOE_GPU_FIT_TARGET_MB"] = str(int(fit_target))
+        return result
+
     @staticmethod
     def _headless_requested(environment: dict[str, str]) -> bool:
         value = (
@@ -232,6 +247,7 @@ class RuntimeLifecycle(LinuxRuntimeLifecycle):
         record: ModelRecord,
         environment: dict[str, str],
     ) -> dict[str, Any]:
+        environment = self._runtime_environment(record, environment)
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
         self.startup_stage = "loading_weights"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import AsyncIterator, Callable
 
@@ -20,8 +21,48 @@ class FreeTokenAdapter(RuntimeAdapter):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.runtime_provider = runtime_provider
+        self._status_lock = asyncio.Lock()
+        self._status_cache: dict | None = None
+        self._status_cache_at = 0.0
+        self._last_ready_status: dict | None = None
+        self._last_ready_at = 0.0
 
-    async def status(self) -> dict:
+    def invalidate_status_cache(self, *, drop_ready: bool = False) -> None:
+        """Discard passive probe state before an intentional lifecycle change."""
+        self._status_cache = None
+        self._status_cache_at = 0.0
+        if drop_ready:
+            self._last_ready_status = None
+            self._last_ready_at = 0.0
+
+    async def status(self, *, force: bool = False) -> dict:
+        """Coalesce passive probes and absorb brief misses from a busy runtime."""
+        now = time.monotonic()
+        if not force and self._status_cache and now - self._status_cache_at < 1.0:
+            return dict(self._status_cache)
+
+        async with self._status_lock:
+            now = time.monotonic()
+            if not force and self._status_cache and now - self._status_cache_at < 1.0:
+                return dict(self._status_cache)
+
+            result = await self._probe_status()
+            if result.get("ready"):
+                self._last_ready_status = dict(result)
+                self._last_ready_at = now
+            elif self._last_ready_status and now - self._last_ready_at < 6.0:
+                result = {
+                    **self._last_ready_status,
+                    "stale": True,
+                    "probe_latency_ms": result.get("latency_ms"),
+                    "status_warning": "Runtime status is briefly delayed; retaining last-ready state.",
+                }
+
+            self._status_cache = dict(result)
+            self._status_cache_at = now
+            return dict(result)
+
+    async def _probe_status(self) -> dict:
         """Report FreeToken reachability, loading state, readiness, and models.
 
         /v1/models may become available before generation is ready, so /health

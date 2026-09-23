@@ -51,6 +51,7 @@ def check_config_ports() -> None:
 
 
 def check_status_is_passive() -> None:
+    local_moe_control._STATUS_GRACE.clear()
     with patch.object(local_moe_control, "_harness_health", return_value=None), \
             patch.object(local_moe_control, "_port_open", return_value=False), \
             patch.object(local_moe_control, "_managed_harness_pid", return_value=None), \
@@ -84,7 +85,16 @@ def check_healthy_status_skips_slow_windows_ownership_lookup() -> None:
             "Healthy Harness status did not remain online on the fast path")
 
 
+def check_transient_health_miss_retains_verified_session() -> None:
+    cached = local_moe_control._STATUS_GRACE.recover(True)
+    require(cached is not None and cached["running"] is True,
+            "A brief health miss discarded the verified Harness session")
+    require(cached.get("statusStale") is True and "resynchronizing" in cached["message"],
+            "Transient Harness recovery is not identified to the UI")
+
+
 def check_owned_health_blip_stays_starting() -> None:
+    local_moe_control._STATUS_GRACE.clear()
     with patch.object(local_moe_control, "_harness_health", return_value=None), \
             patch.object(local_moe_control, "_port_open", side_effect=lambda port: port == local_moe_control.HARNESS_PORT), \
             patch.object(local_moe_control, "_managed_harness_pid", return_value=42420), \
@@ -98,6 +108,7 @@ def check_owned_health_blip_stays_starting() -> None:
 
 
 def check_unowned_listener_stays_blocked() -> None:
+    local_moe_control._STATUS_GRACE.clear()
     with patch.object(local_moe_control, "_harness_health", return_value=None), \
             patch.object(local_moe_control, "_port_open", side_effect=lambda port: port == local_moe_control.HARNESS_PORT), \
             patch.object(local_moe_control, "_managed_harness_pid", return_value=None), \
@@ -287,6 +298,7 @@ def main() -> None:
         check_config_ports,
         check_status_is_passive,
         check_healthy_status_skips_slow_windows_ownership_lookup,
+        check_transient_health_miss_retains_verified_session,
         check_owned_health_blip_stays_starting,
         check_unowned_listener_stays_blocked,
         check_start_passes_canonical_ports,

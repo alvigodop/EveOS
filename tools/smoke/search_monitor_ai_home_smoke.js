@@ -234,6 +234,13 @@ function assert(condition, message) {
         && inlineFrame.src.includes('eveos_embed='),
         'Running Local MoE did not mount its inline Harness workspace');
 
+    const mountedSource = inlineFrame.src;
+    localMoeResponse = { ...localMoeResponse, running: false, state: 'starting' };
+    await api.refreshLocalMoe();
+    assert(inlineHost.hidden === false && inlineFrame.src === mountedSource,
+        'Transient Local MoE resync unloaded the active embedded Harness');
+    localMoeResponse = { ...localMoeResponse, running: true, state: 'running' };
+
     const requestsBeforeReopen = requests.length;
     listeners['local:toggle']();
     await new Promise((resolve) => setTimeout(resolve, 0));

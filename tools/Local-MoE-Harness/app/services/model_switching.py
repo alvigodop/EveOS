@@ -67,7 +67,13 @@ class ModelSwitchCoordinator:
             active_profile_name=active_profile,
         )
 
+    def _invalidate_runtime_status(self) -> None:
+        invalidate = getattr(self.adapter, "invalidate_status_cache", None)
+        if callable(invalidate):
+            invalidate(drop_ready=True)
+
     async def _restore(self, candidates: list[str]) -> str | None:
+        self._invalidate_runtime_status()
         await self.lifecycle.stop_managed()
         for model_id in candidates:
             try:
@@ -78,6 +84,7 @@ class ModelSwitchCoordinator:
                 if not result.get("ready"):
                     await self.lifecycle.stop_managed()
                     continue
+                self._invalidate_runtime_status()
                 self.registry.persist_selection(model_id)
                 self._configure_gpu(model_id)
                 return model_id
@@ -119,6 +126,7 @@ class ModelSwitchCoordinator:
             )
             try:
                 await self.gpu_manager.stop()
+                self._invalidate_runtime_status()
                 await self.lifecycle.stop_managed()
                 self._set_state(stage="starting_target")
                 result = await self.lifecycle.start_model(
@@ -130,6 +138,7 @@ class ModelSwitchCoordinator:
                     )
 
                 self._set_state(stage="committing_selection")
+                self._invalidate_runtime_status()
                 self.registry.persist_selection(target.id)
                 cleared_sessions = self.conversation_store.reset_all()
                 self._configure_gpu(target.id)
