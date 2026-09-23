@@ -2,11 +2,22 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 const { spawn } = require('child_process');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 3035;
+async function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const probe = net.createServer();
+        probe.unref();
+        probe.once('error', reject);
+        probe.listen(0, '127.0.0.1', () => {
+            const { port } = probe.address();
+            probe.close((error) => error ? reject(error) : resolve(port));
+        });
+    });
+}
 
 async function waitForStatus(url, timeoutMs = 30000) {
     const start = Date.now();
@@ -29,9 +40,10 @@ async function waitForStatus(url, timeoutMs = 30000) {
 }
 
 async function main() {
-    const modularRoot = path.join(os.tmpdir(), `eve-api-live-${Date.now()}`);
+    const port = await getFreePort();
+    const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-api-live-'));
     let browser = null;
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -44,9 +56,9 @@ async function main() {
     const consoleErrors = [];
 
     try {
-        await waitForStatus(`http://localhost:${PORT}/api/status`);
+        await waitForStatus(`http://localhost:${port}/api/status`);
 
-        browser = await chromium.launch({ headless: true });
+        ({ browser } = await launchChromiumOrConnect({ headless: true }));
         const page = await browser.newPage({ viewport: { width: 1600, height: 1200 } });
         page.on('pageerror', (error) => {
             pageErrors.push(error && error.stack ? error.stack : String(error));
@@ -57,7 +69,7 @@ async function main() {
             }
         });
 
-        await page.goto(`http://localhost:${PORT}/api/status`, {
+        await page.goto(`http://localhost:${port}/api/status`, {
             waitUntil: 'load',
             timeout: 60000
         });
@@ -88,7 +100,7 @@ async function main() {
         ];
 
         for (const scriptPath of minimalApiScripts) {
-            await page.addScriptTag({ url: `http://localhost:${PORT}${scriptPath}` });
+            await page.addScriptTag({ url: `http://localhost:${port}${scriptPath}` });
         }
 
         const result = await page.evaluate(async () => {

@@ -2,11 +2,11 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 const { spawn } = require('child_process');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect } = require('./playwright-browser');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const PORT = 3036;
 const CAMOFOX_BRIDGE_PORT = 3038;
 const PROVIDERS = [
     { key: 'mangadex', query: 'kingdom', min: 1, strict: true },
@@ -23,6 +23,18 @@ const PROVIDERS = [
     { key: 'openlibrary', query: 'hobbit', min: 1, strict: true },
     { key: 'comick', query: 'kingdom', min: 1, strict: true }
 ];
+
+async function getFreePort() {
+    return new Promise((resolve, reject) => {
+        const probe = net.createServer();
+        probe.unref();
+        probe.once('error', reject);
+        probe.listen(0, '127.0.0.1', () => {
+            const { port } = probe.address();
+            probe.close((error) => error ? reject(error) : resolve(port));
+        });
+    });
+}
 
 async function waitForStatus(url, timeoutMs = 30000) {
     const start = Date.now();
@@ -44,11 +56,31 @@ async function waitForStatus(url, timeoutMs = 30000) {
     throw new Error(`Timed out waiting for ${url}`);
 }
 
+async function camofoxPortState() {
+    return new Promise((resolve) => {
+        const req = http.get(`http://127.0.0.1:${CAMOFOX_BRIDGE_PORT}/api/status`, (res) => {
+            let body = '';
+            res.on('data', (chunk) => { body += String(chunk).slice(0, 4096); });
+            res.on('end', () => {
+                try {
+                    const payload = JSON.parse(body);
+                    resolve(res.statusCode === 200 && payload.service === 'camofox-bridge'
+                        ? 'ready' : 'foreign');
+                } catch { resolve('foreign'); }
+            });
+            res.on('error', () => resolve('foreign'));
+        });
+        req.on('error', (error) => resolve(error.code === 'ECONNREFUSED' ? 'free' : 'foreign'));
+        req.setTimeout(1500, () => req.destroy(new Error('Camofox identity probe timed out')));
+    });
+}
+
 async function main() {
-    const modularRoot = path.join(os.tmpdir(), `eve-api-provider-matrix-${Date.now()}`);
+    const port = await getFreePort();
+    const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-api-provider-matrix-'));
     let browser = null;
     let camofoxBridge = null;
-    const server = spawn('python', ['server/python-server.py', String(PORT), '--no-browser', '--modular-root', modularRoot], {
+    const server = spawn('python', ['server/python-server.py', String(port), '--no-browser', '--modular-root', modularRoot], {
         cwd: REPO_ROOT,
         stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -61,19 +93,24 @@ async function main() {
     server.stderr.on('data', (chunk) => { serverStderr += String(chunk); });
 
     try {
-        await waitForStatus(`http://localhost:${PORT}/api/status`, 60000);
-        try {
-            await waitForStatus(`http://localhost:${CAMOFOX_BRIDGE_PORT}/api/status`, 1500);
-        } catch (_) {
+        await waitForStatus(`http://localhost:${port}/api/status`, 60000);
+        const bridgeState = await camofoxPortState();
+        if (bridgeState === 'foreign') {
+            throw new Error(`Port ${CAMOFOX_BRIDGE_PORT} is occupied by an unverified service; leave it untouched.`);
+        }
+        if (bridgeState === 'free') {
             camofoxBridge = spawn('python', ['server/bridges/camofox-bridge.py', String(CAMOFOX_BRIDGE_PORT)], {
                 cwd: REPO_ROOT,
                 stdio: ['ignore', 'pipe', 'pipe']
             });
             camofoxBridge.stdout.on('data', (chunk) => { bridgeStdout += String(chunk); });
             camofoxBridge.stderr.on('data', (chunk) => { bridgeStderr += String(chunk); });
-            await waitForStatus(`http://localhost:${CAMOFOX_BRIDGE_PORT}/api/status`, 30000);
+            await waitForStatus(`http://127.0.0.1:${CAMOFOX_BRIDGE_PORT}/api/status`, 30000);
+            if (await camofoxPortState() !== 'ready') {
+                throw new Error('Started Camofox bridge failed its service-identity check.');
+            }
         }
-        browser = await chromium.launch({ headless: true });
+        ({ browser } = await launchChromiumOrConnect({ headless: true }));
         const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
         const pageErrors = [];
         const consoleErrors = [];
@@ -84,7 +121,7 @@ async function main() {
             }
         });
 
-        await page.goto(`http://localhost:${PORT}/api/status`, { waitUntil: 'load', timeout: 60000 });
+        await page.goto(`http://localhost:${port}/api/status`, { waitUntil: 'load', timeout: 60000 });
         await page.setContent('<!doctype html><html><body><div id="resultCount"></div><div id="results"></div></body></html>');
 
         const scripts = [
@@ -120,7 +157,7 @@ async function main() {
         ];
 
         for (const scriptPath of scripts) {
-            await page.addScriptTag({ url: `http://localhost:${PORT}${scriptPath}` });
+            await page.addScriptTag({ url: `http://localhost:${port}${scriptPath}` });
         }
 
         const result = await page.evaluate(async (providers) => {

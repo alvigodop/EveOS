@@ -1,11 +1,12 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { chromium } = require('playwright');
+const { launchChromiumOrConnect } = require('./playwright-browser');
 
 const APP_URL = pathToFileURL(path.resolve(__dirname, '..', '..', 'EveOS.html')).href;
 
 async function main() {
-    const browser = await chromium.launch({ headless: true });
+    const { browser } = await launchChromiumOrConnect({ headless: true });
+    try {
     const page = await browser.newPage();
     page.on('console', (msg) => {
         const text = msg.text();
@@ -231,7 +232,6 @@ async function main() {
         }
     });
 
-    await browser.close();
 
     const [first, second, third] = results;
     if (!first.result?.title || !/rebuild world/i.test(first.result.title)) {
@@ -293,6 +293,9 @@ async function main() {
     }
 
     console.log(`AUTOTITLE_BROWSER_HTML_SMOKE_OK ${JSON.stringify({ results, syntheticFallback, cssUrlFallback, galleryHtmlPriority, galleryCoverVariant, galleryFormatMismatch, galleryDirectImageCover, headlessCoverUpgrade })}`);
+    } finally {
+        await browser.close();
+    }
 }
 
 main().catch((error) => {
