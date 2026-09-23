@@ -8,6 +8,7 @@ const { createRequire } = require('node:module');
 
 const ROOT = path.resolve(__dirname, '..');
 const SERVER = path.join(ROOT, 'node_modules', '@askjo', 'camofox-browser', 'server.js');
+const SERVER_PACKAGE = path.join(ROOT, 'node_modules', '@askjo', 'camofox-browser', 'package.json');
 const BROWSER = path.join(ROOT, 'browser');
 
 function verifyRuntime() {
@@ -22,7 +23,11 @@ function verifyRuntime() {
     } finally {
         database.close();
     }
-    console.log('CAMOFOX_NODE_RUNTIME_OK');
+    let installedVersion = 'unknown';
+    try {
+        installedVersion = JSON.parse(fs.readFileSync(SERVER_PACKAGE, 'utf8')).version || installedVersion;
+    } catch (_) {}
+    console.log(`CAMOFOX_NODE_RUNTIME_OK @askjo/camofox-browser ${installedVersion}`);
 }
 
 function verifyBrowser() {
