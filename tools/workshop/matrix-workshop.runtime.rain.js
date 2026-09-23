@@ -184,56 +184,62 @@
                         }
                     }
                 } else if (!movementEnabled || precipitationMode === 'continuous') {
-                    // Normal continuous rain behavior
+                    // One deliberate opening wave is allowed to finish against
+                    // the physical viewport edge. After that, return to the
+                    // original probabilistic Matrix rain lifecycle so columns
+                    // desynchronize naturally instead of repeating waterfalls.
                     const y = rainDrops[i] * fontSize;
                     const step = adjustDensity(1, 'continuous');
                     const drawY = y - fontSize / 2;
-                    const nextDrawY = drawY + step * fontSize;
-                    // Place the complete glyph plus its small glow against the
-                    // edge. Font metrics avoid both the old padding gap and the
-                    // clipped half-glyph caused by centering directly on it.
-                    const metrics = ctx.measureText(rainDropsChars[i]);
-                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
-                        ? Math.max(1, metrics.actualBoundingBoxDescent)
-                        : fontSize * 0.4;
-                    const landingY = Math.max(fontSize / 2,
-                        viewHeight - Math.ceil(glyphDescent + 1.5));
-                    const landsThisFrame = drawY < landingY && nextDrawY >= landingY;
 
-                    if (!rainOpeningWave && drawY >= landingY) {
-                        rainDrops[i] = nextRainEntry();
-                        if (sequenceEnabled) updateSequenceCharacters();
-                        else rainDropsChars[i] = getRandomSelectedChar();
+                    if (rainOpeningWave) {
+                        const landingCenter = Math.max(fontSize / 2,
+                            viewHeight - fontSize / 2);
+                        if (drawY < landingCenter) {
+                            ctx.fillText(rainDropsChars[i], x, drawY);
+                        } else {
+                            // textBaseline='middle' plus glyph descent was the
+                            // source of the one-row black strip. Anchor the final
+                            // opening glyph by its em-box bottom instead.
+                            ctx.save();
+                            ctx.textBaseline = 'bottom';
+                            ctx.globalAlpha = 0.28;
+                            ctx.shadowColor = color;
+                            ctx.shadowBlur = 1.5;
+                            ctx.fillText(rainDropsChars[i], x, viewHeight);
+                            ctx.restore();
+                        }
+                        rainDrops[i] += step;
                         continue;
                     }
 
-                    if (!sequenceEnabled) {
+                    if (sequenceEnabled) {
+                        if (y > viewHeight && Math.random() > 0.975) {
+                            rainDrops[i] = 0;
+                            updateSequenceCharacters();
+                        }
+                    } else {
                         const currentLine = Math.floor(y / fontSize);
                         if (currentLine > 0 && currentLine % lineChangeRate === 0 &&
                             Math.floor((y - fontSize) / fontSize) !== currentLine) {
                             rainDropsChars[i] = getRandomSelectedChar();
                         }
-                    }
 
-                    if (drawY < landingY && !landsThisFrame) {
-                        ctx.fillText(rainDropsChars[i], x, drawY);
-                    }
-                    if (landsThisFrame) {
-                        // The crossing frame paints only the endpoint. Repainting
-                        // the preceding row here creates the visible double band.
-                        ctx.save();
-                        ctx.globalAlpha = 0.2;
-                        ctx.shadowColor = color;
-                        ctx.shadowBlur = 1.5;
-                        ctx.fillText(rainDropsChars[i], x, landingY);
-                        ctx.restore();
-                        if (!rainOpeningWave) {
-                            rainDrops[i] = nextRainEntry();
-                            if (sequenceEnabled) updateSequenceCharacters();
-                            else rainDropsChars[i] = getRandomSelectedChar();
-                            continue;
+                        if (y > viewHeight && Math.random() > 0.975) {
+                            rainDrops[i] = 0;
                         }
                     }
+
+                    // Preserve the original lower-edge behavior: streams are
+                    // allowed to pass through the visible bottom before their
+                    // randomized restart. That removes the permanent black box
+                    // without spawning replacement heads in the middle of view.
+                    const alpha = Math.max(0.2, Math.min(1,
+                        (viewHeight - y) / (viewHeight * 0.3)));
+                    ctx.globalAlpha = alpha;
+                    ctx.fillText(rainDropsChars[i], x, drawY);
+                    ctx.globalAlpha = 1;
+
                     rainDrops[i] += step;
                 } else if (precipitationMode === 'dense') {
                     // Dense packed rain behavior
@@ -365,20 +371,15 @@
             }
 
             if (rainOpeningWave && continuousMode) {
-                // Use the same glyph-specific landing coordinate as the render
-                // path. The old viewHeight-1 check kept the opening phase alive
-                // after every column had stopped drawing, producing a black band.
-                const openingFinished = rainDrops.every((drop, index) => {
-                    const metrics = ctx.measureText(rainDropsChars[index]);
-                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
-                        ? Math.max(1, metrics.actualBoundingBoxDescent)
-                        : fontSize * 0.4;
-                    const landingY = Math.max(fontSize / 2,
-                        viewHeight - Math.ceil(glyphDescent + 1.5));
-                    return drop * fontSize - fontSize / 2 >= landingY;
-                });
+                // The opening wave is complete once every head has reached the
+                // same physical bottom edge used by the endpoint renderer.
+                const openingFinished = rainDrops.every(drop =>
+                    drop * fontSize >= viewHeight);
                 if (openingFinished) {
                     rainOpeningWave = false;
+                    // Prime only the first normal-rain cycle above the top edge.
+                    // Subsequent cycles use the original probabilistic bottom
+                    // wait/reset behavior below.
                     rainDrops = rainDrops.map(nextRainEntry);
                 }
             }
