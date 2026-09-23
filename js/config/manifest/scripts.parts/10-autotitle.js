@@ -7,7 +7,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/autotitle/strategies/allorigins.js?v=20d8b08aaf2e",
     "js/modules/features/autotitle/strategies/corsproxy.js?v=37f96ca9a1ef",
     "js/modules/features/autotitle/strategies/google-search.js?v=4271af99d60c",
-    "js/modules/features/autotitle/strategies/mangadex-api.js?v=af798f900ad2",
+    "js/modules/features/autotitle/strategies/mangadex-api.js?v=cc7994b742c2",
     "js/modules/features/autotitle/strategies/gallery-page-html.js?v=dae017261f67",
     "js/modules/features/autotitle/strategies/mangafire-html.js?v=a81060ae83d8",
     "js/modules/features/autotitle/strategies/linkmeta.js?v=51c3f11645ee",
