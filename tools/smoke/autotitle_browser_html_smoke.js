@@ -9,16 +9,45 @@ async function main() {
     try {
     const page = await browser.newPage();
     const consoleTail = [];
+    const mangaDexTrace = [];
     page.on('console', (msg) => {
         const text = msg.text();
         if (/Autotitle:|MicroLink strategy:|AllOrigins failed|CorsProxy failed|LinkMeta failed|ScraperEngine/.test(text)) {
             consoleTail.push(text.split('\n')[0].slice(0, 220));
             if (consoleTail.length > 24) consoleTail.shift();
         }
+        if (/MangaDex API transport/i.test(text)) {
+            mangaDexTrace.push({ type: 'console', text: text.split('\n')[0].slice(0, 500) });
+        }
+    });
+    page.on('response', (response) => {
+        const url = response.url();
+        if (/api\.mangadex\.org\/manga\/|127\.0\.0\.1:8765\/api\/proxy|api\.codetabs\.com\/v1\/proxy|api\.allorigins\.win\/raw/i.test(url)) {
+            mangaDexTrace.push({ type: 'response', status: response.status(), url: url.slice(0, 900) });
+        }
+    });
+    page.on('requestfailed', (request) => {
+        const url = request.url();
+        if (/api\.mangadex\.org\/manga\/|127\.0\.0\.1:8765\/api\/proxy|api\.codetabs\.com\/v1\/proxy|api\.allorigins\.win\/raw/i.test(url)) {
+            mangaDexTrace.push({
+                type: 'requestfailed',
+                error: request.failure()?.errorText || '',
+                url: url.slice(0, 900)
+            });
+        }
     });
 
     await page.goto(APP_URL, { waitUntil: 'load' });
     await page.waitForFunction(() => typeof window.getTitleFromUrl === 'function', null, { timeout: 60000 });
+
+    const liveMangaDexStrategy = await page.evaluate(async () => {
+        const strategy = window.EveOS?.Autotitle?.Strategies?.MangaDexApi;
+        if (typeof strategy !== 'function') return { available: false, result: null };
+        const result = await strategy('https://mangadex.org/title/bf713abe-b415-45ac-8fd1-653dba578e0f');
+        return { available: true, result };
+    });
+    console.log('AUTOTITLE_MANGADEX_DIRECT ' + JSON.stringify(liveMangaDexStrategy));
+    console.log('AUTOTITLE_MANGADEX_TRACE ' + JSON.stringify(mangaDexTrace));
 
     const urls = [
         'https://mangadex.org/title/99182618-ae92-4aec-a5df-518659b7b613/rebuild-world?tab=chapters',
@@ -50,6 +79,7 @@ async function main() {
         blocked: result?.blocked, descriptionPresent: !!result?.description
     }))));
     console.log('AUTOTITLE_STRATEGY_TAIL ' + JSON.stringify(consoleTail.slice(-10)));
+    console.log('AUTOTITLE_MANGADEX_TRACE_FINAL ' + JSON.stringify(mangaDexTrace));
 
     const mangaDexTransportFallback = await page.evaluate(async () => {
         const originalFetch = window.fetch;
