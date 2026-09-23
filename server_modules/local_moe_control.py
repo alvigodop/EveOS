@@ -283,12 +283,56 @@ def _launch_command() -> list[str]:
     return [str(_tool_root() / "scripts" / "run-harness.sh")]
 
 
+def _request_runtime_start() -> dict | None:
+    return _http_json(
+        HARNESS_PORT,
+        "/api/runtime/start",
+        method="POST",
+        timeout=8.0,
+    )
+
+
+def _runtime_start_needed(status: dict) -> bool:
+    return (
+        status.get("running") is True
+        and status.get("runtimeReady") is not True
+        and status.get("runtimeManagedRunning") is not True
+        and status.get("runtimeReachable") is not True
+    )
+
+
+def _start_runtime_for_explicit_request(status: dict) -> dict:
+    if not _runtime_start_needed(status):
+        return status
+
+    accepted = _request_runtime_start()
+    refreshed = _status()
+    if accepted is None:
+        return {
+            **refreshed,
+            "runtimeStartAccepted": False,
+            "message": (
+                "Local MoE Harness is online, but model startup could not be confirmed. "
+                "Use Start model to retry."
+            ),
+        }
+    return {
+        **refreshed,
+        "runtimeStartAccepted": True,
+        "message": (
+            "Local MoE Harness is online; selected model startup was requested."
+            if refreshed.get("runtimeReady") is not True
+            else "Local MoE Harness and selected model are ready."
+        ),
+    }
+
+
 def start_server() -> dict:
     global _PROCESS
     with _LOCK:
         current = _status()
         if current["running"]:
-            return {**current, "message": "Local MoE Harness is already online."}
+            return _start_runtime_for_explicit_request(current)
         if current["state"] == "blocked":
             return {**current, "ok": False}
         if not current["setupReady"]:
@@ -298,10 +342,14 @@ def start_server() -> dict:
         environment.update({
             "LOCAL_MOE_HARNESS_PORT": str(HARNESS_PORT),
             "FREETOKEN_PORT": str(RUNTIME_PORT),
+            # Keep Harness startup passive at the FastAPI lifespan layer. The
+            # explicit EveOS Start action requests the selected model below,
+            # after the Harness identity is verified on its canonical port.
             "LOCAL_MOE_RUNTIME_AUTOSTART": "0",
             "PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
         })
         headless = eveos_console_prefs.headless_for("localMoe")
+        environment["LOCAL_MOE_HEADLESS"] = "1" if headless else "0"
         flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         flags |= getattr(subprocess, "CREATE_NO_WINDOW" if headless else "CREATE_NEW_CONSOLE", 0)
         sink = subprocess.DEVNULL if headless else None
@@ -310,15 +358,25 @@ def start_server() -> dict:
             stdout=sink, stderr=sink, env=environment, creationflags=flags,
         )
         _write_pid(_PROCESS.pid)
-    deadline = time.monotonic() + 2.0
-    while time.monotonic() < deadline and _harness_health() is None and _PROCESS.poll() is None:
+
+    deadline = time.monotonic() + 5.0
+    health = _harness_health()
+    while time.monotonic() < deadline and health is None and _PROCESS.poll() is None:
         time.sleep(0.15)
+        health = _harness_health()
+
     with _LOCK:
-        if _PROCESS.poll() is not None and _harness_health() is None:
+        if _PROCESS.poll() is not None and health is None:
             _pid_path().unlink(missing_ok=True)
             return {**_status(), "ok": False, "state": "error",
                     "message": "Local MoE Harness exited before becoming ready."}
-        return _status("Local MoE Harness is starting; model startup can take several minutes.")
+        if health is None:
+            return _status(
+                "Local MoE Harness is starting; selected model startup will be available once it is ready."
+            )
+        current = _status(health=health, harness_pid=_PROCESS.pid)
+
+    return _start_runtime_for_explicit_request(current)
 
 
 def _terminate_owned(pid: int) -> bool:
