@@ -47,18 +47,40 @@
         return pickLocalizedText(altTitles);
     }
 
+    async function fetchMangaDexPayload(apiUrl, signal) {
+        const encoded = encodeURIComponent(apiUrl);
+        const transports = [
+            { label: 'direct', url: apiUrl },
+            { label: 'local-proxy', url: `http://127.0.0.1:8765/api/proxy?url=${encoded}` },
+            { label: 'codetabs', url: `https://api.codetabs.com/v1/proxy?quest=${encoded}` },
+            { label: 'allorigins', url: `https://api.allorigins.win/raw?url=${encoded}` }
+        ];
+
+        for (const transport of transports) {
+            try {
+                const response = await fetch(transport.url, { signal });
+                if (!response.ok) continue;
+                const payload = await response.json();
+                if (payload?.data?.attributes) {
+                    return { payload, transport: transport.label };
+                }
+            } catch (error) {
+                if (error?.name === 'AbortError') throw error;
+            }
+        }
+        return null;
+    }
+
     window.EveOS.Autotitle.Strategies.MangaDexApi = async function (url, signal) {
         const mangaId = parseMangaDexId(url);
         if (!mangaId) return null;
 
         try {
             const apiUrl = `https://api.mangadex.org/manga/${mangaId}?includes[]=cover_art`;
-            const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(apiUrl)}`;
-            const response = await fetch(proxyUrl, { signal });
-            if (!response.ok) return null;
+            const fetched = await fetchMangaDexPayload(apiUrl, signal);
+            if (!fetched) return null;
 
-            const payload = await response.json();
-            const manga = payload?.data;
+            const manga = fetched.payload?.data;
             const attributes = manga?.attributes || {};
             const relationships = Array.isArray(manga?.relationships) ? manga.relationships : [];
             const coverRel = relationships.find((rel) => rel?.type === 'cover_art');
@@ -75,7 +97,8 @@
                     ? `https://uploads.mangadex.org/covers/${mangaId}/${coverFileName}`
                     : `https://og.mangadex.org/og-image/manga/${mangaId}`,
                 description: description || null,
-                source: 'MangaDexAPI'
+                source: 'MangaDexAPI',
+                transport: fetched.transport
             };
         } catch (error) {
             console.warn('Autotitle: MangaDex API strategy failed', error);
