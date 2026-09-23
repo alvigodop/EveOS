@@ -166,6 +166,11 @@ def _managed_runtime_pid() -> int | None:
 def _live_details() -> dict:
     payload = _http_json(HARNESS_PORT, "/api/status", timeout=4.5) or {}
     runtime = payload.get("runtime") if isinstance(payload.get("runtime"), dict) else {}
+    lifecycle = (
+        payload.get("runtime_lifecycle")
+        if isinstance(payload.get("runtime_lifecycle"), dict)
+        else {}
+    )
     settings = payload.get("settings") if isinstance(payload.get("settings"), dict) else {}
     active_id = str(settings.get("active_model_id") or "")
     active_model = next(
@@ -177,6 +182,9 @@ def _live_details() -> dict:
         "runtimeReady": runtime.get("ready") is True,
         "runtimeReachable": runtime.get("reachable") is True,
         "runtimeHealth": str(runtime.get("health_status") or "unknown"),
+        "runtimeManagedRunning": lifecycle.get("managed_running") is True,
+        "runtimeStartupStage": str(lifecycle.get("startup_stage") or ""),
+        "runtimeLastError": str(lifecycle.get("last_error") or ""),
         "activeModel": {
             "id": active_id,
             "label": str(active_model.get("display_name") or active_model.get("id") or active_id),
@@ -208,6 +216,9 @@ def _status(message: str = "", *, health=_UNSET, harness_pid=_UNSET) -> dict:
         "runtimeReady": False,
         "runtimeReachable": _port_open(RUNTIME_PORT) and not runtime_conflict,
         "runtimeHealth": "offline",
+        "runtimeManagedRunning": False,
+        "runtimeStartupStage": "stopped",
+        "runtimeLastError": "",
         "activeModel": _configured_model(),
         "activeProfile": "",
         "system": {},
