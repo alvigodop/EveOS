@@ -18,6 +18,16 @@ set "BRIDGE_SCRIPT=%PROJECT_ROOT%\server\bridges\camofox-bridge.py"
 set "RUNTIME_ROOT=%PROJECT_ROOT%\tools\camofox-runtime"
 set "RUNTIME_PACKAGE=%RUNTIME_ROOT%\package.json"
 set "RUNTIME_SERVER=%RUNTIME_ROOT%\node_modules\@askjo\camofox-browser\server.js"
+set "BROWSER_ROOT=%RUNTIME_ROOT%\browser"
+set "BROWSER_VERSION=%BROWSER_ROOT%\version.json"
+set "BROWSER_EXE=%BROWSER_ROOT%\camoufox.exe"
+set "STATE_ROOT=%RUNTIME_ROOT%\state"
+set "CAMOUFOX_INSTALL_DIR=%BROWSER_ROOT%"
+set "EVEOS_CAMOFOX_LOCAL_RUNTIME_ROOT=%STATE_ROOT%"
+set "CAMOFOX_PROFILE_DIR=%STATE_ROOT%\profiles"
+set "CAMOFOX_COOKIES_DIR=%STATE_ROOT%\cookies"
+set "CAMOFOX_TRACES_DIR=%STATE_ROOT%\traces"
+set "CAMOFOX_UPLOADS_DIR=%STATE_ROOT%\uploads"
 set "ACTIVITY_LOG=%PROJECT_ROOT%\bin\camofox_activity.log"
 set "MONITOR_TITLE=EveOS Camofox Monitor"
 
@@ -64,11 +74,20 @@ goto :menu
 
 :showStatus
 if exist "%RUNTIME_SERVER%" (
-    echo [STATUS] Camofox runtime: READY
-    echo          %RUNTIME_SERVER%
+    echo [STATUS] Camofox Node runtime: READY
 ) else (
-    echo [STATUS] Camofox runtime: NOT INSTALLED
-    echo          Install from option 1 before starting the bridge.
+    echo [STATUS] Camofox Node runtime: MISSING ^(use option 1^)
+)
+if exist "%BROWSER_VERSION%" (
+    if exist "%BROWSER_EXE%" (
+        echo [STATUS] Camofox browser: READY ^(EveOS-local^)
+        echo          %BROWSER_ROOT%
+    ) else (
+        echo [STATUS] Camofox browser: INCOMPLETE ^(use option 1^)
+    )
+) else (
+    echo [STATUS] Camofox browser: MISSING ^(use option 1^)
+    echo          %BROWSER_ROOT%
 )
 
 set "BRIDGE_PID="
@@ -104,28 +123,47 @@ exit /b 0
 if not exist "%RUNTIME_ROOT%" mkdir "%RUNTIME_ROOT%" >nul 2>nul
 if not exist "%RUNTIME_PACKAGE%" (
     echo.
-    echo [ERROR] Runtime package manifest not found:
-    echo         %RUNTIME_PACKAGE%
-    echo.
+    echo [ERROR] Runtime package manifest not found: %RUNTIME_PACKAGE%
     pause
     exit /b 1
 )
 
 echo.
-echo [OK] Installing or updating Camofox runtime...
+echo [OK] Installing or updating EveOS-local Camofox runtime...
+echo [INFO] Browser target: %BROWSER_ROOT%
 pushd "%RUNTIME_ROOT%"
 call npm install --no-package-lock --omit=dev
-set "INSTALL_EXIT=%ERRORLEVEL%"
-popd
-if not "%INSTALL_EXIT%"=="0" (
-    echo.
-    echo [ERROR] Camofox runtime install failed.
+if errorlevel 1 (
+    echo [ERROR] Camofox npm install failed.
+    popd
     pause
     exit /b 1
 )
 
-echo.
-echo [OK] Camofox runtime is ready.
+if not exist "%BROWSER_VERSION%" (
+    echo [INFO] Fetching Camofox browser into EveOS...
+    call npm run fetch-browser
+    if errorlevel 1 (
+        echo [ERROR] EveOS-local Camofox browser fetch failed.
+        popd
+        pause
+        exit /b 1
+    )
+)
+popd
+
+if not exist "%BROWSER_VERSION%" (
+    echo [ERROR] Camofox browser manifest missing: %BROWSER_VERSION%
+    pause
+    exit /b 1
+)
+if not exist "%BROWSER_EXE%" (
+    echo [ERROR] Camofox browser executable missing: %BROWSER_EXE%
+    echo [INFO] Rerun option 1 after inspecting the browser download log.
+    pause
+    exit /b 1
+)
+echo [OK] Camofox browser is installed inside EveOS: %BROWSER_ROOT%
 timeout /t 1 /nobreak >nul
 exit /b 0
 
@@ -140,9 +178,19 @@ if not exist "%BRIDGE_SCRIPT%" (
 )
 if not exist "%RUNTIME_SERVER%" (
     echo.
-    echo [ERROR] Camofox runtime is not installed.
-    echo         Run option 1 first.
+    echo [ERROR] Camofox runtime is not installed. Run option 1 first.
+    pause
+    exit /b 1
+)
+if not exist "%BROWSER_VERSION%" (
     echo.
+    echo [ERROR] EveOS-local Camofox browser is missing. Run option 1 first.
+    pause
+    exit /b 1
+)
+if not exist "%BROWSER_EXE%" (
+    echo.
+    echo [ERROR] EveOS-local browser executable is missing. Run option 1 first.
     pause
     exit /b 1
 )
