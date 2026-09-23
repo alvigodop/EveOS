@@ -12,6 +12,7 @@
     let taskbarAutoHideActive = false;
     let requestSerial = 0;
     let taskbarRequestSerial = 0;
+    let taskbarRequest = Promise.resolve();
 
     function readPreference() {
         try { return localStorage.getItem(PREF_KEY) === '1'; }
@@ -148,7 +149,11 @@
         if (!detached || !token) return { ok: true, deferred: true };
         const serial = ++taskbarRequestSerial;
         try {
-            const payload = await postWindowControl('immersive-taskbar', active);
+            // Native taskbar writes must reach Local Control in transition order, not
+            // response order (quick enter/exit otherwise can leave auto-hide enabled).
+            taskbarRequest = taskbarRequest.catch(() => {}).then(() =>
+                postWindowControl('immersive-taskbar', active));
+            const payload = await taskbarRequest;
             if (serial !== taskbarRequestSerial) return payload;
             taskbarAutoHideActive = active && payload.taskbarAutoHide === true;
             setImmersiveStatus(active

@@ -9,13 +9,12 @@ import re
 import threading
 from ctypes import wintypes
 
+from . import matrix_taskbar_control
+
 
 TITLE_PREFIX = "Matrix Code Rain v2.0 · EveOS Detached · "
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{8,80}$")
 GWL_EXSTYLE = -20
-WS_EX_TOPMOST = 0x00000008
-WS_EX_TRANSPARENT = 0x00000020
-WS_EX_TOOLWINDOW = 0x00000080
 WS_EX_APPWINDOW = 0x00040000
 WS_EX_NOACTIVATE = 0x08000000
 SWP_NOSIZE = 0x0001
@@ -23,31 +22,11 @@ SWP_NOMOVE = 0x0002
 SWP_NOACTIVATE = 0x0010
 SWP_FRAMECHANGED = 0x0020
 SWP_NOOWNERZORDER = 0x0200
-WS_POPUP = 0x80000000
-SS_BLACKRECT = 0x00000004
-SW_HIDE = 0
-SW_SHOWNOACTIVATE = 4
-PM_REMOVE = 0x0001
-ABM_GETSTATE = 0x00000004
-ABM_SETSTATE = 0x0000000A
-ABS_AUTOHIDE = 0x00000001
-_BACKGROUND_INTERVAL_SECONDS = 0.010
-_TASKBAR_WATCH_SECONDS = 0.20
+_BACKGROUND_INTERVAL_SECONDS = 0.10
 _ACTIVE_LOCKS = {}
 _ACTIVE_LOCKS_GUARD = threading.RLock()
-_TASKBAR_SESSION = {}
-_TASKBAR_GUARD = threading.RLock()
-
-
-class APPBARDATA(ctypes.Structure):
-    _fields_ = [
-        ("cbSize", wintypes.DWORD),
-        ("hWnd", wintypes.HWND),
-        ("uCallbackMessage", wintypes.UINT),
-        ("uEdge", wintypes.UINT),
-        ("rc", wintypes.RECT),
-        ("lParam", wintypes.LPARAM),
-    ]
+_set_taskbar_autohide = matrix_taskbar_control.set_taskbar_autohide
+_restore_taskbar_session = matrix_taskbar_control.restore_taskbar_session
 
 
 def is_supported() -> bool:
@@ -83,61 +62,10 @@ def _user32():
         ctypes.c_int, ctypes.c_int, wintypes.UINT,
     ]
     user32.SetWindowPos.restype = wintypes.BOOL
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.GetWindow.argtypes = [wintypes.HWND, wintypes.UINT]
+    user32.GetWindow.restype = wintypes.HWND
     return user32
-
-
-def _shell32():
-    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
-    shell32.SHAppBarMessage.argtypes = [wintypes.DWORD, ctypes.POINTER(APPBARDATA)]
-    shell32.SHAppBarMessage.restype = ctypes.c_size_t
-    return shell32
-
-
-def _edge_guard_loop(stop_event: threading.Event) -> None:
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    user32.CreateWindowExW.argtypes = [
-        wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD,
-        ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-        wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID,
-    ]
-    user32.CreateWindowExW.restype = wintypes.HWND
-    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
-    user32.UpdateWindow.argtypes = [wintypes.HWND]
-    user32.DestroyWindow.argtypes = [wintypes.HWND]
-    user32.GetCursorPos.argtypes = [ctypes.POINTER(wintypes.POINT)]
-    user32.PeekMessageW.argtypes = [
-        ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT,
-        wintypes.UINT, wintypes.UINT,
-    ]
-    width = int(user32.GetSystemMetrics(0))
-    height = int(user32.GetSystemMetrics(1))
-    if width <= 0 or height <= 2:
-        return
-    styles = WS_EX_TOPMOST | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
-    hwnd = user32.CreateWindowExW(
-        styles, "STATIC", "", WS_POPUP | SS_BLACKRECT,
-        0, height - 2, width, 2, None, None, None, None,
-    )
-    if not hwnd:
-        return
-    point = wintypes.POINT()
-    message = wintypes.MSG()
-    shown = False
-    try:
-        while not stop_event.wait(0.010):
-            while user32.PeekMessageW(ctypes.byref(message), hwnd, 0, 0, PM_REMOVE):
-                user32.TranslateMessage(ctypes.byref(message))
-                user32.DispatchMessageW(ctypes.byref(message))
-            near_edge = user32.GetCursorPos(ctypes.byref(point)) and point.y >= height - 3
-            if near_edge and shown:
-                user32.ShowWindow(hwnd, SW_HIDE)
-                shown = False
-            elif not near_edge and not shown:
-                user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
-                user32.UpdateWindow(hwnd)
-                shown = True
-    finally:
-        user32.DestroyWindow(hwnd)
 
 
 def _find_matrix_window(token: str):
@@ -232,6 +160,24 @@ def _stop_enforcement(token: str) -> bool:
     return True
 
 
+def _lock_needs_reassertion(user32, hwnd_value: int) -> bool:
+    style = _read_extended_style(user32, hwnd_value)
+    if not (style & WS_EX_NOACTIVATE) or not (style & WS_EX_APPWINDOW):
+        return True
+    foreground = _hwnd_value(user32.GetForegroundWindow())
+    if not foreground or foreground == hwnd_value:
+        return foreground == hwnd_value
+    # Avoid rewriting Chromium's z-order when it is already below the active app.
+    cursor = _hwnd_value(user32.GetWindow(hwnd_value, 3))  # GW_HWNDPREV
+    for _ in range(512):
+        if not cursor:
+            break
+        if cursor == foreground:
+            return False
+        cursor = _hwnd_value(user32.GetWindow(cursor, 3))
+    return True
+
+
 def _enforcement_loop(token: str, hwnd_value: int, stop_event: threading.Event) -> None:
     try:
         user32 = _user32()
@@ -239,7 +185,8 @@ def _enforcement_loop(token: str, hwnd_value: int, stop_event: threading.Event) 
             if not user32.IsWindow(hwnd_value):
                 break
             try:
-                _apply_window_lock(hwnd_value, True)
+                if _lock_needs_reassertion(user32, hwnd_value):
+                    _apply_window_lock(hwnd_value, True)
             except OSError:
                 break
     finally:
@@ -264,113 +211,17 @@ def _start_enforcement(token: str, hwnd) -> None:
     thread.start()
 
 
-def _taskbar_state() -> int:
-    data = APPBARDATA()
-    data.cbSize = ctypes.sizeof(APPBARDATA)
-    return int(_shell32().SHAppBarMessage(ABM_GETSTATE, ctypes.byref(data)))
-
-
-def _write_taskbar_state(state: int) -> int:
-    data = APPBARDATA()
-    data.cbSize = ctypes.sizeof(APPBARDATA)
-    data.lParam = int(state)
-    _shell32().SHAppBarMessage(ABM_SETSTATE, ctypes.byref(data))
-    return _taskbar_state()
-
-
-def _restore_taskbar_session(token: str | None = None) -> bool:
-    with _TASKBAR_GUARD:
-        if not _TASKBAR_SESSION:
-            return False
-        if token and _TASKBAR_SESSION.get("token") != token:
-            return False
-        state = dict(_TASKBAR_SESSION)
-        _TASKBAR_SESSION.clear()
-    stop = state.get("stop")
-    if stop:
-        stop.set()
-    try:
-        _write_taskbar_state(int(state.get("originalState", 0)))
-    except OSError:
-        return False
-    return True
-
-
-def _taskbar_watch_loop(token: str, hwnd_value: int, stop_event: threading.Event) -> None:
-    user32 = _user32()
-    while not stop_event.wait(_TASKBAR_WATCH_SECONDS):
-        if not user32.IsWindow(hwnd_value):
-            _restore_taskbar_session(token)
-            return
-
-
-def _set_taskbar_autohide(token: str, hwnd, enabled: bool) -> dict:
-    if not enabled:
-        restored = _restore_taskbar_session(token)
-        current = _taskbar_state()
-        return {
-            "ok": True,
-            "supported": True,
-            "taskbarAutoHide": bool(current & ABS_AUTOHIDE),
-            "taskbarRestored": restored,
-            "taskbarState": current,
-        }
-
-    with _TASKBAR_GUARD:
-        existing = dict(_TASKBAR_SESSION) if _TASKBAR_SESSION else None
-    if existing and existing.get("token") != token:
-        _restore_taskbar_session()
-
-    original = existing.get("originalState") if existing else _taskbar_state()
-    target = int(original) | ABS_AUTOHIDE
-    current = _write_taskbar_state(target)
-    if not (current & ABS_AUTOHIDE):
-        raise OSError("Windows taskbar auto-hide verification mismatch")
-
-    with _TASKBAR_GUARD:
-        if not _TASKBAR_SESSION:
-            stop_event = threading.Event()
-            hwnd_value = _hwnd_value(hwnd)
-            thread = threading.Thread(
-                target=_taskbar_watch_loop,
-                args=(token, hwnd_value, stop_event),
-                name=f"EveMatrixTaskbar:{token[:10]}",
-                daemon=True,
-            )
-            edge_thread = threading.Thread(
-                target=_edge_guard_loop,
-                args=(stop_event,),
-                name=f"EveMatrixTaskbarEdge:{token[:10]}",
-                daemon=True,
-            )
-            _TASKBAR_SESSION.update({
-                "token": token,
-                "hwnd": hwnd_value,
-                "originalState": int(original),
-                "stop": stop_event,
-                "thread": thread,
-                "edgeThread": edge_thread,
-            })
-            thread.start()
-            edge_thread.start()
-
-    return {
-        "ok": True,
-        "supported": True,
-        "taskbarAutoHide": True,
-        "taskbarRestored": False,
-        "taskbarOriginalState": int(original),
-        "taskbarState": current,
-        "edgeGuard": True,
-    }
-
-
 def shutdown() -> None:
     with _ACTIVE_LOCKS_GUARD:
-        tokens = list(_ACTIVE_LOCKS)
-    for token in tokens:
+        locks = [(token, state["hwnd"]) for token, state in _ACTIVE_LOCKS.items()]
+    for token, hwnd_value in locks:
         _stop_enforcement(token)
-    _restore_taskbar_session()
+        try:
+            if _user32().IsWindow(hwnd_value):
+                _apply_window_lock(hwnd_value, False)
+        except OSError:
+            pass  # A closed/closing detached window needs no native style restoration.
+    matrix_taskbar_control.shutdown()
 
 
 def apply_request(body) -> dict:

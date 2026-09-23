@@ -10,6 +10,7 @@ import socket
 import sys
 import threading
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -18,6 +19,7 @@ if str(ROOT) not in sys.path:
 
 from server_modules import eveos_control_helper as helper  # noqa: E402
 from server_modules import matrix_window_control as matrix_control  # noqa: E402
+from server_modules import matrix_taskbar_control as taskbar_control  # noqa: E402
 
 
 def assert_true(condition, message):
@@ -168,7 +170,98 @@ def route_contract():
         helper.matrix_window_control.apply_request = original_apply
 
 
+def state_transition_contract():
+    class FakeWindowApi:
+        def __init__(self, foreground, above):
+            self.foreground = foreground
+            self.above = above
+
+        def GetForegroundWindow(self):
+            return self.foreground
+
+        def GetWindow(self, hwnd, direction):
+            assert direction == 3
+            return self.above.get(hwnd, 0)
+
+    api = FakeWindowApi(22, {11: 22})
+    locked_style = matrix_control.WS_EX_NOACTIVATE | matrix_control.WS_EX_APPWINDOW
+    with patch.object(matrix_control, "_read_extended_style", return_value=locked_style):
+        assert_true(not matrix_control._lock_needs_reassertion(api, 11),
+                    "already-background Matrix should not rewrite z-order")
+        api.foreground = 11
+        assert_true(matrix_control._lock_needs_reassertion(api, 11),
+                    "activated Matrix must be pinned again")
+        api.foreground = 33
+        assert_true(matrix_control._lock_needs_reassertion(api, 11),
+                    "Matrix above active app must be pinned again")
+    with patch.object(matrix_control, "_read_extended_style", return_value=0):
+        assert_true(matrix_control._lock_needs_reassertion(api, 11),
+                    "missing native lock style must be repaired")
+
+    class FakeTrayApi:
+        def __init__(self, top):
+            self.top = top
+
+        def FindWindowW(self, *_args):
+            return 9
+
+        def IsWindowVisible(self, _hwnd):
+            return True
+
+        def GetWindowRect(self, _hwnd, pointer):
+            rect = pointer._obj
+            rect.left, rect.top, rect.right, rect.bottom = 0, self.top, 1920, 1246
+            return True
+
+    assert_true(not taskbar_control._tray_revealed(FakeTrayApi(1198), 1920, 1200),
+                "hidden 2px taskbar strip must keep the Matrix cover visible")
+    assert_true(taskbar_control._tray_revealed(FakeTrayApi(1152), 1920, 1200),
+                "revealed taskbar must hide the cover for normal interaction")
+
+    stop = threading.Event()
+    taskbar_control._SESSION.update({"token": "restore12", "originalState": 0,
+                                     "stop": stop, "watchdog": object()})
+    writes = []
+    with patch.object(taskbar_control, "_taskbar_state", return_value=1), \
+            patch.object(taskbar_control, "_write_taskbar_state",
+                         side_effect=lambda state: writes.append(state) or state), \
+            patch.object(taskbar_control, "_cancel_watchdog") as cancel:
+        assert_true(taskbar_control.restore_taskbar_session("restore12"),
+                    "taskbar session should restore on control-plane shutdown")
+        assert_true(writes == [0] and stop.is_set() and cancel.call_count == 1,
+                    "taskbar restore must stop guard and cancel independent watchdog")
+    assert_true(not taskbar_control._SESSION, "restored session must be cleared")
+
+
+def watchdog_contract():
+    class FakeStdin:
+        def __init__(self, payload):
+            self.buffer = self
+            self.payload = payload
+
+        def readline(self):
+            return self.payload
+
+    writes = []
+    with patch.object(taskbar_control.sys, "stdin", FakeStdin(b"")), \
+            patch.object(taskbar_control.os, "name", "nt"), \
+            patch.object(taskbar_control, "_taskbar_state", return_value=1), \
+            patch.object(taskbar_control, "_write_taskbar_state",
+                         side_effect=lambda state: writes.append(state)):
+        taskbar_control._watchdog_main(0, 1)
+    assert_true(writes == [0], "abrupt owner exit must restore prior taskbar state")
+    writes.clear()
+    with patch.object(taskbar_control.sys, "stdin", FakeStdin(b"cancel\n")), \
+            patch.object(taskbar_control.os, "name", "nt"), \
+            patch.object(taskbar_control, "_write_taskbar_state",
+                         side_effect=lambda state: writes.append(state)):
+        taskbar_control._watchdog_main(0, 1)
+    assert_true(not writes, "normal cancellation must not rewrite taskbar state")
+
+
 if __name__ == "__main__":
     direct_contract()
     route_contract()
+    state_transition_contract()
+    watchdog_contract()
     print("MATRIX_WINDOW_CONTROL_SMOKE_OK")

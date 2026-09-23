@@ -59,7 +59,8 @@ function main() {
         lines.forEach((line, n) => {
             if (/^\s*(\/\/|\*)/.test(line)) return;                 // prose, not code
             if (/\b\w*[Cc]anvas\.(width|height)\b/.test(line)
-                && !/element\.(width|height)\s*=/.test(line)) {
+                && !/element\.(width|height)\s*=/.test(line)
+                && !/previousRain\.(width|height)\s*=\s*canvas\.(width|height)/.test(line)) {
                 strays.push(`file#${index} line ${n + 1}: ${line.trim().slice(0, 70)}`);
             }
         });

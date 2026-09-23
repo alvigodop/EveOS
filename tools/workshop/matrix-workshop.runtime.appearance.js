@@ -84,13 +84,26 @@
             // every canvas. Resizing a canvas resets its context state, so the transform has to be
             // reinstated here or everything reverts to blurry 1:1 after the first resize -- and
             // dragging a window between a laptop screen and an external monitor changes the ratio.
+            // A focus/fullscreen transition may change innerHeight by only the taskbar strip.
+            // Keep the last rendered rain instead of flashing a blank buffer on canvas resize.
+            const previousRain = document.createElement('canvas');
+            previousRain.width = canvas.width;
+            previousRain.height = canvas.height;
+            if (previousRain.width && previousRain.height) {
+                previousRain.getContext('2d').drawImage(canvas, 0, 0);
+            }
+            const previousDrops = rainDrops;
+            const previousChars = rainDropsChars;
             sizeAllCanvases();
+            if (previousRain.width && previousRain.height) {
+                ctx.drawImage(previousRain, 0, 0, previousRain.width, previousRain.height,
+                    0, 0, viewWidth, viewHeight);
+            }
             buildDotGrid();
             columns = viewWidth / fontSize;
-            rainDrops = Array(Math.ceil(columns)).fill(1);
-            rainDropsChars = Array(Math.ceil(columns)).fill().map(() =>
-                alphabet.charAt(Math.floor(Math.random() * alphabet.length))
-            );
+            rainDrops = Array.from({ length: Math.ceil(columns) }, (_, index) => previousDrops[index] ?? 1);
+            rainDropsChars = Array.from({ length: Math.ceil(columns) }, (_, index) =>
+                previousChars[index] ?? alphabet.charAt(Math.floor(Math.random() * alphabet.length)));
             if (gridEnabled) {
                 drawGrid();
             }

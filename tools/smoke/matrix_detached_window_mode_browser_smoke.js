@@ -20,6 +20,9 @@ function assert(condition, message) {
     await page.route(`http://127.0.0.1:${CONTROL_PORT}/api/matrix-window/control`, async (route) => {
         const body = route.request().postDataJSON();
         controlCalls.push(body);
+        if (body.action === 'immersive-taskbar' && body.enabled) {
+            await new Promise(resolve => setTimeout(resolve, 40));
+        }
         await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -143,8 +146,27 @@ function assert(condition, message) {
             `immersive taskbar restore POST missing: ${JSON.stringify(controlCalls)}`
         );
 
+        controlCalls.length = 0;
+        await page.evaluate(async () => {
+            await Promise.all([
+                window.EveMatrixWindowMode.syncImmersiveTaskbar(true),
+                window.EveMatrixWindowMode.syncImmersiveTaskbar(false)
+            ]);
+        });
+        assert(controlCalls.length === 2 && controlCalls[0].enabled && !controlCalls[1].enabled,
+            `rapid immersive transition reordered native writes: ${JSON.stringify(controlCalls)}`);
+        assert(await page.evaluate(() => !window.EveMatrixWindowMode.isTaskbarAutoHideActive()),
+            'rapid immersive exit left the client showing taskbar auto-hide');
+
+        await page.evaluate(() => { rainDrops[0] = 37; });
+        await page.setViewportSize({ width: 1280, height: 801 });
+        await page.waitForFunction(() => viewHeight === 801);
+        const resized = await page.evaluate(() => ({ drop: rainDrops[0], height: canvas.height }));
+        assert(resized.drop >= 37 && resized.height > 0,
+            `focus/viewport resize restarted Matrix rain: ${JSON.stringify(resized)}`);
+
         console.log('MATRIX_DETACHED_WINDOW_MODE_BROWSER_SMOKE_OK', JSON.stringify({
-            boot, controlCalls, entered, exited
+            boot, rapidWrites: controlCalls.length, entered, exited, resized
         }));
     } finally {
         await browser.close();
