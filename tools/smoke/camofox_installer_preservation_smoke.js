@@ -14,9 +14,11 @@ function requireTrue(condition, message) {
 const batch = fs.readFileSync(batchPath, 'utf8');
 const runtimePackage = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 
-const installStart = batch.indexOf(':installRuntime');
-const installEnd = batch.indexOf(':startBridge');
-requireTrue(installStart >= 0 && installEnd > installStart, 'installer section boundaries are missing');
+const installMatch = /(?:^|\r?\n):installRuntime\r?\n/.exec(batch);
+const startMatch = /(?:^|\r?\n):startBridge\r?\n/.exec(batch);
+const installStart = installMatch?.index ?? -1;
+const installEnd = startMatch?.index ?? -1;
+requireTrue(installStart >= 0 && installEnd > installStart, 'installer label boundaries are missing');
 const installSection = batch.slice(installStart, installEnd);
 
 const checkIndex = installSection.indexOf('node "%INSTALL_DOCTOR%" --runtime >nul 2>nul');
