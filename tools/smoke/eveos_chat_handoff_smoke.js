@@ -22,7 +22,10 @@ const output = [result.stdout, result.stderr].filter(Boolean).join('\n');
 assert(result.status === 0, `chat handoff plan failed: ${output || result.error?.message || 'unknown error'}`);
 assert(output.includes('EVEOS CHAT HANDOFF PLAN'), 'chat handoff plan marker missing');
 assert(output.includes('PROFILE none'), 'chat handoff profile marker missing');
-assert(output.includes('RUN smoke:regressions'), 'chat handoff planned script missing');
+assert(
+  output.includes('RUN test:guardrails -> smoke:regressions'),
+  'focused chat handoff did not prepend structural guardrails'
+);
 assert(/HEAD [0-9a-f]{40}/i.test(output), 'chat handoff exact HEAD missing');
 
 const aiControl = spawnSync(process.execPath, [RUNNER, '--plan', '--profile', 'ai-control'], {
