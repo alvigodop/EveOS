@@ -75,7 +75,23 @@ async function camofoxPortState() {
     });
 }
 
+function selectedProviders() {
+    const filter = String(process.env.EVEOS_LIVE_PROVIDER_KEYS || '').split(',').map((key) => key.trim()).filter(Boolean);
+    const unknown = filter.filter((key) => !PROVIDERS.some((provider) => provider.key === key));
+    if (unknown.length) throw new Error(`Unknown diagnostic provider key(s): ${unknown.join(', ')}`);
+    if (!filter.length) return { providers: PROVIDERS, diagnosticOnly: false };
+    return { providers: PROVIDERS.filter((provider) => filter.includes(provider.key)), diagnosticOnly: true };
+}
+
+function relevantTail(source, maxLines = 8) {
+    return String(source || '').split(/\r?\n/).filter((line) =>
+        /error|failed|missing|version.json|HTTP\/1.1" [45][0-9][0-9]/i.test(line)
+    ).slice(-maxLines);
+}
+
 async function main() {
+    const { providers, diagnosticOnly } = selectedProviders();
+    const needsCamofox = providers.some((provider) => ['mangaupdates', 'comick'].includes(provider.key));
     const port = await getFreePort();
     const modularRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-api-provider-matrix-'));
     let browser = null;
@@ -89,12 +105,22 @@ async function main() {
     let serverStderr = '';
     let bridgeStdout = '';
     let bridgeStderr = '';
+    const networkDiagnostics = [];
+    const providerWarnings = [];
+    let matrixResult = null;
     server.stdout.on('data', (chunk) => { serverStdout += String(chunk); });
     server.stderr.on('data', (chunk) => { serverStderr += String(chunk); });
 
     try {
         await waitForStatus(`http://localhost:${port}/api/status`, 60000);
-        const bridgeState = await camofoxPortState();
+        if (needsCamofox && process.platform === 'win32' && !process.env.CAMOUFOX_EXECUTABLE) {
+            const cacheMarker = path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'),
+                'camoufox', 'camoufox', 'Cache', 'version.json');
+            if (!fs.existsSync(cacheMarker)) {
+                throw new Error(`Camofox browser is missing: ${cacheMarker}. From tools/camofox-runtime run: npx camoufox-js fetch. Do not qualify the full provider matrix until installed.`);
+            }
+        }
+        const bridgeState = needsCamofox ? await camofoxPortState() : 'not-required';
         if (bridgeState === 'foreign') {
             throw new Error(`Port ${CAMOFOX_BRIDGE_PORT} is occupied by an unverified service; leave it untouched.`);
         }
@@ -116,8 +142,23 @@ async function main() {
         const consoleErrors = [];
         page.on('pageerror', (error) => pageErrors.push(error && error.stack ? error.stack : String(error)));
         page.on('console', (msg) => {
-            if (msg.type() === 'error') {
-                consoleErrors.push(msg.text());
+            if (msg.type() === 'error') consoleErrors.push(msg.text());
+            if (msg.type() === 'warning' && /jikan|mangaupdates|proxy/i.test(msg.text())) {
+                providerWarnings.push(msg.text().split('\n')[0].slice(0, 220));
+            }
+        });
+        const isRelevant = (url) => /jikan|mangaupdates/i.test(url);
+        const recordNetwork = (event) => {
+            networkDiagnostics.push(event);
+            if (networkDiagnostics.length > 70) networkDiagnostics.shift();
+        };
+        page.on('response', (response) => {
+            const url = response.url();
+            if (isRelevant(url)) recordNetwork(`HTTP ${response.status()} ${url.slice(0, 250)}`);
+        });
+        page.on('requestfailed', (request) => {
+            if (isRelevant(request.url())) {
+                recordNetwork(`FAILED ${request.failure()?.errorText || 'unknown'} ${request.url().slice(0, 250)}`);
             }
         });
 
@@ -160,7 +201,7 @@ async function main() {
             await page.addScriptTag({ url: `http://localhost:${port}${scriptPath}` });
         }
 
-        const result = await page.evaluate(async (providers) => {
+        matrixResult = await page.evaluate(async (providers) => {
             window.EveOS = window.EveOS || {};
             window.EveOS.API = window.EveOS.API || {};
             window.EveOS.API.Display = {
@@ -207,7 +248,8 @@ async function main() {
                     ? (await window.EveOS.API.Cache.loadPool(categoryName)).order.slice()
                     : []
             };
-        }, PROVIDERS);
+        }, providers);
+        const result = matrixResult;
 
         if (pageErrors.length) {
             throw new Error(`Page errors detected:\n${pageErrors.join('\n\n')}`);
@@ -225,20 +267,27 @@ async function main() {
             row.liveCount < 1 || row.cachedCount < 1 || row.cacheOnlyCount < 1 || !row.cacheOnlyFromCache
         ));
         if (failures.length) {
-            throw new Error(`Provider matrix failures: ${JSON.stringify({ failures, result }, null, 2)}`);
+            throw new Error(`Provider matrix failed: ${failures.map((row) =>
+                `${row.key} live=${row.liveCount} cached=${row.cachedCount} cacheOnly=${row.cacheOnlyCount}`
+            ).join('; ')}`);
         }
 
-        console.log(`API_PROVIDER_MATRIX_LIVE_SMOKE_OK ${JSON.stringify(result)}`);
+        console.log(`${diagnosticOnly ? 'API_PROVIDER_MATRIX_DIAGNOSTIC_OK' : 'API_PROVIDER_MATRIX_LIVE_SMOKE_OK'} ${JSON.stringify(result)}`);
     } catch (error) {
-        console.error(error && error.stack ? error.stack : String(error));
-        console.error('--- SERVER STDOUT ---');
-        console.error(serverStdout);
-        console.error('--- SERVER STDERR ---');
-        console.error(serverStderr);
-        console.error('--- BRIDGE STDOUT ---');
-        console.error(bridgeStdout);
-        console.error('--- BRIDGE STDERR ---');
-        console.error(bridgeStderr);
+        const diagRoot = path.join(REPO_ROOT, 'data', 'runtime', 'smoke-results');
+        fs.mkdirSync(diagRoot, { recursive: true });
+        const diagPath = path.join(diagRoot, `api-live-matrix-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
+        fs.writeFileSync(diagPath, JSON.stringify({
+            error: error?.stack || String(error), providers, diagnosticOnly,
+            result: matrixResult, networkDiagnostics, providerWarnings,
+            serverStdout, serverStderr, bridgeStdout, bridgeStderr
+        }, null, 2));
+        console.error(`API_PROVIDER_MATRIX_FAIL ${error?.message || String(error)}`);
+        console.error(`DIAGNOSTICS ${path.relative(REPO_ROOT, diagPath)}`);
+        networkDiagnostics.slice(-10).forEach((line) => console.error(`NETWORK ${line}`));
+        providerWarnings.slice(-7).forEach((line) => console.error(`PROVIDER ${line}`));
+        relevantTail(serverStderr, 4).forEach((line) => console.error(`SERVER ${line}`));
+        relevantTail(bridgeStderr, 7).forEach((line) => console.error(`BRIDGE ${line}`));
         process.exitCode = 1;
     } finally {
         if (browser) {

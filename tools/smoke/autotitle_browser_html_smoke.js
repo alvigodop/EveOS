@@ -8,10 +8,12 @@ async function main() {
     const { browser } = await launchChromiumOrConnect({ headless: true });
     try {
     const page = await browser.newPage();
+    const consoleTail = [];
     page.on('console', (msg) => {
         const text = msg.text();
         if (/Autotitle:|MicroLink strategy:|AllOrigins failed|CorsProxy failed|LinkMeta failed|ScraperEngine/.test(text)) {
-            console.log(text);
+            consoleTail.push(text.split('\n')[0].slice(0, 220));
+            if (consoleTail.length > 24) consoleTail.shift();
         }
     });
 
@@ -42,6 +44,12 @@ async function main() {
             window.EveOS.Autotitle.Strategies = originalStrategies;
         }
     }, urls);
+    console.log('AUTOTITLE_LIVE_RESULTS ' + JSON.stringify(results.map(({ url, result }) => ({
+        url, title: result?.title, source: result?.source,
+        coverUrl: result?.coverUrl, icon: result?.icon,
+        blocked: result?.blocked, descriptionPresent: !!result?.description
+    }))));
+    console.log('AUTOTITLE_STRATEGY_TAIL ' + JSON.stringify(consoleTail.slice(-10)));
 
     const syntheticFallback = await page.evaluate(async () => {
         const originalStrategies = window.EveOS.Autotitle.Strategies;
