@@ -45,7 +45,7 @@ async function main() {
         }
     }, urls);
     console.log('AUTOTITLE_LIVE_RESULTS ' + JSON.stringify(results.map(({ url, result }) => ({
-        url, title: result?.title, source: result?.source,
+        url, title: result?.title, source: result?.source, transport: result?.transport,
         coverUrl: result?.coverUrl, icon: result?.icon,
         blocked: result?.blocked, descriptionPresent: !!result?.description
     }))));
@@ -286,7 +286,7 @@ async function main() {
     if (!/99182618-ae92-4aec-a5df-518659b7b613|og\.mangadex\.org\/og-image\/manga\/99182618-ae92-4aec-a5df-518659b7b613/i.test(String(first.result?.coverUrl || ''))) {
         throw new Error(`Expected derived MangaDex cover for first URL, got ${JSON.stringify(first)}`);
     }
-    if (!/mangadex\.org\/(?:pwa\/icons\/icon-180\.png|favicon\.ico)/i.test(String(first.result?.icon || ''))) {
+    if (!/mangadex\.org\/(?:pwa\/icons\/icon-180\.png|favicon\.(?:ico|svg))/i.test(String(first.result?.icon || ''))) {
         throw new Error(`Expected MangaDex icon for first URL, got ${JSON.stringify(first)}`);
     }
 
@@ -297,15 +297,16 @@ async function main() {
         throw new Error(`Expected MangaDex fallback transport to preserve English alt title, got ${JSON.stringify(mangaDexTransportFallback)}`);
     }
     if (mangaDexTransportFallback?.result?.transport !== 'local-proxy'
-        || mangaDexTransportFallback?.calls?.length !== 2
-        || !mangaDexTransportFallback.calls[0].startsWith('https://api.mangadex.org/')
-        || !mangaDexTransportFallback.calls[1].startsWith('http://127.0.0.1:8765/api/proxy?url=')) {
-        throw new Error(`Expected MangaDex strategy to fall back direct -> local proxy, got ${JSON.stringify(mangaDexTransportFallback)}`);
+        || !mangaDexTransportFallback?.calls?.some((url) => url.startsWith('https://api.mangadex.org/'))
+        || !mangaDexTransportFallback?.calls?.some((url) => url.startsWith('http://127.0.0.1:8765/api/proxy?url='))
+        || !mangaDexTransportFallback?.calls?.some((url) => url.startsWith('https://api.codetabs.com/'))
+        || !mangaDexTransportFallback?.calls?.some((url) => url.startsWith('https://api.allorigins.win/'))) {
+        throw new Error(`Expected MangaDex strategy to race all transports and accept local proxy, got ${JSON.stringify(mangaDexTransportFallback)}`);
     }
     if (!String(second.result?.coverUrl || '').includes('bf713abe-b415-45ac-8fd1-653dba578e0f')) {
         throw new Error(`Expected MangaDex cover for second URL, got ${JSON.stringify(second)}`);
     }
-    if (!/mangadex\.org\/(?:pwa\/icons\/icon-180\.png|favicon\.ico)/i.test(String(second.result?.icon || ''))) {
+    if (!/mangadex\.org\/(?:pwa\/icons\/icon-180\.png|favicon\.(?:ico|svg))/i.test(String(second.result?.icon || ''))) {
         throw new Error(`Expected MangaDex icon for second URL, got ${JSON.stringify(second)}`);
     }
 
