@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -30,6 +31,22 @@ def _runtime_root():
     if explicit:
         return explicit
     return os.path.join(_project_root(), "tools", "camofox-runtime")
+
+def _camofox_browser_root():
+    return os.path.join(_runtime_root(), "browser")
+
+def _camofox_browser_binary():
+    root = _camofox_browser_root()
+    if os.name == "nt":
+        return os.path.join(root, "camoufox.exe")
+    if sys.platform == "darwin":
+        return os.path.join(root, "Camoufox.app", "Contents", "MacOS", "camoufox")
+    return os.path.join(root, "camoufox-bin")
+
+def _camofox_browser_ready():
+    return os.path.isfile(os.path.join(_camofox_browser_root(), "version.json")) and os.path.isfile(
+        _camofox_browser_binary()
+    )
 
 def _camofox_server_entry_path():
     explicit = (os.environ.get("EVEOS_CAMOFOX_SERVER_ENTRY") or "").strip()
@@ -60,10 +77,7 @@ def _local_runtime_root():
     explicit = (os.environ.get("EVEOS_CAMOFOX_LOCAL_RUNTIME_ROOT") or "").strip()
     if explicit:
         return explicit
-    local_appdata = (os.environ.get("LOCALAPPDATA") or "").strip()
-    if local_appdata:
-        return os.path.join(local_appdata, "EveOS")
-    return os.path.join(os.path.expanduser("~"), ".eveos")
+    return os.path.join(_runtime_root(), "state")
 
 def _candidate_cookie_config_paths():
     explicit = (os.environ.get("EVEOS_CAMOFOX_COOKIE_CONFIG") or "").strip()

@@ -19,8 +19,11 @@ from urllib.parse import urlparse
 logger = logging.getLogger("FandomDiscoveryServer")
 
 from server_modules.camofox_runtime import (
+    _camofox_browser_ready,
+    _camofox_browser_root,
     _camofox_server_entry_path,
     _camofox_server_port,
+    _local_runtime_root,
     _node_binary,
     _project_root,
     _runtime_root,
@@ -107,6 +110,12 @@ def _start_log_thread(pipe, prefix):
 
 def _server_env(port=None):
     env = os.environ.copy()
+    state_root = _local_runtime_root()
+    env["CAMOUFOX_INSTALL_DIR"] = _camofox_browser_root()
+    env["CAMOFOX_PROFILE_DIR"] = os.path.join(state_root, "profiles")
+    env["CAMOFOX_COOKIES_DIR"] = os.path.join(state_root, "cookies")
+    env["CAMOFOX_TRACES_DIR"] = os.path.join(state_root, "traces")
+    env["CAMOFOX_UPLOADS_DIR"] = os.path.join(state_root, "uploads")
     env.setdefault("NODE_ENV", "development")
     env["CAMOFOX_PORT"] = str(port or _camofox_server_port())
     env.setdefault("SESSION_TIMEOUT_MS", "600000")
@@ -145,12 +154,20 @@ def _terminate_server_process():
 def is_camofox_runtime_available():
     return os.path.exists(_camofox_server_entry_path())
 
+def is_camofox_browser_installed():
+    return _camofox_browser_ready()
+
 def ensure_camofox_server():
     global _SERVER_PROCESS, _ACTIVE_SERVER_PORT
 
     if not is_camofox_runtime_available():
         raise RuntimeError(
             "Camofox runtime is not installed. Run tools\\batch\\start-camofox-bridge.bat and choose Install/Update Camofox runtime first."
+        )
+    if not _camofox_browser_ready():
+        raise RuntimeError(
+            f"Camofox browser is missing from EveOS: {_camofox_browser_root()}. "
+            "Run tools\\batch\\start-camofox-bridge.bat and select Install/Update (option 1)."
         )
 
     with _SERVER_LOCK:

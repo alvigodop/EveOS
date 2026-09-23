@@ -14,6 +14,7 @@ from server_modules.camofox_metadata import (
     _title_tokens,
 )
 from server_modules.camofox_runtime import (
+    _camofox_browser_root,
     _camofox_server_entry_path,
     _camofox_server_port,
     _candidate_cookie_config_paths,
@@ -49,5 +50,6 @@ from server_modules.camofox_server import (
     _terminate_server_process,
     current_camofox_server_port,
     ensure_camofox_server,
+    is_camofox_browser_installed,
     is_camofox_runtime_available,
 )

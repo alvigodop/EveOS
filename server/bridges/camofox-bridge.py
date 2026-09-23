@@ -95,6 +95,8 @@ class BridgeHandler(http.server.BaseHTTPRequestHandler):
                 "status": "ok",
                 "service": "camofox-bridge",
                 "runtimeAvailable": bool(camofox.is_camofox_runtime_available()),
+                "browserInstalled": bool(camofox.is_camofox_browser_installed()),
+                "browserRoot": camofox._camofox_browser_root(),
                 "bridgePort": self.server.server_address[1],
                 "serverPort": camofox.current_camofox_server_port(),
             }
