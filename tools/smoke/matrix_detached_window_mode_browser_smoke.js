@@ -83,6 +83,7 @@ function assert(condition, message) {
                     for (let index = 1; index < edgePixels.length; index += 4) {
                         if (edgePixels[index] > 20) edgeInk++;
                     }
+                    const openingFinished = !rainOpeningWave;
                     const postOpeningPhases = new Set(
                         rainDrops.map(drop => Math.floor(drop))
                     ).size;
@@ -100,7 +101,7 @@ function assert(condition, message) {
                     const probabilisticReset = rainDrops[0];
 
                     return {
-                        openingFinished: !rainOpeningWave,
+                        openingFinished,
                         postOpeningPhases,
                         edgeInk,
                         belowBottom,
