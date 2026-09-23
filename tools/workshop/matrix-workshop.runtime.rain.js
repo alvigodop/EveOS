@@ -192,11 +192,24 @@
                     const step = adjustDensity(1, 'continuous');
                     const drawY = y - fontSize / 2;
 
+                    // Both phases share one measured endpoint. The head keeps
+                    // moving logically below the viewport for probabilistic reset,
+                    // but rendering stops at the last complete glyph position.
+                    // A tiny shadow radius lets that terminal glyph kiss the
+                    // physical canvas edge without painting a second row past it.
+                    const metrics = ctx.measureText(rainDropsChars[i]);
+                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                        ? Math.max(1, metrics.actualBoundingBoxDescent)
+                        : fontSize * 0.4;
+                    const endpointGlow = 1.5;
+                    const landingY = Math.max(fontSize / 2,
+                        viewHeight - Math.ceil(glyphDescent + endpointGlow));
+                    const nextDrawY = drawY + step * fontSize;
+                    const landsThisFrame = drawY < landingY && nextDrawY >= landingY;
+
                     if (rainOpeningWave) {
                         // The intro is a synchronized *position* wave only.
-                        // Characters must keep changing while it falls, just like
-                        // ordinary Matrix rain; otherwise each column becomes one
-                        // repeated glyph from top to bottom.
+                        // Characters still churn as they fall.
                         if (!sequenceEnabled) {
                             const currentLine = Math.floor(y / fontSize);
                             if (currentLine > 0 && currentLine % lineChangeRate === 0
@@ -205,19 +218,14 @@
                             }
                         }
 
-                        const landingCenter = Math.max(fontSize / 2,
-                            viewHeight - fontSize / 2);
-                        if (drawY < landingCenter) {
+                        if (drawY < landingY && !landsThisFrame) {
                             ctx.fillText(rainDropsChars[i], x, drawY);
-                        } else {
-                            // Keep the black-strip fix: anchor the last intro
-                            // glyph by its em-box bottom at the physical canvas edge.
+                        } else if (landsThisFrame) {
                             ctx.save();
-                            ctx.textBaseline = 'bottom';
-                            ctx.globalAlpha = 0.28;
+                            ctx.globalAlpha = 0.2;
                             ctx.shadowColor = color;
-                            ctx.shadowBlur = 1.5;
-                            ctx.fillText(rainDropsChars[i], x, viewHeight);
+                            ctx.shadowBlur = endpointGlow;
+                            ctx.fillText(rainDropsChars[i], x, landingY);
                             ctx.restore();
                         }
                         rainDrops[i] += step;
@@ -241,15 +249,20 @@
                         }
                     }
 
-                    // Preserve the original lower-edge behavior: streams are
-                    // allowed to pass through the visible bottom before their
-                    // randomized restart. That removes the permanent black box
-                    // without spawning replacement heads in the middle of view.
-                    const alpha = Math.max(0.2, Math.min(1,
-                        (viewHeight - y) / (viewHeight * 0.3)));
-                    ctx.globalAlpha = alpha;
-                    ctx.fillText(rainDropsChars[i], x, drawY);
-                    ctx.globalAlpha = 1;
+                    if (drawY < landingY && !landsThisFrame) {
+                        const alpha = Math.max(0.2, Math.min(1,
+                            (viewHeight - y) / (viewHeight * 0.3)));
+                        ctx.globalAlpha = alpha;
+                        ctx.fillText(rainDropsChars[i], x, drawY);
+                        ctx.globalAlpha = 1;
+                    } else if (landsThisFrame) {
+                        ctx.save();
+                        ctx.globalAlpha = 0.2;
+                        ctx.shadowColor = color;
+                        ctx.shadowBlur = endpointGlow;
+                        ctx.fillText(rainDropsChars[i], x, landingY);
+                        ctx.restore();
+                    }
 
                     rainDrops[i] += step;
                 } else if (precipitationMode === 'dense') {
@@ -382,15 +395,21 @@
             }
 
             if (rainOpeningWave && continuousMode) {
-                // The opening wave is complete once every head has reached the
-                // same physical bottom edge used by the endpoint renderer.
-                const openingFinished = rainDrops.every(drop =>
-                    drop * fontSize >= viewHeight);
+                // Finish on the exact same measured endpoint used to render the
+                // terminal glow. This avoids a dead interval below the last glyph.
+                const openingFinished = rainDrops.every((drop, index) => {
+                    const metrics = ctx.measureText(rainDropsChars[index]);
+                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                        ? Math.max(1, metrics.actualBoundingBoxDescent)
+                        : fontSize * 0.4;
+                    const landingY = Math.max(fontSize / 2,
+                        viewHeight - Math.ceil(glyphDescent + 1.5));
+                    return drop * fontSize - fontSize / 2 >= landingY;
+                });
                 if (openingFinished) {
-                    // Do not mass-reseed the columns here. Leaving the synchronized
-                    // heads just below the edge lets the original probabilistic
-                    // reset logic release them independently over subsequent frames.
-                    // That is the handoff from one opening waterfall to normal rain.
+                    // Never mass-reseed here. The logical heads continue below
+                    // the endpoint and the original probabilistic reset releases
+                    // columns independently into normal rain.
                     rainOpeningWave = false;
                 }
             }
