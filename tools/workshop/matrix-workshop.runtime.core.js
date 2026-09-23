@@ -68,13 +68,6 @@
         let rainDrops = [];
         let rainDropsChars = [];
         let rainOpeningWave = true;
-        function nextRainEntry() {
-            // Every stream enters through the top edge, while a wide randomized
-            // delay breaks the columns out of the opening waterfall's shared
-            // phase and restores the original independent-rain rhythm.
-            const visibleRows = Math.max(1, viewHeight / fontSize);
-            return -(Math.random() * Math.min(28, visibleRows / 2));
-        }
         for (let x = 0; x < columns; x++) {
             // Original Matrix opening: one wave descends, then columns restart
             // independently after reaching the visible bottom.
