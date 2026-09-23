@@ -61,13 +61,15 @@ function assert(condition, message) {
             }
 
             const rainHandoff = await probeRainHandoff(freshPage);
-            assert(rainHandoff.openingFinished && rainHandoff.postOpeningPhases > 10,
-                `opening wave did not hand off to staggered normal rain: ${JSON.stringify(rainHandoff)}`);
+            assert(rainHandoff.openingFinished && rainHandoff.postOpeningPhases === 1,
+                `opening wave did not finish as one wave before normal rain: ${JSON.stringify(rainHandoff)}`);
+            assert(rainHandoff.openingChangedChars > 10,
+                `opening waterfall kept fixed per-column glyphs: ${JSON.stringify(rainHandoff)}`);
             assert(rainHandoff.edgeInk > 0,
                 `opening wave no longer reaches the physical bottom edge: ${JSON.stringify(rainHandoff)}`);
-            assert(rainHandoff.heldBelowBottom > rainHandoff.belowBottom
-                && rainHandoff.probabilisticReset <= 2,
-                `normal rain no longer waits/restarts probabilistically below the viewport: ${JSON.stringify(rainHandoff)}`);
+            assert(rainHandoff.independentlyRestarted === 1
+                && rainHandoff.stillWaitingBelow === rainHandoff.columnCount - 1,
+                `normal rain handoff mass-reseeded into a second waterfall: ${JSON.stringify(rainHandoff)}`);
 
             await freshPage.setViewportSize({ width: 1200, height: 600 });
             await freshPage.locator('#toggleToolbar').click();
