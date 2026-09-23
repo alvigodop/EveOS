@@ -141,6 +141,7 @@ function assert(condition, message) {
     const listeners = {};
     const gemini = { open: false, addEventListener(type, fn) { listeners[`gemini:${type}`] = fn; } };
     const localMoe = { open: false, addEventListener(type, fn) { listeners[`local:${type}`] = fn; } };
+    const primary = { dataset: {}, textContent: '', disabled: false };
     const inlineHost = { hidden: true };
     const inlineFrame = {
         dataset: {},
@@ -163,6 +164,7 @@ function assert(condition, message) {
         querySelector(selector) {
             if (selector === '[data-ai-provider="gemini"]') return gemini;
             if (selector === '[data-ai-provider="local-moe"]') return localMoe;
+            if (selector === '[data-local-moe-primary]') return primary;
             if (selector === '[data-local-moe-inline]') return inlineHost;
             if (selector === '[data-local-moe-frame]') return inlineFrame;
             return textNodes.get(selector) || null;
@@ -201,6 +203,8 @@ function assert(condition, message) {
         'Healthy Harness was mislabeled offline when the model runtime was stopped');
     assert(textNodes.get('[data-local-moe-runtime]').textContent === 'Stopped',
         'Stopped model runtime was mislabeled as an offline Local MoE Harness');
+    assert(primary.dataset.localMoeAction === 'start' && primary.textContent === 'Start model',
+        'Online Harness with stopped model did not expose a model-start recovery action');
 
     localMoeResponse = {
         ...localMoeResponse,
@@ -210,6 +214,8 @@ function assert(condition, message) {
     await api.refreshLocalMoe();
     assert(textNodes.get('[data-local-moe-runtime]').textContent === 'Loading model',
         'Managed model startup was not rendered separately from Harness health');
+    assert(primary.dataset.localMoeAction === 'stop' && primary.textContent === 'Stop',
+        'Managed model startup did not expose the full Local MoE stop action');
 
     localMoeResponse = {
         ...localMoeResponse,
