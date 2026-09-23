@@ -43,13 +43,27 @@ requireTrue(
     'verify can mutate asset versions before proving they are already synchronized'
 );
 
-for (const marker of [
+function requireProfileStartsWithGuardrail(profileName) {
+    const escaped = profileName.replace(/[.*+?^${}()|[\]\\]/g, '\\for (const marker of [
     "fast: ['test:guardrails',",
     "deep: [\n    'test:guardrails',",
     "security: ['test:guardrails',",
     "'ai-control': [\n    'test:guardrails',"
 ]) {
     requireTrue(profileSource.includes(marker), `smoke profile guardrail wiring missing: ${marker}`);
+}');
+    const match = profileSource.match(
+        new RegExp(`(?:^|\\n)\\s*['"]?${escaped}['"]?\\s*:\\s*\\[\\s*['"]([^'"]+)['"]`, 'm')
+    );
+    requireTrue(match, `smoke profile declaration missing: ${profileName}`);
+    requireTrue(
+        match[1] === 'test:guardrails',
+        `smoke profile guardrail wiring missing at first position: ${profileName}`
+    );
+}
+
+for (const profileName of ['fast', 'deep', 'security', 'ai-control']) {
+    requireProfileStartsWithGuardrail(profileName);
 }
 
 requireTrue(
