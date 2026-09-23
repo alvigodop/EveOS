@@ -37,7 +37,8 @@ function main() {
     const appearance = read('appearance');
     const resize = read('resize');
     const bouncy = read('bouncy');
-    const all = [core, rain, appearance, resize, bouncy, read('controls'), read('movement'), read('settings')];
+    const all = [core, rain, appearance, resize, bouncy, read('effects'),
+        read('controls'), read('movement'), read('settings')];
 
     // ---- device pixel ratio actually consulted ----
     assert(/devicePixelRatio/.test(core), 'the canvas sizing consults devicePixelRatio');
@@ -54,6 +55,7 @@ function main() {
         'resize no longer sizes the canvas 1:1 behind the helper\'s back');
 
     // ---- nothing may read a canvas buffer size as if it were a drawing coordinate ----
+    // The resize module may divide backing width by CSS width to convert physical-pixel copies.
     const strays = [];
     all.forEach((source, index) => {
         const lines = source.split('\n');
@@ -62,6 +64,8 @@ function main() {
             if (/\b\w*[Cc]anvas\.(width|height)\b/.test(line)
                 && !/element\.(width|height)\s*=/.test(line)
                 && !/const previousRain = canvas\.width && canvas\.height/.test(line)
+                && !/const newRatio = canvas\.width \/ viewWidth/.test(line)
+                && !/canvas\.(width|height) !== Math\.round\(view(Width|Height) \* backingRatio\)/.test(line)
                 && !/previousRain\.(width|height)\s*=\s*canvas\.(width|height)/.test(line)) {
                 strays.push(`file#${index} line ${n + 1}: ${line.trim().slice(0, 70)}`);
             }

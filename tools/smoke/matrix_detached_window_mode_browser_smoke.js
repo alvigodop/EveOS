@@ -51,6 +51,10 @@ function assert(condition, message) {
         assert(boot.detached && boot.token === TOKEN, `detached mode metadata mismatch: ${JSON.stringify(boot)}`);
         assert(boot.title.includes(TOKEN), `detached title was not uniquely tagged: ${boot.title}`);
         assert(boot.checkbox && boot.fullscreenButton, `window-mode controls missing: ${JSON.stringify(boot)}`);
+        const initialPhases = await page.evaluate(() =>
+            new Set(rainDrops.map(drop => Math.floor(drop))).size);
+        assert(initialPhases > 10,
+            `initial rain was synchronized into a horizontal cutoff band: ${initialPhases} phases`);
 
         await page.click('#toggleToolbar');
         await page.click('#system-section .section-header');
@@ -213,9 +217,139 @@ function assert(condition, message) {
             && returned.markerRed > 200,
             `fullscreen round-trip shifted or reset the original stream: ${JSON.stringify(returned)}`);
 
+        await page.evaluate(() => {
+            ctx.clearRect(0, 0, viewWidth, viewHeight);
+            rainDrops[6] = 37;
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(104, 110, 1, 1);
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.25)';
+            ctx.fillRect(106, 112, 1, 1);
+        });
+        for (const height of [943, 862, 1021, 701, 943, 801]) {
+            await page.setViewportSize({ width: 1280, height });
+            await page.waitForFunction((expected) => viewHeight === expected, height);
+        }
+        const repeatedResize = await page.evaluate(() => {
+            const pixels = ctx.getImageData(100, 100, 12, 22).data;
+            let redPixels = 0;
+            let peakRed = 0;
+            for (let index = 0; index < pixels.length; index += 4) {
+                if (pixels[index] > 20) redPixels++;
+                peakRed = Math.max(peakRed, pixels[index]);
+            }
+            return {
+                redPixels, peakRed, drop: rainDrops[6],
+                originalPixel: ctx.getImageData(104, 110, 1, 1).data[0],
+                trailAlpha: ctx.getImageData(106, 112, 1, 1).data[3]
+            };
+        });
+        assert(repeatedResize.redPixels === 1 && repeatedResize.peakRed === 255
+            && repeatedResize.originalPixel === 255 && repeatedResize.trailAlpha === 64
+            && Math.abs(repeatedResize.drop - 37) < 0.01,
+            `repeated resizing blurred a sharp rain pixel: ${JSON.stringify(repeatedResize)}`);
+
+        await page.evaluate(() => {
+            ctx.clearRect(0, 0, viewWidth, viewHeight);
+            rainDrops.fill(20);
+        });
+        await page.setViewportSize({ width: 1280, height: 1200 });
+        await page.waitForFunction(() => viewHeight === 1200);
+        const newBottom = await page.evaluate(() => {
+            const pixels = ctx.getImageData(0, 980, 1280, 200).data;
+            let greenPixels = 0;
+            for (let index = 1; index < pixels.length; index += 4) {
+                if (pixels[index] > 20) greenPixels++;
+            }
+            return {
+                greenPixels,
+                continuationCount: typeof resizeFillDrops === 'undefined' ? 0 : resizeFillDrops.length,
+                columnCount: rainDrops.length
+            };
+        });
+        assert(newBottom.greenPixels > 100 && newBottom.continuationCount > 20
+            && newBottom.continuationCount <= Math.ceil(newBottom.columnCount / 3),
+            `newly exposed bottom of rain stayed empty: ${JSON.stringify(newBottom)}`);
+
+        await page.setViewportSize({ width: 1280, height: 801 });
+        await page.waitForFunction(() => viewHeight === 801);
+        await page.evaluate(() => {
+            ctx.clearRect(0, 0, viewWidth, viewHeight);
+            rainDrops.fill(20);
+            resizeFillDrops = [];
+            rainKnownBottom.fill(viewHeight);
+        });
+        for (let height = 821; height <= 1001; height += 20) {
+            await page.setViewportSize({ width: 1280, height });
+            await page.waitForFunction((expected) => viewHeight === expected, height);
+        }
+        const draggedBottom = await page.evaluate(() => ({
+            height: viewHeight,
+            continuationCount: resizeFillDrops.length,
+            knownBottom: rainKnownBottom[1],
+            fontSize,
+            y: resizeFillDrops.find(drop => drop.column === 1)?.y ?? 0
+        }));
+        assert(draggedBottom.continuationCount > 20
+            && draggedBottom.knownBottom > draggedBottom.height - draggedBottom.fontSize * 3,
+            `incremental window drag left the bottom unpopulated: ${JSON.stringify(draggedBottom)}`);
+        await page.evaluate(() => { paused = false; });
+        await page.waitForFunction((initialY) =>
+            (resizeFillDrops.find(drop => drop.column === 1)?.y ?? Infinity) > initialY,
+            draggedBottom.y);
+        const retired = await page.evaluate(() => {
+            resizeFillDrops.forEach(drop => { drop.y = viewHeight + fontSize + 1; });
+            drawResizeFillRain();
+            return resizeFillDrops.length;
+        });
+        assert(retired === 0, `resize continuation became a permanent second rain layer: ${retired}`);
+
+        const scaledContext = await browser.newContext({
+            viewport: { width: 1280, height: 801 }, deviceScaleFactor: 1.25
+        });
+        try {
+            const scaledPage = await scaledContext.newPage();
+            await scaledPage.goto(FILE_URL, { waitUntil: 'load', timeout: 120000 });
+            await scaledPage.evaluate(() => {
+                paused = true;
+                ctx.clearRect(0, 0, viewWidth, viewHeight);
+                rainDrops[6] = 37;
+                ctx.save();
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(130, 138, 1, 1);
+                ctx.restore();
+            });
+            for (const height of [943, 862, 1021, 701, 943, 801]) {
+                await scaledPage.setViewportSize({ width: 1280, height });
+                await scaledPage.waitForFunction((expected) => viewHeight === expected, height);
+            }
+            const scaled = await scaledPage.evaluate(() => {
+                const pixels = ctx.getImageData(125, 125, 15, 25).data;
+                let redPixels = 0;
+                for (let index = 0; index < pixels.length; index += 4) {
+                    if (pixels[index] > 20) redPixels++;
+                }
+                return {
+                    dpr: window.devicePixelRatio, backingWidth: canvas.width,
+                    redPixels, originalPixel: ctx.getImageData(130, 138, 1, 1).data[0]
+                };
+            });
+            assert(scaled.dpr === 1.25 && scaled.backingWidth === 1600
+                && scaled.redPixels === 1 && scaled.originalPixel === 255,
+                `high-DPI resize softened or displaced a rain pixel: ${JSON.stringify(scaled)}`);
+            await scaledPage.evaluate(() => {
+                Object.defineProperty(window, 'devicePixelRatio', {
+                    configurable: true, value: 1.5
+                });
+            });
+            await scaledPage.waitForFunction(() => canvas.width === 1920, null, { timeout: 3000 });
+        } finally {
+            await scaledContext.close();
+        }
+
         console.log('MATRIX_DETACHED_WINDOW_MODE_BROWSER_SMOKE_OK', JSON.stringify({
             boot, rapidWrites: controlCalls.length, entered, exited, resized,
-            fullscreenColumns: expanded.count, returned
+            fullscreenColumns: expanded.count, returned, repeatedResize, newBottom
         }));
     } finally {
         await browser.close();

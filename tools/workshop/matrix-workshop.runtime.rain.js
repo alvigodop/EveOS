@@ -21,8 +21,11 @@
             // no layout yet at that moment -- a hidden tab, a pane that has not been shown -- every
             // canvas is created 0x0 and stays invisible until a resize event happens to fire. This
             // also picks up a devicePixelRatio change from dragging the window to another monitor,
-            // which emits no resize event of its own. Two number comparisons per frame.
-            if (viewWidth !== window.innerWidth || viewHeight !== window.innerHeight) {
+            // which emits no resize event of its own.
+            const backingRatio = Math.max(1, window.devicePixelRatio || 1);
+            if (viewWidth !== window.innerWidth || viewHeight !== window.innerHeight
+                || canvas.width !== Math.round(viewWidth * backingRatio)
+                || canvas.height !== Math.round(viewHeight * backingRatio)) {
                 if (typeof resizeCanvases === 'function') resizeCanvases();
                 else sizeAllCanvases();
             }
@@ -331,6 +334,8 @@
                 }
             }
 
+            drawResizeFillRain();
+
             // Draw additional effects
             if (gridEnabled) drawGrid();
             if (lightingEnabled) drawLighting();
@@ -342,105 +347,3 @@
             // Draw Bouncy Dots overlay (full-screen mode)
             animateBouncyDots();
         }
-
-        function drawGrid() {
-            // Clear the grid canvas
-            gridCtx.clearRect(0, 0, viewWidth, viewHeight);
-
-            // Set grid line style with custom color and opacity
-            const rgb = hexToRgb(gridColor);
-
-            // Draw cell backgrounds first
-            gridCtx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${gridOpacity * 0.05})`;
-            const columns = Math.ceil(viewWidth / fontSize);
-            const rows = Math.ceil(viewHeight / fontSize);
-
-            for (let col = 0; col < columns; col++) {
-                for (let row = 0; row < rows; row++) {
-                    const x = col * fontSize;
-                    const y = row * fontSize;
-                    gridCtx.fillRect(x, y, fontSize, fontSize);
-                }
-            }
-
-            // Draw grid lines
-            gridCtx.beginPath();
-            gridCtx.strokeStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${gridOpacity})`;
-            gridCtx.lineWidth = 1;
-
-            // Draw vertical lines
-            for (let col = 0; col <= columns; col++) {
-                const x = col * fontSize;
-                gridCtx.moveTo(x, 0);
-                gridCtx.lineTo(x, viewHeight);
-            }
-
-            // Draw horizontal lines
-            for (let row = 0; row <= rows; row++) {
-                const y = row * fontSize;
-                gridCtx.moveTo(0, y);
-                gridCtx.lineTo(viewWidth, y);
-            }
-
-            gridCtx.stroke();
-        }
-
-        function hexToRgb(hex) {
-            // Remove the # if present
-            hex = hex.replace(/^#/, '');
-
-            // Parse the hex values
-            const bigint = parseInt(hex, 16);
-            return {
-                r: (bigint >> 16) & 255,
-                g: (bigint >> 8) & 255,
-                b: bigint & 255
-            };
-        }
-
-        function drawLighting() {
-            if (!lightingEnabled) return;
-
-            const gradient = ctx.createRadialGradient(
-                viewWidth / 2, viewHeight / 2, 0,
-                viewWidth / 2, viewHeight / 2, viewWidth / 2
-            );
-
-            const rgb = hexToRgb(lightingColor);
-            gradient.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`);
-            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, viewWidth, viewHeight);
-        }
-
-        function drawParticles() {
-            if (!particlesEnabled) return;
-
-            // Update existing particles
-            particles = particles.filter(p => {
-                p.x += p.vx;
-                p.y += p.vy;
-                p.life--;
-                p.alpha = p.life / PARTICLE_LIFETIME;
-
-                const rgb = hexToRgb(particleColor);
-                ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${p.alpha})`;
-                ctx.fillRect(p.x, p.y, 2, 2);
-
-                return p.life > 0;
-            });
-
-            // Add new particles occasionally
-            if (Math.random() < 0.1) {
-                particles.push({
-                    x: Math.random() * viewWidth,
-                    y: Math.random() * viewHeight,
-                    vx: (Math.random() - 0.5) * 2,
-                    vy: (Math.random() - 0.5) * 2,
-                    life: PARTICLE_LIFETIME,
-                    alpha: 1
-                });
-            }
-        }
-

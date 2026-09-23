@@ -55,7 +55,7 @@
         let rainDrops = [];
         let rainDropsChars = [];
         for (let x = 0; x < columns; x++) {
-            rainDrops[x] = 1;
+            rainDrops[x] = Math.random() * (viewHeight / fontSize);
             rainDropsChars[x] = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
         }
 
