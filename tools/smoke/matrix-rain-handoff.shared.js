@@ -46,15 +46,69 @@ async function probeRainHandoff(page) {
             const independentlyRestarted = rainDrops.filter(drop => drop < bottomRow).length;
             const stillWaitingBelow = rainDrops.filter(drop => drop >= bottomRow).length;
 
-            return {
-                openingFinished,
-                openingChangedChars,
-                postOpeningPhases,
-                edgeInk,
-                independentlyRestarted,
-                stillWaitingBelow,
-                columnCount: rainDrops.length
+            // Isolate one normal-rain head and capture its terminal draw call.
+            // The head must emit one faint endpoint glow at the measured safe
+            // baseline, then continue logically without any further visible
+            // glyph overflowing below that baseline.
+            const originalFillText = ctx.fillText;
+            const terminalCalls = [];
+            ctx.fillText = function (text, x, y) {
+                terminalCalls.push({
+                    text, x, y,
+                    alpha: ctx.globalAlpha,
+                    shadowBlur: ctx.shadowBlur
+                });
+                return originalFillText.call(ctx, text, x, y);
             };
+            try {
+                rainOpeningWave = false;
+                lineChangeRate = Number.MAX_SAFE_INTEGER;
+                Math.random = () => 0;
+                rainDrops.fill(bottomRow + 10);
+                rainDropsChars.fill('M');
+
+                const metrics = ctx.measureText('M');
+                const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
+                    ? Math.max(1, metrics.actualBoundingBoxDescent)
+                    : fontSize * 0.4;
+                const endpointGlow = 1.5;
+                const landingY = Math.max(fontSize / 2,
+                    viewHeight - Math.ceil(glyphDescent + endpointGlow));
+                const stepPx = adjustDensity(1, 'continuous') * fontSize;
+                const crossingDrawY = landingY - stepPx / 2;
+                rainDrops[0] = (crossingDrawY + fontSize / 2) / fontSize;
+
+                terminalCalls.length = 0;
+                draw();
+                const crossingCalls = terminalCalls.slice();
+                terminalCalls.length = 0;
+                draw();
+                const afterCrossingCalls = terminalCalls.slice();
+
+                const endpointCall = crossingCalls.find(call =>
+                    Math.abs(call.y - landingY) < 0.01);
+                const overflowCalls = crossingCalls.concat(afterCrossingCalls)
+                    .filter(call => call.y > landingY + 0.01);
+
+                return {
+                    openingFinished,
+                    openingChangedChars,
+                    postOpeningPhases,
+                    edgeInk,
+                    independentlyRestarted,
+                    stillWaitingBelow,
+                    columnCount: rainDrops.length,
+                    landingY,
+                    endpointBoundsSafe:
+                        landingY + glyphDescent + endpointGlow <= viewHeight,
+                    endpointGlowSeen: Boolean(endpointCall
+                        && endpointCall.alpha <= 0.21
+                        && endpointCall.shadowBlur >= endpointGlow),
+                    overflowCallCount: overflowCalls.length
+                };
+            } finally {
+                ctx.fillText = originalFillText;
+            }
         } finally {
             Math.random = originalRandom;
             rainDrops = savedDrops;
