@@ -18,34 +18,41 @@
             }
 
             const count = Math.min(oldCount, rainDrops.length);
-            const stride = gap <= fontSize * 4 ? 2 : 3;
+            // Small drags need only a few continuations; large expansions need
+            // more coverage so the revealed band never reads as a rectangular void.
+            const stride = gap <= fontSize * 2 ? 4
+                : (gap <= fontSize * 6 ? 3 : 2);
             for (let column = 0; column < count; column++) {
                 const phase = Math.abs(Math.floor((rainDrops[column] || 0) * 7) + column * 11);
                 if (phase % stride !== 0) continue;
 
                 const char = rainDropsChars[column] || getRandomSelectedChar();
-                const metrics = ctx.measureText(char);
-                const descent = Number.isFinite(metrics.actualBoundingBoxDescent)
-                    ? Math.max(1, metrics.actualBoundingBoxDescent)
-                    : fontSize * 0.4;
-                const landingY = Math.max(fontSize / 2,
-                    viewHeight - Math.ceil(descent + 1.5));
+                const landingY = getRainLandingY(char);
                 if (landingY <= oldHeight + 1) continue;
 
                 const x = column * fontSize + fontSize / 2;
-                const phaseOffset = ((rainDrops[column] || 0) * fontSize) % fontSize;
-                let y = oldHeight + Math.max(fontSize * 0.5,
-                    (phaseOffset + fontSize) % fontSize);
-                const rowStep = fontSize * (1 + (column % 2));
+                // Continue the existing stream's glyph lattice instead of
+                // inventing an arbitrary start row. This makes the revealed band
+                // visually connect to the rain above at every window height.
+                const headDrawY = (rainDrops[column] || 0) * fontSize - fontSize / 2;
+                const phaseOffset = ((headDrawY % fontSize) + fontSize) % fontSize;
+                let y = oldHeight + ((phaseOffset - oldHeight) % fontSize + fontSize) % fontSize;
+                if (y <= oldHeight + 1) y += fontSize;
+
                 let trail = 0;
-                while (y <= landingY && trail < 18) {
+                while (y < landingY - fontSize * 0.35 && trail < 24) {
                     const depth = Math.max(0, Math.min(1, (y - oldHeight) / gap));
                     ctx.globalAlpha = Math.max(0.12,
-                        Math.pow(1 - fadeSpeed, trail + 1) * (0.42 - depth * 0.16));
+                        Math.pow(1 - fadeSpeed, trail + 1) * (0.44 - depth * 0.18));
                     ctx.fillText(getRandomSelectedChar(), x, y);
-                    y += rowStep;
+                    y += fontSize;
                     trail++;
                 }
+
+                // Always finish a seeded continuation with the exact same
+                // measured endpoint/glow used by live rain. No arbitrary final
+                // row means no resize-size-specific bottom sliver.
+                drawRainTerminalGlyph(char, x, 0.18);
             }
             ctx.restore();
         }
