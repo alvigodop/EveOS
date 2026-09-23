@@ -325,6 +325,7 @@ function assert(condition, message) {
         await page.waitForFunction(() => viewHeight === 801);
         const beforeGrow = await page.evaluate(() => {
             ctx.clearRect(0, 0, viewWidth, rainBufferHeight);
+            rainOpeningWave = false;
             rainDrops[6] = 39;
             return { head: rainDrops[6], backingHeight: canvas.height };
         });
@@ -334,16 +335,19 @@ function assert(condition, message) {
         }
         const newBottom = await page.evaluate(() => {
             const preserved = rainDrops[6] === 39;
+            const seededPixels = ctx.getImageData(0, 802, viewWidth, viewHeight - 802).data;
+            const seededInk = seededPixels
+                .filter((_value, index) => index % 4 === 1 && _value > 20).length;
             rainDrops[6] = 60;
             paused = false;
             draw();
             paused = true;
-            return { height: viewHeight, backingHeight: canvas.height, preserved,
+            return { height: viewHeight, backingHeight: canvas.height, preserved, seededInk,
                 ink: ctx.getImageData(96, 940, 16, 40).data
                     .filter((_value, index) => index % 4 === 1 && _value > 20).length };
         });
-        assert(newBottom.ink > 0 && newBottom.backingHeight > beforeGrow.backingHeight
-            && newBottom.preserved,
+        assert(newBottom.seededInk > 50 && newBottom.ink > 0
+            && newBottom.backingHeight > beforeGrow.backingHeight && newBottom.preserved,
             `newly exposed space did not accept a continuous stream: ${JSON.stringify(newBottom)}`);
         await page.evaluate(() => { paused = false; });
 
