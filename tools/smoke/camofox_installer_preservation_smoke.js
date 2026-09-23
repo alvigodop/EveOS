@@ -56,5 +56,14 @@ for (const variable of ['CAMOUFOX_INSTALL_DIR', 'CAMOUFOX_EXECUTABLE',
 }
 requireTrue(server.includes('env["CAMOUFOX_EXECUTABLE"] = browser_binary'),
     'canonical external executable override is not bound to EveOS-local browser');
+requireTrue(server.includes('env["LOCALAPPDATA"] = _windows_localappdata_root()'),
+    'legacy Windows Camoufox cache is not redirected into EveOS state');
+requireTrue(server.includes('def _windows_camofox_cache_root():')
+    && server.includes('"camoufox", "camoufox", "Cache"'),
+    'project-local legacy Camoufox cache layout is missing');
+requireTrue(server.includes('["cmd.exe", "/d", "/c", "mklink", "/J", cache_root, browser_root]'),
+    'legacy Camoufox compatibility cache does not junction to the verified EveOS browser');
+requireTrue(server.includes('EveOS-local compatibility cache'),
+    'Camofox compatibility-cache launch diagnostic is missing');
 
 console.log('CAMOFOX_INSTALLER_PRESERVATION_SMOKE_OK');
