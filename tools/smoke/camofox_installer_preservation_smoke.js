@@ -6,6 +6,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const batchPath = path.join(ROOT, 'tools', 'batch', 'start-camofox-bridge.bat');
 const packagePath = path.join(ROOT, 'tools', 'camofox-runtime', 'package.json');
+const serverPath = path.join(ROOT, 'server_modules', 'camofox_server.py');
 
 function requireTrue(condition, message) {
     if (!condition) throw new Error(message);
@@ -13,6 +14,7 @@ function requireTrue(condition, message) {
 
 const batch = fs.readFileSync(batchPath, 'utf8');
 const runtimePackage = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+const server = fs.readFileSync(serverPath, 'utf8');
 
 const installMatch = /(?:^|\r?\n):installRuntime\r?\n/.exec(batch);
 const startMatch = /(?:^|\r?\n):startBridge\r?\n/.exec(batch);
@@ -41,5 +43,14 @@ requireTrue(runtimePackage.dependencies?.['@askjo/camofox-browser'] === '1.14.0'
     'Camofox server dependency pin drifted');
 requireTrue(!runtimePackage.dependencies?.['camoufox-js'],
     'camoufox-js must not be installed separately just to fetch the browser');
+requireTrue(server.includes('browser_binary = _camofox_browser_binary()'),
+    'Camofox server launch does not resolve the EveOS-local executable');
+for (const variable of ['CAMOUFOX_INSTALL_DIR', 'CAMOUFOX_EXECUTABLE',
+    'CAMOUFOX_EXECUTABLE_PATH', 'CAMOFOX_EXECUTABLE_PATH']) {
+    requireTrue(server.includes(`env["${variable}"]`),
+        `Camofox server launch is missing ${variable}`);
+}
+requireTrue(server.includes('env["CAMOUFOX_EXECUTABLE"] = browser_binary'),
+    'canonical external executable override is not bound to EveOS-local browser');
 
 console.log('CAMOFOX_INSTALLER_PRESERVATION_SMOKE_OK');
