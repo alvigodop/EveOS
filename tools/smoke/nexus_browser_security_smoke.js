@@ -4,6 +4,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { websocketOriginAllowed } = require('../../tools/Nexus-Browser/server-http');
 
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -23,4 +24,17 @@ assert.match(
     'Nexus Browser no longer permits the supported local file:// EveOS parent'
 );
 assert.match(server, /websocketOriginAllowed\(req\.headers\.origin, PORT\)/);
+for (const localPath of [
+    'data/runtime/nexus-browser/dex-state.json',
+    'data/runtime/agent-management/agents.json',
+    'tools/Nexus-Browser/.browser-ai-bridge/dex-state.json'
+]) {
+    const ignored = spawnSync('git', ['check-ignore', '-q', localPath], { cwd: ROOT });
+    assert.equal(ignored.status, 0, `${localPath} could be accidentally staged`);
+}
+const trackedPrivate = spawnSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+assert.equal(trackedPrivate.status, 0, 'Could not audit tracked private runtime files');
+const privatePaths = trackedPrivate.stdout.split('\0').filter((name) =>
+    name.startsWith('data/runtime/') || name.startsWith('.browser-ai-bridge/') || name.includes('/.browser-ai-bridge/'));
+assert.deepEqual(privatePaths, [], 'Private Nexus or Agent Management runtime data is tracked');
 console.log('NEXUS_BROWSER_SECURITY_SMOKE_OK');

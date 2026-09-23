@@ -40,9 +40,50 @@ test('Dex state sync prefers a newer localhost snapshot over stale browser stora
   assert.equal(state.activeRoomId, 'remote');
 });
 
+test('fresh browser default never outranks a durable localhost snapshot', () => {
+  const storage = memoryStorage();
+  const state = { rooms: [], activeRoomId: null };
+  const sent = [];
+  const sync = syncApi.createSync({
+    state, storageKey: 'rooms', storage, normalizeRoom: normalize,
+    defaultRoom: () => ({ ...fallback(), updatedAt: '2026-09-23T12:00:00.000Z' }),
+    send: (payload) => { sent.push(payload); return true; },
+    now: () => '2026-09-23T12:01:00.000Z'
+  });
+  sync.loadLocal();
+  const result = sync.applyRemote(snapshot());
+  assert.equal(result.applied, true);
+  assert.deepEqual(state.rooms.map((room) => room.id), ['room-durable-1', 'room-durable-2']);
+  assert.equal(sent.length, 0);
+  assert.equal(JSON.parse(storage.values.rooms).length, 2);
+});
+
+test('a newer partial browser mirror cannot erase server-only rooms', () => {
+  const storage = memoryStorage({ rooms: JSON.stringify([{
+    id: 'room-durable-1', name: 'Partial', updatedAt: '2026-09-23T12:00:00.000Z'
+  }]) });
+  const state = { rooms: [], activeRoomId: null };
+  const sent = [];
+  const sync = syncApi.createSync({
+    state, storageKey: 'rooms', storage, normalizeRoom: normalize,
+    defaultRoom: fallback, send: (payload) => { sent.push(payload); return true; }
+  });
+  sync.loadLocal();
+  assert.equal(sync.applyRemote(snapshot()).applied, true);
+  assert.equal(state.rooms.length, 2);
+  assert.equal(sent.length, 0);
+});
+
+function snapshot() {
+  return {
+    rooms: [fallback('durable-1'), fallback('durable-2')],
+    activeRoomId: 'room-durable-1', savedAt: '2026-09-22T12:00:00.000Z'
+  };
+}
+
 test('Dex state sync preserves newer browser state and pushes it back to localhost', () => {
   const storage = memoryStorage({
-    rooms: JSON.stringify([{ id: 'local', name: 'Local', updatedAt: '2026-09-18T08:10:00.000Z' }])
+    rooms: JSON.stringify([{ id: 'shared', name: 'Local', updatedAt: '2026-09-18T08:10:00.000Z' }])
   });
   const state = { rooms: [], activeRoomId: null };
   const sent = [];
@@ -53,13 +94,14 @@ test('Dex state sync preserves newer browser state and pushes it back to localho
   });
   sync.loadLocal();
   const result = sync.applyRemote({
-    rooms: [{ id: 'remote', name: 'Remote', updatedAt: '2026-09-18T08:00:00.000Z' }],
-    activeRoomId: 'remote',
+    rooms: [{ id: 'shared', name: 'Remote', updatedAt: '2026-09-18T08:00:00.000Z' }],
+    activeRoomId: 'shared',
     savedAt: '2026-09-18T08:01:00.000Z'
   });
   assert.equal(result.applied, false);
   assert.equal(result.reason, 'local-newer');
-  assert.equal(state.rooms[0].id, 'local');
+  assert.equal(state.rooms[0].id, 'shared');
+  assert.equal(state.rooms[0].name, 'Local');
   assert.equal(sent.at(-1).type, 'dex_state_put');
 });
 

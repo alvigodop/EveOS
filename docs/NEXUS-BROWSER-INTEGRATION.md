@@ -26,7 +26,16 @@ The Node/WebSocket runtime remains a separate process because browser transport,
 - `server_modules/nexus_browser_control.py`: EveOS lifecycle and process-ownership adapter.
 - `js/modules/gemini/search_monitor/nexusBrowser.js`: embedded Agent Nexus surface.
 
-Private POC notes, live rooms, PIDs, logs, browser profiles, sessions, credentials, downloads, and `.browser-ai-bridge` state were not imported.
+The source merge imported code and public tests only. Private notes, rooms, PIDs, logs, browser profiles, sessions, credentials, downloads, and `.browser-ai-bridge` state are never part of Git. A separate, opt-in, local-only room migration is described below.
+
+## Private data boundary and room migration
+
+- `data/runtime/nexus-browser/dex-state.json` holds private Dex rooms, participants, and transcripts. The browser keeps a localStorage mirror for its own origin, but localhost is the durable room store and owns active relay/recovery fields.
+- `data/runtime/nexus-browser/dex-turn-ledger.jsonl` and `incidents.jsonl` are runtime-only dispatch and diagnostic records. They are not datapacks or portable defaults.
+- `data/runtime/agent-management/agents.json` separately holds Agent Management profiles, scopes, and provider bindings. It is not a transcript store and Nexus Browser does not silently copy chats into it.
+- Both runtime directories and legacy `.browser-ai-bridge/` folders are Git-ignored. The Nexus security smoke also fails if either private runtime tree is tracked. Only schema, implementation, safe examples, and tests belong in the repository.
+
+To import rooms from an old local build, use `node tools/Nexus-Browser/scripts/import-legacy-rooms.js --source <absolute legacy folder>` for a dry run. Stop the EveOS-owned Nexus Browser service, repeat with `--apply`, then start it again from Search Monitor. The importer keeps the source untouched, refuses active/conflicting room state, backs up the current EveOS snapshot under ignored `migration-backups/`, preserves room/message IDs, and verifies written counts. Stale recovery markers are normalized without deleting transcripts. Re-running the import does not duplicate already imported rooms. Do not copy the old `.browser-ai-bridge` directory wholesale; its logs, stale PIDs, and dispatch ledger are not portable room data.
 
 ## Lifecycle and process safety
 
@@ -61,7 +70,7 @@ data/runtime/nexus-browser/
 
 `npm run --silent smoke:nexus-browser` runs the focused lifecycle, surface, and imported public contract suites with one passing summary line. Full failure detail is saved under ignored `data/runtime/smoke-results/`. The root fast/deep/security profiles include the focused Nexus Browser gates, while `npm run verify` is the final uncached repository gate.
 
-This preserves the POC's deterministic reliability coverage while applying EveOS's bounded-output, fingerprint-aware smoke policy. It does not reduce assertions or hide failures.
+This preserves the source project's deterministic reliability coverage while applying EveOS's bounded-output, fingerprint-aware smoke policy. It does not reduce assertions or hide failures.
 
 ## Delete-readiness boundary
 
@@ -73,5 +82,6 @@ The original POC is safe to delete only after all of these are true:
 4. at least one disposable supported-provider round trip proves exact target send/capture;
 5. Global Stop leaves no EveOS-owned Nexus Browser listener/process;
 6. final `npm run verify` passes and the merger commit is pushed.
+7. any wanted private rooms have been migrated and verified locally, and personal notes/configuration in the old folder have been reviewed.
 
 Until then, keep the original POC as a rollback/comparison source. EveOS never mutates or deletes it.

@@ -25,6 +25,7 @@
   }) {
     let lastLocalJson = '';
     let remoteTimer = null;
+    let hasPersistedRooms = false;
     function ensureRooms(rooms) {
       const values = Array.isArray(rooms) ? rooms.map(normalizeRoom) : [];
       return values.length ? values : [defaultRoom(1)];
@@ -33,6 +34,7 @@
     function loadLocal() {
       let rooms = [];
       try { rooms = JSON.parse(storage?.getItem?.(storageKey) || '[]'); } catch {}
+      hasPersistedRooms = Array.isArray(rooms) && rooms.length > 0;
       state.rooms = ensureRooms(rooms);
       if (!state.rooms.some((room) => room.id === state.activeRoomId)) state.activeRoomId = state.rooms[0].id;
       lastLocalJson = JSON.stringify(state.rooms);
@@ -57,6 +59,7 @@
       const nextJson = JSON.stringify(state.rooms);
       if (nextJson !== lastLocalJson) {
         try { storage?.setItem?.(storageKey, nextJson); } catch {}
+        hasPersistedRooms = true;
         lastLocalJson = nextJson;
       }
       if (!remote) return;
@@ -77,7 +80,9 @@
       }
       const localTime = latestRoomStamp(state.rooms);
       const remoteTime = Math.max(stamp(remote?.savedAt), latestRoomStamp(remoteRooms));
-      if (!hasRuntimeWork(remoteRooms) && localTime > remoteTime) {
+      const localIds = new Set(state.rooms.map((room) => room?.id).filter(Boolean));
+      const localCoversRemote = remoteRooms.every((room) => localIds.has(room?.id));
+      if (hasPersistedRooms && localCoversRemote && !hasRuntimeWork(remoteRooms) && localTime > remoteTime) {
         persist({ immediate: true });
         return { applied: false, reason: 'local-newer' };
       }

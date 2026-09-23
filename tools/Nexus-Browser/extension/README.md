@@ -6,7 +6,7 @@ This directory contains the Nexus Browser Online-Origin extension runtime: servi
 
 Future agents working in this directory should **use the repo's automated npm workflow before asking Drift to do browser work manually**.
 
-From `Browser-AI-Bridge-POC`:
+From `tools/Nexus-Browser` in EveOS:
 
 ```powershell
 npm run extension:refresh

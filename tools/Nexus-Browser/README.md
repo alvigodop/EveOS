@@ -10,7 +10,9 @@ Runtime data: data/runtime/nexus-browser
 URL: http://127.0.0.1:9088/
 ```
 
-The imported public baseline is `Browser-AI-Bridge-POC` commit `8d61115dae63cf94a2a8a236f727c172e0ca7f99`. See `../../docs/NEXUS-BROWSER-INTEGRATION.md` for ownership and deletion criteria.
+Rooms, participants, and transcripts are private machine-local state, not repository or datapack content. Agent Management profiles live separately under `data/runtime/agent-management/`; they are not copied into Nexus Browser chat transport. For a safe dry-run/import of rooms from a legacy local build, see `../../docs/NEXUS-BROWSER-INTEGRATION.md`.
+
+The integration's historical source baseline is recorded in `../../docs/NEXUS-BROWSER-INTEGRATION.md`. This directory is the EveOS-owned Nexus Browser implementation.
 
 Standalone localhost bridge for two target classes:
 
@@ -98,7 +100,7 @@ Before injecting a prompt the adapter requires the captured Antigravity screen t
 
 Browser-originated prompts are normalized to one line before console injection. The native TUI remains visible and should show the injected prompt and resulting work exactly where the user was already working.
 
-Response capture is based on the visible Antigravity console screen. This is intentionally a POC boundary: very long responses that have already scrolled out of the visible console may need a later richer terminal-capture transport.
+Response capture is based on the visible Antigravity console screen. Very long responses that have already scrolled out of the visible console may need a richer terminal-capture transport.
 
 Set this only to disable existing-session discovery:
 
@@ -348,9 +350,9 @@ npm test
 ## Known limitations
 
 - Antigravity officially supports Remote Control companion UIs for interactive CLI sessions, but the public CLI docs do not currently document a stable third-party local IPC/API that Nexus Browser can directly reuse for an arbitrary already-running TUI.
-- Existing-session control therefore uses Windows console attachment as the no-restart POC path. Windows Terminal/ConPTY behavior must be proven locally rather than assumed.
+- Existing-session control uses Windows console attachment without restarting the target. Windows Terminal/ConPTY behavior must be proven locally rather than assumed.
 - If Google exposes a documented local Remote Control protocol, that should become the preferred attached-session transport while keeping this console adapter as a compatibility fallback.
-- Existing-session reply extraction currently reads the visible console surface; output that has already scrolled away may not be recoverable by this POC adapter.
+- Existing-session reply extraction currently reads the visible console surface; output that has already scrolled away may not be recoverable by this adapter.
 - Spawned Session remains available because it provides a reliable supported programmatic fallback when a native terminal cannot be attached.
 - Legacy Gemini CLI may be unusable for accounts migrated to Antigravity.
 - Provider websites can change their DOM and require online-adapter maintenance.
