@@ -14,8 +14,11 @@ writes to the per-user Camoufox browser cache.
 
 The Node server is a separate install step: @askjo/camofox-browser uses
 better-sqlite3, which may require a working Windows C++ toolchain and Windows
-SDK. If npm reports "missing any Windows SDK", use Visual Studio Installer
-to Modify Build Tools 2022 and install the Windows 11 SDK; then retry option 1.
+SDK. Option 1 first runs the runtime doctor; if the existing native runtime is
+healthy, node_modules is preserved and npm is skipped. This prevents a browser
+update from needlessly rebuilding a working better-sqlite3 installation. Only
+a missing/incomplete runtime invokes npm. If npm then reports "missing any
+Windows SDK", use Visual Studio Installer to add the Windows 11 SDK and retry.
 A successfully downloaded browser is preserved across npm build failures.
 Do not delete node_modules while a Camofox process is running.
 

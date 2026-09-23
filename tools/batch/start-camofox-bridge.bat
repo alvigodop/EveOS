@@ -161,32 +161,38 @@ if errorlevel 1 (
     echo [OK] EveOS-local browser is already installed.
 )
 
-echo.
-echo [INFO] Installing Camofox Node server dependencies...
-echo [INFO] Browser postinstall download suppressed; using EveOS-local browser.
-echo [INFO] The server uses better-sqlite3 and may require Windows SDK.
-pushd "%RUNTIME_ROOT%"
-call npm install --no-package-lock --omit=dev
-set "INSTALL_EXIT=!ERRORLEVEL!"
-popd
-if not "!INSTALL_EXIT!"=="0" (
+node "%INSTALL_DOCTOR%" --runtime >nul 2>nul
+if not errorlevel 1 (
     echo.
-    echo [ERROR] Camofox Node runtime installation failed; browser download is preserved.
-    echo [HINT] If node-gyp reported "missing any Windows SDK", open Visual Studio
-    echo        Installer, Modify Build Tools 2022, and install Windows 11 SDK
-    echo        under Individual Components or Desktop development with C++.
-    echo [HINT] For EPERM cleanup warnings, close Camofox Node processes before
-    echo        retrying. EveOS will not delete node_modules automatically.
-    pause
-    exit /b 1
-)
-
-node "%INSTALL_DOCTOR%" --runtime
-if errorlevel 1 (
-    echo [ERROR] npm completed but the native SQLite addon is not loadable.
-    echo [HINT] Verify a Windows SDK is installed in Visual Studio Build Tools.
-    pause
-    exit /b 1
+    echo [OK] Existing Camofox Node runtime is healthy; preserving node_modules.
+    echo [INFO] npm install skipped. No native rebuild is needed.
+) else (
+    echo.
+    echo [INFO] Camofox Node runtime is missing or incomplete; installing dependencies...
+    echo [INFO] Browser postinstall download suppressed; using EveOS-local browser.
+    echo [INFO] The server uses better-sqlite3 and may require Windows SDK.
+    pushd "%RUNTIME_ROOT%"
+    call npm install --no-package-lock --omit=dev
+    set "INSTALL_EXIT=!ERRORLEVEL!"
+    popd
+    if not "!INSTALL_EXIT!"=="0" (
+        echo.
+        echo [ERROR] Camofox Node runtime installation failed; browser download is preserved.
+        echo [HINT] If node-gyp reported "missing any Windows SDK", open Visual Studio
+        echo        Installer, Modify Build Tools 2022, and install Windows 11 SDK.
+        echo [HINT] If this machine previously had a healthy runtime, do not delete
+        echo        node_modules automatically; first close Camofox processes and
+        echo        rerun the runtime doctor to see whether the old native addon survived.
+        pause
+        exit /b 1
+    )
+    node "%INSTALL_DOCTOR%" --runtime
+    if errorlevel 1 (
+        echo [ERROR] npm completed but the native SQLite addon is not loadable.
+        echo [HINT] Verify a Windows SDK is installed in Visual Studio Build Tools.
+        pause
+        exit /b 1
+    )
 )
 "%EVEOS_PYTHON%" "%BROWSER_FETCHER%" --check
 if errorlevel 1 (
