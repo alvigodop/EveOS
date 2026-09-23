@@ -71,6 +71,9 @@ function assert(condition, message) {
                 && rainHandoff.stillWaitingBelow === rainHandoff.columnCount - 1,
                 `normal rain handoff mass-reseeded into a second waterfall: ${JSON.stringify(rainHandoff)}`);
             assert(rainHandoff.endpointBoundsSafe && rainHandoff.endpointGlowSeen
+                && rainHandoff.endpointGlowReachesEdge
+                && rainHandoff.endpointEdgeGap >= 0
+                && rainHandoff.endpointEdgeGap <= 0.5
                 && rainHandoff.overflowCallCount === 0,
                 `terminal glow/overflow guard regressed: ${JSON.stringify(rainHandoff)}`);
 
