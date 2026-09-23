@@ -110,10 +110,21 @@ def check_unowned_listener_stays_blocked() -> None:
 
 def check_start_passes_canonical_ports() -> None:
     stopped = {"running": False, "state": "stopped", "setupReady": True, "ok": True}
+    harness_only = {
+        "running": True, "state": "running", "setupReady": True, "ok": True,
+        "runtimeReady": False, "runtimeReachable": False, "runtimeManagedRunning": False,
+    }
+    loading = {
+        **harness_only,
+        "runtimeManagedRunning": True,
+        "runtimeStartupStage": "loading_weights",
+    }
     fake = FakeProcess([], env={})
-    with patch.object(local_moe_control, "_status", return_value=stopped), \
+    with patch.object(local_moe_control, "_status", side_effect=[stopped, harness_only, loading]), \
             patch.object(local_moe_control, "_harness_health", return_value={"info": {}}), \
             patch.object(local_moe_control, "_write_pid") as write_pid, \
+            patch.object(local_moe_control, "_http_json",
+                         return_value={"lifecycle": {"started": True}}) as runtime_start, \
             patch.object(local_moe_control.eveos_console_prefs, "headless_for", return_value=True), \
             patch.object(local_moe_control.subprocess, "Popen", return_value=fake) as popen:
         result = local_moe_control.start_server()
@@ -124,7 +135,9 @@ def check_start_passes_canonical_ports() -> None:
     require(environment["FREETOKEN_PORT"] == str(local_moe_control.RUNTIME_PORT),
             "Start lost the canonical runtime port")
     require(environment["LOCAL_MOE_RUNTIME_AUTOSTART"] == "0",
-            "EveOS-managed Harness launch did not keep model startup explicit")
+            "Harness lifespan unexpectedly owns implicit model startup")
+    require(environment["LOCAL_MOE_HEADLESS"] == "1",
+            "Local MoE runtime did not inherit the shared headless preference")
     require(Path(launch["cwd"]).resolve() == local_moe_control._tool_root().resolve(),
             "Harness did not launch from its isolated tool root")
     if local_moe_control.os.name == "nt":
@@ -133,9 +146,38 @@ def check_start_passes_canonical_ports() -> None:
         require(launch["stdout"] == local_moe_control.subprocess.DEVNULL
                 and launch["stderr"] == local_moe_control.subprocess.DEVNULL,
                 "Headless Local MoE did not suppress its terminal streams")
+    runtime_start.assert_called_once_with(
+        local_moe_control.HARNESS_PORT, "/api/runtime/start", method="POST", timeout=8.0
+    )
+    require(result.get("runtimeStartAccepted") is True,
+            "Explicit Local MoE start did not request the selected model runtime")
     require(result["ok"] is True, "Start did not return its lifecycle result")
     write_pid.assert_called_once_with(fake.pid)
     local_moe_control._PROCESS = None
+
+
+def check_online_harness_start_bootstraps_stopped_runtime() -> None:
+    harness_only = {
+        "running": True, "state": "running", "setupReady": True, "ok": True,
+        "runtimeReady": False, "runtimeReachable": False, "runtimeManagedRunning": False,
+    }
+    loading = {
+        **harness_only,
+        "runtimeManagedRunning": True,
+        "runtimeStartupStage": "loading_weights",
+    }
+    with patch.object(local_moe_control, "_status", side_effect=[harness_only, loading]), \
+            patch.object(local_moe_control, "_http_json",
+                         return_value={"lifecycle": {"started": True}}) as runtime_start, \
+            patch.object(local_moe_control.subprocess, "Popen") as popen:
+        result = local_moe_control.start_server()
+    popen.assert_not_called()
+    runtime_start.assert_called_once_with(
+        local_moe_control.HARNESS_PORT, "/api/runtime/start", method="POST", timeout=8.0
+    )
+    require(result.get("runtimeStartAccepted") is True
+            and result.get("runtimeManagedRunning") is True,
+            "Start on an online Harness did not recover its stopped model runtime")
 
 
 def check_unowned_stop_fails_closed() -> None:
@@ -248,6 +290,7 @@ def main() -> None:
         check_owned_health_blip_stays_starting,
         check_unowned_listener_stays_blocked,
         check_start_passes_canonical_ports,
+        check_online_harness_start_bootstraps_stopped_runtime,
         check_unowned_stop_fails_closed,
         check_windows_tree_exit_is_idempotent,
         check_owned_stop_uses_verified_pid,
