@@ -24,12 +24,12 @@ test('zero-tab newcomer cannot replace a healthy populated primary', () => {
 
   assert.equal(state.socket, populated);
   assert.equal(state.snapshot.tabs.length, 14);
-  assert.deepEqual(arbiter.diagnostics(), {
-    connected: 2,
-    primaryReady: true,
-    primaryTabs: 14,
-    standby: [{ ready: true, tabs: 0 }]
-  });
+  const diagnostics = arbiter.diagnostics();
+  assert.equal(diagnostics.connected, 2);
+  assert.equal(diagnostics.primaryReady, true);
+  assert.equal(diagnostics.primaryTabs, 14);
+  assert.match(diagnostics.primarySessionId, /^extension-/);
+  assert.deepEqual(diagnostics.standby.map((entry) => ({ ready: entry.ready, tabs: entry.tabs })), [{ ready: true, tabs: 0 }]);
 });
 
 test('populated session promotes over an empty primary', () => {
@@ -95,4 +95,25 @@ test('disconnecting primary promotes the best remaining live session', () => {
   assert.equal(state.wasPrimary, true);
   assert.equal(state.socket, standby);
   assert.equal(state.snapshot.tabs.length, 6);
+});
+
+test('diagnostics retain bounded connection epochs, election reasons, and changed snapshots only', () => {
+  let clock = 1000;
+  const arbiter = createExtensionSessionArbiter({ isOpen: (socket) => socket.open, now: () => ++clock, maxTransitions: 8 });
+  const primary = fakeSocket('primary');
+  const standby = fakeSocket('standby');
+  arbiter.register(primary);
+  arbiter.update(primary, { tabs: tabs(2, 'primary'), providers: [{ id: 'chatgpt' }] });
+  arbiter.update(primary, { tabs: tabs(2, 'primary'), providers: [{ id: 'chatgpt' }] });
+  arbiter.register(standby);
+  arbiter.update(standby, { tabs: [] });
+  primary.open = false;
+  arbiter.drop(primary, { closeCode: 1006, closeReason: 'transport lost' });
+
+  const diagnostics = arbiter.diagnostics();
+  assert.equal(diagnostics.primaryConnectionEpoch, 2);
+  assert.ok(diagnostics.recentTransitions.length <= 8);
+  assert.equal(diagnostics.recentTransitions.filter((entry) => entry.type === 'snapshot-changed' && entry.sessionId === 'extension-1').length, 1);
+  assert.ok(diagnostics.recentTransitions.some((entry) => entry.type === 'disconnected' && entry.closeCode === 1006));
+  assert.ok(diagnostics.recentTransitions.some((entry) => entry.type === 'primary-changed' && entry.reason === 'promote-after-disconnect'));
 });

@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const serviceWorker = fs.readFileSync(path.join(ROOT, 'extension', 'service-worker.js'), 'utf8');
+const targetMetadata = require('../extension/target-metadata.js');
 const freshness = fs.readFileSync(path.join(ROOT, 'extension', 'provider-adapter-freshness.js'), 'utf8');
 const boot = fs.readFileSync(path.join(ROOT, 'extension', 'dex-provider-control-boot.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'extension', 'manifest.json'), 'utf8'));
@@ -12,6 +13,21 @@ const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'extension', 'manife
 test('connect target stays background-only', () => {
   assert.doesNotMatch(serviceWorker, /active: true/);
   assert.doesNotMatch(serviceWorker, /focused: true/);
+});
+
+test('browser targets expose provider-neutral surface and exact tab identity metadata', () => {
+  const target = targetMetadata.formatTarget(
+    { id: 44, windowId: 9, title: 'Nova', url: 'https://chatgpt.com/c/one' },
+    { id: 'chatgpt', name: 'ChatGPT', capabilities: { send: true } }
+  );
+  assert.equal(target.targetClassId, 'online-origin');
+  assert.equal(target.targetTypeId, 'browser-tab');
+  assert.equal(target.transport, 'browser-extension');
+  assert.equal(target.sessionOrigin, 'browser');
+  assert.deepEqual(target.concreteTargetIdentity, {
+    kind: 'browser-tab', tabId: 44, windowId: 9,
+    providerId: 'chatgpt', url: 'https://chatgpt.com/c/one'
+  });
 });
 
 test('provider readiness delegates exact-tab reload and full-stack wait to freshness helper', () => {

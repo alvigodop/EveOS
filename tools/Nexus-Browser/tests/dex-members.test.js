@@ -83,6 +83,28 @@ test('local participant bindings can be replaced while keeping the room identity
   assert.equal(member.binding.targetId, 'local:new');
 });
 
+test('Dex bindings preserve target surface, transport, capabilities, and exact identity', () => {
+  const binding = members.bindingFromSource('local-origin', {
+    id: 'local:antigravity-existing:4242', targetTypeId: 'terminal-agent',
+    targetTypeName: 'Terminal Agent', providerId: 'local-antigravity-existing',
+    providerName: 'Antigravity CLI', transport: 'windows-console-attach',
+    sessionOrigin: 'existing', capabilities: { chat: true, captureLatest: true },
+    concreteTargetIdentity: { kind: 'windows-process', processId: 4242 }
+  });
+  assert.equal(binding.targetTypeId, 'terminal-agent');
+  assert.equal(binding.transport, 'windows-console-attach');
+  assert.equal(binding.sessionOrigin, 'existing');
+  assert.equal(binding.capabilities.captureLatest, true);
+  assert.deepEqual(binding.concreteTargetIdentity, { kind: 'windows-process', processId: 4242 });
+});
+
+test('online bindings use the same provider-neutral scope contract', () => {
+  const binding = members.bindingFromSource('online-origin', online(10, 'https://chatgpt.com/c/one'));
+  assert.equal(binding.targetTypeId, 'browser-tab');
+  assert.equal(binding.transport, 'browser-extension');
+  assert.equal(binding.sessionOrigin, 'browser');
+});
+
 test('rebind preserves or explicitly changes relay participation without changing logical identity', () => {
   const binding = members.bindingFromSource('online-origin', online(10, 'https://chatgpt.com/c/one'));
   const member = { id: 'agent-eve', name: 'Eve', binding, relayEnabled: false };

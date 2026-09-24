@@ -251,7 +251,7 @@ wss.on('connection', (ws, req) => {
       if (msg.role === 'extension') {
         ws.role = 'extension';
         const state = syncExtensionAuthority(extensionSessions.register(ws));
-        console.log(`[bridge] extension connected [${state.socket === ws ? 'primary' : 'standby'}] sessions=${state.sessionCount}`);
+        console.log(`[bridge] extension connected [${state.socket === ws ? 'primary' : 'standby'}] session=${state.primarySessionId || 'pending'} epoch=${state.primaryConnectionEpoch || 0} sessions=${state.sessionCount}`);
         broadcastUi(extensionStatus());
         safeSend(ws, { type: 'request_tabs' });
         return;
@@ -358,7 +358,7 @@ wss.on('connection', (ws, req) => {
     if (ws.role === 'extension') {
       if (msg.type === 'tabs_update') {
         const state = syncExtensionAuthority(extensionSessions.update(ws, msg));
-        console.log(`[bridge] extension tabs_update: ${Array.isArray(msg.tabs) ? msg.tabs.length : 0} tab(s) [${state.socket === ws ? 'primary' : `standby; authoritative=${lastTabs.length}`} sessions=${state.sessionCount}]`);
+        console.log(`[bridge] extension tabs_update: ${Array.isArray(msg.tabs) ? msg.tabs.length : 0} tab(s) [${state.socket === ws ? 'primary' : `standby; authoritative=${lastTabs.length}`} primary=${state.primarySessionId || 'none'} epoch=${state.primaryConnectionEpoch || 0} sessions=${state.sessionCount}]`);
         if (state.socket !== ws) return;
         dexScheduler.resume();
       } else if (extensionSocket !== ws) return;
@@ -390,10 +390,10 @@ wss.on('connection', (ws, req) => {
     safeSend(ws, { type: 'error', code: 'HELLO_REQUIRED', message: 'Send hello before other bridge messages.' });
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code, reason) => {
     providerControlRouting.dropSocket(ws); qualificationRouting.dropSocket(ws);
     if (ws.role === 'extension') {
-      const state = syncExtensionAuthority(extensionSessions.drop(ws));
+      const state = syncExtensionAuthority(extensionSessions.drop(ws, { closeCode: Number(code) || null, closeReason: String(reason || '') }));
       if (state.wasPrimary) {
         providerTargetSpawnRouting.failAll();
         console.log(`[bridge] extension primary disconnected; ${state.socket ? `promoted standby with ${lastTabs.length} tab(s)` : 'no standby available'}`);

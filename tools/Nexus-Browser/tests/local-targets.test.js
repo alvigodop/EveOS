@@ -16,6 +16,23 @@ test('Local-Origin registry exposes online/local classes and terminal-agent type
   assert.deepEqual(manager.publicLocalTargetTypes().map((entry) => entry.id), ['terminal-agent']);
 });
 
+test('local target normalization preserves provider-neutral surface and exact identity metadata', () => {
+  const target = manager.normalizeLocalTarget({
+    id: 'local:antigravity-existing:4242', targetTypeId: 'terminal-agent',
+    providerId: 'local-antigravity-existing', transport: 'windows-console-attach',
+    sessionOrigin: 'existing', pid: 4242, executablePath: 'C:\\Tools\\agy.exe',
+    capabilities: { chat: true }
+  });
+  assert.equal(target.targetClassId, 'local-origin');
+  assert.equal(target.targetTypeId, 'terminal-agent');
+  assert.equal(target.transport, 'windows-console-attach');
+  assert.equal(target.sessionOrigin, 'existing');
+  assert.deepEqual(target.concreteTargetIdentity, {
+    kind: 'windows-process', targetId: 'local:antigravity-existing:4242',
+    processId: 4242, executablePath: 'C:\\Tools\\agy.exe'
+  });
+});
+
 test('Gemini CLI target metadata is isolated under Local-Origin', () => {
   const target = publicTarget({ command: 'gemini', prefixArgs: [], source: 'gemini' });
   assert.equal(target.id, TARGET_ID);

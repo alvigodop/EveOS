@@ -15,24 +15,26 @@
   }
 
   function bindingFromSource(targetClassId, source = {}) {
-    if (targetClassId === 'online-origin') {
-      return {
-        targetClassId,
-        targetId: source.id,
-        providerId: source.providerId,
-        providerName: source.providerName,
-        url: source.url,
-        title: source.title
-      };
-    }
-    return {
+    const shared = {
       targetClassId,
       targetId: source.id,
-      targetTypeId: source.targetTypeId,
+      targetTypeId: source.targetTypeId || (targetClassId === 'online-origin' ? 'browser-tab' : ''),
+      targetTypeName: source.targetTypeName || (targetClassId === 'online-origin' ? 'Browser Tab' : ''),
       providerId: source.providerId,
       providerName: source.providerName,
-      title: source.title
+      title: source.title,
+      transport: source.transport || (targetClassId === 'online-origin' ? 'browser-extension' : ''),
+      sessionOrigin: source.sessionOrigin || (targetClassId === 'online-origin' ? 'browser' : ''),
+      concreteTargetIdentity: source.concreteTargetIdentity ? { ...source.concreteTargetIdentity } : null,
+      capabilities: { ...(source.capabilities || {}) }
     };
+    if (targetClassId === 'online-origin') {
+      return {
+        ...shared,
+        url: source.url,
+      };
+    }
+    return shared;
   }
 
   function memberTypeId(binding = {}) {
@@ -129,7 +131,8 @@
         text.innerHTML = `<strong></strong><span></span>`;
         text.querySelector('strong').textContent = member.name;
         const binding = member.binding || {};
-        text.querySelector('span').textContent = ` ${binding.targetClassId === 'local-origin' ? 'Local' : 'Online'} · ${binding.providerName || binding.providerId} · ${member.relayEnabled === false ? 'Observer · ' : ''}${binding.title || binding.url || binding.targetId}`;
+        const surface = binding.targetTypeName || binding.targetTypeId || (binding.targetClassId === 'local-origin' ? 'Local target' : 'Browser tab');
+        text.querySelector('span').textContent = ` ${binding.targetClassId === 'local-origin' ? 'Local' : 'Online'} · ${surface} · ${binding.providerName || binding.providerId} · ${member.relayEnabled === false ? 'Observer · ' : ''}${binding.title || binding.url || binding.targetId}`;
         const actions = document.createElement('div');
         actions.className = 'dex-member-actions';
         const edit = document.createElement('button');

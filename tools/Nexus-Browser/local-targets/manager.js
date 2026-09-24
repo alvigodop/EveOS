@@ -21,6 +21,24 @@ let cachedTargets = null;
 let cachedAt = 0;
 let listInFlight = null;
 
+function normalizeLocalTarget(target = {}) {
+  const pid = Number(target.pid || 0) || null;
+  return {
+    ...target,
+    targetClassId: 'local-origin',
+    targetTypeId: target.targetTypeId || 'terminal-agent',
+    transport: target.transport || 'local-adapter',
+    sessionOrigin: target.sessionOrigin || 'local',
+    concreteTargetIdentity: target.concreteTargetIdentity || {
+      kind: pid ? 'windows-process' : 'adapter-target',
+      targetId: String(target.id || ''),
+      ...(pid ? { processId: pid } : {}),
+      ...(target.executablePath ? { executablePath: String(target.executablePath) } : {})
+    },
+    capabilities: { ...(target.capabilities || {}) }
+  };
+}
+
 function publicTargetClasses() {
   return TARGET_CLASSES.map((entry) => ({ ...entry }));
 }
@@ -49,11 +67,11 @@ function preferLocalTargets(targets, env = process.env) {
 async function adapterTargets(adapter) {
   if (typeof adapter.listTargets === 'function') {
     const targets = await adapter.listTargets();
-    return Array.isArray(targets) ? targets.filter(Boolean) : [];
+    return Array.isArray(targets) ? targets.filter(Boolean).map(normalizeLocalTarget) : [];
   }
   if (typeof adapter.publicTarget === 'function') {
     const target = await adapter.publicTarget();
-    return target ? [target] : [];
+    return target ? [normalizeLocalTarget(target)] : [];
   }
   return [];
 }
@@ -147,6 +165,7 @@ module.exports = {
   LOCAL_TARGET_TYPES,
   publicTargetClasses,
   publicLocalTargetTypes,
+  normalizeLocalTarget,
   targetPriority,
   preferLocalTargets,
   adapterForTarget,

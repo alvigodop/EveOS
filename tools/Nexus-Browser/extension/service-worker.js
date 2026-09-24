@@ -1,11 +1,12 @@
 if (typeof importScripts === 'function') {
-  for (const script of ['tab-publish.js', 'provider-contract.js', 'providers.js', 'provider-health-state.js', 'gemini-background-poll.js', 'gemini-studio-window.js', 'gemini-studio-submit.js']) {
+  for (const script of ['tab-publish.js', 'target-metadata.js', 'provider-contract.js', 'providers.js', 'provider-health-state.js', 'gemini-background-poll.js', 'gemini-studio-window.js', 'gemini-studio-submit.js']) {
     try { importScripts(script); }
     catch { try { importScripts(script); } catch {} }
   }
 }
 const { websocketUrl: WS_URL, healthUrl: HEALTH_URL } = globalThis.NexusBrowserRuntimeConfig || require('./runtime-config');
 const tabPublishApi = globalThis.BrowserAiBridgeTabPublish || (typeof module !== 'undefined' && module.exports ? require('./tab-publish.js') : null);
+const targetMetadataApi = globalThis.BrowserAiBridgeTargetMetadata || (typeof module !== 'undefined' && module.exports ? require('./target-metadata.js') : null);
 const providerApi = globalThis.BrowserAiBridgeProviders || (typeof module !== 'undefined' && module.exports ? require('./providers.js') : null); const providerHealthApi = globalThis.BrowserAiBridgeProviderHealthState || (typeof module !== 'undefined' && module.exports ? require('./provider-health-state.js') : null);
 const geminiPollApi = globalThis.BrowserAiBridgeGeminiBackgroundPoll
   || (typeof module !== 'undefined' && module.exports ? require('./gemini-background-poll.js') : null);
@@ -75,14 +76,7 @@ async function getProviderTabs() {
     for (const tab of tabs) {
       const isPopup = popupWindowIds.has(tab.windowId);
       const titlePrefix = isPopup ? '[Popup] ' : '';
-      all.push({
-        id: tab.id,
-        title: `${titlePrefix}${tab.title || provider.name}`,
-        url: tab.url || '',
-        providerId: provider.id,
-        providerName: provider.name,
-        capabilities: { ...provider.capabilities }, health: providerHealthApi.get(tab.id)
-      });
+      all.push(targetMetadataApi.formatTarget(tab, provider, { titlePrefix, health: providerHealthApi.get(tab.id) }));
     }
   }
   return all;
@@ -162,16 +156,7 @@ async function prepareProviderTab(provider, tab) {
   const prepared = await ensureAiStudioBridgePopup(tab);
   return prepared?.tab || tab;
 }
-function formatTarget(tab, provider) {
-  return {
-    id: tab.id,
-    title: tab.title || provider.name,
-    url: tab.url || '',
-    providerId: provider.id,
-    providerName: provider.name,
-    capabilities: { ...provider.capabilities }
-  };
-}
+const formatTarget = targetMetadataApi.formatTarget;
 async function selectTarget(tabId, requestedProviderId = null, options = {}) {
   if (!Number.isInteger(tabId)) throw new Error('Invalid tab ID.');
   if (!options.readyOnly) stopAllResponsePolls();
