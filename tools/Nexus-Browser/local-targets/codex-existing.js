@@ -11,8 +11,8 @@ function targetFromProcess(processInfo, threadId) {
   const pid = Number(processInfo.ProcessId || processInfo.pid || 0) || null;
   return {
     id: `${TARGET_PREFIX}${threadId}`, targetClassId: 'local-origin', targetTypeId: 'terminal-agent',
-    targetTypeName: 'Terminal Agent', providerId: 'local-codex-existing', providerName: 'Nova (Codex CLI)',
-    title: `Nova (Codex CLI) · Existing Terminal · PID ${pid}`,
+    targetTypeName: 'Terminal Agent', providerId: 'local-codex-existing', providerName: 'ChatGPT (Codex CLI)',
+    title: `ChatGPT (Codex CLI) · Existing Terminal · PID ${pid}`,
     detail: 'Attached by exact Codex thread ID to an already-running resumed terminal. Nexus does not use console scraping or global keyboard input.',
     transport: 'codex-queue-rollout', sessionOrigin: 'existing', sessionOriginName: 'Existing Terminal',
     pid, parentPid: Number(processInfo.ParentProcessId || 0) || null,
@@ -39,7 +39,7 @@ async function sendPrompt({ requestId, text, target, emit, queueImpl = queueAndC
   const threadId = target?.conversationId || threadFromTarget(target?.id);
   if (!threadId) throw new Error('Existing Codex target thread ID is invalid.');
   if (!String(text || '').trim()) throw new Error('Local agent prompt is empty.');
-  if (active.has(threadId)) throw new Error('That existing Nova terminal is already handling a turn.');
+  if (active.has(threadId)) throw new Error('That existing ChatGPT terminal is already handling a turn.');
   active.add(threadId);
   try {
     const result = await queueImpl({

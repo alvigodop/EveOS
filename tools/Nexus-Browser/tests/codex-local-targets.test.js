@@ -43,12 +43,12 @@ test('Codex rollout completion is scoped to task_complete final answer', () => {
   assert.equal(common.completedReply(events), 'NOVA_FINAL');
 });
 
-test('Codex targets expose spawned and isolated throwaway choices', () => {
+test('Codex targets expose one reusable ChatGPT spawned terminal', () => {
   const targets = cli.publicTargets({ command: 'codex.exe', shell: false });
-  assert.deepEqual(targets.map((target) => target.id), [cli.SPAWNED_ID, cli.THROWAWAY_ID]);
-  assert.equal(targets[0].providerName, 'Nova (Codex CLI)');
+  assert.deepEqual(targets.map((target) => target.id), [cli.SPAWNED_ID]);
+  assert.equal(targets[0].providerName, 'ChatGPT (Codex CLI)');
+  assert.equal(targets[0].title, 'ChatGPT (Codex CLI) · Spawned Terminal');
   assert.equal(targets[0].sessionOrigin, 'spawned');
-  assert.equal(targets[1].sessionOrigin, 'ephemeral');
 });
 
 test('Visible spawned terminal explicitly resumes noninteractive Codex sessions', () => {
@@ -71,22 +71,6 @@ test('Spawned Codex state remains machine-local and round-trips exact thread ide
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('Throwaway adapter emits partial and final without a conversation id', async () => {
-  const target = cli.publicTargets({ command: 'codex.exe', shell: false })[1];
-  const events = [];
-  await cli.sendThrowaway({
-    requestId: 'throwaway-1', text: 'hello', target, emit: (event) => events.push(event),
-    execImpl: async ({ ephemeral, onText }) => {
-      assert.equal(ephemeral, true);
-      onText('NOVA_THROWAWAY_OK');
-      return { threadId: null, text: 'NOVA_THROWAWAY_OK' };
-    }
-  });
-  assert.equal(events.at(-1).type, 'response_final');
-  assert.equal(events.at(-1).text, 'NOVA_THROWAWAY_OK');
-  assert.equal(events.at(-1).conversationId, undefined);
-});
-
 test('Existing adapter derives target from exact resumed terminal only', () => {
   const processInfo = { ProcessId: 4242, ParentProcessId: 42, CommandLine: `codex.exe resume ${THREAD}` };
   const target = existing.targetFromProcess(processInfo, THREAD);
@@ -94,4 +78,5 @@ test('Existing adapter derives target from exact resumed terminal only', () => {
   assert.equal(target.pid, 4242);
   assert.equal(target.conversationId, THREAD);
   assert.equal(existing.threadFromTarget(target.id), THREAD);
+  assert.equal(target.providerName, 'ChatGPT (Codex CLI)');
 });

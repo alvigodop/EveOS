@@ -9,7 +9,6 @@ const {
   resumedThreadId, queueAndCapture
 } = require('./codex-common');
 
-const THROWAWAY_ID = 'local:codex-cli:throwaway';
 const SPAWNED_ID = 'local:codex-cli:spawned';
 const STATE_FILE = path.join(dataDir(), 'codex-spawned-session.json');
 const active = new Set();
@@ -22,28 +21,18 @@ function localWorkspace(env = process.env) {
 function publicTargets(launch = resolveCodexLaunch()) {
   if (!launch) return [];
   const settings = codexSettings();
-  return [
-    {
-      id: SPAWNED_ID, targetClassId: 'local-origin', targetTypeId: 'terminal-agent',
-      targetTypeName: 'Terminal Agent', providerId: 'local-codex-spawned', providerName: 'Nova (Codex CLI)',
-      title: 'Nova (Codex CLI) · Spawned Terminal',
-      detail: `Nexus-owned persistent Codex terminal (${settings.model}, ${settings.effort} effort). First message creates and opens the visible terminal; later messages use its exact thread ID.`,
-      transport: 'codex-queue-rollout', sessionOrigin: 'spawned', sessionOriginName: 'Spawned Terminal',
-      workspace: localWorkspace(), capabilities: { chat: true, captureLatest: false, activity: true, searchResults: false }
-    },
-    {
-      id: THROWAWAY_ID, targetClassId: 'local-origin', targetTypeId: 'terminal-agent',
-      targetTypeName: 'Terminal Agent', providerId: 'local-codex-throwaway', providerName: 'Nova (Codex CLI)',
-      title: 'Nova (Codex CLI) · Throwaway Session',
-      detail: `One isolated ${settings.model} turn. Codex receives the prompt over stdin and does not persist a session.`,
-      transport: 'codex-exec-json', sessionOrigin: 'ephemeral', sessionOriginName: 'Throwaway Session',
-      workspace: localWorkspace(), capabilities: { chat: true, captureLatest: false, activity: true, searchResults: false }
-    }
-  ];
+  return [{
+    id: SPAWNED_ID, targetClassId: 'local-origin', targetTypeId: 'terminal-agent',
+    targetTypeName: 'Terminal Agent', providerId: 'local-codex-spawned', providerName: 'ChatGPT (Codex CLI)',
+    title: 'ChatGPT (Codex CLI) · Spawned Terminal',
+    detail: `Nexus-owned persistent Codex terminal (${settings.model}, ${settings.effort} effort). First message creates and opens the visible terminal; later messages use its exact thread ID.`,
+    transport: 'codex-queue-rollout', sessionOrigin: 'spawned', sessionOriginName: 'Spawned Terminal',
+    workspace: localWorkspace(), capabilities: { chat: true, captureLatest: false, activity: true, searchResults: false }
+  }];
 }
 
 async function listTargets() { return publicTargets(); }
-const ownsTarget = (id) => id === THROWAWAY_ID || id === SPAWNED_ID;
+const ownsTarget = (id) => id === SPAWNED_ID;
 
 function readState({ stateFile = STATE_FILE } = {}) {
   try {
@@ -90,12 +79,6 @@ function emitFinal(emit, requestId, target, text, threadId = null) {
   emit?.({ type: 'response_final', requestId, text, targetClassId: 'local-origin', providerId: target.providerId, providerName: target.providerName, ...(threadId ? { conversationId: threadId } : {}) });
 }
 
-async function sendThrowaway({ requestId, text, target, emit, execImpl = execTurn }) {
-  const result = await execImpl({ prompt: text, ephemeral: true, cwd: target.workspace, onText: (value) => emitPartial(emit, requestId, target, value) });
-  emitFinal(emit, requestId, target, result.text);
-  return 0;
-}
-
 async function sendSpawned({ requestId, text, target, emit, execImpl = execTurn, queueImpl = queueAndCapture }) {
   let state = readState();
   if (!state) {
@@ -114,7 +97,7 @@ async function sendSpawned({ requestId, text, target, emit, execImpl = execTurn,
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     if (!threadProcess(state.threadId)) {
-      throw new Error('The visible Nova terminal did not become ready; the prompt was not queued.');
+      throw new Error('The visible ChatGPT terminal did not become ready; the prompt was not queued.');
     }
   }
   const result = await queueImpl({
@@ -129,9 +112,9 @@ async function sendPrompt(args) {
   const id = args?.target?.id;
   if (!ownsTarget(id)) throw new Error('Codex target is unavailable.');
   if (!String(args.text || '').trim()) throw new Error('Local agent prompt is empty.');
-  if (active.has(id)) throw new Error('That Nova target is already handling a turn.');
+  if (active.has(id)) throw new Error('That ChatGPT target is already handling a turn.');
   active.add(id);
-  try { return id === THROWAWAY_ID ? await sendThrowaway(args) : await sendSpawned(args); }
+  try { return await sendSpawned(args); }
   finally { active.delete(id); }
 }
 
@@ -139,14 +122,14 @@ function status(targetId) {
   const state = targetId === SPAWNED_ID ? readState() : null;
   const processInfo = state ? threadProcess(state.threadId) : null;
   return {
-    running: targetId === THROWAWAY_ID ? active.has(targetId) : !!processInfo,
+    running: !!processInfo,
     busy: active.has(targetId), queued: 0, pid: Number(processInfo?.ProcessId || 0) || null,
     conversationId: state?.threadId || null,
-    sessionOrigin: targetId === THROWAWAY_ID ? 'ephemeral' : 'spawned', initialized: !!state
+    sessionOrigin: 'spawned', initialized: !!state
   };
 }
 
 module.exports = {
-  THROWAWAY_ID, SPAWNED_ID, STATE_FILE, localWorkspace, publicTargets, listTargets, ownsTarget,
-  readState, writeState, threadProcess, openVisibleTerminal, sendThrowaway, sendSpawned, sendPrompt, status
+  SPAWNED_ID, STATE_FILE, localWorkspace, publicTargets, listTargets, ownsTarget,
+  readState, writeState, threadProcess, openVisibleTerminal, sendSpawned, sendPrompt, status
 };
