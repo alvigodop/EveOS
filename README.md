@@ -1,8 +1,8 @@
 # EveOS
 
-**A local-first personal workspace for bookmarks, media, research, worldbuilding, automation, and user-owned knowledge.**
+**A local-first personal workspace for bookmarks, media, research, worldbuilding, AI-agent collaboration, automation, and user-owned knowledge.**
 
-> **Current public milestone: EveOS 0.6**
+> **Current public milestone: EveOS 0.7.0 — Nexus Browser update (September 24, 2026)**
 >
 > EveOS is built around one idea: the structure you spend time creating should stay under your control. Core workspace data can live locally, be exported, be inspected, and be moved without requiring a hosted EveOS account.
 
@@ -10,11 +10,33 @@ EveOS started as a way to organize links and grew into a connected desktop-style
 
 It is Windows-oriented, browser-first, and intentionally modular. Many core workflows still work directly from `EveOS.html`; localhost and companion services unlock filesystem access, native audio, AI backends, World Book, Piano Automation, WatchFusion, and other machine-level features.
 
-> **Project scale:** **442,755 physical lines of first-party code and test automation** across **2,869 source and test files** under the repository's first-party scanner.
+> **Project scale:** Run `npm run smoke:file-size` for the current first-party file count, physical line totals, per-language breakdown, and 450-line architecture check. The [Project Size](#project-size) section explains the scanner and historical snapshot.
 
 ![EveOS dashboard with a synthetic demo datapack](docs/screenshots/eveos-dashboard.png)
 
 *The public screenshots use synthetic demo content. Personal datapacks, private World Book data, saved Piano libraries, credentials, and machine-local state are not included in the repository.*
+
+## Nexus Browser update — EveOS 0.7.0
+
+![You wouldn't want a human in control — EveOS Nexus Browser announcement](docs/screenshots/eveos-nexus-browser-promo.png)
+
+*The announcement image is a tongue-in-cheek remix of the classic anti-piracy meme, not a change to EveOS ownership or access policy: the workspace owner remains in charge of their agents, permissions, and services.*
+
+**Nexus Browser is now integrated into the EveOS Agent Nexus workspace.** It brings the Browser AI Bridge/Dex transport into a separately supervised, on-demand local service rather than making every EveOS feature depend on an always-on bridge.
+
+| What changed | Where to find it |
+| --- | --- |
+| **Browser-targeted agents** | The EveOS-owned Chromium extension under `tools/Nexus-Browser/extension/` provides scoped provider adapters for supported, already-authenticated tabs. |
+| **Dex coordination** | Rooms, participant selection, target routing, durable local transcripts, exact-once dispatch records, post-timeout capture-only recovery, and bounded incident diagnostics live in the Nexus Browser runtime. |
+| **Agent Nexus and TLO** | Search Monitor presents Nexus Browser next to the TLO chat surface and Agent Management, without sharing their private data by default. |
+| **Explicit lifecycle** | Local Control owns setup/start/stop, supervised processes, port registration, and safe shutdown. Opening Agent Nexus is a status read, not an instruction to start services. |
+| **Private by default** | Room state, message history, browser sessions, agent profiles, incident logs, and credentials remain in ignored local runtime storage. Public Git includes source, schemas, examples, documentation, and deterministic tests only. |
+
+Nexus Browser's default local address is `http://127.0.0.1:9088/`, governed by `NEXUS_BROWSER_PORT` in `config/eveos-ports.json`. Its canonical extension and runtime live in the EveOS tree; you do not need to execute the old Browser AI Bridge POC from another checkout. Existing extension installations must be repointed to the EveOS folder once.
+
+**Scope of this milestone:** the integrated source and deterministic contract coverage are present. Authenticated provider round trips, browser-extension reconnection, local process ownership, headed-browser behavior, and your installed models still require qualification on the actual machine. Do not mistake a passed source smoke or a connected tab for permission to control an agent.
+
+For architecture, migration, safety boundaries, and the local-live qualification checklist, see [Nexus Browser integration](docs/NEXUS-BROWSER-INTEGRATION.md) and [Agent Nexus migration](docs/AGENT-NEXUS-MIGRATION.md).
 
 ## Why EveOS Exists
 
@@ -47,6 +69,8 @@ Local-first is not the same thing as indestructible. Remote media can still disa
 | **World Portal** | A connected multi-world map environment housed inside World Book, with per-world geography, view state, custom worlds, portable world packages, and runtime switching. |
 | **Reader Library** | Private document import, passage navigation, browser/Gemini narration, generated-audio cache handling, source-aware recovery, and read-aloud workflows. |
 | **Gemini Link** | Optional live AI conversation, scoped EveOS context relay, screen/audio-oriented integrations, usage/session controls, and backend-managed credentials. |
+| **Agent Nexus / TLO** | Private scoped agent profiles and an optional local-model chat surface that uses an already-running Local MoE Harness; opening TLO does not auto-start inference. |
+| **Nexus Browser / Dex** | Explicitly started browser-agent transport with room coordination, supported-provider extension adapters, incident evidence, and durable local recovery. |
 | **Search Monitor / Control Plane** | Runtime visibility and lifecycle controls for EveOS localhost and optional companion services without forcing every service to run together. |
 
 ## Explore The Interface
@@ -184,6 +208,7 @@ EveOS can operate at several levels. You do not have to start the entire stack t
 | **Piano Auto Player — `127.0.0.1:8771`** | Piano sheet playback, recording, library, target-window automation, and media conversion service. |
 | **Local control plane — port `9082`** | Lifecycle manager used by file-mode EveOS to start/stop optional local services. |
 | **WatchFusion — `127.0.0.1:9087` by default** | On-demand local media/watch-party runtime. LAN and tunnel exposure are explicit separate launch modes. |
+| **Nexus Browser — `127.0.0.1:9088` by default** | Supervised local browser-agent bridge with an optional unpacked extension. Start it explicitly in Agent Nexus. |
 
 Gemini and other optional backends keep separate lifecycle state as well. Starting EveOS localhost does not imply every AI, World Book, Piano, or WatchFusion service must also be running.
 
@@ -213,6 +238,28 @@ Open `EveOS.html` directly.
 In `file://` mode, browser-side features stay available without the Python server. On Windows, `tools\batch\install-eveos-control-protocol.bat` can register the per-user `eveos-control://` launcher so the file-mode page can cold-start the local control plane after the browser's external-app confirmation.
 
 Features that require filesystem access, native routing, modular disk storage, AI backends, World Book, Piano Automation, WatchFusion, or other companion services still require the relevant local runtime.
+
+### Nexus Browser quick start
+
+From a checked-out EveOS repository on Windows, install the root dependencies, start the normal EveOS launcher, then open **Search Monitor → Agent Nexus → Nexus Browser**. Read its passive status before choosing the explicit start action. The bridge is separate from the main EveOS localhost service.
+
+```powershell
+npm ci
+.\start-server.bat
+# After the EveOS-owned Nexus Browser service starts, check its local dashboard:
+Start-Process 'http://127.0.0.1:9088/'
+```
+
+In Chromium, visit `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `tools/Nexus-Browser/extension` from *this* checkout. Repoint any older Browser AI Bridge extension instead of running two competing copies. Provider access uses your existing authorized tabs; no automatic provider login or universal browser permission is implied.
+
+If you have private rooms in an older POC checkout, use the migration dry run first. Stop the Nexus Browser service before applying an import. Replace the placeholder with the **absolute path** to the legacy folder:
+
+```powershell
+node tools/Nexus-Browser/scripts/import-legacy-rooms.js --source 'C:\path\to\legacy-folder'
+# Review the dry-run report, stop Nexus Browser, then run explicitly with --apply.
+```
+
+Do not copy private browser profiles, `.browser-ai-bridge`, saved credentials, or unrelated local logs into Git. See [Nexus Browser integration](docs/NEXUS-BROWSER-INTEGRATION.md) for ownership and recovery details.
 
 ### Fresh development checkout
 
@@ -273,6 +320,8 @@ EveOS deliberately separates portable user state from machine-local or secret st
 - isolated Piano transcription environments;
 - local audio/device-routing state;
 - user-installed WatchFusion Nuvio source/build data and local wrapper properties;
+- Nexus Browser Dex rooms, local transcripts, turn ledgers, browser sessions, incident reports, and legacy `.browser-ai-bridge/` state;
+- private Agent Management profiles and TLO conversation state;
 - downloaded WatchFusion/VoxelVision helper binaries and imported VoxelVision media.
 
 Optional integrations send the data required by the feature you explicitly use and are also subject to the external provider's own terms and privacy behavior. WatchFusion remote media proxying additionally means public upstream media/addon services can observe the WatchFusion host network as the request source; it does not intentionally grant room participants arbitrary filesystem or LAN access.
@@ -305,6 +354,8 @@ At a high level:
                  └──────────── WatchFusion (on demand)
 ```
 
+Agent Nexus introduces another deliberately separate runtime: `tools/Nexus-Browser/` runs the supervised local bridge/Dex/extension stack, while Search Monitor supplies the EveOS-facing controls and Local Control verifies process ownership. TLO uses the separately managed Local MoE provider and cannot silently start or reconfigure it.
+
 The repository favors domain boundaries over giant shared files. Frontend state, UI, library behavior, Audioflix, WatchFusion, World Book integration, Gemini, and other features live in dedicated module families with explicit integration points.
 
 A repository smoke test enforces a **450 physical-line maximum for first-party code files**. When a source file approaches the cap, responsibility is expected to move into a focused neighboring module rather than allowing the file to grow indefinitely.
@@ -322,6 +373,7 @@ js/modules/features/               Nexus, Library, Audioflix, Gemini, World Book
 server/                            Python HTTP runtime and backend services
 server_modules/                    Backend service/control helpers
 tools/WatchFusion/                 Canonical WatchFusion + bundled VoxelVision integration
+tools/Nexus-Browser/                EveOS-owned browser-agent bridge, Dex runtime, unpacked extension, and tests
 tools/Piano-Auto-Player/           Complete integrated Piano Automation tool
 tools/World-Book/                  Complete World Book + Reader Library tool
 tools/World-Book/tools/World-Portal/ Connected World Portal tool
@@ -337,50 +389,57 @@ For a deeper implementation tour, see [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.m
 
 ## Project Size
 
-The project-size figures use the same first-party scanner as `npm run smoke:file-size`: physical lines in JavaScript, ES modules, CSS, HTML, Python, PowerShell, and batch files, while excluding dependencies, virtual environments, build/test output, generated runtime data, vendor trees, the external Nuvio install, bundled VoxelVision, and the independently maintained Orogen tree.
-
-- **442,915 physical lines** across **2,870 first-party source and test files**
-- **332,718 JavaScript lines** (`.js`)
-- **52,525 Python lines** (`.py`)
-- **48,403 CSS lines** (`.css`)
-- **3,156 batch lines** (`.bat`)
-- **2,774 HTML lines** (`.html`)
-- **2,310 ES module lines** (`.mjs`)
-- **1,029 PowerShell lines** (`.ps1`)
-
-`smoke:file-size` still enforces the per-file **≤450 physical-line** architecture rule, and now also reports the current aggregate total, average file size, and per-extension breakdown so future README refreshes do not require an ad-hoc counting script. These are repository snapshots rather than a permanent badge; they change as EveOS evolves.
-
-## Verification And Development Safety
-
-The broad repository preflight is:
-
-```powershell
-npm run verify
-```
-
-`npm run verify` builds generated browser assets, synchronizes runtime asset versions, runs repository and Python audits, checks the smoke registry, and executes the major focused smoke families for runtime cache, launcher/control plane, WatchFusion, World Book/World Portal, Gemini, Audioflix, Spotify, Instagram, Piano Automation, Sound Lab/Sonic Forge, and context routing.
-
-Useful focused checks include:
+Use the repository's scanner instead of hand-counting lines:
 
 ```powershell
 npm run smoke:file-size
-npm run smoke:watchfusion
-npm run smoke:watchfusion-security
-npm run smoke:audioflix-piano
-npm run smoke:piano-queue
-npm run smoke:piano-metadata
-npm run smoke:world-book
-npm run smoke:audioflix-state
-npm run smoke:audioflix-spotify
-npm run smoke:audioflix-instagram
-npm run smoke:audioflix-soundlab
+# Direct equivalent:
+node tools/smoke/first_party_file_size_smoke.js
 ```
 
-`npm run verify` can intentionally update deterministic tracked asset-version hashes after a source asset changes. Those generated changes are part of the tested state and should be reviewed rather than blindly discarded.
+The scanner returns `FIRST_PARTY_FILE_SIZE_SMOKE_OK` with `measuredFiles`, `totalLines`, `averageLines`, `byExtension`, and the largest source file. It counts physical lines in first-party JavaScript, ES modules, CSS, HTML, Python, PowerShell, and batch files. It excludes dependencies, virtual environments, generated runtime data, vendor trees, the external Nuvio installation, bundled VoxelVision, and independently maintained imported tools. It also fails if any scanned first-party source file exceeds **450 physical lines**.
 
-For significant UI work, automated smoke coverage is not a substitute for opening the real local runtime and checking the affected interaction at the relevant viewport sizes.
+The earlier README snapshot recorded **442,915 physical lines across 2,870 first-party source/test files** (332,718 JS; 52,525 Python; 48,403 CSS; 3,156 batch; 2,774 HTML; 2,310 MJS; 1,029 PowerShell). These numbers are a historical reference **not a verified count for this update**; the command above is the current source of truth. Changed first-party files have a stricter 440-line headroom guard in the structural preflight.
+
+## Verification And Development Safety
+
+The default development path is **structural preflight → the smallest affected deterministic profile → one final uncached verification**. Generated asset references must already be synchronized before the guardrails pass; final verification is not a substitute for reviewing stale generated assets.
+
+```powershell
+# From the repository root
+npm ci
+npm run --silent test:guardrails
+npm run --silent smoke:nexus-browser
+npm run --silent smoke:nexus-browser-security
+npm run test:ai-control
+npm run smoke:file-size
+npm run verify
+```
+
+| Command | What it checks |
+| --- | --- |
+| `npm run --silent test:guardrails` | Stale asset references, zero-backlog smoke registry, complete coverage map, file-growth headroom, and the 450-line hard cap. |
+| `npm run --silent smoke:nexus-browser` | Focused Nexus Browser service, UI, bridge, and deterministic imported contracts. |
+| `npm run --silent smoke:nexus-browser-security` | Bridge origin, private runtime exclusions, and other Nexus security contracts. |
+| `npm run test:ai-control` | The broader AI-control profile for Search Monitor, Agent Nexus, TLO/Local MoE, and Nexus Browser. |
+| `npm run --silent test:smoke` | Deterministic fast profile; reuse is allowed only when the exact source/environment fingerprint matches. |
+| `npm run test:deep` / `npm run test:security` | Broader subsystem or security-sensitive regression profiles when the edit warrants them. |
+| `npm run verify` | Final **uncached** repository gate once coherent changes are ready. |
+| `npm run smoke:file-size` | Exact first-party LOC totals and per-file 450-line enforcement. |
+
+For operator-visible evidence, use the existing handoff runner (substitute the real pre-change commit SHA):
+
+```powershell
+npm run test:handoff -- --base <previous-sha> --profile ai-control --final
+```
+
+The handoff runner records exact HEAD/branch alignment, worktree status, changed files, tool versions, local listeners, durations, and bounded failure context under ignored `data/runtime/smoke-results/`. The `--final` option runs the uncached final gate. Use `--allow-branch`, `--allow-diverged`, or `--allow-dirty` only when that state is intentional and documented.
+
+For real owned-runtime/browser qualification, `npm run runtime:search-monitor:qualify` is opt-in and requires the correct local browser, models, service processes, and profiles. Deterministic passing checks alone do not prove live external providers or native audio. Keep actual credentials and private state out of commits.
 
 ## Current Project Status
+
+The 0.7.0 Nexus Browser milestone is a source/integration and documentation update, **not** a claim that every authenticated provider, live browser, or hardware-bound workflow is already qualified. The existing Local Control ownership, exact-once/capture-only recovery, service status, and extension scope boundaries remain part of the qualification matrix. Keep the former POC as a comparison source until the local checklist in `docs/NEXUS-BROWSER-INTEGRATION.md` is complete.
 
 EveOS is actively evolving. The surface area is large and several features depend on external providers, browser behavior, Windows-native APIs, optional local services, or model/tool availability.
 
