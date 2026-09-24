@@ -399,7 +399,9 @@ node tools/smoke/first_party_file_size_smoke.js
 
 The scanner returns `FIRST_PARTY_FILE_SIZE_SMOKE_OK` with `measuredFiles`, `totalLines`, `averageLines`, `byExtension`, and the largest source file. It counts physical lines in first-party JavaScript, ES modules, CSS, HTML, Python, PowerShell, and batch files. It excludes dependencies, virtual environments, generated runtime data, vendor trees, the external Nuvio installation, bundled VoxelVision, and independently maintained imported tools. It also fails if any scanned first-party source file exceeds **450 physical lines**.
 
-The earlier README snapshot recorded **442,915 physical lines across 2,870 first-party source/test files** (332,718 JS; 52,525 Python; 48,403 CSS; 3,156 batch; 2,774 HTML; 2,310 MJS; 1,029 PowerShell). These numbers are a historical reference **not a verified count for this update**; the command above is the current source of truth. Changed first-party files have a stricter 440-line headroom guard in the structural preflight.
+**Measured EveOS 0.7.0 baseline (September 24, 2026; commit `7ccd0386`): 505,803 physical lines across 3,234 first-party source/test files**, averaging 156.4 lines per file. The verified `FIRST_PARTY_FILE_SIZE_SMOKE_OK` breakdown is: 384,078 JS (2,477 files); 59,063 Python (385); 50,492 CSS (276); 4,209 MJS (21); 3,343 batch (43); 3,016 HTML (18); 1,546 PowerShell (13); and 56 CJS (1). The largest measured source is `tools/Nexus-Browser/dex/server-scheduler.js` at 450 lines, exactly the per-file hard cap. These counts describe this measured commit, not a permanently current total; rerun the command above after changes.
+
+The earlier README snapshot recorded **442,915 physical lines across 2,870 first-party source/test files** and is now a historical reference. Changed first-party files have a stricter 440-line headroom guard in the structural preflight.
 
 ## Verification And Development Safety
 
