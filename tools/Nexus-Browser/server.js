@@ -9,6 +9,7 @@ const { mergeClientSnapshot } = require('./dex/server-state-merge');
 const { createServerDurability } = require('./dex/server-durability');
 const { createExtensionSessionArbiter } = require('./dex/extension-session-arbiter');
 const { assetRevision } = require('./server-asset-revision');
+const { createDiagnosticsSnapshot } = require('./server-diagnostics');
 const { createServerLocalRelay } = require('./dex/server-local-relay');
 const { attachWebSocketHeartbeat } = require('./dex/ws-heartbeat'), { createDisposableRoomCleanup } = require('./dex/disposable-room-cleanup');
 const runtimeConfig = require('./runtime-config');
@@ -89,19 +90,8 @@ const qualificationRouting = createQualificationRouting({ safeSend, getExtension
 const serverDexSource = { clientKind: 'dex' };
 const serverLocalRelay = createServerLocalRelay({ localTargets, mirrorPrompt: (targetId, msg, target) => mirrorPromptToConsoles(targetId, serverDexSource, msg, target), emitEvent: (targetId, payload) => sendLocalEvent(targetId, serverDexSource, payload), broadcastStatus: (targetId) => broadcastLocalStatus(targetId, serverDexSource) });
 const dexScheduler = createDexServerScheduler({ stateStore: { load: () => dexStateStore.load(), save: (snapshot) => dexStateStore.save(snapshot) }, durability: { beforeDispatch: (...args) => durability.beforeDispatch(...args), observe: (...args) => durability.observe(...args), markFailed: (...args) => durability.markFailed(...args), query: (...args) => durability.query(...args) }, getOnlineTargets: () => lastTabs, getProviders: () => lastProviders, getSelectedOnlineTarget: () => lastTarget, getLocalTargets: async (force = false) => { if (force) await refreshLocalTargets(null, { force: true }); return lastLocalTargets; }, isExtensionAvailable: () => !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN && extensionSessions.current().ready, sendExtension: (payload) => safeSend(extensionSocket, payload), sendLocalPrompt: serverLocalRelay.sendLocalPrompt, captureLocalLatest: localTargets.captureLocalLatest, broadcastState: broadcastDexState, recordIncident: (input) => durability.recordIncident(input) });
-function diagnosticsSnapshot() {
-  const snapshot = dexStateStore.load(), rooms = Array.isArray(snapshot?.rooms) ? snapshot.rooms : [];
-  return {
-    ok: true, supervised: (process.env.NEXUS_BROWSER_SUPERVISED || process.env.BROWSER_AI_BRIDGE_SUPERVISED) === '1', serverSessionId: SERVER_SESSION_ID, assetRevision: ASSET_REVISION,
-    extensionConnected: !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN,
-    dexUiConnected: [...uiSockets].some((peer) => peer.clientKind === 'dex'),
-    uiClients: uiSockets.size, onlineTargets: lastTabs.length, localTargets: lastLocalTargets.length, localDiscovery: localTargets.discoveryDiagnostics(), extensionSessions: extensionSessions.diagnostics(),
-    dexRooms: rooms.length, recoveryRooms: rooms.filter((room) => !!room.recovery).length, savedAt: snapshot?.savedAt || null,
-    providerBlocks: lastTabs.filter((tab) => tab.health?.blocking).map((tab) => ({ tabId: tab.id, providerId: tab.providerId, health: tab.health })),
-    durability: durability.diagnostics(), stateRepair: dexStateStore.diagnostics(), orchestration: dexScheduler?.diagnostics?.() || null,
-    controlPlane: { providerControlPending: providerControlRouting?.pending?.size || 0, controlReceiptsPending: rooms.filter((room) => !!room.pendingProviderControlReceipt).length, targetOperationsPending: providerTargetSpawnRouting?.pending?.size || 0, expiredSpawnCleanup: providerTargetSpawnRouting?.expiredSpawns?.size || 0 }
-  };
-}
+const readDiagnostics = createDiagnosticsSnapshot(() => ({ dexStateStore, durability, localTargets, extensionSocket, extensionSessions, uiSockets, lastTabs, lastLocalTargets, dexScheduler, providerControlRouting, providerTargetSpawnRouting, SERVER_SESSION_ID, ASSET_REVISION, WebSocket }));
+function diagnosticsSnapshot() { return readDiagnostics(); }
 function extensionStatus() {
   return { type: 'bridge_status', connected: !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN, authorityReady: extensionSessions.current().ready };
 }

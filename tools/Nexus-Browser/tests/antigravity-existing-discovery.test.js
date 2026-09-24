@@ -104,6 +104,8 @@ test('probe uses a short console sample and preserves stdout before console atta
 });
 
 test('server diagnostics expose rejected existing Antigravity sessions', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'server-diagnostics.js'), 'utf8');
+  assert.match(server, /createDiagnosticsSnapshot/);
   assert.match(source, /localDiscovery: localTargets\.discoveryDiagnostics\(\)/);
 });
