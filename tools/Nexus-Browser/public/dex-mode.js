@@ -6,7 +6,8 @@
   const runtimeApi = globalThis.BrowserAiBridgeDexRuntimeClient;
   const socketApi = globalThis.BrowserAiBridgeUiSocket;
   const sessionPolicyApi = globalThis.BrowserAiBridgeDexSessionPolicy;
-  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi || !socketApi || !sessionPolicyApi) {
+  const humanInputApi = globalThis.BrowserAiBridgeDexHumanControl;
+  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi || !socketApi || !sessionPolicyApi || !humanInputApi) {
     throw new Error('Dex helpers must load before Dex Mode.');
   }
 
@@ -32,7 +33,7 @@
     'dexRoomName','dexUserName','dexAutoRelay','dexMaxTurns','dexSaveRoom','dexClearChat','dexDeleteRoom',
     'dexRoomStatus','dexMemberClass','dexMemberType','dexMemberTarget','dexMemberName',
     'dexAddMember','dexCancelMemberEdit','dexMemberRelayEnabled','dexMemberList','dexTranscript','dexPrompt','dexSend','dexStopRelay',
-    'dexContinueRelay','dexDiagnostics'
+    'dexContinueRelay','dexDiagnostics','dexControlLabel','dexControlHint','dexHumanToggle'
   ].map((id) => [id, document.getElementById(id)]));
 
   const uid = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
@@ -106,7 +107,7 @@
     el.dexModePanel.hidden = !dex;
     el.baseModeTab.classList.toggle('active', !dex);
     el.dexModeTab.classList.toggle('active', dex);
-    if (!dex) runtime.stopAllRelays('Base Mode opened');
+    // Switching the viewer must not stop autonomous localhost-owned relay work.
     if (dex) renderAll();
   }
 
@@ -174,7 +175,8 @@
     }
     if (msg.type === 'dex_runtime_role') {
       state.runtimeRole = msg.role === 'standby' ? 'standby' : 'controller';
-      el.dexModePanel.inert = state.runtimeRole === 'standby';
+      // Standby tabs may still browse rooms; only the primary may mutate or send.
+      renderAll();
       log(`Dex UI role: ${state.runtimeRole} · localhost owns relay scheduling and recovery.`);
       return;
     }
@@ -270,8 +272,21 @@
     dexSocket.connect();
   }
 
+  const humanInput = humanInputApi.createController({
+    panel: el.dexModePanel,
+    label: el.dexControlLabel,
+    hint: el.dexControlHint,
+    toggle: el.dexHumanToggle,
+    controls: el,
+    onRelock: () => memberController.clear(),
+    onChange: () => renderAll()
+  });
+  const canHumanEdit = () => humanInput.isEnabled()
+    && state.runtimeRole === 'controller' && state.uiConnectionPhase === 'connected';
+
   const memberController = memberApi.createController({
-    state, el, protocol, activeRoom, persist, log, renderAll, uid
+    state, el, protocol, activeRoom, persist, log, renderAll, uid,
+    canHumanEdit
   });
   const runtime = runtimeApi.createController({
     state, send, persist, roomMessage, renderAll, log
@@ -335,7 +350,10 @@
   function renderAll() {
     const room = activeRoom();
     renderRooms();
-    if (!room) return;
+    if (!room) {
+      humanInput.render({ connected: false, controller: false, hasRoom: false });
+      return;
+    }
     const uiConnected = state.uiConnectionPhase === 'connected';
     const connectionSuffix = uiConnected ? '' : ` · Nexus ${state.uiConnectionPhase}`;
     el.dexRoomName.value = room.name;
@@ -349,16 +367,23 @@
     renderTranscript(room);
     const editing = memberController.isEditing();
     const busy = controlApi.roomBusy(state, room);
-    el.dexSend.disabled = !uiConnected || !room.members.length || busy || editing;
-    el.dexContinueRelay.disabled = !uiConnected || !room.messages.length || busy || editing;
-    el.dexStopRelay.disabled = !uiConnected || !busy;
-    el.dexClearChat.disabled = !room.messages.length || busy;
+    el.dexSend.disabled = !uiConnected || state.runtimeRole !== 'controller'
+      || !room.members.length || busy || editing;
+    humanInput.render({
+      connected: uiConnected,
+      controller: state.runtimeRole === 'controller',
+      hasRoom: !!room,
+      busy,
+      messageCount: room.messages.length,
+      editing
+    });
     el.dexClearChat.textContent = room.messages.length ? `Clear chat (${room.messages.length})` : 'Clear chat';
   }
 
   el.baseModeTab.addEventListener('click', () => setMode('base'));
   el.dexModeTab.addEventListener('click', () => setMode('dex'));
   el.dexNewRoom.addEventListener('click', () => {
+    if (!canHumanEdit()) return;
     memberController.clear();
     const room = defaultRoom();
     state.rooms.push(room);
@@ -368,7 +393,7 @@
   });
   el.dexSaveRoom.addEventListener('click', () => {
     const room = activeRoom();
-    if (!room) return;
+    if (!room || !canHumanEdit() || controlApi.roomBusy(state, room)) return;
     room.name = protocol.cleanName(el.dexRoomName.value, room.name);
     room.userName = protocol.cleanName(el.dexUserName.value, 'User');
     room.settings.autoRelay = el.dexAutoRelay.checked;
@@ -379,7 +404,7 @@
   });
   el.dexClearChat.addEventListener('click', () => {
     const room = activeRoom();
-    if (!room || controlApi.roomBusy(state, room)) return log('Stop the relay before clearing room chat.');
+    if (!room || !canHumanEdit() || controlApi.roomBusy(state, room)) return log('Enable Human Input and stop the relay before clearing room chat.');
     if (!confirm(`Clear ${room.messages.length} message(s) from "${room.name}"? Participants and room settings stay intact.`)) return;
     const cleared = controlApi.clearRoomHistory(room);
     persist();
@@ -388,7 +413,7 @@
   });
   el.dexDeleteRoom.addEventListener('click', () => {
     const room = activeRoom();
-    if (!room || controlApi.roomBusy(state, room)) return log('Stop the relay before deleting a room.');
+    if (!room || !canHumanEdit() || controlApi.roomBusy(state, room)) return log('Enable Human Input and stop the relay before deleting a room.');
     state.rooms = state.rooms.filter((item) => item.id !== room.id);
     if (!state.rooms.length) state.rooms.push(defaultRoom(1));
     memberController.clear();
@@ -399,7 +424,8 @@
   el.dexSend.addEventListener('click', () => {
     const room = activeRoom();
     const text = protocol.cleanText(el.dexPrompt.value);
-    if (!room || !text || controlApi.roomBusy(state, room)) return;
+    if (!room || state.runtimeRole !== 'controller' || state.uiConnectionPhase !== 'connected'
+        || !room.members.length || !text || controlApi.roomBusy(state, room) || memberController.isEditing()) return;
     const message = roomMessage(room, 'user', 'user', room.userName, text, false);
     el.dexPrompt.value = '';
     runtime.startRelay(room, message, room.settings.autoRelay ? room.settings.maxTurns : 1);
@@ -410,10 +436,14 @@
       el.dexSend.click();
     }
   });
-  el.dexStopRelay.addEventListener('click', () => runtime.stopRoom(activeRoom(), 'Stopped by user'));
+  el.dexStopRelay.addEventListener('click', () => {
+    if (canHumanEdit()) runtime.stopRoom(activeRoom(), 'Stopped by user');
+  });
   el.dexContinueRelay.addEventListener('click', () => {
     const room = activeRoom();
-    if (room && !controlApi.roomBusy(state, room)) runtime.continueRelay(room, room.settings.maxTurns);
+    if (canHumanEdit() && room && !memberController.isEditing() && !controlApi.roomBusy(state, room)) {
+      runtime.continueRelay(room, room.settings.maxTurns);
+    }
   });
 
   loadRooms();

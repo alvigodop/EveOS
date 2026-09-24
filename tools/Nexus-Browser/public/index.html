@@ -86,7 +86,14 @@
       </section>
     </div>
 
-    <section id="dexModePanel" hidden>
+    <section id="dexModePanel" data-human-input="disabled" hidden>
+      <div id="dexControlBanner" class="dex-control-banner" role="status" aria-live="polite">
+        <div class="dex-control-copy">
+          <span id="dexControlLabel" class="dex-control-label">Agent-Only Mode</span>
+          <p id="dexControlHint">Agents manage room structure and controls. You can browse rooms and send messages without unlocking.</p>
+        </div>
+        <button id="dexHumanToggle" class="dex-human-toggle" type="button" aria-pressed="false">Enable Human Input</button>
+      </div>
       <div class="dex-layout">
         <aside class="dex-sidebar">
           <div class="dex-sidebar-head">
@@ -206,6 +213,7 @@
   <script src="/dex-state-sync.js"></script>
   <script src="/dex-runtime-client.js"></script>
   <script src="/dex-session-policy.js"></script>
+  <script src="/dex-human-control.js"></script>
   <script src="/dex-mode.js"></script>
 </body>
 </html>

@@ -61,11 +61,11 @@
     return { ...member, id: member.id, name, binding, relayEnabled };
   }
 
-  function createController({ state, el, protocol, activeRoom, persist, log, renderAll, uid }) {
+  function createController({ state, el, protocol, activeRoom, persist, log, renderAll, uid, canHumanEdit = () => true }) {
     let editingMemberId = null;
 
     function mutationBlocked(room) {
-      return !room || !!room.relay?.active || !!room.relay?.waitingFor || !!room.pendingTurn || !!room.recovery;
+      return !canHumanEdit() || !room || !!room.relay?.active || !!room.relay?.waitingFor || !!room.pendingTurn || !!room.recovery;
     }
 
     function clear() {
@@ -109,6 +109,7 @@
     }
 
     function beginEdit(room, member) {
+      if (!canHumanEdit()) return log('Enable Human Input before editing participants.');
       if (mutationBlocked(room)) return log('Stop the relay before editing participants.');
       editingMemberId = member.id;
       const binding = member.binding || {};
@@ -145,6 +146,7 @@
         remove.textContent = 'Remove';
         remove.disabled = mutationBlocked(room);
         remove.addEventListener('click', () => {
+          if (!canHumanEdit()) return log('Enable Human Input before changing participants.');
           if (mutationBlocked(room)) return log('Stop the relay before changing participants.');
           room.members = room.members.filter((item) => item.id !== member.id);
           if (room.agentCheckpoints) delete room.agentCheckpoints[member.id];
