@@ -86,15 +86,25 @@
     return parentChain(node).find((current) => String(current?.tagName || '').toUpperCase() === 'MS-CHAT-TURN') || null;
   }
 
+  function aiStudioTurnRole(turn) {
+    if (!turn) return '';
+    const direct = attr(turn, 'data-turn-role');
+    if (direct === 'user' || direct === 'model') return direct;
+    const marked = turn.querySelector?.('[data-turn-role]');
+    const nested = attr(marked, 'data-turn-role');
+    if (nested === 'user' || nested === 'model') return nested;
+    return '';
+  }
+
   function isUserOwned(node, frontend = frontendFromUrl()) {
     if (!node) return false;
     if (frontend === 'aistudio') {
       const turn = aiStudioTurn(node);
       if (!turn) return false;
+      if (aiStudioTurnRole(turn) === 'user') return true;
       const classes = classText(turn);
       if (classes.includes('user')) return true;
-      if (turn.matches?.('[data-turn-role="User"]')) return true;
-      if (turn.querySelector?.('[data-turn-role="User"], .chat-turn-container.user')) return true;
+      if (turn.querySelector?.('.chat-turn-container.user')) return true;
       return false;
     }
 
@@ -115,10 +125,10 @@
     if (frontend === 'aistudio') {
       const turn = aiStudioTurn(node);
       if (!turn) return false;
+      if (aiStudioTurnRole(turn) === 'model') return true;
       const classes = classText(turn);
       if (classes.includes('model')) return true;
-      if (turn.matches?.('[data-turn-role="Model"]')) return true;
-      return !!turn.querySelector?.('[data-turn-role="Model"], .chat-turn-container.model');
+      return !!turn.querySelector?.('.chat-turn-container.model');
     }
 
     const tag = String(node.tagName || '').toLowerCase();
@@ -349,6 +359,7 @@
     isAiStudioThoughtNode,
     cleanAiStudioFallbackText,
     aiStudioTurnText,
+    aiStudioTurnRole,
     assistantNodes,
     assistantText,
     getTurnAssistantText,

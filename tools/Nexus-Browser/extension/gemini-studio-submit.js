@@ -31,12 +31,9 @@
 
   function submissionObserved(snapshot, text, baselineUserTurns, wasGenerating = false) {
     if (!snapshot) return false;
-    const wanted = normalized(text);
-    const current = normalized(snapshot.value);
-    const cleared = !!wanted && !current.includes(wanted);
     const userAdvanced = Number(snapshot.userTurns || 0) > Number(baselineUserTurns || 0);
     const startedGenerating = !wasGenerating && !!snapshot.generating;
-    return cleared || userAdvanced || startedGenerating;
+    return userAdvanced || startedGenerating;
   }
 
   async function executeMain(tabId, func, args = [], scriptingApi = globalThis.chrome?.scripting) {
@@ -146,6 +143,12 @@
         const aria = String(button.getAttribute?.('aria-label') || '').toLowerCase();
         return /stop|cancel/i.test(aria) && !/\brun\b/.test(aria);
       });
+      const welcome = document.querySelector('ms-g1-welcome-dialog');
+      const welcomeVisible = !!welcome && (() => {
+        const style = getComputedStyle(welcome);
+        return welcome.hidden !== true && welcome.getAttribute?.('aria-hidden') !== 'true'
+          && style.display !== 'none' && style.visibility !== 'hidden';
+      })();
       const userTurns = [...document.querySelectorAll('ms-chat-turn')].filter((turn) => {
         const role = String(turn.getAttribute?.('data-turn-role') || '').toLowerCase();
         return role === 'user'
@@ -158,7 +161,8 @@
         runFound: !!run,
         runDisabled: !!run?.disabled || run?.getAttribute?.('aria-disabled') === 'true',
         userTurns,
-        generating: !!stop
+        generating: !!stop,
+        blocker: welcomeVisible ? 'first_run_welcome' : ''
       };
     }, [COMPOSER_SELECTORS, RUN_SELECTORS], scriptingApi);
   }
@@ -306,6 +310,9 @@
     if (!initial?.composerFound) {
       return { ok: false, error: 'Google AI Studio composer did not become ready in the bridge popup.' };
     }
+    if (initial.blocker === 'first_run_welcome') {
+      return { ok: false, code: 'PROVIDER_SETUP_REQUIRED', error: 'Google AI Studio is blocked by its first-run welcome screen. Open that tab and choose Continue before sending through Nexus Browser.' };
+    }
 
     let readySnapshot = initial;
     if (!initial.runFound && initial.generating) {
@@ -354,7 +361,7 @@
 
     return {
       ok: false,
-      error: 'AI Studio kept the prompt after Run, Enter, and Ctrl/Cmd+Enter attempts.'
+      error: 'AI Studio did not expose a committed user turn or generation after Run, Enter, and Ctrl/Cmd+Enter attempts.'
     };
   }
 

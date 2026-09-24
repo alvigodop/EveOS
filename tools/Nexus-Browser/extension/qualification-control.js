@@ -92,6 +92,7 @@
       const record = {
         runId: id,
         providerId: provider,
+        requestedUrl: exactUrl,
         url: exactUrl,
         tabId: Number(tab.id),
         originalTabId: Number(tab.id),
@@ -140,8 +141,12 @@
       }
       const tab = await chromeApi.tabs.get(Number(record.tabId));
       const currentUrl = clean(tab?.url || tab?.pendingUrl);
-      if (!sameUrl(currentUrl, record.url) || !matchesProvider(record.providerId, currentUrl)) {
+      if (!matchesProvider(record.providerId, currentUrl)) {
         throw coded('QUALIFICATION_URL_MISMATCH', 'Qualification close refused because the owned tab URL changed.');
+      }
+      if (!sameUrl(currentUrl, record.url)) {
+        record.url = currentUrl;
+        await write(record);
       }
       const before = new Set(record.baselineTabIds || []);
       record.closeConsumed = true;
@@ -366,7 +371,8 @@
         const record = await control.requireRun(runId);
         const provider = deps.getProvider?.(msg.providerId);
         const url = clean(msg.url);
-        if (!provider || provider.id !== record.providerId || !sameUrl(url, record.url)) {
+        const authorizedUrl = sameUrl(url, record.url) || sameUrl(url, record.requestedUrl);
+        if (!provider || provider.id !== record.providerId || !authorizedUrl) {
           throw coded('QUALIFICATION_REPLACEMENT_MISMATCH', 'Qualification replacement metadata did not match the owned run.');
         }
         const ensured = await deps.targetResurrectionApi.ensure({ provider, url: record.url, chromeApi: deps.chromeApi, open: true });

@@ -13,6 +13,8 @@ const antigravity = {
   sessionOrigin: 'spawned'
 };
 const gemini = { id: 'local:gemini-cli:latest', providerId: 'local-gemini-cli' };
+const codexThrowaway = { id: 'local:codex-cli:throwaway', providerId: 'local-codex-throwaway', sessionOrigin: 'ephemeral' };
+const codexSpawned = { id: 'local:codex-cli:spawned', providerId: 'local-codex-spawned', sessionOrigin: 'spawned' };
 
 test('Antigravity hides the legacy Gemini CLI target by default', () => {
   const targets = preferLocalTargets([antigravity, gemini], {});
@@ -32,4 +34,9 @@ test('legacy Gemini CLI remains available when Antigravity is absent', () => {
 test('legacy Gemini CLI can be explicitly shown for diagnostics', () => {
   const targets = preferLocalTargets([antigravity, gemini], { BROWSER_AI_BRIDGE_SHOW_LEGACY_GEMINI_CLI: '1' });
   assert.deepEqual(targets.map((target) => target.id), [antigravity.id, gemini.id]);
+});
+
+test('Nova Codex choices coexist and rank spawned before throwaway', () => {
+  const targets = preferLocalTargets([codexThrowaway, antigravity, codexSpawned, existing], {});
+  assert.deepEqual(targets.map((target) => target.id), [existing.id, antigravity.id, codexSpawned.id, codexThrowaway.id]);
 });

@@ -14,5 +14,7 @@ if (typeof importScripts === 'function') {
   importScripts('dex-ui-ensure.js');
   importScripts('dex-provider-control-boot.js');
   importScripts('chatgpt-navigation-recovery.js');
+  importScripts('background-dispatch.js');
+  importScripts('tab-readiness.js');
   importScripts('service-worker.js');
 }

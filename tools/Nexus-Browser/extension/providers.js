@@ -255,7 +255,8 @@
         }
       }),
       qualification: {
-        live: true, warmRecovery: true, exactOnce: true, urlPrefix: 'https://gemini.google.com/',
+        live: true, warmRecovery: true, exactOnce: true, allowStartupRedirect: true,
+        urlPrefix: 'https://gemini.google.com/',
         deniedWarmUrlPrefixes: ['https://aistudio.google.com/']
       },
       groups: [

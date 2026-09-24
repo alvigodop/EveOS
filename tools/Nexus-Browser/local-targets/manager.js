@@ -1,5 +1,7 @@
 const antigravityExisting = require('./antigravity-existing');
 const antigravityCli = require('./antigravity-cli');
+const codexExisting = require('./codex-existing');
+const codexCli = require('./codex-cli');
 const geminiCli = require('./gemini-cli');
 
 const TARGET_CLASSES = [
@@ -15,7 +17,7 @@ const LOCAL_TARGET_TYPES = [
   }
 ];
 
-const adapters = [antigravityExisting, antigravityCli, geminiCli];
+const adapters = [codexExisting, antigravityExisting, codexCli, antigravityCli, geminiCli];
 const CACHE_MS = Number(process.env.NEXUS_BROWSER_LOCAL_TARGET_CACHE_MS || process.env.BROWSER_AI_BRIDGE_LOCAL_TARGET_CACHE_MS || 600);
 let cachedTargets = null;
 let cachedAt = 0;

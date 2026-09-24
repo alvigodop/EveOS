@@ -61,6 +61,7 @@ test('qualification creates only its own background tab and records run ownershi
   const record = await f.control.requireRun('run-1');
   assert.equal(record.disposable, true);
   assert.equal(record.tabId, 10);
+  assert.equal(record.requestedUrl, 'https://muse.ai/?dex_qualification=run-1');
   assert.deepEqual(record.baselineTabIds, [1, 2]);
 });
 
@@ -95,6 +96,28 @@ test('qualification close is exact, one-shot, and preserves the foreground tab',
     () => f.control.closeOwned({ runId: 'run-1', providerId: 'muse', tabId: result.tab.id, url: result.record.url }),
     (error) => error.code === 'QUALIFICATION_CLOSE_CONSUMED'
   );
+});
+
+test('owned disposable tab adopts a same-provider startup redirect before one-shot close', async () => {
+  const f = fixture();
+  const result = await opened(f);
+  f.tabs.get(result.tab.id).url = 'https://muse.ai/chat/provider-startup-route';
+  await f.control.closeOwned({
+    runId: 'run-1', providerId: 'muse', tabId: result.tab.id, url: result.record.url
+  });
+  const record = await f.control.requireRun('run-1');
+  assert.equal(record.url, 'https://muse.ai/chat/provider-startup-route');
+  assert.equal(record.phase, 'closed');
+});
+
+test('owned disposable close still refuses cross-provider navigation', async () => {
+  const f = fixture();
+  const result = await opened(f);
+  f.tabs.get(result.tab.id).url = 'https://example.com/escaped';
+  await assert.rejects(() => f.control.closeOwned({
+    runId: 'run-1', providerId: 'muse', tabId: result.tab.id, url: result.record.url
+  }), (error) => error.code === 'QUALIFICATION_URL_MISMATCH');
+  assert.equal(f.tabs.has(result.tab.id), true);
 });
 
 test('expired qualification ownership is refused and discarded', async () => {

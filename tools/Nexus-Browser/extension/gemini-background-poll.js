@@ -126,7 +126,6 @@
           return (label === 'run' || /\brun\b/.test(label) || button.closest?.('ms-run-button'))
             && !/stop|cancel/i.test(label);
         });
-
         return {
           count: assistantNodes.length,
           userCount: userTurns.length,

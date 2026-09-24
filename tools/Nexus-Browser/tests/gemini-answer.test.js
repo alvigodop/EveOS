@@ -42,6 +42,25 @@ test('AI Studio ownership uses the surrounding model turn and rejects user turns
   assert.equal(geminiAnswer.isAssistantOwned(userNode, 'aistudio'), false);
 });
 
+test('AI Studio ownership normalizes lowercase role attributes used by the live UI', () => {
+  const makeTurn = (role) => ({
+    tagName: 'MS-CHAT-TURN',
+    className: 'ng-star-inserted',
+    parentElement: null,
+    querySelector() { return null; },
+    getAttribute(name) { return name === 'data-turn-role' ? role : null; }
+  });
+  const modelTurn = makeTurn('model');
+  const userTurn = makeTurn('user');
+  const modelNode = { tagName: 'DIV', className: '', parentElement: modelTurn, getAttribute() { return null; } };
+  const userNode = { tagName: 'DIV', className: '', parentElement: userTurn, getAttribute() { return null; } };
+
+  assert.equal(geminiAnswer.aiStudioTurnRole(modelTurn), 'model');
+  assert.equal(geminiAnswer.isAssistantOwned(modelNode, 'aistudio'), true);
+  assert.equal(geminiAnswer.isUserOwned(userNode, 'aistudio'), true);
+  assert.equal(geminiAnswer.isAssistantOwned(userNode, 'aistudio'), false);
+});
+
 test('Gemini answer normalization strips Gemini said even after rendered leading whitespace', () => {
   assert.equal(
     geminiAnswer.normalizeText('\n   Gemini said\nHey Drift! What are you working on today?'),

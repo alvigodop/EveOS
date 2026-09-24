@@ -205,6 +205,21 @@
     return !input.composerContainsText(composer, text);
   }
 
+  async function waitForSendControl(composer, timeoutMs = 1400, {
+    findImpl = input.findSendControl,
+    refreshImpl = input.refreshComposerState,
+    sleepImpl = sleep
+  } = {}) {
+    const started = Date.now();
+    refreshImpl?.(composer);
+    while (Date.now() - started < timeoutMs) {
+      const control = findImpl?.(composer);
+      if (control) return control;
+      await sleepImpl(50);
+    }
+    return findImpl?.(composer) || null;
+  }
+
   async function waitForAiStudioSubmission(composer, text, baselineUserTurns, timeoutMs = 1800) {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
@@ -307,7 +322,7 @@
       return;
     }
 
-    const sendControl = input.findSendControl(composer);
+    const sendControl = await waitForSendControl(composer);
     if (sendControl) {
       if (input.isUnsafeSendControl?.(sendControl)) {
         stopWatcher(requestId);
@@ -375,6 +390,7 @@
       dispatchComposerEnter,
       waitForComposerText,
       waitForPromptDeparture,
+      waitForSendControl,
       waitForAiStudioSubmission,
       waitForAiStudioRun,
       clickAiStudioRun,

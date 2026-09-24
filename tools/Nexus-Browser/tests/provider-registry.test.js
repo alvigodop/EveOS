@@ -127,6 +127,8 @@ test('live qualification capabilities are provider-declared rather than Muse-spe
     assert.equal(item.qualification.urlPrefix.startsWith('https://'), true, item.id);
   }
   assert.deepEqual(getProvider('gemini').qualification.deniedWarmUrlPrefixes, ['https://aistudio.google.com/']);
+  assert.equal(getProvider('gemini').qualification.allowStartupRedirect, true);
+  assert.equal(PROVIDERS.filter((item) => item.id !== 'gemini').some((item) => item.qualification.allowStartupRedirect), false);
   assert.equal(publicProviders().every((item) => item.qualification?.exactOnce === true), true);
 });
 

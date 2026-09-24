@@ -75,13 +75,17 @@ async function runQualification({ providerId = 'muse', timeoutMs, recoveryTarget
 
     const exactUrl = replacement.url === owned.url;
     const providerMatch = replacement.providerId === providerId;
+    const startupRedirectAccepted = !exactUrl
+      && provider.qualification?.allowStartupRedirect === true
+      && providerMatch;
+    const routeMatch = exactUrl || startupRedirectAccepted;
     const focusSteal = Number(owned.foregroundBefore) !== Number(closed.data?.foregroundAfter)
       || Number(owned.foregroundBefore) !== Number(replacement.foregroundNow);
     const targetPass = Number(owned.tabId) !== Number(replacement.tabId)
       && replacement.created === true
       && replacement.backgroundOnly === true
       && owned.createdActive === false
-      && exactUrl
+      && routeMatch
       && providerMatch
       && !focusSteal
       && Number(closed.data?.unrelatedTabsMissing || 0) === 0;
@@ -92,6 +96,8 @@ async function runQualification({ providerId = 'muse', timeoutMs, recoveryTarget
       originalTabId: owned.tabId,
       replacementTabId: replacement.tabId,
       exactUrl,
+      startupRedirectAccepted,
+      routeMatch,
       providerMatch,
       backgroundOnly: replacement.backgroundOnly === true && owned.createdActive === false,
       focusSteal,

@@ -21,7 +21,9 @@ const qualificationControlApi = globalThis.BrowserAiBridgeQualificationControl |
 const adapterReadinessApi = globalThis.BrowserAiBridgeAdapterReadinessCache || (typeof module !== 'undefined' && module.exports ? require('./adapter-readiness-cache.js') : null); const adapterFreshnessApi = globalThis.BrowserAiBridgeProviderAdapterFreshness || (typeof module !== 'undefined' && module.exports ? require('./provider-adapter-freshness.js') : null);
 const dexUiEnsureApi = globalThis.BrowserAiBridgeDexUiEnsure || (typeof module !== 'undefined' && module.exports ? require('./dex-ui-ensure.js') : null); const providerTargetSpawnApi = globalThis.BrowserAiBridgeProviderTargetSpawn || (typeof module !== 'undefined' && module.exports ? require('./provider-target-spawn.js') : null);
 const chatgptNavigationRecoveryApi = globalThis.BrowserAiBridgeChatGptNavigationRecovery || (typeof module !== 'undefined' && module.exports ? require('./chatgpt-navigation-recovery.js') : null);
-if (!tabPublishApi || !providerApi || !providerHealthApi || !geminiPollApi || !geminiStudioWindowApi || !geminiStudioSubmitApi || !hostAccessApi || !targetStateApi || !targetResurrectionApi || !qualificationControlApi || !adapterReadinessApi || !adapterFreshnessApi || !dexUiEnsureApi || !providerTargetSpawnApi || !chatgptNavigationRecoveryApi) {
+const backgroundDispatchApi = globalThis.BrowserAiBridgeBackgroundDispatch || (typeof module !== 'undefined' && module.exports ? require('./background-dispatch.js') : null);
+const tabReadinessApi = globalThis.BrowserAiBridgeTabReadiness || (typeof module !== 'undefined' && module.exports ? require('./tab-readiness.js') : null);
+if (!tabPublishApi || !providerApi || !providerHealthApi || !geminiPollApi || !geminiStudioWindowApi || !geminiStudioSubmitApi || !hostAccessApi || !targetStateApi || !targetResurrectionApi || !qualificationControlApi || !adapterReadinessApi || !adapterFreshnessApi || !dexUiEnsureApi || !providerTargetSpawnApi || !chatgptNavigationRecoveryApi || !backgroundDispatchApi || !tabReadinessApi) {
   throw new Error('Bridge extension modules failed to load.');
 }
 const { createTabPublishController } = tabPublishApi; const { PROVIDERS, getProvider, providerForUrl, publicProviders } = providerApi;
@@ -115,10 +117,7 @@ async function safeExecuteScript(details, timeoutMs = 10000) {
   const run = chrome.scripting.executeScript(details);
   return Promise.race([run, new Promise((_, r) => setTimeout(() => r(new Error(`executeScript timeout for ${fileDesc}`)), timeoutMs))]);
 }
-async function waitForTabComplete(tabId, timeoutMs = 15000) {
-  for (const deadline = Date.now() + timeoutMs; Date.now() < deadline;) { const tab = await chrome.tabs.get(tabId); if (tab.status === 'complete') return tab; await new Promise((r) => setTimeout(r, 100)); }
-  throw new Error('Timed out waiting for target tab to finish loading.');
-}
+const waitForTabComplete = (tabId, timeoutMs = 15000) => tabReadinessApi.waitForTabComplete(tabId, chrome, { timeoutMs });
 async function clearContentGlobals(tabId, keys) {
   if (!keys?.length) return;
   await safeExecuteScript({
@@ -212,6 +211,7 @@ async function sendToTarget(message, options = {}) {
   const pinned = options.tabId != null || options.providerId != null; let tabId = pinned ? Number(options.tabId) : targetTabId, provider = pinned ? getProvider(options.providerId) : null;
   if (pinned) { if (!Number.isInteger(tabId) || !provider) throw Object.assign(new Error('Qualification target authorization is missing.'), { code: options.readyOnly ? 'QUALIFICATION_WARM_TARGET_NOT_READY' : 'QUALIFICATION_TARGET_MISMATCH' }); let tab; try { tab = await chrome.tabs.get(tabId); } catch { throw Object.assign(new Error(options.readyOnly ? 'Warm qualification target disappeared and may not fall back to another tab.' : 'Qualification target disappeared and may not fall back to another tab.'), { code: options.readyOnly ? 'QUALIFICATION_WARM_TARGET_NOT_READY' : 'QUALIFICATION_TARGET_MISMATCH' }); } assertProviderMatchesTab(provider, tab); } else { ({ provider } = await selectedProviderAndTab()); tabId = targetTabId; }
   if (options.readyOnly) { const revision = await adapterFreshnessApi.probe(tabId, chrome); if (!adapterFreshnessApi.current(revision)) throw Object.assign(new Error('Warm qualification target has a stale adapter revision and may not be reloaded.'), { code: 'QUALIFICATION_WARM_TARGET_NOT_READY' }); for (const group of provider.groups) if (!(await probeScript(tabId, group.pingType, group.expectedAdapter))) throw Object.assign(new Error('Warm qualification target lost adapter readiness and may not be reloaded.'), { code: 'QUALIFICATION_WARM_TARGET_NOT_READY' }); } else await ensureProviderAdapter(tabId, provider);
+  if (message?.type === 'send_prompt') return backgroundDispatchApi.sendMessage(tabId, message, chrome);
   return chrome.tabs.sendMessage(tabId, message);
 }
 async function getSearchResultsWithCollapsedRecovery(requestId, searchIndex, sendFn = sendToTarget) {
@@ -271,7 +271,7 @@ async function handleBridgeCommand(msg) {
         tab = await keepAiStudioPopupReady(tab);
         const studioBaseline = await sampleAiStudioTab(tab.id).catch(() => ({ count: 0, userCount: 0, text: '' }));
         const submitted = await submitAiStudioPrompt({ tabId: tab.id, text: msg.text });
-        if (!submitted?.ok) throw new Error(submitted?.error || 'Google AI Studio did not accept the prompt.');
+        if (!submitted?.ok) throw Object.assign(new Error(submitted?.error || 'Google AI Studio did not accept the prompt.'), { code: submitted?.code || 'PROMPT_SEND_FAILED' });
         startAiStudioResponsePoll({
           tabId: tab.id, targetWindowId: tab.windowId, requestId: msg.requestId,
           baseline: studioBaseline, expectedPrompt: msg.text, send: safeSend, minimizeOnFinish: false
@@ -289,8 +289,11 @@ async function handleBridgeCommand(msg) {
     if (msg.type === 'capture_latest') {
       const warmQualification = msg.qualification?.targetMode === 'preexisting-warm';
       const authorized = msg.qualification?.runId ? await qualificationControl.assertPromptTarget({ runId: msg.qualification.runId }) : null;
-      const authorizedTabId = authorized ? Number(authorized.record.recoveryTarget?.tabId ?? authorized.record.tabId) : targetTabId, provider = authorized ? getProvider(authorized.record.providerId) : (await selectedProviderAndTab()).provider;
-      const result = await sendToTarget({ type: 'capture_latest', requestId: msg.requestId, expectedPrompt: msg.expectedPrompt || '' }, { readyOnly: warmQualification, tabId: authorized ? authorizedTabId : null, providerId: authorized?.record?.providerId || null });
+      const selected = authorized ? null : await selectedProviderAndTab();
+      const authorizedTabId = authorized ? Number(authorized.record.recoveryTarget?.tabId ?? authorized.record.tabId) : targetTabId, provider = authorized ? getProvider(authorized.record.providerId) : selected.provider, tab = authorized ? await chrome.tabs.get(authorizedTabId) : selected.tab;
+      const result = isAiStudioTarget(provider, tab)
+        ? await sampleAiStudioTab(tab.id, chrome.scripting, msg.expectedPrompt || '').then((sample) => ({ text: sample.text, isGenerating: sample.generating, observedAt: Date.now(), completenessHint: sample.generating ? 'unknown' : 'settled' }))
+        : await sendToTarget({ type: 'capture_latest', requestId: msg.requestId, expectedPrompt: msg.expectedPrompt || '' }, { readyOnly: warmQualification, tabId: authorized ? authorizedTabId : null, providerId: authorized?.record?.providerId || null });
       const generationState = result?.generationState || (result?.isGenerating === true ? 'active' : result?.isGenerating === false ? 'idle' : 'unknown');
       safeSend({ type: 'capture_result', requestId: msg.requestId, text: result?.text || '', isGenerating: result?.isGenerating === true, generationState, observedAt: result?.observedAt || Date.now(), completenessHint: result?.completenessHint || null, tabId: authorized ? authorizedTabId : targetTabId, adapterRevision: adapterFreshnessApi.ADAPTER_REVISION, providerId: provider.id, providerName: provider.name });
       return;

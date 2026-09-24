@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const submit = require('../extension/gemini-studio-submit.js');
 
-test('AI Studio submission detection accepts clear, user-turn advance, or generating state', () => {
-  assert.equal(submit.submissionObserved({ value: '', userTurns: 3, generating: false }, 'hello', 3), true);
+test('AI Studio submission detection requires a user-turn advance or generating state', () => {
+  assert.equal(submit.submissionObserved({ value: '', userTurns: 3, generating: false }, 'hello', 3), false);
   assert.equal(submit.submissionObserved({ value: 'hello', userTurns: 4, generating: false }, 'hello', 3), true);
   assert.equal(submit.submissionObserved({ value: 'hello', userTurns: 3, generating: true }, 'hello', 3), true);
   assert.equal(submit.submissionObserved({ value: 'hello', userTurns: 3, generating: true }, 'hello', 3, true), false);
@@ -202,4 +202,18 @@ test('AI Studio installs anti-throttling active shim in MAIN world', async () =>
   assert.equal(result, true);
   assert.equal(injection.target.tabId, 42);
   assert.equal(injection.world, 'MAIN');
+});
+
+test('AI Studio blocks submission behind the first-run welcome screen', async () => {
+  const result = await submit.submitAiStudioPrompt({
+    tabId: 42,
+    text: 'hello',
+    ops: { async inspect() { return { composerFound: true, blocker: 'first_run_welcome' }; } },
+    delay: async () => {},
+    composerTimeoutMs: 100
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'PROVIDER_SETUP_REQUIRED');
+  assert.match(result.error, /choose Continue/);
 });

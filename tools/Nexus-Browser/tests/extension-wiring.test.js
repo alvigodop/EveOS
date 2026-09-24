@@ -6,6 +6,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'extension', 'manifest.json'), 'utf8'));
 const { PROVIDERS } = require('../extension/providers.js');
+const serviceWorkerEntry = fs.readFileSync(path.join(ROOT, 'extension', 'service-worker-entry.js'), 'utf8');
 
 test('every provider has one matching ordered manifest content-script bundle', () => {
   for (const provider of PROVIDERS) {
@@ -38,4 +39,11 @@ test('extension grants only supported providers and loopback while keeping injec
 test('explicit loopback permissions cover runtime health and websocket coordination', () => {
   assert.equal(manifest.host_permissions.includes('http://127.0.0.1/*'), true);
   assert.equal(manifest.host_permissions.includes('http://localhost/*'), true);
+});
+
+test('service worker loads background dispatch before provider routing', () => {
+  const dispatch = serviceWorkerEntry.indexOf("importScripts('background-dispatch.js')");
+  const readiness = serviceWorkerEntry.indexOf("importScripts('tab-readiness.js')");
+  const worker = serviceWorkerEntry.indexOf("importScripts('service-worker.js')");
+  assert.ok(dispatch >= 0 && readiness > dispatch && worker > readiness);
 });

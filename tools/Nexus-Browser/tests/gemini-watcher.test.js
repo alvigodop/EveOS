@@ -46,3 +46,17 @@ test('AI Studio Ctrl/Cmd+Enter fallback uses only the platform-appropriate modif
   assert.deepEqual(gemini.aiStudioShortcutModifiers('Win32'), { ctrlKey: true, metaKey: false });
   assert.deepEqual(gemini.aiStudioShortcutModifiers('MacIntel'), { ctrlKey: false, metaKey: true });
 });
+
+test('Gemini waits for framework state to enable the send control after text insertion', async () => {
+  const control = { click() {} };
+  let attempts = 0;
+  let refreshed = 0;
+  const result = await gemini.waitForSendControl({}, 1000, {
+    findImpl: () => (++attempts >= 3 ? control : null),
+    refreshImpl: () => { refreshed += 1; },
+    sleepImpl: async () => {}
+  });
+  assert.equal(result, control);
+  assert.equal(attempts, 3);
+  assert.equal(refreshed, 1);
+});
