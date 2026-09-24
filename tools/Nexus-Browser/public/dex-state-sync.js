@@ -78,6 +78,12 @@
         persist({ immediate: true });
         return { applied: false, reason: 'remote-empty' };
       }
+      const normalizedRemoteRooms = ensureRooms(remoteRooms);
+      const remoteActiveRoomId = normalizedRemoteRooms.some((room) => room.id === remote?.activeRoomId)
+        ? remote.activeRoomId : normalizedRemoteRooms[0].id;
+      if (JSON.stringify(normalizedRemoteRooms) === lastLocalJson && remoteActiveRoomId === state.activeRoomId) {
+        return { applied: false, reason: 'unchanged' };
+      }
       const localTime = latestRoomStamp(state.rooms);
       const remoteTime = Math.max(stamp(remote?.savedAt), latestRoomStamp(remoteRooms));
       const localIds = new Set(state.rooms.map((room) => room?.id).filter(Boolean));
@@ -86,9 +92,8 @@
         persist({ immediate: true });
         return { applied: false, reason: 'local-newer' };
       }
-      state.rooms = ensureRooms(remoteRooms);
-      state.activeRoomId = state.rooms.some((room) => room.id === remote?.activeRoomId)
-        ? remote.activeRoomId : state.rooms[0].id;
+      state.rooms = normalizedRemoteRooms;
+      state.activeRoomId = remoteActiveRoomId;
       persist({ remote: false });
       return { applied: true, reason: 'remote-newer-or-equal' };
     }

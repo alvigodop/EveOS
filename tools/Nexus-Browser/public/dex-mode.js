@@ -4,7 +4,8 @@
   const controlApi = globalThis.BrowserAiBridgeDexProviderControl;
   const stateSyncApi = globalThis.BrowserAiBridgeDexStateSync;
   const runtimeApi = globalThis.BrowserAiBridgeDexRuntimeClient;
-  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi) {
+  const socketApi = globalThis.BrowserAiBridgeUiSocket;
+  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi || !socketApi) {
     throw new Error('Dex helpers must load before Dex Mode.');
   }
 
@@ -12,8 +13,7 @@
   const SERVER_SESSION_KEY = 'browser-ai-bridge.dex.server-session.v1';
   const RELOAD_REASON_KEY = 'browser-ai-bridge.dex.reload-reason.v1';
   const state = {
-    ws: null,
-    reconnectTimer: null,
+    uiConnectionPhase: 'connecting',
     rooms: [],
     activeRoomId: null,
     tabs: [],
@@ -65,10 +65,9 @@
   }
 
   let stateSync = null;
+  let dexSocket = null;
   function send(payload) {
-    if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return false;
-    state.ws.send(JSON.stringify(payload));
-    return true;
+    return dexSocket?.send(payload) || false;
   }
 
   function loadRooms() {
@@ -223,25 +222,28 @@
   }
 
   function connectSocket() {
-    clearTimeout(state.reconnectTimer);
     const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${scheme}://${location.host}/ws`);
-    state.ws = ws;
-    ws.addEventListener('open', () => {
-      send({ type: 'hello', role: 'ui', clientKind: 'dex' });
-      send({ type: 'request_tabs' });
-      send({ type: 'request_local_targets' });
-      log('Dex viewer/controller connected.');
+    dexSocket = socketApi.createClient({
+      url: `${scheme}://${location.host}/ws`,
+      hello: { type: 'hello', role: 'ui', clientKind: 'dex' },
+      onMessage: handleSocketMessage,
+      onOpen: () => {
+        send({ type: 'request_tabs' });
+        send({ type: 'request_local_targets' });
+        log('Dex viewer/controller connected.');
+      },
+      onMalformed: (error) => log(`Bad Dex bridge event: ${error.message}`),
+      onPhase: ({ phase }) => {
+        const previous = state.uiConnectionPhase;
+        state.uiConnectionPhase = phase;
+        renderAll();
+        if (phase === 'reconnecting' && previous === 'connected') {
+          log('Dex viewer/controller reconnecting; relay controls paused.');
+        }
+        if (phase === 'disconnected') log('Dex viewer/controller disconnected; retrying in background.');
+      }
     });
-    ws.addEventListener('message', (event) => {
-      try { handleSocketMessage(JSON.parse(event.data)); }
-      catch (error) { log(`Bad Dex bridge event: ${error.message}`); }
-    });
-    ws.addEventListener('close', () => {
-      state.ws = null;
-      state.reconnectTimer = setTimeout(connectSocket, 1200);
-    });
-    ws.addEventListener('error', () => {});
+    dexSocket.connect();
   }
 
   const memberController = memberApi.createController({
@@ -303,20 +305,22 @@
     const room = activeRoom();
     renderRooms();
     if (!room) return;
+    const uiConnected = state.uiConnectionPhase === 'connected';
+    const connectionSuffix = uiConnected ? '' : ` · Nexus ${state.uiConnectionPhase}`;
     el.dexRoomName.value = room.name;
     el.dexUserName.value = room.userName;
     el.dexAutoRelay.checked = !!room.settings.autoRelay;
     el.dexMaxTurns.value = room.settings.maxTurns;
     el.dexRoomStatus.textContent = room.relay.active
-      ? `Relay running on localhost · ${room.relay.remaining} turn(s) left${room.relay.waitingFor ? ' · waiting for agent' : ''}`
-      : `Relay stopped · ${room.relay.lastStopReason || 'Idle'}`;
+      ? `Relay running on localhost · ${room.relay.remaining} turn(s) left${room.relay.waitingFor ? ' · waiting for agent' : ''}${connectionSuffix}`
+      : `Relay stopped · ${room.relay.lastStopReason || 'Idle'}${connectionSuffix}`;
     memberController.render(room);
     renderTranscript(room);
     const editing = memberController.isEditing();
     const busy = controlApi.roomBusy(state, room);
-    el.dexSend.disabled = !room.members.length || busy || editing;
-    el.dexContinueRelay.disabled = !room.messages.length || busy || editing;
-    el.dexStopRelay.disabled = !busy;
+    el.dexSend.disabled = !uiConnected || !room.members.length || busy || editing;
+    el.dexContinueRelay.disabled = !uiConnected || !room.messages.length || busy || editing;
+    el.dexStopRelay.disabled = !uiConnected || !busy;
     el.dexClearChat.disabled = !room.messages.length || busy;
     el.dexClearChat.textContent = room.messages.length ? `Clear chat (${room.messages.length})` : 'Clear chat';
   }

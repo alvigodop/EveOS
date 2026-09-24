@@ -1,6 +1,6 @@
 const state = {
-  ws: null,
   extensionConnected: false,
+  uiConnectionPhase: 'connecting',
   targetClasses: [{ id: 'online-origin', name: 'Online-Origin Targets' }, { id: 'local-origin', name: 'Local-Origin Targets' }],
   selectedTargetClassId: 'online-origin',
   providers: [],
@@ -10,8 +10,7 @@ const state = {
   localTargetTypes: [{ id: 'terminal-agent', name: 'Terminal Agent' }], selectedLocalTypeId: 'terminal-agent',
   localTargets: [],
   localTarget: null,
-  pending: new Map(),
-  reconnectTimer: null
+  pending: new Map()
 };
 
 const el = {
@@ -35,11 +34,11 @@ const el = {
   diagnostics: document.querySelector('#diagnostics')
 };
 
-const searchUi = globalThis.BrowserAiBridgeSearchResultsUi;
-const activityUi = globalThis.BrowserAiBridgeActivityUi;
-if (!searchUi) throw new Error('Search-results UI module was not loaded before app.js.');
+const searchUi = globalThis.BrowserAiBridgeSearchResultsUi, activityUi = globalThis.BrowserAiBridgeActivityUi;
+const socketApi = globalThis.BrowserAiBridgeUiSocket;
+if (!searchUi || !socketApi) throw new Error('Base UI helpers were not loaded before app.js.');
 if (!activityUi) throw new Error('Activity UI module was not loaded before app.js.');
-
+let uiSocket = null;
 function activeTarget() {
   return state.selectedTargetClassId === 'local-origin' ? state.localTarget : state.onlineTarget;
 }
@@ -103,11 +102,10 @@ function addMessage(role, text, id = null, partial = false, assistantName = null
 }
 
 function send(payload) {
-  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+  if (!uiSocket?.send(payload)) {
     addMessage('system', 'Local bridge socket is not connected.');
     return false;
   }
-  state.ws.send(JSON.stringify(payload));
   return true;
 }
 
@@ -234,15 +232,16 @@ function renderLocalTargets() {
 
 function renderStatus() {
   const local = state.selectedTargetClassId === 'local-origin';
+  const uiConnected = state.uiConnectionPhase === 'connected';
   el.onlineTargetControls.hidden = local;
   el.localTargetControls.hidden = !local;
-
-  el.bridgeBadge.textContent = local
+  el.bridgeBadge.textContent = !uiConnected
+    ? state.uiConnectionPhase === 'disconnected' ? 'Nexus disconnected' : 'Nexus reconnecting'
+    : local
     ? 'Local bridge ready'
     : state.extensionConnected ? 'Extension connected' : 'Extension offline';
-  el.bridgeBadge.classList.toggle('offline', !local && !state.extensionConnected);
-  el.bridgeBadge.classList.toggle('online', local || state.extensionConnected);
-
+  el.bridgeBadge.classList.toggle('offline', !uiConnected || (!local && !state.extensionConnected));
+  el.bridgeBadge.classList.toggle('online', uiConnected && (local || state.extensionConnected));
   const target = activeTarget();
   if (target) {
     if (local) el.targetStatus.textContent = `Bound to local ${target.targetTypeName || 'target'}: ${target.title || target.id}`;
@@ -256,9 +255,9 @@ function renderStatus() {
   el.prompt.placeholder = local
     ? `Type here. Enter sends to the selected ${targetName} local target.`
     : `Type here. Enter sends to the selected ${targetName} tab.`;
-  el.sendPrompt.disabled = !target || (!local && (!state.extensionConnected || target.health?.blocking));
+  el.sendPrompt.disabled = !target || !uiConnected || (!local && (!state.extensionConnected || target.health?.blocking));
   el.captureLatest.hidden = local;
-  el.captureLatest.disabled = local || !state.extensionConnected || !state.onlineTarget;
+  el.captureLatest.disabled = local || !uiConnected || !state.extensionConnected || !state.onlineTarget;
 }
 
 function hostAccessUiMessage(msg) {
@@ -271,9 +270,8 @@ function handleMessage(msg) {
   switch (msg.type) {
     case 'bridge_status':
       state.extensionConnected = !!msg.connected;
-      if (!state.extensionConnected) state.onlineTarget = null;
       renderStatus();
-      log(`Extension ${state.extensionConnected ? 'connected' : 'disconnected'}`);
+      log(`Extension ${state.extensionConnected ? 'connected' : (msg.state === 'reconnecting' ? 'reconnecting' : 'disconnected')}`);
       break;
     case 'target_classes_update':
       if (Array.isArray(msg.classes)) state.targetClasses = msg.classes;
@@ -364,26 +362,21 @@ function handleMessage(msg) {
 }
 
 function connectSocket() {
-  clearTimeout(state.reconnectTimer);
-  const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-  const ws = new WebSocket(`${scheme}://${location.host}/ws`);
-  state.ws = ws;
-  ws.addEventListener('open', () => {
-    ws.send(JSON.stringify({ type: 'hello', role: 'ui' }));
-    log('Local UI socket connected.');
+  uiSocket = socketApi.createClient({
+    url: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`,
+    hello: { type: 'hello', role: 'ui' },
+    onMessage: handleMessage,
+    onOpen: () => log('Local UI socket connected.'),
+    onMalformed: (error) => log('Invalid message from bridge.', error.message),
+    onPhase: ({ phase }) => {
+      const previous = state.uiConnectionPhase;
+      state.uiConnectionPhase = phase;
+      renderStatus();
+      if (phase === 'reconnecting' && previous === 'connected') log('Local UI socket reconnecting; selections preserved and dispatch paused.');
+      if (phase === 'disconnected') log('Local UI socket disconnected; retrying in background.');
+    }
   });
-  ws.addEventListener('message', (event) => {
-    try { handleMessage(JSON.parse(event.data)); }
-    catch (error) { log('Invalid message from bridge.', error.message); }
-  });
-  ws.addEventListener('close', () => {
-    state.extensionConnected = false;
-    state.onlineTarget = null;
-    state.localTarget = null;
-    renderStatus();
-    state.reconnectTimer = setTimeout(connectSocket, 1200);
-  });
-  ws.addEventListener('error', () => {});
+  uiSocket.connect();
 }
 
 function submitPrompt() {

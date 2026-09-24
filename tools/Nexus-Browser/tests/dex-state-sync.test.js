@@ -4,10 +4,12 @@ const syncApi = require('../public/dex-state-sync.js');
 
 function memoryStorage(seed = {}) {
   const values = { ...seed };
+  const writes = [];
   return {
     getItem(key) { return values[key] ?? null; },
-    setItem(key, value) { values[key] = value; },
-    values
+    setItem(key, value) { values[key] = value; writes.push({ key, value }); },
+    values,
+    writes
   };
 }
 
@@ -160,6 +162,25 @@ test('critical Dex persistence bypasses debounce for recovery journals', () => {
   sync.loadLocal();
   sync.persist({ immediate: true });
   assert.equal(sent.length, 1);
+});
+
+test('identical localhost snapshots do not churn browser state', () => {
+  const storage = memoryStorage({ rooms: JSON.stringify([fallback('stable')]) });
+  const state = { rooms: [], activeRoomId: 'room-stable' };
+  const sent = [];
+  const sync = syncApi.createSync({
+    state, storageKey: 'rooms', storage, normalizeRoom: normalize, defaultRoom: fallback,
+    send: (payload) => { sent.push(payload); return true; }
+  });
+  sync.loadLocal();
+  const result = sync.applyRemote({
+    rooms: JSON.parse(JSON.stringify(state.rooms)),
+    activeRoomId: state.activeRoomId,
+    savedAt: '2026-09-24T12:00:00.000Z'
+  });
+  assert.deepEqual(result, { applied: false, reason: 'unchanged' });
+  assert.equal(storage.writes.length, 0);
+  assert.equal(sent.length, 0);
 });
 
 
