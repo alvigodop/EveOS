@@ -1,6 +1,62 @@
 // Resize the visible viewport without restarting the Matrix rain world.
         let initialRainSeeded = false;
 
+        function seedExpandedRainHistory(oldHeight, oldCount) {
+            const gap = viewHeight - oldHeight;
+            const continuousMode = !waterfallEnabled
+                && (!movementEnabled || precipitationMode === 'continuous');
+            if (gap <= 2 || !continuousMode || rainOpeningWave) return;
+
+            ctx.save();
+            ctx.font = `${fontSize}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = gradientMode && gradientColors ? createGradient(ctx) : color;
+            if (glowEnabled) {
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = color;
+            }
+
+            const count = Math.min(oldCount, rainDrops.length);
+            // Small drags need only a few continuations; large expansions need
+            // more coverage so the revealed band never reads as a rectangular void.
+            const stride = gap <= fontSize * 2 ? 4
+                : (gap <= fontSize * 6 ? 3 : 2);
+            for (let column = 0; column < count; column++) {
+                const phase = Math.abs(Math.floor((rainDrops[column] || 0) * 7) + column * 11);
+                if (phase % stride !== 0) continue;
+
+                const char = rainDropsChars[column] || getRandomSelectedChar();
+                const landingY = getRainLandingY(char);
+                if (landingY <= oldHeight + 1) continue;
+
+                const x = column * fontSize + fontSize / 2;
+                // Continue the existing stream's glyph lattice instead of
+                // inventing an arbitrary start row. This makes the revealed band
+                // visually connect to the rain above at every window height.
+                const headDrawY = (rainDrops[column] || 0) * fontSize - fontSize / 2;
+                const phaseOffset = ((headDrawY % fontSize) + fontSize) % fontSize;
+                let y = oldHeight + ((phaseOffset - oldHeight) % fontSize + fontSize) % fontSize;
+                if (y <= oldHeight + 1) y += fontSize;
+
+                let trail = 0;
+                while (y < landingY - fontSize * 0.35 && trail < 24) {
+                    const depth = Math.max(0, Math.min(1, (y - oldHeight) / gap));
+                    ctx.globalAlpha = Math.max(0.12,
+                        Math.pow(1 - fadeSpeed, trail + 1) * (0.44 - depth * 0.18));
+                    ctx.fillText(getRandomSelectedChar(), x, y);
+                    y += fontSize;
+                    trail++;
+                }
+
+                // Always finish a seeded continuation with the exact same
+                // measured endpoint/glow used by live rain. No arbitrary final
+                // row means no resize-size-specific bottom sliver.
+                drawRainTerminalGlyph(char, x, 0.18);
+            }
+            ctx.restore();
+        }
+
         function seedNewRainColumns(firstColumn) {
             if (firstColumn >= rainDrops.length) return;
             ctx.save();
@@ -49,8 +105,9 @@
                 previousRain.getContext('2d').drawImage(canvas, 0, 0);
             }
 
-            // Preserve the overlapping rain pixels exactly; the newly exposed
-            // bottom starts black and is filled by streams falling into it.
+            // Preserve overlapping rain pixels exactly. If the window grows,
+            // seed only the newly exposed band with transient-looking history so
+            // a resize never reveals a uniform black box while live streams catch up.
             sizeAllCanvases();
             if (previousRain) {
                 const oldRatio = previousRain.width / oldWidth;
@@ -80,6 +137,7 @@
                 rainDropsChars[index] = alphabet.charAt(Math.floor(Math.random() * alphabet.length));
             }
             resizeColumnState(count);
+            seedExpandedRainHistory(oldBufferHeight, oldCount);
             // The initial heads are already ready for the first animation frame;
             // seed history only for columns created by a later width expansion.
             if (initialRainSeeded) seedNewRainColumns(oldCount);

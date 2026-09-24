@@ -192,18 +192,10 @@
                     const step = adjustDensity(1, 'continuous');
                     const drawY = y - fontSize / 2;
 
-                    // Both phases share one measured endpoint. The head keeps
-                    // moving logically below the viewport for probabilistic reset,
-                    // but rendering stops at the last complete glyph position.
-                    // A tiny shadow radius lets that terminal glyph kiss the
-                    // physical canvas edge without painting a second row past it.
-                    const metrics = ctx.measureText(rainDropsChars[i]);
-                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
-                        ? Math.max(1, metrics.actualBoundingBoxDescent)
-                        : fontSize * 0.4;
-                    const endpointGlow = 1.5;
-                    const landingY = Math.max(fontSize / 2,
-                        viewHeight - Math.ceil(glyphDescent + endpointGlow));
+                    // Both phases use the shared measured endpoint. Logical
+                    // heads may continue below the viewport for probabilistic reset,
+                    // while rendering stops at the last complete glyph position.
+                    const landingY = getRainLandingY(rainDropsChars[i]);
                     const nextDrawY = drawY + step * fontSize;
                     const landsThisFrame = drawY < landingY && nextDrawY >= landingY;
 
@@ -221,12 +213,8 @@
                         if (drawY < landingY && !landsThisFrame) {
                             ctx.fillText(rainDropsChars[i], x, drawY);
                         } else if (landsThisFrame) {
-                            ctx.save();
-                            ctx.globalAlpha = 0.2;
-                            ctx.shadowColor = color;
-                            ctx.shadowBlur = endpointGlow;
-                            ctx.fillText(rainDropsChars[i], x, landingY);
-                            ctx.restore();
+                            drawRainTerminalTransition(rainDropsChars[i], x, drawY,
+                                step * fontSize);
                         }
                         rainDrops[i] += step;
                         continue;
@@ -256,12 +244,8 @@
                         ctx.fillText(rainDropsChars[i], x, drawY);
                         ctx.globalAlpha = 1;
                     } else if (landsThisFrame) {
-                        ctx.save();
-                        ctx.globalAlpha = 0.2;
-                        ctx.shadowColor = color;
-                        ctx.shadowBlur = endpointGlow;
-                        ctx.fillText(rainDropsChars[i], x, landingY);
-                        ctx.restore();
+                        drawRainTerminalTransition(rainDropsChars[i], x, drawY,
+                            step * fontSize);
                     }
 
                     rainDrops[i] += step;
@@ -397,15 +381,8 @@
             if (rainOpeningWave && continuousMode) {
                 // Finish on the exact same measured endpoint used to render the
                 // terminal glow. This avoids a dead interval below the last glyph.
-                const openingFinished = rainDrops.every((drop, index) => {
-                    const metrics = ctx.measureText(rainDropsChars[index]);
-                    const glyphDescent = Number.isFinite(metrics.actualBoundingBoxDescent)
-                        ? Math.max(1, metrics.actualBoundingBoxDescent)
-                        : fontSize * 0.4;
-                    const landingY = Math.max(fontSize / 2,
-                        viewHeight - Math.ceil(glyphDescent + 1.5));
-                    return drop * fontSize - fontSize / 2 >= landingY;
-                });
+                const openingFinished = rainDrops.every((drop, index) =>
+                    drop * fontSize - fontSize / 2 >= getRainLandingY(rainDropsChars[index]));
                 if (openingFinished) {
                     // Never mass-reseed here. The logical heads continue below
                     // the endpoint and the original probabilistic reset releases
