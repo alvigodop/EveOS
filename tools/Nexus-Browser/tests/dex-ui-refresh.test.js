@@ -1,3 +1,5 @@
+'use strict';
+
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -5,26 +7,29 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'extension', 'dex-ui-refresh.js'), 'utf8');
 
-test('extension refresh helper watches the bridge session and reloads headed Dex tabs', () => {
+test('extension observer keeps health-gated reconnect without ever reloading Dex tabs', () => {
   assert.match(source, /type: 'hello', role: 'ui', clientKind: 'ui-refresh'/);
-  assert.match(source, /msg\?\.type !== 'server_session'/);
-  assert.match(source, /chrome\.tabs\.query\(\{ url: DEX_URL \}\)/);
-  assert.match(source, /chrome\.tabs\.reload\(tab\.id, \{ bypassCache: true \}\)/);
+  assert.match(source, /server_session/);
   assert.match(source, /fetchImpl\(HEALTH_URL, \{ cache: 'no-store' \}\)/);
   assert.match(source, /if \(!\(await localRelayReady\(\)\)\) return scheduleReconnect\(\)/);
-  assert.match(source, /setTimeout\(\(\) => connect\(\)\.catch\(\(\) => \{\}\), 1200\)/);
+  assert.doesNotMatch(source, /chrome\.tabs\.reload|location\.reload/);
+  assert.doesNotMatch(source, /firstSession/);
 });
 
-test('extension refresh helper bootstraps once and reloads again only for a changed server session', () => {
-  assert.match(source, /let firstSession = true/);
-  assert.match(source, /const changed = !!lastSessionId && lastSessionId !== next/);
-  assert.match(source, /if \(!firstSession && !changed\) return/);
+test('extension observer ignores first handshake and treats restart as a soft target refresh', () => {
+  delete require.cache[require.resolve('../extension/dex-ui-refresh.js')];
+  const { handleMessage } = require('../extension/dex-ui-refresh.js');
+  assert.equal(handleMessage({ data: JSON.stringify({ type: 'server_session', id: 'p1', assetRevision: 'a' }) }).kind, 'handshake');
+  assert.equal(handleMessage({ data: JSON.stringify({ type: 'server_session', id: 'p1', assetRevision: 'a' }) }).kind, 'handshake');
+  assert.equal(handleMessage({ data: JSON.stringify({ type: 'server_session', id: 'p2', assetRevision: 'a' }) }).kind, 'soft-restart');
+  assert.equal(handleMessage({ data: JSON.stringify({ type: 'server_session', id: 'p3', assetRevision: 'b' }) }).kind, 'soft-restart');
 });
 
-
-test('extension refresh helper health-gates WebSocket construction during normal server downtime', () => {
-  const healthIndex = source.indexOf('await localRelayReady()');
-  const socketIndex = source.indexOf('new WebSocket(WS_URL)', healthIndex);
-  assert.ok(healthIndex >= 0 && socketIndex > healthIndex);
-  assert.match(source, /let connectInFlight = false/);
+test('server only publishes authoritative tab snapshots after arbitration', () => {
+  const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  assert.match(server, /onAuthoritySettled/);
+  assert.match(server, /if \(extensionSessions\.current\(\)\.ready\) safeSend\(ws, \{ type: 'tabs_update'/);
+  assert.match(server, /if \(state\.socket !== ws \|\| !state\.ready\) return/);
+  assert.match(server, /EXTENSION_SYNC_PENDING/);
+  assert.match(server, /assetRevision: ASSET_REVISION/);
 });

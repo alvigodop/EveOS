@@ -34,7 +34,7 @@
     catch { return []; }
   }
 
-  async function normalizeStudioWindow(tab, tabsApi, windowsApi, { restoreIfMinimized = true } = {}) {
+  async function normalizeStudioWindow(tab, tabsApi, windowsApi, { restoreIfMinimized = false } = {}) {
     if (!tab) return tab;
 
     // A bridge popup contains one AI Studio tab, so there is no reason to activate/focus it.
@@ -123,7 +123,7 @@
     const win = await getWindow(tab, windowsApi);
     const alreadyBridgePopup = win?.type === 'popup';
     if (alreadyBridgePopup || !windowsApi?.create) {
-      const normalized = await normalizeStudioWindow(tab, tabsApi, windowsApi, { restoreIfMinimized: true });
+      const normalized = await normalizeStudioWindow(tab, tabsApi, windowsApi, { restoreIfMinimized: false });
       return {
         tab: normalized,
         detached: false,
@@ -134,7 +134,7 @@
 
     const existing = await findExistingAiStudioPopup(tabsApi, windowsApi, tab.id, tab.url || tab.pendingUrl || '');
     if (existing?.tab?.id != null) {
-      const normalized = await normalizeStudioWindow(existing.tab, tabsApi, windowsApi, { restoreIfMinimized: true });
+      const normalized = await normalizeStudioWindow(existing.tab, tabsApi, windowsApi, { restoreIfMinimized: false });
       return {
         tab: normalized,
         detached: false,
@@ -153,7 +153,7 @@
     let popupTab = await popupTabFromWindow(created, tabsApi);
     if (!popupTab?.id) throw new Error('AI Studio bridge popup opened without a target tab.');
     popupTab = await waitForTabReady(popupTab.id, tabsApi);
-    popupTab = await normalizeStudioWindow(popupTab, tabsApi, windowsApi, { restoreIfMinimized: true });
+    popupTab = await normalizeStudioWindow(popupTab, tabsApi, windowsApi, { restoreIfMinimized: false });
     return {
       tab: popupTab,
       detached: true,
@@ -168,7 +168,59 @@
     windowsApi = globalThis.chrome?.windows
   } = {}) {
     if (!isAiStudioTab(tab)) return tab;
-    return normalizeStudioWindow(tab, tabsApi, windowsApi, { restoreIfMinimized: true });
+    return normalizeStudioWindow(tab, tabsApi, windowsApi, { restoreIfMinimized: false });
+  }
+
+  // Window state is a submission transaction, never a polling strategy. Do not
+  // focus the popup or switch the foreground application to make headless work run.
+  async function withAiStudioSubmissionWindow(tab, {
+    tabsApi = globalThis.chrome?.tabs,
+    windowsApi = globalThis.chrome?.windows,
+    run,
+    delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    settleMs = 120
+  } = {}) {
+    if (!isAiStudioTab(tab) || !Number.isInteger(tab?.id) || tab.windowId == null || !windowsApi?.get || !windowsApi?.update || typeof run !== 'function') {
+      throw Object.assign(new Error('AI Studio submission requires a valid popup/window transaction.'), { code: 'STUDIO_WINDOW_UNAVAILABLE' });
+    }
+    const win = await windowsApi.get(tab.windowId);
+    const minimized = win?.state === 'minimized';
+    const active = await windowTabs(tab, tabsApi);
+    const previousTab = active.find((item) => item.active) || null;
+    let restoredWindow = false;
+    let activatedTab = false;
+    let restoreError = null;
+    let result;
+    let failure = null;
+    try {
+      if (minimized) {
+        await windowsApi.update(tab.windowId, { state: 'normal', focused: false });
+        restoredWindow = true;
+      }
+      if (previousTab?.id !== tab.id && tab.active !== true) {
+        if (!tabsApi?.update) throw new Error('Cannot temporarily select the AI Studio popup tab.');
+        await tabsApi.update(tab.id, { active: true, autoDiscardable: false });
+        activatedTab = true;
+      }
+      if (restoredWindow || activatedTab) await delay(settleMs);
+      result = await run();
+    } catch (error) {
+      failure = error;
+    } finally {
+      // Always restore the user's prior popup tab before returning the window
+      // to its original minimized state. Polling/capture never invokes this path.
+      if (activatedTab && previousTab?.id != null) {
+        try { await tabsApi.update(previousTab.id, { active: true }); }
+        catch (error) { restoreError = error; }
+      }
+      if (restoredWindow) {
+        try { await windowsApi.update(tab.windowId, { state: 'minimized', focused: false }); }
+        catch (error) { restoreError = error; }
+      }
+    }
+    if (failure) throw failure;
+    if (restoreError) return { ...result, windowRestored: false, windowRestoreError: String(restoreError.message || restoreError) };
+    return result;
   }
 
   const api = {
@@ -179,7 +231,8 @@
     normalizeStudioWindow,
     ensureAiStudioBridgePopup,
     ensureAiStudioDetached: ensureAiStudioBridgePopup,
-    keepAiStudioPopupReady
+    keepAiStudioPopupReady,
+    withAiStudioSubmissionWindow
   };
 
   if (typeof globalThis !== 'undefined') globalThis.BrowserAiBridgeGeminiStudioWindow = api;

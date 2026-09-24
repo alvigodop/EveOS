@@ -340,3 +340,25 @@ test('AI Studio background poll never auto-minimizes or focuses the popup on fin
   assert.ok(events.some((event) => event.type === 'response_final'), 'Expected response_final event');
   assert.deepEqual(windowUpdates, []);
 });
+
+test('stalled partial times out as an error, never a fabricated settled final', async () => {
+  const requestId = 'studio-timeout-partial';
+  const events = [];
+  const tabsApi = { get: async () => ({ id: 42, discarded: false, active: false, windowId: 12 }) };
+  const scriptingApi = {
+    executeScript: async () => [{ result: {
+      count: 2, userCount: 2, text: 'PARTIAL_ONLY', generating: true, ready: false,
+      promptMatched: true, lastUserText: 'hello', modelAfterUserCount: 1
+    } }]
+  };
+  poll.startAiStudioResponsePoll({
+    tabId: 42, requestId, baseline: { count: 1, userCount: 1 },
+    expectedPrompt: 'hello', send: (event) => events.push(event), tabsApi,
+    scriptingApi, intervalMs: 5, timeoutMs: 40
+  });
+  await new Promise((resolve) => setTimeout(resolve, 75));
+  assert.equal(events.some((event) => event.type === 'response_partial'), true);
+  assert.equal(events.some((event) => event.type === 'response_final'), false);
+  assert.equal(events.some((event) => event.type === 'adapter_error' && event.code === 'RESPONSE_TIMEOUT'), true);
+  poll.stopResponsePoll(requestId);
+});

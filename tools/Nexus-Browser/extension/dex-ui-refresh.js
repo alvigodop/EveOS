@@ -4,39 +4,28 @@
   if (!runtimeConfig) throw new Error('Nexus Browser runtime configuration is unavailable.');
   const WS_URL = runtimeConfig.websocketUrl;
   const HEALTH_URL = runtimeConfig.healthUrl;
-  const DEX_URL = runtimeConfig.tabPattern;
   let socket = null;
   let reconnectTimer = null;
   let connectInFlight = false;
-  let lastSessionId = null;
-  let firstSession = true;
+  let lastSessionId = '';
+  let lastAssetRevision = '';
 
-  async function reloadDexTabs() {
-    if (!globalThis.chrome?.tabs?.query || !globalThis.chrome?.tabs?.reload) return 0;
-    let tabs = [];
-    try { tabs = await chrome.tabs.query({ url: DEX_URL }); }
-    catch { return 0; }
-    let reloaded = 0;
-    for (const tab of tabs) {
-      if (!Number.isInteger(tab?.id)) continue;
-      try {
-        await chrome.tabs.reload(tab.id, { bypassCache: true });
-        reloaded += 1;
-      } catch {}
-    }
-    return reloaded;
-  }
-
+  // Dex tabs already own their websocket, room state and asset revision policy.
+  // This observer may request a fresh target snapshot, but must never reload tabs:
+  // doing so races the viewer's own reconnect and resets live dispatch UI.
   function handleMessage(raw) {
     let msg;
-    try { msg = JSON.parse(String(raw?.data ?? raw)); } catch { return; }
-    if (msg?.type !== 'server_session' || !msg.id) return;
+    try { msg = JSON.parse(String(raw?.data ?? raw)); } catch { return { kind: 'invalid' }; }
+    if (msg?.type !== 'server_session' || !msg.id) return { kind: 'ignored' };
     const next = String(msg.id);
+    const revision = String(msg.assetRevision || '');
     const changed = !!lastSessionId && lastSessionId !== next;
     lastSessionId = next;
-    if (!firstSession && !changed) return;
-    firstSession = false;
-    reloadDexTabs().catch(() => {});
+    if (revision) lastAssetRevision = revision;
+    if (changed && socket && typeof WebSocket !== 'undefined' && socket.readyState === WebSocket.OPEN) {
+      try { socket.send(JSON.stringify({ type: 'request_tabs' })); } catch {}
+    }
+    return { kind: changed ? 'soft-restart' : 'handshake', sessionId: next, assetRevision: lastAssetRevision };
   }
 
   async function localRelayReady(fetchImpl = globalThis.fetch) {
@@ -44,9 +33,7 @@
     try {
       const response = await fetchImpl(HEALTH_URL, { cache: 'no-store' });
       return !!response?.ok;
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }
 
   function scheduleReconnect() {
@@ -72,14 +59,12 @@
         scheduleReconnect();
       });
       socket.addEventListener('error', () => {});
-    } finally {
-      connectInFlight = false;
-    }
+    } finally { connectInFlight = false; }
   }
 
   if (typeof chrome !== 'undefined' && chrome.runtime) connect().catch(() => scheduleReconnect());
 
-  const api = { reloadDexTabs, handleMessage, localRelayReady, connect };
+  const api = { handleMessage, localRelayReady, connect };
   globalThis.BrowserAiBridgeDexUiRefresh = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

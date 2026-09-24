@@ -268,11 +268,10 @@
 
     const timer = setInterval(tick, intervalMs);
     const timeout = setTimeout(() => {
-      if (state.lastText) {
-        finishPoll({ type: 'response_final', requestId, text: state.lastText, providerId: 'gemini', providerName: 'Gemini' });
-      } else {
-        finishPoll({ type: 'adapter_error', requestId, code: 'RESPONSE_TIMEOUT', message: 'No fresh AI Studio response was correlated to this prompt within 4 minutes.' });
-      }
+      // A stalled partial is not a settled final. Preserve exact-once and let
+      // the scheduler's capture-only recovery inspect the unfinished turn.
+      finishPoll({ type: 'adapter_error', requestId, code: 'RESPONSE_TIMEOUT',
+        message: 'AI Studio response never reached a verifiably settled final before timeout.' });
     }, timeoutMs);
     responsePolls.set(requestId, { timer, timeout, state });
     tick();

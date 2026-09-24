@@ -75,12 +75,16 @@ test('localhost server owns scheduling, exact target routing, timeout and recove
   assert.doesNotMatch(recovery, /type:\s*'send_prompt'/);
 });
 
-test('Dex detects a restarted bridge process only as a viewer refresh concern', () => {
+test('Dex treats server-process changes as soft resync and asset changes as the only reload trigger', () => {
   assert.match(server, /SERVER_SESSION_ID/);
-  assert.match(server, /type: 'server_session'/);
-  assert.match(dexMode, /SERVER_SESSION_KEY/);
-  assert.match(dexMode, /handleServerSession/);
-  assert.match(dexMode, /viewer\/controller reloaded/);
+  assert.match(server, /assetRevision: ASSET_REVISION/);
+  assert.match(dexMode, /sessionPolicy\.observe/);
+  assert.match(dexMode, /onSoftResync/);
+  assert.match(dexMode, /onAssetChange/);
+  assert.match(dexMode, /state\.uiConnectionPhase = 'resyncing'/);
+  assert.match(dexMode, /state\.uiConnectionPhase = 'connected'/);
+  assert.match(dexMode, /savedView\?\.scrollTop/);
+  assert.doesNotMatch(dexMode, /Bridge server restart detected.*reloading/);
   assert.doesNotMatch(dexMode, /recover the already-dispatched reply after reconnect/);
 });
 

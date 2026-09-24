@@ -31,7 +31,7 @@ const {
   isAiStudioTarget, rememberCompletedRequest, hasCompletedRequest,
   stopResponsePoll, stopAllResponsePolls, sampleAiStudioTab, startAiStudioResponsePoll
 } = geminiPollApi;
-const { ensureAiStudioBridgePopup, keepAiStudioPopupReady, findExistingAiStudioPopup } = geminiStudioWindowApi; const { submitAiStudioPrompt } = geminiStudioSubmitApi;
+const { ensureAiStudioBridgePopup, keepAiStudioPopupReady, findExistingAiStudioPopup, withAiStudioSubmissionWindow } = geminiStudioWindowApi; const { submitAiStudioPrompt } = geminiStudioSubmitApi;
 let socket = null, reconnectTimer = null, heartbeatTimer = null, connectInFlight = false, targetTabId = null, targetProviderId = null, tabPublishController = null, targetRestoreAttempted = false; const selectedTargetStore = targetStateApi.createStore(), adapterReadiness = adapterReadinessApi.createCache();
 const qualificationControl = qualificationControlApi.createControl({ chromeApi: globalThis.chrome, matchesProvider: (id, url) => providerMatchesUrl(getProvider(id), url) });
 async function clearSelectedTarget() { targetTabId = null; targetProviderId = null; await selectedTargetStore.clear(); }
@@ -269,13 +269,23 @@ async function handleBridgeCommand(msg) {
       if (warmQualification && isAiStudioTarget(provider, tab)) throw Object.assign(new Error('Warm qualification does not use AI Studio window-management targets.'), { code: 'QUALIFICATION_WARM_TARGET_UNSUPPORTED' });
       if (isAiStudioTarget(provider, tab)) {
         tab = await keepAiStudioPopupReady(tab);
-        const studioBaseline = await sampleAiStudioTab(tab.id).catch(() => ({ count: 0, userCount: 0, text: '' }));
-        const submitted = await submitAiStudioPrompt({ tabId: tab.id, text: msg.text });
-        if (!submitted?.ok) throw Object.assign(new Error(submitted?.error || 'Google AI Studio did not accept the prompt.'), { code: submitted?.code || 'PROMPT_SEND_FAILED' });
-        startAiStudioResponsePoll({
-          tabId: tab.id, targetWindowId: tab.windowId, requestId: msg.requestId,
-          baseline: studioBaseline, expectedPrompt: msg.text, send: safeSend, minimizeOnFinish: false
+        const studioTransaction = await withAiStudioSubmissionWindow(tab, {
+          run: async () => {
+            const baseline = await sampleAiStudioTab(tab.id);
+            if (!baseline || !Number.isFinite(Number(baseline.userCount))) return { submitted: { ok: false, code: 'PROMPT_DELIVERY_UNCOMMITTED', error: 'AI Studio baseline could not be observed.' } };
+            const submitted = await submitAiStudioPrompt({ tabId: tab.id, text: msg.text });
+            return { submitted, baseline };
+          }
         });
+        const submitted = studioTransaction?.submitted;
+        if (!submitted?.ok || submitted?.deliveryProof?.committed !== true) {
+          throw Object.assign(new Error(submitted?.error || 'Google AI Studio submission remains uncommitted.'), { code: submitted?.code || 'PROMPT_DELIVERY_UNCOMMITTED' });
+        }
+        deliveryProof = submitted.deliveryProof;
+        submissionMode = 'studio-' + submitted.method;
+        if (studioTransaction.windowRestored === false) console.warn('[bridge] AI Studio submitted, but popup state restoration failed:', studioTransaction.windowRestoreError);
+        startAiStudioResponsePoll({ tabId: tab.id, targetWindowId: tab.windowId, requestId: msg.requestId,
+          baseline: studioTransaction.baseline, expectedPrompt: msg.text, send: safeSend });
       } else {
         const initialUrl = tab.url || tab.pendingUrl || '';
         const result = await sendToTarget({ type: 'send_prompt', requestId: msg.requestId, text: msg.text, qualification: msg.qualification || null }, { readyOnly: warmQualification, tabId: qualificationClaim ? authorizedTabId : null, providerId: qualificationClaim?.providerId || null });

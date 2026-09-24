@@ -5,12 +5,13 @@
   const stateSyncApi = globalThis.BrowserAiBridgeDexStateSync;
   const runtimeApi = globalThis.BrowserAiBridgeDexRuntimeClient;
   const socketApi = globalThis.BrowserAiBridgeUiSocket;
-  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi || !socketApi) {
+  const sessionPolicyApi = globalThis.BrowserAiBridgeDexSessionPolicy;
+  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi || !socketApi || !sessionPolicyApi) {
     throw new Error('Dex helpers must load before Dex Mode.');
   }
 
   const STORAGE_KEY = 'browser-ai-bridge.dex.rooms.v1';
-  const SERVER_SESSION_KEY = 'browser-ai-bridge.dex.server-session.v1';
+  const VIEW_KEY = 'browser-ai-bridge.dex.viewer-state.v1';
   const RELOAD_REASON_KEY = 'browser-ai-bridge.dex.reload-reason.v1';
   const state = {
     uiConnectionPhase: 'connecting',
@@ -109,17 +110,33 @@
     if (dex) renderAll();
   }
 
-  function handleServerSession(id) {
-    const next = String(id || '');
-    if (!next) return false;
-    const previous = sessionStorage.getItem(SERVER_SESSION_KEY);
-    sessionStorage.setItem(SERVER_SESSION_KEY, next);
-    if (!previous || previous === next || state.reloading) return false;
-    state.reloading = true;
-    sessionStorage.setItem(RELOAD_REASON_KEY, 'Bridge server restarted; Dex viewer/controller reloaded with current scripts.');
-    log('Bridge server restart detected · reloading Dex viewer/controller...');
-    setTimeout(() => location.reload(), 80);
-    return true;
+  const sessionPolicy = sessionPolicyApi.createSessionPolicy({
+    onSoftResync() {
+      // The localhost scheduler and state snapshot remain authoritative. Never retry a
+      // pending dispatch from the viewer after a lost socket.
+      log('Bridge process restarted · soft Dex state/target resync.');
+      send({ type: 'request_tabs' });
+      send({ type: 'request_local_targets' });
+    },
+    onAssetChange({ revision }) {
+      if (state.reloading) return;
+      state.reloading = true;
+      try {
+        sessionStorage.setItem(VIEW_KEY, JSON.stringify({
+          activeRoomId: state.activeRoomId,
+          mode: document.body.dataset.bridgeMode,
+          draft: el.dexPrompt.value,
+          scrollTop: el.dexTranscript.scrollTop
+        }));
+        sessionStorage.setItem(RELOAD_REASON_KEY, 'Bridge assets changed (' + revision + '); refreshed Dex viewer scripts once.');
+      } catch {}
+      log('Asset revision changed · refreshing Dex viewer scripts once.');
+      setTimeout(() => location.reload(), 80);
+    }
+  });
+
+  function handleServerSession(id, assetRevision) {
+    return sessionPolicy.observe(id, assetRevision).kind === 'asset-change';
   }
 
   function updateHealth(msg) {
@@ -141,7 +158,7 @@
 
   function handleSocketMessage(msg) {
     if (runtime.handleMessage(msg)) return;
-    if (msg.type === 'server_session') { handleServerSession(msg.id); return; }
+    if (msg.type === 'server_session') { handleServerSession(msg.id, msg.assetRevision); return; }
     if (msg.type === 'error') {
       const accessMessage = hostAccessUiMessage(msg);
       log(accessMessage || `${msg.code || 'ERROR'}: ${msg.message || 'Unknown error'}`);
@@ -162,11 +179,16 @@
       return;
     }
     if (msg.type === 'dex_state_snapshot') {
+      const previousRoomId = state.activeRoomId;
       const result = stateSync?.applyRemote(msg.snapshot);
-      if (result?.applied) {
-        renderAll();
-        log('Dex state synchronized from localhost scheduler.');
+      if (previousRoomId && state.rooms.some((room) => room.id === previousRoomId)) {
+        state.activeRoomId = previousRoomId;
       }
+      // A fresh authoritative scheduler snapshot, never an open socket alone,
+      // permits new dispatch after reconnect. Pending turns are not replayed.
+      state.uiConnectionPhase = 'connected';
+      renderAll();
+      if (result?.applied) log('Dex state synchronized from localhost scheduler.');
       return;
     }
     if (msg.type === 'provider_control_request') {
@@ -228,9 +250,11 @@
       hello: { type: 'hello', role: 'ui', clientKind: 'dex' },
       onMessage: handleSocketMessage,
       onOpen: () => {
+        state.uiConnectionPhase = 'resyncing';
+        renderAll();
         send({ type: 'request_tabs' });
         send({ type: 'request_local_targets' });
-        log('Dex viewer/controller connected.');
+        log('Dex transport connected; awaiting localhost scheduler snapshot.');
       },
       onMalformed: (error) => log(`Bad Dex bridge event: ${error.message}`),
       onPhase: ({ phase }) => {
@@ -279,7 +303,11 @@
     }
   }
 
+  let lastTranscriptRoomId = null;
   function renderTranscript(room) {
+    const sameRoom = room?.id === lastTranscriptRoomId;
+    const oldTop = el.dexTranscript.scrollTop;
+    const nearBottom = el.dexTranscript.scrollHeight - oldTop - el.dexTranscript.clientHeight < 48;
     el.dexTranscript.replaceChildren();
     if (!room) return;
     for (const message of room.messages) {
@@ -298,7 +326,10 @@
       article.append(meta, body);
       el.dexTranscript.append(article);
     }
-    el.dexTranscript.scrollTop = el.dexTranscript.scrollHeight;
+    lastTranscriptRoomId = room.id;
+    el.dexTranscript.scrollTop = sameRoom && !nearBottom
+      ? Math.min(oldTop, el.dexTranscript.scrollHeight)
+      : el.dexTranscript.scrollHeight;
   }
 
   function renderAll() {
@@ -386,8 +417,20 @@
   });
 
   loadRooms();
-  setMode(new URLSearchParams(location.search).get('mode') === 'dex' ? 'dex' : 'base');
+  let savedView = null;
+  try {
+    savedView = JSON.parse(sessionStorage.getItem(VIEW_KEY) || 'null');
+    sessionStorage.removeItem(VIEW_KEY);
+  } catch {}
+  if (savedView?.activeRoomId && state.rooms.some((room) => room.id === savedView.activeRoomId)) {
+    state.activeRoomId = savedView.activeRoomId;
+  }
+  if (typeof savedView?.draft === 'string') el.dexPrompt.value = savedView.draft;
+  setMode(savedView?.mode || (new URLSearchParams(location.search).get('mode') === 'dex' ? 'dex' : 'base'));
   renderAll();
+  if (Number.isFinite(savedView?.scrollTop)) {
+    requestAnimationFrame(() => { el.dexTranscript.scrollTop = savedView.scrollTop; });
+  }
   const reloadReason = sessionStorage.getItem(RELOAD_REASON_KEY);
   if (reloadReason) {
     sessionStorage.removeItem(RELOAD_REASON_KEY);

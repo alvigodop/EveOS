@@ -8,20 +8,28 @@ const { createDexStateStore } = require('./dex/state-store'), { createDexServerS
 const { mergeClientSnapshot } = require('./dex/server-state-merge');
 const { createServerDurability } = require('./dex/server-durability');
 const { createExtensionSessionArbiter } = require('./dex/extension-session-arbiter');
+const { assetRevision } = require('./server-asset-revision');
 const { createServerLocalRelay } = require('./dex/server-local-relay');
 const { attachWebSocketHeartbeat } = require('./dex/ws-heartbeat'), { createDisposableRoomCleanup } = require('./dex/disposable-room-cleanup');
 const runtimeConfig = require('./runtime-config');
 const { createHttpHandler, websocketOriginAllowed } = require('./server-http');
-
 const HOST = process.env.HOST || '127.0.0.1', PORT = runtimeConfig.servicePort();
 const RUNTIME_URLS = runtimeConfig.urls(PORT);
 const PUBLIC_DIR = path.join(__dirname, 'public'), SERVER_SESSION_ID = `${process.pid}-${Date.now().toString(36)}`;
+const ASSET_REVISION = assetRevision();
 const server = http.createServer(createHttpHandler({ host: HOST, port: PORT, publicDir: PUBLIC_DIR, diagnostics: diagnosticsSnapshot }));
-
 const wss = new WebSocketServer({ noServer: true });
 const heartbeat = attachWebSocketHeartbeat(wss);
 let extensionSocket = null;
-const extensionSessions = createExtensionSessionArbiter({ isOpen: (ws) => ws?.readyState === WebSocket.OPEN });
+const extensionSessions = createExtensionSessionArbiter({
+  isOpen: (ws) => ws?.readyState === WebSocket.OPEN,
+  onAuthoritySettled: (state) => {
+    if (!state.ready) return;
+    syncExtensionAuthority(state);
+    broadcastUi({ type: 'tabs_update', providers: lastProviders, tabs: lastTabs, target: lastTarget });
+    dexScheduler.resume();
+  }
+});
 const uiSockets = new Set();
 let lastTabs = [];
 let lastProviders = [];
@@ -30,13 +38,11 @@ let lastLocalTargets = [];
 let dexStateStore = createDexStateStore();
 let durability = createServerDurability();
 function configureDurability(o = {}) { const prev = { durability, dexStateStore }; if (o.durability) durability = o.durability; if (o.dexStateStore) dexStateStore = o.dexStateStore; return prev; }
-
 function safeSend(ws, payload) {
   if (!ws || ws.readyState !== WebSocket.OPEN) return false;
   ws.send(JSON.stringify(payload));
   return true;
 }
-
 function broadcastUi(payload) { for (const ws of uiSockets) safeSend(ws, payload); }
 function syncExtensionAuthority(state = extensionSessions.current()) {
   extensionSocket = state.socket;
@@ -44,7 +50,6 @@ function syncExtensionAuthority(state = extensionSessions.current()) {
   return state;
 }
 function broadcastDexState(snapshot = dexStateStore.load()) { for (const ws of uiSockets) if (ws.clientKind === 'dex') safeSend(ws, { type: 'dex_state_snapshot', snapshot }); }
-
 const dexRouting = createDexServerRouting({ uiSockets, safeSend });
 async function ensureDexClient() {
   const existing = dexRouting.dexClient();
@@ -83,11 +88,11 @@ const providerControlRouting = createProviderControlRouting({
 const qualificationRouting = createQualificationRouting({ safeSend, getExtensionSocket: () => extensionSocket, getDurability: () => durability, getStateStore: () => dexStateStore, restartHook: qualificationRestart, serverSessionId: SERVER_SESSION_ID });
 const serverDexSource = { clientKind: 'dex' };
 const serverLocalRelay = createServerLocalRelay({ localTargets, mirrorPrompt: (targetId, msg, target) => mirrorPromptToConsoles(targetId, serverDexSource, msg, target), emitEvent: (targetId, payload) => sendLocalEvent(targetId, serverDexSource, payload), broadcastStatus: (targetId) => broadcastLocalStatus(targetId, serverDexSource) });
-const dexScheduler = createDexServerScheduler({ stateStore: { load: () => dexStateStore.load(), save: (snapshot) => dexStateStore.save(snapshot) }, durability: { beforeDispatch: (...args) => durability.beforeDispatch(...args), observe: (...args) => durability.observe(...args), markFailed: (...args) => durability.markFailed(...args), query: (...args) => durability.query(...args) }, getOnlineTargets: () => lastTabs, getProviders: () => lastProviders, getSelectedOnlineTarget: () => lastTarget, getLocalTargets: async (force = false) => { if (force) await refreshLocalTargets(null, { force: true }); return lastLocalTargets; }, isExtensionAvailable: () => !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN, sendExtension: (payload) => safeSend(extensionSocket, payload), sendLocalPrompt: serverLocalRelay.sendLocalPrompt, captureLocalLatest: localTargets.captureLocalLatest, broadcastState: broadcastDexState, recordIncident: (input) => durability.recordIncident(input) });
+const dexScheduler = createDexServerScheduler({ stateStore: { load: () => dexStateStore.load(), save: (snapshot) => dexStateStore.save(snapshot) }, durability: { beforeDispatch: (...args) => durability.beforeDispatch(...args), observe: (...args) => durability.observe(...args), markFailed: (...args) => durability.markFailed(...args), query: (...args) => durability.query(...args) }, getOnlineTargets: () => lastTabs, getProviders: () => lastProviders, getSelectedOnlineTarget: () => lastTarget, getLocalTargets: async (force = false) => { if (force) await refreshLocalTargets(null, { force: true }); return lastLocalTargets; }, isExtensionAvailable: () => !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN && extensionSessions.current().ready, sendExtension: (payload) => safeSend(extensionSocket, payload), sendLocalPrompt: serverLocalRelay.sendLocalPrompt, captureLocalLatest: localTargets.captureLocalLatest, broadcastState: broadcastDexState, recordIncident: (input) => durability.recordIncident(input) });
 function diagnosticsSnapshot() {
   const snapshot = dexStateStore.load(), rooms = Array.isArray(snapshot?.rooms) ? snapshot.rooms : [];
   return {
-    ok: true, supervised: (process.env.NEXUS_BROWSER_SUPERVISED || process.env.BROWSER_AI_BRIDGE_SUPERVISED) === '1', serverSessionId: SERVER_SESSION_ID,
+    ok: true, supervised: (process.env.NEXUS_BROWSER_SUPERVISED || process.env.BROWSER_AI_BRIDGE_SUPERVISED) === '1', serverSessionId: SERVER_SESSION_ID, assetRevision: ASSET_REVISION,
     extensionConnected: !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN,
     dexUiConnected: [...uiSockets].some((peer) => peer.clientKind === 'dex'),
     uiClients: uiSockets.size, onlineTargets: lastTabs.length, localTargets: lastLocalTargets.length, extensionSessions: extensionSessions.diagnostics(),
@@ -98,7 +103,7 @@ function diagnosticsSnapshot() {
   };
 }
 function extensionStatus() {
-  return { type: 'bridge_status', connected: !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN };
+  return { type: 'bridge_status', connected: !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN, authorityReady: extensionSessions.current().ready };
 }
 function classSnapshot() {
   return { type: 'target_classes_update', classes: localTargets.publicTargetClasses(), localTargetTypes: localTargets.publicLocalTargetTypes() };
@@ -275,11 +280,11 @@ wss.on('connection', (ws, req) => {
           const primary = dexRouting.registerDex(ws);
           safeSend(ws, { type: 'dex_runtime_role', role: primary ? 'primary' : 'standby' });
         }
-        safeSend(ws, { type: 'server_session', id: SERVER_SESSION_ID });
+        safeSend(ws, { type: 'server_session', id: SERVER_SESSION_ID, assetRevision: ASSET_REVISION });
         if (ws.clientKind === 'dex') safeSend(ws, { type: 'dex_state_snapshot', snapshot: dexStateStore.load() });
         safeSend(ws, extensionStatus());
         safeSend(ws, classSnapshot());
-        safeSend(ws, { type: 'tabs_update', providers: lastProviders, tabs: lastTabs, target: lastTarget });
+        if (extensionSessions.current().ready) safeSend(ws, { type: 'tabs_update', providers: lastProviders, tabs: lastTabs, target: lastTarget });
         await refreshLocalTargets(ws);
         return;
       }
@@ -340,6 +345,10 @@ wss.on('connection', (ws, req) => {
           safeSend(ws, { type: 'error', requestId: msg.requestId || null, code: 'EXTENSION_OFFLINE', message: 'The browser extension bridge is not connected.' });
           return;
         }
+        if (!extensionSessions.current().ready) {
+          safeSend(ws, { type: 'error', requestId: msg.requestId || null, code: 'EXTENSION_SYNC_PENDING', message: 'Waiting for an authoritative extension tab snapshot; no prompt was dispatched.' });
+          return;
+        }
         const gate = await durability.beforeDispatch(msg, {
           targetClassId: 'online-origin', targetId: lastTarget?.id || null, providerId: lastTarget?.providerId || null
         });
@@ -361,7 +370,7 @@ wss.on('connection', (ws, req) => {
       if (msg.type === 'tabs_update') {
         const state = syncExtensionAuthority(extensionSessions.update(ws, msg));
         console.log(`[bridge] extension tabs_update: ${Array.isArray(msg.tabs) ? msg.tabs.length : 0} tab(s) [${state.socket === ws ? 'primary' : `standby; authoritative=${lastTabs.length}`} primary=${state.primarySessionId || 'none'} epoch=${state.primaryConnectionEpoch || 0} sessions=${state.sessionCount}]`);
-        if (state.socket !== ws) return;
+        if (state.socket !== ws || !state.ready) return;
         dexScheduler.resume();
       } else if (extensionSocket !== ws) return;
       await durability.observe(msg, {
@@ -400,8 +409,14 @@ wss.on('connection', (ws, req) => {
         providerTargetSpawnRouting.failAll();
         console.log(`[bridge] extension primary disconnected; ${state.socket ? `promoted standby with ${lastTabs.length} tab(s)` : 'no standby available'}`);
         broadcastUi(extensionStatus());
-        if (state.socket) { broadcastUi({ type: 'tabs_update', providers: lastProviders, tabs: lastTabs, target: lastTarget }); dexScheduler.resume(); }
-        else { lastTarget = null; broadcastUi({ type: 'target_lost', message: 'Extension bridge disconnected.' }); dexScheduler.transportLost(); }
+        if (state.socket && state.ready) {
+          broadcastUi({ type: 'tabs_update', providers: lastProviders, tabs: lastTabs, target: lastTarget });
+          dexScheduler.resume();
+        } else if (!state.socket) {
+          lastTarget = null;
+          broadcastUi({ type: 'target_lost', message: 'Extension bridge disconnected.' });
+          dexScheduler.transportLost();
+        }
       }
     }
     if (ws.role === 'ui') console.log(`[bridge] ui disconnected [${ws.clientKind}]`);

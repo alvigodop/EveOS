@@ -64,19 +64,82 @@ test('richer populated session becomes authoritative without smaller-session fla
   assert.equal(state.snapshot.tabs.length, 14);
 });
 
-test('real zero-tab state is preserved when all live sessions report zero', () => {
-  const arbiter = createExtensionSessionArbiter({ isOpen: (socket) => socket.open });
+test('real zero-tab profile converges after bounded grace without losing the previous rich UI meanwhile', () => {
+  let clock = 0, timer = null;
+  const notifications = [];
+  const arbiter = createExtensionSessionArbiter({
+    isOpen: (socket) => socket.open, now: () => clock, emptyGraceMs: 100,
+    setTimer: (fn) => { timer = fn; return 1; }, clearTimer: () => { timer = null; },
+    onAuthoritySettled: (value) => notifications.push(value)
+  });
   const a = fakeSocket('a');
   const b = fakeSocket('b');
-
   arbiter.register(a);
   arbiter.update(a, { tabs: tabs(2, 'provider') });
   arbiter.register(b);
   arbiter.update(b, { tabs: [] });
-  const state = arbiter.update(a, { tabs: [] });
+  const provisional = arbiter.update(a, { tabs: [] });
+  assert.equal(provisional.ready, false);
+  assert.equal(provisional.pendingEmpty, true);
+  assert.equal(provisional.snapshot.tabs.length, 2);
+  assert.equal(notifications.length, 0);
+  clock = 100;
+  timer();
+  const settled = arbiter.current();
+  assert.equal(settled.ready, true);
+  assert.equal(settled.snapshot.tabs.length, 0);
+  assert.equal(notifications.length, 1);
+  assert.equal(arbiter.diagnostics().pendingEmpty, false);
+});
 
-  assert.equal(state.socket, a);
-  assert.equal(state.snapshot.tabs.length, 0);
+test('empty-first then rich second never publishes transient authoritative zero within grace', () => {
+  let clock = 0;
+  const timers = new Map();
+  let nextTimer = 0;
+  const notifications = [];
+  const arbiter = createExtensionSessionArbiter({
+    isOpen: (socket) => socket.open, now: () => clock, emptyGraceMs: 250,
+    setTimer: (fn) => { timers.set(++nextTimer, fn); return nextTimer; },
+    clearTimer: (id) => timers.delete(id),
+    onAuthoritySettled: (value) => notifications.push(value)
+  });
+  const empty = fakeSocket('empty');
+  const rich = fakeSocket('rich');
+  arbiter.register(empty);
+  const initial = arbiter.update(empty, { tabs: [] });
+  assert.equal(initial.ready, false);
+  assert.equal(initial.snapshot, null);
+  const staleTimers = [...timers.values()];
+  arbiter.register(rich);
+  const promoted = arbiter.update(rich, { tabs: tabs(12, 'rich') });
+  assert.equal(promoted.ready, true);
+  assert.equal(promoted.socket, rich);
+  assert.equal(promoted.snapshot.tabs.length, 12);
+  clock = 300;
+  staleTimers.forEach((fn) => fn());
+  assert.equal(notifications.length, 0);
+  assert.equal(arbiter.current().snapshot.tabs.length, 12);
+});
+
+test('single genuinely empty profile publishes zero after deadline without another message', () => {
+  let clock = 0, timer = null;
+  const notifications = [];
+  const arbiter = createExtensionSessionArbiter({
+    now: () => clock, emptyGraceMs: 50,
+    setTimer: (fn) => { timer = fn; return 1; }, clearTimer: () => { timer = null; },
+    onAuthoritySettled: (value) => notifications.push(value)
+  });
+  const empty = fakeSocket('empty');
+  arbiter.register(empty);
+  const first = arbiter.update(empty, { tabs: [], target: { id: 900 } });
+  assert.equal(first.ready, false);
+  assert.equal(first.snapshot, null);
+  clock = 50;
+  timer();
+  assert.equal(arbiter.current().ready, true);
+  assert.deepEqual(arbiter.current().snapshot.tabs, []);
+  assert.equal(arbiter.current().snapshot.target, null);
+  assert.equal(notifications.length, 1);
 });
 
 test('disconnecting primary promotes the best remaining live session', () => {

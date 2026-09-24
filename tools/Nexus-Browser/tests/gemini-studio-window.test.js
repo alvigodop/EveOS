@@ -129,39 +129,75 @@ test('prompt delivery keeps an open AI Studio popup stable without focus or navi
   assert.equal(calls.length, 0);
 });
 
-test('minimized AI Studio popup restores without requesting foreground focus', async () => {
+test('minimized AI Studio popup stays minimized outside an explicit submission transaction', async () => {
+  const updates = [];
+  const popup = { id: 77, windowId: 12, active: true, autoDiscardable: false, url: 'https://aistudio.google.com/prompts/abc' };
+  const result = await studioWindow.keepAiStudioPopupReady(popup, {
+    tabsApi: { get: async () => popup, update: async () => { throw new Error('no tab activation'); } },
+    windowsApi: {
+      get: async () => ({ id: 12, type: 'popup', state: 'minimized', focused: false }),
+      update: async (id, value) => updates.push([id, value])
+    }
+  });
+  assert.equal(result.id, 77);
+  assert.deepEqual(updates, []);
+});
+
+test('minimized submission transaction restores without focus, submits once, restores prior tab and re-minimizes immediately', async () => {
   const calls = [];
-  const popup = {
-    id: 77,
-    windowId: 12,
-    active: true,
-    autoDiscardable: false,
-    status: 'complete',
-    url: 'https://aistudio.google.com/prompts/abc'
-  };
+  let windowState = 'minimized';
+  const popup = { id: 77, windowId: 12, active: false, url: 'https://aistudio.google.com/prompts/abc' };
+  const other = { id: 78, windowId: 12, active: true, url: 'about:blank' };
   const tabsApi = {
-    async get() { return popup; },
+    async query() { return [popup, other]; },
     async update(id, changes) {
-      calls.push(['tab.update', id, changes]);
-      return { ...popup, ...changes };
+      calls.push(['tab', id, changes]);
+      if (changes.active) { popup.active = id === popup.id; other.active = id === other.id; }
     }
   };
   const windowsApi = {
-    async get() { return { id: 12, type: 'popup', state: 'minimized', focused: false }; },
+    async get() { return { id: 12, state: windowState, focused: false }; },
     async update(id, changes) {
-      calls.push(['window.update', id, changes]);
-      return { id, ...changes };
+      assert.equal(changes.focused, false);
+      calls.push(['window', id, changes]);
+      windowState = changes.state;
     }
   };
+  let submissions = 0;
+  const result = await studioWindow.withAiStudioSubmissionWindow(popup, {
+    tabsApi, windowsApi, delay: async () => {},
+    run: async () => {
+      submissions++;
+      assert.equal(windowState, 'normal');
+      assert.equal(popup.active, true);
+      await Promise.resolve(); // committed turn/generation transition is observed before return
+      return { ok: true, committed: true };
+    }
+  });
+  assert.deepEqual(result, { ok: true, committed: true });
+  assert.equal(submissions, 1);
+  assert.equal(windowState, 'minimized');
+  assert.equal(popup.active, false);
+  assert.equal(other.active, true);
+  assert.deepEqual(calls.filter(([type]) => type === 'window').map(([, , state]) => state.state), ['normal', 'minimized']);
+  assert.equal(calls.some(([, , value]) => value.focused === true), false);
+});
 
-  const result = await studioWindow.keepAiStudioPopupReady(popup, { tabsApi, windowsApi });
-  assert.equal(result.id, 77);
-  assert.ok(calls.some(([kind, id, changes]) =>
-    kind === 'window.update'
-      && id === 12
-      && changes.state === 'normal'
-      && changes.focused === false
-  ));
+test('failed or uncommitted submit still restores original minimized state without a retry', async () => {
+  let state = 'minimized', submissions = 0;
+  const popup = { id: 77, windowId: 12, active: true, url: 'https://aistudio.google.com/prompts/abc' };
+  const result = await studioWindow.withAiStudioSubmissionWindow(popup, {
+    tabsApi: { query: async () => [popup] },
+    windowsApi: {
+      get: async () => ({ state }),
+      update: async (id, changes) => { assert.equal(changes.focused, false); state = changes.state; }
+    },
+    delay: async () => {},
+    run: async () => { submissions++; return { ok: false, code: 'PROMPT_DELIVERY_UNCOMMITTED' }; }
+  });
+  assert.equal(result.ok, false);
+  assert.equal(state, 'minimized');
+  assert.equal(submissions, 1);
 });
 
 test('non-AI-Studio tabs are left alone', async () => {
