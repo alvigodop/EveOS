@@ -95,7 +95,7 @@ function diagnosticsSnapshot() {
     ok: true, supervised: (process.env.NEXUS_BROWSER_SUPERVISED || process.env.BROWSER_AI_BRIDGE_SUPERVISED) === '1', serverSessionId: SERVER_SESSION_ID, assetRevision: ASSET_REVISION,
     extensionConnected: !!extensionSocket && extensionSocket.readyState === WebSocket.OPEN,
     dexUiConnected: [...uiSockets].some((peer) => peer.clientKind === 'dex'),
-    uiClients: uiSockets.size, onlineTargets: lastTabs.length, localTargets: lastLocalTargets.length, extensionSessions: extensionSessions.diagnostics(),
+    uiClients: uiSockets.size, onlineTargets: lastTabs.length, localTargets: lastLocalTargets.length, localDiscovery: localTargets.discoveryDiagnostics(), extensionSessions: extensionSessions.diagnostics(),
     dexRooms: rooms.length, recoveryRooms: rooms.filter((room) => !!room.recovery).length, savedAt: snapshot?.savedAt || null,
     providerBlocks: lastTabs.filter((tab) => tab.health?.blocking).map((tab) => ({ tabId: tab.id, providerId: tab.providerId, health: tab.health })),
     durability: durability.diagnostics(), stateRepair: dexStateStore.diagnostics(), orchestration: dexScheduler?.diagnostics?.() || null,

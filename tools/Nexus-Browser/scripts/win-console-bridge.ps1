@@ -6,10 +6,15 @@ param(
   [Parameter(Mandatory = $true)]
   [int]$TargetPid,
 
-  [string]$Text = ''
+  [string]$Text = '',
+
+  [string]$ResultPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
+# Preserve the original output pipe before attaching to another console. Nexus also
+# passes a private result-file path because FreeConsole may detach stdout.
+$script:originalOutput = [Console]::OpenStandardOutput()
 
 $source = @'
 using System;
@@ -253,9 +258,12 @@ public static class BridgeConsoleNative
 function Write-BridgeJson($obj, [int]$depth = 4) {
   $json = [pscustomobject]$obj | ConvertTo-Json -Compress -Depth $depth
   $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($json)
-  $outStream = [Console]::OpenStandardOutput()
-  $outStream.Write($bytes, 0, $bytes.Length)
-  $outStream.Flush()
+  if ($ResultPath) { [System.IO.File]::WriteAllBytes($ResultPath, $bytes) }
+  try {
+    $script:originalOutput.Write($bytes, 0, $bytes.Length)
+    $script:originalOutput.Flush()
+  }
+  catch { if (-not $ResultPath) { throw } }
 }
 
 try {
@@ -277,7 +285,9 @@ try {
     exit 0
   }
 
-  $snapshot = [BridgeConsoleNative]::Snapshot([uint32]$TargetPid, 640)
+  # Discovery needs a short readable sample, not 640 console rows per candidate.
+  $maxLines = if ($Mode -eq 'probe') { 6 } else { 640 }
+  $snapshot = [BridgeConsoleNative]::Snapshot([uint32]$TargetPid, $maxLines)
   $payload = [ordered]@{
     ok = $true
     pid = $TargetPid
@@ -294,7 +304,7 @@ catch {
     ok = $false
     pid = $TargetPid
     error = $_.Exception.Message
-    nativeError = $_.Exception.InnerException.Message
+    nativeError = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $null }
   } 3
   exit 2
 }

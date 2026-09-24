@@ -150,6 +150,10 @@ async function sendLocalPrompt({ targetId, requestId, text, emit }) {
   await adapter.sendPrompt({ requestId, text, target, emit });
 }
 
+function discoveryDiagnostics() {
+  return { antigravityExisting: antigravityExisting.getDiscoveryDiagnostics() };
+}
+
 function invalidateLocalTargetCache() {
   cachedTargets = null;
   cachedAt = 0;
@@ -177,5 +181,6 @@ module.exports = {
   captureLocalLatest,
   sendLocalPrompt,
   invalidateLocalTargetCache,
+  discoveryDiagnostics,
   stopLocalTargets
 };

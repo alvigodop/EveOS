@@ -1,6 +1,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const { spawnSync, execFile } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
+const consoleHelper = require('./console-helper-transport');
 const {
   cleanScreenLine,
   cleanReplyLines,
@@ -18,7 +19,6 @@ const { dataDir } = require('../runtime-config');
 
 const TARGET_PREFIX = 'local:antigravity-existing:';
 const TARGET_TYPE_ID = 'terminal-agent';
-const HELPER = path.resolve(__dirname, '..', 'scripts', 'win-console-bridge.ps1');
 const INBOX_DIR = path.join(dataDir(), 'inbox');
 
 function isSafePasteCandidate(text) {
@@ -76,7 +76,11 @@ function isInteractiveAgyProcess(processInfo = {}) {
   return !nonInteractive.some((marker) => line.includes(marker));
 }
 
+let lastProcessDiscoveryError = null;
+let lastDiscovery = { checkedAt: null, enabled: false, discovered: 0, attached: 0, rejected: [], processDiscoveryError: null };
+
 function discoverAgyProcesses({ platform = process.platform, spawnSyncImpl = spawnSync } = {}) {
+  lastProcessDiscoveryError = null;
   if (platform !== 'win32') return [];
   const script = [
     '$items = Get-CimInstance Win32_Process -Filter "Name=\'agy.exe\'" |',
@@ -87,46 +91,21 @@ function discoverAgyProcesses({ platform = process.platform, spawnSyncImpl = spa
   const result = spawnSyncImpl('powershell.exe', [
     '-NoProfile', '-NonInteractive', '-Command', script
   ], { encoding: 'utf8', windowsHide: true, timeout: 5000 });
-  if (result?.status !== 0) return [];
-  const parsed = parseJson(result.stdout, []);
+  if (result?.status !== 0) {
+    lastProcessDiscoveryError = String(result?.stderr || result?.error?.message || 'PowerShell process enumeration failed.').trim().slice(0, 300);
+    return [];
+  }
+  const parsed = parseJson(result.stdout, null);
+  if (parsed == null) {
+    lastProcessDiscoveryError = 'PowerShell process enumeration returned no parseable JSON.';
+    return [];
+  }
   const items = Array.isArray(parsed) ? parsed : (parsed ? [parsed] : []);
   return items.filter((entry) => entry?.ProcessId && isInteractiveAgyProcess(entry));
 }
 
-function runHelper(mode, pid, text = '', { spawnSyncImpl = spawnSync } = {}) {
-  const args = [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-    '-File', HELPER, '-Mode', mode, '-TargetPid', String(pid)
-  ];
-  const options = {
-    encoding: 'utf8', windowsHide: true, timeout: mode === 'snapshot' ? 5000 : 8000
-  };
-  if (mode === 'send') options.input = Buffer.from(String(text), 'utf8').toString('base64');
-  const result = spawnSyncImpl('powershell.exe', args, options);
-  const parsed = parseJson(result?.stdout, null);
-  return parsed || {
-    ok: false,
-    error: String(result?.stderr || '').trim() || `Console helper failed (${result?.status ?? 'unknown'}).`
-  };
-}
-
-function runHelperAsync(mode, pid, { execFileImpl = execFile } = {}) {
-  const args = [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
-    '-File', HELPER, '-Mode', mode, '-TargetPid', String(pid)
-  ];
-  return new Promise((resolve) => {
-    execFileImpl('powershell.exe', args, {
-      encoding: 'utf8', windowsHide: true, timeout: mode === 'snapshot' ? 5000 : 8000
-    }, (error, stdout, stderr) => {
-      const parsed = parseJson(stdout, null);
-      resolve(parsed || {
-        ok: false,
-        error: String(stderr || error?.message || '').trim() || 'Console helper failed.'
-      });
-    });
-  });
-}
+const runHelper = consoleHelper.runHelper;
+const runHelperAsync = consoleHelper.runHelperAsync;
 
 const probeProcess = (pid, options = {}) => runHelper('probe', pid, '', options);
 const snapshotProcess = (pid, options = {}) => runHelper('snapshot', pid, '', options);
@@ -162,15 +141,47 @@ async function listTargets({
   probeImpl = probeProcess
 } = {}) {
   const attach = process.env.NEXUS_BROWSER_ATTACH_EXISTING ?? process.env.BROWSER_AI_BRIDGE_ATTACH_EXISTING ?? '1';
-  if (platform !== 'win32' || String(attach) === '0') return [];
+  const enabled = platform === 'win32' && String(attach) !== '0';
+  const scan = {
+    checkedAt: new Date().toISOString(), enabled, discovered: 0, attached: 0,
+    rejected: [], processDiscoveryError: null
+  };
+  lastDiscovery = scan;
+  if (!enabled) return [];
+
+  let candidates;
+  try { candidates = discoverImpl({ platform }); }
+  catch (error) {
+    scan.processDiscoveryError = String(error?.message || error).slice(0, 300);
+    return [];
+  }
+  if (discoverImpl === discoverAgyProcesses) scan.processDiscoveryError = lastProcessDiscoveryError;
+  if (!Array.isArray(candidates)) {
+    scan.processDiscoveryError = 'Process discovery returned a non-array result.';
+    return [];
+  }
+  scan.discovered = candidates.length;
   const targets = [];
-  for (const processInfo of discoverImpl({ platform })) {
+  for (const processInfo of candidates) {
     const pid = Number(processInfo.ProcessId || processInfo.pid);
-    const probe = probeImpl(pid);
-    if (!probe?.ok) continue;
+    let probe;
+    try { probe = probeImpl(pid); }
+    catch (error) { probe = { ok: false, code: 'CONSOLE_PROBE_THROWN', error: error?.message || String(error) }; }
+    if (!probe?.ok) {
+      if (scan.rejected.length < 12) scan.rejected.push({
+        pid, code: String(probe?.code || 'CONSOLE_PROBE_FAILED'),
+        reason: String(probe?.error || 'Console probe did not succeed.').slice(0, 300)
+      });
+      continue;
+    }
     targets.push(targetFromProcess(processInfo, probe));
   }
+  scan.attached = targets.length;
   return targets;
+}
+
+function getDiscoveryDiagnostics() {
+  return { ...lastDiscovery, rejected: lastDiscovery.rejected.map((item) => ({ ...item })) };
 }
 
 const ownsTarget = (id) => String(id || '').startsWith(TARGET_PREFIX);
@@ -402,6 +413,7 @@ module.exports = {
   pruneInbox,
   isInteractiveAgyProcess,
   discoverAgyProcesses,
+  getDiscoveryDiagnostics,
   probeProcess,
   snapshotProcess,
   snapshotProcessAsync,
