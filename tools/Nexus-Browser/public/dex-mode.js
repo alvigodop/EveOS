@@ -7,7 +7,8 @@
   const socketApi = globalThis.BrowserAiBridgeUiSocket;
   const sessionPolicyApi = globalThis.BrowserAiBridgeDexSessionPolicy;
   const humanInputApi = globalThis.BrowserAiBridgeDexHumanControl;
-  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi || !socketApi || !sessionPolicyApi || !humanInputApi) {
+  const roomViewApi = globalThis.BrowserAiBridgeDexRoomView;
+  if (!protocol || !memberApi || !controlApi || !stateSyncApi || !runtimeApi || !socketApi || !sessionPolicyApi || !humanInputApi || !roomViewApi) {
     throw new Error('Dex helpers must load before Dex Mode.');
   }
 
@@ -303,53 +304,18 @@
     uid
   });
 
-  function renderRooms() {
-    el.dexRoomList.replaceChildren();
-    for (const room of state.rooms) {
-      const button = document.createElement('button');
-      button.className = `dex-room-item${room.id === state.activeRoomId ? ' active' : ''}`;
-      button.textContent = `${room.name} · ${room.members.length}`;
-      button.addEventListener('click', () => {
-        memberController.clear();
-        state.activeRoomId = room.id;
-        renderAll();
-      });
-      el.dexRoomList.append(button);
+  const roomView = roomViewApi.createView({
+    state, el, protocol,
+    onRoomSelect(room) {
+      memberController.clear();
+      state.activeRoomId = room.id;
+      renderAll();
     }
-  }
-
-  let lastTranscriptRoomId = null;
-  function renderTranscript(room) {
-    const sameRoom = room?.id === lastTranscriptRoomId;
-    const oldTop = el.dexTranscript.scrollTop;
-    const nearBottom = el.dexTranscript.scrollHeight - oldTop - el.dexTranscript.clientHeight < 48;
-    el.dexTranscript.replaceChildren();
-    if (!room) return;
-    for (const message of room.messages) {
-      const article = document.createElement('article');
-      article.className = `dex-message ${message.senderKind}`;
-      const meta = document.createElement('div');
-      meta.className = 'dex-message-meta';
-      meta.textContent = message.senderKind === 'user'
-        ? `User (${message.senderName})`
-        : message.senderName || 'Dex';
-      const body = document.createElement('div');
-      body.className = 'dex-message-body';
-      body.textContent = message.senderKind === 'system'
-        ? message.text
-        : protocol.messageWrapper(message);
-      article.append(meta, body);
-      el.dexTranscript.append(article);
-    }
-    lastTranscriptRoomId = room.id;
-    el.dexTranscript.scrollTop = sameRoom && !nearBottom
-      ? Math.min(oldTop, el.dexTranscript.scrollHeight)
-      : el.dexTranscript.scrollHeight;
-  }
+  });
 
   function renderAll() {
     const room = activeRoom();
-    renderRooms();
+    roomView.renderRooms();
     if (!room) {
       humanInput.render({ connected: false, controller: false, hasRoom: false });
       return;
@@ -364,7 +330,7 @@
       ? `Relay running on localhost · ${room.relay.remaining} turn(s) left${room.relay.waitingFor ? ' · waiting for agent' : ''}${connectionSuffix}`
       : `Relay stopped · ${room.relay.lastStopReason || 'Idle'}${connectionSuffix}`;
     memberController.render(room);
-    renderTranscript(room);
+    roomView.renderTranscript(room);
     const editing = memberController.isEditing();
     const busy = controlApi.roomBusy(state, room);
     el.dexSend.disabled = !uiConnected || state.runtimeRole !== 'controller'

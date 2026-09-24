@@ -9,6 +9,7 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const mode = fs.readFileSync(path.join(root, 'dex-mode.js'), 'utf8');
 const members = fs.readFileSync(path.join(root, 'dex-members.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'dex-mode.css'), 'utf8');
+const roomView = fs.readFileSync(path.join(root, 'dex-room-view.js'), 'utf8');
 
 function fixture() {
   const calls = {};
@@ -93,7 +94,8 @@ test('provider commands bypass the browser-only editing gate and human messaging
   assert.match(mode, /humanInput\.render/);
   assert.match(mode, /canHumanEdit\(\)/);
   assert.match(mode, /el\.dexSend\.disabled = !uiConnected/);
-  assert.match(mode, /el\.dexRoomList\.replaceChildren\(\)/);
+  assert.match(roomView, /el\.dexRoomList\.replaceChildren\(\)/);
+  assert.match(mode, /roomView\.renderRooms\(\)/);
   assert.doesNotMatch(mode, /el\.dexModePanel\.inert\s*=/);
   assert.doesNotMatch(mode, /runtime\.stopAllRelays\('Base Mode opened'\)/);
   assert.match(members, /canHumanEdit = \(\) => true/);
@@ -103,7 +105,7 @@ test('provider commands bypass the browser-only editing gate and human messaging
 test('mode banner, pulse and script have stable wiring without persistent unlock state', () => {
   assert.match(html, /id="dexControlLabel"[^>]*>Agent-Only Mode/);
   assert.match(html, /id="dexHumanToggle"[^>]*>Enable Human Input/);
-  assert.match(html, /\/dex-human-control\.js[\s\S]*\/dex-mode\.js/);
+  assert.match(html, /\/dex-human-control\.js[\s\S]*\/dex-room-view\.js[\s\S]*\/dex-mode\.js/);
   assert.match(css, /dex-human-input-pulse/);
   assert.match(css, /prefers-reduced-motion: reduce/);
   const source = fs.readFileSync(path.join(root, 'dex-human-control.js'), 'utf8');
