@@ -5,7 +5,9 @@
     || (typeof module !== 'undefined' && module.exports ? require('./dex-agent-continuity.js') : null);
   const participantApi = globalThis.BrowserAiBridgeDexProviderParticipants
     || (typeof module !== 'undefined' && module.exports ? require('./dex-provider-participants.js') : null);
-  if (!roomAdminApi || !continuityApi || !participantApi) throw new Error('Dex room admin, continuity, and participant helpers must load before provider control.');
+  const membersApi = globalThis.BrowserAiBridgeDexMembers
+    || (typeof module !== 'undefined' && module.exports ? require('./dex-members.js') : null);
+  if (!roomAdminApi || !continuityApi || !participantApi || !membersApi) throw new Error('Dex room admin, continuity, participant, and member helpers must load before provider control.');
   const SELECTION_KEY = 'browser-ai-bridge.dex.provider-control.v1';
   const ACTIONS = new Set([
     'help', 'onboard', 'checkpoint', 'read_checkpoint', 'rooms', 'targets', 'create_room', 'use_room', 'status',
@@ -56,26 +58,10 @@
     try { storage.setItem(SELECTION_KEY, JSON.stringify(selections)); } catch {}
   }
   function compactTarget(targetClassId, target = {}) {
-    return {
-      targetClassId,
-      targetId: target.id,
-      providerId: target.providerId,
-      providerName: target.providerName,
-      title: target.title || target.providerName || String(target.id || ''),
-      ...(targetClassId === 'online-origin' ? { url: target.url || '' } : { targetTypeId: target.targetTypeId || '' })
-    };
+    return membersApi.bindingFromSource(targetClassId, target);
   }
   function bindingFromTarget(targetClassId, target = {}) {
-    return {
-      targetClassId,
-      targetId: target.id,
-      providerId: target.providerId,
-      providerName: target.providerName,
-      title: target.title || target.providerName || String(target.id || ''),
-      ...(targetClassId === 'online-origin'
-        ? { url: target.url || '' }
-        : { targetTypeId: target.targetTypeId || '' })
-    };
+    return membersApi.bindingFromSource(targetClassId, target);
   }
   function bindingFingerprint(binding = {}) {
     if (binding.targetClassId === 'online-origin' && binding.managedByDex === true) {
@@ -238,14 +224,7 @@
         room.name = clean(command.name || room.name, 80) || room.name;
         if (command.userName) room.userName = clean(command.userName, 48) || room.userName;
         if (command.disposable === true) room.lifecycle = { disposable: true, kind: clean(command.purpose || 'managed-worker-proof', 80) || 'managed-worker-proof', createdBy: 'provider-control' };
-        const sourceBinding = {
-          targetClassId: source.targetClassId,
-          targetId: source.targetId,
-          providerId: source.providerId,
-          providerName: source.providerName,
-          title: source.title || source.providerName,
-          ...(source.targetClassId === 'online-origin' ? { url: source.url || '' } : {})
-        };
+        const sourceBinding = bindingFromTarget(source.targetClassId, { ...source, id: source.targetId });
         room.members.push({
           id: typeof uid === 'function' ? uid('agent') : `agent-${Date.now().toString(36)}`,
           name: clean(command.selfName || source.providerName || source.title || 'Agent', 48),

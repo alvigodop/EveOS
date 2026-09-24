@@ -131,6 +131,7 @@ test('reload-extension is a bridge-admin command and does not require agent sour
 
 test('runExtensionReload waits for extension disconnect then reconnect', async () => {
   const handlers = {};
+  let epoch = 1;
   class FakeSocket {
     constructor() { this.sent = []; setImmediate(() => handlers.open?.()); }
     on(name, fn) { handlers[name] = fn; }
@@ -138,15 +139,39 @@ test('runExtensionReload waits for extension disconnect then reconnect', async (
       const msg = JSON.parse(value);
       this.sent.push(msg);
       if (msg.type === 'reload_extension') {
+        setImmediate(() => handlers.message?.(JSON.stringify({ type: 'reloading_extension' })));
         setImmediate(() => handlers.message?.(JSON.stringify({ type: 'bridge_status', connected: false })));
-        setImmediate(() => handlers.message?.(JSON.stringify({ type: 'bridge_status', connected: true })));
+        setImmediate(() => { epoch = 2; handlers.message?.(JSON.stringify({ type: 'bridge_status', connected: true })); });
       }
     }
     close() {}
   }
-  const result = await runExtensionReload(1000, FakeSocket);
+  const fetchImpl = async () => ({ ok: true, json: async () => ({
+    extensionSessions: { primaryConnectionEpoch: epoch, standby: [] }
+  }) });
+  const result = await runExtensionReload(1000, FakeSocket, fetchImpl);
   assert.equal(result.ok, true);
   assert.equal(result.action, 'reload_extension');
+});
+
+test('runExtensionReload accepts a new connection epoch while a standby keeps the bridge online', async () => {
+  const handlers = {};
+  let epoch = 4;
+  class FakeSocket {
+    constructor() { setImmediate(() => handlers.open?.()); }
+    on(name, fn) { handlers[name] = fn; }
+    send(value) {
+      if (JSON.parse(value).type !== 'reload_extension') return;
+      setImmediate(() => handlers.message?.(JSON.stringify({ type: 'reloading_extension' })));
+      setImmediate(() => { epoch = 5; handlers.message?.(JSON.stringify({ type: 'bridge_status', connected: true })); });
+    }
+    close() {}
+  }
+  const fetchImpl = async () => ({ ok: true, json: async () => ({
+    extensionSessions: { primaryConnectionEpoch: epoch, standby: [{ connectionEpoch: epoch - 1 }] }
+  }) });
+  const result = await runExtensionReload(1000, FakeSocket, fetchImpl);
+  assert.equal(result.ok, true);
 });
 
 

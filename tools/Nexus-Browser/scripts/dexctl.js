@@ -209,20 +209,47 @@ function run({ source, command }) {
   });
 }
 
-function runExtensionReload(timeoutMs = 20000, WebSocketImpl = WebSocket) {
+async function extensionConnectionEpoch(fetchImpl = globalThis.fetch) {
+  try {
+    const response = await fetchImpl(urls().diagnostics);
+    if (!response.ok) return null;
+    const data = await response.json();
+    const sessions = data?.extensionSessions || {};
+    const epochs = [sessions.primaryConnectionEpoch, ...(sessions.standby || []).map((item) => item.connectionEpoch)]
+      .map(Number).filter(Number.isFinite);
+    return epochs.length ? Math.max(...epochs) : 0;
+  } catch { return null; }
+}
+
+async function runExtensionReload(timeoutMs = 20000, WebSocketImpl = WebSocket, fetchImpl = globalThis.fetch) {
+  const baselineEpoch = await extensionConnectionEpoch(fetchImpl);
   return new Promise((resolve, reject) => {
     const ws = new WebSocketImpl(WS_URL);
     let sawDisconnect = false;
+    let sawReloadAck = false;
     let commandSent = false;
+    let epochTimer = null;
     const timeout = setTimeout(() => {
+      clearInterval(epochTimer);
       try { ws.close(); } catch {}
       reject(new Error('Timed out waiting for the Nexus Browser extension to reload and reconnect.'));
     }, timeoutMs);
 
     function finish(result) {
       clearTimeout(timeout);
+      clearInterval(epochTimer);
       try { ws.close(); } catch {}
       resolve(result);
+    }
+
+    function watchConnectionEpoch() {
+      if (baselineEpoch == null || epochTimer) return;
+      epochTimer = setInterval(async () => {
+        const currentEpoch = await extensionConnectionEpoch(fetchImpl);
+        if (sawReloadAck && currentEpoch != null && currentEpoch > baselineEpoch) {
+          finish({ ok: true, action: 'reload_extension', message: 'Nexus Browser extension reloaded and reconnected.' });
+        }
+      }, 100);
     }
 
     ws.on('open', () => {
@@ -236,12 +263,17 @@ function runExtensionReload(timeoutMs = 20000, WebSocketImpl = WebSocket) {
       if (msg.type === 'error' && msg.code === 'EXTENSION_OFFLINE') {
         return finish({ ok: false, code: msg.code, message: msg.message });
       }
+      if (msg.type === 'reloading_extension') {
+        sawReloadAck = true;
+        watchConnectionEpoch();
+        return;
+      }
       if (msg.type !== 'bridge_status' || !commandSent) return;
       if (!msg.connected) {
         sawDisconnect = true;
         return;
       }
-      if (sawDisconnect && msg.connected) {
+      if (sawDisconnect && msg.connected && baselineEpoch == null) {
         finish({ ok: true, action: 'reload_extension', message: 'Nexus Browser extension reloaded and reconnected.' });
       }
     });

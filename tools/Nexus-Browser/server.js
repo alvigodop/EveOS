@@ -75,7 +75,9 @@ const providerControlRouting = createProviderControlRouting({
     }
     if (source?.targetClassId !== 'local-origin') return false;
     const target = await localTargets.getLocalTarget(String(source?.targetId || ''));
-    return !!target && target.providerId === source?.providerId;
+    if (!target || target.providerId !== source?.providerId) return false;
+    Object.assign(source, target, { targetId: target.id });
+    return true;
   }
 });
 const qualificationRouting = createQualificationRouting({ safeSend, getExtensionSocket: () => extensionSocket, getDurability: () => durability, getStateStore: () => dexStateStore, restartHook: qualificationRestart, serverSessionId: SERVER_SESSION_ID });
