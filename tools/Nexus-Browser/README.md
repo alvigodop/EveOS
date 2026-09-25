@@ -38,6 +38,16 @@ Online targets retain the existing **Target type -> Open chat -> Connect target*
 
 Dex Mode binds named participants to exact Online-Origin browser chats or Local-Origin sessions. The localhost scheduler serializes room turns; the headed Dex page is a viewer/controller and can disconnect without owning the live queue, current turn, timeout, or recovery loop.
 
+### Agent-Only Mode and human input
+
+Dex starts in **Agent-Only Mode on every new page load or reload**. Structural human controls are disabled and visually grayed out: new rooms, room identity/settings, participant binding/editing, clear/delete, and manual stop/continue relay. The top banner identifies the mode, and its slowly pulsing red **Enable Human Input** button unlocks eligible controls on the primary, connected Dex viewer. The pulse respects reduced-motion settings. Click **Return to Agent-Only Mode** to relock; the human unlock flag is deliberately not stored.
+
+**Always available in both UI modes:** browsing between rooms, reading transcripts, and typing into the room composer. **Send to room** remains outside the editing lock, but sending still requires the connected primary viewer, a room with participants, and an idle/non-editing relay state; a standby viewer cannot send or mutate. Browsing is allowed on standby pages too. Switching between Base Mode and Dex Mode does not stop localhost-owned relays.
+
+This is **a local browser UI editing gate, not a backend permission change or an agent capability grant**. Bound agents still use their exact-session, exact-room provider-control authorization and busy-state safeguards. A human can opt into room editing without granting an unrelated agent access to it.
+
+The local-only `npm run extension:reload` command is a separate privileged lifecycle operation; `reload_extension` is **not** a supported trailing `[[DEX:CMD ...]]` action. Use `npm run extension:refresh` when code changed and you want the shared gate before that reload.
+
 A bound agent can inspect and operate its own authorized Dex rooms without Drift manually copying state between agents. Browser agents use a trailing command marker, while Local-Origin agents can use `scripts/dexctl.js`.
 
 The onboarding command is intentionally read-only:
@@ -314,6 +324,8 @@ http://127.0.0.1:9088
 ```
 
 ## Verification
+
+At the EveOS 0.7.0 source checkpoint on September 24, 2026, Windows validation passed the root Nexus smoke (3/3), security smoke, AI-control (12/12), guardrails, and 27 focused Dex/terminal/diagnostics tests; a subsequent `extension:reload` reported an actual reconnect. These source/transport checks **do not** establish a successful attached Antigravity TUI turn or a complete authenticated provider qualification. Run the live checklists below before claiming those paths work on a particular machine.
 
 Windows:
 

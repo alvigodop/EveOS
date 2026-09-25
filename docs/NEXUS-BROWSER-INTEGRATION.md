@@ -72,6 +72,12 @@ data/runtime/nexus-browser/
 
 This preserves the source project's deterministic reliability coverage while applying EveOS's bounded-output, fingerprint-aware smoke policy. It does not reduce assertions or hide failures.
 
+## Verified versus pending qualification (September 24, 2026)
+
+The Windows 0.7.0 source checkpoint passed 27 focused Dex/Antigravity/diagnostics tests, all structural guardrails (including 393 registered smoke entry points), the Nexus integration smoke (3/3), the Nexus security smoke, and the AI-control profile (12/12). The unpacked-extension reload command reported a completed reconnect. These are locally reported checks, not evidence of an authenticated provider exchange or successful attachment to a live existing Antigravity terminal.
+
+Still pending: headed-provider send/capture, direct existing-Antigravity TUI probe/send/capture without spawning a replacement process, owned supervisor start/stop and Global Stop confirmation for the current checkpoint, and the complete uncached `npm run verify` run. A static passing test is not a substitute for any of these live checks.
+
 ## Delete-readiness boundary
 
 The original POC is safe to delete only after all of these are true:

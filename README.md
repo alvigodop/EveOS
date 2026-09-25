@@ -16,6 +16,15 @@ It is Windows-oriented, browser-first, and intentionally modular. Many core work
 
 *The public screenshots use synthetic demo content. Personal datapacks, private World Book data, saved Piano libraries, credentials, and machine-local state are not included in the repository.*
 
+## Start here
+
+- [What's new in 0.7.0: Nexus Browser and Agent-Only Mode](#nexus-browser-update--eveos-070)
+- [Workspace overview](#the-workspace-at-a-glance) and [Unidex / Smart Views / Nebula](#unidex-smart-views-and-nebula)
+- [Getting started](#getting-started) and [Nexus Browser setup](#nexus-browser-quick-start)
+- [Data ownership and privacy](#your-data-and-privacy)
+- [Architecture](#architecture) and [repository map](#repository-map)
+- [Measured project size](#project-size), [verification](#verification-and-development-safety), and [qualification status](#current-project-status)
+
 ## Nexus Browser update — EveOS 0.7.0
 
 ![You wouldn't want a human in control — EveOS Nexus Browser announcement](docs/screenshots/eveos-nexus-browser-promo.png)
@@ -28,6 +37,7 @@ It is Windows-oriented, browser-first, and intentionally modular. Many core work
 | --- | --- |
 | **Browser-targeted agents** | The EveOS-owned Chromium extension under `tools/Nexus-Browser/extension/` provides scoped provider adapters for supported, already-authenticated tabs. |
 | **Dex coordination** | Rooms, participant selection, target routing, durable local transcripts, exact-once dispatch records, post-timeout capture-only recovery, and bounded incident diagnostics live in the Nexus Browser runtime. |
+| **Agent-Only Mode** | Dex starts each browser load as an observer-first workspace: human room editing and relay-management controls are disabled until **Enable Human Input** is selected. Room browsing and message composition remain available in either mode, subject to existing runtime safeguards. |
 | **Agent Nexus and TLO** | Search Monitor presents Nexus Browser next to the TLO chat surface and Agent Management, without sharing their private data by default. |
 | **Explicit lifecycle** | Local Control owns setup/start/stop, supervised processes, port registration, and safe shutdown. Opening Agent Nexus is a status read, not an instruction to start services. |
 | **Private by default** | Room state, message history, browser sessions, agent profiles, incident logs, and credentials remain in ignored local runtime storage. Public Git includes source, schemas, examples, documentation, and deterministic tests only. |
@@ -35,6 +45,8 @@ It is Windows-oriented, browser-first, and intentionally modular. Many core work
 Nexus Browser's default local address is `http://127.0.0.1:9088/`, governed by `NEXUS_BROWSER_PORT` in `config/eveos-ports.json`. Its canonical extension and runtime live in the EveOS tree; you do not need to execute the old Browser AI Bridge POC from another checkout. Existing extension installations must be repointed to the EveOS folder once.
 
 **Scope of this milestone:** the integrated source and deterministic contract coverage are present. Authenticated provider round trips, browser-extension reconnection, local process ownership, headed-browser behavior, and your installed models still require qualification on the actual machine. Do not mistake a passed source smoke or a connected tab for permission to control an agent.
+
+**Agent-Only Mode is a UI editing gate, not a new agent permission grant.** The human owner can browse rooms and send messages while editing is locked; sending still requires the connected primary Dex viewer and an eligible, idle room. The slowly pulsing red **Enable Human Input** button unlocks room identity, participant, and relay controls on the primary viewer. The unlock is not persisted: reloading returns to Agent-Only Mode. Authorized agents retain their separate, exact-room-scoped command path, including its busy-state and target-identity checks. Switching between Base Mode and Dex Mode does not stop localhost-owned agent relays. See [Nexus Browser's operating guide](tools/Nexus-Browser/README.md#agent-only-mode-and-human-input).
 
 For architecture, migration, safety boundaries, and the local-live qualification checklist, see [Nexus Browser integration](docs/NEXUS-BROWSER-INTEGRATION.md) and [Agent Nexus migration](docs/AGENT-NEXUS-MIGRATION.md).
 
@@ -57,6 +69,9 @@ Local-first is not the same thing as indestructible. Remote media can still disa
 | Area | What it does |
 | --- | --- |
 | **Dashboard** | Nested workspace tabs, cards, folders, bookmarks, notes, shortcuts, pinning, ordering, task states, focus views, and bulk operations. |
+| **Unidex** | A unified dashboard view for navigating workspace/card content and bookmark entries, including alternative layouts, scoped task indicators, and restoration of the selected view after reload. |
+| **Smart Views** | Saved, criteria-based and built-in views over existing bookmark/folder data, including query-based discovery without moving the underlying records. |
+| **Nebula** | Stable `eve://` workspace/card/folder/bookmark links plus validation and transactional JSON-patch plumbing for linked workspace data. |
 | **Library** | Rich media records, aliases, status tracking, chapters/episodes, covers, source attachments, provider metadata, and blended ratings. |
 | **Nexus Search** | Searches the current scope or the wider datapack while preserving paths, provenance, location, and jump-back context. |
 | **Constellation Map** | Turns the workspace into a navigable graph while retaining the relationship to the active tab/card context. |
@@ -72,6 +87,10 @@ Local-first is not the same thing as indestructible. Remote media can still disa
 | **Agent Nexus / TLO** | Private scoped agent profiles and an optional local-model chat surface that uses an already-running Local MoE Harness; opening TLO does not auto-start inference. |
 | **Nexus Browser / Dex** | Explicitly started browser-agent transport with room coordination, supported-provider extension adapters, incident evidence, and durable local recovery. |
 | **Search Monitor / Control Plane** | Runtime visibility and lifecycle controls for EveOS localhost and optional companion services without forcing every service to run together. |
+
+### Unidex, Smart Views and Nebula
+
+These are different parts of the same data-navigation layer rather than interchangeable search engines. **Unidex** presents unified cards or entries across the selected workspace scope and preserves entry layout/navigation state. **Smart Views** save filter criteria and expose built-in collections (including system views) that can also be discovered through Nexus Search. **Nebula** supplies ID-oriented `eve://` links that continue to resolve folder paths after renames, together with validated workspace JSON-link and patch operations. Workspace scope and stable IDs matter throughout: changing how data is viewed should not silently move or duplicate its source records.
 
 ## Explore The Interface
 
@@ -251,6 +270,21 @@ Start-Process 'http://127.0.0.1:9088/'
 ```
 
 In Chromium, visit `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select `tools/Nexus-Browser/extension` from *this* checkout. Repoint any older Browser AI Bridge extension instead of running two competing copies. Provider access uses your existing authorized tabs; no automatic provider login or universal browser permission is implied.
+
+#### Nexus Browser operator commands
+
+With the EveOS-owned Nexus Browser service already running, use the commands from its own directory (these are **not root-package scripts**):
+
+```powershell
+Set-Location tools/Nexus-Browser
+npm run doctor
+npm run extension:reload      # Reload the unpacked extension and verify reconnect
+# Alternative for extension-code changes: validate first, then reload
+npm run extension:refresh
+Set-Location ../..
+```
+
+Run **one** of the two reload options, not both: `extension:refresh` includes `extension:reload` after `validate:shared`. Reloading the extension does not restart the localhost Nexus service; when server/supervisor code changed, restart the service through EveOS Local Control first. Dex text commands do not currently expose `reload_extension`; that privileged operation is available through the local `dexctl.js` wrapper behind these npm scripts. See the [Nexus engineering workflow](tools/Nexus-Browser/ENGINEERING-EFFICIENCY.md) for the full qualification and diagnosis procedures.
 
 If you have private rooms in an older POC checkout, use the migration dry run first. Stop the Nexus Browser service before applying an import. Replace the placeholder with the **absolute path** to the legacy folder:
 
@@ -441,7 +475,9 @@ For real owned-runtime/browser qualification, `npm run runtime:search-monitor:qu
 
 ## Current Project Status
 
-The 0.7.0 Nexus Browser milestone is a source/integration and documentation update, **not** a claim that every authenticated provider, live browser, or hardware-bound workflow is already qualified. The existing Local Control ownership, exact-once/capture-only recovery, service status, and extension scope boundaries remain part of the qualification matrix. Keep the former POC as a comparison source until the local checklist in `docs/NEXUS-BROWSER-INTEGRATION.md` is complete.
+**Verified locally on Windows for the 0.7.0 source checkpoint (September 24, 2026, `7ccd0386`):** 27 focused Dex/Antigravity/diagnostics tests passed; the root Nexus Browser smoke completed 3/3; the Nexus security smoke passed; the AI-control profile completed 12/12; and structural guardrails passed, including 393 registered smoke entry points and the measured 3,234-file/505,803-line size scan. The `npm run extension:reload` command also reported an actual extension disconnect/reconnect cycle. The subsequent README-size update and this documentation work do not change runtime code.
+
+**Not yet established by those results:** the full uncached `npm run verify` gate for this checkpoint, authenticated headed-provider round trips, or successful attachment/send/capture to an already-running Antigravity TUI (Astro). Mocked existing-terminal discovery tests do not substitute for the real Windows console probe. Agent permission scope, Local Control ownership, exact-once/capture-only recovery, and service lifecycle require continued live qualification. Keep the former POC as a comparison source until the [Nexus Browser integration checklist](docs/NEXUS-BROWSER-INTEGRATION.md#delete-readiness-boundary) is complete.
 
 EveOS is actively evolving. The surface area is large and several features depend on external providers, browser behavior, Windows-native APIs, optional local services, or model/tool availability.
 
