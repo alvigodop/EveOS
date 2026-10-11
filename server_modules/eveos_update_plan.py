@@ -36,6 +36,13 @@ _IGNORED_PARTS = {
     "node_modules", "dist", "build", ".cache",
 }
 _SOURCE_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".css", ".html", ".json", ".ps1", ".bat", ".cmd"}
+_CONTROL_ONLY_MODULES = {
+    "server_modules/eveos_control_helper.py",
+    "server_modules/eveos_control_replace.py",
+    "server_modules/eveos_spotify_reload.py",
+    "server_modules/eveos_update_plan.py",
+}
+_WEB_ONLY_MODULES = {"server_modules/eveos_server_status.py"}
 _LOCK = threading.RLock()
 
 
@@ -66,6 +73,11 @@ def _classify(relative: str) -> tuple[str, ...]:
     p = relative.replace("\\", "/")
     lower = p.lower()
     components: set[str] = set()
+
+    if p in _CONTROL_ONLY_MODULES:
+        return ("localControl",)
+    if p in _WEB_ONLY_MODULES:
+        return ("web",)
 
     # Managed Spotify has its own process boundary even though its engine script is browser JS.
     if p == "tools/audioflix/spotify-engine.html" or lower.startswith("server_modules/audioflix_spotify") \
