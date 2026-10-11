@@ -44,8 +44,8 @@ jobs:
         shell: bash
         run: |
           node tools/audit/sync-runtime-asset-versions.js --write
-          git diff -- EveOS.html tools/audioflix/spotify-engine.html js/config/manifest/scripts.parts/03-feature-modules.js
-          git diff --exit-code -- EveOS.html tools/audioflix/spotify-engine.html js/config/manifest/scripts.parts/03-feature-modules.js
+          git diff -- EveOS.html tools/audioflix/spotify-engine.html js/config/manifest/scripts.parts/03-feature-modules.js js/config/manifest/scripts.parts/13-gemini.js
+          git diff --exit-code -- EveOS.html tools/audioflix/spotify-engine.html js/config/manifest/scripts.parts/03-feature-modules.js js/config/manifest/scripts.parts/13-gemini.js
       - name: Protect Queue View pointer stability structurally
         run: node tests/audioflix_queue_view_stability.test.cjs
 
