@@ -64,6 +64,24 @@ node tools/qualification/audioflix_lane3_runtime_acceptance.mjs --native --take-
 
 The full matrix covers real status/command/volume paths, foreground and genuinely hidden natural completion, repeat on/off, shuffle/current preservation, relay disconnect/reconnect without autoplay, helper restart recovery, HTTP reload/reset, and the file entrypoint.
 
+## Lane 4 scoped reload acceptance
+
+```powershell
+node tools/qualification/eveos_lane4_reload_acceptance.mjs --restart
+```
+
+Run on Windows with branded Local Control and EveOS web already running in their headed default, other services idle, and the managed Spotify helper stopped. `--restart` explicitly authorizes two web replacements (HTTP and canonical file entrypoints) followed by one scoped Local Control replacement. The driver starts a fresh headed Chromium browser; `--edge` selects Edge and `--headless` is an explicit browser override.
+
+Uses real EveOS markup/CSS, pointer Check updates, 340px toolbar bounds/hit testing, file-origin web-port discovery, fresh process/source identity, replacement ACK/readiness timing, and unchanged preferences/unrelated listener checks. Browser writes are denied except update checks and a single scoped restart request per case. It never starts/stops a child, takes over Spotify, changes browser profiles, or tears down services after a failure. Keep the managed helper stopped throughout the run; an active helper blocks preflight because web restart can restore that dependency.
+
+Full JSON, screenshots and browser diagnostics are saved under ignored `data/runtime/smoke-results/lane4-reload-*/`. This focused gate does not certify Spotify restart, page-reload durability, other child restarts, endurance, or the complete Lane 4 matrix. `--check` validates the write policy without touching endpoints or launching a browser; the gate remains opt-in and outside deterministic `verify`.
+
+Run this gate exclusively, after deterministic tests have finished. Its preference hashes and process identities deliberately reject concurrent lifecycle changes rather than reporting a misleading pass. A failed invariant leaves diagnostics and healthy services available for inspection; do not reset saved state to make the test pass.
+
+Local Control's CLI `--probe` is a read-only, deadline-bounded health check. It must not import service controllers or capture source fingerprints. Full startup and explicit Check updates fingerprint tracked and non-ignored untracked runtime source, including CSS; ignored browser downloads and machine-local configuration are not update candidates. When Git is unavailable, the filesystem fallback conservatively excludes literal root-ignore paths and known cache/runtime directories. It is not a full Git wildmatch/nested-ignore interpreter; use the normal Git checkout for complete ignore semantics and explicitly tracked overrides.
+
+Use the scoped service controls for updates, not a launcher that clears saved child preferences. A scoped Local Control replacement must preserve stopped children. Global Stop smoke fixtures must stub every production stop target before exercising that path; the ephemeral startup smokes must suppress restoration of workstation services.
+
 ## Safety and ownership
 
 - Do not run live qualification against an active playback session you do not intend to take over.

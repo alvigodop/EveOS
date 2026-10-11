@@ -134,7 +134,7 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
         ['[data-local-moe-message]', { textContent: '' }]
     ]);
     const root = {
-        addEventListener() {},
+        addEventListener(type, fn) { listeners[`root:${type}`] = fn; },
         querySelector(selector) {
             if (selector === '[data-ai-provider="gemini"]') return gemini;
             if (selector === '[data-ai-provider="local-moe"]') return localMoe;
@@ -149,13 +149,23 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
     api.bind(root, { onGeminiOpen() { geminiBootRequests += 1; } });
     api.setWorkspaceActive(true);
     await new Promise((resolve) => setTimeout(resolve, 0));
-    assert(requests.length === 1 && requests[0].url.endsWith('/api/local-moe/status'),
-        'Workspace activation must perform only a passive Local MoE status read');
-    assert(requests[0].method === 'GET', 'Workspace activation issued a mutating Local MoE request');
+    assert(requests.length === 0, 'Workspace activation must not probe a collapsed Local MoE provider');
     assert(geminiBootRequests === 0, 'Workspace activation booted collapsed Gemini Link');
+    localMoe.open = true;
+    listeners['local:toggle']();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert(requests.length === 1 && requests[0].url.endsWith('/api/local-moe/status'),
+        'Opening Local MoE must perform only a passive status read');
+    assert(requests[0].method === 'GET', 'Opening Local MoE issued a mutating request');
     gemini.open = true;
     listeners['gemini:toggle']();
-    assert(geminiBootRequests === 1, 'Opening Gemini Link did not request its preserved workspace');
+    assert(geminiBootRequests === 0, 'Opening Gemini Link bypassed its explicit Load workspace gate');
+    listeners['root:click']({
+        target: { closest: selector => selector === '[data-gemini-monitor-load]' ? {} : null },
+        preventDefault() {}, stopPropagation() {}
+    });
+    assert(geminiBootRequests === 1 && api.isGeminiOpen(),
+        'Explicit Load workspace did not request its preserved Gemini workspace');
 
     localMoe.open = true;
     localMoeResponse = {
@@ -202,26 +212,36 @@ function assert(condition, message) { if (!condition) throw new Error(message); 
 
     const originalFetchJson = windowMock.EveOSLocalControl.fetchJson;
     let resolveOlderStatus;
-    let resolveNewerStatus;
     let overlapCalls = 0;
-    windowMock.EveOSLocalControl.fetchJson = async () => new Promise((resolve) => {
+    let mutationCalls = 0;
+    windowMock.EveOSLocalControl.fetchJson = async (url, options) => {
+        if (options?.method === 'POST') {
+            mutationCalls += 1;
+            assert(url.endsWith('/api/local-moe/start'), 'Fixture must use the existing explicit Start path');
+            return { ...localMoeResponse, running: true, state: 'running', runtimeReady: true,
+                runtimeReachable: true, runtimeManagedRunning: true, runtimeStartupStage: 'ready',
+                runtimeHealth: 'ok', message: 'Newest healthy status' };
+        }
         overlapCalls += 1;
-        if (overlapCalls === 1) resolveOlderStatus = resolve;
-        else resolveNewerStatus = resolve;
-    });
+        return new Promise(resolve => { resolveOlderStatus = resolve; });
+    };
     const olderRefresh = api.refreshLocalMoe();
     const newerRefresh = api.refreshLocalMoe();
-    resolveNewerStatus({
-        ...localMoeResponse, running: true, state: 'running', runtimeReady: true, runtimeReachable: true,
-        runtimeManagedRunning: true, runtimeStartupStage: 'ready', runtimeHealth: 'ok', message: 'Newest healthy status'
+    assert(olderRefresh === newerRefresh && overlapCalls === 1,
+        'Concurrent Local MoE refreshes must share one passive request');
+    listeners['root:click']({
+        target: { closest: selector => selector === '[data-local-moe-action]' ? { dataset: { localMoeAction: 'start' } } : null },
+        preventDefault() {}, stopPropagation() {}
     });
-    await newerRefresh;
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert(mutationCalls === 1 && textNodes.get('[data-local-moe-runtime]').textContent === 'Ready',
+        'Explicit Start must confirm newer healthy state before the stale status returns');
     resolveOlderStatus({
         ...localMoeResponse, running: false, state: 'stopped', runtimeReady: false, runtimeReachable: false,
         runtimeManagedRunning: false, runtimeStartupStage: 'stopped', runtimeHealth: 'offline',
         message: 'Older stale stopped status'
     });
-    await olderRefresh;
+    await Promise.all([olderRefresh, newerRefresh]);
     windowMock.EveOSLocalControl.fetchJson = originalFetchJson;
     assert(textNodes.get('[data-local-moe-state]').textContent === 'Online'
         && textNodes.get('[data-local-moe-runtime]').textContent === 'Ready',

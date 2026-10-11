@@ -88,6 +88,7 @@ def main() -> int:
     python_executable = launcher_python()
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
+    env["EVEOS_SCOPED_RESTART"] = "1"
 
     process = subprocess.Popen(
         [python_executable, str(SERVER), str(port), "--host", "127.0.0.1", "--no-browser"],

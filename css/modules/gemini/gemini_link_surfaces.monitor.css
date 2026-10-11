@@ -110,9 +110,15 @@
 
 .gemini-monitor-workspace-head {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 12px;
     align-items: flex-start;
+}
+
+.gemini-monitor-workspace-head > div:first-child {
+    flex: 1 1 130px;
+    min-width: 0;
 }
 
 .gemini-monitor-workspace-kicker {
@@ -189,6 +195,10 @@
         0 14px 24px rgba(0, 0, 0, 0.16);
     position: relative;
     overflow: hidden;
+}
+
+.gemini-monitor-card[data-search-monitor-update-panel][hidden] {
+    display: none;
 }
 
 .gemini-monitor-card::before,

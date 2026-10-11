@@ -234,10 +234,17 @@ async function main() {
             }));
         });
         await page.waitForFunction(() => (
-            document.querySelector('[data-local-moe-state]')?.textContent?.trim() === 'Online'
-            && document.querySelector('[data-tlo-state]')?.textContent?.trim() === 'Ready'
-            && document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() === 'Online'
-            && document.querySelector('[data-nexus-browser-app-connection]')?.textContent?.trim() === 'Connected · ChatGPT App'
+            document.querySelector('[data-tlo-state]')?.textContent?.trim() === 'Ready'
+        ), undefined, { timeout: 10000 });
+        assert(!requests.some((entry) => entry.path === '/api/local-moe/status'),
+            'Heartbeat must not poll the collapsed Local MoE provider');
+        assert(!requests.some((entry) => entry.path === '/api/nexus-browser/status'),
+            'Heartbeat must not poll the inactive Nexus Browser panel');
+
+        await page.locator('[data-ai-provider="local-moe"] > summary').click();
+        await page.waitForFunction(() => (
+            document.querySelector('[data-ai-provider="local-moe"]')?.open === true
+            && document.querySelector('[data-local-moe-state]')?.textContent?.trim() === 'Online'
         ), undefined, { timeout: 10000 });
 
         await page.locator('[data-agent-nexus-view="nexus-browser"]').first().click();
@@ -245,6 +252,7 @@ async function main() {
         assert(await browserPanel.isVisible(), 'Nexus Browser panel did not become visible');
         await page.waitForFunction(() => (
             document.querySelector('[data-nexus-browser-state]')?.textContent?.trim() === 'Online'
+            && document.querySelector('[data-nexus-browser-app-connection]')?.textContent?.trim() === 'Connected · ChatGPT App'
         ), undefined, { timeout: 10000 });
 
         await page.locator('[data-agent-nexus-view="management"]').first().click();
@@ -335,7 +343,7 @@ async function main() {
         const managementWrites = requests.filter((entry) => (
             entry.path === '/api/eve-state/modular/agent-management/save' && entry.method === 'POST'
         ));
-        assert(localMoeStatusReads.length >= 1, 'Entering Workspace did not perform the passive Local MoE status read');
+        assert(localMoeStatusReads.length >= 1, 'Opening Local MoE did not perform the passive status read');
         assert(tloStatusReads.length >= 1, 'Opening Agent Nexus did not perform a passive TLO status read');
         assert(nexusStatusReads.length >= 1, 'Opening Nexus Browser did not perform a passive status read');
         assert(managementReads.length === 2, `Agent Management loaded ${managementReads.length} times instead of twice`);

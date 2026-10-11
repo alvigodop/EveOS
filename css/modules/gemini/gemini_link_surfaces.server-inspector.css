@@ -22,6 +22,21 @@
     font-size: 1rem;
 }
 
+/* Update checks have a visible label, unlike the neighboring icon controls. */
+.gemini-server-inspector-toggle[data-search-monitor-check-updates] {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    gap: 6px;
+    width: auto;
+    height: auto;
+    min-height: 30px;
+    padding: 5px 9px;
+    font: inherit;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
 .gemini-server-inspector-panel {
     position: absolute;
     top: 58px;

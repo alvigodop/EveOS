@@ -2,22 +2,20 @@
 
 from __future__ import annotations
 
-import argparse
 import http.server
 import json
 import threading
-import time
 import uuid
 from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from urllib.request import urlopen
 
 from . import bookmark_intel_control, eveos_console_control, eveos_console_prefs, eveos_ports, eveos_web_control
 from . import gemini_control, gemini_credentials, local_moe_control, matrix_window_control, nexus_browser_control
 from . import notes_control, piano_player_control, watchfusion_control, watchfusion_modes, world_book_control
 from .eveos_http_cors import eveos_cors_origin
 from . import eveos_control_requests, eveos_service_reload, eveos_update_plan
+from .eveos_control_probe import parse_args, wait_for_control
 
 DEFAULT_PORT = eveos_ports.service_port("GEMINI_CONTROL_PORT")
 MAIN_LAUNCHER_PORT = 3000
@@ -88,21 +86,6 @@ def _discover_file_web_port() -> int | None:
 
 def _request_web_port(handler) -> int | None:
     return eveos_control_requests.request_web_port(handler, _discover_file_web_port)
-
-
-def wait_for_control(port: int, timeout: float) -> int:
-    deadline = time.monotonic() + max(0.1, timeout)
-    url = f"http://127.0.0.1:{port}/api/control-plane/health"
-    while time.monotonic() < deadline:
-        try:
-            with urlopen(url, timeout=min(1.0, max(0.1, deadline - time.monotonic()))) as response:
-                payload = json.load(response)
-            if payload.get("service") == "eveos-control-plane":
-                return 0
-        except (OSError, ValueError, json.JSONDecodeError):
-            pass
-        time.sleep(0.2)
-    return 1
 
 
 def _control_identity() -> dict:
@@ -378,14 +361,8 @@ class EveOSControlServer(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="EveOS file-mode local control plane")
-    parser.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--probe", action="store_true", help="Wait for a verified control plane and exit")
-    parser.add_argument("--timeout", type=float, default=30.0, help="Probe timeout in seconds")
-    parser.add_argument("--scoped-restart", action="store_true",
-                        help="Start Local Control without restoring unrelated desired child services")
-    args = parser.parse_args()
+def main(args=None) -> int:
+    args = args if args is not None else parse_args()
     if args.probe:
         return wait_for_control(args.port, args.timeout)
     global _SERVER, _SCOPED_STARTUP

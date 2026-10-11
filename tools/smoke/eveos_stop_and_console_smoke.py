@@ -17,6 +17,7 @@ if ROOT not in sys.path:
 
 from server_modules import eveos_control_helper as H  # noqa: E402
 from server_modules import eveos_web_control as W  # noqa: E402
+from tools.qualification.control_stop_isolation import snapshot_global_stops, assert_global_stops_stubbed
 
 
 def check(condition, message):
@@ -136,6 +137,7 @@ def main():
 
     calls = []
     shutdowns = []
+    stop_originals = snapshot_global_stops(H)
 
     class _FakeServer:
         def shutdown(self):
@@ -146,6 +148,7 @@ def main():
         H.nexus_browser_control.stop_server,
         H.watchfusion_control.stop_server,
         H.piano_player_control.stop_server,
+        H.notes_control.stop_server,
         H.world_book_control.stop_server,
         H.gemini_control.stop_server,
         H.bookmark_intel_control.stop_server,
@@ -157,18 +160,32 @@ def main():
         H.nexus_browser_control.stop_server = lambda: calls.append("nexusBrowser") or {"ok": True}
         H.watchfusion_control.stop_server = lambda: calls.append("watchFusion") or {"ok": True}
         H.piano_player_control.stop_server = lambda: calls.append("piano") or {"ok": True}
+        H.notes_control.stop_server = lambda: calls.append("notes") or {"ok": True}
         H.world_book_control.stop_server = lambda: calls.append("worldBook") or {"ok": True}
         H.gemini_control.stop_server = lambda: calls.append("gemini") or {"ok": True}
         H.bookmark_intel_control.stop_server = lambda: calls.append("bookmarkIntel") or {"ok": True}
         H.eveos_web_control.stop_server = lambda *a, **k: calls.append("web") or {"ok": True, "running": False}
         H._SERVER = _FakeServer()
 
+        notes_stub = H.notes_control.stop_server
+        H.notes_control.stop_server = stop_originals["notes_control"]
+        try:
+            try:
+                assert_global_stops_stubbed(H, stop_originals)
+            except AssertionError as exc:
+                check("notes_control" in str(exc), "the isolation guard identifies an unmocked child")
+            else:
+                raise AssertionError("Global Stop isolation accepted a real Notes stop function")
+        finally:
+            H.notes_control.stop_server = notes_stub
+
+        assert_global_stops_stubbed(H, stop_originals)
         payload = H._stop_everything()
 
-        expected = ["localMoe", "nexusBrowser", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel", "web"]
+        expected = ["localMoe", "nexusBrowser", "watchFusion", "piano", "notes", "worldBook", "gemini", "bookmarkIntel", "web"]
         check(calls == expected,
               f"managed dependents stop before the EveOS web surface (got {calls})")
-        for key in ("localMoe", "nexusBrowser", "watchFusion", "piano", "worldBook", "gemini", "bookmarkIntel"):
+        for key in ("localMoe", "nexusBrowser", "watchFusion", "piano", "notes", "worldBook", "gemini", "bookmarkIntel"):
             check(payload.get("stoppedAlso", {}).get(key) == "stopped", f"{key} is reported")
         check(payload.get("controlPlaneStopping") is True,
               "the control plane closes itself, so Global Stop leaves nothing running")
@@ -181,6 +198,7 @@ def main():
 
         calls.clear()
         H.world_book_control.stop_server = lambda: (_ for _ in ()).throw(RuntimeError("boom"))
+        assert_global_stops_stubbed(H, stop_originals)
         payload = H._stop_everything()
         check("error: boom" in payload["stoppedAlso"]["worldBook"], "the failure is reported, not hidden")
         check("watchFusion" in calls and "piano" in calls and "gemini" in calls and "web" in calls,
@@ -197,6 +215,7 @@ def main():
 
         H.eveos_web_control.stop_server = fail_web_stop
         shutdown_count = len(shutdowns)
+        assert_global_stops_stubbed(H, stop_originals)
         payload = H._stop_everything()
         check(payload.get("ok") is False, "a web-stop failure is reported as a failed global Stop")
         check("web boom" in payload.get("message", ""), "the web-stop failure remains visible")
@@ -217,6 +236,7 @@ def main():
             H.nexus_browser_control.stop_server,
             H.watchfusion_control.stop_server,
             H.piano_player_control.stop_server,
+            H.notes_control.stop_server,
             H.world_book_control.stop_server,
             H.gemini_control.stop_server,
             H.bookmark_intel_control.stop_server,
@@ -224,7 +244,6 @@ def main():
             H._SERVER,
         ) = original
 
-    print("stop + console OK - partial-stop toggle is opt-in, failures stay retryable, Global Stop terminal")
     print("EVEOS_STOP_AND_CONSOLE_SMOKE_OK")
 
 

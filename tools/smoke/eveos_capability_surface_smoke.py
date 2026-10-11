@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -111,6 +113,13 @@ BRIDGE_CAPABILITIES = {
     "popup": ("POPUP_BRIDGE_PORT", ROOT / "server_modules" / "popup_viewer.py"),
 }
 
+CONTROL_CAPABILITIES = {
+    "serviceReload": ("POST", "/api/services/restart", "eveos_service_reload", "restart_service"),
+    "updateCheck": ("POST", "/api/services/updates/check", "eveos_update_plan", "check_updates"),
+    "updateApplied": ("POST", "/api/services/updates/applied", "eveos_update_plan", "mark_applied"),
+    "updateStatus": ("GET", "/api/services/updates/status", "eveos_update_plan", "baseline_status"),
+}
+
 
 def require(condition, message):
     if not condition:
@@ -119,6 +128,40 @@ def require(condition, message):
 
 def bool_field(payload, key, name):
     require(isinstance(payload.get(key), bool), f"{name}.{key} must be boolean")
+
+
+def control_capabilities(control_source):
+    tree = ast.parse(control_source)
+    handler = next((node for node in tree.body
+                    if isinstance(node, ast.ClassDef) and node.name == "EveOSControlHandler"), None)
+    require(handler is not None, "Local Control handler class missing")
+    methods = {node.name: node for node in handler.body if isinstance(node, ast.FunctionDef)}
+    result = {}
+    for name, (method, route, module, function) in CONTROL_CAPABILITIES.items():
+        method_node = methods.get(f"do_{method}")
+        require(method_node is not None, f"Local Control {method} handler missing")
+        module_path = ROOT / "server_modules" / f"{module}.py"
+        require(module_path.is_file(), f"control capability module missing: {module_path}")
+        binding = f"{module}.{function}"
+        if method == "POST":
+            routes = [value for node in ast.walk(method_node) if isinstance(node, ast.Dict)
+                      for key, value in zip(node.keys, node.values)
+                      if isinstance(key, ast.Constant) and key.value == route]
+            authorized = any(
+                isinstance(node, ast.Assign)
+                and any(isinstance(target, ast.Name) and target.id == "controlled_paths" for target in node.targets)
+                and any(isinstance(value, ast.Constant) and value.value == route for value in ast.walk(node.value))
+                for node in ast.walk(method_node)
+            )
+            require(authorized, f"control capability missing authorization inventory: {method} {route}")
+        else:
+            routes = [node for node in ast.walk(method_node) if isinstance(node, ast.If)
+                      and any(isinstance(value, ast.Constant) and value.value == route
+                              for value in ast.walk(node.test))]
+        require(any(binding in (ast.get_source_segment(control_source, node) or "") for node in routes),
+                f"control capability route/binding missing: {method} {route} -> {binding}")
+        result[name] = {"method": method, "route": route, "module": module_path.name}
+    return result
 
 
 def validate_coherence(name, payload):
@@ -230,7 +273,8 @@ def main():
         }
 
     control_source = (ROOT / "server_modules" / "eveos_control_helper.py").read_text(encoding="utf-8")
-    status_block = control_source.split("status_specs = (", 1)[1].split("for key, label, status_fn, ports in status_specs:", 1)[0]
+    console_source = (ROOT / "server_modules" / "eveos_console_control.py").read_text(encoding="utf-8")
+    status_block = console_source.split("status_specs = (", 1)[1].split("for key, label, status_fn, ports in status_specs:", 1)[0]
     registered_lifecycle = set(re.findall(r'\("([A-Za-z][A-Za-z0-9]*)",\s*"[^"]+"', status_block))
     require(registered_lifecycle == set(TOOLS),
             f"capability smoke lifecycle inventory drifted: control={sorted(registered_lifecycle)} smoke={sorted(TOOLS)}")
@@ -240,6 +284,7 @@ def main():
         "/api/local-moe/status", "/api/nexus-browser/status",
     ):
         require(endpoint in control_source, f"lifecycle status endpoint missing from Local Control: {endpoint}")
+    control_inventory = control_capabilities(control_source)
 
     baseline_path = ROOT / "tools" / "audit" / "smoke-registry-baseline.json"
     baseline = json.loads(baseline_path.read_text(encoding="utf-8")).get("unregistered") or []
@@ -247,10 +292,12 @@ def main():
         "tools": tool_states,
         "embedded": embedded,
         "bridges": bridges,
+        "controlCapabilities": control_inventory,
         "coverage": {
             "lifecycleTools": len(tool_states),
             "embeddedCapabilities": len(embedded),
             "registeredBridges": len(bridges),
+            "controlCapabilities": len(control_inventory),
             "unregisteredSmokeBacklog": len(baseline),
         },
     }
@@ -258,9 +305,23 @@ def main():
     result_dir.mkdir(parents=True, exist_ok=True)
     snapshot = result_dir / "LAST-EVEOS-CAPABILITY-STATE.json"
     snapshot.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print("EVEOS_CAPABILITY_SURFACE_SMOKE_OK " + json.dumps(result, sort_keys=True, separators=(",", ":")))
-    print(f"CAPABILITY_STATE_SNAPSHOT {snapshot.relative_to(ROOT).as_posix()}")
+    print("EVEOS_CAPABILITY_SURFACE_SMOKE_OK " + json.dumps({
+        **result["coverage"], "snapshot": snapshot.relative_to(ROOT).as_posix(),
+    }, sort_keys=True, separators=(",", ":")))
+    if "--verbose" in sys.argv:
+        print(json.dumps(result, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        details = traceback.format_exc()
+        result_dir = ROOT / "data" / "runtime" / "smoke-results"
+        result_dir.mkdir(parents=True, exist_ok=True)
+        artifact = result_dir / "eveos-capability-surface-failure.json"
+        artifact.write_text(json.dumps({"test": "eveos-capability-surface", "traceback": details}), encoding="utf-8")
+        print("EVEOS_CAPABILITY_SURFACE_SMOKE_FAIL", file=sys.stderr)
+        print("\n".join(details.splitlines()[-38:]), file=sys.stderr)
+        print(f"DIAGNOSTIC {artifact.relative_to(ROOT).as_posix()}", file=sys.stderr)
+        raise SystemExit(1)

@@ -125,6 +125,7 @@ def source_contracts():
     shared_client = (ROOT / "js/modules/core/eveos-service-reload.js").read_text(encoding="utf-8")
     manifest = (ROOT / "js/config/manifest/scripts.parts/13-gemini.js").read_text(encoding="utf-8")
     control = (ROOT / "server_modules/eveos_control_helper.py").read_text(encoding="utf-8")
+    probe = (ROOT / "server_modules/eveos_control_probe.py").read_text(encoding="utf-8")
     spotify = (ROOT / "server_modules/audioflix_spotify_restart.py").read_text(encoding="utf-8")
 
     check("window.EveOSServiceReload" in ai_home and "window.EveServiceReload" not in ai_home,
@@ -143,7 +144,8 @@ def source_contracts():
           "browser reload proof does not survive delayed Search Monitor mounting")
     check(manifest.index("searchMonitorAiHome.js") < manifest.index("searchMonitorUpdates.js")
           < manifest.index("gemini-init.js"), "Search Monitor update workflow is not loaded in dependency order")
-    check("--scoped-restart" in control and "if not _SCOPED_STARTUP" in control,
+    check("--scoped-restart" in probe and "bool(args.scoped_restart)" in control
+          and "if not _SCOPED_STARTUP" in control,
           "Local Control replacement can still restore unrelated stopped children")
     check("engine.transport({\"action\": \"stop\"})" in spotify
           and '"autoplayRequested": False' in spotify and '"endedManufactured": False' in spotify,
@@ -151,6 +153,12 @@ def source_contracts():
 
 
 def run():
+    import subprocess
+    inventory = subprocess.run(
+        [sys.executable, str(ROOT / "tools/smoke/eveos_update_inventory_smoke.py")],
+        capture_output=True, text=True, timeout=20,
+    )
+    check(inventory.returncode == 0, inventory.stderr or inventory.stdout or "source inventory regression failed")
     from server_modules import eveos_control_helper as helper
     from server_modules import eveos_service_reload as reload
     from server_modules import gemini_control

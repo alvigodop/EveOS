@@ -20,7 +20,7 @@ const SKIP_PARTS = ['/node_modules/', '/data/runtime/', '/test-results/', '/.git
 const PROFILES = Object.freeze({
   fast: ['test:guardrails', 'smoke:regressions', 'smoke:capability-surfaces', 'smoke:capability-behavior', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:nexus-browser', 'smoke:watchfusion'],
   deep: [
-    'test:guardrails', 'smoke:regressions', 'smoke:control-plane', 'smoke:capability-surfaces', 'smoke:capability-behavior',
+    'test:guardrails', 'smoke:regressions', 'smoke:control-plane', 'smoke:selective-reload-browser', 'smoke:capability-surfaces', 'smoke:capability-behavior',
     'smoke:core-storage', 'smoke:knowledge-cache', 'smoke:world-book', 'smoke:nexus-functional',
     'smoke:audioflix-backup-roundtrip', 'smoke:local-moe', 'smoke:agent-nexus', 'smoke:search-monitor', 'smoke:audioflix-state', 'smoke:audioflix-playback',
     'smoke:audioflix-piano', 'smoke:piano-queue', 'smoke:piano-metadata', 'smoke:nexus-browser', 'smoke:watchfusion'
@@ -28,6 +28,8 @@ const PROFILES = Object.freeze({
   security: ['test:guardrails', 'smoke:server-security', 'smoke:browser-emulator-security', 'smoke:watchfusion-security', 'smoke:agent-nexus', 'smoke:nexus-browser-security'],
   'ai-control': [
     'test:guardrails',
+    'smoke:service-reload',
+    'smoke:selective-reload-browser',
     'smoke:chat-handoff',
     'smoke:capability-surfaces',
     'smoke:capability-behavior',

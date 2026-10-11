@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -11,19 +12,79 @@ const sharedUi = fs.readFileSync(path.join(ROOT, 'js/modules/core/eveos-service-
 const updateUi = fs.readFileSync(path.join(ROOT, 'js/modules/gemini/search_monitor/searchMonitorUpdates.js'), 'utf8');
 const spotifySurface = fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.engine-surface.js'), 'utf8');
 const watchFusionReload = fs.readFileSync(path.join(ROOT, 'js/modules/features/watchfusion/watchfusion.reload.js'), 'utf8');
+const read = file => fs.readFileSync(path.join(ROOT, file), 'utf8');
+const manifest = { window: {} };
+vm.runInNewContext(read('js/config/manifest/styles.js'), manifest);
+const entry = read('EveOS.html');
+const monitor = entry.slice(entry.indexOf('    <div id="loadingIndicator"'), entry.indexOf('    <!-- SCRIPTS -->'));
+const styles = ['css/main.css', 'css/modules/gemini/gemini_link_surfaces.eveos-fixes.css', ...manifest.window.EveModuleManifestParts.styles];
+const artifacts = path.join(ROOT, 'data/runtime/smoke-results/eveos-selective-reload-browser');
+fs.mkdirSync(artifacts, { recursive: true });
+const diagnostics = { layouts: [], console: [], pageErrors: [], requestFailures: [] };
+
+async function assertToolbarLayout(page, scenario) {
+    const metrics = await page.evaluate(() => {
+        const rect = element => { const box = element.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, right: box.right, bottom: box.bottom }; };
+        const toolbar = document.querySelector('.gemini-monitor-toolbar-actions');
+        const buttons = [...toolbar.querySelectorAll('button')].filter(button => button.getBoundingClientRect().width > 0);
+        const check = toolbar.querySelector('[data-search-monitor-check-updates]');
+        const label = check.querySelector('[data-update-button-label]');
+        return {
+            toolbar: rect(toolbar), check: rect(check), label: rect(label),
+            buttons: buttons.map(button => {
+                const box = rect(button);
+                const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+                return { name: button.getAttribute('aria-label') || button.textContent.trim(), box, reachable: button === hit || button.contains(hit), overflow: button.scrollWidth > button.clientWidth + 1 };
+            }),
+            workspace: rect(document.querySelector('.gemini-monitor-workspace-shell')),
+            workspaceHead: rect(document.querySelector('.gemini-monitor-workspace-head')),
+            workspacePill: rect(document.querySelector('.gemini-monitor-workspace-pill'))
+        };
+    });
+    diagnostics.layouts.push({ scenario, ...metrics });
+    assert.ok(metrics.label.x >= metrics.check.x && metrics.label.right <= metrics.check.right + 1,
+        `${scenario}: update label must fit its button`);
+    for (const button of metrics.buttons) {
+        const box = button.box;
+        assert.ok(box.width > 0 && box.height > 0 && button.reachable, `${scenario}: ${button.name} must be pointer reachable`);
+        assert.ok(box.x >= metrics.toolbar.x - 1 && box.right <= metrics.toolbar.right + 1 && !button.overflow,
+            `${scenario}: ${button.name} must fit the toolbar without overflowing its button`);
+        for (const other of metrics.buttons) {
+            if (button === other) continue;
+            const intersectionWidth = Math.min(box.right, other.box.right) - Math.max(box.x, other.box.x);
+            const intersectionHeight = Math.min(box.bottom, other.box.bottom) - Math.max(box.y, other.box.y);
+            assert.ok(intersectionWidth <= 1 || intersectionHeight <= 1, `${scenario}: ${button.name} overlaps ${other.name}`);
+        }
+    }
+    assert.ok(metrics.workspacePill.right <= metrics.workspaceHead.right + 1,
+        `${scenario}: workspace header pill must remain inside its header`);
+}
 
 const browser = await chromium.launch({ headless: true });
+let page;
 try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    await page.setContent(`<!doctype html><body>
-        <div class="gemini-monitor-shell-toolbar">
-            <div class="gemini-monitor-toolbar-actions">
-                <button type="button" data-search-monitor-reload-ui>Reload EveOS UI</button>
-            </div>
-        </div>
-        <section data-ai-home-workspace><p class="gemini-monitor-workspace-note">Workspace</p></section>
-    </body>`);
-    await page.addInitScript(() => sessionStorage.clear());
+    page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.context().tracing.start({ screenshots: true, snapshots: true });
+    page.on('console', message => { if (['warning', 'error'].includes(message.type())) diagnostics.console.push(message.text()); });
+    page.on('pageerror', error => diagnostics.pageErrors.push(String(error)));
+    page.on('requestfailed', request => diagnostics.requestFailures.push({ url: request.url(), error: request.failure()?.errorText }));
+    // Keep production markup, every manifest stylesheet, and their import order. Only
+    // transport is isolated: no EveOS server or actual lifecycle process is launched.
+    await page.route('https://eveos-fixture.test/**', async route => {
+        const pathname = new URL(route.request().url()).pathname;
+        if (pathname === '/fixture') return route.fulfill({ contentType: 'text/html', body: `<!doctype html><head>${styles.map(file => `<link rel="stylesheet" href="/${file}">`).join('')}<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"></head><body>${monitor}</body>` });
+        return route.fulfill({ path: path.join(ROOT, pathname.slice(1)) });
+    });
+    await page.addInitScript(() => {
+        if (location.origin === 'https://eveos-fixture.test') sessionStorage.clear();
+    });
+    await page.goto('https://eveos-fixture.test/fixture', { waitUntil: 'networkidle' });
+    await page.addScriptTag({ content: read('js/modules/gemini/search_monitor/searchMonitorAiHome.markup.js') });
+    await page.evaluate(() => {
+        document.querySelector('#loadingIndicator').classList.remove('compact');
+        document.querySelector('#loadingIndicator').classList.add('gemini-monitor-workspace-active');
+        document.querySelector('#gemini-placeholder').innerHTML = `<div id="gemini-ui-root" class="gemini-monitor-shell" data-gemini-monitor-view="full">${window.EveOSSearchMonitorAiHomeMarkup.markup()}</div>`;
+    });
     await page.evaluate(() => {
         window.__reloadFixture = { restartCalls: [], applied: new Set(), updateChecks: 0 };
         const makePlan = () => {
@@ -66,10 +127,32 @@ try {
     await page.addScriptTag({ content: sharedUi });
     await page.addScriptTag({ content: updateUi });
 
+    const updatePanel = page.locator('[data-search-monitor-update-panel]');
+    assert.equal(await updatePanel.isHidden(), true, 'update card must stay hidden before Check updates');
+
+    assert.ok((await page.evaluate(() => document.fonts.load('16px "Material Icons"'))).length,
+        'production icon font must load before measuring toolbar geometry');
+    for (const width of [320, 340, 498]) {
+        await page.evaluate(width => { document.querySelector('#loadingIndicator').style.width = `${width}px`; }, width);
+        for (const state of [{ status: 'Setup', action: 'Enable', icon: 'power_settings_new', open: false }, { status: 'Localhost Off', action: 'Start', icon: 'play_arrow', open: false }, { status: 'Online', action: 'Stop', icon: 'stop', open: true }]) {
+            await page.evaluate(state => {
+                document.querySelector('[data-eveos-control-status]').textContent = state.status;
+                document.querySelector('[data-eveos-control-action-label]').textContent = state.action;
+                document.querySelector('[data-eveos-control-toggle] .material-icons').textContent = state.icon;
+                document.querySelector('[data-eveos-control-toggle]').disabled = false;
+                document.querySelector('[data-eveos-control-open]').hidden = !state.open;
+            }, state);
+            await page.waitForTimeout(450); // The production panel's width transition lasts 400ms.
+            await assertToolbarLayout(page, `${width}px ${state.status}`);
+            if (state.action === 'Enable') await page.locator('#loadingIndicator').screenshot({ path: path.join(artifacts, `toolbar-${width}.png`) });
+        }
+    }
+
     const check = page.getByRole('button', { name: 'Check updates' });
     await check.waitFor();
     await check.click();
     await page.waitForFunction(() => document.querySelector('[data-update-stage]')?.textContent === 'Review');
+    assert.equal(await updatePanel.isVisible(), true, 'a valid update plan must reveal the update card');
     assert.match(await page.locator('[data-update-summary]').textContent(), /3 affected components/);
     assert.match(await page.locator('[data-update-warning]').textContent(), /unknown runtime mapping/i);
     assert.equal(await page.locator('[data-search-monitor-reload-ui]').getAttribute('aria-label'), 'Reload EveOS page');
@@ -97,6 +180,10 @@ try {
     const duplicateCalls = await page.evaluate(() => window.__reloadFixture.restartCalls.slice());
     assert.equal(duplicateCalls.length, beforeDuplicate + 1, 'concurrent duplicate restarts must share one operation');
     assert.deepEqual(duplicateCalls.at(-1), { service: 'web', port: '8765' });
+
+    // Dismiss the fixed Search Monitor before exercising independent application
+    // fixtures, just as the operator would when moving to those surfaces.
+    await page.evaluate(() => document.querySelector('#loadingIndicator').classList.remove('visible'));
 
     // Settings individual Restart controls must name the service and require an in-site second click
     // before their existing lifecycle handler is allowed to run.
@@ -199,7 +286,18 @@ try {
     assert.deepEqual(spotifyCall, { service: 'spotifyEngine', port: '8765' });
     await page.waitForFunction(() => /restarted and is idle/i.test(document.querySelector('#spotify-restart-fixture')?.dataset.status || ''));
 
-    console.log('EVEOS_SELECTIVE_RELOAD_BROWSER_OK pointerConfirm=true duplicateSingleFlight=true settingsConfirm=true watchFusionShared=true spotifyHelperOnly=true');
+    assert.deepEqual(diagnostics.pageErrors, [], 'selective reload fixture must not raise browser errors');
+    console.log('EVEOS_SELECTIVE_RELOAD_BROWSER_OK toolbarLayouts=9 updateVisibility=true pointerConfirm=true duplicateSingleFlight=true settingsConfirm=true watchFusionShared=true spotifyHelperOnly=true');
+} catch (error) {
+    diagnostics.failure = String(error?.stack || error);
+    if (page) {
+        await page.screenshot({ path: path.join(artifacts, 'failure.png'), fullPage: true }).catch(() => {});
+        fs.writeFileSync(path.join(artifacts, 'failure.html'), await page.content().catch(() => ''));
+    }
+    process.exitCode = 1;
+    console.error(`EVEOS_SELECTIVE_RELOAD_BROWSER_FAIL\n${diagnostics.failure.split('\n').slice(0, 28).join('\n')}\nEvidence: ${artifacts}`);
 } finally {
+    fs.writeFileSync(path.join(artifacts, 'result.json'), JSON.stringify(diagnostics, null, 2));
+    if (page) await page.context().tracing.stop({ path: path.join(artifacts, 'trace.zip') });
     await browser.close();
 }

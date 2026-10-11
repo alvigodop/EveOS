@@ -34,7 +34,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from server_modules import eveos_console_prefs as P  # noqa: E402
-from server_modules import eveos_control_helper as H  # noqa: E402
+from server_modules import eveos_console_control as H  # noqa: E402
 from server_modules import eveos_web_control as W  # noqa: E402
 from server_modules import gemini_control as G  # noqa: E402
 
@@ -125,7 +125,7 @@ def check_overview():
         H.nexus_browser_control.get_status = lambda: {"running": False, "port": 9088,
                                                        "message": "Nexus Browser is ready."}
 
-        payload = H._console_overview()
+        payload = H.overview()
         by_key = {service["key"]: service for service in payload["services"]}
 
         check(payload["ok"] is True, "the overview reports success")
@@ -146,7 +146,7 @@ def check_overview():
               "each row carries the console preference the switch renders from")
 
         os.environ["EVEOS_HEADLESS"] = "1"
-        check(H._console_overview()["envForced"] is True,
+        check(H.overview()["envForced"] is True,
               "the panel can tell the user their console switches are overridden by the environment")
         os.environ.pop("EVEOS_HEADLESS", None)
 
@@ -154,7 +154,7 @@ def check_overview():
         probed = []
         H.eveos_web_control.get_status = lambda *a, **k: probed.append("web") or {"running": True,
                                                                          "port": 8765}
-        preferences = H._console_preferences()
+        preferences = H.preferences()
         check(not probed, "setting a preference probes no service; it starts nothing")
         check(preferences["preferencesOnly"] is True,
               "the cheap reply says so, or the panel would overwrite its rows with empty state")

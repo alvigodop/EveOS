@@ -36,9 +36,10 @@ def main() -> int:
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     env["EVEOS_HEADLESS"] = "1"
+    env["EVEOS_SCOPED_RESTART"] = "1"
 
     process = subprocess.Popen(
-        [sys.executable, str(CONTROL_SERVER), str(port)],
+        [sys.executable, str(CONTROL_SERVER), str(port), "--scoped-restart"],
         cwd=ROOT,
         env=env,
         stdin=subprocess.DEVNULL,
@@ -60,6 +61,8 @@ def main() -> int:
                     raise SystemExit(f"ASSERT FAILED: unexpected service name: {health.get('service')}")
                 if health.get("running") is not True:
                     raise SystemExit("ASSERT FAILED: control plane reported running != True")
+                if health.get("scopedStartup") is not True:
+                    raise SystemExit("ASSERT FAILED: control-plane smoke could restore real child services")
 
                 # 2. Probe status endpoint
                 status_code, status_payload = fetch_json(f"http://127.0.0.1:{port}/api/control-plane/status", timeout=5.0)

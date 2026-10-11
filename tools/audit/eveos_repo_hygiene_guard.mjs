@@ -39,6 +39,7 @@ for (const probe of ignoreContract) {
 }
 
 const qualificationRoots = [
+    'tools/qualification/eveos_lane4_reload_acceptance.mjs',
     'tools/qualification/audioflix_lane3_runtime_acceptance.mjs',
     'tools/qualification/audioflix_lane3_file_acceptance.mjs',
     'tools/qualification/audioflix_lane3_recovery_acceptance.mjs'

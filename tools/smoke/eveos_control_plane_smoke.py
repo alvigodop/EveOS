@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from server_modules import eveos_control_helper, eveos_web_control  # noqa: E402
+from tools.qualification.control_stop_isolation import snapshot_global_stops, assert_global_stops_stubbed
 
 
 def free_port() -> int:
@@ -170,6 +171,7 @@ def lifecycle_smoke(tmp: Path):
 def helper_http_smoke():
     port = free_port()
     H = eveos_control_helper
+    stop_originals = snapshot_global_stops(H)
     original = (
         H._discover_file_web_port,
         H.eveos_web_control.get_status, H.eveos_web_control.start_server, H.eveos_web_control.stop_server,
@@ -181,6 +183,7 @@ def helper_http_smoke():
         H.nexus_browser_control.open_extension_folder,
         H.local_moe_control.stop_server, H.bookmark_intel_control.stop_server,
         H.piano_player_control.stop_server, H.gemini_control.stop_server,
+        H.notes_control.stop_server,
     )
     calls = []
     discovery = {"port": 3000}
@@ -261,11 +264,13 @@ def helper_http_smoke():
     H.bookmark_intel_control.stop_server = lambda: {"ok": True, "running": False}
     H.piano_player_control.stop_server = lambda: {"ok": True, "running": False}
     H.gemini_control.stop_server = lambda: {"ok": True, "running": False}
+    H.notes_control.stop_server = lambda: {"ok": True, "running": False}
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), H.EveOSControlHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
+        assert_global_stops_stubbed(H, stop_originals)
         status_code, payload = request_json(port, "GET", "/api/control-plane/health")
         assert_true(status_code == 200, "control-plane health was not reachable")
         assert_true(payload.get("service") == "eveos-control-plane", "control-plane identity is missing")
@@ -383,6 +388,7 @@ def helper_http_smoke():
             H.nexus_browser_control.open_extension_folder,
             H.local_moe_control.stop_server, H.bookmark_intel_control.stop_server,
             H.piano_player_control.stop_server, H.gemini_control.stop_server,
+            H.notes_control.stop_server,
         ) = original
 
 
@@ -416,6 +422,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix="eveos-control-smoke-") as temp_dir:
         lifecycle_smoke(Path(temp_dir))
     helper_http_smoke()
+    probe = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "smoke" / "eveos_control_probe_smoke.py")],
+        cwd=ROOT, capture_output=True, text=True, timeout=15, check=False,
+    )
+    assert_true(probe.returncode == 0, probe.stderr or probe.stdout)
     print("EVEOS_CONTROL_PLANE_SMOKE_OK")
 
 

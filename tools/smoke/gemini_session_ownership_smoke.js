@@ -130,8 +130,12 @@ async function main() {
     if (state.sessionOwnershipTransferred || state.serverOfflinePauseActive) {
         throw new Error('Explicit connection action did not reclaim session ownership.');
     }
-    if (reconcileCalls !== 1) {
-        throw new Error(`Explicit ownership reclaim did not reconcile once: ${reconcileCalls}`);
+    // The settled status refresh and its explicit reclaim callback both reconcile
+    // the same authorized owner; setClientLink itself does not wait for them.
+    await context.GeminiServerControl.refreshStatus();
+    await Promise.resolve();
+    if (reconcileCalls !== 2) {
+        throw new Error(`Explicit ownership reclaim did not reconcile after status refresh: ${reconcileCalls}`);
     }
 
     context.webSocket = fakeSocket();

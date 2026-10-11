@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import threading
 from datetime import datetime, timezone
@@ -31,15 +32,18 @@ _COMPONENT_ACTIONS = {
     "review": ("reviewRequired", "Review required"),
 }
 
-_SCAN_ROOTS = ("js", "server", "server_modules", "config", "tools")
+_SCAN_ROOTS = ("js", "css", "server", "server_modules", "config", "tools")
+_ROOT_SOURCES = ("EveOS.html", "package.json", "package-lock.json", "start-server.bat")
 _IGNORED_TOP_LEVEL = {".git", ".github", "data", "docs", "node_modules", "tests"}
 _IGNORED_PARTS = {
     "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "venv",
-    "node_modules", "dist", "build", ".cache",
+    "node_modules", "dist", "build", ".cache", ".git",
 }
 _SOURCE_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".css", ".html", ".json", ".ps1", ".bat", ".cmd"}
 _CONTROL_ONLY_MODULES = {
+    "server/eveos-control-helper.py",
     "server_modules/eveos_control_helper.py",
+    "server_modules/eveos_control_probe.py",
     "server_modules/eveos_control_replace.py",
     "server_modules/eveos_spotify_reload.py",
     "server_modules/eveos_update_plan.py",
@@ -68,11 +72,9 @@ def _is_ignored(relative: str) -> bool:
 
 
 def _is_source(path: Path, relative: str) -> bool:
-    if _is_ignored(relative) or not path.is_file():
+    if _is_ignored(relative):
         return False
-    if relative == "EveOS.html":
-        return True
-    return path.suffix.lower() in _SOURCE_SUFFIXES
+    return (relative == "EveOS.html" or path.suffix.lower() in _SOURCE_SUFFIXES) and path.is_file()
 
 
 def _classify(relative: str) -> tuple[str, ...]:
@@ -155,19 +157,78 @@ def _file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _git_source_paths(root: Path) -> list[Path] | None:
+    """Respect checkout ignore rules without hashing downloaded runtimes or user state.
+
+    Tracked files remain visible even when an ignore pattern matches them. New untracked
+    source is included; a source archive without Git retains the filesystem fallback.
+    """
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=3.0,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    paths = []
+    for relative in sorted(set(result.stdout.decode("utf-8").split("\0"))):
+        parts = Path(relative).parts
+        if not parts or Path(relative).is_absolute() or ".." in parts:
+            continue
+        if relative in _ROOT_SOURCES or parts[0] in _SCAN_ROOTS:
+            paths.append(root / relative)
+    return paths
+
+
 def _iter_source_paths(root: Path):
-    for filename in ("EveOS.html", "package.json", "package-lock.json", "start-server.bat"):
+    checkout = _git_source_paths(root)
+    if checkout is not None:
+        yield from checkout
+        return
+    # Without Git metadata, conservatively honor literal root ignore paths. This
+    # is not a replacement for Git's full wildmatch/nested-ignore semantics.
+    try:
+        rules = (root / ".gitignore").read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeError):
+        rules = []
+    excluded, restored = set(), set()
+    for rule in rules:
+        rule = rule.strip()
+        if not rule or rule.startswith("#") or any(char in rule for char in "*?["):
+            continue
+        destination = restored if rule.startswith("!") else excluded
+        relative = rule.lstrip("!").strip("/")
+        if relative:
+            destination.add(relative)
+    def ignored(path, directory=False):
+        relative = path.relative_to(root).as_posix()
+        if any(relative == entry or relative.startswith(entry + "/") for entry in restored):
+            return False
+        # Traverse to explicit re-inclusions without unignoring their siblings.
+        if directory and any(entry.startswith(relative + "/") for entry in restored):
+            return False
+        return any(relative == entry or relative.startswith(entry + "/") for entry in excluded)
+
+    for filename in _ROOT_SOURCES:
         candidate = root / filename
-        if candidate.is_file():
+        if not ignored(candidate) and candidate.is_file():
             yield candidate
     for root_name in _SCAN_ROOTS:
         base = root / root_name
         if not base.is_dir():
             continue
         for directory, dirnames, filenames in os.walk(base):
-            dirnames[:] = sorted(name for name in dirnames if name not in _IGNORED_PARTS)
+            dirnames[:] = sorted(name for name in dirnames
+                                 if name not in _IGNORED_PARTS and not name.endswith("-venv")
+                                 and name != ".browser-ai-bridge" and not name.startswith(".camofox-staging-")
+                                 and not ignored(Path(directory) / name, directory=True))
             for filename in sorted(filenames):
-                yield Path(directory) / filename
+                candidate = Path(directory) / filename
+                if not ignored(candidate):
+                    yield candidate
 
 
 def _capture() -> dict:
@@ -297,7 +358,7 @@ def mark_applied(components) -> dict:
 
 _STARTUP_CAPTURE = _capture()
 _ARGV0 = Path(sys.argv[0]).name.lower() if sys.argv else ""
-_BASELINE_OWNER = (
+_BASELINE_OWNER = "--probe" not in sys.argv and (
     os.environ.get("EVEOS_UPDATE_BASELINE_OWNER") == "1"
     or "eveos-control-helper" in _ARGV0
     or "--scoped-restart" in sys.argv

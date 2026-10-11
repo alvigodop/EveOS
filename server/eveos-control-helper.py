@@ -20,8 +20,13 @@ except PortRegistryError as exc:
     print(f"[ERROR] {exc}", file=sys.stderr)
     raise SystemExit(2)
 
-from server_modules.eveos_control_helper import main  # noqa: E402
-
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from server_modules.eveos_control_probe import parse_args, wait_for_control
+
+    args = parse_args()
+    if args.probe:
+        raise SystemExit(wait_for_control(args.port, args.timeout))
+
+    from server_modules.eveos_control_helper import main
+
+    raise SystemExit(main(args))

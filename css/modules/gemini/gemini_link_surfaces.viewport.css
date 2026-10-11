@@ -84,6 +84,10 @@
     justify-content: flex-end;
 }
 
+#loadingIndicator #gemini-ui-root .gemini-monitor-toolbar-actions > * {
+    flex-shrink: 0;
+}
+
 #loadingIndicator:not(.compact) #gemini-ui-root[data-gemini-monitor-view="full"] .mdl-layout__header {
     position: relative !important;
     top: auto !important;

@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const { runBrowserSmoke } = require('./browser-smoke-diagnostics.shared');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -71,6 +72,18 @@ async function main() {
         await page.waitForFunction(() => (
             document.querySelector('[data-ai-provider="gemini"]')?.open === true
         ), undefined, { timeout: 10000 });
+        const providerOpened = await page.evaluate(() => {
+            const root = document.getElementById('gemini-ui-root');
+            return {
+                fullUiPresent: !!root?.querySelector('.mdl-layout__container'),
+                runtimeHidden: root?.querySelector('[data-gemini-runtime-shell]')?.hidden === true,
+                fullReady: root?.dataset.geminiFullReady || ''
+            };
+        });
+        if (providerOpened.fullUiPresent || !providerOpened.runtimeHidden || providerOpened.fullReady === '1') {
+            throw new Error(`Opening Gemini must preserve the explicit workspace load gate: ${JSON.stringify(providerOpened)}`);
+        }
+        await page.locator('[data-gemini-monitor-load]').click();
         await page.waitForFunction(() => (
             document.getElementById('gemini-ui-root')?.dataset.geminiFullReady === '1'
             && !!document.querySelector('#gemini-provider-runtime-host .mdl-layout__container')
@@ -187,7 +200,10 @@ async function main() {
             throw new Error(`Console errors detected:\n${criticalConsoleErrors.join('\n')}`);
         }
 
-        console.log(`GEMINI_MONITOR_DUAL_VIEW_SMOKE_OK ${JSON.stringify(result)}`);
+        const resultDir = path.join(REPO_ROOT, 'data', 'runtime', 'smoke-results');
+        fs.mkdirSync(resultDir, { recursive: true });
+        fs.writeFileSync(path.join(resultDir, 'gemini-monitor-dual-view-result.json'), JSON.stringify({ passiveWorkspace, providerOpened, result }, null, 2));
+        console.log('GEMINI_MONITOR_DUAL_VIEW_SMOKE_OK passiveWorkspace=true explicitLoad=true geometry=true controls=true');
     });
 }
 
