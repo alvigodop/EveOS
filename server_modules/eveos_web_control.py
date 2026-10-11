@@ -210,7 +210,7 @@ def get_status(port=None) -> dict:
         return _status(port=port)
 
 
-def start_server(*, persist: bool = True, port=None) -> dict:
+def start_server(*, persist: bool = True, port=None, scoped_restart: bool = False) -> dict:
     global _PROCESS, _PROCESS_PORT
     target_port = _normalize_port(port)
     with _LOCK:
@@ -241,6 +241,10 @@ def start_server(*, persist: bool = True, port=None) -> dict:
         environment["PYTHONUTF8"] = "1"
         environment["PYTHONIOENCODING"] = "utf-8"
         environment["EVEOS_WEB_PORT"] = str(target_port)
+        if scoped_restart:
+            environment["EVEOS_SCOPED_RESTART"] = "1"
+        else:
+            environment.pop("EVEOS_SCOPED_RESTART", None)
         headless = headless_mode()
         flags = 0
         if os.name == "nt":
