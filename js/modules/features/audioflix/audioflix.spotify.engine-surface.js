@@ -119,6 +119,40 @@ window.EveAudioflixSpotifyEngineSurface = window.EveAudioflixSpotifyEngineSurfac
         }
     }
 
+    async function restartEngine(button) {
+        if (presentationBusy || !remote()?.snapshot?.().connected || !button) return;
+        const defaultLabel = 'Restart engine';
+        if (button.dataset.confirmSpotifyRestart !== 'true') {
+            button.dataset.confirmSpotifyRestart = 'true';
+            button.textContent = 'Confirm restart';
+            view?.setStatus?.('Restart managed Spotify engine? Current playback will stop and will not auto-resume. AudioFlix keeps queue authority.');
+            setTimeout(() => {
+                if (presentationBusy || !button.isConnected || button.dataset.confirmSpotifyRestart !== 'true') return;
+                delete button.dataset.confirmSpotifyRestart;
+                button.textContent = defaultLabel;
+            }, 8000);
+            return;
+        }
+        delete button.dataset.confirmSpotifyRestart;
+        presentationBusy = true;
+        button.textContent = 'Restarting…';
+        try {
+            const reload = window.EveOSServiceReload;
+            if (typeof reload?.restart !== 'function') throw new Error('Shared EveOS restart control is unavailable.');
+            const base = new URL(mirrorBase());
+            const port = Number(base.port || (base.protocol === 'https:' ? 443 : 80));
+            const result = await reload.restart('spotifyEngine', { port, timeoutS: 45 });
+            if (result?.serviceRestarted !== true) throw new Error(result?.message || 'Managed Spotify engine did not verify a fresh idle helper.');
+            view?.setStatus?.('Managed Spotify engine restarted and is idle. Playback was not auto-resumed; use Play when you are ready.');
+            postMirrorState();
+        } catch (error) {
+            view?.setStatus?.(String(error?.message || error));
+        } finally {
+            presentationBusy = false;
+            if (button.isConnected) button.textContent = defaultLabel;
+        }
+    }
+
     async function stopEngine(button) {
         if (presentationBusy || !remote()?.snapshot?.().connected) return;
         presentationBusy = true;
@@ -166,6 +200,7 @@ window.EveAudioflixSpotifyEngineSurface = window.EveAudioflixSpotifyEngineSurfac
             makeButton('Window', (button) => setPresentation('window', button), 'Show the managed Edge engine for debugging or sign-in.'),
             makeButton('Minimized', (button) => setPresentation('background', button), 'Keep the headed engine minimized.'),
             makeButton('True headless (silent)', (button) => setPresentation('headless', button), 'No browser window. Control/state work, but Windows audio may be silent.'),
+            makeButton('Restart engine', (button) => restartEngine(button), 'Restart only the managed Spotify helper. Playback stops and does not auto-resume.'),
             makeButton('Stop engine', (button) => stopEngine(button), 'Close the managed Spotify subsystem until the next Spotify Play.')
         );
         return wrap;
