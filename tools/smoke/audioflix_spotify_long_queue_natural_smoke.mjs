@@ -125,7 +125,14 @@ async function main() {
         const source = fs.readFileSync(path.join(root, 'tools/smoke/audioflix_spotify_long_queue_live_smoke.mjs'), 'utf8').replace(/\r\n/g, '\n');
         const naturalBranch = source.slice(source.indexOf('if (natural) {\n                const record'), source.indexOf('const startedAt = Date.now();'));
         assert.ok(naturalBranch.includes('continue;')); assert.ok(!naturalBranch.includes('.seek('));
-        assert.ok(source.includes("require('../qualification/lane3-native-controller.cjs').launch()"));
+        assert.ok(source.includes("require('../qualification/lane3-native-controller.cjs').launch({ nativeVisibility: true })"));
+        assert.ok(source.includes('browser.__eveNativeController?.nativeVisibility === true'));
+    });
+    await check('legacy-native-callers-use-real-visibility', () => {
+        for (const name of ['audioflix_lane3_runtime_acceptance.mjs', 'audioflix_lane3_file_acceptance.mjs']) {
+            const source = fs.readFileSync(path.join(root, 'tools/qualification', name), 'utf8');
+            assert.ok(source.includes("require('./lane3-native-controller.cjs').launch({ nativeVisibility: true })"), name);
+        }
     });
     E.ok = true;
 }

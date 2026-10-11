@@ -84,8 +84,10 @@ async function main() {
     const audioflixWarnings = [];
     try {
         if (natural) H.assert(managedPreflight.status.authState === 'signed-in', 'Natural full-duration proof requires signed-in Spotify');
-        browser = natural ? await require('../qualification/lane3-native-controller.cjs').launch() : await chromium.launch({ headless });
-        E.controllerDriver = natural ? 'headed native Chromium/raw CDP; no forced focus' : `Playwright Chromium (${headless ? 'headless' : 'headed'})`;
+        browser = natural ? await require('../qualification/lane3-native-controller.cjs').launch({ nativeVisibility: true }) : await chromium.launch({ headless });
+        if (natural) H.assert(browser.__eveNativeController?.nativeVisibility === true,
+            'Natural qualification requires the native visibility transport');
+        E.controllerDriver = natural ? 'headed native Chromium/CDP; forced-focus requests suppressed' : `Playwright Chromium (${headless ? 'headless' : 'headed'})`;
         context = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: 'block' });
         isolation = await installBackendWriteBarrier(context, backendUrls);
         page = await context.newPage();

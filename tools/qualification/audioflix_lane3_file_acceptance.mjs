@@ -333,7 +333,7 @@ async function cleanup() {
         assert.equal(preflight.status.authState, 'signed-in');
         return { signedIn: true, idle: true, startedByFixture: ownedEngine };
     });
-    browser = await require('./lane3-native-controller.cjs').launch();
+    browser = await require('./lane3-native-controller.cjs').launch({ nativeVisibility: true });
     context = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: 'block' });
     barrier = await installBackendWriteBarrier(context, [base, engineUrl]);
     page = await context.newPage(); audit(page, 'file-controller');

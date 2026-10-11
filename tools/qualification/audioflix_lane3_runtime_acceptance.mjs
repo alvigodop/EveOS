@@ -262,7 +262,7 @@ async function detach() {
 }
 (async () => {
     before = await backend(); E.libraryBefore = before; write();
-    browser = native ? await require('./lane3-native-controller.cjs').launch() : await chromium.launch({ headless: false });
+    browser = native ? await require('./lane3-native-controller.cjs').launch({ nativeVisibility: true }) : await chromium.launch({ headless: false });
     E.controllerDriver = native ? 'headed Chromium/raw CDP, no forced focus' : 'Playwright headed Chromium';
     if (inputFocus) E.controllerDriver = 'headed Chromium/raw CDP; focus emulation only for control clicks, disabled during every playback/lifecycle measurement';
     const rootSession = await browser.newBrowserCDPSession();

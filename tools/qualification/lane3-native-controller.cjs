@@ -50,7 +50,7 @@ async function terminate(child) {
 
 async function launch(options = {}) {
     const port = await freePort();
-    const profileRoot = options.profileRoot || path.join(os.tmpdir(), 'eveos-qualification');
+    const profileRoot = path.resolve(options.profileRoot || path.join(os.tmpdir(), 'eveos-qualification'));
     fs.mkdirSync(profileRoot, { recursive: true });
     const profile = fs.mkdtempSync(path.join(profileRoot, 'lane3-native-'));
     const executable = chromium.executablePath();
@@ -61,13 +61,22 @@ async function launch(options = {}) {
         '--disable-component-update', '--disable-sync', '--new-window', 'about:blank'
     ], { stdio: 'ignore', windowsHide: false, detached: false });
 
-    let browser;
+    const removeProfile = () => {
+        const target = path.resolve(profile);
+        if (path.dirname(target) !== profileRoot || !path.basename(target).startsWith('lane3-native-')) {
+            throw Error('Native controller profile cleanup escaped its owned temporary root');
+        }
+        fs.rmSync(target, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+    };
+    let browser, proxy = null;
     try {
         const endpoint = await waitForCdp(port, child);
-        browser = await chromium.connectOverCDP(endpoint);
+        if (options.nativeVisibility === true) proxy = await require('./lane3-native-visibility-proxy.cjs').start(endpoint);
+        browser = await chromium.connectOverCDP(proxy?.endpoint || endpoint);
     } catch (error) {
+        await proxy?.close().catch(() => {});
         await terminate(child);
-        fs.rmSync(profile, { recursive: true, force: true });
+        removeProfile();
         throw error;
     }
 
@@ -76,11 +85,19 @@ async function launch(options = {}) {
     browser.close = async () => {
         if (closing) return;
         closing = true;
-        try { await close(); } catch {}
-        await terminate(child);
-        fs.rmSync(profile, { recursive: true, force: true });
+        let closeTimer;
+        try {
+            if (proxy) await Promise.race([close(), new Promise(resolve => { closeTimer = setTimeout(resolve, 5000); })]);
+            else await close();
+        } catch {}
+        finally { clearTimeout(closeTimer); }
+        try { await proxy?.close(); }
+        finally { await terminate(child); removeProfile(); }
     };
-    browser.__eveNativeController = { pid: child.pid, port, temporaryProfile: true };
+    browser.__eveNativeController = {
+        pid: child.pid, port, temporaryProfile: true, nativeVisibility: Boolean(proxy),
+        get forcedFocusSuppressed() { return proxy?.snapshot().forcedFocusSuppressed || 0; }
+    };
     return browser;
 }
 
