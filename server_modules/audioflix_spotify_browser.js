@@ -103,7 +103,7 @@ async function main() {
     const args = parseArgs(process.argv.slice(2));
     const port = Number(args.port || 0);
     const profileDir = path.resolve(String(args.profile || ''));
-    const pageUrl = String(args.page || 'http://127.0.0.1:8765/audioflix-spotify-engine.html');
+    const pageUrl = String(args.page || 'http://127.0.0.1:8765/tools/audioflix/spotify-engine.html');
     const headlessRequested = headlessRequestedFromPageUrl(pageUrl);
     const sessionId = String(args.session || '');
     const token = String(process.env.EVEOS_SPOTIFY_BROWSER_TOKEN || '');
