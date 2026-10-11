@@ -11,7 +11,7 @@ const has = (flag) => argv.includes(flag);
 const value = (name, fallback = '') => argv.find((arg) => arg.startsWith(`${name}=`))?.slice(name.length + 1) ?? fallback;
 const base = value('--base', 'http://127.0.0.1:8765').replace(/\/$/, '');
 const controllerUrl = value('--controller', value('--page', `${base}/EveOS.html`));
-const engineUrl = value('--engine', `${base}/audioflix-spotify-engine.html`);
+const engineUrl = value('--engine', `${base}/tools/audioflix/spotify-engine.html`);
 const count = Math.max(8, Math.min(40, Number(value('--count', '20')) || 20));
 const tailSeconds = Math.max(1.25, Math.min(8, Number(value('--tail-seconds', '2.5')) || 2.5));
 const transitionTimeout = Math.max(8000, Math.min(60000, Number(value('--transition-timeout', '25000')) || 25000));
