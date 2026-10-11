@@ -29,7 +29,9 @@ def planner_contract():
 
     old_baseline = updates._BASELINE
     old_startup = updates._STARTUP_CAPTURE
+    old_owner = updates._BASELINE_OWNER
     try:
+        updates._BASELINE_OWNER = True
         with tempfile.TemporaryDirectory(prefix="eveos-update-plan-") as temporary:
             root = Path(temporary)
             fixtures = {
@@ -114,6 +116,7 @@ def planner_contract():
     finally:
         updates._BASELINE = old_baseline
         updates._STARTUP_CAPTURE = old_startup
+        updates._BASELINE_OWNER = old_owner
 
 
 def source_contracts():
