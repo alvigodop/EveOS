@@ -17,7 +17,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/gemini-ask-bar.insights.js?v=1b1f2ebd55b1",
     "js/modules/features/gemini-ask-bar.js?v=dacfcd8f9d6d",
     "js/modules/core/eveos-port-registry.js?v=9590438f786e",
-    "js/modules/core/eveos-service-reload-ui.js?v=734d2f394796",
+    "js/modules/core/eveos-service-reload-ui.js?v=2bee00dc565c",
     "js/modules/features/audioflix/audioflix.transport.resilience.js?v=88612b3f6c74",
     "js/modules/features/audioflix/audioflix.spotify.remote.js?v=23413ce99a4e",
     "js/modules/features/audioflix/audioflix.spotify.status-watch.js?v=832b2f4fca48",
@@ -28,6 +28,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/watchfusion/watchfusion.bootstrap.js?v=276b11f79777",
     "js/modules/features/watchfusion/watchfusion.runtime-sensing.js?v=06bb78645e6e",
     "js/modules/features/watchfusion/watchfusion.js?v=a457ebe2a0e2",
-    "js/modules/features/watchfusion/watchfusion.reload.js?v=bd0ed7c8643a",
+    "js/modules/features/watchfusion/watchfusion.reload.js?v=6912254eaf51",
     "js/modules/features/watchfusion/watchfusion.resilience.js?v=13f7a84e15a5"
 ]);
