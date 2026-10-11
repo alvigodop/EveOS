@@ -21,6 +21,7 @@ _CLIENT_TTL_S = 12 * 60 * 60.0
 _OWNER_GRACE_S = 15 * 60.0
 _MAX_RECEIPTS = 128
 _COMMAND_WAIT_S = 195.0
+_ENGINE_PATH = "/tools/audioflix/spotify-engine.html"
 
 
 def _now() -> float:
@@ -56,6 +57,10 @@ def _origin(value) -> str:
         return ""
     shown = f"[{host}]" if ":" in host else host
     return f"{parsed.scheme}://{shown}:{parsed.port}"
+
+
+def _engine_url(server_origin: str) -> str:
+    return f"{server_origin}{_ENGINE_PATH}"
 
 
 class SpotifyClientBroker:
@@ -253,7 +258,7 @@ class SpotifyClientBroker:
             }
 
     def _start_engine(self, server_origin: str) -> dict:
-        result = engine.ensure_engine(f"{server_origin}/audioflix-spotify-engine.html")
+        result = engine.ensure_engine(_engine_url(server_origin))
         with self._lock:
             self._sync_engine_epoch_locked(result)
         return result
@@ -359,7 +364,7 @@ class SpotifyClientBroker:
             blocked = self._owner_block(client_id, "changing the engine mode")
             if blocked: return blocked
             mode = _safe(args.get("mode"), 20).lower()
-            result = engine.set_presentation(mode, f"{server_origin}/audioflix-spotify-engine.html")
+            result = engine.set_presentation(mode, _engine_url(server_origin))
             return {**self._state(client_id), "presentationResult": result, "ok": bool(result.get("ok"))}
         if action == "engine-stop":
             blocked = self._owner_block(client_id, "stopping the engine")

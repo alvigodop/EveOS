@@ -14,6 +14,7 @@ const HTML_ENTRYPOINTS = [
     'server/audioflix-provider-host.html',
     'server/gemini_chat_interface.html',
     'server/server_monitor.html',
+    'tools/audioflix/spotify-engine.html',
     'tools/World-Book/app/index.html',
     'tools/workshop/MatrixBackground-V2-Upgrading.html',
     'tools/workshop/fx/codepen_source.html',
@@ -236,6 +237,7 @@ function runtimeCandidates(files = trackedFiles()) {
         if (/^js\/(?:script-loader(?:\.bootstrap)?|style-loader)\.js$/.test(relativePath)) return true;
         if (relativePath.startsWith('css/')) return true;
         if (relativePath.startsWith('server/')) return true;
+        if (relativePath.startsWith('tools/audioflix/')) return true;
         if (relativePath.startsWith('tools/World-Book/app/')) return true;
         return relativePath.startsWith('tools/workshop/');
     });

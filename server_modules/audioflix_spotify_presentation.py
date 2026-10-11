@@ -11,6 +11,9 @@ from server_modules import audioflix_spotify_browser as browser
 
 _ALLOWED = {"hidden", "background", "window", "headless"}
 _DEFAULT = "hidden"
+_ENGINE_PATH = "/tools/audioflix/spotify-engine.html"
+_LEGACY_ENGINE_PATH = "/audioflix-spotify-engine.html"
+_DEFAULT_ENGINE_URL = f"http://127.0.0.1:8765{_ENGINE_PATH}"
 
 _lock = threading.RLock()
 _mode = _DEFAULT
@@ -24,8 +27,14 @@ def _normalize_mode(value) -> str:
     return mode if mode in _ALLOWED else _DEFAULT
 
 
+def _normalize_engine_url(page_url: str) -> str:
+    parsed = urlsplit(str(page_url or _DEFAULT_ENGINE_URL))
+    path = _ENGINE_PATH if parsed.path == _LEGACY_ENGINE_PATH else parsed.path
+    return urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
+
+
 def _page_for_mode(page_url: str, mode: str) -> str:
-    parsed = urlsplit(str(page_url or "http://127.0.0.1:8765/audioflix-spotify-engine.html"))
+    parsed = urlsplit(_normalize_engine_url(page_url))
     query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != "playwright"]
     if mode == "headless":
         query.append(("playwright", "headless"))
@@ -168,7 +177,7 @@ def set_presentation(payload: dict | None = None) -> dict:
     requested = str(payload.get("mode") or payload.get("presentation") or "").strip().lower()
     if requested not in _ALLOWED:
         return {"ok": False, "reason": "Presentation must be hidden, background, window, or headless."}
-    page_url = str(payload.get("pageUrl") or browser.status().get("pageUrl") or "http://127.0.0.1:8765/audioflix-spotify-engine.html")
+    page_url = str(payload.get("pageUrl") or browser.status().get("pageUrl") or _DEFAULT_ENGINE_URL)
     with _lock:
         old_mode = _mode
         _mode = requested
@@ -194,5 +203,5 @@ def stop_engine(payload: dict | None = None) -> dict:
 
 
 def restore_for_auth(page_url: str = "") -> dict:
-    target = page_url or browser.status().get("pageUrl") or "http://127.0.0.1:8765/audioflix-spotify-engine.html"
+    target = page_url or browser.status().get("pageUrl") or _DEFAULT_ENGINE_URL
     return set_presentation({"mode": "window", "pageUrl": target})

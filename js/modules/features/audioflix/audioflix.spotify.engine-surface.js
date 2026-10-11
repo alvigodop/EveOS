@@ -186,7 +186,7 @@ window.EveAudioflixSpotifyEngineSurface = window.EveAudioflixSpotifyEngineSurfac
         const iframe = document.createElement('iframe');
         const base = mirrorBase();
         frameOrigin = new URL(base).origin;
-        iframe.src = `${base}/audioflix-spotify-engine.html?surface=mirror`;
+        iframe.src = `${base}/tools/audioflix/spotify-engine.html?surface=mirror`;
         iframe.title = 'EveOS Spotify Engine';
         iframe.referrerPolicy = 'no-referrer';
         iframe.setAttribute('aria-label', 'Managed Spotify engine view');

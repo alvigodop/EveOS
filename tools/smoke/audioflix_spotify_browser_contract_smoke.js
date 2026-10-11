@@ -36,7 +36,7 @@ const anyBrowser = read('js/modules/features/audioflix/audioflix.spotify.any-bro
 const repeatRearm = read('js/modules/features/audioflix/audioflix.spotify.repeat-rearm.js');
 const engine = read('js/modules/features/audioflix/audioflix.spotify.engine.js');
 const surface = read('js/modules/features/audioflix/audioflix.spotify.engine-surface.js');
-const enginePage = read('audioflix-spotify-engine.html');
+const enginePage = read('tools/audioflix/spotify-engine.html');
 const launcher = read('tools/audioflix/spotify-managed-browser.ps1');
 const serverLaunch = read('server/eveos-server-launch.py');
 const manifest = read('js/config/manifest/scripts.parts/03-feature-modules.js');
@@ -82,8 +82,8 @@ assert(transport.includes('ALLOWED_ACTIONS') && transport.includes("'load'") && 
     && transport.includes("'seek'") && !transport.includes('eval('),
     'engine transport is a fixed typed command surface');
 
-assert(enginePage.includes('spotify-engine-player') && enginePage.includes('audioflix.spotify.engine.js'),
-    'managed browser owns one lightweight Spotify engine page instead of a complete EveOS client');
+assert(enginePage.includes('spotify-engine-player') && enginePage.includes('../../js/modules/features/audioflix/audioflix.spotify.engine.js'),
+    'managed browser owns one relocated lightweight Spotify engine page instead of a complete EveOS client');
 assert(engine.includes("'provider-paused'") && !engine.includes('paused unexpectedly')
     && !engine.includes('Recovering ('),
     'remote engine reports provider pause rather than ambiguously auto-resuming it');
@@ -102,12 +102,14 @@ assert(rpc.includes('Browser clients never receive the helper') && rpc.includes(
     'browser clients stay behind server-owned playback and presentation RPC');
 assert(presentation.includes('_DEFAULT = "hidden"') && presentation.includes('ShowWindowAsync')
     && presentation.includes('EnumWindows') && presentation.includes('def set_presentation')
-    && presentation.includes('def stop_engine'),
-    'server presentation policy defaults to audible hidden-headed mode and owns window lifecycle');
+    && presentation.includes('def stop_engine')
+    && presentation.includes('_LEGACY_ENGINE_PATH = "/audioflix-spotify-engine.html"'),
+    'server presentation policy defaults to audible hidden-headed mode and migrates legacy engine URLs');
 
 assert(broker.includes('ownerEpoch') && broker.includes('trackGeneration') && broker.includes('clientCommandSeq')
-    && broker.includes('commandId') && broker.includes('resyncRequired'),
-    'broker has ownership, generation, idempotency and stale-replay boundaries');
+    && broker.includes('commandId') && broker.includes('resyncRequired')
+    && broker.includes('_ENGINE_PATH = "/tools/audioflix/spotify-engine.html"'),
+    'broker has ownership, generation, idempotency, stale-replay boundaries and the canonical relocated engine URL');
 const commandLane = broker.slice(broker.indexOf('    def command('), broker.indexOf('    def _execute_transport('));
 assert(commandLane.includes('_transport_lock') && commandLane.indexOf('if action == "import"') < commandLane.indexOf('with self._transport_lock'),
     'long playlist import stays outside serialized playback transport operations');
@@ -154,11 +156,11 @@ assert(repeatRearm.includes("remote().send('restart'")
     && repeatRearm.includes('originalSeek(0)'),
     'repeat-one reuses managed Spotify restart only for the ended-to-zero queue transition');
 
-assert(surface.includes('audioflix-spotify-engine.html?surface=mirror')
+assert(surface.includes('/tools/audioflix/spotify-engine.html?surface=mirror')
     && surface.includes("remote().send('engine-presentation'")
     && surface.includes("remote().send('engine-stop'")
     && surface.includes('Hidden (default)') && surface.includes('True headless (silent)'),
-    'Internal Player mirrors the single engine and exposes explicit presentation/subsystem lifecycle controls');
+    'Internal Player mirrors the relocated single engine and exposes explicit presentation/subsystem lifecycle controls');
 assert(surface.includes('queueConnection()?.snapshot?.()')
     && surface.includes('view?.setQueue?.(entries, index)')
     && surface.includes('onStep:') && surface.includes('onJump:')
@@ -182,6 +184,7 @@ assert(bridge.includes('audioflix_spotify_http.handle_get_request') && bridge.in
 assert(ignore.includes('/.spotify-probe-profile/') && ignore.includes('/spotify-volume-probe.mjs'),
     'probe profile and standalone probe remain ignored');
 
+runNode('tools/smoke/audioflix_spotify_engine_relocation_smoke.js');
 runNode('tools/smoke/audioflix_spotify_relay_security_smoke.js');
 runPython('tools/smoke/audioflix_spotify_broker_smoke.py');
 runNode('tools/smoke/audioflix_spotify_entrypoints_smoke.js');
