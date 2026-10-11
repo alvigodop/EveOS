@@ -73,6 +73,8 @@ def restart_service(service, *, web_port=None):
                                 message=stopped.get("message") or "The selected service did not stop; no replacement was started.")
 
             start_options = dict(options)
+            if key == "web":
+                start_options["scoped_restart"] = True
             if key == "watchFusion":
                 start_options["host"] = "0.0.0.0" if mode == "lan" else "127.0.0.1"
             if key == "localMoe":
