@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import signal
 import http.client
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -18,6 +20,15 @@ WEBSOCKET_PORT = eveos_ports.service_port("GEMINI_WS_PORT")
 STATUS_PORT = eveos_ports.service_port("GEMINI_STATUS_PORT")
 SERVICE_NAME = "eveos-gemini-live"
 _PROCESS = None
+_LOCK = threading.RLock()
+
+
+def _lifecycle_locked(function):
+    @functools.wraps(function)
+    def wrapped(*args, **kwargs):
+        with _LOCK:
+            return function(*args, **kwargs)
+    return wrapped
 
 
 def _project_root() -> Path:
@@ -183,10 +194,12 @@ def _status_payload(message: str = "", fresh: bool = False) -> dict:
     }
 
 
+@_lifecycle_locked
 def get_status() -> dict:
     return _status_payload()
 
 
+@_lifecycle_locked
 def start_server() -> dict:
     global _PROCESS
 
@@ -272,6 +285,7 @@ def start_server() -> dict:
     return payload
 
 
+@_lifecycle_locked
 def stop_server() -> dict:
     global _PROCESS
 
