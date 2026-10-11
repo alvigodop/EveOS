@@ -34,6 +34,8 @@ jobs:
         run: node tests/github_actions_security_guard.test.mjs
       - name: Prove local hygiene cleanup and audit contracts
         run: node tests/eveos_local_hygiene.test.mjs
+      - name: Prove repository agent rules remain discoverable
+        run: node tests/eveos_agents_pointer.test.mjs
       - name: Prove relocated Spotify engine resolves its runtime
         run: node tools/smoke/audioflix_spotify_engine_relocation_smoke.js
       - name: Prove smoke registry is closed
