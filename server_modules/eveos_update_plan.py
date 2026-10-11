@@ -7,7 +7,9 @@ intentionally not a Git-SHA monitor: uncommitted source changes must be visible 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,6 +50,10 @@ _LOCK = threading.RLock()
 
 def _root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+def _baseline_path() -> Path:
+    return _root() / "data" / "runtime" / "eveos-update-baseline.json"
 
 
 def _is_ignored(relative: str) -> bool:
@@ -192,6 +198,28 @@ def _capture() -> dict:
     }
 
 
+def _valid_baseline(value) -> bool:
+    return isinstance(value, dict) and isinstance(value.get("files"), dict) \
+        and isinstance(value.get("components"), dict) \
+        and all(key in value["components"] for key in _COMPONENT_ACTIONS)
+
+
+def _persist_baseline() -> None:
+    path = _baseline_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(_BASELINE, indent=2), encoding="utf-8")
+    temporary.replace(path)
+
+
+def _load_preserved_baseline() -> dict | None:
+    try:
+        value = json.loads(_baseline_path().read_text(encoding="utf-8"))
+        return value if _valid_baseline(value) else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def _changed_files(before: dict, after: dict) -> list[dict]:
     old_files = before.get("files", {})
     new_files = after.get("files", {})
@@ -219,7 +247,9 @@ def _build_plan(current: dict) -> dict:
     for component in changed_components:
         action, label = _COMPONENT_ACTIONS[component]
         actions.append({"component": component, "action": action, "label": label})
-    changed = _changed_files(_BASELINE, current)
+    changed_set = set(changed_components)
+    changed = [item for item in _changed_files(_BASELINE, current)
+               if changed_set.intersection(item.get("components") or ())]
     return {
         "ok": True,
         "checkedAt": current["capturedAt"],
@@ -248,6 +278,16 @@ def baseline_status() -> dict:
         }
 
 
+def startup_status() -> dict:
+    """Source actually loaded by this process, independent of the carried update baseline."""
+    with _LOCK:
+        return {
+            "ok": True,
+            "capturedAt": _STARTUP_CAPTURE["capturedAt"],
+            "componentFingerprints": dict(_STARTUP_CAPTURE["components"]),
+        }
+
+
 def mark_applied(components) -> dict:
     """Advance only components whose replacement/reload has been positively verified."""
     wanted = {str(value) for value in (components or []) if str(value) in _COMPONENT_ACTIONS}
@@ -256,7 +296,18 @@ def mark_applied(components) -> dict:
         for component in wanted:
             _BASELINE["components"][component] = current["components"][component]
         _BASELINE["capturedAt"] = current["capturedAt"]
+        _persist_baseline()
         return _build_plan(current)
 
 
-_BASELINE = _capture()
+_STARTUP_CAPTURE = _capture()
+_SCOPED_CONTROL_REPLACEMENT = (
+    os.environ.get("EVEOS_CONTROL_SCOPED_RESTART") == "1" or "--scoped-restart" in sys.argv
+)
+_BASELINE = (_load_preserved_baseline() if _SCOPED_CONTROL_REPLACEMENT else None) or {
+    "capturedAt": _STARTUP_CAPTURE["capturedAt"],
+    "files": dict(_STARTUP_CAPTURE["files"]),
+    "components": dict(_STARTUP_CAPTURE["components"]),
+}
+if not _SCOPED_CONTROL_REPLACEMENT:
+    _persist_baseline()
