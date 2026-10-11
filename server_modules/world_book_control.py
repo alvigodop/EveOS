@@ -306,6 +306,8 @@ def stop_server(*, persist: bool = True) -> dict:
 
 
 def restore_desired_state() -> None:
+    if os.environ.get("EVEOS_SCOPED_RESTART") == "1":
+        return
     if not _read_desired_state():
         return
     payload = start_server(persist=False)
