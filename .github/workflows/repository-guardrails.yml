@@ -67,6 +67,12 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Install isolated Playwright Chromium runtime
         run: npx playwright install --with-deps chromium
+      - name: Prove relocated Spotify engine browser entrypoints
+        run: node tools/smoke/audioflix_spotify_engine_relocation_smoke.js --browser
+      - name: Prove managed engine and mirror browser contracts
+        run: node tools/smoke/audioflix_spotify_engine_smoke.js
+      - name: Prove Queue Surface follows relocated mirror
+        run: node tools/smoke/audioflix_spotify_queue_surface_smoke.js
       - name: Prove Queue View hover/click stability with real pointer input
         run: npm run --silent smoke:audioflix-queue-view-pointer-browser
 
