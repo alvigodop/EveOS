@@ -19,7 +19,7 @@ const registry = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/eveos-ports.
 const port = registry.ports.EVEOS_WEB_PORT.port;
 assert.ok(Number.isInteger(port) && port > 0 && port < 65536, 'Registered web port required');
 const base = `http://127.0.0.1:${port}`;
-const engineUrl = base + '/audioflix-spotify-engine.html';
+const engineUrl = base + '/tools/audioflix/spotify-engine.html';
 const controllerUrl = pathToFileURL(fs.realpathSync(path.join(ROOT, 'EveOS.html'))).href;
 const resultPath = path.join(OUT, 'LAST-LANE3-FILE-ACCEPTANCE.json');
 const suffix = randomUUID();
