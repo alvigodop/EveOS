@@ -62,8 +62,8 @@ export function createLongQueueHarness({
         if (!/\/EveOS\.html$/i.test(controller.pathname)) {
             throw new Error(`Controller must be EveOS.html, got ${controllerUrl}`);
         }
-        if (!/\/audioflix-spotify-engine\.html$/i.test(engine.pathname)) {
-            throw new Error(`Managed provider must be audioflix-spotify-engine.html, got ${engineUrl}`);
+        if (engine.pathname !== '/tools/audioflix/spotify-engine.html') {
+            throw new Error(`Managed provider must be /tools/audioflix/spotify-engine.html, got ${engineUrl}`);
         }
         if (canonicalUrl(controllerUrl) === canonicalUrl(engineUrl)) {
             throw new Error('Controller and managed Spotify engine must be different pages.');
