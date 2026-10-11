@@ -85,7 +85,6 @@ def _classify(relative: str) -> tuple[str, ...]:
     if p in _WEB_ONLY_MODULES:
         return ("web",)
 
-    # Managed Spotify has its own process boundary even though its engine script is browser JS.
     if p == "tools/audioflix/spotify-engine.html" or lower.startswith("server_modules/audioflix_spotify") \
             or lower.startswith("js/modules/features/audioflix/audioflix.spotify.engine"):
         components.add("spotifyEngine")
@@ -203,6 +202,8 @@ def _valid_baseline(value) -> bool:
 
 
 def _persist_baseline() -> None:
+    if not _BASELINE_OWNER:
+        return
     path = _baseline_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
@@ -211,6 +212,8 @@ def _persist_baseline() -> None:
 
 
 def _load_preserved_baseline() -> dict | None:
+    if not _BASELINE_OWNER:
+        return None
     try:
         value = json.loads(_baseline_path().read_text(encoding="utf-8"))
         return value if _valid_baseline(value) else None
@@ -267,7 +270,6 @@ def check_updates() -> dict:
 
 
 def baseline_status() -> dict:
-    """Expose loaded source separately from the carried update baseline."""
     with _LOCK:
         return {
             "ok": True,
@@ -294,7 +296,13 @@ def mark_applied(components) -> dict:
 
 
 _STARTUP_CAPTURE = _capture()
-_SCOPED_CONTROL_REPLACEMENT = (
+_ARGV0 = Path(sys.argv[0]).name.lower() if sys.argv else ""
+_BASELINE_OWNER = (
+    os.environ.get("EVEOS_UPDATE_BASELINE_OWNER") == "1"
+    or "eveos-control-helper" in _ARGV0
+    or "--scoped-restart" in sys.argv
+)
+_SCOPED_CONTROL_REPLACEMENT = _BASELINE_OWNER and (
     os.environ.get("EVEOS_CONTROL_SCOPED_RESTART") == "1" or "--scoped-restart" in sys.argv
 )
 _BASELINE = (_load_preserved_baseline() if _SCOPED_CONTROL_REPLACEMENT else None) or {
@@ -302,5 +310,5 @@ _BASELINE = (_load_preserved_baseline() if _SCOPED_CONTROL_REPLACEMENT else None
     "files": dict(_STARTUP_CAPTURE["files"]),
     "components": dict(_STARTUP_CAPTURE["components"]),
 }
-if not _SCOPED_CONTROL_REPLACEMENT:
+if _BASELINE_OWNER and not _SCOPED_CONTROL_REPLACEMENT:
     _persist_baseline()
