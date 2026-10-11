@@ -14,7 +14,7 @@
 
     async function requestRestart(service, options) {
         let query = '';
-        if (service === 'web') {
+        if (service === 'web' || service === 'spotifyEngine') {
             const port = Number(options?.port || window.location?.port || 0);
             if (Number.isInteger(port) && port > 0 && port <= 65535) query = `?port=${port}`;
         }
