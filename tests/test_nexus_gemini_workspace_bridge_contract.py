@@ -142,7 +142,7 @@ def test_search_monitor_restores_explicit_loading_targeted_reload_and_passive_ed
     assert 'data-provider-reload="gemini"' in ai_home_markup
     assert 'data-provider-reload="local-moe"' in ai_home_markup
     assert 'data-provider-reload="nexus-browser"' in ai_home_markup
-    assert "keepLocalControlAfterToolStop" in ai_home
+    assert "keepLocalControlAfterToolStop" not in ai_home
     assert "activeAgentNexusView" in ai_home
     assert "refreshOpenAgentNexus(false);" in ai_home
 
