@@ -97,3 +97,29 @@ test('idle client snapshots cannot resurrect scheduler runtime after server reso
   assert.equal(room.pendingTurn, undefined);
   assert.deepEqual(room.relay, serverRoom.relay);
 });
+
+test('a known idle room cannot acquire a provider-control intent from its UI mirror', () => {
+  const serverRoom = { ...activeRoom(), relay: { active: false, waitingFor: null } };
+  delete serverRoom.pendingTurn;
+  delete serverRoom.recovery;
+  const clientRoom = { ...serverRoom,
+    pendingProviderControlReceipt: { commandKey: 'injected', agentMessageId: 'client-message' } };
+  const room = merge.mergeClientSnapshot({ rooms: [serverRoom] }, { rooms: [clientRoom] }).rooms[0];
+  assert.equal(room.pendingProviderControlReceipt, undefined);
+  assert.equal(merge.runtimeBusy(room), false);
+});
+
+test('valid UI edits preserve an active canonical provider-control intent', () => {
+  const intent = { commandKey: 'canonical', agentMessageId: 'server-message' };
+  const serverRoom = { ...activeRoom(), relay: { active: false, waitingFor: null },
+    pendingProviderControlReceipt: intent };
+  delete serverRoom.pendingTurn;
+  delete serverRoom.recovery;
+  for (const value of [undefined, { commandKey: 'replacement', agentMessageId: 'client-message' }]) {
+    const clientRoom = { ...serverRoom, name: 'Renamed by UI', pendingProviderControlReceipt: value };
+    const room = merge.mergeClientSnapshot({ rooms: [serverRoom] }, { rooms: [clientRoom] }).rooms[0];
+    assert.equal(room.name, 'Renamed by UI');
+    assert.deepEqual(room.pendingProviderControlReceipt, intent);
+    assert.equal(merge.runtimeBusy(room), true);
+  }
+});

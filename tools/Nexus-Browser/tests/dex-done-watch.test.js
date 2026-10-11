@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const watch = require('../public/dex-done-watch');
 const control = require('../public/dex-provider-control');
-const { mergeBusyRoom, mergeIdleRoom } = require('../dex/server-state-merge');
+const { mergeBusyRoom, mergeIdleRoom, mergeClientSnapshot } = require('../dex/server-state-merge');
 const { createDoneWatchDelivery } = require('../dex/done-watch-delivery');
 const { createProviderControlRouting } = require('../dex/provider-control-routing');
 const { rememberOrigin } = require('./helpers/dex-provider-control-fixture');
@@ -145,6 +145,37 @@ test('server watch_done and unwatch_done authorize only the exact room member', 
   assert.equal(saved, 4, 'each mutation and its correlated origin receipt are persisted');
   assert.equal(snapshot.rooms[0].messages.filter((message) => message.controlReceipt).length, 2);
   assert.equal(snapshot.rooms[0].pendingProviderControlReceipt, undefined);
+});
+
+test('settled watch and unwatch intents cannot return through stale UI snapshots', async () => {
+  let snapshot = fixture();
+  const broadcasts = [], sourceSocket = { role: 'provider-control-extension', sent: [] };
+  const router = createProviderControlRouting({
+    uiSockets: new Set(), safeSend(s, msg) { s.sent.push(msg); return true; },
+    validateSource: async () => true,
+    getState: () => structuredClone(snapshot),
+    saveState(next) { snapshot = structuredClone(next); return structuredClone(snapshot); },
+    broadcastState(next) { broadcasts.push(structuredClone(next)); }
+  });
+  for (const action of ['watch_done', 'unwatch_done']) {
+    const command = { action, room: 'room-astro', ...(action === 'watch_done' ? { member: 'Astro' } : {}) };
+    rememberOrigin(snapshot, eveSource, command);
+    broadcasts.length = 0;
+    const request = { type: 'provider_control_request', requestId: action, source: eveSource, command };
+    await router.handle(sourceSocket, request);
+    assert.equal(sourceSocket.sent.at(-1).result.ok, true);
+    assert.equal(broadcasts.length, 2);
+    assert.ok(broadcasts[0].rooms[0].pendingProviderControlReceipt);
+    const settled = structuredClone(snapshot.rooms[0]);
+    snapshot = mergeClientSnapshot(snapshot, broadcasts[0]);
+    assert.equal(snapshot.rooms[0].pendingProviderControlReceipt, undefined, action);
+    await router.handle(sourceSocket, { ...request, requestId: `${action}-replay` });
+    assert.equal(sourceSocket.sent.at(-1).result.code, 'DEX_CONTROL_ORIGIN_REQUIRED', action);
+    assert.deepEqual(snapshot.rooms[0].doneWatches, settled.doneWatches, 'no rearm after settlement');
+    assert.equal(snapshot.rooms[0].doneWatchRevision, settled.doneWatchRevision);
+    assert.deepEqual(snapshot.rooms[0].messages.filter((message) => message.controlReceipt),
+      settled.messages.filter((message) => message.controlReceipt), 'no duplicate receipt');
+  }
 });
 
 test('DONE delivery queues while offline, checks target and busy room, and never resends after dispatch', () => {

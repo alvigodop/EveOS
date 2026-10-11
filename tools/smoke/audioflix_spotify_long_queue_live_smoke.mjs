@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 
 import process from 'node:process';
+import { createRequire } from 'node:module';
 import { chromium } from 'playwright';
 import { createLongQueueHarness, normalizeSpotify, spotifyTrackId } from './audioflix_spotify_long_queue_live_support.mjs';
 import { validateBackendUrls, installBackendWriteBarrier, readBackendAudioflixSnapshot,
     assertBackendAudioflixUnchanged } from './audioflix_spotify_live_isolation.shared.js';
+import { createQueueEvidence, hideNativeController, installNaturalProbe, naturalSnapshot,
+    awaitNaturalTrack, verifyCurrentVolume, settleNaturalProbe } from './audioflix_spotify_long_queue_natural.mjs';
+
+const require = createRequire(import.meta.url);
 
 const argv = process.argv.slice(2);
 const has = (flag) => argv.includes(flag);
@@ -19,6 +24,19 @@ const headless = has('--headless');
 const allowVisible = has('--allow-visible-controller');
 const shouldStart = has('--start');
 const takeOver = has('--take-over');
+const natural = has('--natural');
+const verbose = has('--verbose');
+const mode = natural ? 'natural' : 'seek';
+const backgroundAt = Math.max(0, Math.min(count - 1, Number(value('--background-at', String(Math.max(2, Math.floor(count / 4))))) || 0));
+const evidence = createQueueEvidence(mode, { count, base, controllerUrl, engineUrl, headless,
+    backgroundAt, transitionTimeout, tailSeconds: natural ? null : tailSeconds });
+const E = evidence.data;
+let sampler = null;
+const checkpoint = (phase) => {
+    if (phase) E.phase = phase;
+    if (sampler) E.resources = sampler.snapshot();
+    evidence.write();
+};
 const groupName = `EveOS Live Queue ${Date.now().toString(36)}`;
 const fixtureNonce = Date.now().toString(36);
 const fixturePrefix = `live-queue-${fixtureNonce}-`;
@@ -33,6 +51,7 @@ const H = createLongQueueHarness({
 });
 
 async function main() {
+    if (natural && (headless || allowVisible)) throw new Error('--natural requires the headed native controller and genuine hidden visibility; --headless/--allow-visible-controller cannot qualify it.');
     H.validateUrls();
     const backendUrls = [base, engineUrl];
     if (/^https?:$/.test(new URL(controllerUrl).protocol)) backendUrls.push(controllerUrl);
@@ -43,45 +62,56 @@ async function main() {
         return response.json();
     });
     const backendBefore = await readBackend();
+    E.backendBefore = backendBefore; checkpoint('managed-engine-preflight');
     const managedPreflight = await H.ensureManagedEngine();
-    console.log('LIVE_QUEUE_ENGINE_READY', JSON.stringify({
+    E.enginePreflight = {
         pageUrl: managedPreflight.status.pageUrl,
         authState: managedPreflight.status.authState,
         browserChannel: managedPreflight.status.browserChannel,
         startedBySmoke: managedPreflight.startedBySmoke
-    }));
+    }; checkpoint('controller-launch');
 
-    const browser = await chromium.launch({ headless });
-    const context = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: 'block' });
-    const isolation = await installBackendWriteBarrier(context, backendUrls);
-    const page = await context.newPage();
+    let browser = null, context = null, isolation = null, page = null, naturalProbeInstalled = false;
+    let primaryError = null;
     let foreground = null;
     let hiddenMethod = '';
     let completed = null;
     let isolationEvidence = null;
     const pageErrors = [];
-    page.on('pageerror', (error) => pageErrors.push(String(error?.message || error)));
     // Surface silent queue skips: playQueueIndex logs "[Audioflix] Skipped <title>: <reason>" and
     // advances inside the same run, which otherwise only shows up as an index mismatch.
     const audioflixWarnings = [];
-    page.on('console', (message) => {
-        const text = message.text();
-        if (!/\[Audioflix\]/.test(text) || !['warning', 'error', 'info'].includes(message.type())) return;
-        const entry = { at: new Date().toISOString(), type: message.type(), text: text.slice(0, 400) };
-        audioflixWarnings.push(entry);
-        if (audioflixWarnings.length > 40) audioflixWarnings.shift();
-        if (/Skipped /.test(text)) console.error('LIVE_QUEUE_SKIPPED_START', JSON.stringify(entry));
-    });
-
     try {
+        if (natural) H.assert(managedPreflight.status.authState === 'signed-in', 'Natural full-duration proof requires signed-in Spotify');
+        browser = natural ? await require('../qualification/lane3-native-controller.cjs').launch() : await chromium.launch({ headless });
+        E.controllerDriver = natural ? 'headed native Chromium/raw CDP; no forced focus' : `Playwright Chromium (${headless ? 'headless' : 'headed'})`;
+        context = await browser.newContext({ viewport: { width: 1360, height: 900 }, serviceWorkers: 'block' });
+        isolation = await installBackendWriteBarrier(context, backendUrls);
+        page = await context.newPage();
+        page.on('pageerror', error => pageErrors.push(String(error?.message || error)));
+        page.on('console', message => {
+            const text = message.text();
+            if (!/\[Audioflix\]/.test(text) || !['warning', 'error', 'info'].includes(message.type())) return;
+            audioflixWarnings.push({ at: new Date().toISOString(), type: message.type(), text: text.slice(0, 400) });
+            if (audioflixWarnings.length > 40) audioflixWarnings.shift();
+        });
+        const cdp = await browser.newBrowserCDPSession();
+        const processes = await cdp.send('SystemInfo.getProcessInfo'); await cdp.detach();
+        sampler = require('../qualification/lane3-runtime-metrics.cjs').createRuntimeSampler({
+            backendPort: Number(new URL(base).port), controllerRootPids: processes.processInfo
+                .filter(item => item.type === 'browser').map(item => item.id), intervalMs: 15000,
+            maxSamples: Math.ceil(count * 1800000 / 15000) + 20 });
+        await sampler.start(mode); checkpoint('controller-hydration');
         await page.goto(controllerUrl, { waitUntil: 'load', timeout: 180000 });
         await page.waitForFunction(() => window.EveAudioflix?.ready
             && window.EveAudioflixState?.ready
             && window.EveAudioflixSpotifyAnyBrowser?.ready
-            && window.EveAudioflixDiagnostics?.ready, undefined, { timeout: 120000 });
+            && window.EveAudioflixDiagnostics?.ready
+            && window.__eveCoreDataLoaded === true, undefined, { timeout: 120000 });
         const hydration = await H.waitForControllerHydration(page);
-        console.log('LIVE_QUEUE_CONTROLLER_STABLE', JSON.stringify(hydration));
+        E.hydration = hydration;
         await isolation.proveBlocked(page);
+        if (natural) { await installNaturalProbe(page, count * 3); naturalProbeInstalled = true; }
 
         const initialQueue = await H.queueSnapshot(page);
         if (initialQueue.queue?.isPlaying) {
@@ -90,15 +120,25 @@ async function main() {
                 + 'Close competing AudioFlix playback before running the live proof.'
             );
         }
+        E.fixtureOptions = await page.evaluate(() => {
+            const q = window.EveAudioflix.queueConnection, before = q.snapshot();
+            if (before.repeatOne) q.action('repeat-one');
+            if (before.loop) q.action('loop-music-group');
+            if (before.shuffle && !before.entries.length) q.action('shuffle-music-group');
+            const after = q.snapshot();
+            return { repeatOne: after.repeatOne, loop: after.loop, shuffle: after.shuffle };
+        });
+        H.assert(Object.values(E.fixtureOptions).every(flag => flag === false), 'Disposable fixture must disable repeat, group loop, and shuffle before Play Group');
 
+        const librarySources = await page.evaluate(() => (window.EveAudioflixState?.ensure?.().music || [])
+            .map(item => ({ url: String(item.spotifyUrl || item.url || item.originalUrl || ''),
+                duration: Number(item.duration || item.resolvedDuration || (Number(item.durationMs) / 1000) || 0) })));
+        const sourceDuration = new Map(librarySources.map(item => [spotifyTrackId(item.url), item.duration]));
         let sourceTracks = [...supplied];
         if (!sourceTracks.length) {
-            sourceTracks = await page.evaluate(() => (window.EveAudioflixState?.ensure?.().music || [])
-                .map((item) => String(item.spotifyUrl || item.url || item.originalUrl || ''))
-                .filter((url) => /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)[A-Za-z0-9]{22}/i.test(url))
-                .slice(0, 8));
-            sourceTracks = sourceTracks.map(normalizeSpotify).filter(Boolean);
+            sourceTracks = librarySources.map(item => normalizeSpotify(item.url)).filter(Boolean);
         }
+        sourceTracks = [...new Set(sourceTracks)].slice(0, 8);
         if (!sourceTracks.length) {
             throw new Error('No Spotify-linked track exists in this EveOS controller state. Pass --track=<Spotify URL/ID> or --tracks=<a;b;c>.');
         }
@@ -106,6 +146,10 @@ async function main() {
         const expectedTrackIds = urls.map(spotifyTrackId);
         H.assert(expectedTrackIds.every(Boolean), `fixture contains an invalid Spotify track: ${JSON.stringify(urls)}`);
         const expectedIds = Array.from({ length: count }, (_, index) => `${fixturePrefix}${index}`);
+        E.sourceTrackCount = sourceTracks.length;
+        E.distinctSourceCount = new Set(expectedTrackIds).size;
+        E.sources = sourceTracks.map(url => ({ spotifyId: spotifyTrackId(url), duration: sourceDuration.get(spotifyTrackId(url)) || null }));
+        E.fixtureIds = expectedIds; E.expectedTrackIds = expectedTrackIds; checkpoint('fixture-start');
 
         await page.evaluate(({ tracks, group, nonce }) => {
             const S = window.EveAudioflixState;
@@ -150,15 +194,22 @@ async function main() {
         H.assert(ownerEpoch > 0, 'Spotify ownership epoch is unavailable after fixture start');
         await H.waitForTrackReady(page, 0, expectedIds, ownerEpoch, expectedTrackIds[0]);
         await H.waitForManagedPlayback(expectedTrackIds[0]);
+        const initialRun = (await H.queueSnapshot(page)).queue.playbackRunId;
+        E.ownerEpoch = ownerEpoch; E.initialRun = initialRun;
 
         const transitions = [];
         let hiddenObserved = false;
-        const backgroundAt = Math.max(2, Math.floor(count / 4));
 
         for (let index = 0; index < count; index += 1) {
+            checkpoint(`track-${index + 1}-ready`);
             const track = await H.waitForTrackReady(page, index, expectedIds, ownerEpoch, expectedTrackIds[index]);
+            const run = (await H.queueSnapshot(page)).queue.playbackRunId;
+            H.assert(run === initialRun + index, `queue run changed unexpectedly at index ${index}: ${run}`);
 
-            if (!foreground && index === backgroundAt) {
+            if (!hiddenObserved && index === backgroundAt && natural) {
+                hiddenMethod = await hideNativeController(context, page, H); hiddenObserved = true;
+                E.hidden = { method: hiddenMethod, atIndex: index, verifiedAt: new Date().toISOString() };
+            } else if (!foreground && index === backgroundAt && !natural) {
                 foreground = await context.newPage();
                 await foreground.setContent('<title>EveOS long queue foreground guard</title><p>Controller intentionally backgrounded.</p>');
                 await foreground.bringToFront();
@@ -178,12 +229,27 @@ async function main() {
                         hiddenMethod = 'minimized-window';
                     }
                     hiddenObserved = true;
-                    console.log('LIVE_QUEUE_CONTROLLER_HIDDEN', JSON.stringify({ method: hiddenMethod, atIndex: index }));
                 } catch {
                     if (!allowVisible) {
                         throw new Error('Controller tab did not become hidden. Re-run headed, or pass --allow-visible-controller for environments without real tab visibility.');
                     }
                 }
+            }
+
+            if (natural) {
+                const record = { index, expectedTrackId: expectedTrackIds[index], naturalCompleted: false,
+                    earlyCompletion: false, noManualSeek: true,
+                    reportedDuration: track.duration, sourceDuration: sourceDuration.get(expectedTrackIds[index]) || null };
+                E.tracks.push(record);
+                record.volume = await verifyCurrentVolume({ page, H, ids: expectedIds, index, ownerEpoch,
+                    expectedTrackId: expectedTrackIds[index], hidden: hiddenObserved });
+                const transition = await awaitNaturalTrack({ page, H, ids: expectedIds, index, ownerEpoch,
+                    spotifyId: expectedTrackIds[index], expectedDuration: record.sourceDuration,
+                    nextSpotifyId: expectedTrackIds[index + 1],
+                    transitionTimeout, hidden: hiddenObserved, record, checkpoint });
+                transitions.push(transition); E.transitions = transitions; checkpoint(`track-${index + 1}-completed`);
+                if (verbose) console.log(`LIVE_QUEUE_NATURAL_STEP ${index + 1}/${count} played=${transition.naturalElapsedMs}ms ${transition.to === 'complete' ? 'final' : 'handoff'}=${transition.transitionLatencyMs ?? transition.finalCompletionLatencyMs}ms hidden=${hiddenObserved}`);
+                continue;
             }
 
             const startedAt = Date.now();
@@ -221,7 +287,8 @@ async function main() {
 
             const elapsedMs = Date.now() - startedAt;
             transitions.push({ from: index, to: index < count - 1 ? index + 1 : 'complete', elapsedMs, hidden: hiddenObserved });
-            console.log(`LIVE_QUEUE_STEP ${index + 1}/${count} -> ${index < count - 1 ? index + 2 : 'complete'} ${elapsedMs}ms${hiddenObserved ? ' [controller hidden]' : ''}`);
+            E.transitions = transitions; checkpoint(`track-${index + 1}-completed`);
+            if (verbose) console.log(`LIVE_QUEUE_SEEK_STEP ${index + 1}/${count} -> ${index < count - 1 ? index + 2 : 'complete'} ${elapsedMs}ms hidden=${hiddenObserved}`);
         }
 
         const result = await page.evaluate(() => ({
@@ -237,32 +304,43 @@ async function main() {
             'status-watch did not remain active across the long queue');
         if (!allowVisible && !headless) H.assert(hiddenObserved, 'headed proof never observed a hidden controller tab');
         H.assert(pageErrors.length === 0, `controller page emitted errors: ${pageErrors.join(' | ')}`);
+        H.assert(!audioflixWarnings.some(entry => /Skipped /.test(entry.text)), 'queue skipped a fixture start');
 
-        const sorted = [...transitions].sort((a, b) => a.elapsedMs - b.elapsedMs);
+        const handoffs = transitions.filter(entry => entry.to !== 'complete');
+        const timings = handoffs.map(entry => natural ? entry.transitionLatencyMs : entry.elapsedMs).sort((a, b) => a - b);
+        const finalTransition = transitions.at(-1);
         completed = {
             ok: true,
-            tracks: count,
+            trackCount: count,
             sourceTrackCount: sourceTracks.length,
+            distinctSourceCount: new Set(expectedTrackIds).size,
+            mode, naturalCompletionClaimed: natural, seekAssisted: !natural,
             controllerUrl,
             engineUrl,
             ownerEpoch,
             hiddenControllerProved: hiddenObserved,
             hiddenMethod,
-            maxTransitionMs: Math.max(...transitions.map((entry) => entry.elapsedMs)),
-            p50TransitionMs: sorted[Math.floor(sorted.length / 2)].elapsedMs,
+            naturalElapsedMs: natural ? transitions.reduce((sum, entry) => sum + entry.naturalElapsedMs, 0) : null,
+            handoffCount: handoffs.length,
+            finalCompletionLatencyMs: natural ? finalTransition.finalCompletionLatencyMs : finalTransition.elapsedMs,
+            maxTransitionMs: Math.max(...timings),
+            p50TransitionMs: timings[Math.floor(timings.length / 2)],
+            p95TransitionMs: timings[Math.min(timings.length - 1, Math.ceil(timings.length * 0.95) - 1)],
             diagnostics: result.diagnostics.summary
         };
     } catch (error) {
+        primaryError = error; E.failurePhase = E.phase;
         const helper = await H.jsonRequest('/api/audioflix/spotify-browser/status').catch(() => null);
-        if (helper) console.error('LIVE_QUEUE_HELPER_DIAGNOSTICS', JSON.stringify({
+        if (helper) E.helperFailure = {
             state: helper.state, playingCount: helper.playingCount, mediaCount: helper.mediaCount,
             diagnostics: helper.diagnostics, transport: helper.transport
-        }));
+        };
         const diagnostics = await H.controllerDiagnostics(page).catch(() => null);
-        if (diagnostics) console.error('LIVE_QUEUE_CONTROLLER_DIAGNOSTICS', JSON.stringify(diagnostics, null, 2));
-        if (audioflixWarnings.length) console.error('LIVE_QUEUE_AUDIOFLIX_CONSOLE', JSON.stringify(audioflixWarnings, null, 2));
+        if (diagnostics) E.controllerFailure = diagnostics;
+        E.error = String(error?.stack || error); checkpoint();
         throw error;
     } finally {
+        checkpoint('controller-teardown');
         await H.disposeControllerProbe(page).catch(() => {});
         try {
             await page.evaluate(async () => {
@@ -274,21 +352,29 @@ async function main() {
                 try { await window.EveAudioflixAudio?.stopAll?.(); } catch {}
             });
         } catch {}
+        let resourceError = null;
+        if (naturalProbeInstalled) E.cleanup = await settleNaturalProbe(page, H).catch(error => { resourceError = error; return { ok: false, error: error.message }; });
         if (managedPreflight.startedBySmoke) {
             await H.jsonRequest('/api/audioflix/spotify-browser/stop', 'POST', {}).catch(() => {});
         }
         let closeError = null;
-        await browser.close().catch((error) => { closeError = error; });
+        if (browser) await browser.close().catch((error) => { closeError = error; });
+        if (sampler) E.resources = await sampler.stop();
         const backendAfter = await readBackend();
+        E.backendAfter = backendAfter;
         assertBackendAudioflixUnchanged(backendBefore, backendAfter);
-        isolationEvidence = { before: backendBefore, after: backendAfter, ...isolation.summary() };
-        if (closeError) throw closeError;
+        isolationEvidence = { before: backendBefore, after: backendAfter, ...isolation?.summary() };
+        E.isolation = isolationEvidence; E.pageErrors = pageErrors; E.warnings = audioflixWarnings; checkpoint();
+        E.teardownErrors = [closeError, resourceError].filter(Boolean).map(error => error.message);
+        if (!primaryError && (closeError || resourceError)) throw closeError || resourceError;
     }
-    console.log(JSON.stringify({ ...completed, isolation: isolationEvidence }, null, 2));
-    console.log(`AUDIOFLIX_SPOTIFY_LONG_QUEUE_LIVE_OK ${count}/${count} backend=unchanged blocked=${isolationEvidence.blockedCount}`);
+    Object.assign(E, completed, { finishedAt: new Date().toISOString(), phase: 'complete' }); evidence.write();
+    console.log(`AUDIOFLIX_SPOTIFY_LONG_QUEUE_LIVE_OK ${count}/${count} mode=${mode} sources=${completed.distinctSourceCount} hidden=${completed.hiddenControllerProved} backend=unchanged blocked=${isolationEvidence.blockedCount} artifact=${evidence.artifact}`);
 }
 
 main().catch((error) => {
-    console.error(error?.stack || error);
+    E.ok = false; E.error = String(error?.stack || error); E.finishedAt = new Date().toISOString(); evidence.write();
+    console.error(`AUDIOFLIX_SPOTIFY_LONG_QUEUE_LIVE_FAIL mode=${mode} phase=${E.failurePhase || E.phase} artifact=${evidence.artifact}`);
+    console.error(E.error.split(/\r?\n/).slice(0, 40).join('\n'));
     process.exit(1);
 });

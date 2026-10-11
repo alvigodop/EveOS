@@ -1,17 +1,35 @@
+const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const FILE_URL = 'file:///' + path.join(REPO_ROOT, 'EveOS.html').replace(/\\/g, '/');
+const ARTIFACT = path.join(REPO_ROOT, 'data', 'runtime', 'smoke-results', 'core-storage-backend.json');
+const evidence = { ok: false, phase: 'startup', scenarios: {} };
 
 async function waitForApp(page) {
-    await page.waitForFunction(() => (
-        typeof window.saveData === 'function'
-        && typeof window.saveConfig === 'function'
-        && !!window.EveCoreStorage
-        && !!document.getElementById('notes-area')
-    ), undefined, { timeout: 180000 });
-    await page.waitForTimeout(1500);
+    try {
+        await page.waitForFunction(() => (
+            typeof window.saveData === 'function'
+            && typeof window.saveConfig === 'function'
+            && !!window.EveCoreStorage
+            && !!document.getElementById('notes-area')
+            // Script/DOM availability precedes asynchronous IndexedDB hydration.
+            && window.__eveCoreDataLoaded === true
+            && window.__eveCoreDataLoading === false
+        ), undefined, { timeout: 180000 });
+    } catch (error) {
+        evidence.readinessFailure = await page.evaluate(() => ({
+            loaded: window.__eveCoreDataLoaded === true,
+            loading: window.__eveCoreDataLoading === true,
+            summary: window.__eveLastCoreDataLoadSummary || null,
+            storageStatus: window.EveCoreStorage?.getStatus?.() || null,
+            title: typeof links !== 'undefined' ? links?.[0]?.title || '' : '',
+            userName: typeof config !== 'undefined' ? config?.userName || '' : '',
+            notes: document.getElementById('notes-area')?.value || ''
+        })).catch(() => null);
+        throw error;
+    }
 }
 
 async function waitForIndexedDbKeys(page, requiredKeys, timeoutMs = 30000) {
@@ -49,7 +67,7 @@ async function runIndexedDbScenario(browser) {
         if (notesArea) notesArea.value = '';
     });
 
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
         links = [{
             id: 101,
             title: 'Alpha Link',
@@ -80,8 +98,8 @@ async function runIndexedDbScenario(browser) {
         };
         const notesArea = document.getElementById('notes-area');
         if (notesArea) notesArea.value = 'IDB notes payload';
-        saveData({ skipRender: true, skipSuggestions: true });
-        saveConfig();
+        await saveData({ immediate: true, skipRender: true, skipSuggestions: true });
+        await saveConfig();
         saveNotes();
     });
 
@@ -148,7 +166,7 @@ async function runFallbackScenario(browser) {
         if (notesArea) notesArea.value = '';
     });
 
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
         links = [{
             id: 202,
             title: 'Fallback Link',
@@ -175,8 +193,8 @@ async function runFallbackScenario(browser) {
         };
         const notesArea = document.getElementById('notes-area');
         if (notesArea) notesArea.value = 'Fallback notes payload';
-        saveData({ skipRender: true, skipSuggestions: true });
-        saveConfig();
+        await saveData({ immediate: true, skipRender: true, skipSuggestions: true });
+        await saveConfig();
         saveNotes();
     });
 
@@ -211,8 +229,13 @@ async function runFallbackScenario(browser) {
 async function main() {
     const browser = await chromium.launch({ headless: true });
     try {
+        evidence.phase = 'indexeddb';
         const indexedDbScenario = await runIndexedDbScenario(browser);
+        evidence.scenarios.indexedDbScenario = indexedDbScenario;
+        evidence.phase = 'localstorage-fallback';
         const fallbackScenario = await runFallbackScenario(browser);
+        evidence.scenarios.fallbackScenario = fallbackScenario;
+        evidence.phase = 'assertions';
 
         if (indexedDbScenario.beforeReload.storageStatus.backend !== 'indexeddb' || indexedDbScenario.beforeReload.storageStatus.degraded) {
             throw new Error(`Expected IndexedDB backend for normal scenario: ${JSON.stringify(indexedDbScenario.beforeReload.storageStatus)}`);
@@ -246,13 +269,21 @@ async function main() {
             throw new Error(`Expected localStorage fallback state to restore after reload: ${JSON.stringify(fallbackScenario.afterReload)}`);
         }
 
-        console.log(`CORE_STORAGE_BACKEND_SMOKE_OK ${JSON.stringify({ indexedDbScenario, fallbackScenario })}`);
+        evidence.ok = true;
+        evidence.phase = 'complete';
+        console.log('CORE_STORAGE_BACKEND_SMOKE_OK 2/2');
     } finally {
         await browser.close();
     }
 }
 
 main().catch((error) => {
-    console.error(error);
+    evidence.ok = false;
+    evidence.error = String(error?.stack || error);
+    console.error(`CORE_STORAGE_BACKEND_SMOKE_FAIL ${evidence.phase} artifact=${ARTIFACT}`);
+    console.error(evidence.error.split(/\r?\n/).slice(0, 40).join('\n'));
     process.exitCode = 1;
+}).finally(() => {
+    fs.mkdirSync(path.dirname(ARTIFACT), { recursive: true });
+    fs.writeFileSync(ARTIFACT, JSON.stringify(evidence, null, 2));
 });

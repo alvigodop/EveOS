@@ -249,6 +249,36 @@ post-Lane-4 qualification gate; do not merge, deploy or delete rollback branches
 
 ## Lane 3 continuation after `3c871b034`
 
+### Post-Lane-4 natural qualification
+
+The long-queue harness now has an explicit `--natural` mode. The original seek-to-tail mode
+remains a separate, seek-assisted claim. Natural mode never seeks: it requires a signed-in
+full-length provider, progress across the track, a matching durable Ended identity, and one
+canonical queue-run handoff. It supports tracks longer than six minutes and rejects previews
+and early completion. Play Group is clicked in an isolated controller; Queue View stays closed.
+
+```powershell
+npm run --silent qualify:audioflix-natural-queue -- --count=20 --background-at=1 --take-over
+npm run --silent qualify:audioflix-active-restart -- --restart --take-over
+```
+
+Both commands are opt-in and may interrupt managed Spotify only with explicit operator
+authorization. For the canonical file entrypoint, pass
+`--controller=file:///C:/path/to/EveOS/EveOS.html` to the natural harness. The active-restart
+driver covers both HTTP and file entrypoints with the real Settings confirmation control.
+Library writes are blocked and the canonical backend digest must remain unchanged.
+
+Natural evidence is saved under ignored `data/runtime/smoke-results/`, including source
+identity count, per-entry duration/progress, transition timings, observer bounds, current-item
+volume connectivity, and sampled process resources. Repeating four sources in twenty queue
+entries is twenty completed entries, not twenty distinct songs. CPU/working-set sampling
+includes qualification overhead and shared-memory accounting; it is not a universal leak-free
+or hardware-performance guarantee. A genuinely hidden controller is not a frozen controller.
+The existing frontend queue owner and documented thaw behavior remain unchanged.
+
+The deterministic natural-harness and active-restart write-policy contracts run in the normal
+playback and control-plane lanes. No signed-in live playback is added to `verify`.
+
 The first checkpoint was pushed as `3c871b034c1c614998e2491be5901714d0a323a3`.
 The following changes continue from it; they do not replace Lane-1 lifecycle or Lane-2 queue
 authority, and do not claim final live-provider acceptance.

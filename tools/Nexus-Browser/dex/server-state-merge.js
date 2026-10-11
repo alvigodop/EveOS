@@ -57,6 +57,9 @@ function mergeIdleRoom(serverRoom, clientRoom) {
   const merged = { ...client, settings: mergeSettings(serverRoom, client), ...mergeDoneWatchFields(serverRoom, client), messages, finalReceipts: serverRoom.finalReceipts || [], lastHeadsUp: serverRoom.lastHeadsUp || null, deferredRelays: serverRoom.deferredRelays || [], deferredSendReceipts: serverRoom.deferredSendReceipts || [], lateFinalWatches: serverRoom.lateFinalWatches || [], localToolResults: serverRoom.localToolResults || [], localToolResultFailure: serverRoom.localToolResultFailure || null, machineSpaces: serverRoom.machineSpaces || client.machineSpaces || null, relay: { ...(serverRoom.relay || {}) } };
   delete merged.pendingTurn;
   delete merged.recovery;
+  // Only localhost can create/correlate control intents. An idle server room
+  // has none; old UI mirrors must not resurrect one after receipt settlement.
+  delete merged.pendingProviderControlReceipt;
   return merged;
 }
 

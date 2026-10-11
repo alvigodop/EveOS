@@ -56,8 +56,6 @@ function frames(count = 450) {
     await new Promise((resolve) => setTimeout(resolve, 10));
     const betaStream = sent.find((entry) => entry.streamId?.startsWith('music:beta:'))?.streamId;
     assert(betaStream && betaStream !== alphaStream, 'successive tracks cannot share a native stream queue');
-    await controller.stop();
-
     const audioSource = fs.readFileSync(AUDIO, 'utf8');
     const directRoute = audioSource.indexOf('await routeBrowserStream');
     const captureFallback = audioSource.indexOf('await musicCapture?.start');
@@ -67,7 +65,43 @@ function frames(count = 450) {
     const completionSource = fs.readFileSync(COMPLETION, 'utf8');
     assert(uiSource.includes('EveAudioflixQueueCompletion'), 'UI routes Ended through the canonical queue completion owner');
     assert(completionSource.includes('Promise.resolve(detail.settle)'), 'queue advancement waits for the native tail handoff');
-    assert(/if \(consumed === key\) return false;/.test(completionSource), 'duplicate ended events are serialized');
+    vm.runInContext(completionSource, context, { filename: COMPLETION });
+    const queue = { entries: [{ id: 'beta' }, { id: 'gamma' }, { id: 'delta' }],
+        currentIndex: 0, playbackRunId: 1, isPlaying: true };
+    let advances = 0;
+    let advancing = Promise.resolve();
+    const complete = window.EveAudioflixQueueCompletion.create({
+        snapshot: () => queue,
+        advance: () => {
+            advances += 1;
+            queue.currentIndex += 1;
+            queue.playbackRunId += 1;
+            advancing = controller.start(player, queue.entries[queue.currentIndex].id);
+            return advancing;
+        },
+        restart: () => { throw new Error('Native queue handoff must advance, not repeat'); }
+    });
+    const settle = controller.stop({ drain: true });
+    const ended = { status: 'Ended', item: { id: 'beta' }, settle };
+    assert(complete(ended) === true, 'natural Ended claims the current native queue run');
+    assert(complete(ended) === false && complete({ ...ended }) === false,
+        'duplicate Ended objects cannot claim the same queue run');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert(advances === 0 && queue.currentIndex === 0, 'native drain holds advancement until the tail settles');
+    assert(frameTap === null && !controller.isActive(), 'ending native capture releases its frame tap');
+    await settle;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert(await advancing, 'next native capture starts after drain');
+    assert(advances === 1 && queue.currentIndex === 1, 'duplicate Ended advances exactly one slot, without skipping');
+    assert(complete(ended) === false, 'late Ended cannot advance the successor');
+    const gammaStream = controller.getStats().streamId;
+    assert(gammaStream.startsWith('music:gamma:') && gammaStream !== betaStream,
+        'queue successor owns a fresh native stream');
+    assert(stopped.length === 1, 'natural drain does not clear the native tail');
+    await controller.stop();
+    assert(stopped.length === 2 && stopped[1].itemId === gammaStream,
+        'successor cleanup targets only its exact native stream');
+    assert(frameTap === null && !controller.isActive(), 'final native capture and tap are released');
 
     console.log('AUDIOFLIX_NATIVE_HANDOFF_SMOKE_OK');
 })().catch((error) => { console.error(error); process.exit(1); });

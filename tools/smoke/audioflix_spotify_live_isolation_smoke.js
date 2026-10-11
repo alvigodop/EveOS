@@ -201,13 +201,16 @@ async function main() {
         musicGroupMap: { 'real-track': ['Real group'] }, musicGroups: ['Real group'], music: [{ url: 'https://example.test/real.mp3', title: 'Real track', id: 'real-track' }] } } }));
     assertBackendAudioflixUnchanged(evidence.before, reordered);
     const { createLongQueueHarness } = await import('./audioflix_spotify_long_queue_live_support.mjs');
-    const options = { base: BASE, engineUrl: `${BASE}/audioflix-spotify-engine.html` };
+    const options = { base: BASE, engineUrl: `${BASE}/tools/audioflix/spotify-engine.html` };
     createLongQueueHarness({ ...options, controllerUrl: `${BASE}/EveOS.html` }).validateUrls();
     createLongQueueHarness({ ...options, controllerUrl: 'file:///C:/qualification/EveOS.html' }).validateUrls();
     assert.throws(() => createLongQueueHarness({ ...options,
         controllerUrl: 'file://remote-server/share/EveOS.html' }).validateUrls(), /local controller/);
     assert.throws(() => createLongQueueHarness({ ...options,
         controllerUrl: 'https://example.com/EveOS.html' }).validateUrls(), /local controller/);
+    assert.throws(() => createLongQueueHarness({ ...options, controllerUrl: `${BASE}/EveOS.html`,
+        engineUrl: `${BASE}/audioflix-spotify-engine.html` }).validateUrls(), /Managed provider must be/,
+    'the live harness must reject the legacy root engine path');
     evidence.ok = true;
 }
 
