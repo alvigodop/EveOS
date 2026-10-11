@@ -268,6 +268,54 @@ def run():
         with reload._LOCKS["web"]:
             check(not reload.restart_service("web")["ok"], "duplicate restart was accepted")
 
+    selected_calls = []
+    unrelated_calls = []
+    selected_state = {
+        "ok": True, "running": True, "state": "running", "owned": True,
+        "pids": [301], "instanceId": "notes-old", "sourceFingerprint": "notes-old-source",
+    }
+    unrelated_state = {
+        "ok": True, "running": True, "state": "running", "owned": True,
+        "pids": [777], "instanceId": "world-book-stable", "sourceFingerprint": "world-book-source",
+    }
+
+    def selected_status(**kwargs):
+        selected_calls.append(("status", kwargs))
+        return dict(selected_state)
+
+    def selected_stop(**kwargs):
+        selected_calls.append(("stop", kwargs))
+        selected_state.update(running=False, state="stopped", pids=[])
+        return dict(selected_state)
+
+    def selected_start(**kwargs):
+        selected_calls.append(("start", kwargs))
+        selected_state.update(running=True, state="running", pids=[302],
+                              instanceId="notes-new", sourceFingerprint="notes-new-source")
+        return dict(selected_state)
+
+    def unrelated_status(**kwargs):
+        unrelated_calls.append(("status", kwargs))
+        return dict(unrelated_state)
+
+    unrelated_before = json.loads(json.dumps(unrelated_state))
+    isolation_controllers = {
+        "notes": SimpleNamespace(get_status=selected_status, _status=selected_status,
+                                 stop_server=selected_stop, start_server=selected_start),
+        "worldBook": SimpleNamespace(get_status=unrelated_status, _status=unrelated_status,
+                                     stop_server=lambda **kwargs: unrelated_calls.append(("stop", kwargs)),
+                                     start_server=lambda **kwargs: unrelated_calls.append(("start", kwargs))),
+    }
+    with patch.object(reload, "_controllers", return_value=isolation_controllers):
+        result = reload.restart_service("notes")
+    check(result["ok"] and result["serviceRestarted"], "isolated Notes restart failed")
+    check(result["previousPids"] == [301] and result["pids"] == [302],
+          "selected service did not receive a fresh process identity")
+    check(unrelated_state == unrelated_before,
+          "restarting Notes changed unrelated World Book identity or running state")
+    check(unrelated_calls == [],
+          "restarting Notes probed or mutated unrelated World Book lifecycle")
+
     with patch("server_modules.eveos_spotify_reload.restart_helper",
                return_value={"ok": True, "serviceRestarted": True, "restartStage": "verify",
                              "helperRestored": True, "playingCount": 0, "trackIds": []}) as spotify_restart:
