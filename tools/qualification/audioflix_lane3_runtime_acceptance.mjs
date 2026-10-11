@@ -26,7 +26,7 @@ const recoveryOnly = process.argv.includes('--recovery-only');
 const resultPath = path.join(OUT, recoveryOnly ? 'LAST-LANE3-RECOVERY-CLOSURE.json' : repeatProbe ? 'LAST-LANE3-REPEAT-PROBE.json' : volumeOnly ? 'LAST-LANE3-VOLUME-TRANSITION.json' : native ? 'LAST-LANE3-NATIVE-RUNTIME-ACCEPTANCE.json' : 'LAST-LANE3-RUNTIME-ACCEPTANCE.json');
 const E = { head: execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(), realSpotify: true,
     ok: false, cases: [], entries: [], timing: {}, notices: [], startedAt: new Date().toISOString() };
-const base = `http://127.0.0.1:${port}`, engineUrl = base + '/audioflix-spotify-engine.html';
+const base = `http://127.0.0.1:${port}`, engineUrl = base + '/tools/audioflix/spotify-engine.html';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const write = () => fs.writeFileSync(resultPath, JSON.stringify(E, null, 2));
 const times = (name, value) => { (E.timing[name] ||= []).push(value); };
@@ -342,7 +342,6 @@ async function detach() {
         assert.equal((await state()).queue.repeatOne, true); return awaitNaturalChange(old, true);
     });
     await record('repeat-off-full-duration-natural-queue-advance', async () => {
-        // Move current to #1 and make another existing entry #2; keep the same active playback run.
         const old = await ready(2); await page.evaluate(() => { const q = window.EveAudioflix.queueConnection;
             q.action('repeat-one'); q.move(q.snapshot().currentIndex, 0); });
         const moved = await ready(0); assert.equal(moved.queue.playbackRunId, old.queue.playbackRunId);
