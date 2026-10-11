@@ -2,7 +2,6 @@
 """Deterministic scoped service reload contract; no live processes or listeners."""
 from __future__ import annotations
 
-import io
 import json
 import sys
 import threading
@@ -33,6 +32,7 @@ def run():
         "ok": True, "running": True, "state": "running", "port": 3000,
         "owned": True, "pids": [101], "exposureMode": "local",
         "runtimeManagedRunning": False, "runtimeReady": False,
+        "instanceId": "web-old", "sourceFingerprint": "web-source-old",
     }
 
     def status(**kwargs):
@@ -46,15 +46,28 @@ def run():
 
     def start(**kwargs):
         calls.append(("start", kwargs))
-        current.update(running=True, state="running", pids=[202])
+        current.update(running=True, state="running", pids=[202],
+                       instanceId="web-new", sourceFingerprint="web-source-new")
         return dict(current)
 
     controller = SimpleNamespace(get_status=status, _status=status,
                                  stop_server=stop, start_server=start)
-    controllers = {key: controller for key in reload.SERVICE_KEYS}
-    with patch.object(reload, "_controllers", return_value=controllers):
+    controllers = {key: controller for key in reload.SERVICE_KEYS
+                   if key not in {"spotifyEngine", "localControl"}}
+    spotify_prepared = {
+        "ok": True, "helperWasRunning": True, "pageUrl": "http://127.0.0.1:3000/tools/audioflix/spotify-engine.html",
+        "authState": "signed-in", "presentation": "hidden", "desiredVolume": 0.37,
+    }
+    spotify_restored = {"ok": True, "helperRestored": True, "playingCount": 0, "trackIds": [], "autoplay": False}
+    with patch.object(reload, "_controllers", return_value=controllers), \
+            patch("server_modules.eveos_spotify_reload.prepare_web_restart", return_value=spotify_prepared) as prepare_spotify, \
+            patch("server_modules.eveos_spotify_reload.restore_helper", return_value=spotify_restored) as restore_spotify:
         result = reload.restart_service("web", web_port=3000)
         check(result["ok"] and result["serviceRestarted"], "web restart failed")
+        prepare_spotify.assert_called_once_with(3000)
+        restore_spotify.assert_called_once_with(3000, spotify_prepared)
+        check(result.get("previousInstanceId") == "web-old" and result.get("instanceId") == "web-new",
+              "web replacement did not prove fresh identity")
         check(("stop", {"persist": False, "port": 3000}) in calls,
               "web stop lost effective port or rewrote desired state")
         check(("start", {"persist": False, "port": 3000, "scoped_restart": True}) in calls,
@@ -62,7 +75,8 @@ def run():
         check(result["previousPids"] == [101] and result["pids"] == [202],
               "restart receipt omitted before/after identity")
 
-        for key in reload.SERVICE_KEYS:
+        regular_keys = [key for key in reload.SERVICE_KEYS if key not in {"spotifyEngine", "localControl"}]
+        for key in regular_keys:
             calls.clear()
             current.update(running=False, state="stopped", owned=True, exposureMode="local")
             refused = reload.restart_service(key)
@@ -116,9 +130,32 @@ def run():
             result = reload.restart_service("notes")
             check(not result["ok"] and result["restartStage"] == "start", "start failure stage missing")
 
-        check(not reload.restart_service("controlPlane")["ok"], "global coordinator restart was accepted")
         with reload._LOCKS["web"]:
             check(not reload.restart_service("web")["ok"], "duplicate restart was accepted")
+
+    with patch("server_modules.eveos_spotify_reload.restart_helper",
+               return_value={"ok": True, "serviceRestarted": True, "restartStage": "verify",
+                             "helperRestored": True, "playingCount": 0, "trackIds": []}) as spotify_restart:
+        result = reload.restart_service("spotifyEngine", web_port=3000)
+        check(result["ok"] and result["serviceRestarted"], "Spotify-only restart failed")
+        spotify_restart.assert_called_once_with(3000)
+
+    replacement_health = {
+        "ok": True, "running": True, "instanceId": "control-old", "sourceFingerprint": "control-old-source",
+    }
+    update_plan = {"componentFingerprints": {"localControl": "control-new-source"}}
+    replacement_ack = {"ok": True, "accepted": True, "controlPlaneStopping": True, "operationId": "fixture"}
+    with patch("server_modules.eveos_control_replace._health", return_value=replacement_health), \
+            patch("server_modules.eveos_update_plan.check_updates", return_value=update_plan), \
+            patch("server_modules.eveos_control_replace.request_replacement", return_value=replacement_ack) as replace:
+        result = reload.restart_service("localControl")
+        check(result["ok"] and result["controlPlaneStopping"], "Local Control handoff was not acknowledged")
+        _, kwargs = replace.call_args
+        check(kwargs.get("retire_current") is True, "Local Control replacement did not retire only after acknowledgement")
+        check(kwargs.get("expected_source_fingerprint") == "control-new-source",
+              "Local Control replacement did not verify current source")
+
+    check(not reload.restart_service("controlPlane")["ok"], "unregistered coordinator alias was accepted")
 
     captured = []
     handler = SimpleNamespace(
@@ -156,4 +193,4 @@ if __name__ == "__main__":
         print("\n".join(details.splitlines()[-40:]), file=sys.stderr)
         print(f"DIAGNOSTIC {artifact}", file=sys.stderr)
         raise SystemExit(1)
-    print("EVEOS_SERVICE_RELOAD_OK (scoped lifecycle, isolation, mode, model intent, authorization)")
+    print("EVEOS_SERVICE_RELOAD_OK (scoped lifecycle, Spotify dependency, Local Control handoff, isolation)")
