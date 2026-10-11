@@ -12,7 +12,7 @@ const ports = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/eveos-ports.jso
 const port = Number(ports?.ports?.EVEOS_WEB_PORT?.port);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Registered EVEOS_WEB_PORT required');
 const base = `http://127.0.0.1:${port}`;
-const controllerUrl = `${base}/EveOS.html`, engineUrl = `${base}/audioflix-spotify-engine.html`;
+const controllerUrl = `${base}/EveOS.html`, engineUrl = `${base}/tools/audioflix/spotify-engine.html`;
 const suffix = randomUUID(), groupName = `Lane3 recovery ${suffix}`, fixturePrefix = `lane3-recovery-${suffix}-`;
 const H = createLongQueueHarness({ base, controllerUrl, engineUrl, groupName, fixturePrefix,
     transitionTimeout: 60000, tailSeconds: 3, shouldStart: true, takeOver: process.argv.includes('--take-over') });
