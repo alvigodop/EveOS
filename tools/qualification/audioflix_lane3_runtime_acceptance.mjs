@@ -342,6 +342,7 @@ async function detach() {
         assert.equal((await state()).queue.repeatOne, true); return awaitNaturalChange(old, true);
     });
     await record('repeat-off-full-duration-natural-queue-advance', async () => {
+        // Move current to #1 and make another existing entry #2; keep the same active playback run.
         const old = await ready(2); await page.evaluate(() => { const q = window.EveAudioflix.queueConnection;
             q.action('repeat-one'); q.move(q.snapshot().currentIndex, 0); });
         const moved = await ready(0); assert.equal(moved.queue.playbackRunId, old.queue.playbackRunId);
