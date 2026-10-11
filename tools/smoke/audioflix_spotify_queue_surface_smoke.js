@@ -196,7 +196,7 @@ async function browserPhase() {
             'js/modules/features/audioflix/audioflix.audio.internal.js'), 'utf8') });
         await page.addScriptTag({ content: source });
         const loaded = page.waitForEvent('framenavigated', {
-            predicate: frame => frame.url().includes('/audioflix-spotify-engine.html')
+            predicate: frame => frame.url().includes('/tools/audioflix/spotify-engine.html')
         });
         await page.evaluate(() => window.EveAudioflixAudio.openInternalView(window.__surfaceSmoke.tracks[0]));
         await loaded;
@@ -256,7 +256,7 @@ async function browserPhase() {
         assert.equal(result.sameFrame, true, 'browser: advances preserve the original mirror frame');
         assert.ok(requests.length && requests.every(url =>
             ['http://127.0.0.1:8765/queue-surface-fixture',
-                'http://127.0.0.1:8765/audioflix-spotify-engine.html?surface=mirror'].includes(url)),
+                'http://127.0.0.1:8765/tools/audioflix/spotify-engine.html?surface=mirror'].includes(url)),
         'browser: all requests are the locally stubbed fixture or mirror');
         assert.deepEqual(errors, [], 'browser: no page or console errors');
         browserEvidence = { ...result, errors, requests };
