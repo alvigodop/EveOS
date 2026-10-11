@@ -6,7 +6,7 @@ from contextlib import nullcontext
 from datetime import datetime, timezone
 
 SERVICE_KEYS = ("web", "gemini", "worldBook", "notes", "piano", "watchFusion",
-                "bookmarkIntel", "localMoe", "nexusBrowser", "spotifyEngine")
+                "bookmarkIntel", "localMoe", "nexusBrowser", "spotifyEngine", "localControl")
 _LOCKS = {key: threading.Lock() for key in SERVICE_KEYS}
 _PERSISTED = {"web", "worldBook", "notes", "piano", "watchFusion", "bookmarkIntel"}
 
@@ -41,7 +41,39 @@ def _restart_spotify(web_port):
     if not web_port:
         return _receipt("spotifyEngine", ok=False, restartStage="preflight",
                         message="Spotify restart requires a verified EveOS web port.")
-    return _receipt("spotifyEngine", eveos_spotify_reload.restart_helper(int(web_port)))
+    result = eveos_spotify_reload.restart_helper(int(web_port))
+    return _receipt(
+        "spotifyEngine", result,
+        serviceRestarted=result.get("serviceRestarted") is True,
+        restartStage=result.get("restartStage") or "verify",
+    )
+
+
+def _restart_local_control():
+    from . import eveos_control_replace, eveos_ports, eveos_update_plan
+    port = eveos_ports.service_port("GEMINI_CONTROL_PORT")
+    current = eveos_control_replace._health(port)
+    if not current or current.get("running") is not True:
+        return _receipt("localControl", ok=False, restartStage="preflight",
+                        message="Local Control replacement requires the verified running coordinator.")
+    plan = eveos_update_plan.check_updates()
+    expected = str(plan.get("componentFingerprints", {}).get("localControl") or "")
+    accepted = eveos_control_replace.request_replacement(
+        port,
+        current_instance_id=str(current.get("instanceId") or ""),
+        current_source_fingerprint=str(current.get("sourceFingerprint") or ""),
+        expected_source_fingerprint=expected,
+        retire_current=True,
+    )
+    return _receipt(
+        "localControl", accepted,
+        ok=accepted.get("ok") is True,
+        restartStage="handoff" if accepted.get("ok") else "preflight",
+        controlPlaneStopping=accepted.get("controlPlaneStopping") is True,
+        previousInstanceId=current.get("instanceId", ""),
+        expectedSourceFingerprint=expected,
+        message=accepted.get("message") or "Local Control replacement could not be acknowledged.",
+    )
 
 
 def restart_service(service, *, web_port=None):
@@ -59,6 +91,8 @@ def restart_service(service, *, web_port=None):
     try:
         if key == "spotifyEngine":
             return _restart_spotify(web_port)
+        if key == "localControl":
+            return _restart_local_control()
 
         controller = _controllers()[key]
         # Existing controller locks also serialize their ordinary Start/Stop routes.
