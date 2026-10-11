@@ -1,10 +1,14 @@
 """Verified status contract for the canonical EveOS localhost server."""
 
-from . import eveos_exposure
+import uuid
+
+from . import eveos_exposure, eveos_update_plan
 
 
 SERVICE_NAME = "eveos-local-server"
 SERVICE_VERSION = "0.6.0"
+_INSTANCE_ID = uuid.uuid4().hex
+_SOURCE_FINGERPRINT = eveos_update_plan.baseline_status().get("componentFingerprints", {}).get("web", "")
 
 
 def _public_exposure(service: str) -> dict:
@@ -27,6 +31,8 @@ def build_status(server):
         "version": SERVICE_VERSION,
         "port": bound_port,
         "url": f"http://127.0.0.1:{bound_port}/EveOS.html",
+        "instanceId": _INSTANCE_ID,
+        "sourceFingerprint": _SOURCE_FINGERPRINT,
         # Safe, read-only exposure discovery for an EveOS page that is itself
         # being viewed remotely. Never publish PIDs, local control URLs, paths,
         # credentials, or internal diagnostics here.
