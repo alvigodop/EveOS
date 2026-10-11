@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import http.server
 import json
-import os
 import threading
 import time
 import uuid
@@ -14,7 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from urllib.request import urlopen
 
-from . import bookmark_intel_control, eveos_console_prefs, eveos_ports, eveos_web_control
+from . import bookmark_intel_control, eveos_console_control, eveos_console_prefs, eveos_ports, eveos_web_control
 from . import gemini_control, gemini_credentials, local_moe_control, matrix_window_control, nexus_browser_control
 from . import notes_control, piano_player_control, watchfusion_control, watchfusion_modes, world_book_control
 from .eveos_http_cors import eveos_cors_origin
@@ -26,8 +25,10 @@ _SERVER = None
 _INSTANCE_ID = uuid.uuid4().hex
 _SCOPED_STARTUP = False
 
+
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
 
 def _shutdown_plane_after_response(delay: float = 0.4) -> bool:
     if _SERVER is None:
@@ -35,17 +36,21 @@ def _shutdown_plane_after_response(delay: float = 0.4) -> bool:
     threading.Timer(delay, _SERVER.shutdown).start()
     return True
 
+
 def _valid_port(value) -> int | None:
     return eveos_control_requests.valid_port(value)
 
+
 def _last_launcher_port_path() -> Path:
     return _project_root() / "data" / "runtime" / "eveos-last-launcher-port.txt"
+
 
 def _read_last_launcher_port() -> int | None:
     try:
         return _valid_port(_last_launcher_port_path().read_text(encoding="utf-8").strip())
     except OSError:
         return None
+
 
 def _file_mode_discovery_candidates() -> list[int]:
     candidates = [
@@ -65,6 +70,7 @@ def _file_mode_discovery_candidates() -> list[int]:
             ordered.append(port)
     return ordered
 
+
 def _discover_file_web_port() -> int | None:
     """Find a verified EveOS web surface when file:// cannot provide an origin port.
 
@@ -79,8 +85,10 @@ def _discover_file_web_port() -> int | None:
             continue
     return None
 
+
 def _request_web_port(handler) -> int | None:
     return eveos_control_requests.request_web_port(handler, _discover_file_web_port)
+
 
 def wait_for_control(port: int, timeout: float) -> int:
     deadline = time.monotonic() + max(0.1, timeout)
@@ -103,72 +111,6 @@ def _control_identity() -> dict:
         "instanceId": _INSTANCE_ID,
         "sourceFingerprint": baseline.get("componentFingerprints", {}).get("localControl", ""),
         "scopedStartup": _SCOPED_STARTUP,
-    }
-
-
-def _console_preferences() -> dict:
-    prefs = eveos_console_prefs.read_all()
-    return {
-        "ok": True,
-        "default": prefs["default"],
-        "envForced": bool(str(os.environ.get("EVEOS_HEADLESS", "")).strip()),
-        "keepLocalControlAfterToolStop": prefs["keepLocalControlAfterToolStop"],
-        "preferencesOnly": True,
-        "services": [
-            {
-                "key": key,
-                "headless": eveos_console_prefs.headless_for(key),
-                "overridden": key in prefs["services"],
-            }
-            for key in eveos_console_prefs.KNOWN_SERVICES
-        ],
-    }
-
-
-def _console_overview(web_port=None) -> dict:
-    prefs = eveos_console_prefs.read_all()
-    services = []
-    status_specs = (
-        ("web", "EveOS localhost",
-         (lambda: eveos_web_control.get_status()) if web_port is None else (lambda: eveos_web_control.get_status(port=web_port)),
-         lambda s: [s.get("port")]),
-        ("gemini", "Gemini Live Link", gemini_control.get_status,
-         lambda s: [s.get("websocketPort"), s.get("statusPort")]),
-        ("worldBook", "World Book", world_book_control.get_status,
-         lambda s: [s.get("port")]),
-        ("notes", "EveOS Notes", notes_control.get_status,
-         lambda s: [s.get("port")]),
-        ("piano", "Piano Auto Player", piano_player_control.get_status,
-         lambda s: [s.get("port")]),
-        ("watchFusion", "WatchFusion", watchfusion_control.get_status,
-         lambda s: [s.get("port")]),
-        ("bookmarkIntel", "Bookmark Intel", bookmark_intel_control.get_status,
-         lambda s: [s.get("port")]),
-        ("localMoe", "Local MoE Harness", local_moe_control.get_status,
-         lambda s: [s.get("port"), s.get("runtimePort")]),
-        ("nexusBrowser", "Nexus Browser", nexus_browser_control.get_status, lambda s: [s.get("port")]),
-    )
-    for key, label, status_fn, ports in status_specs:
-        try:
-            status = status_fn() or {}
-        except Exception as exc:  # noqa: BLE001
-            status = {"running": False, "message": f"status unavailable: {exc}"}
-        services.append({
-            "key": key,
-            "label": label,
-            "running": status.get("running") is True,
-            "ports": [p for p in ports(status) if p],
-            "message": status.get("message") or "",
-            "headless": eveos_console_prefs.headless_for(key),
-            "overridden": key in prefs["services"],
-        })
-    return {
-        "ok": True,
-        "default": prefs["default"],
-        "envForced": bool(str(os.environ.get("EVEOS_HEADLESS", "")).strip()),
-        "keepLocalControlAfterToolStop": prefs["keepLocalControlAfterToolStop"],
-        "controlPlanePort": _SERVER.server_port if _SERVER else None,
-        "services": services,
     }
 
 
@@ -211,9 +153,6 @@ def _stop_everything(web_port=None) -> dict:
             else eveos_web_control.stop_server(port=web_port)
         )
     except Exception as exc:  # noqa: BLE001
-        # Global Stop is terminal for this coordinator. A failure in the final web-stop stage
-        # must be reported, but it must not skip the coordinator finalizer after the managed
-        # children have already been asked to stop.
         payload = {
             "ok": False,
             "controllerAvailable": True,
@@ -303,9 +242,12 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         if path == "/api/local-moe/status":
             self._send(local_moe_control.get_status())
             return
-        if path == "/api/nexus-browser/status": self._send(nexus_browser_control.get_status()); return
+        if path == "/api/nexus-browser/status":
+            self._send(nexus_browser_control.get_status())
+            return
         if path == "/api/control-plane/consoles":
-            self._send(_console_overview(_request_web_port(self)))
+            self._send(eveos_console_control.overview(
+                _request_web_port(self), control_plane_port=self.server.server_port))
             return
         if path == "/api/gemini-credentials/status":
             if not gemini_control.request_can_control(self):
@@ -398,11 +340,11 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
                 if "keepLocalControlAfterToolStop" in body:
                     eveos_console_prefs.set_keep_local_control_after_tool_stop(
                         bool(body.get("keepLocalControlAfterToolStop")))
-                    payload = _console_preferences()
+                    payload = eveos_console_control.preferences()
                     payload["message"] = "Local Control lifetime preference saved."
                 else:
                     eveos_console_prefs.set_console(body.get("service"), bool(body.get("headless")))
-                    payload = _console_preferences()
+                    payload = eveos_console_control.preferences()
                     payload["message"] = "Applies the next time that service starts."
             except ValueError as exc:
                 payload = {"ok": False, "message": str(exc)}
