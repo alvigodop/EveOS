@@ -12,9 +12,9 @@
         setup: '/api/local-moe/setup'
     };
     const PROVIDER_RELOADS = Object.freeze({
-        gemini: Object.freeze({ label: 'Gemini Link', status: '/api/gemini-server/status', stop: '/api/gemini-server/stop', start: '/api/gemini-server/start' }),
-        'local-moe': Object.freeze({ label: 'Local MoE', status: '/api/local-moe/status', stop: '/api/local-moe/stop', start: '/api/local-moe/start' }),
-        'nexus-browser': Object.freeze({ label: 'Nexus Browser', status: '/api/nexus-browser/status', stop: '/api/nexus-browser/stop', start: '/api/nexus-browser/start' })
+        gemini: Object.freeze({ label: 'Gemini Link', service: 'gemini', status: '/api/gemini-server/status' }),
+        'local-moe': Object.freeze({ label: 'Local MoE', service: 'localMoe', status: '/api/local-moe/status' }),
+        'nexus-browser': Object.freeze({ label: 'Nexus Browser', service: 'nexusBrowser', status: '/api/nexus-browser/status' })
     });
     let boundRoot = null;
     let localMoeBusy = false;
@@ -71,12 +71,12 @@
             const ownProvider = button.dataset.providerReload;
             button.disabled = !!providerReloadBusy;
             button.textContent = providerReloadBusy === ownProvider
-                ? 'Reloading…'
+                ? 'Restarting…'
                 : ownProvider === 'gemini'
-                    ? 'Reload Gemini server'
+                    ? 'Restart Gemini server'
                     : ownProvider === 'local-moe'
-                        ? 'Reload Local MoE'
-                        : 'Reload Nexus Browser';
+                        ? 'Restart Local MoE'
+                        : 'Restart Nexus Browser';
         });
     }
 
@@ -94,21 +94,12 @@
         if (workspaceActive) onGeminiOpen?.();
     }
 
-    async function setKeepLocalControlAfterToolStop(enabled) {
-        return request('/api/control-plane/consoles', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ keepLocalControlAfterToolStop: !!enabled })
-        }, 7000);
-    }
-
     async function restartProvider(provider) {
         const spec = PROVIDER_RELOADS[provider];
         if (!spec || providerReloadBusy) return null;
         providerReloadBusy = provider;
         syncReloadButtons();
-        setProviderMessage(provider, `Checking ${spec.label} before reload…`);
-        let restoreKeepAlive = false;
+        setProviderMessage(provider, `Checking ${spec.label} before restart…`);
         try {
             if (window.EveOSControlPlane?.ensureController) {
                 const ready = await window.EveOSControlPlane.ensureController();
@@ -116,26 +107,24 @@
             }
             const current = await request(spec.status, null, 8000);
             if (current?.running !== true) {
-                setProviderMessage(provider, `${spec.label} is stopped, so there is nothing to reload.`);
+                setProviderMessage(provider, `${spec.label} is stopped, so there is nothing to restart.`);
                 return current;
             }
-            const preferences = await request('/api/control-plane/consoles', null, 8000);
-            restoreKeepAlive = preferences?.keepLocalControlAfterToolStop === false;
-            if (restoreKeepAlive) await setKeepLocalControlAfterToolStop(true);
-            setProviderMessage(provider, `Reloading ${spec.label} without stopping the rest of EveOS…`);
-            await request(spec.stop, { method: 'POST' }, 40000);
-            const restarted = await request(spec.start, { method: 'POST' }, provider === 'local-moe' ? 30000 : 20000);
-            setProviderMessage(provider, `${spec.label} reloaded. Other EveOS services stayed running.`);
+            const reload = window.EveServiceReload;
+            if (typeof reload?.restart !== 'function') throw new Error('Shared EveOS restart control is unavailable.');
+            setProviderMessage(provider, `Restarting ${spec.label} without stopping the rest of EveOS…`);
+            const restarted = await reload.restart(spec.service, {
+                timeoutS: provider === 'local-moe' ? 30 : 20
+            });
+            if (restarted?.ok !== true) throw new Error(restarted?.message || `${spec.label} restart failed.`);
+            setProviderMessage(provider, `${spec.label} restarted. Other EveOS services stayed running.`);
             if (provider === 'local-moe') await refreshLocalMoe();
             if (provider === 'nexus-browser') await window.EveOSNexusBrowser?.activate?.();
             return restarted;
         } catch (error) {
-            setProviderMessage(provider, error?.message || `${spec.label} reload failed.`);
+            setProviderMessage(provider, error?.message || `${spec.label} restart failed.`);
             return null;
         } finally {
-            if (restoreKeepAlive) {
-                try { await setKeepLocalControlAfterToolStop(false); } catch {}
-            }
             providerReloadBusy = '';
             syncReloadButtons();
         }
