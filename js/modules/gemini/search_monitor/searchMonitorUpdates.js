@@ -15,6 +15,7 @@
         localControl: '/api/control-plane/health'
     });
     const PROVIDER_COMPONENT = Object.freeze({ gemini: 'gemini', 'local-moe': 'localMoe', 'nexus-browser': 'nexusBrowser' });
+    const browserProofHosts = new WeakSet();
     let plan = null;
     let busy = false;
     let restartConfirmed = false;
@@ -99,7 +100,13 @@
     }
 
     function install() {
-        for (const { toolbar, host } of roots()) ensureSurface(host, toolbar);
+        for (const { toolbar, host } of roots()) {
+            ensureSurface(host, toolbar);
+            if (sessionStorage.getItem('eveos-lane4-browser-reload-pending') === '1' && !browserProofHosts.has(host)) {
+                browserProofHosts.add(host);
+                queueMicrotask(() => closeBrowserReloadProof(host));
+            }
+        }
     }
 
     function setStage(host, stage, progress) {
@@ -163,7 +170,7 @@
         if (busy) return;
         busy = true; restartConfirmed = false; reloadConfirmed = false;
         const panel = panelFor(host); if (panel) panel.hidden = false;
-        setStage(host, 'Checking', 'Comparing current source fingerprints with the startup baseline…');
+        setStage(host, 'Checking', 'Comparing current source fingerprints with the loaded-runtime baseline…');
         try {
             const client = reloadClient();
             if (typeof client?.checkUpdates !== 'function') throw new Error('Shared EveOS update client is unavailable.');
@@ -237,11 +244,17 @@
                     throw error;
                 }
                 setStage(host, 'Verifying', `Verifying fresh ${item.label} runtime…`);
-                if (component === 'localControl') await waitForControlReplacement(receipt);
-                else if (receipt?.serviceRestarted !== true) throw new Error(receipt?.message || `${item.label} did not prove a fresh healthy runtime.`);
-                if (component !== 'localControl') await client.markApplied(component);
+                if (component === 'localControl') {
+                    await waitForControlReplacement(receipt);
+                    await client.markApplied(component);
+                } else {
+                    if (receipt?.serviceRestarted !== true) throw new Error(receipt?.message || `${item.label} did not prove a fresh healthy runtime.`);
+                    await client.markApplied(component);
+                }
             }
             restartConfirmed = false;
+            busy = false;
+            render(host, plan);
             const next = await checkUpdates(host);
             if (next) setStage(host, next.changed ? 'Review' : 'Ready', next.changed ? 'Some changes still require a separate action.' : 'Selected runtime updates are loaded and verified.');
         } catch (error) {
@@ -266,8 +279,8 @@
         try {
             const client = reloadClient();
             if (typeof client?.markApplied === 'function') await client.markApplied('browser');
-            await checkUpdates(host);
-            setStage(host, 'Ready', 'EveOS page reloaded from current browser assets.');
+            const next = await checkUpdates(host);
+            if (next) setStage(host, next.changed ? 'Review' : 'Ready', next.changed ? 'EveOS page reloaded; other component actions are still pending.' : 'EveOS page reloaded from current browser assets.');
         } catch (error) {
             setStage(host, 'Failed', error?.message || 'Page reloaded, but the browser fingerprint could not be acknowledged.');
         }
@@ -329,7 +342,6 @@
     const observer = new MutationObserver(() => install());
     observer.observe(document.documentElement, { childList: true, subtree: true });
     install();
-    queueMicrotask(() => { for (const { host } of roots()) closeBrowserReloadProof(host); });
 
     window.EveOSSearchMonitorUpdates = Object.freeze({ install, checkUpdates, applyRestarts });
 })();
