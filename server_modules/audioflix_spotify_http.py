@@ -88,6 +88,17 @@ def handle_get_request(handler, path: str, query) -> bool:
 
 
 def handle_post_request(handler, path: str) -> bool:
+    if path == "/api/audioflix/spotify-browser/prepare-restart":
+        # This route is reserved for an explicit loopback control-plane operation. Browser tabs
+        # use the broker command surface instead; a browser Origin must not gain lifecycle bypass.
+        if not _client_is_loopback(handler) or str(handler.headers.get("Origin", "")).strip():
+            _send_json(handler, {"ok": False, "reason": "Loopback service control required."}, HTTPStatus.FORBIDDEN)
+            return True
+        from server_modules import audioflix_spotify_restart
+        result = audioflix_spotify_restart.prepare_restart(_read_json(handler))
+        _send_json(handler, result, HTTPStatus.OK if result.get("ok") else HTTPStatus.BAD_REQUEST)
+        return True
+
     routes = {
         "/api/audioflix/spotify-client/connect",
         "/api/audioflix/spotify-client/pair-status",
