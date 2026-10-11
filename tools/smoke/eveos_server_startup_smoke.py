@@ -15,6 +15,8 @@ from urllib.request import urlopen
 ROOT = Path(__file__).resolve().parents[2]
 SERVER = ROOT / "server" / "eveos-server-launch.py"
 LEGACY_SERVER = ROOT / "server" / "python-server.py"
+ARTIFACT = ROOT / "data" / "runtime" / "smoke-results" / "eveos-server-startup.json"
+DIAGNOSTICS = {"ok": False, "readinessBudgetSeconds": 12, "attempts": []}
 
 
 def free_port() -> int:
@@ -76,6 +78,31 @@ def assert_not_lan_reachable(port: int) -> None:
             continue
 
 
+def stop_owned_process(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        # The venv launcher can proxy a second Python process. Stop only this
+        # still-live Popen root and its descendants, rather than a port owner.
+        result = subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
+            timeout=5, check=False,
+        )
+        DIAGNOSTICS["cleanup"] = {"rootPid": process.pid, "returnCode": result.returncode,
+                                  "output": (result.stdout or "")[-4000:]}
+        process.wait(timeout=3)
+        if result.returncode != 0:
+            raise RuntimeError("Owned server process-tree cleanup failed; inspect startup diagnostics")
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=3)
+
+
 def main() -> int:
     if not SERVER.is_file() or not LEGACY_SERVER.is_file():
         raise SystemExit("ASSERT FAILED: missing EveOS server launcher/legacy implementation")
@@ -90,55 +117,73 @@ def main() -> int:
     env["PYTHONUNBUFFERED"] = "1"
     env["EVEOS_SCOPED_RESTART"] = "1"
 
-    process = subprocess.Popen(
-        [python_executable, str(SERVER), str(port), "--host", "127.0.0.1", "--no-browser"],
-        cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
-
-    deadline = time.monotonic() + 12
-    try:
-        while time.monotonic() < deadline:
-            if process.poll() is not None:
-                output = process.stdout.read() if process.stdout else ""
-                raise SystemExit(
-                    "ASSERT FAILED: EveOS server exited before becoming ready.\n"
-                    f"Launcher Python: {python_executable}\n" + output
-                )
-            try:
-                status, body = fetch(f"http://127.0.0.1:{port}/api/status")
-                if status != 200:
-                    raise SystemExit(f"ASSERT FAILED: /api/status returned HTTP {status}")
-                payload = json.loads(body.decode("utf-8"))
-                if payload.get("service") != "eveos-local-server":
-                    raise SystemExit(f"ASSERT FAILED: wrong service identity: {payload.get('service')!r}")
-                if int(payload.get("port") or 0) != port:
-                    raise SystemExit(f"ASSERT FAILED: /api/status returned wrong port: {payload.get('port')!r}")
-
-                page_status, page = fetch(f"http://127.0.0.1:{port}/EveOS.html")
-                if page_status != 200 or b"EveOS" not in page[:20000]:
-                    raise SystemExit("ASSERT FAILED: /EveOS.html did not return EveOS content")
-
-                assert_not_lan_reachable(port)
-                print(f"EVEOS_SERVER_STARTUP_SMOKE_OK (python={python_executable}, bind=127.0.0.1)")
-                return 0
-            except (URLError, TimeoutError, ConnectionError, OSError):
-                time.sleep(0.2)
-
-        output = process.stdout.read() if process.stdout else ""
-        raise SystemExit(
-            "ASSERT FAILED: EveOS server did not become ready within 12 seconds.\n"
-            f"Launcher Python: {python_executable}\n" + output
+    ARTIFACT.parent.mkdir(parents=True, exist_ok=True)
+    log_path = ARTIFACT.with_name(f"eveos-server-startup-{time.time_ns()}.log")
+    DIAGNOSTICS.update(port=port, launcherPython=python_executable, serverLog=str(log_path))
+    started = time.monotonic()
+    with log_path.open("wb") as output:
+        process = subprocess.Popen(
+            [python_executable, str(SERVER), str(port), "--host", "127.0.0.1", "--no-browser"],
+            cwd=ROOT, env=env, stdin=subprocess.DEVNULL,
+            stdout=output, stderr=subprocess.STDOUT,
         )
-    finally:
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=3)
+        DIAGNOSTICS["rootPid"] = process.pid
+        deadline = time.monotonic() + 12
+        try:
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    raise SystemExit("ASSERT FAILED: EveOS server exited before becoming ready.")
+                try:
+                    status, body = fetch(f"http://127.0.0.1:{port}/api/status")
+                    if status != 200:
+                        raise SystemExit(f"ASSERT FAILED: /api/status returned HTTP {status}")
+                    payload = json.loads(body.decode("utf-8"))
+                    if payload.get("service") != "eveos-local-server":
+                        raise SystemExit(f"ASSERT FAILED: wrong service identity: {payload.get('service')!r}")
+                    if int(payload.get("port") or 0) != port:
+                        raise SystemExit(f"ASSERT FAILED: /api/status returned wrong port: {payload.get('port')!r}")
+                    DIAGNOSTICS["readyStatus"] = payload
+
+                    page_status, page = fetch(f"http://127.0.0.1:{port}/EveOS.html")
+                    if page_status != 200 or b"EveOS" not in page[:20000]:
+                        raise SystemExit("ASSERT FAILED: /EveOS.html did not return EveOS content")
+
+                    assert_not_lan_reachable(port)
+                    DIAGNOSTICS["ok"] = True
+                    DIAGNOSTICS["readyMs"] = round((time.monotonic() - started) * 1000)
+                    return 0
+                except (URLError, TimeoutError, ConnectionError, OSError) as exc:
+                    DIAGNOSTICS["attempts"].append({
+                        "elapsedMs": round((time.monotonic() - started) * 1000),
+                        "error": f"{type(exc).__name__}: {exc}",
+                    })
+                    time.sleep(0.2)
+
+            raise SystemExit("ASSERT FAILED: EveOS server did not become ready within 12 seconds.")
+        finally:
+            stop_owned_process(process)
+            DIAGNOSTICS["exitCode"] = process.returncode
+            DIAGNOSTICS["elapsedMs"] = round((time.monotonic() - started) * 1000)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        result = main()
+    except (Exception, SystemExit) as exc:
+        DIAGNOSTICS["ok"] = False
+        DIAGNOSTICS["failure"] = f"{type(exc).__name__}: {exc}"
+        print(f"EVEOS_SERVER_STARTUP_SMOKE_FAIL {exc}; diagnostics: {ARTIFACT}", file=sys.stderr)
+        if DIAGNOSTICS["attempts"]:
+            print(f"Last probe: {DIAGNOSTICS['attempts'][-1]['error']}", file=sys.stderr)
+        if DIAGNOSTICS.get("serverLog"):
+            with Path(DIAGNOSTICS["serverLog"]).open("rb") as output:
+                output.seek(max(0, output.seek(0, 2) - 16000))
+                print("\n".join(output.read().decode("utf-8", errors="replace").splitlines()[-35:]),
+                      file=sys.stderr)
+        raise SystemExit(1)
+    else:
+        print(f"EVEOS_SERVER_STARTUP_SMOKE_OK (python={DIAGNOSTICS['launcherPython']}, bind=127.0.0.1)")
+        raise SystemExit(result)
+    finally:
+        ARTIFACT.parent.mkdir(parents=True, exist_ok=True)
+        ARTIFACT.write_text(json.dumps(DIAGNOSTICS, indent=2), encoding="utf-8")
