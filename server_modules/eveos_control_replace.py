@@ -13,6 +13,7 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -64,9 +65,17 @@ def _health(port: int, timeout: float = 0.8) -> dict | None:
                 pass
 
 
+def _schedule_current_exit(delay: float = 0.9) -> None:
+    # The request handler still needs to serialize and flush the acknowledgement. A detached
+    # timer exits only this Local Control process afterward; it never tree-kills child services.
+    timer = threading.Timer(max(0.5, float(delay)), lambda: os._exit(0))
+    timer.daemon = True
+    timer.start()
+
+
 def request_replacement(port: int, *, current_instance_id: str, current_source_fingerprint: str,
-                        expected_source_fingerprint: str = "") -> dict:
-    """Spawn only the detached handoff worker; the caller owns post-response shutdown."""
+                        expected_source_fingerprint: str = "", retire_current: bool = False) -> dict:
+    """Spawn the detached handoff worker and optionally retire this process after the ACK."""
     try:
         port = int(port)
     except (TypeError, ValueError):
@@ -92,11 +101,12 @@ def request_replacement(port: int, *, current_instance_id: str, current_source_f
     environment["PYTHONUNBUFFERED"] = "1"
     environment["PYTHONUTF8"] = "1"
     environment["PYTHONIOENCODING"] = "utf-8"
-    flags = 0
     kwargs = {}
     if os.name == "nt":
-        flags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) | getattr(subprocess, "CREATE_NO_WINDOW", 0)
-        kwargs["creationflags"] = flags
+        kwargs["creationflags"] = (
+            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        )
     else:
         kwargs["start_new_session"] = True
     try:
@@ -106,6 +116,8 @@ def request_replacement(port: int, *, current_instance_id: str, current_source_f
         )
     except OSError as exc:
         return {"ok": False, "accepted": False, "message": f"Could not launch Local Control replacement worker: {exc}"}
+    if retire_current:
+        _schedule_current_exit()
     return {
         "ok": True,
         "accepted": True,
@@ -114,7 +126,7 @@ def request_replacement(port: int, *, current_instance_id: str, current_source_f
         "previousSourceFingerprint": current_source_fingerprint,
         "expectedSourceFingerprint": expected,
         "port": port,
-        "controlPlaneStopping": True,
+        "controlPlaneStopping": bool(retire_current),
         "message": "Local Control replacement acknowledged; the verified replacement will start after this response.",
     }
 
@@ -126,7 +138,6 @@ def _launch_replacement(port: int) -> subprocess.Popen:
     environment["PYTHONUNBUFFERED"] = "1"
     environment["PYTHONUTF8"] = "1"
     environment["PYTHONIOENCODING"] = "utf-8"
-    flags = 0
     kwargs = {}
     # Preserve the current visibility policy as closely as possible: an explicit EVEOS_HEADLESS
     # remains authoritative; otherwise the replacement gets a normal console on Windows.
