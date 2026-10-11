@@ -122,7 +122,8 @@ try {
         'Settings confirmation must dispatch exactly one existing restart handler');
 
     // WatchFusion owns Start/Stop presentation, but selective Restart must use the same shared
-    // lifecycle client and preserve all unrelated services.
+    // lifecycle client and preserve all unrelated services. Its service controller owns the
+    // effective port, so the shared route does not need a redundant port query parameter.
     await page.evaluate(() => {
         const overlay = document.createElement('section');
         overlay.id = 'watchfusion-overlay';
@@ -147,7 +148,7 @@ try {
     await page.getByRole('button', { name: 'Confirm restart WatchFusion' }).click();
     await page.waitForFunction(before => window.__reloadFixture.restartCalls.length === before + 1, beforeWatch);
     assert.deepEqual(await page.evaluate(() => window.__reloadFixture.restartCalls.at(-1)),
-        { service: 'watchFusion', port: '9087' });
+        { service: 'watchFusion', port: '' });
     await page.waitForFunction(() => /restarted and verified ready/i.test(document.querySelector('#watchfusion-overlay [data-wf-message]')?.textContent || ''));
 
     // Add the managed Spotify Internal Player surface and prove its helper-only restart is a
