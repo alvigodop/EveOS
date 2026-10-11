@@ -101,8 +101,6 @@ def _classify(relative: str) -> tuple[str, ...]:
     elif p.startswith("server/gemini-backend/"):
         components.add("gemini")
     elif p.startswith("server_modules/"):
-        # Most server_modules are imported by the web runtime. Lifecycle/control modules are
-        # additionally imported by Local Control, so shared edits truthfully require both.
         components.add("web")
         name = Path(p).name.lower()
         if name.startswith(("eveos_", "gemini_control", "notes_control", "piano_player_control",
@@ -264,32 +262,27 @@ def _build_plan(current: dict) -> dict:
 
 
 def check_updates() -> dict:
-    """Recompute fingerprints only for an explicit user-requested update check."""
     with _LOCK:
         return _build_plan(_capture())
 
 
 def baseline_status() -> dict:
-    with _LOCK:
-        return {
-            "ok": True,
-            "capturedAt": _BASELINE["capturedAt"],
-            "componentFingerprints": dict(_BASELINE["components"]),
-        }
-
-
-def startup_status() -> dict:
-    """Source actually loaded by this process, independent of the carried update baseline."""
+    """Expose loaded source separately from the carried update baseline."""
     with _LOCK:
         return {
             "ok": True,
             "capturedAt": _STARTUP_CAPTURE["capturedAt"],
             "componentFingerprints": dict(_STARTUP_CAPTURE["components"]),
+            "baselineAt": _BASELINE["capturedAt"],
+            "baselineFingerprints": dict(_BASELINE["components"]),
         }
 
 
+def startup_status() -> dict:
+    return baseline_status()
+
+
 def mark_applied(components) -> dict:
-    """Advance only components whose replacement/reload has been positively verified."""
     wanted = {str(value) for value in (components or []) if str(value) in _COMPONENT_ACTIONS}
     with _LOCK:
         current = _capture()
