@@ -23,6 +23,10 @@ def check(condition, message):
 def run():
     from server_modules import eveos_control_helper as helper
     from server_modules import eveos_service_reload as reload
+    from server_modules import gemini_control
+
+    check(isinstance(gemini_control._LOCK, type(threading.RLock())),
+          "Gemini lifecycle must expose the shared re-entrant controller lock")
 
     calls = []
     current = {
@@ -53,8 +57,8 @@ def run():
         check(result["ok"] and result["serviceRestarted"], "web restart failed")
         check(("stop", {"persist": False, "port": 3000}) in calls,
               "web stop lost effective port or rewrote desired state")
-        check(("start", {"persist": False, "port": 3000}) in calls,
-              "web start lost effective port or rewrote desired state")
+        check(("start", {"persist": False, "port": 3000, "scoped_restart": True}) in calls,
+              "web start did not preserve its port or suppress unrelated boot restoration")
         check(result["previousPids"] == [101] and result["pids"] == [202],
               "restart receipt omitted before/after identity")
 
