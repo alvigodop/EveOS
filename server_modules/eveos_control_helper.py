@@ -8,6 +8,7 @@ import json
 import os
 import threading
 import time
+import uuid
 from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -17,27 +18,35 @@ from . import bookmark_intel_control, eveos_console_prefs, eveos_ports, eveos_we
 from . import gemini_control, gemini_credentials, local_moe_control, matrix_window_control, nexus_browser_control
 from . import notes_control, piano_player_control, watchfusion_control, watchfusion_modes, world_book_control
 from .eveos_http_cors import eveos_cors_origin
-from . import eveos_control_requests, eveos_service_reload
+from . import eveos_control_requests, eveos_service_reload, eveos_update_plan
 
 DEFAULT_PORT = eveos_ports.service_port("GEMINI_CONTROL_PORT")
 MAIN_LAUNCHER_PORT = 3000
 _SERVER = None
+_INSTANCE_ID = uuid.uuid4().hex
+_SCOPED_STARTUP = False
+
 def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
 def _shutdown_plane_after_response(delay: float = 0.4) -> bool:
     if _SERVER is None:
         return False
     threading.Timer(delay, _SERVER.shutdown).start()
     return True
+
 def _valid_port(value) -> int | None:
     return eveos_control_requests.valid_port(value)
+
 def _last_launcher_port_path() -> Path:
     return _project_root() / "data" / "runtime" / "eveos-last-launcher-port.txt"
+
 def _read_last_launcher_port() -> int | None:
     try:
         return _valid_port(_last_launcher_port_path().read_text(encoding="utf-8").strip())
     except OSError:
         return None
+
 def _file_mode_discovery_candidates() -> list[int]:
     candidates = [
         _read_last_launcher_port(),
@@ -55,6 +64,7 @@ def _file_mode_discovery_candidates() -> list[int]:
         if port is not None and port not in ordered:
             ordered.append(port)
     return ordered
+
 def _discover_file_web_port() -> int | None:
     """Find a verified EveOS web surface when file:// cannot provide an origin port.
 
@@ -68,8 +78,10 @@ def _discover_file_web_port() -> int | None:
         except Exception:  # noqa: BLE001
             continue
     return None
+
 def _request_web_port(handler) -> int | None:
     return eveos_control_requests.request_web_port(handler, _discover_file_web_port)
+
 def wait_for_control(port: int, timeout: float) -> int:
     deadline = time.monotonic() + max(0.1, timeout)
     url = f"http://127.0.0.1:{port}/api/control-plane/health"
@@ -83,6 +95,15 @@ def wait_for_control(port: int, timeout: float) -> int:
             pass
         time.sleep(0.2)
     return 1
+
+
+def _control_identity() -> dict:
+    baseline = eveos_update_plan.baseline_status()
+    return {
+        "instanceId": _INSTANCE_ID,
+        "sourceFingerprint": baseline.get("componentFingerprints", {}).get("localControl", ""),
+        "scopedStartup": _SCOPED_STARTUP,
+    }
 
 
 def _console_preferences() -> dict:
@@ -233,6 +254,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
                 "state": "running",
                 "running": True,
                 "port": self.server.server_port,
+                **_control_identity(),
             })
             return
 
@@ -248,7 +270,11 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
                 "port": self.server.server_port,
                 "web": web,
                 "message": "EveOS local control is ready.",
+                **_control_identity(),
             })
+            return
+        if path == "/api/services/updates/status":
+            self._send(eveos_update_plan.baseline_status())
             return
         if path == "/api/eveos-server/status":
             self._send(eveos_web_control.get_status(port=_request_web_port(self)))
@@ -302,6 +328,7 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
             "/api/local-moe/start", "/api/local-moe/stop", "/api/local-moe/launch", "/api/local-moe/setup",
             "/api/nexus-browser/start", "/api/nexus-browser/stop", "/api/nexus-browser/setup", "/api/nexus-browser/extension",
             "/api/gemini-credentials", "/api/control-plane/consoles", "/api/matrix-window/control", "/api/services/restart",
+            "/api/services/updates/check", "/api/services/updates/applied",
         }
         if path in controlled_paths and not (gemini_control.request_can_control(self)
                 or eveos_control_requests.can_start_bridge_service(self, path)):
@@ -317,6 +344,9 @@ class EveOSControlHandler(http.server.BaseHTTPRequestHandler):
         actions = {
             "/api/services/restart": lambda: eveos_service_reload.restart_service(
                 (gemini_credentials.read_json_body(self) or {}).get("service"), web_port=_request_web_port(self)),
+            "/api/services/updates/check": eveos_update_plan.check_updates,
+            "/api/services/updates/applied": lambda: eveos_update_plan.mark_applied(
+                (gemini_credentials.read_json_body(self) or {}).get("components", [])),
             "/api/eveos-server/start": lambda: eveos_web_control.start_server(port=_request_web_port(self)),
             "/api/eveos-server/stop": lambda: _stop_everything(_request_web_port(self)),
             "/api/eveos-server/stop-web": lambda: _stop_tool(
@@ -411,10 +441,13 @@ def main() -> int:
     parser.add_argument("port", nargs="?", type=int, default=DEFAULT_PORT)
     parser.add_argument("--probe", action="store_true", help="Wait for a verified control plane and exit")
     parser.add_argument("--timeout", type=float, default=30.0, help="Probe timeout in seconds")
+    parser.add_argument("--scoped-restart", action="store_true",
+                        help="Start Local Control without restoring unrelated desired child services")
     args = parser.parse_args()
     if args.probe:
         return wait_for_control(args.port, args.timeout)
-    global _SERVER
+    global _SERVER, _SCOPED_STARTUP
+    _SCOPED_STARTUP = bool(args.scoped_restart)
     server = EveOSControlServer(("127.0.0.1", args.port), EveOSControlHandler)
     _SERVER = server
     print("[OK] EveOS local control plane")
@@ -422,13 +455,16 @@ def main() -> int:
           " (set EVEOS_HEADLESS=1 to hide spawned servers)")
     print(f"  Control: http://127.0.0.1:{args.port}/api/control-plane/status")
     print("  Manages EveOS localhost, Notes, Gemini, Local MoE, Nexus Browser, World Book, Piano, WatchFusion, and Bookmark Intel independently.")
+    if _SCOPED_STARTUP:
+        print("  Scoped restart: child desired-state restoration suppressed")
     print("  Press Ctrl+C to stop the control plane")
-    eveos_web_control.restore_desired_state_async()
-    world_book_control.restore_desired_state_async()
-    notes_control.restore_desired_state_async()
-    piano_player_control.restore_desired_state_async()
-    watchfusion_control.restore_desired_state_async()
-    bookmark_intel_control.restore_desired_state_async()
+    if not _SCOPED_STARTUP:
+        eveos_web_control.restore_desired_state_async()
+        world_book_control.restore_desired_state_async()
+        notes_control.restore_desired_state_async()
+        piano_player_control.restore_desired_state_async()
+        watchfusion_control.restore_desired_state_async()
+        bookmark_intel_control.restore_desired_state_async()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
