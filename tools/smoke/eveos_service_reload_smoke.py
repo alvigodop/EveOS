@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Deterministic scoped service reload contract; no live processes or listeners."""
+"""Deterministic scoped service reload/update contracts; no live processes or listeners."""
 from __future__ import annotations
 
 import json
 import sys
+import tempfile
 import threading
 import traceback
 from pathlib import Path
@@ -17,6 +18,133 @@ sys.path.insert(0, str(ROOT))
 def check(condition, message):
     if not condition:
         raise AssertionError(message)
+
+
+def action_map(plan):
+    return {item["component"]: item["action"] for item in plan.get("actions", [])}
+
+
+def planner_contract():
+    from server_modules import eveos_update_plan as updates
+
+    old_baseline = updates._BASELINE
+    old_startup = updates._STARTUP_CAPTURE
+    try:
+        with tempfile.TemporaryDirectory(prefix="eveos-update-plan-") as temporary:
+            root = Path(temporary)
+            fixtures = {
+                "EveOS.html": "<!doctype html><title>EveOS</title>",
+                "js/runtime.js": "window.fixture = 1;",
+                "server/python-server.py": "print('web')",
+                "server_modules/eveos_control_helper.py": "CONTROL = 1",
+                "server_modules/eveos_server_status.py": "WEB_STATUS = 1",
+                "tools/audioflix/spotify-engine.html": "<title>Spotify engine</title>",
+                "config/unknown.json": "{}",
+                "docs/readme.md": "docs",
+                "tests/example.js": "tests",
+            }
+            for relative, content in fixtures.items():
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+
+            with patch.object(updates, "_root", return_value=root):
+                def reset_baseline():
+                    captured = updates._capture()
+                    updates._STARTUP_CAPTURE = json.loads(json.dumps(captured))
+                    updates._BASELINE = json.loads(json.dumps(captured))
+                    updates._persist_baseline()
+                    return captured
+
+                reset_baseline()
+                check(not updates.check_updates()["changed"], "clean fingerprint baseline reports changes")
+
+                (root / "js/runtime.js").write_text("window.fixture = 2;", encoding="utf-8")
+                plan = updates.check_updates()
+                check(action_map(plan) == {"browser": "reloadPage"}, "browser source did not map only to page reload")
+
+                reset_baseline()
+                (root / "server_modules/eveos_control_helper.py").write_text("CONTROL = 2", encoding="utf-8")
+                plan = updates.check_updates()
+                check(action_map(plan) == {"localControl": "replaceControlPlane"},
+                      "control-only source incorrectly required web replacement")
+
+                reset_baseline()
+                (root / "server_modules/eveos_server_status.py").write_text("WEB_STATUS = 2", encoding="utf-8")
+                check(action_map(updates.check_updates()) == {"web": "restartService"},
+                      "web-only status source did not map only to web")
+
+                reset_baseline()
+                (root / "tools/audioflix/spotify-engine.html").write_text("<title>Spotify engine 2</title>", encoding="utf-8")
+                check(action_map(updates.check_updates()) == {"spotifyEngine": "restartSpotify"},
+                      "Spotify engine source did not map to helper-only restart")
+
+                reset_baseline()
+                (root / "config/unknown.json").write_text('{"changed":true}', encoding="utf-8")
+                plan = updates.check_updates()
+                check(plan["reviewRequired"] and action_map(plan) == {"review": "reviewRequired"},
+                      "unknown runtime mapping was silently treated as current")
+
+                reset_baseline()
+                (root / "docs/readme.md").write_text("docs changed", encoding="utf-8")
+                (root / "tests/example.js").write_text("tests changed", encoding="utf-8")
+                check(not updates.check_updates()["changed"], "documentation/tests triggered a runtime reload")
+
+                reset_baseline()
+                carried = json.loads(json.dumps(updates._BASELINE))
+                (root / "js/runtime.js").write_text("window.fixture = 3;", encoding="utf-8")
+                (root / "server_modules/eveos_control_helper.py").write_text("CONTROL = 3", encoding="utf-8")
+                current = updates._capture()
+                updates._STARTUP_CAPTURE = json.loads(json.dumps(current))
+                updates._BASELINE = carried
+                updates._persist_baseline()
+                preserved = updates._load_preserved_baseline()
+                check(preserved and preserved["components"] == carried["components"],
+                      "scoped control replacement could not carry the prior update baseline")
+                before_apply = action_map(updates.check_updates())
+                check(before_apply.get("browser") == "reloadPage" and before_apply.get("localControl") == "replaceControlPlane",
+                      "carried baseline lost pending browser/control actions")
+                updates.mark_applied(["localControl"])
+                after_apply = action_map(updates.check_updates())
+                check("localControl" not in after_apply and after_apply.get("browser") == "reloadPage",
+                      "applying Local Control incorrectly erased a pending browser reload")
+                loaded = updates.baseline_status()
+                check(loaded["componentFingerprints"]["localControl"] == current["components"]["localControl"],
+                      "loaded Local Control source fingerprint was confused with the carried baseline")
+    finally:
+        updates._BASELINE = old_baseline
+        updates._STARTUP_CAPTURE = old_startup
+
+
+def source_contracts():
+    ai_home = (ROOT / "js/modules/gemini/search_monitor/searchMonitorAiHome.js").read_text(encoding="utf-8")
+    updates_ui = (ROOT / "js/modules/gemini/search_monitor/searchMonitorUpdates.js").read_text(encoding="utf-8")
+    shared_client = (ROOT / "js/modules/core/eveos-service-reload.js").read_text(encoding="utf-8")
+    manifest = (ROOT / "js/config/manifest/scripts.parts/13-gemini.js").read_text(encoding="utf-8")
+    control = (ROOT / "server_modules/eveos_control_helper.py").read_text(encoding="utf-8")
+    spotify = (ROOT / "server_modules/audioflix_spotify_restart.py").read_text(encoding="utf-8")
+
+    check("window.EveOSServiceReload" in ai_home and "window.EveServiceReload" not in ai_home,
+          "Search Monitor AI Home is not using the canonical shared restart client")
+    check("keepLocalControlAfterToolStop" not in ai_home,
+          "Search Monitor still mutates the global Local Control lifetime preference")
+    check("singleFlight" in shared_client and "checkUpdates" in shared_client and "markApplied" in shared_client,
+          "shared restart client lacks duplicate suppression or update APIs")
+    for text in ("Check updates", "Confirm selected restarts", "Confirm EveOS page reload",
+                 "Checking", "Stopping", "Starting", "Verifying", "Ready", "Failed",
+                 "waitForControlReplacement", "unsaved in-page edits"):
+        check(text in updates_ui, f"Search Monitor update workflow lost required UI contract: {text}")
+    check("setInterval(" not in updates_ui, "update planner introduced continuous polling")
+    check("sessionStorage.setItem('eveos-lane4-browser-reload-pending'" in updates_ui
+          and "browserProofHosts" in updates_ui,
+          "browser reload proof does not survive delayed Search Monitor mounting")
+    check(manifest.index("searchMonitorAiHome.js") < manifest.index("searchMonitorUpdates.js")
+          < manifest.index("gemini-init.js"), "Search Monitor update workflow is not loaded in dependency order")
+    check("--scoped-restart" in control and "if not _SCOPED_STARTUP" in control,
+          "Local Control replacement can still restore unrelated stopped children")
+    check("engine.transport({\"action\": \"stop\"})" in spotify
+          and '"autoplayRequested": False' in spotify and '"endedManufactured": False' in spotify,
+          "Spotify web-restart teardown lost explicit stop/no-autoplay/no-Ended contract")
 
 
 def run():
@@ -59,7 +187,9 @@ def run():
         "authState": "signed-in", "presentation": "hidden", "desiredVolume": 0.37,
     }
     spotify_restored = {"ok": True, "helperRestored": True, "playingCount": 0, "trackIds": [], "autoplay": False}
+    web_plan = {"componentFingerprints": {"web": "web-source-new"}}
     with patch.object(reload, "_controllers", return_value=controllers), \
+            patch("server_modules.eveos_update_plan.check_updates", return_value=web_plan), \
             patch("server_modules.eveos_spotify_reload.prepare_web_restart", return_value=spotify_prepared) as prepare_spotify, \
             patch("server_modules.eveos_spotify_reload.restore_helper", return_value=spotify_restored) as restore_spotify:
         result = reload.restart_service("web", web_port=3000)
@@ -68,6 +198,8 @@ def run():
         restore_spotify.assert_called_once_with(3000, spotify_prepared)
         check(result.get("previousInstanceId") == "web-old" and result.get("instanceId") == "web-new",
               "web replacement did not prove fresh identity")
+        check(result.get("sourceFingerprint") == result.get("expectedSourceFingerprint") == "web-source-new",
+              "web replacement accepted a stale source fingerprint")
         check(("stop", {"persist": False, "port": 3000}) in calls,
               "web stop lost effective port or rewrote desired state")
         check(("start", {"persist": False, "port": 3000, "scoped_restart": True}) in calls,
@@ -179,6 +311,9 @@ def run():
         invoke.assert_called_once_with("web", web_port=3000)
         check(captured[-1][1] == 200, "authorized restart failed")
 
+    planner_contract()
+    source_contracts()
+
 
 if __name__ == "__main__":
     try:
@@ -193,4 +328,4 @@ if __name__ == "__main__":
         print("\n".join(details.splitlines()[-40:]), file=sys.stderr)
         print(f"DIAGNOSTIC {artifact}", file=sys.stderr)
         raise SystemExit(1)
-    print("EVEOS_SERVICE_RELOAD_OK (scoped lifecycle, Spotify dependency, Local Control handoff, isolation)")
+    print("EVEOS_SERVICE_RELOAD_OK (lifecycle, update planning, Spotify dependency, control handoff, UI contracts)")
