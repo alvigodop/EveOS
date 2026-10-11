@@ -7,6 +7,7 @@ intentionally not a Git-SHA monitor: uncommitted source changes must be visible 
 from __future__ import annotations
 
 import hashlib
+import os
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -28,8 +29,12 @@ _COMPONENT_ACTIONS = {
     "review": ("reviewRequired", "Review required"),
 }
 
+_SCAN_ROOTS = ("js", "server", "server_modules", "config", "tools")
 _IGNORED_TOP_LEVEL = {".git", ".github", "data", "docs", "node_modules", "tests"}
-_IGNORED_PARTS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "venv"}
+_IGNORED_PARTS = {
+    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "venv",
+    "node_modules", "dist", "build", ".cache",
+}
 _SOURCE_SUFFIXES = {".py", ".js", ".mjs", ".cjs", ".css", ".html", ".json", ".ps1", ".bat", ".cmd"}
 _LOCK = threading.RLock()
 
@@ -122,7 +127,7 @@ def _classify(relative: str) -> tuple[str, ...]:
         components.add("review")
     if p.startswith("tools/") and not components:
         components.add("review")
-    if not components and p not in {"package.json", "package-lock.json"}:
+    if not components:
         components.add("review")
     return tuple(sorted(components))
 
@@ -135,11 +140,26 @@ def _file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _iter_source_paths(root: Path):
+    for filename in ("EveOS.html", "package.json", "package-lock.json", "start-server.bat"):
+        candidate = root / filename
+        if candidate.is_file():
+            yield candidate
+    for root_name in _SCAN_ROOTS:
+        base = root / root_name
+        if not base.is_dir():
+            continue
+        for directory, dirnames, filenames in os.walk(base):
+            dirnames[:] = sorted(name for name in dirnames if name not in _IGNORED_PARTS)
+            for filename in sorted(filenames):
+                yield Path(directory) / filename
+
+
 def _capture() -> dict:
     root = _root()
     files: dict[str, dict] = {}
-    component_hashes: dict[str, hashlib._Hash] = {key: hashlib.sha256() for key in _COMPONENT_ACTIONS}
-    for path in sorted(root.rglob("*")):
+    component_hashes = {key: hashlib.sha256() for key in _COMPONENT_ACTIONS}
+    for path in _iter_source_paths(root):
         try:
             relative = path.relative_to(root).as_posix()
         except ValueError:
@@ -147,8 +167,6 @@ def _capture() -> dict:
         if not _is_source(path, relative):
             continue
         components = _classify(relative)
-        if not components:
-            continue
         digest = _file_digest(path)
         files[relative] = {"digest": digest, "components": components}
         for component in components:
