@@ -215,6 +215,8 @@ def stop_server(*, persist: bool = True) -> dict:
 
 
 def restore_desired_state_async() -> None:
+    if os.environ.get("EVEOS_SCOPED_RESTART") == "1":
+        return
     if _read_desired_state():
         threading.Thread(target=lambda: start_server(persist=False), name="eveos-bookmark-intel-restore", daemon=True).start()
 
