@@ -271,7 +271,7 @@ class SpotifyClientBroker:
             self._expire_locked()
             client = self._authorized_client_locked(payload.get("clientToken"))
             if not client:
-                return {"ok": False, "reason": "Spotify client authorization is missing or expired."}
+                return {"ok": False, "authorizationExpired": True, "reason": "Spotify client authorization is missing or expired."}
             command = payload.get("command") if isinstance(payload.get("command"), dict) else {}
             action = _safe(command.get("action"), 40).lower()
             connection_id = _safe(command.get("connectionId"), 120)
@@ -357,7 +357,7 @@ class SpotifyClientBroker:
             with self._lock:
                 client = self._clients.get(client_id)
                 if not client:
-                    return {"ok": False, "reason": "Spotify client expired."}
+                    return {"ok": False, "authorizationExpired": True, "reason": "Spotify client expired."}
                 self._acquire_locked(client)
             return self._state(client_id)
         if action == "engine-presentation":
@@ -386,7 +386,7 @@ class SpotifyClientBroker:
                     return dict(preemption.SUPERSEDED_RESULT)
                 client = self._clients.get(client_id)
                 if not client:
-                    return {"ok": False, "reason": "Spotify client expired."}
+                    return {"ok": False, "authorizationExpired": True, "reason": "Spotify client expired."}
                 self._acquire_locked(client)
                 self._track_generation += 1
                 generation = self._track_generation

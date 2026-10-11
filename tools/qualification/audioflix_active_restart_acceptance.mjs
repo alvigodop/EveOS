@@ -55,6 +55,7 @@ async function until(check, milliseconds = 90000) {
 }
 async function pointer(selector) {
     const button = page.locator(selector);
+    await button.waitFor({ state: 'visible' });
     assert.equal(await button.count(), 1, `Expected one real production control: ${selector}`);
     await button.scrollIntoViewIfNeeded();
     const bounds = await button.evaluate(element => {
@@ -208,9 +209,11 @@ async function qualify(mode) {
     do {
         const [helper, controller] = await Promise.all([request(base + '/api/audioflix/spotify-browser/status'), controllerState()]);
         idleHelper(helper, engineUrl); stoppedController(controller, fixture);
-        const broker = await page.evaluate(() => window.EveAudioflixSpotifyRemote.status());
-        assert.equal(broker.ok, true); assert.equal(broker.isOwner, false); assert.equal(broker.ownerClientId, '');
-        E.current.idleSamples.push({ at: new Date().toISOString(), helper, controller, brokerOwnerReleased: true });
+        // Observation must not reconnect/re-authorize a retired file-tab grant merely to inspect it.
+        const relay = await page.evaluate(() => window.EveAudioflixSpotifyRemote.snapshot());
+        assert.equal(relay.connected, false); assert.equal(relay.connecting, false);
+        assert.equal(relay.approvalRequired, false); assert.equal(relay.lastState, null);
+        E.current.idleSamples.push({ at: new Date().toISOString(), helper, controller, clientGrantRetired: true });
         await sleep(500);
     } while (Date.now() - idleStarted < 5000);
     const after = await snapshot(); preserve(before, after, webPort);

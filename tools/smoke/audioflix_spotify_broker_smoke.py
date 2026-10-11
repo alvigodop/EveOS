@@ -111,6 +111,25 @@ local = broker.connect({
 }, context)
 assert local["ok"] and local["connected"] and local["clientToken"]
 assert local.get("connectionId"), "reload cleanup requires a relay-scoped connection lease"
+assert "authorizationExpired" not in local
+
+# Missing, unknown, and pre-restart tokens are definite capability loss, not transport failure.
+for invalid in ({}, {"clientToken": "unknown"}):
+    denied = broker.command(invalid, context)
+    assert denied.get("ok") is False and denied.get("authorizationExpired") is True, \
+        "invalid command capability must explicitly report authorization expiry"
+replaced_broker = mod.SpotifyClientBroker()
+restarted = replaced_broker.command({"clientToken": local["clientToken"]}, context)
+assert restarted.get("ok") is False and restarted.get("authorizationExpired") is True, \
+    "server replacement must reject the previous broker's capability as expired"
+expired_broker = mod.SpotifyClientBroker()
+expired_grant = expired_broker.connect({
+    "mode": "localhost", "parentOrigin": context["serverOrigin"], "documentId": "expired-doc",
+}, context)
+expired_broker._clients[expired_grant["clientId"]]["expiresAt"] = mod._now() - 1
+expired = expired_broker.command({"clientToken": expired_grant["clientToken"]}, context)
+assert expired.get("ok") is False and expired.get("authorizationExpired") is True, \
+    "expired broker capability must explicitly report authorization expiry"
 assert not broker.connect({
     "mode": "localhost", "parentOrigin": "http://127.0.0.1:9999", "documentId": "bad"
 }, context)["ok"]
@@ -161,6 +180,7 @@ play = command(local, "play", {
     "duration": 180, "effectiveVolume": 0.25,
 })
 assert play["ok"] and play["isOwner"] and play["engine"]["status"] == "playing"
+assert "authorizationExpired" not in play
 assert play["managed"]["presentation"] == "hidden"
 load_index = next(i for i, call in enumerate(fake.calls) if call[0] == "transport" and call[1].get("action") == "load")
 volume_index = next(i for i, call in enumerate(fake.calls) if call[0] == "volume")
@@ -171,6 +191,7 @@ assert fake.calls[volume_index][1] == 0.25
 # Observer commands cannot race the current owner. Explicit Play transfers ownership.
 observer_pause = command(file_grant, "pause")
 assert observer_pause["ok"] is False and observer_pause["observer"] is True
+assert "authorizationExpired" not in observer_pause, "observer rejection is not capability expiry"
 file_play = command(file_grant, "play", {
     "spotifyId": "1WZGaNYzreZrvteuUEfp8X", "effectiveVolume": 0.5,
 })
@@ -279,7 +300,8 @@ assert public["engineEpoch"] >= 1 and public["ownerEpoch"] >= 1 and public["trac
 # the old transport high-water mark and never shuts down the saved-profile browser.
 observer_detach = command(local, "detach")
 assert observer_detach["ok"] and fake.state["status"] == "playing"
-assert not command(local, "play", {"spotifyId": "4cOdK2wGLETKBW3PvgPWqT"})["ok"]
+closed = command(local, "play", {"spotifyId": "4cOdK2wGLETKBW3PvgPWqT"})
+assert not closed["ok"] and "authorizationExpired" not in closed, "closed lease is not token expiry"
 def detach_request(grant, command_id):
     return {"clientToken": grant["clientToken"], "command": {
         "action": "detach", "connectionId": grant["connectionId"],
@@ -299,7 +321,9 @@ assert replacement["clientId"] == file_grant["clientId"]
 assert replacement["sequenceBase"] > 0
 assert replacement["sequenceBase"] == max(broker._clients[replacement["clientId"]][key] for key in ("seq", "jobSeq"))
 assert command(replacement, "play", {"spotifyId": "4cOdK2wGLETKBW3PvgPWqT"})["ok"]
-assert not broker.command(detach_request(file_grant, "late-old-page"), context)["ok"]
+superseded = broker.command(detach_request(file_grant, "late-old-page"), context)
+assert not superseded["ok"] and "authorizationExpired" not in superseded, \
+    "replaced connection lease is not token expiry"
 assert fake.state["status"] == "playing"
 reloaded_again = broker.connect(file_connect, context)
 assert reloaded_again["connected"] and fake.state["status"] == "stopped"
@@ -325,11 +349,26 @@ assert queued_result.get("disconnected") and fake.state["status"] == "stopped"
 retry_grant = broker.connect(file_connect, context)
 assert command(retry_grant, "play", {"spotifyId": "4cOdK2wGLETKBW3PvgPWqT"})["ok"]
 transport = mod.engine.transport
+def unavailable_transport(_payload):
+    raise ConnectionError("fixture transient transport failure")
+
+mod.engine.transport = unavailable_transport
+try:
+    transient = command(retry_grant, "pause")
+    assert not transient["ok"] and "fixture transient transport failure" in transient["reason"]
+    assert "authorizationExpired" not in transient, "transport exception is not capability expiry"
+finally:
+    mod.engine.transport = transport
+
 mod.engine.transport = lambda payload: ({"ok": False, "reason": "fixture stop failure"}
                                        if payload.get("action") == "stop" else transport(payload))
 try:
+    provider_failure = command(retry_grant, "stop")
+    assert not provider_failure["ok"] and "authorizationExpired" not in provider_failure, \
+        "ordinary provider command failure must not retire valid authorization"
     failed_reset = broker.connect(file_connect, context)
     assert not failed_reset["ok"] and "fixture stop failure" in failed_reset["reason"]
+    assert "authorizationExpired" not in failed_reset
     assert broker._owner_client_id == retry_grant["clientId"]
     assert broker._clients[retry_grant["clientId"]]["connectionId"] == retry_grant["connectionId"]
 finally:

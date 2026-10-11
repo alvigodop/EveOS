@@ -222,6 +222,11 @@ window.EveAudioflixSpotifyRemote = window.EveAudioflixSpotifyRemote || {};
             pending.delete(String(message.requestId || ''));
             clearTimeout(entry.timer);
             const result = message.result || {};
+            if (result.ok === false && result.authorizationExpired === true) {
+                entry.resolve(result);
+                if (entry.clientId === state.clientId) disconnect(); // Only retire the rejected grant.
+                return;
+            }
             if ((result?.engine || result?.managed)
                 && window.EveAudioflixSpotifyStatusWatch?.isCurrentState?.(result, state.lastState) !== false) {
                 state.lastState = result;
@@ -384,7 +389,7 @@ window.EveAudioflixSpotifyRemote = window.EveAudioflixSpotifyRemote || {};
                 pending.delete(requestId);
                 resolve({ ok: false, timeout: true, reason: `Spotify ${action} timed out.` });
             }, timeoutMs);
-            pending.set(requestId, { resolve, timer });
+            pending.set(requestId, { resolve, timer, clientId: state.clientId });
             port.postMessage({ type: 'command', requestId, command });
         });
     }

@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
+const vm = require('node:vm');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
@@ -68,4 +70,102 @@ assert(helper.includes("requestUrl.pathname === '/transport'")
     && !helper.includes("requestUrl.pathname === '/evaluate'"),
     'helper exposes fixed Spotify transport commands and no arbitrary evaluation API');
 
-console.log('AUDIOFLIX_SPOTIFY_RELAY_SECURITY_SMOKE_OK');
+async function checkRenderedRelay() {
+    const origin = 'http://127.0.0.1:8765';
+    const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+    const html = execFileSync(python, ['-c',
+        `from server_modules.audioflix_spotify_relay import relay_html; print(relay_html('${origin}'))`
+    ], { cwd: ROOT, encoding: 'utf8', timeout: 10000, maxBuffer: 1024 * 1024, windowsHide: true });
+    const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
+    assert.equal(scripts.length, 1, 'execute the actual single rendered relay script');
+
+    const token = 'private-broker-token-fixture';
+    const lease = 'private-connection-lease-fixture';
+    const requests = [], posted = [], waiting = new Map(), listeners = new Map(), failures = [];
+    const parent = { postMessage: (message) => posted.push(message) };
+    const transferred = {
+        start() {}, close() {},
+        postMessage(message) {
+            posted.push(message);
+            const key = `${message.type}:${message.requestId || ''}`;
+            waiting.get(key)?.(message);
+        }
+    };
+    const receive = (type, requestId = '') => new Promise((resolve, reject) => {
+        const key = `${type}:${requestId}`;
+        const timer = setTimeout(() => {
+            waiting.delete(key);
+            reject(new Error(`Rendered relay did not forward ${key}`));
+        }, 1500);
+        waiting.set(key, (message) => {
+            clearTimeout(timer); waiting.delete(key); resolve(message);
+        });
+    });
+    const fetch = async (url, options) => {
+        assert.equal(options.method, 'POST');
+        assert.equal(options.credentials, 'same-origin');
+        const body = JSON.parse(options.body);
+        requests.push({ url, body });
+        if (url === '/api/audioflix/spotify-client/connect') {
+            assert.equal(body.parentOrigin, origin);
+            assert.equal(body.mode, 'localhost');
+            return { ok: true, status: 200, json: async () => ({
+                ok: true, connected: true, clientToken: token, connectionId: lease,
+                clientId: 'client-fixture', sequenceBase: 100, protocolVersion: 1
+            }) };
+        }
+        assert.equal(url, '/api/audioflix/spotify-client/command');
+        assert.equal(body.clientToken, token, 'relay authenticates without exposing its token');
+        assert.equal(body.command.connectionId, lease, 'parent cannot replace the private attachment lease');
+        assert.equal(body.command.clientCommandSeq, 102, 'relay preserves its private sequence base');
+        const failure = failures.shift();
+        assert(failure, 'unexpected additional broker command');
+        return { ok: false, status: 400, json: async () => failure };
+    };
+    vm.runInNewContext(scripts[0][1], {
+        parent, fetch, setTimeout, clearTimeout,
+        window: { addEventListener: (type, listener) => listeners.set(type, listener) },
+        crypto: { randomUUID: () => 'detach-fixture' }
+    }, { filename: 'rendered-audioflix-spotify-relay.js', timeout: 1000 });
+    assert.equal(posted[0]?.type, 'eveos:spotify-relay-ready');
+    const ready = receive('ready');
+    listeners.get('message')({
+        source: parent, origin, ports: [transferred],
+        data: { type: 'eveos:spotify-relay-connect', protocolVersion: 1,
+            documentId: 'document-fixture', libraryScopeId: 'scope-fixture' }
+    });
+    assert.equal((await ready).connected, true);
+
+    for (const [id, action, failure, expired] of [
+        ['expired-watch', 'status-watch', { ok: false, authorizationExpired: true, reason: 'Capability expired' }, true],
+        ['generic-failure', 'pause', { ok: false, reason: 'Ordinary HTTP 400' }, false],
+        ['nonliteral-flag', 'status', { ok: false, authorizationExpired: 'true', reason: 'Nonliteral flag' }, false]
+    ]) {
+        failures.push(failure);
+        const forwarded = receive('result', id);
+        transferred.onmessage({ data: {
+            type: 'command', requestId: id, command: { action, commandId: id,
+                connectionId: 'parent-forged-lease', clientCommandSeq: 2, payload: {} }
+        } });
+        const result = (await forwarded).result;
+        assert.equal(result.ok, false);
+        if (expired) assert.equal(result.authorizationExpired, true,
+            'HTTP 400 must preserve literal authorization expiry through the rendered relay');
+        else assert(result.authorizationExpired === false || result.authorizationExpired === undefined,
+            'ordinary HTTP 400 or nonliteral metadata must not claim authorization expiry');
+        assert.equal(result.reason, failure.reason);
+    }
+    assert.equal(requests.length, 4, 'relay performs only the explicit connect and commands');
+    const publicMessages = JSON.stringify(posted);
+    assert(!publicMessages.includes(token) && !publicMessages.includes(lease),
+        'rendered relay must not leak broker token or attachment lease to its parent');
+    assert(!/"(?:clientToken|connectionId|sequenceBase)"\s*:/.test(publicMessages),
+        'private capability fields must be omitted from parent messages');
+}
+
+checkRenderedRelay().then(() => {
+    console.log('AUDIOFLIX_SPOTIFY_RELAY_SECURITY_SMOKE_OK');
+}).catch((error) => {
+    console.error(error.stack || error);
+    process.exitCode = 1;
+});

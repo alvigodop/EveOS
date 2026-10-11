@@ -47,7 +47,7 @@ def run():
           "Spotify status watcher is not loaded before the managed browser route")
 
     marker = {"eventCursor": 4, "ownerEpoch": 2, "engineEpoch": 3, "trackGeneration": 9}
-    client = {"clientId": "client-1", "token": "token-1"}
+    client = {"clientId": "client-1", "token": "token-1", "connectionId": "connection-1"}
 
     class FakeBroker:
         def __init__(self):
@@ -59,7 +59,7 @@ def run():
             return None
 
         def _authorized_client_locked(self, token):
-            return client if token == "token-1" else None
+            return self._clients.get("client-1") if token == "token-1" else None
 
         def _state(self, client_id):
             return {
@@ -70,8 +70,9 @@ def run():
             }
 
     broker = FakeBroker()
-    current = lambda candidate, connection_id, **_: candidate is client and connection_id == "connection-1"
-    rejected = lambda: {"ok": False, "reason": "connection changed"}
+    current = lambda candidate, connection_id, **_: (
+        candidate is client and connection_id == client["connectionId"])
+    rejected = lambda: {"ok": False, "disconnected": True, "reason": "connection changed"}
 
     def payload(**overrides):
         args = {
@@ -91,12 +92,14 @@ def run():
         }})
         check(immediate["ok"] and immediate["watchSupported"] and not immediate["watchTimedOut"],
               "status watch without a baseline was not immediate")
+        check("authorizationExpired" not in immediate, "healthy status watch mislabeled authorization expiry")
 
         started = time.monotonic()
         timed = watch.watch(broker, payload(waitMs=70))
         elapsed = time.monotonic() - started
         check(timed["watchTimedOut"] and elapsed >= 0.05,
               "unchanged status did not perform a bounded wait")
+        check("authorizationExpired" not in timed, "watch timeout is not capability expiry")
 
         result = {}
         thread = threading.Thread(target=lambda: result.update(watch.watch(broker, payload(waitMs=1000))))
@@ -124,10 +127,49 @@ def run():
         check(acquired, "status watch blocked the playback transport lock")
         check(not thread.is_alive(), "owner epoch change did not wake the watch")
 
-        denied = watch.watch(broker, {"clientToken": "bad", "command": {
-            "connectionId": "connection-1", "payload": {},
+        for token in ("", "bad"):
+            denied = watch.watch(broker, {"clientToken": token, "command": {
+                "connectionId": "connection-1", "payload": {},
+            }})
+            check(denied.get("ok") is False and denied.get("authorizationExpired") is True,
+                  "invalid watch capability must explicitly report authorization expiry")
+
+        replaced = watch.watch(broker, {"clientToken": "token-1", "command": {
+            "connectionId": "old-connection", "payload": {},
         }})
-        check(not denied["ok"], "status watch accepted an unauthorized client")
+        check(not replaced["ok"] and "authorizationExpired" not in replaced,
+              "replaced watch connection lease is not token expiry")
+        with patch.object(broker, "_state", return_value={"ok": False, "reason": "fixture temporary failure"}):
+            transient = watch.watch(broker, payload(waitMs=0))
+        check(not transient["ok"] and "authorizationExpired" not in transient,
+              "temporary watch failure must not retire valid authorization")
+
+        original_state = broker._state
+        def rotate_lease(client_id):
+            state = original_state(client_id)
+            client["connectionId"] = "replacement-connection"
+            return state
+
+        try:
+            with patch.object(broker, "_state", side_effect=rotate_lease):
+                rotated = watch.watch(broker, payload(waitMs=500))
+            check(not rotated["ok"] and rotated.get("disconnected") and "authorizationExpired" not in rotated,
+                  "lease replacement during a pending watch is not token expiry")
+        finally:
+            client["connectionId"] = "connection-1"
+
+        def retire_client(client_id):
+            state = original_state(client_id)
+            broker._clients.pop(client_id)
+            return state
+
+        try:
+            with patch.object(broker, "_state", side_effect=retire_client):
+                retired = watch.watch(broker, payload(waitMs=500))
+            check(retired.get("ok") is False and retired.get("authorizationExpired") is True,
+                  "capability loss during a pending watch must explicitly report authorization expiry")
+        finally:
+            broker._clients["client-1"] = client
 
 
 if __name__ == "__main__":

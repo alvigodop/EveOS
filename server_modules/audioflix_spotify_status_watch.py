@@ -45,7 +45,7 @@ def watch(broker, payload: dict) -> dict:
         broker._expire_locked()
         client = broker._authorized_client_locked(token)
         if not client:
-            return {"ok": False, "reason": "Spotify client authorization is missing or expired."}
+            return {"ok": False, "authorizationExpired": True, "reason": "Spotify client authorization is missing or expired."}
         if not connections.current(client, connection_id):
             return connections.rejected()
         client_id = client["clientId"]
@@ -57,6 +57,8 @@ def watch(broker, payload: dict) -> dict:
     while True:
         with broker._lock:
             current = broker._clients.get(client_id)
+            if not current:
+                return {"ok": False, "authorizationExpired": True, "reason": "Spotify client expired."}
             if not connections.current(current, connection_id):
                 return connections.rejected()
         state = broker._state(client_id)

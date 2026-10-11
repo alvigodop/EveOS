@@ -33,7 +33,11 @@ def relay_html(server_origin: str) -> str:
     }});
     let payload = {{}};
     try {{ payload = await response.json(); }} catch {{}}
-    if (!response.ok) throw new Error(payload.reason || payload.message || `HTTP ${{response.status}}`);
+    if (!response.ok) {{
+      const error = new Error(payload.reason || payload.message || `HTTP ${{response.status}}`);
+      error.authorizationExpired = payload.authorizationExpired === true;
+      throw error;
+    }}
     return payload;
   }};
   const send = (message) => {{ try {{ port?.postMessage(message); }} catch {{}} }};
@@ -103,7 +107,8 @@ def relay_html(server_origin: str) -> str:
       const result = await postJson('/api/audioflix/spotify-client/command', {{ clientToken, command }});
       send({{ type: 'result', requestId: message.requestId, result }});
     }} catch (error) {{
-      send({{ type: 'result', requestId: message.requestId, result: {{ ok: false, reason: String(error?.message || error).slice(0, 240) }} }});
+      send({{ type: 'result', requestId: message.requestId, result: {{ ok: false,
+        authorizationExpired: error.authorizationExpired === true, reason: String(error?.message || error).slice(0, 240) }} }});
     }}
   }};
   const releaseAndClose = () => {{
