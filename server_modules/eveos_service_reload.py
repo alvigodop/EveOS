@@ -88,6 +88,7 @@ def restart_service(service, *, web_port=None):
                         message=f"A {key} restart is already in progress.")
     stage, before = "preflight", {}
     spotify_prepared = None
+    expected_web_source = ""
     try:
         if key == "spotifyEngine":
             return _restart_spotify(web_port)
@@ -108,7 +109,6 @@ def restart_service(service, *, web_port=None):
                                 message="Restart requires an already-running, verified EveOS service. Use Start for a stopped service.")
 
             mode = str(before.get("exposureMode") or "local")
-            # These controllers cannot reproduce their interactive external launch configuration.
             unsupported_mode = (key in {"worldBook", "piano"} and mode != "local")
             unsupported_mode = unsupported_mode or (key == "watchFusion" and mode not in {"local", "lan"})
             if unsupported_mode:
@@ -117,20 +117,27 @@ def restart_service(service, *, web_port=None):
 
             options = {"persist": False} if key in _PERSISTED else {}
             if key == "web":
-                from . import eveos_spotify_reload
+                from . import eveos_spotify_reload, eveos_update_plan
                 options["port"] = before.get("port") or web_port
+                expected_web_source = str(
+                    eveos_update_plan.check_updates().get("componentFingerprints", {}).get("web") or ""
+                )
+                if not expected_web_source:
+                    return _receipt(key, before, ok=False, restartStage="preflight",
+                                    message="Web restart could not determine the current source fingerprint.")
                 stage = "spotify-prepare"
                 spotify_prepared = eveos_spotify_reload.prepare_web_restart(int(options["port"]))
                 if spotify_prepared.get("ok") is not True:
                     return _receipt(key, before, ok=False, restartStage=stage,
                                     spotify=spotify_prepared,
+                                    expectedSourceFingerprint=expected_web_source,
                                     message=spotify_prepared.get("reason") or "Web restart stopped before Spotify ownership could be reset safely.")
 
             stage = "stop"
             stopped = controller.stop_server(**options)
             if stopped.get("ok") is not True or stopped.get("running") is True or stopped.get("state") in {"starting", "blocked", "conflict", "external"}:
                 return _receipt(key, stopped, ok=False, restartStage=stage,
-                                spotify=spotify_prepared,
+                                spotify=spotify_prepared, expectedSourceFingerprint=expected_web_source,
                                 message=stopped.get("message") or "The selected service did not stop; no replacement was started.")
 
             start_options = dict(options)
@@ -147,25 +154,30 @@ def restart_service(service, *, web_port=None):
             if not accepted:
                 return _receipt(
                     key, after, ok=False, restartStage=stage, previousPids=before.get("pids", []),
-                    spotify=spotify_prepared,
+                    spotify=spotify_prepared, expectedSourceFingerprint=expected_web_source,
                     message=after.get("message") or f"{key} stopped, but its replacement could not start.",
                 )
 
             if key == "web":
                 fresh_instance = bool(after.get("instanceId")) and after.get("instanceId") != before.get("instanceId")
-                fresh_source = bool(after.get("sourceFingerprint"))
+                fresh_source = after.get("sourceFingerprint") == expected_web_source
                 if not ready or not fresh_instance or not fresh_source:
                     return _receipt(
                         key, after, ok=False, restartStage="verify", previousPids=before.get("pids", []),
-                        previousInstanceId=before.get("instanceId", ""), spotify=spotify_prepared,
-                        message="Web replacement did not prove a fresh healthy runtime identity/source fingerprint.",
+                        previousInstanceId=before.get("instanceId", ""),
+                        previousSourceFingerprint=before.get("sourceFingerprint", ""),
+                        expectedSourceFingerprint=expected_web_source, spotify=spotify_prepared,
+                        message="Web replacement did not prove a fresh healthy runtime running the current source fingerprint.",
                     )
                 stage = "spotify-restore"
                 restored = eveos_spotify_reload.restore_helper(int(options["port"]), spotify_prepared)
                 if restored.get("ok") is not True:
                     return _receipt(
                         key, after, ok=False, restartStage=stage, previousPids=before.get("pids", []),
-                        previousInstanceId=before.get("instanceId", ""), spotify={"prepared": spotify_prepared, "restored": restored},
+                        previousInstanceId=before.get("instanceId", ""),
+                        previousSourceFingerprint=before.get("sourceFingerprint", ""),
+                        expectedSourceFingerprint=expected_web_source,
+                        spotify={"prepared": spotify_prepared, "restored": restored},
                         message=restored.get("reason") or "Web restarted, but Spotify readiness could not be restored safely.",
                     )
                 spotify_prepared = {"prepared": spotify_prepared, "restored": restored}
@@ -174,16 +186,19 @@ def restart_service(service, *, web_port=None):
                 key, after, ok=accepted, restartStage="verify" if ready else stage, serviceRestarted=ready,
                 previousPids=before.get("pids", []),
                 previousInstanceId=before.get("instanceId", "") if key == "web" else "",
+                previousSourceFingerprint=before.get("sourceFingerprint", "") if key == "web" else "",
+                expectedSourceFingerprint=expected_web_source if key == "web" else "",
                 restartRequestedAt=datetime.now(timezone.utc).isoformat(),
                 spotify=spotify_prepared,
                 message=(
-                    "EveOS web restarted with fresh identity; Spotify dependency is healthy and idle."
+                    "EveOS web restarted with fresh identity/current source; Spotify dependency is healthy and idle."
                     if key == "web" and ready
                     else after.get("message") or (f"{key} restarted." if ready else f"{key} replacement is starting.")
                 ),
             )
     except Exception as exc:  # noqa: BLE001
         return _receipt(key, before, ok=False, restartStage=stage, spotify=spotify_prepared,
+                        expectedSourceFingerprint=expected_web_source,
                         message=f"{key} restart failed during {stage}: {exc}")
     finally:
         lock.release()
