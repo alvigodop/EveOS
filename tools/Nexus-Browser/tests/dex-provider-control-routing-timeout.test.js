@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createProviderControlRouting } = require('../dex/provider-control-routing');
+const { rememberOrigin } = require('./helpers/dex-provider-control-fixture');
 
 function socket(role, clientKind) {
   return { role, clientKind, sent: [] };
@@ -44,6 +45,7 @@ test('late fresh-target completion after control timeout is closed instead of or
     setTimer(fn) { timers.push(fn); return timers.length; },
     clearTimer() {}
   });
+  rememberOrigin(state, source, { action: 'spawn_agent', room: 'room-1', providerId: 'muse' });
 
   const run = routing.handle(caller, {
     type: 'provider_control_request', requestId: 'spawn-late', source,
@@ -67,13 +69,17 @@ test('timed-out mutating provider-control reports unknown commit state instead o
   const uiSockets = new Set([dex]);
   const timers = [];
   const safeSend = (ws, payload) => { ws.sent.push(payload); return true; };
+  const source = { targetClassId: 'online-origin', targetId: 4,
+    providerId: 'chatgpt', url: 'https://chatgpt.com/c/stress' };
+  const state = { rooms: [{ id: 'stress-room', name: 'Stress Room',
+    members: [{ id: 'parent', binding: { ...source } }] }] };
+  const command = { action: 'handoff_room', room: 'Stress Room', text: 'Maybe committed.' };
+  rememberOrigin(state, source, command);
   const routing = createProviderControlRouting({
     uiSockets,
     safeSend,
     validateSource: async () => true,
-    getState: () => ({ rooms: [{ id: 'stress-room', name: 'Stress Room',
-      members: [{ id: 'parent', binding: { targetClassId: 'online-origin',
-        targetId: 4, providerId: 'chatgpt', url: 'https://chatgpt.com/c/stress' } }] }] }),
+    getState: () => state,
     setTimer(fn) { timers.push(fn); return timers.length; },
     clearTimer() {}
   });
@@ -81,13 +87,7 @@ test('timed-out mutating provider-control reports unknown commit state instead o
   await routing.handle(sourceSocket, {
     type: 'provider_control_request',
     requestId: 'mut-timeout',
-    source: {
-      targetClassId: 'online-origin',
-      targetId: 4,
-      providerId: 'chatgpt',
-      url: 'https://chatgpt.com/c/stress'
-    },
-    command: { action: 'handoff_room', room: 'Stress Room', text: 'Maybe committed.' }
+    source, command
   });
 
   assert.equal(dex.sent.length, 1);

@@ -68,7 +68,7 @@ def assert_static_contract() -> None:
     assert "Promise.all(bases.map" in client
     assert "refreshPromise" in client
     assert "findDirectServer" in client and "650" in client
-    assert "window.setTimeout(() => { void refresh(); }, 0)" in client
+    assert "window.setTimeout(() => { void refresh(true); }, 0)" in client
     overlay = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.overlay.js").read_text(encoding="utf-8")
     overlay_template = (ROOT / "js" / "modules" / "features" / "world-book" / "world-book.overlay.template.js").read_text(encoding="utf-8")
     overlay_surface = overlay + "\n" + overlay_template

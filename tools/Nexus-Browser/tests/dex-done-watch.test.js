@@ -9,6 +9,7 @@ const control = require('../public/dex-provider-control');
 const { mergeBusyRoom, mergeIdleRoom } = require('../dex/server-state-merge');
 const { createDoneWatchDelivery } = require('../dex/done-watch-delivery');
 const { createProviderControlRouting } = require('../dex/provider-control-routing');
+const { rememberOrigin } = require('./helpers/dex-provider-control-fixture');
 
 const now = '2026-09-25T00:00:00.000Z';
 const later = '2026-09-25T00:01:00.000Z';
@@ -128,16 +129,22 @@ test('server watch_done and unwatch_done authorize only the exact room member', 
     await router.handle(sourceSocket, { type: 'provider_control_request', requestId: id, source, command });
     return sourceSocket.sent.at(-1).result;
   };
-  const armed = await request(eveSource, { action: 'watch_done', room: 'room-astro', member: 'Astro' }, 'ctl-arm');
+  const armCommand = { action: 'watch_done', room: 'room-astro', member: 'Astro' };
+  rememberOrigin(snapshot, eveSource, armCommand);
+  const armed = await request(eveSource, armCommand, 'ctl-arm');
   assert.equal(armed.ok, true);
   assert.equal(snapshot.rooms[0].doneWatches[0].targetMemberId, 'astro');
   const stranger = await request({ ...eveSource, targetId: 99, url: 'https://chatgpt.com/c/stranger' },
     { action: 'watch_done', room: 'room-astro' }, 'ctl-stranger');
   assert.equal(stranger.ok, false);
   assert.equal(['DEX_DONE_WATCH_ROOM_REQUIRED', 'DEX_ROOM_NOT_BOUND'].includes(stranger.code), true);
-  assert.equal((await request(eveSource, { action: 'unwatch_done', room: 'room-astro' }, 'ctl-cancel')).ok, true);
+  const cancelCommand = { action: 'unwatch_done', room: 'room-astro' };
+  rememberOrigin(snapshot, eveSource, cancelCommand);
+  assert.equal((await request(eveSource, cancelCommand, 'ctl-cancel')).ok, true);
   assert.equal(snapshot.rooms[0].doneWatches.length, 0);
-  assert.equal(saved, 2);
+  assert.equal(saved, 4, 'each mutation and its correlated origin receipt are persisted');
+  assert.equal(snapshot.rooms[0].messages.filter((message) => message.controlReceipt).length, 2);
+  assert.equal(snapshot.rooms[0].pendingProviderControlReceipt, undefined);
 });
 
 test('DONE delivery queues while offline, checks target and busy room, and never resends after dispatch', () => {

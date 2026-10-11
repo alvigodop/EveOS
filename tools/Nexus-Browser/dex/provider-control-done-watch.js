@@ -5,7 +5,11 @@ const controlReceiptApi = require('./provider-control-receipt');
 const { randomUUID } = require('node:crypto');
 
 function routeDoneWatch({ action, source, command, requestId, ws, origin }, deps) {
-  const { getState, saveState, broadcastState, sendResult, fail } = deps;
+  const { getState, saveState, broadcastState, sendResult, fail, commitOriginReceipt } = deps;
+  function complete(result) {
+    const receipt = commitOriginReceipt(origin, result, requestId);
+    sendResult({ sourceSocket: ws, requestId, source }, result, receipt);
+  }
   const snapshot = typeof getState === 'function' ? getState() : null;
   if (!snapshot || typeof saveState !== 'function') {
     fail(ws, requestId, source, 'DEX_DONE_WATCH_UNAVAILABLE', 'Durable DONE watch storage is unavailable.', origin);
@@ -28,7 +32,7 @@ function routeDoneWatch({ action, source, command, requestId, ws, origin }, deps
     const removed = doneWatchApi.disarm(room, watcher.id);
     const saved = saveState(snapshot);
     broadcastState?.(saved);
-    sendResult({ sourceSocket: ws, requestId, source }, {
+    complete({
       ok: true, action, message: 'DONE notifications disarmed for this participant.',
       data: { roomId: room.id, removed: removed.removed }
     });
@@ -52,7 +56,7 @@ function routeDoneWatch({ action, source, command, requestId, ws, origin }, deps
   }
   const saved = saveState(snapshot);
   broadcastState?.(saved);
-  sendResult({ sourceSocket: ws, requestId, source }, {
+  complete({
     ok: true,
     action,
     message: 'Armed one-shot DONE notification; no extra Dex relay turn will run.',

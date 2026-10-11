@@ -244,7 +244,7 @@ function createProviderControlRouting({
     if (action === 'watch_done' || action === 'unwatch_done') {
       return routeDoneWatch(
         { action, source, command, requestId, ws, origin },
-        { getState, saveState, broadcastState, sendResult, fail }
+        { getState, saveState, broadcastState, sendResult, fail, commitOriginReceipt }
       );
     }
     if (action === 'reload_extension') {

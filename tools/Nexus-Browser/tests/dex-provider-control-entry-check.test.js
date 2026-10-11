@@ -2,6 +2,7 @@
 const test = require('node:test'), assert = require('node:assert/strict');
 const policy = require('../dex/provider-control-entry-check');
 const members = require('../public/dex-members');
+const { rememberOrigin } = require('./helpers/dex-provider-control-fixture');
 const source = { targetClassId: 'online-origin', providerId: 'chatgpt',
   targetId: 116814673, url: 'https://chatgpt.com/c/eve-room' };
 const staleTab = { ...source, targetId: 116814674 };
@@ -21,12 +22,21 @@ test('send, discovery, status and maintenance share the exact entry check', () =
   for (const action of ['send', 'rooms', 'targets', 'status', 'room_budget',
     'room_log', 'tool_result_status', 'watch_done', 'reload_extension',
     'arm_post_idle', 'stop_relay', 'continue_relay']) {
-    const r = policy.authorize(snapshot(), source, { action, room: 'room-eve' });
+    const state = snapshot(), command = { action, room: 'room-eve' };
+    rememberOrigin(state, source, command);
+    const r = policy.authorize(state, source, command);
     assert.equal(r.ok, true, action);
     assert.equal(r.roomId, 'room-eve', action);
   }
   assert.equal(policy.authorize(snapshot(), source,
     { action: 'status', room: 'wrong' }).code, 'DEX_ROOM_NOT_BOUND');
+});
+
+test('exact room membership alone does not authorize unsolicited online mutations', () => {
+  for (const action of policy.ONLINE_ORIGIN_MUTATING_ACTIONS) {
+    assert.equal(policy.authorize(snapshot(), source, { action, room: 'room-eve' }).code,
+      'DEX_CONTROL_ORIGIN_REQUIRED', action);
+  }
 });
 test('only explicit unbound onboarding bypasses room membership', () => {
   for (const action of policy.UNBOUND_ACTIONS)

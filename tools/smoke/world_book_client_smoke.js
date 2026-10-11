@@ -20,6 +20,9 @@ let controllerOnline = false;
 let worldRunning = true;
 let notesRunning = false;
 let protocolLaunches = 0;
+let requestCount = 0;
+let clockNow = 10000;
+const bootTimers = [];
 const events = [];
 
 function response(payload, ok = true, status = 200) {
@@ -47,6 +50,7 @@ function worldStatus() {
 }
 
 async function fetchMock(url, options) {
+    requestCount += 1;
     if (url.includes(':8767/api/health')) {
         if (!notesRunning) throw new Error('Notes offline');
         return response({ ok: true, service: 'eveos-notes', appVersion: 'smoke', port: 8767 });
@@ -153,7 +157,13 @@ const windowMock = {
         hostname: '',
         origin: 'null'
     },
-    setTimeout,
+    setTimeout(callback, delay) {
+        if (delay === 0) {
+            bootTimers.push(callback);
+            return null;
+        }
+        return setTimeout(callback, delay);
+    },
     clearTimeout,
     dispatchEvent(event) {
         events.push(event);
@@ -164,6 +174,7 @@ const context = {
     window: windowMock,
     document: documentMock,
     fetch: fetchMock,
+    Date: { now: () => clockNow },
     AbortController,
     CustomEvent: CustomEventMock
 };
@@ -175,6 +186,10 @@ vm.runInNewContext(notesSource, context, { filename: 'world-book.notes.client.js
 (async () => {
     const client = windowMock.EveWorldBook.client;
 
+    if (requestCount !== 0 || bootTimers.length !== 1 || protocolLaunches !== 0) {
+        throw new Error('World Book boot discovery was not deferred/passive');
+    }
+    bootTimers.shift()();
     const standalone = await client.refresh();
     if (!standalone.running || standalone.controllerAvailable || !standalone.directAvailable) {
         throw new Error(`standalone discovery failed: ${JSON.stringify(standalone)}`);
@@ -186,15 +201,28 @@ vm.runInNewContext(notesSource, context, { filename: 'world-book.notes.client.js
         throw new Error(`standalone instance identity missing: ${JSON.stringify(standalone)}`);
     }
 
+    const afterPrime = requestCount;
     controllerOnline = true;
-    const managed = await client.refresh();
+    const cached = await client.refresh();
+    if (requestCount !== afterPrime || cached.source !== 'standalone') {
+        throw new Error('Passive refresh bypassed the fresh status cache');
+    }
+    const forced = client.refresh(true);
+    if (forced !== client.refresh(true)) throw new Error('Forced refresh lost single-flight ownership');
+    const managed = await forced;
     if (!managed.running || !managed.controllerAvailable || managed.source !== 'managed') {
         throw new Error(`managed discovery failed: ${JSON.stringify(managed)}`);
+    }
+    const afterManaged = requestCount;
+    clockNow += 4000;
+    const expired = await client.refresh();
+    if (requestCount <= afterManaged || expired.source !== 'managed') {
+        throw new Error('Expired status cache did not rediscover the controller');
     }
 
     controllerOnline = false;
     worldRunning = false;
-    const offline = await client.refresh();
+    const offline = await client.refresh(true);
     if (offline.running || offline.controllerAvailable || offline.directAvailable) {
         throw new Error(`offline state was stale: ${JSON.stringify(offline)}`);
     }
@@ -208,7 +236,7 @@ vm.runInNewContext(notesSource, context, { filename: 'world-book.notes.client.js
     }
 
     controllerOnline = false;
-    const adoptedStandalone = await client.refresh();
+    const adoptedStandalone = await client.refresh(true);
     if (adoptedStandalone.source !== 'standalone') {
         throw new Error(`standalone reset failed: ${JSON.stringify(adoptedStandalone)}`);
     }

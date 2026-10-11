@@ -3,35 +3,8 @@ const assert = require('node:assert/strict');
 const { createProviderControlRouting, MUTATING_ACTIONS: SERVER_MUTATING_ACTIONS } = require('../dex/provider-control-routing');
 const browserControl = require('../public/dex-provider-control.js');
 const controlReceipt = require('../dex/provider-control-receipt');
-function socket(role, clientKind) {
-  return { role, clientKind, sent: [] };
-}
-function resultFor(ws, requestId = null) {
-  const results = ws.sent.filter((entry) => entry.type === 'provider_control_result');
-  return requestId ? results.find((entry) => entry.requestId === requestId) : results.at(-1);
-}
-function admissionFor(ws, requestId = null) {
-  const receipts = ws.sent.filter((entry) => entry.type === 'provider_control_received');
-  return requestId ? receipts.find((entry) => entry.requestId === requestId) : receipts.at(-1);
-}
-function entryFixture() {
-  return { rooms: [{ id: 'room-1', name: 'Stress Room',
-    members: [{ id: 'eve', binding: { targetClassId: 'online-origin', targetId: 4,
-      providerId: 'chatgpt' } }, { id: 'astro', binding: { targetClassId: 'local-origin',
-      targetId: 'local:antigravity-existing:86660', providerId: 'local-antigravity-existing' } }] }] };
-}
-function harness(validateSource = async () => true, overrides = {}) {
-  const dex = socket('ui', 'dex');
-  const uiSockets = new Set([dex]);
-  const safeSend = (ws, payload) => { ws.sent.push(payload); return true; };
-  const routing = createProviderControlRouting({ uiSockets, safeSend, validateSource,
-    getState: entryFixture, ...overrides });
-  return { dex, uiSockets, safeSend, routing };
-}
-async function waitUntil(predicate, attempts = 25) {
-  for (let index = 0; index < attempts; index += 1) { if (predicate()) return true; await new Promise((resolve) => setImmediate(resolve)); }
-  return false;
-}
+const { socket, resultFor, admissionFor, entryFixture, harness, waitUntil, rememberOrigin } =
+  require('./helpers/dex-provider-control-fixture');
 test('browser and localhost agree on which provider-control actions mutate durable Dex state', () => {
   assert.deepEqual([...browserControl.MUTATING_ACTIONS].sort(), [...SERVER_MUTATING_ACTIONS].sort());
 });
@@ -41,7 +14,8 @@ test('provider-control extension request routes to Dex UI and result returns onl
   const request = {
     type: 'provider_control_request',
     requestId: 'ctl-1',
-    source: { targetClassId: 'online-origin', targetId: 4, providerId: 'chatgpt' },
+    source: { targetClassId: 'online-origin', targetId: 4, providerId: 'chatgpt',
+      url: 'https://chatgpt.com/c/stress' },
     command: { action: 'rooms' }
   };
   assert.equal(await routing.handle(extension, request), true);
@@ -113,7 +87,7 @@ test('provider-control wakes a headed Dex client before declaring the UI offline
 });
 
 test('duplicate mutating provider-control requests coalesce and replay the committed result', async () => {
-  const { dex, routing } = harness();
+  const { dex, routing, state } = harness();
   const first = socket('provider-control-extension', null);
   const second = socket('provider-control-extension', null);
   const source = {
@@ -123,6 +97,7 @@ test('duplicate mutating provider-control requests coalesce and replay the commi
     url: 'https://chatgpt.com/c/stress'
   };
   const command = { action: 'handoff_room', room: 'Stress Room', text: 'Run Test D.', turns: 8 };
+  rememberOrigin(state, source, command);
 
   assert.equal(await routing.handle(first, {
     type: 'provider_control_request', requestId: 'mut-1', source, command
@@ -174,6 +149,8 @@ test('spawn_agent creates one verified fresh target and routes only that target 
     }
   });
   const caller = socket('provider-control-extension', null);
+  rememberOrigin(state, source,
+    { action: 'spawn_agent', room: 'room-1', providerId: 'muse', name: 'Researcher' });
   await routing.handle(caller, {
     type: 'provider_control_request',
     requestId: 'spawn-1',
@@ -260,6 +237,7 @@ test('spawn_agent does not wait for a different participant busy turn', async ()
     spawnTarget() { spawnCalls += 1; throw new Error('must not spawn'); }
   });
   const caller = socket('provider-control-extension', null);
+  rememberOrigin(state, source, { action: 'spawn_agent', room: 'room-1', providerId: 'muse' });
   await routing.handle(caller, {
     type: 'provider_control_request', requestId: 'spawn-other-busy', source,
     command: { action: 'spawn_agent', room: 'room-1', providerId: 'muse' }
@@ -289,6 +267,7 @@ test('duplicate spawn_agent requests coalesce before browser tab creation', asyn
   const first = socket('provider-control-extension', null);
   const second = socket('provider-control-extension', null);
   const command = { action: 'spawn_agent', room: 'room-1', providerId: 'muse', name: 'Researcher' };
+  rememberOrigin(state, source, command);
 
   const firstRun = routing.handle(first, { type: 'provider_control_request', requestId: 'spawn-a', source, command });
   await Promise.resolve();
@@ -342,6 +321,7 @@ test('despawn_agent closes the exact managed browser target only after Dex remov
     async closeTarget(input) { closed.push(input); return { ok: true, alreadyClosed: false }; }
   });
   const caller = socket('provider-control-extension', null);
+  rememberOrigin(state, source, { action: 'despawn_agent', room: 'room-1', member: 'worker' });
   await routing.handle(caller, {
     type: 'provider_control_request', requestId: 'despawn-1', source,
     command: { action: 'despawn_agent', room: 'room-1', member: 'worker' }
@@ -359,7 +339,7 @@ test('despawn_agent closes the exact managed browser target only after Dex remov
 });
 
 test('mutating provider-control request survives origin socket loss for exact-once reconciliation', async () => {
-  const { dex, routing } = harness();
+  const { dex, routing, state } = harness();
   const first = socket('provider-control-extension', null);
   const source = {
     targetClassId: 'online-origin',
@@ -367,7 +347,8 @@ test('mutating provider-control request survives origin socket loss for exact-on
     providerId: 'chatgpt',
     url: 'https://chatgpt.com/c/stress'
   };
-  const command = { action: 'send', text: 'exact-once payload', relay: true };
+  const command = { action: 'handoff_room', room: 'room-1', text: 'exact-once payload' };
+  rememberOrigin(state, source, command);
 
   await routing.handle(first, {
     type: 'provider_control_request', requestId: 'mut-drop-1', source, command
@@ -379,7 +360,7 @@ test('mutating provider-control request survives origin socket loss for exact-on
     type: 'provider_control_result',
     requestId: 'mut-drop-1',
     source,
-    result: { ok: true, silent: true, action: 'send' }
+    result: { ok: true, silent: true, action: 'handoff_room' }
   });
 
   const retry = socket('provider-control-extension', null);

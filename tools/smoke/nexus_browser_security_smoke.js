@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { websocketOriginAllowed } = require('../../tools/Nexus-Browser/server-http');
+const { registryPort } = require('../../tools/Nexus-Browser/runtime-config');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'tools', 'Nexus-Browser', 'extension', 'manifest.json'), 'utf8'));
@@ -16,7 +17,12 @@ assert.equal(manifest.host_permissions.includes('<all_urls>'), false, 'Extension
 assert.equal(websocketOriginAllowed('https://attacker.example', 9088), false, 'Public websites can open the control websocket');
 assert.equal(websocketOriginAllowed('http://127.0.0.1:9088', 9088), true, 'Owned local UI origin is blocked');
 assert.equal(websocketOriginAllowed('chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 9088), true, 'Chrome extension origin is blocked');
-assert.equal(websocketOriginAllowed('http://127.0.0.1:8765', 9088), false, 'Unowned local origin can open the control websocket');
+const webPort = registryPort('EVEOS_WEB_PORT');
+assert.equal(websocketOriginAllowed(`http://127.0.0.1:${webPort}`, 9088), true,
+    'Registered EveOS Search Monitor origin is blocked');
+const unownedPort = [8765, 8768, 3001].find((port) => port !== webPort && port !== 9088);
+assert.equal(websocketOriginAllowed(`http://127.0.0.1:${unownedPort}`, 9088), false,
+    'Unowned local origin can open the control websocket');
 assert.match(httpSurface, /Content-Security-Policy/);
 assert.match(
     httpSurface,
