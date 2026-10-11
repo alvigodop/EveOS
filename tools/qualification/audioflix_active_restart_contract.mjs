@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { approvalWriteAllowed } from './audioflix_file_pairing.shared.mjs';
 
 export function lifecycleWriteAllowed(method, rawUrl, body, { controlBase, webPort, permit }) {
     const url = new URL(rawUrl);
@@ -173,6 +174,32 @@ export function deterministicCheck() {
     assert.equal(lifecycleWriteAllowed('POST', url, { service: 'web' }, options), false);
     options.permit = null;
     assert.equal(lifecycleWriteAllowed('POST', url, { service: 'web' }, options), false);
+    const approvalBase = `http://127.0.0.1:${webPort}`, approvalUrl = approvalBase + '/api/audioflix/spotify-client/approve';
+    const approval = { base: approvalBase, pairId: 'own-file-pair-0123456789', armed: true, codeMatched: true, approvalPosts: 0 };
+    const approvalBody = { pairId: approval.pairId, csrf: 'normal-approval-page-csrf' };
+    assert.equal(approvalWriteAllowed('POST', approvalUrl, approvalBody, approval), true);
+    for (const [method, target, body, permit] of [
+        ['GET', approvalUrl, approvalBody, approval], ['PUT', approvalUrl, approvalBody, approval],
+        ['POST', approvalUrl + '?pair=other', approvalBody, approval], ['POST', approvalUrl + '#ignored', approvalBody, approval],
+        ['POST', approvalUrl.replace(':8765', ':8766'), approvalBody, approval],
+        ['POST', 'https://example.invalid/api/audioflix/spotify-client/approve', approvalBody, approval],
+        ['POST', approvalBase + '/api/eve-state/modular/save', approvalBody, approval],
+        ['POST', approvalUrl, { ...approvalBody, pairId: 'another-file-pair-0123456789' }, approval],
+        ['POST', approvalUrl, { pairId: approval.pairId }, approval],
+        ['POST', approvalUrl, { ...approvalBody, csrf: '' }, approval],
+        ['POST', approvalUrl, { ...approvalBody, csrf: 1 }, approval],
+        ['POST', approvalUrl, { ...approvalBody, clientToken: 'must-not-be-copied' }, approval],
+        ['POST', approvalUrl, null, approval], ['POST', approvalUrl, [approvalBody], approval],
+        ['POST', approvalUrl, approvalBody, { ...approval, armed: false }],
+        ['POST', approvalUrl, approvalBody, { ...approval, armed: 1 }],
+        ['POST', approvalUrl, approvalBody, { ...approval, codeMatched: false }],
+        ['POST', approvalUrl, approvalBody, { ...approval, codeMatched: 'true' }],
+        ['POST', approvalUrl, approvalBody, { ...approval, approvalPosts: 1 }],
+        ['POST', approvalUrl, approvalBody, { ...approval, approvalPosts: -1 }],
+        ['POST', approvalUrl, approvalBody, { ...approval, pairId: '' }],
+        ['POST', approvalUrl, approvalBody, { ...approval, base: 'https://example.invalid' }],
+        ['POST', approvalUrl, approvalBody, { ...approval, base: 'not-a-url' }]
+    ]) assert.equal(approvalWriteAllowed(method, target, body, permit), false, 'Reject unrelated/unarmed/replayed file approval write');
     const trackId = '4cOdK2wGLETKBW3PvgPWqT', helper = { ok: true, browserRunning: true, helperReachable: true,
         sessionPresent: true, authState: 'signed-in', pageUrl: engineUrl, playingCount: 1, trackIds: [trackId],
         transport: { status: 'playing', spotifyId: trackId, paused: false, ended: false, currentTime: 3, duration: 180 } };
@@ -220,5 +247,5 @@ export function deterministicCheck() {
     assert.throws(() => stoppedController({ ...stopped, managed: { ...stopped.managed, ownerPresent: true } }, fixture));
     assert.throws(() => stoppedController({ ...stopped, events: [...stopped.events,
         { itemId: 'fixture-0', status: 'Ended', index: 0 }] }, fixture));
-    return 'AUDIOFLIX_ACTIVE_RESTART_CONTRACT_OK (write permit, playback, stopped queue, receipt, idle and process invariants; no endpoints/browser)';
+    return 'AUDIOFLIX_ACTIVE_RESTART_CONTRACT_OK (write permits, exact own-file approval, playback, stopped queue, receipt, idle and process invariants; no endpoints/browser)';
 }

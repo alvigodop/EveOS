@@ -9,6 +9,7 @@ import { installBackendWriteBarrier, readBackendAudioflixSnapshot,
     assertBackendAudioflixUnchanged } from '../smoke/audioflix_spotify_live_isolation.shared.js';
 import { lifecycleWriteAllowed, preferenceHashes, listenerInventory, branded, helperReady, playing,
     advancing, idleHelper, stoppedController, restartReceipt, preserve, deterministicCheck } from './audioflix_active_restart_contract.mjs';
+import { approveOwnFileSession } from './audioflix_file_pairing.shared.mjs';
 
 const ROOT = fs.realpathSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
 const require = createRequire(import.meta.url), args = process.argv.slice(2);
@@ -21,6 +22,7 @@ const redact = (value, limit = 1200) => String(value || '').replace(/([?&](?:tok
     .replace(/Bearer\s+\S+/gi, 'Bearer [redacted]').slice(0, limit);
 const safeUrl = value => { try { const url = new URL(value); return url.origin + url.pathname; } catch { return redact(value); } };
 let E, directory, browser, context, page, H, barrier, permit, fixture;
+let fixtureSources = [];
 const save = () => fs.writeFileSync(path.join(directory, 'acceptance.json'), JSON.stringify(E, (key, value) =>
     /token|secret|sessionId|cookie|profile/i.test(key) ? '[redacted]' : typeof value === 'string' ? redact(value, 24000) : value, 2) + '\n');
 const push = (field, value) => { if (E[field].length < 500) E[field].push(value); };
@@ -55,15 +57,19 @@ async function until(check, milliseconds = 90000) {
 }
 async function pointer(selector) {
     const button = page.locator(selector);
-    await button.waitFor({ state: 'visible' });
-    assert.equal(await button.count(), 1, `Expected one real production control: ${selector}`);
-    await button.scrollIntoViewIfNeeded();
-    const bounds = await button.evaluate(element => {
-        const r = element.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-        return { x: r.x, y: r.y, width: r.width, height: r.height,
-            hit: element === hit || element.contains(hit), visible: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
-    });
-    assert.ok(bounds.width > 0 && bounds.height > 0 && bounds.hit && bounds.visible, `Control is not pointer reachable: ${selector}`);
+    // Render replacement may invalidate preparation; never retry an actual pointer input.
+    const bounds = await until(async () => {
+        await button.waitFor({ state: 'visible', timeout: 2000 });
+        assert.equal(await button.count(), 1, `Expected one real production control: ${selector}`);
+        await button.scrollIntoViewIfNeeded({ timeout: 2000 });
+        const rect = await button.evaluate(element => {
+            const r = element.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+            return { x: r.x, y: r.y, width: r.width, height: r.height,
+                hit: element === hit || element.contains(hit), visible: r.x >= 0 && r.y >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
+        }, undefined, { timeout: 2000 });
+        assert.ok(rect.width > 0 && rect.height > 0 && rect.hit && rect.visible, `Control is not pointer reachable: ${selector}`);
+        return rect;
+    }, 15000);
     await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
     return bounds;
@@ -72,8 +78,9 @@ async function controllerState() {
     return page.evaluate(() => {
         const queue = window.EveAudioflix.queueConnection.snapshot(), managed = window.EveAudioflixSpotifyAnyBrowser.snapshot();
         const relay = managed.relay?.lastState || {}, audio = window.EveAudioflixAudio.getPlaybackState();
+        const retired = managed.relay?.connected === false && managed.relay?.lastState === null;
         return { queue, managed: { active: managed.active, ended: managed.ended, currentTime: managed.playback?.currentTime,
-            paused: managed.playback?.paused, isOwner: relay.isOwner, ownerPresent: Boolean(relay.ownerClientId),
+            paused: managed.playback?.paused, isOwner: retired ? false : relay.isOwner, ownerPresent: Boolean(relay.ownerClientId),
             observation: managed.observation, status: relay.engine?.status }, audioItemId: audio?.item?.id || '',
             events: window.__activeRestartEvents || [] };
     });
@@ -135,11 +142,12 @@ async function attach(mode) {
     const existing = await H.queueSnapshot(page);
     assert.notEqual(existing.queue?.isPlaying, true, 'Disposable controller already has active playback');
     const supplied = args.find(arg => arg.startsWith('--track='))?.slice(8) || process.env.EVE_AUDIOFLIX_SPOTIFY_LIVE_TRACK;
-    let tracks = supplied ? [normalizeSpotify(supplied)] : await page.evaluate(() => (window.EveAudioflixState.ensure().music || [])
+    let tracks = supplied ? [normalizeSpotify(supplied)] : fixtureSources.length ? [...fixtureSources] : await page.evaluate(() => (window.EveAudioflixState.ensure().music || [])
         .map(item => item.spotifyUrl || item.url || item.originalUrl || '')
         .filter(url => /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)[A-Za-z0-9]{22}/i.test(url)).slice(0, 3));
     tracks = tracks.map(normalizeSpotify).filter(Boolean);
     assert.ok(tracks.length, 'Need a real Spotify-linked source; supply --track=<URL/ID> if the library has none');
+    fixtureSources = [...tracks];
     fixture.urls = Array.from({ length: 3 }, (_, index) => tracks[index % tracks.length]);
     fixture.ids = fixture.urls.map((_, index) => fixture.prefix + index); fixture.trackId = spotifyTrackId(fixture.urls[0]);
     await page.evaluate(({ urls, group, prefix }) => {
@@ -160,6 +168,9 @@ async function attach(mode) {
     await pointer('[data-af-action="tab"][data-af-tab="music"]:visible');
     await page.waitForFunction(group => document.querySelector('.audioflix-item-grid[data-af-active-group]')?.dataset.afActiveGroup === group, fixture.group);
     E.current.playGroupGeometry = await pointer('.audioflix-frontend-subhead [data-af-action="play-music-group"]:visible');
+    if (mode === 'file') E.current.pairing = await approveOwnFileSession({ browser, page, base,
+        helperIdle: async () => { idleHelper(await request(base + '/api/audioflix/spotify-browser/status'), engineUrl); return true; },
+        audit: approvalPage => approvalPage.on('pageerror', error => push('pageErrors', { mode, phase: E.phase, message: redact(error.message) })) });
     await H.waitForFixtureQueue(page, fixture.ids);
     const owner = await H.waitForOwnership(page, fixture.ids);
     await H.waitForTrackReady(page, 0, fixture.ids, owner.ownerEpoch, fixture.trackId);

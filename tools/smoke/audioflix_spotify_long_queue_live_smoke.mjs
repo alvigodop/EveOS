@@ -8,6 +8,7 @@ import { validateBackendUrls, installBackendWriteBarrier, readBackendAudioflixSn
     assertBackendAudioflixUnchanged } from './audioflix_spotify_live_isolation.shared.js';
 import { createQueueEvidence, hideNativeController, installNaturalProbe, naturalSnapshot,
     awaitNaturalTrack, verifyCurrentVolume, settleNaturalProbe } from './audioflix_spotify_long_queue_natural.mjs';
+import { approveOwnFileSession } from '../qualification/audioflix_file_pairing.shared.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -187,6 +188,14 @@ async function main() {
         H.assert(playCount === 1,
             `expected exactly one Play Group button for temporary group "${groupName}", found ${playCount}`);
         await playGroup.click();
+        if (new URL(controllerUrl).protocol === 'file:') {
+            E.pairing = await approveOwnFileSession({ browser, page, base,
+                helperIdle: async () => { const { status } = await H.engineStatus('', 'unapproved file session');
+                    return status.ok === true && status.sessionPresent === true
+                        && Number(status.playingCount) === 0 && status.transport?.paused === true; },
+                audit: approvalPage => approvalPage.on('pageerror', error => pageErrors.push(`approval: ${error.message}`)) });
+            checkpoint('file-pair-approved');
+        }
 
         await H.waitForFixtureQueue(page, expectedIds);
         const ownership = await H.waitForOwnership(page, expectedIds);
