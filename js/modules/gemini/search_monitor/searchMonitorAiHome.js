@@ -110,7 +110,7 @@
                 setProviderMessage(provider, `${spec.label} is stopped, so there is nothing to restart.`);
                 return current;
             }
-            const reload = window.EveServiceReload;
+            const reload = window.EveOSServiceReload;
             if (typeof reload?.restart !== 'function') throw new Error('Shared EveOS restart control is unavailable.');
             setProviderMessage(provider, `Restarting ${spec.label} without stopping the rest of EveOS…`);
             const restarted = await reload.restart(spec.service, {
