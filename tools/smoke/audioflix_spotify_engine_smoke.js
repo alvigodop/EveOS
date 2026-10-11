@@ -9,7 +9,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const enginePath = path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.engine.js');
-const engineHtmlPath = path.join(ROOT, 'audioflix-spotify-engine.html');
+const engineHtmlPath = path.join(ROOT, 'tools/audioflix/spotify-engine.html');
 const surfacePath = path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.engine-surface.js');
 const presentationPath = path.join(ROOT, 'server_modules/audioflix_spotify_presentation.py');
 const launcherPath = path.join(ROOT, 'tools/audioflix/spotify-managed-browser.ps1');
@@ -326,7 +326,7 @@ fs.writeFileSync(fixture, `<!doctype html><html><body><div id="spotify-engine-pl
         await mirrorPage.close();
 
         const surface = fs.readFileSync(surfacePath, 'utf8');
-        assert(surface.includes('audioflix-spotify-engine.html?surface=mirror')
+        assert(surface.includes('/tools/audioflix/spotify-engine.html?surface=mirror')
             && surface.includes('originalOpenInternalView')
             && surface.includes('managedActive()'),
         'ordinary EveOS Internal View mirrors the managed engine only when managed playback owns Spotify');
