@@ -193,6 +193,8 @@ def _status(message: str = "", port=None) -> dict:
         "desiredRunning": desired_running,
         "port": target_port,
         "url": f"http://127.0.0.1:{target_port}/EveOS.html",
+        "instanceId": str((health or {}).get("instanceId") or ""),
+        "sourceFingerprint": str((health or {}).get("sourceFingerprint") or ""),
         "pids": _listener_pids(target_port) if running else [],
         "message": message
         or (
