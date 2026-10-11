@@ -7,8 +7,10 @@ import { chromium } from 'playwright';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sharedClient = fs.readFileSync(path.join(ROOT, 'js/modules/core/eveos-service-reload.js'), 'utf8');
+const sharedUi = fs.readFileSync(path.join(ROOT, 'js/modules/core/eveos-service-reload-ui.js'), 'utf8');
 const updateUi = fs.readFileSync(path.join(ROOT, 'js/modules/gemini/search_monitor/searchMonitorUpdates.js'), 'utf8');
 const spotifySurface = fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.engine-surface.js'), 'utf8');
+const watchFusionReload = fs.readFileSync(path.join(ROOT, 'js/modules/features/watchfusion/watchfusion.reload.js'), 'utf8');
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -61,6 +63,7 @@ try {
         };
     });
     await page.addScriptTag({ content: sharedClient });
+    await page.addScriptTag({ content: sharedUi });
     await page.addScriptTag({ content: updateUi });
 
     const check = page.getByRole('button', { name: 'Check updates' });
@@ -94,6 +97,58 @@ try {
     const duplicateCalls = await page.evaluate(() => window.__reloadFixture.restartCalls.slice());
     assert.equal(duplicateCalls.length, beforeDuplicate + 1, 'concurrent duplicate restarts must share one operation');
     assert.deepEqual(duplicateCalls.at(-1), { service: 'web', port: '8765' });
+
+    // Settings individual Restart controls must name the service and require an in-site second click
+    // before their existing lifecycle handler is allowed to run.
+    await page.evaluate(() => {
+        const row = document.createElement('div');
+        row.dataset.consoleService = 'gemini';
+        const button = document.createElement('button');
+        button.dataset.eveosServiceRestart = 'gemini';
+        button.title = 'Restart only the running Gemini Live Link service';
+        button.textContent = 'Restart';
+        button.addEventListener('click', () => { window.__reloadFixture.settingsDispatches = (window.__reloadFixture.settingsDispatches || 0) + 1; });
+        row.appendChild(button);
+        document.body.appendChild(row);
+    });
+    const settingsRestart = page.locator('[data-eveos-service-restart="gemini"]');
+    await settingsRestart.click();
+    assert.equal(await page.evaluate(() => window.__reloadFixture.settingsDispatches || 0), 0,
+        'Settings first pointer click must not dispatch a restart');
+    assert.equal(await settingsRestart.getAttribute('aria-label'), 'Confirm restart Gemini Live Link');
+    assert.match(await settingsRestart.getAttribute('title'), /interrupts only Gemini Live Link/i);
+    await settingsRestart.click();
+    assert.equal(await page.evaluate(() => window.__reloadFixture.settingsDispatches || 0), 1,
+        'Settings confirmation must dispatch exactly one existing restart handler');
+
+    // WatchFusion owns Start/Stop presentation, but selective Restart must use the same shared
+    // lifecycle client and preserve all unrelated services.
+    await page.evaluate(() => {
+        const overlay = document.createElement('section');
+        overlay.id = 'watchfusion-overlay';
+        overlay.innerHTML = '<header><div class="watchfusion-head-actions"><button data-wf-action="stop">Stop</button></div></header><span data-wf-message></span>';
+        document.body.appendChild(overlay);
+        window.__reloadFixture.watchRefreshes = 0;
+        window.EveWatchFusion = {
+            ready: true,
+            async open() { return true; },
+            async refresh() { window.__reloadFixture.watchRefreshes += 1; return { running: true }; },
+            getState: () => ({ running: true, state: 'running', port: 9087 })
+        };
+    });
+    await page.addScriptTag({ content: watchFusionReload });
+    const watchRestart = page.getByRole('button', { name: 'Restart WatchFusion' });
+    await watchRestart.waitFor();
+    const beforeWatch = await page.evaluate(() => window.__reloadFixture.restartCalls.length);
+    await watchRestart.click();
+    assert.equal(await page.evaluate(() => window.__reloadFixture.restartCalls.length), beforeWatch,
+        'WatchFusion first click must only arm interruption confirmation');
+    assert.match(await page.locator('#watchfusion-overlay [data-wf-message]').textContent(), /interrupts WatchFusion only/i);
+    await page.getByRole('button', { name: 'Confirm restart WatchFusion' }).click();
+    await page.waitForFunction(before => window.__reloadFixture.restartCalls.length === before + 1, beforeWatch);
+    assert.deepEqual(await page.evaluate(() => window.__reloadFixture.restartCalls.at(-1)),
+        { service: 'watchFusion', port: '9087' });
+    await page.waitForFunction(() => /restarted and verified ready/i.test(document.querySelector('#watchfusion-overlay [data-wf-message]')?.textContent || ''));
 
     // Add the managed Spotify Internal Player surface and prove its helper-only restart is a
     // real two-click pointer confirmation that produces exactly one shared lifecycle request.
@@ -143,7 +198,7 @@ try {
     assert.deepEqual(spotifyCall, { service: 'spotifyEngine', port: '8765' });
     await page.waitForFunction(() => /restarted and is idle/i.test(document.querySelector('#spotify-restart-fixture')?.dataset.status || ''));
 
-    console.log('EVEOS_SELECTIVE_RELOAD_BROWSER_OK pointerConfirm=true duplicateSingleFlight=true spotifyHelperOnly=true');
+    console.log('EVEOS_SELECTIVE_RELOAD_BROWSER_OK pointerConfirm=true duplicateSingleFlight=true settingsConfirm=true watchFusionShared=true spotifyHelperOnly=true');
 } finally {
     await browser.close();
 }
