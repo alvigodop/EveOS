@@ -27,5 +27,6 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/watchfusion/watchfusion.bootstrap.js?v=276b11f79777",
     "js/modules/features/watchfusion/watchfusion.runtime-sensing.js?v=06bb78645e6e",
     "js/modules/features/watchfusion/watchfusion.js?v=a457ebe2a0e2",
+    "js/modules/features/watchfusion/watchfusion.reload.js?v=bd0ed7c8643a",
     "js/modules/features/watchfusion/watchfusion.resilience.js?v=13f7a84e15a5"
 ]);
