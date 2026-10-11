@@ -79,7 +79,7 @@ async function checkRenderedRelay() {
     const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)];
     assert.equal(scripts.length, 1, 'execute the actual single rendered relay script');
 
-    const token = 'private-broker-token-fixture';
+    const token = require('node:crypto').randomUUID(); // Runtime-only fake capability, never a committed secret.
     const lease = 'private-connection-lease-fixture';
     const requests = [], posted = [], waiting = new Map(), listeners = new Map(), failures = [];
     const parent = { postMessage: (message) => posted.push(message) };
