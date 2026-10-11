@@ -17,6 +17,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/gemini-ask-bar.insights.js?v=1b1f2ebd55b1",
     "js/modules/features/gemini-ask-bar.js?v=dacfcd8f9d6d",
     "js/modules/core/eveos-port-registry.js?v=9590438f786e",
+    "js/modules/core/eveos-service-reload-ui.js?v=734d2f394796",
     "js/modules/features/audioflix/audioflix.transport.resilience.js?v=88612b3f6c74",
     "js/modules/features/audioflix/audioflix.spotify.remote.js?v=23413ce99a4e",
     "js/modules/features/audioflix/audioflix.spotify.status-watch.js?v=832b2f4fca48",
