@@ -106,6 +106,10 @@ async function main() {
             maxSamples: Math.ceil(count * 1800000 / 15000) + 20 });
         await sampler.start(mode); checkpoint('controller-hydration');
         await page.goto(controllerUrl, { waitUntil: 'load', timeout: 180000 });
+        if (natural) {
+            await page.bringToFront();
+            await page.waitForFunction(() => document.visibilityState === 'visible', undefined, { timeout: 8000 });
+        }
         await page.waitForFunction(() => window.EveAudioflix?.ready
             && window.EveAudioflixState?.ready
             && window.EveAudioflixSpotifyAnyBrowser?.ready
