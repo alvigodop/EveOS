@@ -136,6 +136,17 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         const esc = ctx.esc;
         const state = ctx.state;
         const filters = window.EveAudioflixFrontendFilters;
+        const frontendKey = () => JSON.stringify(['frontend', 'music', state().activeMusicFolderScope || '',
+            state().activeFrontendMusicGroup || '', state().activeFrontendMusicArtist || '', state().activeFrontendMusicClassifier || '',
+            filters.get('musicGroups'), filters.get('musicArtists'), filters.get('musicClassifiers')]);
+        const backendKey = (name, type) => JSON.stringify(['backend', type, name]);
+        const windows = window.EveAudioflixUiWindow?.create({ esc, renderCard: (item, type) => renderItemCard(item, type),
+            itemsForKey: key => { const [mode, type, group] = JSON.parse(key);
+                return { type, items: mode === 'frontend' ? frontendActiveGroup(type).items
+                    : (state().music || []).filter(item => ctx.groupKey(item, type) === group) }; },
+            afterMount: grid => { window.EveAudioflixTransport?.sync?.(grid); window.EveAudioflixLayerVoices?.render?.(grid); } });
+        const cards = (items, key, type) => windows?.render(items, key, type) || items.map(item => renderItemCard(item, type)).join('');
+        const windowAttrs = (items, key, type) => windows?.attrs(items, key, type) || '';
 
         function frontendMusicItems() {
             let items = (state().music || []).filter((it) => ctx.isItemExposed(it, 'music'));
@@ -273,7 +284,8 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const shuffleBtn = items.length ? `<button type="button" class="audioflix-play-group-btn${amq.shuffle ? ' is-active' : ''}" data-af-action="shuffle-music-group" title="Make the current track #1 and shuffle the rest">🔀 Shuffle Order</button>` : '';
             const loopBtn = items.length ? `<button type="button" class="audioflix-play-group-btn${amq.loop ? ' is-active' : ''}" data-af-action="loop-music-group" title="When the last track ends, loop back to #1">🔁 ${amq.loop ? 'Loop On' : 'Activate Loop'}</button>` : '';
             const queueViewBtn = items.length ? `<button type="button" class="audioflix-play-group-btn" data-af-action="open-queue-view" title="Open this group's queue inside EveOS">🖥 Queue View</button>` : '';
-            return `${scopePills}${selector}${smartSelector}${classifierRow}<div class="audioflix-frontend-subhead" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:0 4px;"><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:1.05rem; color:#f8fafc;">${esc(displayName)}</strong> <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">(${items.length} track${items.length === 1 ? '' : 's'})</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${playGroupBtn}${shuffleBtn}${loopBtn}${queueViewBtn}</div></div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map((it) => renderItemCard(it, 'music')).join('')}</div>`;
+            const key = frontendKey();
+            return `${scopePills}${selector}${smartSelector}${classifierRow}<div class="audioflix-frontend-subhead" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:0 4px;"><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:1.05rem; color:#f8fafc;">${esc(displayName)}</strong> <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">(${items.length} track${items.length === 1 ? '' : 's'})</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${playGroupBtn}${shuffleBtn}${loopBtn}${queueViewBtn}</div></div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}"${windowAttrs(items, key, 'music')}>${cards(items, key, 'music')}</div>`;
         };
 
         function renderItems(items, type) {
@@ -291,7 +303,8 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
                 const menuAttrs = isUngrouped && clearableCount
                     ? ` data-af-context="ungrouped" data-af-type="${esc(type)}" data-af-clear-count="${clearableCount}" title="Right-click to clear Ungrouped"`
                     : ` data-af-type="${esc(type)}"`;
-                return `<section class="audioflix-group ${collapsed[name] ? 'is-collapsed' : ''}" data-af-group="${esc(name)}"><button type="button" class="audioflix-group-title${isUngrouped && clearableCount ? ' has-context-menu' : ''}" data-af-action="toggle-group" data-af-group="${esc(name)}"${menuAttrs} aria-expanded="${collapsed[name] ? 'false' : 'true'}">${esc(name)}<span class="audioflix-group-count">${members.length} item${members.length === 1 ? '' : 's'}</span></button><div class="audioflix-item-grid">${collapsed[name] ? '' : members.map((it) => renderItemCard(it, type)).join('')}</div></section>`;
+                const key = backendKey(name, type);
+                return `<section class="audioflix-group ${collapsed[name] ? 'is-collapsed' : ''}" data-af-group="${esc(name)}"><button type="button" class="audioflix-group-title${isUngrouped && clearableCount ? ' has-context-menu' : ''}" data-af-action="toggle-group" data-af-group="${esc(name)}"${menuAttrs} aria-expanded="${collapsed[name] ? 'false' : 'true'}">${esc(name)}<span class="audioflix-group-count">${members.length} item${members.length === 1 ? '' : 's'}</span></button><div class="audioflix-item-grid"${windowAttrs(members, key, type)}>${collapsed[name] ? '' : cards(members, key, type)}</div></section>`;
             }).join('');
         }
 
@@ -306,7 +319,9 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             else {
                 const type = button.dataset.afType === 'music' ? 'music' : 'sound';
                 const items = type === 'music' ? (state().music || []) : [...(state().soundboard || []), ...ctx.getPorted()];
-                grid.innerHTML = items.filter(item => ctx.groupKey(item, type) === button.dataset.afGroup).map(item => renderItemCard(item, type)).join('');
+                const members = items.filter(item => ctx.groupKey(item, type) === button.dataset.afGroup), key = backendKey(button.dataset.afGroup, type);
+                windows?.configure(grid, members, key, type);
+                grid.innerHTML = cards(members, key, type);
                 window.EveAudioflixTransport?.sync?.(section);
                 window.EveAudioflixLayerVoices?.render?.(section);
             }
@@ -322,6 +337,12 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             });
             let card = cardFor();
             if (card && !card.closest('.audioflix-group.is-collapsed')) return card;
+            if (type === 'music' && state().musicViewMode === 'frontend') {
+                const scope = frontendActiveGroup('music'), index = scope.items.findIndex(item => String(item.id) === String(id));
+                const grid = root.querySelector('.audioflix-item-grid[data-af-active-group]');
+                windows?.showIndex(grid, scope.items, frontendKey(), type, index);
+                if (index >= 0) return cardFor();
+            }
             const items = type === 'music' ? (state().music || []) : [...(state().soundboard || []), ...ctx.getPorted()];
             const item = items.find(entry => String(entry.id) === String(id));
             if (!item) return null;
@@ -329,6 +350,9 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const button = [...root.querySelectorAll('.audioflix-group-title')].find(entry => entry.dataset.afGroup === group && entry.dataset.afType === type);
             // Use the existing action owner so collapse state and the mounted projection agree.
             if (button?.getAttribute('aria-expanded') === 'false') button.click();
+            const members = items.filter(entry => ctx.groupKey(entry, type) === group);
+            windows?.showIndex(button?.closest('.audioflix-group')?.querySelector('.audioflix-item-grid'),
+                members, backendKey(group, type), type, members.findIndex(entry => String(entry.id) === String(id)));
             return cardFor();
         }
 

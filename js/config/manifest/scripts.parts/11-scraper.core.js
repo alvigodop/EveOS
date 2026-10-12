@@ -26,7 +26,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/scraper/utils/error-handling/suppressor/components/es-handlers.js?v=1c97d22ded7c",
     "js/modules/features/scraper/utils/error-handling/suppressor/error-suppressor.js?v=9db927220799",
     "js/modules/features/scraper/ui/core/dom-utils.js?v=a95ca358781a",
-    "js/modules/features/scraper/utils/event-bus.js?v=022288bbc38b",
+    "js/modules/features/scraper/utils/event-bus.js?v=ed153f78e2bd",
     "js/modules/features/scraper/utils/helpers/html-utils.js?v=911b15334d40",
     "js/modules/features/scraper/utils/cors-proxy/components/cpm-core.js?v=9b77afb35563",
     "js/modules/features/scraper/utils/cors-proxy/components/cpm-utils.js?v=c420d39bdeb3",

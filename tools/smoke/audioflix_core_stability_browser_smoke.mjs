@@ -13,6 +13,7 @@ const overlaySource = read('js/modules/features/audioflix/audioflix.ui.overlay.j
 const healthUiSource = read('js/modules/features/audioflix/audioflix.library.next.ui.js');
 const playlistUiSource = read('js/modules/features/audioflix/audioflix.ui.playlist-import.js');
 const renderSource = read('js/modules/features/audioflix/audioflix.ui.render.js');
+const windowSource = read('js/modules/features/audioflix/audioflix.ui.window.js');
 const quickSource = read('js/modules/features/audioflix/audioflix.nexus.quick.js');
 const nexusActionsSource = read('js/modules/features/audioflix/audioflix.ui.actions.nexus.js');
 const evidence = path.join(ROOT, 'data/runtime/smoke-results/audioflix-core-stability-browser');
@@ -213,6 +214,7 @@ try {
         window.EveAudioflixUiForms = { create: () => () => {} };
         window.EveAudioflixAudio = { stopItemLayers: async () => true, playItem: async item => { window.__playing = item.id; }, syncQueueView: () => {} };
     });
+    await lazy.addScriptTag({ content: windowSource });
     await lazy.addScriptTag({ content: renderSource });
     await lazy.addScriptTag({ content: nexusActionsSource });
     await lazy.addScriptTag({ content: actionsSource });
@@ -222,7 +224,7 @@ try {
         const render = window.__render = window.EveAudioflixUiRender.create({
             esc, state: () => window.__state, groupKey: (item, type) => (type === 'sound' ? item.category : item.folder) || 'Ungrouped', itemMeta: () => '',
             groupTags: () => '', internalViewButton: () => '', isItemExposed: () => true,
-            groupsOf: () => [], getPorted: () => window.__ported, getActiveRepeaters: () => ({}),
+            groupsOf: () => [], allGroups: () => [], classifierEntries: () => [], getPorted: () => window.__ported, getActiveRepeaters: () => ({}),
             getActiveMusicQueue: () => window.__queue, getCollapsedGroups: () => window.__collapsed,
             stopSvg: 'Stop', playSvg: 'Play', layerPlaySvg: 'Layer', cogSvg: 'Settings', closeSvg: 'Delete'
         });
@@ -234,6 +236,7 @@ try {
             rerender: () => { window.__renders += 1; root.innerHTML = render.renderItems(window.__state.music, 'music'); },
             rerenderModal: () => { window.__settings = ctx.activeInfoItem.id; }
         };
+        window.__actionCtx = ctx;
         const actions = window.EveAudioflixUiActions.create(ctx);
         root.innerHTML = '<div style="height:1400px"></div><div class="audioflix-nexus-panel"><input value="Lazy 1 249"><button id="jump" data-af-action="nexus-jump-card" data-af-id="lazy-1-249" data-af-type="music">Jump to card</button></div>' + render.renderItems(window.__state.music, 'music');
         root.addEventListener('click', event => { const button = event.target.closest('[data-af-action]'); if (button) actions.handleAction(button, event); });
@@ -280,10 +283,63 @@ try {
     assert.equal(await lazy.locator('[data-af-action="remove"][data-af-id="ported-sound"]').count(), 0, 'ported sounds retain their non-deletable card contract');
     await lazy.locator('[data-af-action="play"][data-af-id="ported-sound"]').click();
     await lazy.waitForFunction(() => window.__playing === 'ported-sound');
+    await lazy.evaluate(() => {
+        window.__state.music = Array.from({ length: 25000 }, (_, index) => ({ id: `large-${index}`, title: `Large ${index}`, type: 'music', folder: 'Large' }));
+        window.__state.musicViewMode = 'frontend';
+        window.__queue = { items: [], currentIndex: -1, isPlaying: false };
+        const ctx = window.__actionCtx;
+        ctx.activeMusicQueue = window.__queue;
+        ctx.frontendActiveGroup = window.__render.frontendActiveGroup;
+        ctx.shuffleQueue = items => items;
+        ctx.playQueueIndex = async index => { window.__queue = ctx.activeMusicQueue; window.__playing = window.__queue.items[index]; };
+        document.getElementById('audioflix-overlay').innerHTML = '<div class="audioflix-nexus-panel"><input value="Large 24999"><button id="large-jump" data-af-action="nexus-jump-card" data-af-id="large-24999" data-af-type="music">Jump to far card</button></div>' + window.__render.renderItems(window.__state.music, 'music');
+    });
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200, '25k Frontend All Groups mounts one bounded card page');
+    assert.match(await lazy.locator('.audioflix-card-pages').textContent(), /of 25000 tracks/);
+    assert.equal(await lazy.locator('[data-af-action="play"][data-af-id="large-24999"]').count(), 0, 'far cards are not hidden DOM');
+    await lazy.getByRole('button', { name: 'Next page', exact: true }).click();
+    assert.equal(await lazy.locator('[data-af-action="play"][data-af-id="large-200"]').count(), 1);
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    await lazy.getByRole('button', { name: 'Previous page', exact: true }).click();
+    assert.equal(await lazy.locator('[data-af-action="play"][data-af-id="large-0"]').count(), 1);
+    await lazy.locator('#large-jump').click();
+    await lazy.waitForFunction(() => document.querySelector('.is-nexus-jump-target')?.querySelector('[data-af-action="play"]')?.dataset.afId === 'large-24999');
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    assert.equal(await lazy.locator('.audioflix-nexus-panel input').inputValue(), 'Large 24999');
+    assert.equal(await lazy.locator('.audioflix-nexus-panel').count(), 1, 'far jump keeps main Nexus open');
+    assert.equal(await lazy.evaluate(() => window.__render.frontendActiveGroup('music').items.length), 25000, 'presentation never truncates canonical group membership');
+    await lazy.locator('[data-af-action="play-music-group"]').click();
+    await lazy.waitForFunction(() => window.__queue.items.length === 25000);
+    assert.equal(await lazy.evaluate(() => window.__queue.items.at(-1)), 'large-24999', 'Play Group queues the complete source, not the mounted page');
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    await lazy.evaluate(() => {
+        window.__state.musicViewMode = 'backend'; window.__collapsed.Large = true;
+        document.getElementById('audioflix-overlay').innerHTML = '<div class="audioflix-nexus-panel"><input value="Large 24999"><button id="backend-far-jump" data-af-action="nexus-jump-card" data-af-id="large-24999" data-af-type="music">Jump to far card</button></div>' + window.__render.renderItems(window.__state.music, 'music');
+    });
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 0);
+    assert.match(await lazy.locator('.audioflix-group-count').textContent(), /25000 items/);
+    await lazy.locator('.audioflix-group-title').focus();
+    await lazy.keyboard.press('Enter');
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200, 'large backend expansion is also bounded and keyboard-accessible');
+    await lazy.locator('#backend-far-jump').click();
+    await lazy.waitForFunction(() => document.querySelector('.is-nexus-jump-target')?.querySelector('[data-af-action="play"]')?.dataset.afId === 'large-24999');
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    assert.equal(await lazy.locator('.audioflix-nexus-panel input').inputValue(), 'Large 24999');
+    const cache = await lazy.evaluate(() => {
+        const windowed = window.EveAudioflixUiWindow.create({ esc: String, renderCard: () => '', itemsForKey: () => null });
+        for (let index = 0; index < 100; index++) windowed.render(window.__state.music, `cache-test-${index}`, 'music');
+        return windowed.diagnostics();
+    });
+    assert.equal(cache.cachedScopes, 32, 'presentation page cache is bounded and holds only page positions');
+    assert.equal(cache.pageSize, 200);
     assert.deepEqual(errors, [], 'lazy mounting has no browser errors');
 
     fs.mkdirSync(evidence, { recursive: true });
-    fs.writeFileSync(path.join(evidence, 'result.json'), JSON.stringify({ ok: true, collapsedCards: 0, expandedGroupCards: 250, collapseRetiresCards: true, playbackRetained: true, queueBadgeCurrent: true, realPointer: true, keyboard: true, nexusRevealQueryPreserved: true, unrelatedDomPreserved: true, wholeLibraryRerenders: 0, pageErrors: errors }, null, 2));
+    fs.writeFileSync(path.join(evidence, 'result.json'), JSON.stringify({ ok: true, collapsedCards: 0, expandedGroupCards: 250,
+        boundedMusicScope: { source: 25000, mounted: 200, fullQueue: true, frontendPagination: true,
+            backendKeyboardExpansion: true, farNexusJump: true, cachedScopes: cache.cachedScopes },
+        collapseRetiresCards: true, playbackRetained: true, queueBadgeCurrent: true, realPointer: true,
+        keyboard: true, nexusRevealQueryPreserved: true, unrelatedDomPreserved: true, wholeLibraryRerenders: 0, pageErrors: errors }, null, 2));
     console.log('AUDIOFLIX_CORE_STABILITY_BROWSER_SMOKE_OK');
 } catch (error) {
     fs.mkdirSync(evidence, { recursive: true });

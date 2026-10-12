@@ -4,6 +4,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Feature Modules (Consolidated)
+    "js/modules/features/audioflix/audioflix.ui.window.js?v=836fbe03e376",
     "js/modules/features/favicon-cache.core.js?v=3503ac7dc339",
     "js/modules/features/favicon-cache.runtime.js?v=31d555566f46",
     "js/modules/features/favicon-cache.js?v=e0369c7946d2",

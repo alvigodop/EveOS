@@ -99,4 +99,4 @@ console.log('EventBus module loaded and registered');
             console.error('Error initializing EventBus:', e);
         }
     }
-})(); 
+})();
