@@ -50,6 +50,17 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
 
     installStableQueueView();
 
+    function syncTerminalView(snapshot) {
+        const latest = snapshot?.();
+        if (latest?.isPlaying) return false;
+        window.EveAudioflixAudio?.syncQueueView?.();
+        // Group transport buttons are rendered from the authoritative queue state. Natural
+        // exhaustion used to set isPlaying=false inside playQueueIndex() and return before the
+        // normal rerender, leaving "Stop Group" visible after the final item ended.
+        window.EveAudioflix?.rerender?.();
+        return true;
+    }
+
     function create({ snapshot, advance, restart }) {
         let consumed = '';
         return function complete(detail = {}) {
@@ -67,8 +78,8 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
                 const latest = snapshot();
                 if (!latest?.isPlaying || latest.playbackRunId !== run
                     || String(latest.entries?.[latest.currentIndex]?.id ?? '') !== id) return;
-                // The live repeat toggle and current ordering have one owner, independent of view.
                 await (latest.repeatOne ? restart() : advance());
+                syncTerminalView(snapshot);
             }).catch(error => {
                 window.EveAudioflixDiagnostics?.record?.('queue:completion-error', 0, { error: true });
                 console.warn('[Audioflix] Queue completion failed:', error?.message || error);
@@ -134,6 +145,6 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
 
     Object.assign(ns, {
         ready: true, create, createBridge, createRuntime, isStaleDelivery,
-        installStableQueueView, queueViewSignature
+        installStableQueueView, queueViewSignature, syncTerminalView
     });
 })();

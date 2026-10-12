@@ -31,6 +31,10 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
         if (grid) q.group = grid;
     }
 
+    function musicItem(id) {
+        return (window.EveAudioflixState?.ensure?.().music || []).find((entry) => String(entry.id) === String(id)) || null;
+    }
+
     function addMarker(card) {
         const next = window.EveAudioflixLibraryNext;
         if (!next?.health || !next?.prefs || !card) return;
@@ -39,14 +43,14 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
         if (!play || !row) return;
         const id = play.dataset.afId;
         if (!id || row.querySelector('.eve-url-health-badge')) return;
-        const libraryItem = (window.EveAudioflixState?.ensure?.().music || []).find((entry) => entry.id === id);
+        const libraryItem = musicItem(id);
         const item = next.effectiveHealth?.(libraryItem) || next.health(id);
         if (!item?.status) return;
-        const pref = next.prefs(id);
+        const pref = next.prefs(id) || {};
         const marker = document.createElement('span');
-        if (item.status === 'provider') {
+        if (item.status === 'provider' && pref.showLive === true) {
             marker.className = 'eve-url-health-badge is-provider';
-            marker.title = 'Spotify playback uses the official embedded player; generic URL resolution is intentionally bypassed';
+            marker.title = 'Spotify provider health marker; playback uses the official embedded player';
             marker.textContent = '● Spotify';
             row.insertBefore(marker, row.querySelector('strong') || null);
         } else if (item.status === 'down' && !pref.hideDown) {
@@ -64,10 +68,40 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
         }
     }
 
+    function refreshCard(id) {
+        const overlay = audioflixOverlay();
+        if (!overlay || !id) return;
+        overlay.querySelectorAll('[data-af-action="play"][data-af-type="music"]').forEach((play) => {
+            if (String(play.dataset.afId || '') !== String(id)) return;
+            const card = play.closest('.audioflix-item-card');
+            card?.querySelectorAll('.eve-url-health-badge').forEach((badge) => badge.remove());
+            addMarker(card);
+        });
+    }
+
+    function decorateProviderHealthBox(box) {
+        if (!box || box.querySelector('[data-eve-provider-marker-toggle]')) return;
+        const modal = box.closest('.audioflix-info-modal');
+        const id = modal?.querySelector?.('[data-af-form="edit-track"]')?.dataset?.afId || '';
+        const item = musicItem(id);
+        const next = window.EveAudioflixLibraryNext;
+        if (!id || !item || next?.effectiveHealth?.(item)?.status !== 'provider') return;
+        const pref = next.prefs?.(id) || {};
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="checkbox" data-eve-provider-marker-toggle data-eve-item-id="${String(id).replace(/[&<>"']/g, '')}" ${pref.showLive === true ? 'checked' : ''}> Show Spotify health marker on this song card`;
+        box.appendChild(label);
+    }
+
     function injectMarkers(root) {
         if (!root || root.nodeType !== 1) return;
         if (root.matches?.('.audioflix-item-card')) addMarker(root);
         root.querySelectorAll?.('.audioflix-item-card').forEach(addMarker);
+    }
+
+    function decorateHealthBoxes(root) {
+        if (!root || root.nodeType !== 1) return;
+        if (root.matches?.('.eve-url-health-box')) decorateProviderHealthBox(root);
+        root.querySelectorAll?.('.eve-url-health-box').forEach(decorateProviderHealthBox);
     }
 
     function containsAudioflixCard(root) {
@@ -90,6 +124,7 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
             record.addedNodes.forEach((node) => {
                 if (node?.nodeType !== 1) return;
                 if (containsAudioflixCard(node)) injectMarkers(node);
+                decorateHealthBoxes(node);
                 if (containsQueueGrid(node)) shouldSyncQueue = true;
             });
             record.removedNodes.forEach((node) => {
@@ -110,6 +145,7 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
             const overlay = audioflixOverlay();
             if (!overlay || overlayObserver) return false;
             injectMarkers(overlay);
+            decorateHealthBoxes(overlay);
             syncQueueRebase();
             overlayObserver = new MutationObserver(handleOverlayMutations);
             overlayObserver.observe(overlay, { childList: true, subtree: true });
@@ -139,10 +175,16 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
         if (ns.booted || !document.body) return;
         ns.booted = true;
 
-        // State cleanup is independent of page DOM. Runtime UI work begins only after the stable
-        // AudioFlix overlay exists, so Search Monitor/Gemini mutations cannot drive this module.
         pruneGroupMap();
         installOverlayObserver();
+
+        document.addEventListener('change', (event) => {
+            const toggle = event.target?.closest?.('[data-eve-provider-marker-toggle]');
+            if (!toggle) return;
+            const id = toggle.dataset.eveItemId || '';
+            window.EveAudioflixLibraryNext?.setPrefs?.(id, { showLive: toggle.checked });
+            refreshCard(id);
+        }, true);
 
         document.addEventListener('click', (event) => {
             const play = event.target?.closest?.('[data-af-action="play"][data-af-type="music"]');
@@ -160,6 +202,6 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
         }, true);
     }
 
-    Object.assign(ns, { ready: true, boot, pruneGroupMap });
+    Object.assign(ns, { ready: true, boot, pruneGroupMap, refreshCard });
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })();
