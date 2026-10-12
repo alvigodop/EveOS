@@ -37,35 +37,19 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
 
     function addMarker(card) {
         const next = window.EveAudioflixLibraryNext;
-        if (!next?.health || !next?.prefs || !card) return;
+        if (!next?.markerDescriptor || !card) return;
         const play = card.querySelector('[data-af-action="play"][data-af-type="music"]');
         const row = card.querySelector('.audioflix-item-title-row');
         if (!play || !row) return;
         const id = play.dataset.afId;
         if (!id || row.querySelector('.eve-url-health-badge')) return;
-        const libraryItem = musicItem(id);
-        const item = next.effectiveHealth?.(libraryItem) || next.health(id);
-        if (!item?.status) return;
-        const pref = next.prefs(id) || {};
+        const descriptor = next.markerDescriptor(musicItem(id));
+        if (!descriptor) return;
         const marker = document.createElement('span');
-        if (item.status === 'provider' && pref.showLive === true) {
-            marker.className = 'eve-url-health-badge is-provider';
-            marker.title = 'Spotify provider health marker; playback uses the official embedded player';
-            marker.textContent = '● Spotify';
-            row.insertBefore(marker, row.querySelector('strong') || null);
-        } else if (item.status === 'down' && !pref.hideDown) {
-            marker.className = 'eve-url-health-badge is-down';
-            marker.title = item.source === 'spotify-provider-error'
-                ? 'Spotify\'s official player reported a playback failure'
-                : 'URL checked when played and is currently unavailable';
-            marker.textContent = item.source === 'spotify-provider-error' ? '● Spotify Down' : '● URL Down';
-            row.insertBefore(marker, row.querySelector('strong') || null);
-        } else if (item.status === 'live' && pref.showLive) {
-            marker.className = 'eve-url-health-badge is-live';
-            marker.title = 'URL checked when played and is currently live';
-            marker.textContent = '● Live URL';
-            row.insertBefore(marker, row.querySelector('strong') || null);
-        }
+        marker.className = descriptor.className;
+        marker.title = descriptor.title;
+        marker.textContent = descriptor.text;
+        row.insertBefore(marker, row.querySelector('strong') || null);
     }
 
     function refreshCard(id) {
@@ -80,15 +64,16 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
     }
 
     function decorateProviderHealthBox(box) {
-        if (!box || box.querySelector('[data-eve-provider-marker-toggle]')) return;
+        if (!box || box.querySelector('[data-next-pref="showProviderHealthOnCard"], [data-eve-provider-marker-toggle]')) return;
         const modal = box.closest('.audioflix-info-modal');
         const id = modal?.querySelector?.('[data-af-form="edit-track"]')?.dataset?.afId || '';
         const item = musicItem(id);
         const next = window.EveAudioflixLibraryNext;
-        if (!id || !item || next?.effectiveHealth?.(item)?.status !== 'provider') return;
+        const provider = next?.providerFor?.(item) || next?.effectiveHealth?.(item)?.provider || item?.sourceProvider || '';
+        if (!id || !item || String(provider).toLowerCase() !== 'spotify') return;
         const pref = next.prefs?.(id) || {};
         const label = document.createElement('label');
-        label.innerHTML = `<input type="checkbox" data-eve-provider-marker-toggle data-eve-item-id="${String(id).replace(/[&<>"']/g, '')}" ${pref.showLive === true ? 'checked' : ''}> Show Spotify health marker on this song card`;
+        label.innerHTML = `<input type="checkbox" data-eve-provider-marker-toggle data-eve-item-id="${String(id).replace(/[&<>"']/g, '')}" ${pref.showProviderHealthOnCard === true ? 'checked' : ''}> Show Spotify health on this song card`;
         box.appendChild(label);
     }
 
@@ -178,11 +163,13 @@ window.EveAudioflixLibraryNextUi = window.EveAudioflixLibraryNextUi || {};
         pruneGroupMap();
         installOverlayObserver();
 
+        // Fallback for provider health boxes supplied by older/standalone UI paths. The primary
+        // health box uses data-next-pref and is handled by the core health module.
         document.addEventListener('change', (event) => {
             const toggle = event.target?.closest?.('[data-eve-provider-marker-toggle]');
             if (!toggle) return;
             const id = toggle.dataset.eveItemId || '';
-            window.EveAudioflixLibraryNext?.setPrefs?.(id, { showLive: toggle.checked });
+            window.EveAudioflixLibraryNext?.setPrefs?.(id, { showProviderHealthOnCard: toggle.checked });
             refreshCard(id);
         }, true);
 
