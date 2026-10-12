@@ -10,6 +10,7 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
     const STORE = 'media';
     const MAX_CACHE_BYTES = 350 * 1024 * 1024;
     const MAX_ONE_CACHE = 80 * 1024 * 1024;
+    const PROVIDER_HEALTH_TTL_MS = 6 * 60 * 60 * 1000;
     const text = (v, f = '') => String(v ?? '').trim() || f;
     const state = () => window.EveAudioflixState?.ensure?.() || {};
     const canonUrl = (v) => { try { const u = new URL(text(v)); u.hash = ''; return u.toString().replace(/\/$/, ''); } catch { return text(v).replace(/\/$/, ''); } };
@@ -32,40 +33,87 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
     ns.earliest = earliest;
     ns.numericRename = numericRename;
 
-    // ---------- Durable URL health preferences/status ----------
+    // ---------- Durable URL/provider health preferences/status ----------
     function health(id) { return loadMap(HEALTH_KEY)[id] || null; }
-    function prefs(id) { return loadMap(PREF_KEY)[id] || { showLive: false, hideDown: false }; }
+    function prefs(id) {
+        const stored = loadMap(PREF_KEY)[id] || {};
+        return {
+            showLive: stored.showLive === true,
+            hideDown: stored.hideDown === true,
+            showProviderHealthOnCard: stored.showProviderHealthOnCard === true
+        };
+    }
+    function refreshHealthCard(id) {
+        window.EveAudioflixLibraryNextUi?.refreshCard?.(id);
+    }
     function setHealth(id, patch) {
         const map = loadMap(HEALTH_KEY);
         map[id] = { ...(map[id] || {}), ...patch, checkedAt: Date.now() };
         saveMap(HEALTH_KEY, map);
+        refreshHealthCard(id);
         return map[id];
     }
     function setPrefs(id, patch) {
         const map = loadMap(PREF_KEY);
-        map[id] = { showLive: map[id]?.showLive === true, hideDown: map[id]?.hideDown === true, ...patch };
+        const current = prefs(id);
+        map[id] = { ...current, ...(patch || {}) };
         saveMap(PREF_KEY, map);
+        refreshHealthCard(id);
         return map[id];
     }
     function isLocalHost() {
         return /^(?:localhost|127\.0\.0\.1)$/i.test(location.hostname || '') || /\/\/localhost(?::|\/)/i.test(String(location.href));
     }
     function providerFor(itemOrUrl) {
-        const url = text(typeof itemOrUrl === 'string' ? itemOrUrl : itemOrUrl?.url);
+        const source = itemOrUrl && typeof itemOrUrl === 'object' ? itemOrUrl : null;
+        const declared = text(source?.sourceProvider).toLowerCase();
+        if (declared) return declared;
+        const url = text(typeof itemOrUrl === 'string' ? itemOrUrl : source?.url);
         const provider = text(window.EveAudioflixUrlProviders?.providerFor?.(url)).toLowerCase();
         if (provider) return provider;
-        return /^https?:\/\/open\.spotify\.com\/(?:embed\/)?track\//i.test(url) ? 'spotify' : '';
+        return /^https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(?:track|episode)\//i.test(url) ? 'spotify' : '';
     }
     function providerManagedHealth(item) {
         if (providerFor(item) !== 'spotify') return null;
-        return { status: 'provider', provider: 'spotify', source: 'spotify-official', mediaUrl: '' };
+        return { status: 'provider', provider: 'spotify', source: 'spotify-provider', mediaUrl: '' };
     }
     function effectiveHealth(item) {
         const stored = health(item?.id);
         const managed = providerManagedHealth(item);
         if (!managed) return stored;
-        if (stored?.status === 'down' && stored?.source === 'spotify-provider-error') return stored;
-        return { ...(stored || {}), ...managed };
+        if (!stored) return managed;
+        const status = text(stored.status).toLowerCase();
+        if (status === 'live') return { ...stored, status: 'healthy', provider: 'spotify', source: text(stored.source, 'spotify-playback') };
+        if (['healthy', 'down', 'error', 'checking', 'stale'].includes(status)) {
+            const checkedAt = Number(stored.checkedAt || stored.lastCheckedAt || 0);
+            if (status !== 'checking' && status !== 'stale' && checkedAt > 0 && Date.now() - checkedAt > PROVIDER_HEALTH_TTL_MS) {
+                return { ...stored, status: 'stale', provider: 'spotify', staleFrom: status };
+            }
+            return { ...stored, provider: 'spotify' };
+        }
+        return { ...stored, ...managed };
+    }
+    function markerDescriptor(item) {
+        const h = effectiveHealth(item);
+        if (!h) return null;
+        const p = prefs(item?.id);
+        const managed = providerFor(item) === 'spotify';
+        if (managed) {
+            if (!p.showProviderHealthOnCard) return null;
+            if (h.status === 'healthy') return { className: 'eve-url-health-badge is-healthy', title: 'Spotify playback was verified by a successful EveOS playback event', text: '● Spotify Healthy' };
+            if (h.status === 'checking') return { className: 'eve-url-health-badge is-checking', title: 'Spotify playback is starting; health is not verified yet', text: '◐ Spotify Checking' };
+            if (h.status === 'down' || h.status === 'error') return { className: 'eve-url-health-badge is-error', title: 'Spotify\'s official player reported a playback failure', text: '● Spotify Down' };
+            if (h.status === 'stale') return { className: 'eve-url-health-badge is-stale', title: 'Spotify playback was verified previously, but the health result is now stale', text: '○ Spotify Stale' };
+            return { className: 'eve-url-health-badge is-provider', title: 'Spotify is the playback provider; health has not been verified by playback yet', text: '○ Spotify Unverified' };
+        }
+        if (h.status === 'down') return p.hideDown ? null : { className: 'eve-url-health-badge is-down', title: 'URL checked when played and is currently unavailable', text: '● URL Down' };
+        if (h.status === 'live' && p.showLive) return { className: 'eve-url-health-badge is-live', title: 'URL checked when played and is currently live', text: '● Live URL' };
+        return null;
+    }
+    function marker(item) {
+        const descriptor = markerDescriptor(item);
+        if (!descriptor) return '';
+        return `<span class="${descriptor.className}" title="${descriptor.title}">${descriptor.text}</span>`;
     }
 
     // ---------- IndexedDB media cache ----------
@@ -120,7 +168,7 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
     async function resolveLive(item) {
         const url = text(item?.url);
         if (!/^https?:\/\//i.test(url) || !isLocalHost()) return { live: null, mediaUrl: '' };
-        const provider = providerFor(url);
+        const provider = providerFor(item);
         try {
             // Spotify is intentionally owned by the official iframe player. The generic resolver
             // rejects Spotify identities by design, so probing it here only manufactures a 422 and
@@ -161,15 +209,23 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
         const live = await resolveLive(item);
         if (live.providerManaged === true) {
             setHealth(key, {
-                status: 'provider',
+                status: 'checking',
                 provider: text(live.provider, 'spotify'),
-                source: 'spotify-official',
+                source: 'spotify-playback-start',
                 mediaUrl: '',
                 lastCheckedAt: Date.now()
             });
-            // Do not substitute an old URL cache for a Spotify identity. Explicit localization is
-            // still allowed elsewhere, but ordinary URL playback stays on Spotify's official player.
-            return originalPlay(item);
+            // Provider identity is not health. The card remains neutral/checking until the playback
+            // layer emits an actual Playing event; failures are recorded by the same event channel.
+            try {
+                return await originalPlay(item);
+            } catch (error) {
+                setHealth(key, {
+                    status: 'error', provider: 'spotify', source: 'spotify-provider-error', mediaUrl: '',
+                    reason: text(error?.message, 'Playback failed')
+                });
+                throw error;
+            }
         }
         setHealth(key, { status: live.live === true ? 'live' : 'down', source: text(live.result?.source || ''), mediaUrl: text(live.mediaUrl || ''), lastCheckedAt: Date.now() });
         if (live.live === true) {
@@ -188,19 +244,10 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
         return originalPlay(item);
     }
 
-    function marker(item) {
-        const h = effectiveHealth(item); if (!h) return '';
-        const p = prefs(item.id);
-        if (h.status === 'provider') return '<span class="eve-url-health-badge is-provider" title="Spotify playback uses the official embedded player; generic URL resolution is intentionally bypassed">● Spotify</span>';
-        if (h.status === 'down') return p.hideDown ? '' : '<span class="eve-url-health-badge is-down" title="URL checked when played and is currently unavailable">● URL Down</span>';
-        if (h.status === 'live' && p.showLive) return '<span class="eve-url-health-badge is-live" title="URL checked when played and is currently live">● Live URL</span>';
-        return '';
-    }
-
     function injectStyle() {
         if (document.getElementById('eve-audioflix-library-next-style')) return;
         const style = document.createElement('style'); style.id = 'eve-audioflix-library-next-style';
-        style.textContent = '.eve-url-health-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:9px;font-size:.67rem;font-weight:800;line-height:1.1}.eve-url-health-badge.is-down{color:#fecaca;background:#7f1d1d;border:1px solid #ef4444}.eve-url-health-badge.is-live{color:#bbf7d0;background:#14532d;border:1px solid #22c55e}.eve-url-health-badge.is-provider{color:#d1fae5;background:#064e3b;border:1px solid #10b981}.eve-next-tool{font-size:.72rem;padding:4px 9px;border-radius:10px;cursor:pointer;margin:4px 4px 0 0;border:1px solid #475569;background:#1e293b;color:#e2e8f0}.eve-next-tool:hover{filter:brightness(1.15)}.eve-url-health-box{margin-top:10px;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:7px}.eve-url-health-box label{display:flex;align-items:center;gap:6px;color:#cbd5e1;font-size:.74rem;margin-top:6px}';
+        style.textContent = '.eve-url-health-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:9px;font-size:.67rem;font-weight:800;line-height:1.1}.eve-url-health-badge.is-down,.eve-url-health-badge.is-error{color:#fecaca;background:#7f1d1d;border:1px solid #ef4444}.eve-url-health-badge.is-live,.eve-url-health-badge.is-healthy{color:#bbf7d0;background:#14532d;border:1px solid #22c55e}.eve-url-health-badge.is-provider,.eve-url-health-badge.is-stale{color:#cbd5e1;background:#1e293b;border:1px solid #64748b}.eve-url-health-badge.is-checking{color:#fde68a;background:#78350f;border:1px solid #f59e0b}.eve-next-tool{font-size:.72rem;padding:4px 9px;border-radius:10px;cursor:pointer;margin:4px 4px 0 0;border:1px solid #475569;background:#1e293b;color:#e2e8f0}.eve-next-tool:hover{filter:brightness(1.15)}.eve-url-health-box{margin-top:10px;padding:9px;background:#0f172a;border:1px solid #334155;border-radius:7px}.eve-url-health-box label{display:flex;align-items:center;gap:6px;color:#cbd5e1;font-size:.74rem;margin-top:6px}';
         document.head.appendChild(style);
     }
 
@@ -268,17 +315,28 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
     function addModalHealthBox(root) {
         if (!root || root.querySelector('.eve-url-health-box')) return;
         const id = findItemIdFromModal(root); if (!id) return;
-        const item = (state().music || []).find((x) => x.id === id); if (!item || !/^https?:\/\//i.test(text(item.url))) return;
+        const item = (state().music || []).find((x) => x.id === id);
+        const managed = providerManagedHealth(item);
+        if (!item || (!/^https?:\/\//i.test(text(item.url)) && !managed)) return;
         const h = effectiveHealth(item); const p = prefs(id);
-        const providerManaged = h?.status === 'provider';
-        const statusColor = h?.status === 'down' ? '#fca5a5' : h?.status === 'live' ? '#86efac' : providerManaged ? '#6ee7b7' : '#94a3b8';
-        const statusText = h?.status === 'down' ? 'URL Down' : h?.status === 'live' ? 'Live URL' : providerManaged ? 'Spotify Provider' : 'Not checked yet';
+        const providerManaged = !!managed;
+        const statusColor = ['down', 'error'].includes(h?.status) ? '#fca5a5'
+            : ['live', 'healthy'].includes(h?.status) ? '#86efac'
+                : h?.status === 'checking' ? '#fde68a' : '#94a3b8';
+        const statusText = providerManaged
+            ? h?.status === 'healthy' ? 'Spotify Healthy'
+                : h?.status === 'checking' ? 'Spotify Checking'
+                    : h?.status === 'down' || h?.status === 'error' ? 'Spotify Playback Failed'
+                        : h?.status === 'stale' ? 'Spotify Health Stale' : 'Spotify Not Verified Yet'
+            : h?.status === 'down' ? 'URL Down' : h?.status === 'live' ? 'Live URL' : 'Not checked yet';
         const note = providerManaged
-            ? 'Spotify playback is provider-managed by the official embedded player. Generic URL resolution and URL-cache probing are intentionally skipped.'
+            ? 'Spotify identifies the provider, but green health is awarded only after EveOS receives a successful playback event. Generic URL probing remains intentionally bypassed.'
             : 'Checked only when this song is played with EveOS localhost running. file:// uses cache only.';
-        const controls = providerManaged ? '' : `<label><input type="checkbox" data-next-pref="live" data-next-id="${id}" ${p.showLive ? 'checked' : ''}> Show green Live URL marker on the song card</label><label><input type="checkbox" data-next-pref="hideDown" data-next-id="${id}" ${p.hideDown ? 'checked' : ''}> Hide red URL Down marker on the song card</label>`;
+        const controls = providerManaged
+            ? `<label><input type="checkbox" data-next-pref="showProviderHealthOnCard" data-next-id="${id}" ${p.showProviderHealthOnCard ? 'checked' : ''}> Show Spotify health on the song card</label>`
+            : `<label><input type="checkbox" data-next-pref="showLive" data-next-id="${id}" ${p.showLive ? 'checked' : ''}> Show green Live URL marker on the song card</label><label><input type="checkbox" data-next-pref="hideDown" data-next-id="${id}" ${p.hideDown ? 'checked' : ''}> Hide red URL Down marker on the song card</label>`;
         const box = document.createElement('div'); box.className = 'eve-url-health-box';
-        box.innerHTML = `<strong style="font-size:.8rem;color:#e2e8f0">URL health & cache</strong><div style="font-size:.72rem;color:#94a3b8;margin-top:3px">${note}</div><div style="margin-top:5px;font-size:.72rem;color:${statusColor}">Status: ${statusText}</div>${controls}`;
+        box.innerHTML = `<strong style="font-size:.8rem;color:#e2e8f0">Source health & cache</strong><div style="font-size:.72rem;color:#94a3b8;margin-top:3px">${note}</div><div style="margin-top:5px;font-size:.72rem;color:${statusColor}">Status: ${statusText}</div>${controls}`;
         root.querySelector('.audioflix-info-body')?.appendChild(box);
     }
 
@@ -385,7 +443,7 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
             if (providerItem?.id && providerFor(providerItem) === 'spotify') {
                 if (detail.error === true) {
                     setHealth(providerItem.id, {
-                        status: 'down',
+                        status: 'error',
                         provider: 'spotify',
                         source: 'spotify-provider-error',
                         mediaUrl: '',
@@ -393,9 +451,9 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
                     });
                 } else if (/^Playing\b/i.test(text(detail.status))) {
                     setHealth(providerItem.id, {
-                        status: 'provider',
+                        status: 'healthy',
                         provider: 'spotify',
-                        source: 'spotify-official',
+                        source: 'spotify-playback',
                         mediaUrl: ''
                     });
                 }
@@ -413,6 +471,9 @@ window.EveAudioflixLibraryNext = window.EveAudioflixLibraryNext || {};
         if (!ns.readyTimer) ns.readyTimer = setInterval(() => { installStateHooks(); duplicateTools(); installPlaybackHook(); }, 1000);
     }
 
-    Object.assign(ns, { ready: true, boot, health, effectiveHealth, providerManagedHealth, prefs, setHealth, setPrefs });
+    Object.assign(ns, {
+        ready: true, boot, health, effectiveHealth, providerManagedHealth, providerFor,
+        prefs, setHealth, setPrefs, markerDescriptor, marker
+    });
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })();
