@@ -74,7 +74,7 @@ function main() {
     const update = functionBody(audio, 'function updateItemVolume(');
     assert(update.includes('const activeUrlMatch = urlPlayback?.matches?.(itemId) === true'),
         'live provider identity is consulted before deciding whether the slider owns playback');
-    assert(update.includes('urlPlayback.setVolume(safeVolume)'),
+    assert(update.includes('urlPlayback.setVolume(safeVolume, options)'),
         'a card-slider change reaches the provider currently playing');
 
     // ---- and the panel exposes the mirror the url player calls ----

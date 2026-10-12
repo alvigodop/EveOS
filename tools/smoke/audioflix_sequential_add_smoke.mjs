@@ -106,7 +106,7 @@ async function main() {
         getItem(key) { if (key === blockedSlot) throw new Error('Storage temporarily unavailable'); return storage.get(key) ?? null; },
         setItem: (key, value) => storage.set(key, String(value))
     }, CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail; } } });
-    for (const name of ['audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js', 'audioflix.state.mutations.js']) {
+    for (const name of ['audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js', 'audioflix.library.index.js', 'audioflix.state.mutations.js']) {
         vm.runInContext(feature(name), ctx, { filename: name });
     }
     const schema = window.EveAudioflixStateSchema, create = schema.create;

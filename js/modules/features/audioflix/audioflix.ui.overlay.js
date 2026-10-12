@@ -135,11 +135,21 @@ window.EveAudioflixUiOverlay = window.EveAudioflixUiOverlay || {};
                     // equivalent so its active-item update cannot silently miss the live player.
                     const activeId = window.EveAudioflixAudio?.getPlaybackState?.()?.item?.id;
                     const playbackId = String(activeId ?? '') === String(id ?? '') ? activeId : id;
-                    window.EveAudioflixAudio?.updateItemVolume?.(playbackId, vol);
-                    window.EveAudioflixState?.setItemVolume?.(t.dataset.afType, id, vol);
-                    const ps = V.portedSounds.find(s => String(s.id ?? '') === String(id ?? '')); if (ps) ps.volume = vol;
+                    const accepted = volumeGesture ? volumeGesture.input(t) : true;
+                    if (!accepted) e.stopPropagation?.();
+                    if (!volumeGesture) {
+                        window.EveAudioflixState?.setItemVolume?.(t.dataset.afType, id, vol);
+                        window.EveAudioflixAudio?.updateItemVolume?.(playbackId, vol, { persist: false });
+                    }
+                    const ps = V.portedSounds.find(s => String(s.id ?? '') === String(id ?? '')); if (ps && accepted) ps.volume = vol;
                 }
             });
+            const volumeGesture = window.EveAudioflixVolumeGesture?.create?.(V.overlay, '.audioflix-volume-slider', t => {
+                const ported = V.portedSounds.find(s => String(s.id ?? '') === String(t.dataset.afId ?? ''));
+                const activeId = window.EveAudioflixAudio?.getPlaybackState?.()?.item?.id;
+                const id = String(activeId ?? '') === String(t.dataset.afId ?? '') ? activeId : t.dataset.afId;
+                return { id, type: t.dataset.afType || 'sound', ported: !!ported, volume: ported?.volume };
+            }, (value, options) => window.EveAudioflixAudio?.updateItemVolume?.(options.itemId, value, options));
             V.overlay.addEventListener('change', async e => {
                 const t = e.target, id = t.dataset.afId, type = t.dataset.afType || 'sound';
                 if (window.EveAudioflixOutputPort?.handleChange?.(t)) return;

@@ -82,6 +82,7 @@ const localPlayback = {
 let originalPlayCount = 0;
 let originalStopCount = 0;
 const originalPlayCalls = [];
+const originalVolumeCalls = [];
 const stopItemCalls = [];
 const audio = {
     ready: true,
@@ -102,7 +103,7 @@ const audio = {
         stopItemCalls.push({ itemId: String(itemId || ''), preserveProvider: !!preserveProvider });
         return true;
     },
-    updateItemVolume() {},
+    updateItemVolume(...args) { originalVolumeCalls.push(args); },
     getPlaybackState: () => ({ item: null, paused: true }),
     getStatus: () => ({ status: 'Idle', playback: { paused: true } })
 };
@@ -129,7 +130,8 @@ const context = {
         createElement() { return { style: {}, dataset: {}, append() {}, addEventListener() {}, remove() {} }; }
     }
 };
-vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8'), context);
+vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.audio.volume-target.js'), 'utf8'), context);
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.volume.js'), 'utf8'),
     context, { filename: 'audioflix.spotify.volume.js' });
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.status-watch.js'), 'utf8'),
@@ -161,15 +163,7 @@ function evidence(error) {
     assert.equal(play.payload.effectiveVolume, 0.25, 'track 50% x master/output 50% reaches the engine as exactly 25% once');
     assert.equal(play.options.timeout, 45000, 'staged managed Play keeps a reply budget above the old 20s browser timeout race');
 
-    window.EveAudioflixAudio.updateItemVolume('song-1', 0.4);
-    await Promise.resolve();
-    const slider = calls.filter((entry) => entry.action === 'volume').at(-1);
-    assert.equal(slider.payload.effectiveVolume, 0.2, 'track slider sends one already-effective gain to the engine');
-
-    windowListeners.get('eve:audioflix-output-volume')?.();
-    await Promise.resolve();
-    const master = calls.filter((entry) => entry.action === 'volume').at(-1);
-    assert.equal(master.payload.effectiveVolume, 0.2, 'master sync starts from saved raw track gain and does not double-attenuate');
+    await require('./helpers/audioflix_any_browser_volume_namespace')({ window, calls, originalVolumeCalls, windowListeners });
 
     await window.EveAudioflixAudio.pause();
     assert.equal(calls.at(-1).action, 'pause');

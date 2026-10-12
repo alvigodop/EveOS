@@ -47,7 +47,7 @@ function harness({ activeId = 'track-1' } = {}) {
     const window = {
         EveAudioflixTransportResilience: {},
         EveAudioflixAudio: {
-            getPlaybackState: () => ({ item: { id: activeId } })
+            getPlaybackState: () => ({ item: { id: activeId, type: 'music' } })
         },
         EveAudioflix: {
             queueConnection: {
@@ -67,6 +67,7 @@ function harness({ activeId = 'track-1' } = {}) {
         }
     };
 
+    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'js/modules/features/audioflix/audioflix.audio.volume-target.js'), 'utf8'), { window });
     vm.runInNewContext(SOURCE, {
         window,
         document,
@@ -128,6 +129,25 @@ test('a non-active card cannot change the live provider volume', () => {
     const h = harness();
     h.documentListeners.get('input')({ target: volumeTarget('track-2', 0.1) });
     assert.equal(h.sent.length, 0);
+});
+
+test('volume coordinator persists once by default and forwards transient gain without another adapter save', () => {
+    const h = harness({ activeId: 0 });
+    const persisted = [], mutations = [];
+    h.window.EveAudioflixState = { setItemVolume: (...args) => persisted.push(args) };
+    h.window.EveAudioflixAudio.updateItemVolume = (id, value, options) => mutations.push({ id, value, options });
+    const volume = h.window.EveAudioflixTransportControl.setVolume;
+    assert.equal(volume(0.35), true);
+    assert.deepEqual(persisted, [['music', 0, 0.35]], 'one coordinator-owned durable write');
+    assert.equal(mutations[0].options.persist, false, 'URL adapter must not perform a second durable write');
+    assert.equal(volume(0.42, { persist: false, itemId: '0' }), true);
+    assert.equal(persisted.length, 1, 'explicit transient preview skips persistence');
+    assert.equal(mutations[1].id, 0, 'numeric zero live ID remains intact');
+    assert.equal(mutations[1].options.persist, false);
+    assert.equal(volume(0.9, { type: 'sound', itemId: 0 }), false, 'same-ID sound must not persist or control music');
+    assert.equal(persisted.length, 1);
+    assert.equal(volume(0.8, { persist: false, itemId: 'stale' }), false);
+    assert.equal(mutations.length, 2, 'stale bound gesture cannot control the current item');
 });
 
 test('raw provider-host ended state is never a queue completion source', () => {

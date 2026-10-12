@@ -87,11 +87,13 @@ window.EveAudioflixSpotifyEngineSurface = window.EveAudioflixSpotifyEngineSurfac
             onSeek: (value) => window.EveAudioflixAudio?.seek?.(value),
             onStep: (delta) => queueConnection()?.step?.(Number(delta) || 0),
             onJump: (index) => queueConnection()?.jump?.(Number(index) || 0),
-            onVolume: (value) => {
+            getVolumeItem: playbackItem,
+            onVolume: (value, options = {}) => {
                 const item = playbackItem();
-                if (!item?.id) return;
-                window.EveAudioflixState?.setItemVolume?.(item.type || 'music', item.id, value);
-                window.EveAudioflixAudio?.updateItemVolume?.(item.id, value);
+                const id = options.itemId ?? item?.id;
+                if (id === null || id === undefined || !(window.EveAudioflixVolumeTarget?.allows?.(item, options) ?? options.type === undefined)) return;
+                if (options.persist !== false) window.EveAudioflixState?.setItemVolume?.(item?.type || 'music', id, value);
+                window.EveAudioflixAudio?.updateItemVolume?.(id, value, { ...options, persist: false });
             }
         });
         return view;

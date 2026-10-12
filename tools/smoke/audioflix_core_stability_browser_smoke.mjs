@@ -5,11 +5,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
+import { verifyVolumeGesture } from './helpers/audioflix_volume_gesture_browser.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const actionsSource = read('js/modules/features/audioflix/audioflix.ui.actions.js');
 const overlaySource = read('js/modules/features/audioflix/audioflix.ui.overlay.js');
+const gestureSource = read('js/modules/features/audioflix/audioflix.ui.volume-gesture.js');
 const healthUiSource = read('js/modules/features/audioflix/audioflix.library.next.ui.js');
 const playlistUiSource = read('js/modules/features/audioflix/audioflix.ui.playlist-import.js');
 const renderSource = read('js/modules/features/audioflix/audioflix.ui.render.js');
@@ -51,14 +53,27 @@ try {
             syncQueueView: () => {}
         };
         window.EveAudioflixNative = { clearVoices: async () => true };
+        let previewBaseline;
         window.EveAudioflixState = {
             ensure: () => ({ music: [window.__item], musicGroupMap: {} }),
+            previewItemVolume: (_type, _id, volume) => {
+                previewBaseline ??= window.__item.volume;
+                window.__item.volume = volume;
+                return true;
+            },
+            commitItemVolume: (_type, _id, volume) => {
+                if (volume !== (previewBaseline ?? window.__item.volume)) window.__volumeWrites += 1;
+                window.__item.volume = volume;
+                previewBaseline = undefined;
+                return true;
+            },
             setItemVolume: (_type, _id, volume) => { window.__volumeWrites += 1; window.__item.volume = volume; },
             update: () => {}, updateItem: () => {}
         };
         window.EveAudioflix = { queueConnection: { syncGroupMembership: () => {} } };
     });
     await page.addScriptTag({ content: actionsSource });
+    await page.addScriptTag({ content: gestureSource });
     await page.addScriptTag({ content: overlaySource });
     await page.evaluate(() => {
         const actionCtx = {
@@ -76,6 +91,7 @@ try {
         };
         const actions = window.EveAudioflixUiActions.create(actionCtx);
         const view = { overlay: null, nexusState: {}, portedSounds: [], activeInfoItem: null, playbackStatus: '' };
+        window.__volumeView = view;
         const ensureOverlay = window.EveAudioflixUiOverlay.create({
             state: () => window.EveAudioflixState.ensure(), rerender: actionCtx.rerender,
             close: () => {}, handleAction: actions.handleAction, handleForm: () => {}, handleHotkey: () => {},
@@ -115,28 +131,7 @@ try {
     assert.equal(transport.sameNode, true, 'play/stop must preserve card DOM identity');
     assert.ok(Math.abs(transport.scrollTop - initialScroll) <= 2, 'play/stop must preserve deep scroll position');
 
-    const slider = page.locator('.audioflix-volume-slider');
-    await slider.focus();
-    const box = await slider.boundingBox();
-    assert.ok(box, 'volume slider should be visible');
-    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(box.x + box.width * 0.80, box.y + box.height / 2, { steps: 8 });
-    await page.mouse.up();
-    await page.waitForTimeout(20);
-    const volume = await page.evaluate(() => ({
-        sameNode: window.__targetNode === document.getElementById('target-card'),
-        focused: document.activeElement?.classList?.contains('audioflix-volume-slider') === true,
-        rerenders: window.__rerenders,
-        stateWrites: window.__volumeWrites,
-        liveWrites: window.__liveVolumeWrites,
-        scrollTop: document.getElementById('audioflix-overlay').scrollTop
-    }));
-    assert.equal(volume.sameNode, true, 'volume drag must preserve card DOM identity');
-    assert.equal(volume.focused, true, 'volume drag must preserve input focus');
-    assert.equal(volume.rerenders, 0, 'volume drag must not structurally rerender');
-    assert.ok(volume.stateWrites > 0 && volume.liveWrites > 0, 'volume drag must update durable and live volume paths');
-    assert.ok(Math.abs(volume.scrollTop - initialScroll) <= 2, 'volume drag must preserve deep scroll position');
+    const volume = await verifyVolumeGesture(page, initialScroll);
 
     await page.evaluate(() => {
         window.EveAudioflixLibraryNext = {

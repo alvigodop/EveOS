@@ -397,10 +397,11 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
             }
             return original.stopItemLayers(itemId, preserveProvider);
         };
-        audio.updateItemVolume = function anyBrowserVolume(itemId, rawVolume) {
-            if (!active || String(item?.id || '') !== String(itemId || '')) {
-                return original.updateItemVolume(itemId, rawVolume);
+        audio.updateItemVolume = function anyBrowserVolume(itemId, rawVolume, options = {}) {
+            if (!active || String(item?.id ?? '') !== String(itemId ?? '')) {
+                return original.updateItemVolume(itemId, rawVolume, options);
             }
+            if (!(window.EveAudioflixVolumeTarget?.allows?.(item, options) ?? options.type === undefined)) return original.updateItemVolume(itemId, rawVolume, options);
             const safe = Math.max(0, Math.min(1, Number(rawVolume) || 0));
             item.volume = safe;
             playback.item = item;

@@ -19,7 +19,7 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
         const MAX_PENDING_PER_ITEM = 2;
         const MAX_PENDING_TOTAL = 6;
 
-        const itemId = (item) => String(item?.id || item?.url || '');
+        const itemId = (item) => String(item?.id ?? item?.url ?? '');
         const epoch = (id) => Number(itemEpochs.get(id) || 0);
         const isCancelled = (id, itemEpoch, startEpoch) => (
             epoch(id) !== itemEpoch || globalEpoch !== startEpoch
@@ -55,11 +55,11 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 native: record.native === true
             };
         };
-        const itemSnapshot = (id) => (activeLayers.get(String(id || '')) || [])
+        const itemSnapshot = (id) => (activeLayers.get(String(id ?? '')) || [])
             .map(record => layerSnapshot(record));
 
         function emit(id) {
-            const detail = { itemId: String(id || ''), voices: itemSnapshot(id) };
+            const detail = { itemId: String(id ?? ''), voices: itemSnapshot(id) };
             if (typeof deps.dispatch === 'function') deps.dispatch('eve:audioflix-layer-voices', detail);
             else if (typeof window.dispatchEvent === 'function' && typeof window.CustomEvent === 'function') {
                 window.dispatchEvent(new window.CustomEvent('eve:audioflix-layer-voices', { detail }));
@@ -108,6 +108,7 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
                 id: `${id}::layer:${layerSequence}`,
                 sequence: layerSequence,
                 itemId: id,
+                itemType: item?.type || '',
                 title: String(item?.title || 'Layered sound'),
                 volume: window.EveAudioflixState.normalizeVolume(item?.volume, 1),
                 startedAt: now(),
@@ -294,7 +295,7 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
         }
 
         function stopItemLayers(value) {
-            const id = String(value || '');
+            const id = String(value ?? '');
             itemEpochs.set(id, epoch(id) + 1);
             const layers = activeLayers.get(id) || [];
             const pending = layers.map(stopLayer).filter(result => result?.then);
@@ -319,10 +320,11 @@ window.EveAudioflixAudioLayers = window.EveAudioflixAudioLayers || {};
             return pending;
         }
 
-        function updateVolume(value, volume) {
-            const id = String(value || '');
+        function updateVolume(value, volume, options = {}) {
+            const id = String(value ?? '');
             const safe = Math.max(0, Math.min(1, Number(volume || 0)));
             (activeLayers.get(id) || []).forEach(layer => {
+                if (!(window.EveAudioflixVolumeTarget?.allows?.(layer, options) ?? options.type === undefined)) return;
                 layer.volume = safe;
                 if (layer?.player && typeof layer.player.volume !== 'undefined') layer.player.volume = outputVolume(safe);
                 if (layer?.native) window.EveAudioflixNative?.setVoiceVolume?.(layer.id, outputVolume(safe));

@@ -11,14 +11,17 @@ import { createLongQueueHarness } from '../smoke/audioflix_spotify_long_queue_li
 import { validateBackendUrls, installBackendWriteBarrier, readBackendAudioflixSnapshot,
     assertBackendAudioflixUnchanged } from '../smoke/audioflix_spotify_live_isolation.shared.js';
 import { approveOwnFileSession } from './audioflix_file_pairing.shared.mjs';
+import { qualifyTypedNaturalSequence } from './audioflix_typed_natural.shared.mjs';
+import { settleNaturalProbe } from '../smoke/audioflix_spotify_long_queue_natural.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = fs.realpathSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'));
 const { parseMedia } = require('../../server_modules/audioflix_spotify_media_identity.js');
 const args = process.argv.slice(2);
+const natural = args.includes('--natural');
 const value = name => args.find(arg => arg.startsWith(name + '='))?.slice(name.length + 1) || '';
 const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
-const E = { ok: false, realSpotify: true, seekAssisted: true, naturalCompletionClaimed: false,
+const E = { ok: false, realSpotify: true, seekAssisted: !natural, naturalCompletionClaimed: false,
     phase: 'arguments', cases: [], startedAt: new Date().toISOString() };
 let artifact;
 function redact(value) {
@@ -67,7 +70,9 @@ async function installProbe(page) {
             if (event.detail?.status !== 'Ended') return;
             const engine = remote.snapshot().lastState?.engine || {};
             probe.events.push({ itemId: event.detail.item?.id, spotifyId: engine.spotifyId, spotifyUri: engine.spotifyUri,
-                mediaType: engine.mediaType, generation: engine.generation, completionId: engine.completionId });
+                mediaType: engine.mediaType, generation: engine.generation, completionId: engine.completionId,
+                run: window.EveAudioflix.queueConnection.snapshot().playbackRunId,
+                visibility: document.visibilityState });
             if (probe.events.length > 12) probe.events.shift();
         };
         window.addEventListener('eve:audioflix-playback', probe.listener);
@@ -145,7 +150,7 @@ async function qualify(browser, base, controllerUrl, episode, track, ordinal) {
     H.validateUrls();
     const result = { entrypoint: new URL(controllerUrl).protocol, controllerUrl, fixtureIds: expectedIds, ok: false };
     E.cases.push(result);
-    let context, page, barrier, preflight;
+    let context, page, barrier, preflight, sampler;
     try {
         checkpoint('managed-preflight');
         preflight = await H.ensureManagedEngine();
@@ -154,6 +159,14 @@ async function qualify(browser, base, controllerUrl, episode, track, ordinal) {
         context = await browser.newContext({ viewport: { width: 1360, height: 1000 }, serviceWorkers: 'block' });
         barrier = await installBackendWriteBarrier(context, [base]);
         page = await context.newPage();
+        if (natural) {
+            const cdp = await browser.newBrowserCDPSession();
+            const processes = await cdp.send('SystemInfo.getProcessInfo'); await cdp.detach();
+            sampler = require('./lane3-runtime-metrics.cjs').createRuntimeSampler({
+                backendPort: Number(new URL(base).port), controllerRootPids: processes.processInfo
+                    .filter(item => item.type === 'browser').map(item => item.id), intervalMs: 15000, maxSamples: 300 });
+            await sampler.start('typed-natural');
+        }
         result.pageErrors = []; result.warnings = [];
         page.on('pageerror', error => result.pageErrors.push(String(error.message)));
         page.on('console', message => {
@@ -200,6 +213,15 @@ async function qualify(browser, base, controllerUrl, episode, track, ordinal) {
         const initial = await ready(page, H, expectedIds, 0, episode);
         result.episode = initial;
         result.episodeVolume = await volume(page, H, episode, expectedIds[0]);
+        if (natural) {
+            result.natural = await qualifyTypedNaturalSequence({ page, context, H, ids: expectedIds,
+                episode, track, initial, ready, volume, snapshot,
+                checkpoint: (phase, progress) => { result.progress = progress; checkpoint(phase); } });
+            assert.equal(result.pageErrors.length, 0);
+            assert.equal(result.warnings.length, 0);
+            result.ok = true;
+            return;
+        }
         checkpoint('episode-pause-resume-seek');
         await page.evaluate(() => window.EveAudioflixAudio.pause());
         const paused = await until(async () => {
@@ -239,6 +261,10 @@ async function qualify(browser, base, controllerUrl, episode, track, ordinal) {
         result.providerFailure = publicHelper(await H.jsonRequest('/api/audioflix/spotify-browser/status').catch(() => ({})));
         throw error;
     } finally {
+        if (sampler) {
+            try { result.resources = await sampler.stop(); }
+            catch (error) { result.cleanupError = `Runtime sampling: ${error.message}`; }
+        }
         await page?.evaluate(async () => {
             await window.EveAudioflix?.queueConnection?.action?.('stop-music-group');
             await window.EveAudioflixAudio?.stopAll?.();
@@ -246,6 +272,10 @@ async function qualify(browser, base, controllerUrl, episode, track, ordinal) {
             if (probe?.listener) window.removeEventListener('eve:audioflix-playback', probe.listener);
             if (probe && remote?.send === probe.send) remote.send = probe.originalSend;
         }).catch(error => { result.cleanupError = String(error.message); });
+        if (natural && page && !page.isClosed()) {
+            try { result.observerCleanup = await settleNaturalProbe(page, H); }
+            catch (error) { result.cleanupError = `Observer cleanup: ${error.message}`; }
+        }
         await H.disposeControllerProbe(page).catch(() => {});
         result.isolation = barrier?.summary();
         await context?.close();
@@ -277,19 +307,21 @@ async function main() {
     E.head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
     E.episode = episode; E.track = track;
     E.backendBefore = await backend(); checkpoint('live-start');
-    const browser = await chromium.launch({ headless: false });
+    const browser = natural ? await require('./lane3-native-controller.cjs').launch({ nativeVisibility: true })
+        : await chromium.launch({ headless: false });
     try {
         for (const [index, entry] of [base + '/EveOS.html', pathToFileURL(path.join(ROOT, 'EveOS.html')).href].entries()) {
             await qualify(browser, base, entry, episode, track, index);
         }
         E.ok = true;
+        E.naturalCompletionClaimed = natural && E.cases.every(test => test.natural?.naturalCompletionClaimed === true);
     } finally {
         await browser.close();
         E.backendAfter = await backend();
         assertBackendAudioflixUnchanged(E.backendBefore, E.backendAfter);
         E.backendUnchanged = true; E.finishedAt = new Date().toISOString(); checkpoint('complete');
     }
-    console.log(`AUDIOFLIX_TYPED_MEDIA_ACCEPTANCE_OK http=true file=true episode=true volumeReadback=true queue=seek-assisted backend=unchanged artifact=${artifact}`);
+    console.log(`AUDIOFLIX_TYPED_MEDIA_ACCEPTANCE_OK http=true file=true episode=true volumeReadback=true queue=${natural ? 'natural-repeat-hidden' : 'seek-assisted'} backend=unchanged artifact=${artifact}`);
 }
 main().catch(error => {
     E.ok = false; E.error = String(error.stack || error); checkpoint();

@@ -72,7 +72,7 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
         // button in place so natural exhaustion/skip-past-end cannot replace cards, steal focus, or
         // jump a deeply scrolled library just to turn "Stop Group" back into "Play Group".
         const patched = patchTerminalTransport();
-        window.EveAudioflixDiagnostics?.record?.('audioflix.queue.terminalPatch', patched, { structuralRender: false });
+        window.EveAudioflixDiagnostics?.increment?.('queue:terminal-patches', patched);
         return true;
     }
 
@@ -106,9 +106,12 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
     function createBridge({ state, queue, playIndex }) {
         const trackAt = (index) => {
             const active = queue();
-            return (state().music || []).find((track) => track.id === active.items[index]);
+            const view = window.EveAudioflixLibraryIndex?.get?.(state(), 'music');
+            return view ? view.getById(active.items[index]) : (state().music || []).find((track) => track.id === active.items[index]);
         };
         const entries = () => {
+            const view = window.EveAudioflixLibraryIndex?.get?.(state(), 'music');
+            if (view) return queue().items.map(id => ({ id, title: view.getById(id)?.title || 'Untitled' }));
             const tracks = new Map((state().music || []).map((track) => [track.id, track]));
             return queue().items.map((id) => ({ id, title: tracks.get(id)?.title || 'Untitled' }));
         };

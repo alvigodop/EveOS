@@ -90,15 +90,15 @@ window.EveAudioflixTransportResilience = window.EveAudioflixTransportResilience 
         const controller = audio();
         const playback = controller?.getPlaybackState?.();
         const activeId = playback?.item?.id;
-        if (activeId === undefined || activeId === null) return false;
+        if (activeId === undefined || activeId === null || !(window.EveAudioflixVolumeTarget?.allows?.(playback.item, options) ?? options.type === undefined)) return false;
         if (options.itemId !== undefined && options.itemId !== null && !sameId(activeId, options.itemId)) return false;
 
         const safe = clamp(level);
-        controller.updateItemVolume?.(activeId, safe);
         if (options.persist !== false) {
             const type = playback.item?.type || options.type || 'music';
             window.EveAudioflixState?.setItemVolume?.(type, activeId, safe);
         }
+        controller.updateItemVolume?.(activeId, safe, { ...options, persist: false });
 
         // updateItemVolume routes through the active URL adapter. The direct provider-host command
         // is an idempotent fallback for localhost/file bridge transports if an adapter loses its

@@ -396,23 +396,23 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         return true;
     }
 
-    function updateItemVolume(itemId, vol) {
+    function updateItemVolume(itemId, vol, options = {}) {
         const safeVolume = Math.max(0, Math.min(1, Number(vol) || 0));
         const outputVolume = window.EveAudioflixOutputPort?.effective?.(safeVolume) ?? safeVolume;
         const requestedId = String(itemId ?? '');
         const currentId = String(currentItem?.id ?? currentItem?.url ?? '');
         const activeUrlMatch = urlPlayback?.matches?.(itemId) === true;
-        if ((requestedId && currentId === requestedId) || activeUrlMatch) {
+        if (((requestedId && currentId === requestedId) || activeUrlMatch) && (window.EveAudioflixVolumeTarget?.allows?.(currentItem, options) ?? options.type === undefined)) {
             // Provider identity is authoritative: resolved tracks can cross several adapters
             // before reaching an iframe, so intermediate IDs must not drop the live command.
-            if (activeUrlMatch) urlPlayback.setVolume(safeVolume);
+            if (activeUrlMatch) urlPlayback.setVolume(safeVolume, options);
             ensureAudio().volume = outputVolume;
             window.EveAudioflixNative?.setVoiceVolume?.('singleton-main', outputVolume);
             activeStreamVolume = outputVolume;
             activeNativeController?.setVolume?.(outputVolume);
             if (currentItem) currentItem.volume = safeVolume;
         }
-        layerController.updateVolume(itemId, safeVolume);
+        layerController.updateVolume(itemId, safeVolume, options);
     }
     window.addEventListener?.('eve:audioflix-output-volume', () => currentItem && updateItemVolume(currentItem.id ?? currentItem.url, currentItem.volume ?? 1));
 

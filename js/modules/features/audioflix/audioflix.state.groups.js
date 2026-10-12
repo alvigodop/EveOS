@@ -85,6 +85,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 if (next.length) state.soundGroupMap[id] = next; else delete state.soundGroupMap[id];
             }
             if (sameName(state.activeFrontendGroup, clean)) state.activeFrontendGroup = '';
+            deps.invalidate?.('sound');
             syncRootOrFallback(state);
             scheduleSave('audioflix-groups');
             return ensure();
@@ -105,6 +106,8 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 const next = list.filter((g) => !sameName(g, clean));
                 if (next.length) state.soundGroupMap[soundId] = next; else delete state.soundGroupMap[soundId];
             }
+            const item = deps.getItem?.('sound', soundId);
+            if (item) deps.noteItem?.('sound', item);
             syncRootOrFallback(state);
             scheduleSave('audioflix-groups');
             return ensure();
@@ -151,6 +154,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 if (next !== item && oldRoot) state.localizeScopeDirs[`song:${item.id}`] ||= oldRoot;
                 return next;
             });
+            deps.invalidate?.('music');
             syncRootOrFallback(state);
             scheduleSave('audioflix-music-groups');
             return ensure();
@@ -171,6 +175,8 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 const next = list.filter((g) => !sameName(g, clean));
                 if (next.length) state.musicGroupMap[musicId] = next; else delete state.musicGroupMap[musicId];
             }
+            const item = deps.getItem?.('music', musicId);
+            if (item) deps.noteItem?.('music', item);
             syncRootOrFallback(state);
             scheduleSave('audioflix-music-groups');
             return ensure();
@@ -185,17 +191,18 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 normalizeVolume: schema.normalizeVolume,
                 id: schema.id
             });
-            if (state[key]) {
-                state[key] = state[key].map((entry) => {
-                    if (entry.id !== itemId) return entry;
-                    const merged = Object.assign({}, entry, patch || {}, { id: entry.id });
-                    // Generic provider/media fields are derived together. Re-clean every mutation so
-                    // sourcePlayable/sourceAvailability/legacy Spotify fields can never drift from
-                    // the canonical media identity until the next full store normalization.
-                    return cleaner?.cleanItem ? cleaner.cleanItem(merged, key) : merged;
-                });
+            const entry = deps.getItem ? deps.getItem(type, itemId) : state[key]?.find(item => String(item.id) === String(itemId));
+            if (!entry) return state;
+            const merged = Object.assign({}, entry, patch || {}, { id: entry.id });
+            // Normalize only the edited record before touching the canonical object.
+            const next = cleaner?.cleanItem ? cleaner.cleanItem(merged, type === 'music' ? 'music' : 'sound') : merged;
+            for (const field of Object.keys(entry)) if (field !== 'id' && !(field in next)) delete entry[field];
+            for (const [field, value] of Object.entries(next)) if (field !== 'id') entry[field] = value;
+            if (type === 'music') {
+                if (deps.registerFolder) deps.registerFolder(state, entry);
+                else state.musicFolders = window.EveAudioflixStateRecovery?.folderRegistry?.(state) || state.musicFolders || [];
             }
-            if (type === 'music') state.musicFolders = window.EveAudioflixStateRecovery?.folderRegistry?.(state) || state.musicFolders || [];
+            deps.noteItem?.(type, entry);
             syncRootOrFallback(state);
             scheduleSave(`audioflix-update-${type}`);
             return ensure();
@@ -220,6 +227,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 sameName(entry.folder, oldClean) ? { ...entry, folder: newClean } : entry
             ));
             if (sameName(state.activeMusicFolderScope, oldClean)) state.activeMusicFolderScope = newClean;
+            deps.invalidate?.('music');
             syncRootOrFallback(state);
             scheduleSave('audioflix-rename-folder');
             return ensure();
@@ -244,6 +252,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
                 .filter((entry) => !sameName(entry.folder, clean));
             state.musicFolders = (state.musicFolders || []).filter((name) => !sameName(name, clean));
             if (sameName(state.activeMusicFolderScope, clean)) state.activeMusicFolderScope = '';
+            deps.invalidate?.('music');
             syncRootOrFallback(state);
             scheduleSave('audioflix-delete-folder');
             return ensure();
@@ -292,6 +301,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             }
 
             syncRootOrFallback(state);
+            deps.invalidate?.(type);
             scheduleSave(`audioflix-rename-group-${type}`);
             return ensure();
         }

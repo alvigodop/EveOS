@@ -19,6 +19,18 @@ Episodes use the official episode embed path throughout import metadata, source 
 - Paging remounts only the selected grid. Nonstructural playback/volume updates preserve other cards and focus. Main Nexus jumps reveal the containing page without closing Nexus or discarding the query.
 - Fast Track consumes the existing canonical frontend scope, including folder/group/artist/classifier filters and exclusions. It must not infer that scope from the currently mounted page. Play Group continues to receive the complete canonical source.
 
+## Indexed runtime and volume transactions
+
+The canonical library arrays remain the persisted source. A weakly cached runtime index supplies unique ID lookup, typed identity, folder/group/provider membership and normalized search descriptors. Adds, metadata edits and removals update that index; volume/playback ticks do not rebuild it. Ambiguous IDs fail closed, and row-slot checks repair a replaced array or stale same-ID row. Queue snapshots use the existing linear `entries()` projection, not one library scan per queue member.
+
+Card and Internal Player controls share bounded volume gestures. Input previews change audible/live state without autosaving each tick; release, blur, cancellation or keyboard settlement commits one latest value. Music/sound namespaces stay distinct, including equal IDs and ported records. Pending gestures bind row identity, so a replaced/deleted track cannot inherit a late release.
+
+Unrelated autosaves and backup capture project committed gains into detached serialized data while retaining the audible preview in live state. Page close finalizes valid previews before the synchronous mirror flush; stale previews are rejected. Default programmatic volume calls remain durable.
+
+Production diagnostics record bounded numeric spans/counters for index builds, rendering, playlist reconciliation and persistence. They cannot change successful operation semantics, and metric keys contain no track identities or secrets.
+
+The registered opt-in `qualify:audioflix-library-soak` exercises real HTTP/file library copies and a synthetic 25k library. Its fixed latency/resource budgets are acceptance targets, not a claim that merely adding the harness passed them. Likewise `qualify:audioflix-typed-natural` requires actual full-duration hidden playback, typed Ended identity and repeat-on/off transitions; seek-assisted evidence is not interchangeable.
+
 ## Boot and audit policy
 
 During deferred loading, both scraper fallback event buses support the canonical pub/sub names and legacy aliases. The real bus adopts listeners collected before it loaded. A Chromium regression initializes discovery against each fallback and verifies listener delivery before and after handoff; errors are not hidden.

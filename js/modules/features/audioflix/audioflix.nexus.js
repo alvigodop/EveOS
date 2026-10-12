@@ -41,6 +41,8 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
     function indexedDocs(type) {
         const key = type === 'music' ? 'music' : 'sound';
         const snapshot = state();
+        const index = window.EveAudioflixLibraryIndex?.get?.(snapshot, key);
+        if (index) return index.docs();
         const revision = Number(S()?.getRevision?.() || 0);
         const cached = searchCache[key];
         if (cached.revision === revision) return cached.docs;
@@ -56,6 +58,8 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
                 item.creator,
                 item.caption,
                 item.artist,
+                item.album,
+                item.sourceProvider,
                 item.folder,
                 item.card,
                 item.category,
@@ -72,7 +76,8 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         const q = norm(query);
         if (list) {
             if (!q) return list;
-            return list.filter((item) => [
+            const index = window.EveAudioflixLibraryIndex?.get?.(state(), type);
+            return list.filter((item) => (index?.docFor?.(item)?.haystack || [
                 item.title,
                 item.audioTitle,
                 item.audioArtist,
@@ -80,12 +85,14 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
                 item.creator,
                 item.caption,
                 item.artist,
+                item.album,
+                item.sourceProvider,
                 item.folder,
                 item.card,
                 item.category,
                 ...(Array.isArray(item.classifiers) ? item.classifiers : []),
                 ...groupsOf(type, item.id)
-            ].map(norm).join('\u0001').includes(q));
+            ].map(norm).join('\u0001')).includes(q));
         }
         const docs = indexedDocs(type);
         return q ? docs.filter((doc) => doc.haystack.includes(q)).map((doc) => doc.item) : docs.map((doc) => doc.item);

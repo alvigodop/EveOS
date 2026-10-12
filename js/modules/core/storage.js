@@ -21,8 +21,13 @@ function markCoreStateClean(snapshot) {
     _lastCoreStateSnapshot = cloneCoreStateForDelta(currentSnapshot, _lastCoreStateSignature);
 }
 
+function durableConfigSnapshot(current) {
+    if (!current?.audioflix || typeof window.EveAudioflixState?.durableSnapshot !== 'function') return current;
+    return { ...current, audioflix: window.EveAudioflixState.durableSnapshot(current.audioflix) };
+}
+
 function markConfigClean(nextConfig) {
-    var currentConfig = nextConfig || config || {};
+    var currentConfig = durableConfigSnapshot(nextConfig || config || {});
     _lastConfigSignature = buildStateSignature(currentConfig);
     _lastConfigSnapshot = cloneConfigForDelta(currentConfig, _lastConfigSignature);
 }
@@ -202,33 +207,35 @@ function _saveConfigImmediate(options = {}) {
     var finishPerf = window.EvePerformanceMonitor?.startOperation?.('saveConfig', {
         source: mutationSource
     });
-    var signature = buildStateSignature(config || {});
+    // Never swap live config while an async save runs. Only the captured payload is projected.
+    var persistedConfig = durableConfigSnapshot(config || {});
+    var signature = buildStateSignature(persistedConfig);
     if (signature === _lastConfigSignature) {
         finishPerf?.({ dirty: false });
         return Promise.resolve(true);
     }
-    var configDelta = buildConfigDelta(_lastConfigSnapshot, config || {});
+    var configDelta = buildConfigDelta(_lastConfigSnapshot, persistedConfig);
     if (!options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordConfigMutation === 'function') {
         window.EveEditHistory.recordConfigMutation({
             before: _lastConfigSnapshot,
-            after: config || {},
+            after: persistedConfig,
             delta: configDelta,
             source: mutationSource,
             meta: options.meta
         });
     }
     _lastConfigSignature = signature;
-    _lastConfigSnapshot = cloneConfigForDelta(config || {}, signature);
+    _lastConfigSnapshot = cloneConfigForDelta(persistedConfig, signature);
 
     var persistPromise = Promise.resolve(true);
     var storage = getCoreStorage();
     if (storage) {
-        storage.syncThemeBootConfig(config);
-        persistPromise = storage.saveJson(EVE_CONFIG_KEY, config, {
+        storage.syncThemeBootConfig(persistedConfig);
+        persistPromise = storage.saveJson(EVE_CONFIG_KEY, persistedConfig, {
             localFallbackKey: EVE_CONFIG_KEY,
             cleanupLocalKeys: [EVE_CONFIG_KEY],
             mirrorLocalKey: EVE_THEME_BOOT_KEY,
-            mirrorValue: storage.getThemeBootConfig(config),
+            mirrorValue: storage.getThemeBootConfig(persistedConfig),
             mirrorPruneRatio: 0.05
         }).catch((error) => {
             console.error('Core Storage: Failed to persist config', error);
@@ -236,13 +243,13 @@ function _saveConfigImmediate(options = {}) {
         });
     } else {
         try {
-            localStorage.setItem(EVE_CONFIG_KEY, smartCompress(config));
+            localStorage.setItem(EVE_CONFIG_KEY, smartCompress(persistedConfig));
         } catch (e) {
             if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22) {
                 if (window.CCMaintenance && typeof CCMaintenance.emergencyPrune === 'function') {
                     CCMaintenance.emergencyPrune(0.3);
                     try {
-                        localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(config));
+                        localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(persistedConfig));
                     } catch (retryError) { }
                 }
             }

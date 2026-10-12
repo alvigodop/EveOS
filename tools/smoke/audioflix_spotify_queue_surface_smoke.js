@@ -126,6 +126,7 @@ const context = {
     Promise
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.audio.volume-target.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8'), context);
 vm.runInContext(source, context, { filename: 'audioflix.spotify.engine-surface.js' });
 
@@ -181,7 +182,25 @@ async function browserPhase() {
                 snapshot: () => ({ currentIndex: fixture.index, entries: tracks.map(({ id, title }) => ({ id, title })) }),
                 step: delta => fixture.advance(fixture.index + delta), jump: index => fixture.advance(index)
             } };
-            window.EveAudioflixState = { setItemVolume(type, id, value) {
+            const baselines = new Map();
+            window.EveAudioflixState = {
+                previewItemVolume(type, id, value) {
+                    const track = tracks.find(track => track.id === id);
+                    if (!track || fixture.rejectPreview) return false;
+                    if (!baselines.has(id)) baselines.set(id, track.volume);
+                    track.volume = value;
+                    return true;
+                },
+                commitItemVolume(type, id, value) {
+                    const track = tracks.find(track => track.id === id);
+                    if (!track) return false;
+                    value ??= track.volume;
+                    if (value !== (baselines.get(id) ?? track.volume)) fixture.persisted.push({ type, id, value });
+                    track.volume = value;
+                    baselines.delete(id);
+                    return true;
+                },
+                setItemVolume(type, id, value) {
                 fixture.persisted.push({ type, id, value });
                 tracks.find(track => track.id === id).volume = value;
             } };
@@ -193,6 +212,10 @@ async function browserPhase() {
                 seek: async () => true, stopAll: async () => true
             };
         }, { ...providerTrack, sourceProvider: '', url: 'https://open.spotify.com/episode/4cOdK2wGLETKBW3PvgPWqT' });
+        await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
+            'js/modules/features/audioflix/audioflix.audio.volume-target.js'), 'utf8') });
+        await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
+            'js/modules/features/audioflix/audioflix.ui.volume-gesture.js'), 'utf8') });
         await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
             'js/modules/features/audioflix/audioflix.audio.internal.js'), 'utf8') });
         await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
@@ -257,12 +280,14 @@ async function browserPhase() {
         assert.deepEqual(result.replays, ['spotify-3'], 'browser: resume cannot replay the opening track');
         assert.equal(result.opens, 1, 'browser: advances do not reopen Queue View');
         assert.equal(result.sameFrame, true, 'browser: advances preserve the original mirror frame');
+        const { verifyProviderVolumeGesture } = await import('./helpers/audioflix_volume_gesture_browser.mjs');
+        const gestures = await verifyProviderVolumeGesture(page, read);
         assert.ok(requests.length && requests.every(url =>
             ['http://127.0.0.1:8765/queue-surface-fixture',
                 'http://127.0.0.1:8765/tools/audioflix/spotify-engine.html?surface=mirror'].includes(url)),
         'browser: all requests are the locally stubbed fixture or mirror');
         assert.deepEqual(errors, [], 'browser: no page or console errors');
-        browserEvidence = { ...result, errors, requests };
+        browserEvidence = { ...result, gestures, errors, requests };
     } catch (error) {
         browserEvidence = { errors, requests, state: await page?.evaluate(() => ({
             fixture: { ...window.__surfaceSmoke, frame: undefined },

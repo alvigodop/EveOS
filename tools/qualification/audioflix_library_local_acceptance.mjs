@@ -9,11 +9,13 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { installBackendWriteBarrier, readBackendAudioflixSnapshot, assertBackendAudioflixUnchanged } from '../smoke/audioflix_spotify_live_isolation.shared.js';
+import { installLibrarySoakInstrumentation, attachSoakConsole, runLibrarySoak, scaleSoakFixture } from './audioflix_library_soak.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2), sourceArg = args[args.indexOf('--source') + 1];
 const entrypoint = args.find(arg => arg.startsWith('--entrypoint='))?.split('=')[1] || 'both';
 const scaleOnly = args.includes('--scale-only');
+const soak = args.includes('--soak') || args.includes('--soak-only'), soakOnly = args.includes('--soak-only');
 assert.ok(['both', 'http', 'file'].includes(entrypoint));
 assert.ok(args.includes('--source') && sourceArg && !sourceArg.startsWith('--'), 'Explicit --source <backup JSON> is required');
 const source = fs.realpathSync(sourceArg);
@@ -35,7 +37,7 @@ const report = { ok: false, syntheticAudio: true, providerPlaybackClaimed: false
     baselineScope: 'renderer-only: old render factory on current state/index/transport; not an old whole-branch runtime',
     head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     sourceCounts: { music: data.music.length, groups: data.musicGroups?.length || 0, folders: data.musicFolders?.length || 0 },
-    entrypoints: [], scales: [], errors: [], browserErrors: [], monitorAdjustments: [], boots: [] };
+    entrypoints: [], scales: [], soaks: [], errors: [], browserErrors: [], monitorAdjustments: [], boots: [] };
 const resultPath = path.join(OUT, 'result.json');
 const write = () => fs.writeFileSync(resultPath, JSON.stringify(report, null, 2));
 const stats = list => { const sorted = [...list].sort((a, b) => a - b); return { count: sorted.length, p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0, p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0, max: sorted.at(-1) || 0 }; };
@@ -62,6 +64,7 @@ async function isolatedContext() {
         return route.fallback();
     });
     await context.routeWebSocket('**/*', socket => socket.close());
+    if (soak) await context.addInitScript(installLibrarySoakInstrumentation);
     await context.addInitScript(() => {
         window.__eveSmokeNoAutoGemini = true;
         window.__libraryLongTasks = [];
@@ -72,7 +75,7 @@ async function isolatedContext() {
                 eventBusKeys: Object.keys(window.EventBus || {}), subscribe: typeof window.EventBus?.subscribe,
                 isStub: window.EventBus?._isStub === true, isEmergency: window.EventBus?._isEmergencyImplementation === true });
         }, true);
-        try { new PerformanceObserver(list => window.__libraryLongTasks.push(...list.getEntries().map(entry => entry.duration))).observe({ type: 'longtask', buffered: true }); } catch {}
+        try { new PerformanceObserver(list => { window.__libraryLongTasks.push(...list.getEntries().map(entry => entry.duration)); if (window.__libraryLongTasks.length > 2048) window.__libraryLongTasks.splice(0, window.__libraryLongTasks.length - 2048); }).observe({ type: 'longtask', buffered: true }); } catch {}
         // Capture the real factory's context; do not replace render, events, or their ownership.
         let renderNamespace; const wrappedNamespaces = new WeakSet();
         Object.defineProperty(window, 'EveAudioflixUiRender', { configurable: true,
@@ -94,6 +97,7 @@ async function isolatedContext() {
 async function boot(url, payload, scale = false) {
     report.phase = `boot-${new URL(url).protocol}`; write();
     const isolated = await isolatedContext(), page = await isolated.context.newPage(); currentPage = page;
+    const consoleProbe = soak ? attachSoakConsole(page) : null;
     const pageErrors = [];
     const requestFailures = [];
     page.on('requestfailed', request => {
@@ -118,6 +122,7 @@ async function boot(url, payload, scale = false) {
     assert.deepEqual(bootErrors, [], 'No bootstrap errors may be hidden by Search Monitor error handling');
     await settleMonitor(page);
     await isolated.barrier.proveBlocked(page);
+    const libraryStarted = performance.now();
     const installed = await page.evaluate(({ input, scale }) => {
         const started = performance.now();
         window.EveAudioflixState.replaceState({ ...input, musicViewMode: 'backend' }, 'local-library-disposable-qualification', { authoritative: true });
@@ -137,8 +142,10 @@ async function boot(url, payload, scale = false) {
     assert.equal(installed.music, payload.music.length, 'No record may be silently truncated');
     if (scale) await page.locator('[data-af-tab="music"]').click();
     await page.waitForSelector('.audioflix-group-title');
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const libraryUsableMs = performance.now() - libraryStarted;
     assert.equal(await page.locator('.audioflix-item-card').count(), 0, 'Collapsed initial library has no mounted song cards');
-    return { ...isolated, page, pageErrors, bootMs, installed };
+    return { ...isolated, page, pageErrors, bootMs, libraryUsableMs, installed, consoleProbe };
 }
 
 async function settleMonitor(page) {
@@ -368,15 +375,33 @@ async function qualifyScale(count, baselineSource) {
     finally { await run.context.close(); }
 }
 
+async function qualifySoak(url, payload, label) {
+    report.phase = `soak-${label}`;
+    const run = await boot(url, payload, true);
+    try {
+        const row = await runLibrarySoak(run, { label, topology, settleMonitor, hash: sha, onProgress: progress => { report.soakProgress = progress; write(); } });
+        assert.deepEqual(run.pageErrors, []); assert.equal(run.counters().allowedPlaybackCount, 0);
+        report.soaks.push({ ...row, barrier: run.counters(), bootMs: run.bootMs, libraryUsableMs: run.libraryUsableMs }); write();
+    } catch (error) { await failureEvidence(run.page); throw error; }
+    finally { await run.context.close(); }
+}
+
 try {
     backendBefore = await backend(); report.backendBefore = backendBefore;
     browser = await chromium.launch({ headless: true });
-    if (!scaleOnly && entrypoint !== 'file') await qualifyReal(base + '/EveOS.html', 'http');
-    if (!scaleOnly && entrypoint !== 'http') await qualifyReal(pathToFileURL(path.join(ROOT, 'EveOS.html')).href, 'file');
-    if (!args.includes('--skip-scale')) {
+    if (!soakOnly && !scaleOnly && entrypoint !== 'file') await qualifyReal(base + '/EveOS.html', 'http');
+    if (!soakOnly && !scaleOnly && entrypoint !== 'http') await qualifyReal(pathToFileURL(path.join(ROOT, 'EveOS.html')).href, 'file');
+    if (!soakOnly && !args.includes('--skip-scale')) {
         const baseline = execFileSync('git', ['show', '967f8cc3e:js/modules/features/audioflix/audioflix.ui.render.js'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 2 ** 20 });
         report.baselineRevision = '967f8cc3e';
         await qualifyScale(10000, baseline); await qualifyScale(25000, baseline);
+    }
+    if (soak) {
+        if (!scaleOnly && entrypoint !== 'file') await qualifySoak(base + '/EveOS.html', data, 'real-http');
+        if (!scaleOnly && entrypoint !== 'http') await qualifySoak(pathToFileURL(path.join(ROOT, 'EveOS.html')).href, data, 'real-file');
+        if (!args.includes('--skip-scale')) await qualifySoak(base + '/EveOS.html', scaleSoakFixture(25000), 'synthetic-25000');
+        const failures = report.soaks.filter(row => !row.budgetPassed);
+        assert.equal(failures.length, 0, `Soak timing targets failed: ${failures.map(row => row.label).join(',')}; see recorded phase measurements`);
     }
     report.ok = true;
 } catch (error) {
@@ -393,5 +418,5 @@ try {
     if (!report.sourceUnchanged) { report.ok = false; process.exitCode = 1; report.errors.push('Source backup changed externally during qualification; no source was restored.'); }
     write();
 }
-if (report.ok) console.log(`AUDIOFLIX_LIBRARY_LOCAL_ACCEPTANCE_OK entrypoints=${report.entrypoints.map(row => row.entrypoint).join(',')} realTracks=${data.music.length} scale=${report.scales.map(row => row.count).join(',') || 'SKIPPED'} syntheticAudio=true result=${resultPath}`);
+if (report.ok) console.log(`AUDIOFLIX_LIBRARY_LOCAL_ACCEPTANCE_OK entrypoints=${report.entrypoints.map(row => row.entrypoint).join(',')} realTracks=${data.music.length} scale=${report.scales.map(row => row.count).join(',') || 'SKIPPED'} soak=${report.soaks.map(row => row.label).join(',') || 'SKIPPED'} syntheticAudio=true result=${resultPath}`);
 else console.error('AUDIOFLIX_LIBRARY_LOCAL_ACCEPTANCE_FAIL\n' + report.errors.join('\n').split('\n').slice(0, 38).join('\n') + '\nresult=' + resultPath);

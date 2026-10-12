@@ -4,7 +4,16 @@ window.EveAudioflixDiagnostics = window.EveAudioflixDiagnostics || {};
     const ns = window.EveAudioflixDiagnostics;
     if (ns.ready) return;
 
-    const LIMIT = 128, samples = [], totals = new Map(), bootRecorded = new Set();
+    const LIMIT = 128, KEY_LIMIT = 64, samples = [], totals = new Map(), bootRecorded = new Set();
+    const gauges = new Map(), counters = new Map();
+    // Closed numeric keys prevent a caller from using an item ID, path, or secret as telemetry.
+    const GAUGES = new Set(['ui:render-generation', 'ui:render-cards', 'playlist:upstream-items',
+        'playlist:added-items', 'playlist:restored-items', 'playlist:missing-items',
+        'state:music-items', 'state:sound-items', 'state:volume-pending']);
+    const COUNTERS = new Set(['ui:render-generations', 'ui:card-generations',
+        'playlist:reconcile-attempts', 'playlist:apply-attempts', 'state:persist-attempts',
+        'state:persist-errors', 'state:volume-preview-count', 'state:volume-commit-count', 'queue:terminal-patches',
+        'index:builds', 'index:updates']);
     const now = () => window.performance?.now?.() ?? Date.now();
     const safeDetail = (details = {}) => ({
         action: details.action ? String(details.action).slice(0, 80) : '',
@@ -13,15 +22,31 @@ window.EveAudioflixDiagnostics = window.EveAudioflixDiagnostics || {};
     });
 
     function record(name, ms, details = {}) {
-        const duration = Math.max(0, Number(ms) || 0);
+        const duration = Math.max(0, Number.isFinite(Number(ms)) ? Number(ms) : 0);
         const key = String(name).slice(0, 120);
         let bucket = totals.get(key);
-        if (!bucket) { bucket = { count: 0, errors: 0, maxMs: 0, values: [] }; totals.set(key, bucket); }
+        if (!bucket) {
+            if (totals.size >= KEY_LIMIT) totals.delete(totals.keys().next().value);
+            bucket = { count: 0, errors: 0, maxMs: 0, values: [] }; totals.set(key, bucket);
+        }
         bucket.count += 1; bucket.errors += details.error ? 1 : 0;
         bucket.maxMs = Math.max(bucket.maxMs, duration);
         bucket.values.push(duration); if (bucket.values.length > LIMIT) bucket.values.shift();
         samples.push({ name: key, ms: duration, at: now(), ...safeDetail(details) });
         if (samples.length > LIMIT) samples.shift();
+    }
+
+    function numeric(store, allowed, name, value, add) {
+        if (!allowed.has(name) || typeof value !== 'number' || !Number.isFinite(value) || value < 0) return false;
+        if (!store.has(name) && gauges.size + counters.size >= KEY_LIMIT) return false;
+        store.set(name, Math.min(Number.MAX_SAFE_INTEGER, (add ? store.get(name) || 0 : 0) + value));
+        return true;
+    }
+    const gauge = (name, value) => numeric(gauges, GAUGES, name, value, false);
+    const increment = (name, delta = 1) => numeric(counters, COUNTERS, name, delta, true);
+    function reset() {
+        samples.length = 0; totals.clear(); gauges.clear(); counters.clear(); bootRecorded.clear();
+        pendingPlayInput = null; loadingAt = null; endedAt = null;
     }
 
     function span(name, details = {}) {
@@ -35,7 +60,7 @@ window.EveAudioflixDiagnostics = window.EveAudioflixDiagnostics || {};
     }
 
     function snapshot() {
-        const summary = {};
+        const summary = Object.create(null);
         for (const [name, bucket] of totals) {
             const values = [...bucket.values].sort((a, b) => a - b);
             const percentile = p => values[Math.min(values.length - 1, Math.floor(values.length * p))] || 0;
@@ -44,7 +69,9 @@ window.EveAudioflixDiagnostics = window.EveAudioflixDiagnostics || {};
                 p50Ms: percentile(0.5), p95Ms: percentile(0.95)
             };
         }
-        return { summary, recent: samples.map(value => ({ ...value })) };
+        return { summary, recent: samples.map(value => ({ ...value })),
+            gauges: Object.fromEntries(gauges), counters: Object.fromEntries(counters),
+            capacity: { samples: LIMIT, timingKeys: KEY_LIMIT, metricKeys: KEY_LIMIT } };
     }
 
     function actionForTarget(target) {
@@ -135,6 +162,6 @@ window.EveAudioflixDiagnostics = window.EveAudioflixDiagnostics || {};
     try { document.addEventListener('DOMContentLoaded', recordBootMilestones, { once: true }); } catch {}
     try { window.addEventListener('load', recordBootMilestones, { once: true }); } catch {}
 
-    Object.assign(ns, { ready: true, record, span, snapshot, actionForTarget });
+    Object.assign(ns, { ready: true, record, span, snapshot, gauge, increment, reset, actionForTarget });
     record('boot:audioflix-module', now());
 })();

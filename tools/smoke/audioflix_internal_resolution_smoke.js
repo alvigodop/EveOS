@@ -15,11 +15,14 @@ async function verifyReusedProviderHeading(browser) {
     try {
         // Isolated page: no EveOS boot, persisted library, localhost, or provider requests.
         await page.setContent('<button id="reopen">Reopen player</button>');
-        for (const file of ['audioflix.audio.internal.js', 'audioflix.audio.url.providers.js']) {
+        for (const file of ['audioflix.audio.volume-target.js', 'audioflix.audio.internal.js', 'audioflix.audio.url.providers.js']) {
             await page.addScriptTag({ path: path.join(ROOT, 'js/modules/features/audioflix', file) });
         }
         await page.evaluate(() => {
-            window.__headingFixture = { creations: 0, loads: 0 };
+            window.__headingFixture = { creations: 0, loads: 0, volumes: [], persisted: [] };
+            window.EveAudioflixState = { setItemVolume: (type, id, value) => {
+                window.__headingFixture.persisted.push({ type, id, value });
+            } };
             window.EveAudioflixUrlLoaders = {};
             window.EveAudioflixUrlDirect = { create: () => () => {} };
             window.EveAudioflixUrlWidgets = { create: () => ({}) };
@@ -36,7 +39,7 @@ async function verifyReusedProviderHeading(browser) {
                             ctx.emitProgress();
                         },
                         loadItem: async () => { window.__headingFixture.loads += 1; await player.play(); },
-                        setVolume() {}, destroy() {}
+                        setVolume(value) { window.__headingFixture.volumes.push(value); }, destroy() {}
                     };
                     ctx.view.active = { kind: 'spotify', player };
                     await player.play();
@@ -46,7 +49,7 @@ async function verifyReusedProviderHeading(browser) {
         await page.addScriptTag({ path: path.join(ROOT, 'js/modules/features/audioflix/audioflix.audio.url.js') });
         await page.evaluate(async () => {
             const tracks = ['Young Girl A', '16', 'Next track'].map((title, index) => ({
-                id: String(index), title, url: `https://open.spotify.com/track/fixture${index}`, volume: 0.5
+                id: String(index), type: 'music', title, url: `https://open.spotify.com/track/fixture${index}`, volume: 0.5
             }));
             let index = 0;
             const select = async (next) => {
@@ -75,6 +78,21 @@ async function verifyReusedProviderHeading(browser) {
         assert(await title.textContent() === '16', `reused provider heading is stale: ${await title.textContent()}`);
         assert(await stage.locator('header a').getAttribute('href') === 'https://open.spotify.com/track/fixture1',
             'reused provider source link follows the active track');
+        const volumeContract = await page.evaluate(() => {
+            const fixture = window.__headingFixture, player = fixture.player;
+            const before = fixture.persisted.length;
+            player.setVolume(0.31, { persist: false, itemId: '1' });
+            const transient = fixture.persisted.length === before && fixture.volumes.at(-1) === 0.31;
+            player.setVolume(0.42);
+            const durable = fixture.persisted.length === before + 1 && fixture.persisted.at(-1).id === '1';
+            const mutations = fixture.volumes.length;
+            player.setVolume(0.90, { persist: false, itemId: '0' });
+            player.setVolume(0.90, { persist: false, type: 'sound', itemId: '1' });
+            return { transient, durable, staleRejected: fixture.volumes.length === mutations };
+        });
+        assert(volumeContract.transient, 'explicit URL adapter preview controls gain without persistence');
+        assert(volumeContract.durable, 'legacy programmatic URL adapter volume remains durable by default');
+        assert(volumeContract.staleRejected, 'bound previous-item volume cannot control a reused provider');
         await stage.locator('[data-url-player-action="next"]').click();
         await page.waitForFunction(() => document.querySelector('.audioflix-provider-stage header strong').textContent === 'Next track');
         await stage.locator('[data-url-player-action="collapse"]').click();

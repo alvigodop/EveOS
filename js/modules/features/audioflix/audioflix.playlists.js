@@ -23,6 +23,14 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     const text = (value, fallback = '') => String(value ?? '').trim().replace(/^["']+|["']+$/g, '').trim() || fallback;
     const sameName = (left, right) => text(left).toLowerCase() === text(right).toLowerCase();
     const providers = () => window.EveAudioflixPlaylistProviders;
+    const metric = (method, name, value) => { try { window.EveAudioflixDiagnostics?.[method]?.(name, value); } catch { /* optional telemetry */ } };
+    function timed(name, operation) {
+        let finish, failed = false;
+        try { finish = window.EveAudioflixDiagnostics?.span?.(name); } catch { /* optional telemetry */ }
+        metric('increment', `${name}-attempts`);
+        try { return operation(); } catch (error) { failed = true; throw error; }
+        finally { try { finish?.(failed); } catch { /* optional telemetry */ } }
+    }
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -145,15 +153,22 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
     }
 
     function reconcileBatch(connection, upstreamEntries, targetFolder, nextConnections, reason) {
+        return timed('playlist:reconcile', () => reconcile(connection, upstreamEntries, targetFolder, nextConnections, reason));
+    }
+    function reconcile(connection, upstreamEntries, targetFolder, nextConnections, reason) {
         const entries = Array.isArray(upstreamEntries) ? upstreamEntries : [];
         const diff = diffPlaylist(tracksFor(connection.id), entries);
+        metric('gauge', 'playlist:upstream-items', entries.length); metric('gauge', 'playlist:added-items', diff.add.length);
+        metric('gauge', 'playlist:restored-items', diff.restore.length); metric('gauge', 'playlist:missing-items', diff.missing.length);
         const bulk = window.EveAudioflixBulk;
         if (!bulk?.replaceMusic) {
-            saveConnections(nextConnections, reason);
-            applyDiff(connection, diff, targetFolder);
-            ensurePlacement(connection, targetFolder);
-            refreshProviderMetadata(connection, entries);
-            return diff;
+            return timed('playlist:apply', () => {
+                saveConnections(nextConnections, reason);
+                applyDiff(connection, diff, targetFolder);
+                ensurePlacement(connection, targetFolder);
+                refreshProviderMetadata(connection, entries);
+                return diff;
+            });
         }
 
         const snapshot = state();
@@ -181,8 +196,10 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
             if (group) groupMap[id] = [...new Set([...(groupMap[id] || []), group])];
         });
         const musicGroups = [...new Set([...(snapshot.musicGroups || []), ...(group ? [group] : [])])];
-        const result = bulk.replaceMusic(music, { musicPlaylists: nextConnections, musicGroupMap: groupMap, musicGroups }, reason);
-        if (!result?.ok) throw new Error(result?.reason || 'Audioflix could not apply the playlist batch.');
+        timed('playlist:apply', () => {
+            const result = bulk.replaceMusic(music, { musicPlaylists: nextConnections, musicGroupMap: groupMap, musicGroups }, reason);
+            if (!result?.ok) throw new Error(result?.reason || 'Audioflix could not apply the playlist batch.');
+        });
         return diff;
     }
 

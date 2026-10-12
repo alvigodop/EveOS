@@ -43,7 +43,7 @@ function load(seed) {
         'audioflix.state.schema.js',
         'audioflix.state.recovery.js',
         'audioflix.state.groups.js',
-        'audioflix.state.mutations.js',
+        'audioflix.library.index.js', 'audioflix.state.mutations.js',
         'audioflix.state.js',
         'audioflix.nexus.js',
         'audioflix.classifiers.js',

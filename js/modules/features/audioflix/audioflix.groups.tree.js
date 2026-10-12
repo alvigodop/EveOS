@@ -9,6 +9,7 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
     if (ns.ready) return;
 
     const text = (value) => String(value ?? '').trim();
+    const sourceMembership = new WeakMap();
     const keys = (type) => type === 'music'
         ? { groups: 'musicGroups', parents: 'musicGroupParents', map: 'musicGroupMap', items: 'music' }
         : { groups: 'soundboardGroups', parents: 'soundGroupParents', map: 'soundGroupMap', items: 'soundboard' };
@@ -91,6 +92,24 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
         const config = keys(type), wanted = new Set(membershipNames(state, type, group));
         const items = Array.isArray(sourceItems) ? sourceItems : (state?.[config.items] || []);
         const map = state?.[config.map] || {};
+        const view = window.EveAudioflixLibraryIndex?.get?.(state, type);
+        if (view) {
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+            let subset = sourceMembership.get(items);
+            if (!subset || subset.view !== view || subset.revision !== view.contentRevision || subset.length !== items.length) {
+                subset = { view, revision: view.contentRevision, length: items.length,
+                    positions: new Map(items.map((item, i) => [item, i])), extras: items.filter(item => !view.docFor(item)) };
+                sourceMembership.set(items, subset);
+            }
+            const matched = new Set();
+            for (const name of wanted) for (const item of view.scope('group', name)) {
+                if (subset.positions.has(item)) matched.add(item);
+            }
+            for (const item of subset.extras) if ((map[item.id] || []).some(name => wanted.has(canonical(names(state, type), name)))) matched.add(item);
+            if (view.contentRevision !== subset.revision) { sourceMembership.delete(items); continue; }
+            return [...matched].sort((a, b) => subset.positions.get(a) - subset.positions.get(b));
+            }
+        }
         return items.filter((item) => (map[item.id] || []).some((name) => wanted.has(canonical(names(state, type), name))));
     }
 

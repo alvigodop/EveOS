@@ -47,7 +47,7 @@ const run = (name) => vm.runInNewContext(
 );
 [
     'audioflix.paths.js', 'audioflix.groups.tree.js', 'audioflix.state.schema.js',
-    'audioflix.state.groups.js', 'audioflix.state.recovery.js', 'audioflix.state.mutations.js', 'audioflix.state.js',
+    'audioflix.state.groups.js', 'audioflix.state.recovery.js', 'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.js',
     'audioflix.localize.audit.js', 'audioflix.localize.port.js', 'audioflix.localize.js'
 ].forEach(run);
 

@@ -18,7 +18,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/storage.runtime.backend.js?v=4c9f151b25d6",
     "js/modules/core/storage.runtime.io.js?v=cdf481bdd3fd",
     "js/modules/core/storage.delta.js?v=e84da1a3101d",
-    "js/modules/core/storage.js?v=1d894da1f49b",
+    "js/modules/core/storage.js?v=2f4d9d45d515",
     "js/modules/core/storage.load.js?v=7b2e747d50fe",
     "js/modules/features/edit-history/edit-history.capture.js?v=13e1a9d5e433",
     "js/modules/features/edit-history/edit-history.core.js?v=00099843e259",

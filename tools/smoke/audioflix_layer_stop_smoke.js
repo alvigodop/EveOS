@@ -62,6 +62,7 @@ async function main() {
     };
     const sandbox = { window, Audio: FakeAudio, Map, Promise, console };
     vm.createContext(sandbox);
+    vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.audio.volume-target.js'), 'utf8'), sandbox);
     vm.runInContext(fs.readFileSync(LAYERS, 'utf8'), sandbox, { filename: LAYERS });
 
     const decoded = deferred();
@@ -162,18 +163,7 @@ async function main() {
         'Stop still clears every retained voice after cap eviction');
 
     window.EveAudioflixNative.shouldSuppressBrowserPlayback = () => false;
-    const browserController = window.EveAudioflixAudioLayers.createController({
-        state: () => ({}),
-        shouldPreferUrl: () => false,
-        tryNativePlayback: async () => false
-    });
-    await browserController.layerPlay({ id: 'layer-a', url: 'a.mp3' });
-    await browserController.layerPlay({ id: 'layer-b', url: 'b.mp3' });
-    const playerA = players.find((player) => player.src === 'a.mp3');
-    const playerB = players.find((player) => player.src === 'b.mp3');
-    browserController.stopItemLayers('layer-a');
-    assert(playerA?.paused && playerA.currentTime === 0, 'the requested browser layer stops and rewinds');
-    assert(playerB && !playerB.paused, 'stopping one layer leaves unrelated layers playing');
+    await require('./helpers/audioflix_layer_volume_namespace')(window, players, assert);
 
     let nativeMediaStops = 0;
     const nativeMediaController = window.EveAudioflixAudioLayers.createController({

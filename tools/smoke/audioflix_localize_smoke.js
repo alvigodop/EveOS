@@ -42,11 +42,7 @@ function makeCtx(stored, nativeStub) {
 function loadAll(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.paths.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.groups.tree.js');
-    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
-    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
-    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.recovery.js')
-    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.mutations.js');
-    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
+    require('./helpers/audioflix_localize_state_loader')(ctx, runScript);
     runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.classifiers.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.localize.audit.js');

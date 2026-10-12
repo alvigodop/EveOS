@@ -38,7 +38,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             console.warn('[Audioflix] recovery guard missing — not persisting, to avoid data loss.');
             return { written: false, kind: 'guard', reason: 'recovery guard not loaded' };
         }
-        const result = guard.write(STORAGE_KEY, state, options); if (result?.written) fallbackState = JSON.parse(JSON.stringify(state)); return result;
+        const durable = mutations.durableProjection(state), result = guard.write(STORAGE_KEY, durable, options);
+        if (result?.written) fallbackState = getConfigRoot() ? JSON.parse(JSON.stringify(durable)) : state; return result;
     }
 
     const { text, normalizeVolume, id, bool } = window.EveAudioflixStateSchema;
@@ -195,6 +196,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     function installState(rawState) {
         const next = normalize(rawState);
+        mutations.cancelPendingVolumes();
         const root = getConfigRoot();
         if (root) {
             root.audioflix = next;
@@ -207,6 +209,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     }
 
     async function persistNow(reason) {
+        return mutations.persistTracked(async () => {
         // Internal mutations already preserve the schema; do not re-clean 10k tracks during flush.
         const state = ensure();
         if (saveTimer) window.clearTimeout(saveTimer); saveTimer = 0;
@@ -224,6 +227,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         window.dispatchEvent(new CustomEvent('eve:audioflix-state-changed', { detail: { reason, reasons: reasons.length ? reasons : [reason] } }));
         const written = persisted?.written === true || coreWritten === true;
         return { state, written, mirrorWritten: persisted?.written === true, coreWritten, reason: written ? '' : (persisted?.reason || 'No durable Audioflix storage backend accepted the change.') };
+        });
     }
 
     function scheduleSave(reason) {
@@ -249,6 +253,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     function update(patch, reason) {
         const state = ensure();
         Object.assign(state, patch || {});
+        if (['music', 'soundboard', 'musicGroupMap', 'soundGroupMap'].some(key => Object.prototype.hasOwnProperty.call(patch || {}, key))) window.EveAudioflixLibraryIndex.invalidate(state);
         const next = syncRootOrFallback(state);
         scheduleSave(reason);
         return next;
@@ -299,23 +304,26 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         }), reason, { authoritative: true });
     }
 
-    const { addItem } = window.EveAudioflixStateMutations.create({
-        ensure, boundedItems, syncRootOrFallback, scheduleSave, text, soundboardLimit: MAX_SOUNDBOARD, storageKey: STORAGE_KEY,
+    const mutations = window.EveAudioflixStateMutations.create({
+        ensure, boundedItems, syncRootOrFallback, scheduleSave, text, normalizeVolume, soundboardLimit: MAX_SOUNDBOARD, storageKey: STORAGE_KEY,
         recovery: () => window.EveAudioflixStateRecovery
     });
+    const { addItem, setItemVolume, previewItemVolume, commitItemVolume, previewPortVolume, commitPortVolume } = mutations;
 
     function removeItem(type, itemId) {
         const state = ensure();
         const isMusic = type === 'music';
         const key = isMusic ? 'music' : 'soundboard';
-        state[key] = (state[key] || []).filter((item) => item.id !== itemId);
+        const wanted = window.EveAudioflixLibraryIndex.idKey(itemId);
+        state[key] = (state[key] || []).filter((item) => window.EveAudioflixLibraryIndex.idKey(item.id) !== wanted);
+        window.EveAudioflixLibraryIndex.remove(state, type, itemId);
         const mapKey = isMusic ? 'musicGroupMap' : 'soundGroupMap';
-        if (state[mapKey] && typeof state[mapKey] === 'object') delete state[mapKey][itemId];
+        if (state[mapKey] && typeof state[mapKey] === 'object') delete state[mapKey][wanted];
         state.scopeBindings = (state.scopeBindings || []).filter((binding) => !(
-            binding.audioId === itemId && binding.audioType === (isMusic ? 'music' : 'sound')
+            window.EveAudioflixLibraryIndex.idKey(binding.audioId) === wanted && binding.audioType === (isMusic ? 'music' : 'sound')
         ));
         if (state.localizeScopeDirs && typeof state.localizeScopeDirs === 'object') delete state.localizeScopeDirs[`song:${itemId}`];
-        state.dupDismissedPairs = (state.dupDismissedPairs || []).filter((pair) => !String(pair).split('|').includes(itemId));
+        state.dupDismissedPairs = (state.dupDismissedPairs || []).filter((pair) => !String(pair).split('|').includes(wanted));
         syncRootOrFallback(state);
         scheduleSave(`audioflix-remove-${type}`);
         return ensure();
@@ -346,10 +354,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             at: played.lastPlayedAt
         }].slice(-MAX_RECENT);
         state.counters.plays += 1;
-        const listKey = played.type === 'music' ? 'music' : 'soundboard';
-        state[listKey] = (state[listKey] || []).map((entry) => entry.id === played.id
-            ? Object.assign({}, entry, { lastPlayedAt: played.lastPlayedAt })
-            : entry);
+        const entry = window.EveAudioflixLibraryIndex.get(state, played.type).getById(played.id);
+        if (entry) entry.lastPlayedAt = played.lastPlayedAt;
         scheduleSave('audioflix-play');
     }
 
@@ -366,25 +372,11 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return ensure();
     }
 
-    function setItemVolume(type, itemId, volume) {
-        const state = ensure();
-        const key = type === 'music' ? 'music' : 'soundboard';
-        const safeVolume = normalizeVolume(volume, 1);
-        if (state[key]) {
-            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { volume: safeVolume }) : entry);
-        }
-        state.portVolumes = state.portVolumes || {};
-        state.portVolumes[itemId] = safeVolume;
-        scheduleSave('audioflix-volume');
-        return ensure();
-    }
-
     function setItemExposed(type, itemId, exposed) {
         const state = ensure();
         const key = type === 'music' ? 'music' : 'soundboard';
-        if (state[key]) {
-            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { exposed }) : entry);
-        }
+        const entry = window.EveAudioflixLibraryIndex.get(state, type).getById(itemId);
+        if (entry) entry.exposed = exposed;
         state.exposedPortedSounds = state.exposedPortedSounds || {};
         state.exposedPortedSounds[itemId] = exposed;
         scheduleSave('audioflix-exposed');
@@ -394,9 +386,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     function setItemHotkey(type, itemId, hotkey) {
         const state = ensure();
         const key = type === 'music' ? 'music' : 'soundboard';
-        if (state[key]) {
-            state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, { hotkey }) : entry);
-        }
+        const entry = window.EveAudioflixLibraryIndex.get(state, type).getById(itemId);
+        if (entry) entry.hotkey = hotkey;
         state.portHotkeys = state.portHotkeys || {};
         state.portHotkeys[itemId] = hotkey;
         scheduleSave('audioflix-hotkey');
@@ -405,9 +396,14 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     // Group + folder organization editors live in a sibling module (audioflix.state.groups.js)
     // so this store stays under the line cap; they run against the same live-state primitives.
-    const groupOps = window.EveAudioflixStateGroups.create({ ensure, text, scheduleSave, syncRootOrFallback });
+    const groupOps = window.EveAudioflixStateGroups.create({ ensure, text, scheduleSave, syncRootOrFallback,
+        getItem: (type, id) => window.EveAudioflixLibraryIndex.get(ensure(), type).getById(id),
+        noteItem: (type, item) => window.EveAudioflixLibraryIndex.upsert(ensure(), type, item),
+        registerFolder: (state, item) => mutations.registerFolder(state, item),
+        invalidate: type => window.EveAudioflixLibraryIndex.invalidate(ensure(), type) });
 
     window.addEventListener('pagehide', () => {
+        mutations.finalizePendingVolumes();
         if (saveTimer) void persistNow('audioflix-pagehide');
     });
 
@@ -424,9 +420,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         removePort,
         recordPlay,
         recordGeminiAudioEvent,
-        clearGeminiAudioEvents, normalizeVolume, setItemVolume,
+        clearGeminiAudioEvents, normalizeVolume, setItemVolume, previewItemVolume, commitItemVolume, previewPortVolume, commitPortVolume,
         setItemExposed, setItemHotkey, ...groupOps,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
+        durableSnapshot: mutations.durableSnapshot,
         getRevision: function () { return revision; },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });

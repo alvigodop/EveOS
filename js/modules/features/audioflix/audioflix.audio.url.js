@@ -23,7 +23,8 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             onClose: () => hideInternalView(),
             onToggle: () => playback.paused ? resume() : pause(),
             onSeek: (value) => seek(value),
-            onVolume: (value) => setVolume(value),
+            getVolumeItem: () => playback.item,
+            onVolume: (value, metadata) => setVolume(value, metadata),
             onRate: (value) => setRate(value),
             onStep: (delta) => options.onStep?.(delta),
             onJump: (index) => options.onJump?.(index)
@@ -313,15 +314,18 @@ window.EveAudioflixUrlPlayback = window.EveAudioflixUrlPlayback || {};
             emitProgress();
             return true;
         }
-        function setVolume(volume) {
-            if (!active) return;
+        function setVolume(volume, options = {}) {
+            if (!active || !(window.EveAudioflixVolumeTarget?.allows?.(playback.item, options) ?? options.type === undefined)) return;
+            if (options.itemId !== undefined && String(options.itemId) !== String(playback.item?.id)) return;
             const safe = Math.max(0, Math.min(1, Number(volume || 0)));
+            if (options.persist !== false && playback.item?.id !== undefined && playback.item?.id !== null) {
+                window.EveAudioflixState?.setItemVolume?.(playback.item.type || 'music', playback.item.id, safe);
+            }
             const audible = outputVolume(safe);
             if (active.kind === 'direct') active.player.volume = audible;
             else if (active.kind === 'youtube' || active.kind === 'soundcloud') active.player.setVolume?.(Math.round(audible * 100));
             else if (['vimeo', 'spotify', 'instagram'].includes(active.kind)) active.player.setVolume?.(audible)?.catch?.(() => {});
             if (playback.item) playback.item.volume = safe;
-            if (playback.item?.id) window.EveAudioflixState?.setItemVolume?.(playback.item.type || 'music', playback.item.id, safe);
             view?.setVolume?.(safe);
         }
         function setRate(rate) {

@@ -82,6 +82,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
     function createController(options = {}) {
         let stage = null;
         let currentItem = null;
+        let volumeGesture = null;
 
         function ensureStage() {
             if (stage) return stage;
@@ -126,6 +127,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
                     </div>
                 </footer>`;
             stage.addEventListener('click', (event) => {
+                if (event.currentTarget !== stage) return;
                 const button = event.target.closest('[data-url-player-action]');
                 const action = button?.dataset.urlPlayerAction;
                 if (action === 'stop') (options.onClose || options.onStop)?.();
@@ -140,24 +142,33 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
                 }
             });
             stage.addEventListener('change', (event) => {
+                if (event.currentTarget !== stage) return;
                 if (event.target.matches('.audioflix-provider-seek')) options.onSeek?.(Number(event.target.value || 0));
                 else if (event.target.matches('.audioflix-provider-rate')) options.onRate?.(Number(event.target.value || 1));
             });
             stage.addEventListener('input', (event) => {
+                if (event.currentTarget !== stage) return;
                 if (event.target.matches('.audioflix-provider-seek')) {
                     const max = Number(event.target.max || 0) || 0, value = Number(event.target.value || 0) || 0;
                     event.target.style.setProperty('--progress', `${max > 0 ? (value / max) * 100 : 0}%`);
                 } else if (event.target.matches('.audioflix-provider-volume')) {
                     const value = clamp(Number(event.target.value) || 0, 0, 1);
                     event.target.style.setProperty('--volume', `${value * 100}%`);
-                    options.onVolume?.(value);
+                    if (volumeGesture) {
+                        if (!volumeGesture.input(event.target)) event.stopPropagation?.();
+                    }
+                    else options.onVolume?.(value);
                 }
             });
+            volumeGesture = window.EveAudioflixVolumeGesture?.create?.(stage, '.audioflix-provider-volume',
+                () => options.getVolumeItem?.() || currentItem,
+                (value, metadata) => options.onVolume?.(value, metadata));
             document.body.appendChild(stage);
             return stage;
         }
 
         function syncItemPresentation(item) {
+            volumeGesture?.rebind?.(stage.querySelector('.audioflix-provider-volume'), item);
             currentItem = item;
             const heading = stage.querySelector('header strong');
             const title = item?.title || 'Linked audio';
@@ -294,8 +305,13 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
 
         function hide() {
             if (!stage) return;
+            volumeGesture?.flush?.();
             stage.classList.remove('is-transport-only', 'is-transport-hidden');
             stage.hidden = true;
+        }
+        function destroy() {
+            volumeGesture?.destroy?.(); stage?.remove();
+            volumeGesture = null; stage = null; currentItem = null;
         }
 
         async function connectYouTubeBridge(item, videoId, callbacks = {}) {
@@ -409,7 +425,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         }
 
         return {
-            open, hide, isOpen: () => !!stage && !stage.hidden && !stage.classList.contains('is-transport-only'),
+            open, hide, destroy, isOpen: () => !!stage && !stage.hidden && !stage.classList.contains('is-transport-only'),
             setStatus, setVisualVisible, setExpanded, setTransportOnly, revealTransportFallback,
             sync, connectYouTubeBridge,
             setQueue, setRate, setVolume,

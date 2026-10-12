@@ -63,7 +63,9 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
         function cloneAudioflix() {
             try {
                 const cfg = getConfig();
-                return cfg && cfg.audioflix ? JSON.parse(JSON.stringify(cfg.audioflix)) : null;
+                if (!cfg?.audioflix) return null;
+                const audioflix = window.EveAudioflixState?.durableSnapshot?.(cfg.audioflix);
+                return audioflix || JSON.parse(JSON.stringify(cfg.audioflix));
             } catch (error) {
                 return null;
             }

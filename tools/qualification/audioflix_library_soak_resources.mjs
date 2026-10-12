@@ -1,0 +1,140 @@
+// Disposable qualification context only. No production module installs these counters.
+export function installLibrarySoakInstrumentation() {
+    const timers = { timeout: new Set(), interval: new Set() }, observers = Object.create(null);
+    const errors = [], longTasks = [], phases = [], responses = [], responseBuckets = new Map();
+    let phase = 'boot', errorCount = 0, longTaskCount = 0, droppedLongTasks = 0;
+    const bounded = (list, value, max) => { list.push(value); if (list.length > max) list.shift(); };
+    const noteError = event => {
+        errorCount += 1;
+        bounded(errors, { phase, type: event.type, message: String(event.reason?.message || event.message || event.reason || 'error').slice(0, 600) }, 30);
+    };
+    window.addEventListener('error', noteError, true);
+    window.addEventListener('unhandledrejection', noteError, true);
+    const response = event => {
+        const target = event.target, volume = target?.classList?.contains('audioflix-volume-slider');
+        if (!volume && !target?.closest?.('[data-af-action]')) return;
+        const started = performance.now(), owner = phase;
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            const duration = performance.now() - started;
+            bounded(responses, { phase: owner, type: event.type, duration }, 2048);
+            if (!responseBuckets.has(owner)) {
+                if (responseBuckets.size >= 32) responseBuckets.delete(responseBuckets.keys().next().value);
+                responseBuckets.set(owner, { count: 0, max: 0, values: [] });
+            }
+            const bucket = responseBuckets.get(owner); bucket.count += 1; bucket.max = Math.max(bucket.max, duration);
+            bounded(bucket.values, duration, 1024);
+        }));
+    };
+    document.addEventListener('input', response, true); document.addEventListener('click', response, true);
+    for (const [kind, setName, clearName] of [['timeout', 'setTimeout', 'clearTimeout'], ['interval', 'setInterval', 'clearInterval']]) {
+        const nativeSet = window[setName], nativeClear = window[clearName];
+        window[setName] = function (callback, delay, ...args) {
+            if (typeof callback !== 'function') return Reflect.apply(nativeSet, window, [callback, delay, ...args]);
+            let handle;
+            const wrapped = function (...values) {
+                if (kind === 'timeout') timers.timeout.delete(handle);
+                return Reflect.apply(callback, this, values);
+            };
+            handle = Reflect.apply(nativeSet, window, [wrapped, delay, ...args]);
+            timers[kind].add(handle); return handle;
+        };
+        window[clearName] = function (handle) {
+            timers.timeout.delete(handle); timers.interval.delete(handle);
+            return Reflect.apply(nativeClear, window, [handle]);
+        };
+    }
+    for (const name of ['MutationObserver', 'ResizeObserver', 'IntersectionObserver', 'PerformanceObserver']) {
+        const Native = window[name]; if (typeof Native !== 'function') continue;
+        const counter = observers[name] = { created: 0, observing: 0, disconnected: 0, collected: 0 };
+        const state = new WeakMap();
+        const finalizer = typeof FinalizationRegistry === 'function' ? new FinalizationRegistry(record => {
+            if (record.active) counter.observing -= 1; counter.collected += 1;
+        }) : null;
+        window[name] = class extends Native {
+            constructor(...args) {
+                super(...args); const record = { active: false }; state.set(this, record);
+                counter.created += 1; finalizer?.register(this, record);
+            }
+            observe(...args) {
+                const result = super.observe(...args), record = state.get(this);
+                if (!record.active) { record.active = true; counter.observing += 1; }
+                return result;
+            }
+            disconnect(...args) {
+                const result = super.disconnect(...args), record = state.get(this);
+                if (record.active) { record.active = false; counter.observing -= 1; }
+                counter.disconnected += 1; return result;
+            }
+        };
+    }
+    window.__librarySoak = {
+        phase(name) { phase = name; bounded(phases, { name, at: performance.now() }, 2048); },
+        snapshot() { return { phase, errorCount, errors: errors.map(error => ({ ...error })),
+            timers: { timeout: timers.timeout.size, interval: timers.interval.size },
+            observers: Object.fromEntries(Object.entries(observers).map(([key, value]) => [key, { ...value }])),
+            longTaskCount, droppedLongTasks, longTasks: longTasks.map(task => ({ ...task })),
+            responses: responses.map(value => ({ ...value })), responseSummary: Object.fromEntries([...responseBuckets].map(([name, bucket]) => {
+                const sorted = [...bucket.values].sort((a, b) => a - b);
+                return [name, { count: bucket.count, retained: sorted.length, max: bucket.max,
+                    p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0, p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0 }];
+            })) }; },
+        drainLongTasks() { const result = longTasks.splice(0); return result; }
+    };
+    try {
+        const observer = new window.PerformanceObserver(list => {
+            for (const entry of list.getEntries()) {
+                const owner = [...phases].reverse().find(mark => mark.at <= entry.startTime)?.name || 'boot';
+                longTaskCount += 1;
+                if (longTasks.length >= 2048) droppedLongTasks += 1;
+                bounded(longTasks, { phase: owner, duration: entry.duration, start: entry.startTime,
+                    attribution: (entry.attribution || []).map(part => part.name || part.containerType || 'unknown').slice(0, 4) }, 2048);
+            }
+        });
+        observer.observe({ type: 'longtask', buffered: true });
+    } catch { /* optional browser observation */ }
+}
+
+export const latencyStats = values => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return { count: sorted.length, p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0,
+        p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0, max: sorted.at(-1) || 0 };
+};
+
+export async function sampleSoakResources(page, cdp, label) {
+    await cdp.send('HeapProfiler.collectGarbage');
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const [dom, heap, scoped] = await Promise.all([cdp.send('Memory.getDOMCounters'), cdp.send('Runtime.getHeapUsage'),
+        page.evaluate(() => ({ instrumentation: window.__librarySoak.snapshot(),
+            mountedCards: document.querySelectorAll('#audioflix-overlay .audioflix-item-card').length,
+            diagnostics: window.EveAudioflixDiagnostics?.snapshot?.() || null }))]);
+    return { label, gcRequested: true, dom, heap, ...scoped };
+}
+
+export function resourceGrowth(samples) {
+    const first = samples[0], final = samples.at(-1);
+    const slope = key => {
+        const values = samples.map(key), n = values.length;
+        const meanX = (n - 1) / 2, meanY = values.reduce((sum, value) => sum + value, 0) / n;
+        const numerator = values.reduce((sum, value, index) => sum + (index - meanX) * (value - meanY), 0);
+        const denominator = values.reduce((sum, _, index) => sum + (index - meanX) ** 2, 0);
+        return denominator ? numerator / denominator : 0;
+    };
+    return { sampleCount: samples.length, nodesDelta: final.dom.nodes - first.dom.nodes,
+        listenersDelta: final.dom.jsEventListeners - first.dom.jsEventListeners,
+        heapDelta: final.heap.usedSize - first.heap.usedSize,
+        nodesPerBatch: slope(sample => sample.dom.nodes), heapBytesPerBatch: slope(sample => sample.heap.usedSize),
+        caveat: 'post-GC trend in disposable context; not proof of leak freedom or provider endurance' };
+}
+
+export function evaluateSoakBudgets(latency, responses, tasks, normalGroup) {
+    const failures = [];
+    const check = (name, actual, limit, kind = 'p95') => {
+        if (actual > limit) failures.push({ name, kind, actual, limit });
+    };
+    for (const [name, values] of Object.entries(responses)) check(`${name}:visual-response`, values.p95, 100);
+    if (latency['search-input']) check('search-input', latency['search-input'].p95, 150);
+    if (latency['group-expand-pointer']) check('group-expand-pointer', latency['group-expand-pointer'].p95, normalGroup ? 150 : 500);
+    const drag = tasks['volume-drag-pointer'];
+    if (drag) check('volume-drag-pointer:self-longtask', drag.max, 50, 'max');
+    return failures;
+}

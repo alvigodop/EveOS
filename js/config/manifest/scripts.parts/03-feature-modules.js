@@ -4,6 +4,9 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 
 window.EveModuleManifestScriptChunks.push([
     // Feature Modules (Consolidated)
+    "js/modules/features/audioflix/audioflix.library.index.js?v=a5751a3ad20c",
+    "js/modules/features/audioflix/audioflix.audio.volume-target.js?v=463e7e2937f9",
+    "js/modules/features/audioflix/audioflix.ui.volume-gesture.js?v=90ff34c71fe0",
     "js/modules/features/audioflix/audioflix.ui.window.js?v=4088baeb41bc",
     "js/modules/features/favicon-cache.core.js?v=3503ac7dc339",
     "js/modules/features/favicon-cache.runtime.js?v=31d555566f46",
@@ -21,13 +24,13 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/core/eveos-service-reload-ui.js?v=2bee00dc565c",
     "js/modules/features/audioflix/audioflix.spotify.media.js?v=0d6e349a74c3",
     "js/modules/features/audioflix/audioflix.library.health-view.js?v=063678b9490d",
-    "js/modules/features/audioflix/audioflix.transport.resilience.js?v=88612b3f6c74",
+    "js/modules/features/audioflix/audioflix.transport.resilience.js?v=b3470ebe5523",
     "js/modules/features/audioflix/audioflix.spotify.remote.js?v=adb7739fbeb8",
     "js/modules/features/audioflix/audioflix.spotify.status-watch.js?v=832b2f4fca48",
     "js/modules/features/audioflix/audioflix.spotify.playback-lifecycle.js?v=205029a9b32f",
-    "js/modules/features/audioflix/audioflix.spotify.any-browser.js?v=4c3b35c0dfe0",
+    "js/modules/features/audioflix/audioflix.spotify.any-browser.js?v=43293edb9133",
     "js/modules/features/audioflix/audioflix.spotify.repeat-rearm.js?v=70e844de7bf5",
-    "js/modules/features/audioflix/audioflix.spotify.engine-surface.js?v=10695bea8c5c",
+    "js/modules/features/audioflix/audioflix.spotify.engine-surface.js?v=d52c283daf57",
     "js/modules/features/watchfusion/watchfusion.bootstrap.js?v=276b11f79777",
     "js/modules/features/watchfusion/watchfusion.runtime-sensing.js?v=06bb78645e6e",
     "js/modules/features/watchfusion/watchfusion.js?v=a457ebe2a0e2",

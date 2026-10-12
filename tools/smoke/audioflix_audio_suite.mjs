@@ -51,6 +51,12 @@ const tests = {
         ['node', 'tools/smoke/audioflix_library_next_smoke.js']
     ],
     scale: [
+        ['node', 'tools/smoke/audioflix_library_index_scope_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_volume_mutation_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_volume_core_capture_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_library_soak_contract_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_queue_snapshot_scale_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_library_diagnostics_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_duplicate_scale_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_sequential_add_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_large_library_lossless_smoke.mjs'],
@@ -62,6 +68,8 @@ const tests = {
         ['node', 'tools/smoke/audioflix_core_stability_browser_smoke.mjs']
     ],
     'media-identity': [
+        ['node', 'tools/smoke/audioflix_mixed_playlist_contract_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_typed_natural_contract_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_spotify_media_identity_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_media_mutation_identity_smoke.mjs'],
         ['node', 'tests/audioflix_spotify_scrape.test.js']

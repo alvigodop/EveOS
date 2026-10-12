@@ -55,6 +55,7 @@ function makeContext(seed) {
     run(ctx, 'js/modules/features/audioflix/audioflix.state.schema.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.state.recovery.js');
+    run(ctx, 'js/modules/features/audioflix/audioflix.library.index.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.state.mutations.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.state.js');
     run(ctx, 'js/modules/features/audioflix/audioflix.bulk.js');

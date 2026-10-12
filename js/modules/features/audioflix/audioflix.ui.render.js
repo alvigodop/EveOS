@@ -136,6 +136,20 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         const esc = ctx.esc;
         const state = ctx.state;
         const filters = window.EveAudioflixFrontendFilters;
+        let generatedCards = 0, renderGeneration = 0;
+        const metric = (method, name, value) => { try { window.EveAudioflixDiagnostics?.[method]?.(name, value); } catch { /* optional telemetry */ } };
+        const timed = (name, operation, render = false) => (...args) => {
+            const firstCard = generatedCards;
+            let finish, failed = false;
+            try { finish = window.EveAudioflixDiagnostics?.span?.(name); } catch { /* optional telemetry */ }
+            if (render) { renderGeneration += 1; metric('increment', 'ui:render-generations'); }
+            try { return operation(...args); }
+            catch (error) { failed = true; throw error; }
+            finally {
+                if (render) { metric('gauge', 'ui:render-generation', renderGeneration); metric('gauge', 'ui:render-cards', generatedCards - firstCard); }
+                try { finish?.(failed); } catch { /* optional telemetry */ }
+            }
+        };
         const frontendKey = () => JSON.stringify(['frontend', 'music', state().activeMusicFolderScope || '',
             state().activeFrontendMusicGroup || '', state().activeFrontendMusicArtist || '', state().activeFrontendMusicClassifier || '',
             filters.get('musicGroups'), filters.get('musicArtists'), filters.get('musicClassifiers')]);
@@ -149,10 +163,10 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         const windowAttrs = (items, key, type) => windows?.attrs(items, key, type) || '';
 
         function frontendMusicItems() {
-            let items = (state().music || []).filter((it) => ctx.isItemExposed(it, 'music'));
             const scope = state().activeMusicFolderScope || '';
-            if (scope) items = items.filter((it) => String(it.folder || it.card || '').trim() === scope);
-            return items;
+            const view = window.EveAudioflixLibraryIndex?.get?.(state(), 'music');
+            const source = scope && view ? view.scope('folder', scope) : state().music || [];
+            return source.filter(it => ctx.isItemExposed(it, 'music') && (!scope || String(it.folder || it.card || '').trim() === scope));
         }
 
         function frontendMusicSmartEntries(sourceItems) {
@@ -223,7 +237,7 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             };
         }
 
-        function renderItemCard(item, type) {
+        function buildItemCard(item, type) {
             const isF = (type === 'music' ? (state().musicViewMode || 'backend') : (state().soundboardViewMode || 'backend')) === 'frontend';
             const transport = window.EveAudioflixTransport?.render?.(item, type, esc) || '';
             const rep = ctx.getActiveRepeaters()[item.id], repBadge = rep ? `<span class="audioflix-repeater-badge" title="Repeater active">🔁 Rep</span>` : '';
@@ -251,6 +265,11 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             }
             return `<article class="audioflix-item-card${item.upstreamMissing && showMarkers ? ' is-upstream-missing' : ''}${localOnlyMissing ? ' is-local-missing' : ''}"><div class="audioflix-playback-controls"><button type="button" class="audioflix-stop" data-af-action="stop-item" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Stop">${ctx.stopSvg}</button><button type="button" class="audioflix-play" data-af-action="play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Play">${ctx.playSvg}</button></div><button type="button" class="audioflix-layer-play" data-af-action="layer-play" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="Layer Play">${ctx.layerPlaySvg}</button><div class="audioflix-item-body"><div class="audioflix-item-title-row">${queueBadge}${dupBadge}${localBadge}${localMissingBadge}${repBadge}${keyBadge}<strong>${esc(item.title)}</strong></div><span>${esc(ctx.itemMeta(item))}</span>${ctx.groupTags(item, ctx.groupsOf(item.id, type))}</div><div class="audioflix-item-actions">${ctx.internalViewButton(item, type)}${item.upstreamMissing && item.playlistId && showMarkers ? `<button type="button" class="audioflix-icon-btn" data-af-action="keep-playlist-track" data-af-id="${esc(item.id)}" title="Removed from the upstream playlist — keep it in EveOS">&#128190;</button>` : ''}<button type="button" class="audioflix-icon-btn" data-af-action="item-info" data-af-type="${esc(type)}" data-af-id="${esc(item.id)}" title="${isF ? 'Settings' : ''}">${ctx.cogSvg}</button>${delBtn}</div>${transport}${layerVoices}</article>`;
         }
+        const renderItemCard = timed('ui:render:card', (item, type) => {
+            const html = buildItemCard(item, type);
+            generatedCards += 1; metric('increment', 'ui:card-generations');
+            return html;
+        });
 
         const renderFrontendActive = () => {
             const { name, items, entries, activeGroup } = frontendActiveGroup('sound');
@@ -356,7 +375,11 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             return cardFor();
         }
 
-        return { frontendMusicItems, frontendMusicSmartEntries, frontendGroupEntries, frontendActiveGroup, renderItemCard, renderItems, renderFrontendActive, renderFrontendMusicActive, toggleGroup, revealCard };
+        return { frontendMusicItems, frontendMusicSmartEntries, frontendGroupEntries, frontendActiveGroup, renderItemCard,
+            renderItems: timed('ui:render:items', renderItems, true),
+            renderFrontendActive: timed('ui:render:sound-frontend', renderFrontendActive, true),
+            renderFrontendMusicActive: timed('ui:render:music-frontend', renderFrontendMusicActive, true),
+            toggleGroup: timed('ui:render:group-toggle', toggleGroup, true), revealCard };
     };
 
     ns.ready = true;
