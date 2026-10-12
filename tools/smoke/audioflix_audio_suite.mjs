@@ -53,10 +53,12 @@ const tests = {
     ],
     'core-stability': [
         ['node', 'tools/smoke/audioflix_group_terminal_state_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_provider_health_semantics_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_core_stability_browser_smoke.mjs']
     ],
     'media-identity': [
         ['node', 'tools/smoke/audioflix_spotify_media_identity_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_media_mutation_identity_smoke.mjs'],
         ['node', 'tests/audioflix_spotify_scrape.test.js']
     ]
 };
