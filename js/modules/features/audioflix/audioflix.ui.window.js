@@ -17,7 +17,7 @@
             remember(key, page); return page;
         }
         function attrs(items, key, type) {
-            return enabled(items, type) ? ` data-af-window-owner="${owner}" data-af-window-key="${esc(key)}"` : '';
+            return enabled(items, type) ? ` data-af-window-owner="${owner}" data-af-window-key="${esc(key)}" data-af-window-page="${pageFor(items, key)}"` : '';
         }
         function render(items, key, type) {
             if (!enabled(items, type)) return items.map(item => renderCard(item, type)).join('');
@@ -26,8 +26,9 @@
             return controls + items.slice(first, first + PAGE_SIZE).map(item => renderCard(item, type)).join('');
         }
         function configure(grid, items, key, type) {
-            if (enabled(items, type)) { grid.dataset.afWindowOwner = owner; grid.dataset.afWindowKey = key; }
-            else { delete grid.dataset.afWindowOwner; delete grid.dataset.afWindowKey; }
+            if (enabled(items, type)) {
+                grid.dataset.afWindowOwner = owner; grid.dataset.afWindowKey = key; grid.dataset.afWindowPage = String(pageFor(items, key));
+            } else { delete grid.dataset.afWindowOwner; delete grid.dataset.afWindowKey; delete grid.dataset.afWindowPage; }
         }
         function mount(grid, items, key, type) {
             configure(grid, items, key, type);
@@ -37,7 +38,12 @@
         function showIndex(grid, items, key, type, index) {
             if (!grid || !enabled(items, type) || index < 0 || index >= items.length) return false;
             const page = Math.floor(index / PAGE_SIZE);
-            if (pageFor(items, key) !== page || !grid.querySelector('.audioflix-item-card')) {
+            const targetId = String(items[index]?.id ?? '');
+            const targetMounted = [...grid.querySelectorAll('.audioflix-item-card [data-af-action="play"]')]
+                .some(button => button.dataset.afType === type && button.dataset.afId === targetId);
+            if (pageFor(items, key) !== page || grid.dataset.afWindowOwner !== owner
+                || grid.dataset.afWindowKey !== key || Number(grid.dataset.afWindowPage) !== page
+                || !targetMounted) {
                 remember(key, page); mount(grid, items, key, type);
             }
             return true;
@@ -47,7 +53,7 @@
             const grid = button?.closest?.('[data-af-window-owner]');
             if (!grid || grid.dataset.afWindowOwner !== owner || button.disabled) return;
             event.preventDefault(); event.stopPropagation();
-            const key = grid.dataset.afWindowKey, source = itemsForKey(key);
+            const source = itemsForKey(grid.dataset.afWindowKey), key = source?.key || grid.dataset.afWindowKey;
             if (!source || !enabled(source.items, source.type)) return;
             const step = Number(button.dataset.afWindowStep);
             if (step !== -1 && step !== 1) return;

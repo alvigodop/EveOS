@@ -142,7 +142,7 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         const backendKey = (name, type) => JSON.stringify(['backend', type, name]);
         const windows = window.EveAudioflixUiWindow?.create({ esc, renderCard: (item, type) => renderItemCard(item, type),
             itemsForKey: key => { const [mode, type, group] = JSON.parse(key);
-                return { type, items: mode === 'frontend' ? frontendActiveGroup(type).items
+                return { type, key: mode === 'frontend' ? frontendKey() : key, items: mode === 'frontend' ? frontendActiveGroup(type).items
                     : (state().music || []).filter(item => ctx.groupKey(item, type) === group) }; },
             afterMount: grid => { window.EveAudioflixTransport?.sync?.(grid); window.EveAudioflixLayerVoices?.render?.(grid); } });
         const cards = (items, key, type) => windows?.render(items, key, type) || items.map(item => renderItemCard(item, type)).join('');

@@ -127,6 +127,7 @@ async function boot(url, payload, scale = false) {
         const audio = window.EveAudioflixAudio, fake = window.__librarySyntheticAudio = { item: null, paused: true, volume: 1 };
         audio.playItem = async item => { Object.assign(fake, { item, paused: false, volume: item.volume ?? 1 }); return true; };
         audio.stopItemLayers = async id => { if (String(fake.item?.id) === String(id)) fake.paused = true; return true; };
+        audio.stopAll = async () => { fake.paused = true; return true; };
         audio.getPlaybackState = () => ({ ...fake, duration: 120, currentTime: 12, browserOnly: false });
         audio.updateItemVolume = (id, volume) => { if (String(fake.item?.id) === String(id)) fake.volume = volume; };
         audio.attachWaveform = () => {};
@@ -261,11 +262,13 @@ async function frontendProbe(run, count) {
         const at = performance.now();
         await bounded(async () => {
             await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click({ timeout: 30000 });
-            await page.waitForFunction(size => document.querySelectorAll('#audioflix-overlay .audioflix-item-card').length === size, count, { timeout: 30000 });
+            await page.waitForFunction(() => document.querySelectorAll('#audioflix-overlay .audioflix-item-card').length === 200, undefined, { timeout: 30000 });
             await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         }, 60000, `Frontend All Groups ${count} render/layout`);
         const renderLayoutMs = performance.now() - at;
-        const mountedCards = await page.locator('.audioflix-item-card').count(); assert.equal(mountedCards, count);
+        const mountedCards = await page.locator('.audioflix-item-card').count(); assert.equal(mountedCards, 200);
+        const grid = page.locator('.audioflix-item-grid[data-af-active-group]');
+        assert.match(await grid.locator('.audioflix-card-pages').textContent(), new RegExp(`of ${count} tracks`));
         const tail = page.locator('.audioflix-item-card').last();
         await tail.scrollIntoViewIfNeeded();
         const identity = await tail.locator('[data-af-action="play"]').getAttribute('data-af-id');
@@ -284,8 +287,43 @@ async function frontendProbe(run, count) {
         assert.equal(pointer.sameNode, true); assert.equal(pointer.focused, true); assert.ok(pointer.scrollDelta <= 2);
         assert.ok(Math.abs(pointer.liveVolume - pointer.sliderVolume) < .001);
         await tail.locator('[data-af-action="stop-item"]').click();
+        await grid.locator('[data-af-window-step="1"]').click();
+        assert.equal(await grid.locator('.audioflix-item-card').count(), 200);
+        assert.equal(await grid.locator('[data-af-action="play"]').first().getAttribute('data-af-id'), `local_scale_${count}_200`);
+        await grid.locator('[data-af-window-step="-1"]').click();
+        assert.equal(await grid.locator('[data-af-action="play"]').first().getAttribute('data-af-id'), `local_scale_${count}_0`);
+        const farId = `local_scale_${count}_${count - 1}`;
+        await page.locator('[data-af-action="open-nexus-quick"][data-af-type="music"]').click();
+        await page.locator('.audioflix-nexus-quick input[type="search"]').fill(`Scale Track ${count - 1}`);
+        await page.locator(`.audioflix-nexus-quick [data-quick-action="jump"][data-af-id="${farId}"]`).click({ timeout: 10000 });
+        await page.waitForFunction(id => document.querySelector('.is-nexus-jump-target [data-af-action="play"]')?.dataset.afId === id, farId);
+        assert.equal(await grid.locator('[data-af-action="play"]').last().getAttribute('data-af-id'), farId);
+        assert.equal(await grid.locator('.audioflix-item-card').count(), 200);
+        await page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click();
+        const search = page.locator('[data-af-nexus-search][data-af-type="music"]');
+        await search.fill('Scale Track 0');
+        await page.locator(`[data-af-action="nexus-jump-card"][data-af-id="local_scale_${count}_0"]`).click();
+        await page.waitForFunction(id => document.querySelector('.is-nexus-jump-target [data-af-action="play"]')?.dataset.afId === id, `local_scale_${count}_0`);
+        assert.equal(await search.inputValue(), 'Scale Track 0');
+        assert.equal(await page.locator('.audioflix-nexus-panel').count(), 1);
+        assert.equal(await page.evaluate(() => window.EveAudioflixState.ensure().musicViewMode), 'frontend');
+        await page.locator('[data-af-action="play-music-group"]').click();
+        await page.waitForFunction(size => window.EveAudioflix.queueConnection.snapshot().entries.length === size, count);
+        const fullScope = await page.evaluate(size => {
+            const state = window.EveAudioflixState.ensure(), queue = window.EveAudioflix.queueConnection.snapshot();
+            return { stateCount: state.music.length, queueCount: queue.entries.length, folderCount: state.musicFolders.length,
+                stateIdsIntact: state.music.every((item, i) => item.id === `local_scale_${size}_${i}`),
+                queueIdsIntact: queue.entries.every((item, i) => item.id === `local_scale_${size}_${i}`),
+                queuePlaying: queue.isPlaying };
+        }, count);
+        assert.equal(fullScope.stateCount, count); assert.equal(fullScope.queueCount, count); assert.equal(fullScope.folderCount, 50);
+        assert.equal(fullScope.stateIdsIntact, true); assert.equal(fullScope.queueIdsIntact, true); assert.equal(fullScope.queuePlaying, true);
+        assert.equal(await page.locator('.audioflix-item-card').count(), 200);
+        await page.locator('[data-af-action="stop-music-group"]').click();
+        assert.equal(await page.evaluate(() => window.EveAudioflix.queueConnection.snapshot().isPlaying), false);
         await settleMonitor(page);
-        return { scope: 'real current Frontend All Groups; synthetic media only', renderLayoutMs, mountedCards, playMs, pointer,
+        return { scope: 'real current Frontend All Groups; synthetic media only', renderLayoutMs, mountedCards, pageSize: 200, playMs, pointer, fullScope,
+            navigation: { next: true, previous: true, offPageFastTrack: true, offPageMainNexus: true, mainQueryPreserved: true },
             resourcesBefore: before, resourcesAfter: await resources(),
             longTasks: stats(await page.evaluate(start => window.__libraryLongTasks.slice(start), longTaskStart)) };
     } finally { await cdp.detach().catch(() => {}); }
@@ -316,13 +354,13 @@ async function qualifyScale(count, baselineSource) {
         const expand = []; const header = page.locator('.audioflix-group-title').first();
         for (let i = 0; i < 3; i += 1) {
             const at = performance.now(); await header.click();
-            assert.equal(await page.locator('.audioflix-item-card').count(), count / 50); expand.push(performance.now() - at);
+            assert.equal(await page.locator('.audioflix-item-card').count(), count / 50 > 400 ? 200 : count / 50); expand.push(performance.now() - at);
             await header.click(); assert.equal(await page.locator('.audioflix-item-card').count(), 0);
         }
         assert.deepEqual(run.pageErrors, []);
         const barrier = run.counters(); assert.equal(barrier.allowedPlaybackCount, 0);
         const row = { count, layout: 'backend 50 equally-sized folders; measured current Frontend All Groups separately', ...run.installed, baseline: { renderMs: stats(old.map(row => row.renderMs)), mountMs: stats(old.map(row => row.mountMs)), mountedCards: count, nodes: old[0].nodes },
-            candidate: { renderMs: stats(next.map(row => row.renderMs)), mountMs: stats(next.map(row => row.mountMs)), mountedCards: 0, nodes: next[0].nodes }, largestGroupExpansion: stats(expand), largestExpandedGroupCards: count / 50,
+            candidate: { renderMs: stats(next.map(row => row.renderMs)), mountMs: stats(next.map(row => row.mountMs)), mountedCards: 0, nodes: next[0].nodes }, largestGroupExpansion: stats(expand), largestGroupCanonicalMembers: count / 50, largestExpandedGroupCards: count / 50 > 400 ? 200 : count / 50,
             frontend: null, longTasks: stats(await page.evaluate(() => window.__libraryLongTasks)), barrier };
         report.scales.push(row); write();
         row.frontend = await frontendProbe(run, count); write();

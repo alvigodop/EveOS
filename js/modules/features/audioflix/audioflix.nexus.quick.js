@@ -19,10 +19,19 @@ window.EveAudioflixNexusQuick = window.EveAudioflixNexusQuick || {};
         const snapshot = state();
         const nexus = window.EveAudioflixNexus;
         const mode = kind === 'music' ? (snapshot.musicViewMode || 'backend') : (snapshot.soundboardViewMode || 'backend');
-        const library = window.EveAudioflix?.catalogItems?.(kind) || nexus?.items?.(kind) || [];
-        if (mode !== 'frontend') return { mode, label: 'Backend · whole library', items: library };
-        const visibleIds = itemButtonIds(kind);
-        const items = library.filter(item => visibleIds.has(item.id));
+        if (mode !== 'frontend') return { mode, label: 'Backend · whole library',
+            items: window.EveAudioflix?.catalogItems?.(kind) || nexus?.items?.(kind) || [] };
+        let items;
+        if (typeof window.EveAudioflix?.frontendScope === 'function') {
+            const scope = window.EveAudioflix.frontendScope(kind);
+            if (!Array.isArray(scope?.items)) throw new Error('Audioflix canonical frontend scope is unavailable.');
+            items = scope.items;
+        } else {
+            // Compatibility only for standalone fixtures without the canonical UI owner.
+            const library = window.EveAudioflix?.catalogItems?.(kind) || nexus?.items?.(kind) || [];
+            const visibleIds = itemButtonIds(kind);
+            items = library.filter(item => visibleIds.has(item.id));
+        }
         const parts = kind === 'music'
             ? [snapshot.activeMusicFolderScope, snapshot.activeFrontendMusicGroup,
                 String(snapshot.activeFrontendMusicArtist || '').replace(/^smart:artist:/, ''),
