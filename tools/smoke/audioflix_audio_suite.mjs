@@ -54,10 +54,14 @@ const tests = {
     'core-stability': [
         ['node', 'tools/smoke/audioflix_group_terminal_state_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_core_stability_browser_smoke.mjs']
+    ],
+    'media-identity': [
+        ['node', 'tools/smoke/audioflix_spotify_media_identity_smoke.mjs'],
+        ['node', 'tests/audioflix_spotify_scrape.test.js']
     ]
 };
 
-tests.full = [...tests.audio, ...tests.volume, ...tests.sounds, ...tests.spotify, ...tests.state, ...tests.scale, ...tests['core-stability']];
+tests.full = [...tests.audio, ...tests.volume, ...tests.sounds, ...tests.spotify, ...tests.state, ...tests.scale, ...tests['core-stability'], ...tests['media-identity']];
 
 if (process.argv.includes('--list')) {
     for (const [name, entries] of Object.entries(tests)) console.log(`${name}: ${entries.length} smoke(s)`);

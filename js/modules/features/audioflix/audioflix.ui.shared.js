@@ -54,10 +54,10 @@ window.EveAudioflixUiShared = window.EveAudioflixUiShared || {};
     if (!window.EveAudioflixLibraryNext) {
         load('audioflix.library.next.js?v=9e4ad3c7c26a', () => {
             window.EveAudioflixLibraryNext?.boot?.();
-            load('audioflix.library.next.ui.js?v=6a54d8ab9101', () => window.EveAudioflixLibraryNextUi?.boot?.());
+            load('audioflix.library.next.ui.js?v=b5c8000fa452', () => window.EveAudioflixLibraryNextUi?.boot?.());
         });
     } else {
         window.EveAudioflixLibraryNext.boot?.();
-        load('audioflix.library.next.ui.js?v=6a54d8ab9101', () => window.EveAudioflixLibraryNextUi?.boot?.());
+        load('audioflix.library.next.ui.js?v=b5c8000fa452', () => window.EveAudioflixLibraryNextUi?.boot?.());
     }
 })();
