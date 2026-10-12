@@ -110,8 +110,9 @@ window.EveAudioflixBulk = window.EveAudioflixBulk || {};
         if (!cleaner?.cleanItem || !store()?.update) return { ok: false, reason: 'Audioflix state schema is unavailable.' };
         const music = (Array.isArray(items) ? items : [])
             .map((item) => cleaner.cleanItem(item, 'music'))
-            .filter((item) => !!item.url || !!item.localPath)
-            .slice(-10000);
+            // Same retention rule as the store, and never a size cut: slice(-10000) here silently
+            // dropped the oldest songs whenever a playlist sync ran on a library above 10k.
+            .filter((item) => (schema.isRetained ? schema.isRetained(item) : (!!item.url || !!item.localPath)));
         const validIds = new Set(music.map((item) => item.id));
         const sourceMap = patch.musicGroupMap || snapshot.musicGroupMap || {};
         const musicGroupMap = Object.fromEntries(Object.entries(sourceMap)

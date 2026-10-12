@@ -25,7 +25,77 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
         return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
     }
     const bool = value => value === true;
-    Object.assign(ns, { text, normalizeVolume, id, bool });
+
+    // Provider media identity. A Spotify playlist row can be a track, a podcast episode, or a
+    // local file the playlist owner added from their own disk. Track and episode IDs live in
+    // separate namespaces, so identity is always provider:type:id, never a bare ID or a title.
+    const MEDIA_TYPES = ['track', 'episode', 'local', 'unknown'];
+    const AVAILABILITY = ['playable', 'metadata-only', 'unavailable', 'unknown'];
+    const SPOTIFY_REF = /(?:spotify:(track|episode|local):|open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(track|episode)\/)([^?#\s"'<>]+)/i;
+    function spotifyRef(value) {
+        const match = String(value ?? '').match(SPOTIFY_REF);
+        if (!match) return null;
+        const type = (match[1] || match[2]).toLowerCase();
+        const raw = match[3];
+        const mediaId = type === 'local' ? raw : (raw.match(/^[A-Za-z0-9]+/)?.[0] || '');
+        if (!mediaId) return null;
+        return { type, id: mediaId, uri: `spotify:${type}:${mediaId}` };
+    }
+    // Spotify playback in EveOS is the official track embed. Episodes and Spotify-local rows keep
+    // their identity and metadata but are not EveOS-playable until a later lane adds that path.
+    const SPOTIFY_PLAYABLE_TYPES = new Set(['track']);
+    function mediaIdentity(source) {
+        const item = source && typeof source === 'object' ? source : {};
+        const declaredProvider = text(item.sourceProvider, '').toLowerCase();
+        const legacyTrack = text(item.spotifyTrackId, '');
+        const ref = spotifyRef(item.sourceUri) || spotifyRef(item.spotifyUri) || spotifyRef(item.url)
+            || (legacyTrack ? spotifyRef(`spotify:track:${legacyTrack}`) : null);
+        const declaredType = MEDIA_TYPES.includes(item.sourceMediaType) ? item.sourceMediaType : '';
+        const isSpotify = declaredProvider === 'spotify' || (!declaredProvider && !!ref);
+        const hasLocal = !!text(item.localPath, '');
+        const declaredAvailability = AVAILABILITY.includes(item.sourceAvailability) ? item.sourceAvailability : '';
+        if (!isSpotify) {
+            const type = declaredType;
+            return {
+                sourceProvider: declaredProvider ? text(item.sourceProvider, '') : '',
+                sourceMediaType: type,
+                sourceMediaId: text(item.sourceMediaId, ''),
+                sourceUri: text(item.sourceUri, ''),
+                sourceIsLocal: item.sourceIsLocal === true || type === 'local',
+                sourcePlayable: !!(text(item.url, '') || hasLocal) && declaredAvailability !== 'unavailable',
+                sourceAvailability: declaredAvailability || (text(item.url, '') || hasLocal ? 'unknown' : '')
+            };
+        }
+        const type = declaredType || ref?.type || (item.sourceIsLocal === true ? 'local' : 'unknown');
+        const mediaId = text(item.sourceMediaId, '') || (ref && ref.type === type ? ref.id : '')
+            || (type === 'track' ? legacyTrack : '');
+        const uri = mediaId && type !== 'unknown' ? `spotify:${type}:${mediaId}` : text(item.sourceUri, '');
+        const hasUrl = !!text(item.url, '');
+        // A Spotify-imported row that was matched to another stream (no Spotify ref in its URL)
+        // still plays through that URL; only a bare Spotify episode/local reference cannot.
+        const otherStream = hasUrl && type === 'unknown' && !spotifyRef(item.url);
+        const playable = hasLocal || otherStream
+            || (SPOTIFY_PLAYABLE_TYPES.has(type) && !!mediaId && declaredAvailability !== 'unavailable');
+        const availability = declaredAvailability === 'unavailable' && !hasLocal ? 'unavailable'
+            : playable ? 'playable' : 'metadata-only';
+        return {
+            sourceProvider: 'spotify', sourceMediaType: type, sourceMediaId: mediaId, sourceUri: uri,
+            sourceIsLocal: type === 'local', sourcePlayable: playable, sourceAvailability: availability
+        };
+    }
+    function identityKey(item) {
+        const identity = mediaIdentity(item);
+        if (!identity.sourceProvider || !identity.sourceMediaId || !identity.sourceMediaType) return '';
+        return `${identity.sourceProvider}:${identity.sourceMediaType}:${identity.sourceMediaId}`;
+    }
+    // A music item survives normalization when it can play (url/localPath) or when it carries a
+    // real provider identity (metadata-only podcast/local rows). Titles alone never qualify.
+    function isRetained(item) {
+        if (!item || typeof item !== 'object') return false;
+        if (text(item.url, '') || text(item.localPath, '')) return true;
+        return !!text(item.sourceProvider, '') && !!(text(item.sourceMediaId, '') || text(item.sourceUri, '') || text(item.sourceId, ''));
+    }
+    Object.assign(ns, { text, normalizeVolume, id, bool, spotifyRef, mediaIdentity, identityKey, isRetained });
 
     ns.create = function create(deps) {
         const text = deps.text;
@@ -34,6 +104,7 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
 
         function cleanItem(item, type) {
             const source = item && typeof item === 'object' ? item : {};
+            const identity = mediaIdentity(source);
             return {
                 id: text(source.id, id(type)),
                 type,
@@ -56,11 +127,13 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 album: text(source.album, ''),
                 image: text(source.image, ''),
                 explicit: source.explicit === true,
-                sourceProvider: text(source.sourceProvider, ''),
-                // Keep provider-native identity separate from the mutable playback URL. Spotify
-                // recovery can still identify a removed track after its live page stops resolving.
-                spotifyTrackId: text(source.spotifyTrackId, ''),
-                spotifyUri: text(source.spotifyUri, ''),
+                // Generic provider identity (track | episode | local | unknown), derived from legacy
+                // Spotify fields on load so old libraries migrate without a rewrite. Idempotent.
+                ...identity,
+                // Legacy Spotify aliases stay track-only: playback code reads them as track IDs, so
+                // an episode or local row must never populate them with a non-track identity.
+                spotifyTrackId: identity.sourceMediaType === 'track' ? identity.sourceMediaId : (identity.sourceProvider === 'spotify' ? '' : text(source.spotifyTrackId, '')),
+                spotifyUri: identity.sourceMediaType === 'track' ? identity.sourceUri : (identity.sourceProvider === 'spotify' ? '' : text(source.spotifyUri, '')),
                 isrc: text(source.isrc, ''),
                 playlistPosition: Math.max(0, Number(source.playlistPosition || 0) || 0),
                 card: text(source.card, ''),
@@ -130,7 +203,7 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
         function boundedItems(list, type, max) {
             const cleaned = (Array.isArray(list) ? list : [])
                 .map((item) => cleanItem(item, type))
-                .filter((item) => !!item.url || !!item.localPath);
+                .filter((item) => type === 'music' ? isRetained(item) : (!!item.url || !!item.localPath));
             // Library size is a performance concern, never a data-retention policy. The old music
             // path silently kept only the last MAX_MUSIC records via slice(-max), which could erase
             // songs simply by normalizing/restoring a library above 10k. Keep soundboard's deliberate
@@ -161,7 +234,7 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
                 .slice(-max);
         }
 
-        return { cleanItem, cleanPort, cleanScopeBinding, boundedItems, boundedBindings };
+        return { cleanItem, cleanPort, cleanScopeBinding, boundedItems, boundedBindings, isRetained };
     };
 
     ns.ready = true;
