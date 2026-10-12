@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { naturalPolicy, assertNaturalCompletion, assertProviderPlaying, assertObservers, observerCounters,
     awaitNaturalTrack, verifyCurrentVolume } from './audioflix_spotify_long_queue_natural.mjs';
+import { createLongQueueHarness } from './audioflix_spotify_long_queue_live_support.mjs';
 
 const require = createRequire(import.meta.url);
 const { cpuClockMs, cpuDelta } = require('../qualification/lane3-runtime-metrics.cjs');
@@ -67,6 +68,30 @@ async function simulate({ duration = 92, early = null, duplicate = false, final 
 
 async function main() {
     const policy = naturalPolicy(92, 1, 92);
+    await check('file-pairing-passive-helper-status-contract', async () => {
+        const originalFetch = globalThis.fetch, requests = [];
+        let idle = { ok: true, sessionPresent: true, playingCount: 0, trackIds: [], transport: { paused: true } };
+        const source = fs.readFileSync(path.join(root, 'tools/smoke/audioflix_spotify_long_queue_live_smoke.mjs'), 'utf8');
+        const callback = source.match(/helperIdle:\s*(async\s*\(\)\s*=>\s*\{[\s\S]*?\}),\s*\n\s*audit:/);
+        assert.ok(callback, 'Exercise the actual file pairing callback, not a duplicate predicate');
+        assert.ok(source.indexOf('E.pairing = await approveOwnFileSession') < source.indexOf('await H.waitForFixtureQueue(page'));
+        globalThis.fetch = async (url, options) => {
+            requests.push({ url, method: options.method, body: options.body });
+            return { ok: true, async json() { return idle; } };
+        };
+        try {
+            const H = createLongQueueHarness({ base: 'http://127.0.0.1:8765' });
+            const helperIdle = new Function('H', `return (${callback[1]});`)(H);
+            assert.equal(await helperIdle(), true); assert.equal(await helperIdle(), true);
+            const good = idle;
+            for (const invalid of [{ ok: false }, { sessionPresent: false }, { playingCount: 1 }, { transport: { paused: false } }]) {
+                idle = { ...good, ...invalid }; assert.equal(await helperIdle(), false);
+            }
+            assert.deepEqual(requests, Array.from({ length: 6 }, () => ({
+                url: 'http://127.0.0.1:8765/api/audioflix/spotify-browser/status', method: 'GET', body: undefined
+            })));
+        } finally { globalThis.fetch = originalFetch; }
+    });
     await check('472s-duration-aware-deadline', () => assert.ok(naturalPolicy(472, 1, 472).timeoutMs > 472000));
     await check('30s-preview-rejected', () => assert.throws(() => naturalPolicy(30, 0), /preview/));
     await check('short-provider-duration-rejected', () => assert.throws(() => naturalPolicy(92, 1, 472), /differs/));

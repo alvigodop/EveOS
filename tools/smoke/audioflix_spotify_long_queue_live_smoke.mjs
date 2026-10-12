@@ -196,7 +196,7 @@ async function main() {
         await playGroup.click();
         if (new URL(controllerUrl).protocol === 'file:') {
             E.pairing = await approveOwnFileSession({ browser, page, base,
-                helperIdle: async () => { const { status } = await H.engineStatus('', 'unapproved file session');
+                helperIdle: async () => { const status = await H.jsonRequest('/api/audioflix/spotify-browser/status');
                     return status.ok === true && status.sessionPresent === true
                         && Number(status.playingCount) === 0 && status.transport?.paused === true; },
                 audit: approvalPage => approvalPage.on('pageerror', error => pageErrors.push(`approval: ${error.message}`)) });
