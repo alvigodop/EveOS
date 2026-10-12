@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from server_modules import audioflix_spotify_broker as mod  # noqa: E402
 from server_modules import audioflix_spotify_browser_rpc as rpc  # noqa: E402
 from server_modules import audioflix_spotify_browser as browser  # noqa: E402
+from server_modules.audioflix_spotify_media_identity import parse_media  # noqa: E402
 
 HOLD_S = 4.0  # stands in for the 15.5s helper start lease
 
@@ -149,11 +150,21 @@ def spawn(results, key, fn):
     return thread
 
 
+def call_targets(call, target):
+    # Transport records legacy bare track IDs; volume records the typed URI sent by the broker.
+    # Compare canonical identities without collapsing episode and track namespaces.
+    actual, expected = parse_media(call[1]), parse_media(target)
+    return actual is not None and expected is not None and actual["spotifyUri"] == expected["spotifyUri"]
+
+
 def browser_work_for(track):
-    return [c for c in fake.calls if c[0] in {"load", "play"} and c[1] == track]
+    return [c for c in fake.calls if c[0] in {"load", "play"} and call_targets(c, track)]
 
 
 A, B = "4cOdK2wGLETKBW3PvgPWqT", "7ouMYWpwJ422jRcDASZB7P"
+assert call_targets(("volume", f"spotify:track:{A}"), A)
+assert not call_targets(("volume", f"spotify:episode:{A}"), A), "typed volume namespaces must not collapse"
+assert call_targets(("volume", f"spotify:episode:{A}"), f"spotify:episode:{A}")
 
 # 3. Stale queued command: Play A keeps the lock for its whole window (its interrupt is ignored,
 # as if the helper start were past help), while Play B then Pause are accepted behind the lock.
@@ -253,7 +264,7 @@ for label, cancel in (("stop", "stop"), ("pause", "pause"), ("play-b", "play")):
     for thread in (t_a, t_o, t_c):
         thread.join(HOLD_S + 3)
     assert results["a"].get("superseded") and results["a"].get("lifecycle") == "superseded", (label, results["a"])
-    assert browser_work_for(A) == [] and not [c for c in fake.calls if c[0] == "volume" and c[1] == A], \
+    assert browser_work_for(A) == [] and not [c for c in fake.calls if c[0] == "volume" and call_targets(c, A)], \
         f"{label}: stale first Play did post-startup work: {playback_work()}"
     if cancel == "play":
         assert results["c"].get("ok") and results["c"].get("isOwner"), results["c"]
@@ -284,7 +295,7 @@ for label, stage, cancel in (("load-stop", "load", "stop"), ("volume-pause", "vo
     t_a.join(HOLD_S + 3)
     t_c.join(HOLD_S + 3)
     assert results["a"].get("superseded"), (label, results["a"])
-    a_after = [c[0] for c in fake.calls if c[1] == A and c[0] in {"volume", "play"}]
+    a_after = [c[0] for c in fake.calls if c[0] in {"volume", "play"} and call_targets(c, A)]
     assert a_after == ([] if stage == "load" else ["volume"]), f"{label}: stale A continued: {a_after}"
     if cancel == "play":
         assert results["c"].get("ok") and results["c"].get("isOwner"), results["c"]
@@ -301,6 +312,7 @@ broker, grant = new_broker()
 assert send(broker, grant, "play", {"spotifyId": A, "duration": 180}).get("ok")
 assert fake.play_payloads[-1].get("expectedPreemptEpoch") == 41
 assert fake.play_payloads[-1].get("generation") == broker._track_generation
+assert [c[1] for c in fake.calls if c[0] == "volume"] == [f"spotify:track:{A}"], "volume retains the broker's typed target"
 
 # 6. Interrupt endpoint unavailable: dead and hung helpers stay bounded and harmless.
 assert 0 < rpc.INTERRUPT_TIMEOUT_S <= 2.5, "interrupt must retain its bounded control budget"
