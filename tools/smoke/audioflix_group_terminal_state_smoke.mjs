@@ -10,10 +10,22 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.
 const source = fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.queue.completion.js'), 'utf8');
 let syncs = 0;
 let renders = 0;
+const button = {
+    dataset: { afAction: 'stop-music-group' },
+    classList: { remove: () => {} },
+    textContent: '■ Stop Group'
+};
+const overlay = {
+    querySelectorAll: (selector) => selector === '[data-af-action="stop-music-group"]' ? [button] : []
+};
+const document = {
+    querySelector: (selector) => selector === '#audioflix-overlay' ? overlay : null
+};
 const context = vm.createContext({
     console,
     Promise,
     WeakMap,
+    document,
     window: {
         EveAudioflix: { rerender: () => { renders += 1; }, queueConnection: { snapshot: () => ({ repeatOne: false }) } },
         EveAudioflixAudio: { syncQueueView: () => { syncs += 1; } },
@@ -45,7 +57,14 @@ await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(advances, 1, 'queue advances exactly once');
 assert.equal(queue.isPlaying, false, 'terminal queue becomes idle');
 assert.equal(syncs, 1, 'terminal queue view is synchronized');
-assert.equal(renders, 1, 'group transport is rerendered to Play Group');
+assert.equal(renders, 0, 'terminal transport must not structurally rerender the AudioFlix library');
+assert.equal(button.dataset.afAction, 'play-music-group', 'terminal transport becomes Play Group in place');
+assert.match(button.textContent, /Play Group/, 'terminal transport label is patched in place');
+
+const terminalButton = button;
+completion.syncTerminalView(() => ({ isPlaying: false }));
+assert.equal(button, terminalButton, 'terminal patch must preserve the existing button DOM object');
+assert.equal(renders, 0, 'explicit terminal sync must remain non-structural');
 
 const repeating = {
     entries: [{ id: 'track-r', title: 'Repeat' }],
@@ -63,6 +82,6 @@ const repeatComplete = completion.create({
 assert.equal(repeatComplete({ status: 'Ended', item: { id: 'track-r' }, settle: Promise.resolve() }), true);
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(restarts, 1, 'repeat-one still restarts');
-assert.equal(renders, 1, 'non-terminal repeat must not force a group terminal rerender');
+assert.equal(renders, 0, 'non-terminal repeat must not force a structural rerender');
 
 console.log('AUDIOFLIX_GROUP_TERMINAL_STATE_SMOKE_OK');
