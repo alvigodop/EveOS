@@ -10,6 +10,7 @@ import socket
 from server_modules import audioflix_spotify_browser as browser
 from server_modules import audioflix_spotify_presentation as presentation
 from server_modules.audioflix_spotify_browser_utils import clamp_volume, normalize_track_id
+from server_modules.audioflix_spotify_media_identity import parse_media
 
 
 # Keep the private helper request inside the ordinary browser client's 20s command window while
@@ -80,6 +81,9 @@ def interrupt(reason: str) -> dict:
 
 def set_effective_volume(volume, track_id: str = "", expected_started_at: int | None = None,
                          expected_generation: int | None = None) -> dict:
+    identity = parse_media(track_id) if track_id else None
+    if track_id and not identity:
+        return {"ok": False, "reason": "A valid Spotify volume media identity is required."}
     manager = browser._manager
     with manager._lock:
         helper = manager._helper_status()
@@ -98,6 +102,7 @@ def set_effective_volume(volume, track_id: str = "", expected_started_at: int | 
         payload = {
             "volume": clamp_volume(volume, 1),
             "trackId": normalize_track_id(track_id),
+            **(identity or {}),
         }
         result = manager._set_volume_locked(payload, manager._session_id)
         if result.get("ok"):

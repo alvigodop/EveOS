@@ -291,11 +291,48 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
                 const menuAttrs = isUngrouped && clearableCount
                     ? ` data-af-context="ungrouped" data-af-type="${esc(type)}" data-af-clear-count="${clearableCount}" title="Right-click to clear Ungrouped"`
                     : ` data-af-type="${esc(type)}"`;
-                return `<section class="audioflix-group ${collapsed[name] ? 'is-collapsed' : ''}" data-af-group="${esc(name)}"><button type="button" class="audioflix-group-title${isUngrouped && clearableCount ? ' has-context-menu' : ''}" data-af-action="toggle-group" data-af-group="${esc(name)}"${menuAttrs} aria-expanded="${collapsed[name] ? 'false' : 'true'}">${esc(name)}<span class="audioflix-group-count">${members.length} item${members.length === 1 ? '' : 's'}</span></button><div class="audioflix-item-grid">${members.map((it) => renderItemCard(it, type)).join('')}</div></section>`;
+                return `<section class="audioflix-group ${collapsed[name] ? 'is-collapsed' : ''}" data-af-group="${esc(name)}"><button type="button" class="audioflix-group-title${isUngrouped && clearableCount ? ' has-context-menu' : ''}" data-af-action="toggle-group" data-af-group="${esc(name)}"${menuAttrs} aria-expanded="${collapsed[name] ? 'false' : 'true'}">${esc(name)}<span class="audioflix-group-count">${members.length} item${members.length === 1 ? '' : 's'}</span></button><div class="audioflix-item-grid">${collapsed[name] ? '' : members.map((it) => renderItemCard(it, type)).join('')}</div></section>`;
             }).join('');
         }
 
-        return { frontendMusicItems, frontendMusicSmartEntries, frontendGroupEntries, frontendActiveGroup, renderItemCard, renderItems, renderFrontendActive, renderFrontendMusicActive };
+        function toggleGroup(button, collapsed) {
+            const section = button?.closest?.('.audioflix-group'), grid = section?.querySelector('.audioflix-item-grid');
+            if (!section || !grid) return false;
+            // Only mount the requested group. Playback lives outside its disposable card UI.
+            if (collapsed && grid.contains(document.activeElement)) button.focus({ preventScroll: true });
+            section.classList.toggle('is-collapsed', collapsed);
+            button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            if (collapsed) grid.replaceChildren();
+            else {
+                const type = button.dataset.afType === 'music' ? 'music' : 'sound';
+                const items = type === 'music' ? (state().music || []) : [...(state().soundboard || []), ...ctx.getPorted()];
+                grid.innerHTML = items.filter(item => ctx.groupKey(item, type) === button.dataset.afGroup).map(item => renderItemCard(item, type)).join('');
+                window.EveAudioflixTransport?.sync?.(section);
+                window.EveAudioflixLayerVoices?.render?.(section);
+            }
+            return true;
+        }
+
+        function revealCard(id, type = 'music') {
+            const root = document.getElementById('audioflix-overlay');
+            if (!root || root.hidden) return null;
+            const cardFor = () => [...root.querySelectorAll('.audioflix-item-card')].find(card => {
+                const play = card.querySelector('[data-af-action="play"]');
+                return play?.dataset.afId === String(id) && play.dataset.afType === type;
+            });
+            let card = cardFor();
+            if (card && !card.closest('.audioflix-group.is-collapsed')) return card;
+            const items = type === 'music' ? (state().music || []) : [...(state().soundboard || []), ...ctx.getPorted()];
+            const item = items.find(entry => String(entry.id) === String(id));
+            if (!item) return null;
+            const group = ctx.groupKey(item, type);
+            const button = [...root.querySelectorAll('.audioflix-group-title')].find(entry => entry.dataset.afGroup === group && entry.dataset.afType === type);
+            // Use the existing action owner so collapse state and the mounted projection agree.
+            if (button?.getAttribute('aria-expanded') === 'false') button.click();
+            return cardFor();
+        }
+
+        return { frontendMusicItems, frontendMusicSmartEntries, frontendGroupEntries, frontendActiveGroup, renderItemCard, renderItems, renderFrontendActive, renderFrontendMusicActive, toggleGroup, revealCard };
     };
 
     ns.ready = true;

@@ -49,6 +49,7 @@ function runChild(runtime, relative) {
         'audioflix.audio.internal.js',
         'audioflix.audio.url.loaders.js',
         'audioflix.audio.url.widgets.js',
+        'audioflix.spotify.media.js',
         'audioflix.spotify.volume.js',
         'audioflix.spotify.completion.js',
         'audioflix.audio.url.spotify.js',

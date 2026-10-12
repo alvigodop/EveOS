@@ -251,12 +251,30 @@ export function analyzeWorkflowSource(source, file = 'workflow.yml') {
     return [...new Set(failures)];
 }
 
+export function analyzeWorkflowInventory(workflows, policy = null) {
+    if (policy !== null && (policy.schemaVersion !== 1 || !['enabled', 'disabled'].includes(policy.githubActions)
+        || Object.keys(policy).some(key => !['schemaVersion', 'githubActions'].includes(key)))) {
+        return ['invalid explicit GitHub Actions policy'];
+    }
+    const disabled = policy?.githubActions === 'disabled';
+    if (disabled && workflows.length) return ['GitHub Actions is explicitly disabled but tracked workflows exist'];
+    if (!disabled && !workflows.length) return ['no tracked GitHub Actions workflows found'];
+    return [];
+}
+
 function main() {
     const failures = [];
     const warnings = [];
     const workflows = runGit(['ls-files', '.github/workflows/*.yml', '.github/workflows/*.yaml'])
         .split(/\r?\n/).map(value => value.trim()).filter(Boolean);
-    if (!workflows.length) failures.push('no tracked GitHub Actions workflows found');
+    const policyPath = 'config/eveos-ci-policy.json';
+    const trackedPolicy = runGit(['ls-files', '--', policyPath]).trim();
+    let policy = null;
+    if (trackedPolicy) {
+        try { policy = JSON.parse(fs.readFileSync(path.join(ROOT, policyPath), 'utf8')); }
+        catch { failures.push('GitHub Actions policy could not be read'); }
+    }
+    failures.push(...analyzeWorkflowInventory(workflows, policy));
 
     for (const file of workflows) {
         const source = fs.readFileSync(path.join(ROOT, ...file.split('/')), 'utf8');
@@ -270,7 +288,9 @@ function main() {
         return 1;
     }
     for (const warning of [...new Set(warnings)]) console.warn(`WARN ${warning}`);
-    console.log(`GITHUB_ACTIONS_SECURITY_OK workflows=${workflows.length} pinnedActions=true readOnly=true checkoutCredentials=false`);
+    console.log(policy?.githubActions === 'disabled'
+        ? 'GITHUB_ACTIONS_SECURITY_OK workflows=0 mode=disabled executionSurface=none'
+        : `GITHUB_ACTIONS_SECURITY_OK workflows=${workflows.length} pinnedActions=true readOnly=true checkoutCredentials=false`);
     return 0;
 }
 

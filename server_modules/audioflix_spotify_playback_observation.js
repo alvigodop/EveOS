@@ -25,7 +25,7 @@ async function providerPauseButtonShowsPlaying(page, isSpotifyEmbedUrl) {
 async function playbackObservation(page, spotifySnapshots, isSpotifyEmbedUrl) {
     let transport = null;
     try { transport = await engineSnapshot(page); } catch {}
-    const snapshots = await spotifySnapshots(null, transport?.spotifyId || '');
+    const snapshots = await spotifySnapshots(null, transport?.spotifyUri || transport?.spotifyId || '');
     const mediaObserved = snapshots.some(item => Array.isArray(item.media));
     const playingCount = mediaObserved
         ? snapshots.flatMap(item => item.media || []).filter(media => !media.paused && !media.ended && media.readyState >= 2).length

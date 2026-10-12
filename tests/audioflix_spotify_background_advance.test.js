@@ -122,7 +122,9 @@ async function createSpotifyHarness(options = {}) {
         : clearTimeout;
     let networkRequests = 0;
 
-    vm.runInNewContext(source, {
+    const mediaSource = fs.readFileSync(path.join(__dirname, '../js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8');
+    const completionSource = fs.readFileSync(path.join(__dirname, '../js/modules/features/audioflix/audioflix.spotify.completion.js'), 'utf8');
+    vm.runInNewContext([mediaSource, completionSource, source].join('\n'), {
         window,
         document,
         setTimeout: pageSetTimeout,
@@ -150,7 +152,7 @@ async function createSpotifyHarness(options = {}) {
     await provider.playSpotify({
         id: 'song-a',
         title: 'Song A',
-        url: 'https://open.spotify.com/track/AAA111',
+        url: 'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT',
         duration: Number(options.durationSeconds || 0) || 0
     });
     listeners.get('playback_started')?.({});
@@ -161,7 +163,7 @@ test('Spotify completion survives throttled page timers through its background w
     const harness = await createSpotifyHarness({ starvePageTimers: true, workerScheduler: true });
     harness.listeners.get('playback_update')?.({
         data: {
-            playingURI: 'spotify:track:AAA111',
+            playingURI: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
             position: 30,
             duration: 80,
             isPaused: false
@@ -204,7 +206,7 @@ test('Spotify still marks the track ended with the page-timer fallback when work
     const harness = await createSpotifyHarness();
     harness.listeners.get('playback_update')?.({
         data: {
-            playingURI: 'spotify:track:AAA111',
+            playingURI: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
             position: 30,
             duration: 80,
             isPaused: false
@@ -221,7 +223,7 @@ test('Spotify background completion deadline is cancelled by an explicit pause',
     const harness = await createSpotifyHarness({ starvePageTimers: true, workerScheduler: true });
     harness.listeners.get('playback_update')?.({
         data: {
-            playingURI: 'spotify:track:AAA111',
+            playingURI: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
             position: 10,
             duration: 100,
             isPaused: false
@@ -243,7 +245,7 @@ test('Spotify file mode prefers a same-origin blob worker with no localhost or n
     });
     harness.listeners.get('playback_update')?.({
         data: {
-            playingURI: 'spotify:track:AAA111',
+            playingURI: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
             position: 30,
             duration: 80,
             isPaused: false
@@ -269,7 +271,7 @@ test('Spotify file mode falls back to a data worker when blob workers are unavai
     });
     harness.listeners.get('playback_update')?.({
         data: {
-            playingURI: 'spotify:track:AAA111',
+            playingURI: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
             position: 30,
             duration: 80,
             isPaused: false
@@ -294,7 +296,7 @@ test('Spotify file mode preserves its deadline when the blob worker fails asynch
     });
     harness.listeners.get('playback_update')?.({
         data: {
-            playingURI: 'spotify:track:AAA111',
+            playingURI: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT',
             position: 30,
             duration: 80,
             isPaused: false

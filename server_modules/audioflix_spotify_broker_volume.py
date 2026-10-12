@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from server_modules import audioflix_spotify_browser_rpc as engine
 from server_modules import audioflix_spotify_broker_preemption as preemption
+from server_modules.audioflix_spotify_media_identity import media_from_payload, has_media_identity
 
 _MARKERS = ("ownerEpoch", "engineEpoch", "trackGeneration")
 
@@ -12,6 +13,10 @@ def _rejected(reason: str) -> dict:
 
 
 def execute(broker, client_id: str, args: dict, spotify_id) -> dict:
+    del spotify_id  # Public facade compatibility; remote identity is now typed.
+    identity = media_from_payload(args)
+    if has_media_identity(args) and not identity:
+        return _rejected("Spotify volume has an invalid media identity.")
     fenced = any(key in args for key in _MARKERS)
     expected_started_at = None
     if fenced:
@@ -22,6 +27,9 @@ def execute(broker, client_id: str, args: dict, spotify_id) -> dict:
         managed = engine.status()
         expected_started_at = int(managed.get("engineStartedAt") or 0)
         transport = managed.get("transport")
+        observed = media_from_payload(transport) if isinstance(transport, dict) else None
+        if identity and (not observed or observed["spotifyUri"] != identity["spotifyUri"]):
+            return _rejected("Spotify volume belongs to a different media identity.")
         helper_generation = transport.get("generation") if isinstance(transport, dict) else None
         with broker._lock:
             broker._sync_engine_epoch_locked(managed)
@@ -47,7 +55,7 @@ def execute(broker, client_id: str, args: dict, spotify_id) -> dict:
                     "reason": "Another EveOS tab owns Spotify playback. Use Take control or Play to transfer it."}
 
     gain = max(0.0, min(1.0, float(args.get("effectiveVolume") if args.get("effectiveVolume") is not None else 1)))
-    track_id = spotify_id(args.get("spotifyId") or "")
+    track_id = identity["spotifyUri"] if identity else ""
     volume = (engine.set_effective_volume(gain, track_id, expected_started_at=expected_started_at,
                                         expected_generation=args["trackGeneration"])
               if fenced else engine.set_effective_volume(gain, track_id))

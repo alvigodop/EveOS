@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { analyzeWorkflowSource } from '../tools/audit/github_actions_security_guard.mjs';
+import { analyzeWorkflowSource, analyzeWorkflowInventory } from '../tools/audit/github_actions_security_guard.mjs';
 
 const safeQuoted = `name: safe\n'on': [push, pull_request]\n'permissions': { 'contents': 'read' }\njobs:\n  test:\n    runs-on: ubuntu-latest\n`;
 assert.deepEqual(analyzeWorkflowSource(safeQuoted, 'safe.yml'), [],
@@ -30,4 +30,15 @@ for (const [name, source, expected] of cases) {
         `${name} must be rejected; got ${JSON.stringify(failures)}`);
 }
 
-console.log('GITHUB_ACTIONS_SECURITY_GUARD_CONTRACT_OK equivalentYamlSpellings=true flowMapEvents=true permissionInheritance=true');
+assert.deepEqual(analyzeWorkflowInventory([], { schemaVersion: 1, githubActions: 'disabled' }), []);
+assert.ok(analyzeWorkflowInventory([]).some(message => message.includes('no tracked')),
+    'Missing workflows without explicit retirement remains a failure');
+assert.ok(analyzeWorkflowInventory(['unsafe.yml'], { schemaVersion: 1, githubActions: 'disabled' }).length,
+    'Retired CI must reject any unexpectedly introduced workflow');
+assert.ok(analyzeWorkflowInventory([], { schemaVersion: 1, githubActions: 'disabled', skipSecurity: true }).length);
+assert.ok(analyzeWorkflowInventory([], { schemaVersion: 2, githubActions: 'disabled' }).length);
+assert.deepEqual(analyzeWorkflowInventory(['safe.yml'], { schemaVersion: 1, githubActions: 'enabled' }), []);
+assert.ok(analyzeWorkflowInventory([], { schemaVersion: 1, githubActions: 'enabled' }).length);
+assert.ok(analyzeWorkflowSource('on: pull_request_target\npermissions: write-all', 'unsafe.yml').length,
+    'Retirement policy must never disable security analysis of a workflow source');
+console.log('GITHUB_ACTIONS_SECURITY_GUARD_CONTRACT_OK equivalentYamlSpellings=true flowMapEvents=true permissionInheritance=true explicitRetirement=true');

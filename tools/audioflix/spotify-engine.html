@@ -30,13 +30,14 @@
         <p id="spotify-engine-copy">This managed window supplies Spotify playback to ordinary EveOS tabs. Control it from Audioflix.</p>
         <div id="spotify-engine-player" aria-label="Managed Spotify player"></div>
     </main>
+    <script src="../../js/modules/features/audioflix/audioflix.spotify.media.js?v=0d6e349a74c3"></script>
     <script>
         (() => {
             const params = new URLSearchParams(location.search);
             const mirror = params.get('surface') === 'mirror';
             if (!mirror) {
                 const script = document.createElement('script');
-                script.src = '../../js/modules/features/audioflix/audioflix.spotify.engine.js?v=51bab01f7597';
+                script.src = '../../js/modules/features/audioflix/audioflix.spotify.engine.js?v=61e869632bb9';
                 document.body.appendChild(script);
                 return;
             }

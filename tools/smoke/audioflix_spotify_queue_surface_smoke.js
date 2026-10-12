@@ -126,6 +126,7 @@ const context = {
     Promise
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8'), context);
 vm.runInContext(source, context, { filename: 'audioflix.spotify.engine-surface.js' });
 
 async function browserPhase() {
@@ -191,9 +192,11 @@ async function browserPhase() {
                 async playItem(next) { fixture.replays.push(next.id); fixture.paused = false; fixture.progress(); },
                 seek: async () => true, stopAll: async () => true
             };
-        }, providerTrack);
+        }, { ...providerTrack, sourceProvider: '', url: 'https://open.spotify.com/episode/4cOdK2wGLETKBW3PvgPWqT' });
         await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
             'js/modules/features/audioflix/audioflix.audio.internal.js'), 'utf8') });
+        await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
+            'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8') });
         await page.addScriptTag({ content: source });
         const loaded = page.waitForEvent('framenavigated', {
             predicate: frame => frame.url().includes('/tools/audioflix/spotify-engine.html')

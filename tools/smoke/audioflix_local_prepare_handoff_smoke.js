@@ -57,6 +57,7 @@ const context = {
     console
 };
 vm.createContext(context);
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8'), context);
 vm.runInContext(source, context, { filename: 'audioflix.audio.local.js' });
 
 (async () => {

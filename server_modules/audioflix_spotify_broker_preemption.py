@@ -110,7 +110,7 @@ def load_volume_play(broker, load: dict, gain: float) -> dict:
         return loaded
     if _stale(broker):
         return dict(SUPERSEDED_RESULT)
-    volume = engine.set_effective_volume(gain, load.get("spotifyId", ""))
+    volume = engine.set_effective_volume(gain, load.get("spotifyUri") or load.get("spotifyId", ""))
     if not volume.get("ok"):
         return volume
     if _stale(broker):

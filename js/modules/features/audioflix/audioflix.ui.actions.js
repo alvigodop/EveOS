@@ -113,7 +113,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; ctx.rerender(); return; }
             if (action === 'open-reader-companion') { window.EveWorldBookNarrationBridge?.openCompanion?.(); return; }
             if (action === 'toggle-settings') { ctx.settingsOpen = !ctx.settingsOpen; ctx.rerender(); return; }
-            if (action === 'toggle-group') { const gName = actionTarget.dataset.afGroup; if (gName) { ctx.collapsedGroups = { ...ctx.collapsedGroups, [gName]: !ctx.collapsedGroups[gName] }; ctx.rerender(); } return; }
+            if (action === 'toggle-group') { const gName = actionTarget.dataset.afGroup; if (gName) { ctx.collapsedGroups = { ...ctx.collapsedGroups, [gName]: !ctx.collapsedGroups[gName] }; if (!ctx.toggleGroup?.(actionTarget, !!ctx.collapsedGroups[gName])) ctx.rerender(); } return; }
             if (action === 'toggle-fullscreen') { ctx.fullscreenOn = !ctx.fullscreenOn; ctx.overlay?.classList.toggle('is-fullscreen', ctx.fullscreenOn); ctx.rerender(); return; }
             if (action === 'toggle-add') { const key = (type === 'music' || ctx.activeTab === 'music') ? 'music' : 'sound'; ctx.addFormOpen = { ...ctx.addFormOpen, [key]: !ctx.addFormOpen[key] }; ctx.rerender(); return; }
             if (action === 'toggle-ports') { ctx.portsOpen = !ctx.portsOpen; ctx.rerender(); return; }

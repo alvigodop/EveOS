@@ -6,15 +6,11 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
     if (ns.ready) return;
 
     const remote = () => window.EveAudioflixSpotifyRemote;
-    // Episodes/locals must never reach the track engine: its ID regex would read a 22-char episode ID as a track.
-    const nonTrack = (item) => ['episode', 'local'].includes(item?.sourceMediaType) || /\/episode\/|spotify:(?:episode|local):/i.test(String(item?.url || item?.originalUrl || ''));
-    const isSpotify = (item) => !nonTrack(item) && (String(item?.sourceProvider || '').toLowerCase() === 'spotify'
-        || !!item?.spotifyUrl
-        || /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)/i.test(String(item?.url || item?.originalUrl || '')));
-    const spotifyId = (item) => nonTrack(item) ? '' : String(item?.spotifyTrackId || item?.spotifyUrl || item?.url || item?.originalUrl || '')
-        .match(/(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)?([A-Za-z0-9]{22})(?:[?/#]|$)?/i)?.[1] || '';
+    const media = window.EveAudioflixSpotifyMedia;
+    const isSpotify = (item) => !!media.fromItem(item);
     const effectiveGain = (raw) => window.EveAudioflixSpotifyVolume.effectiveGain(raw);
-    const sameItem = (left, right) => String(left?.id || left?.url || '') === String(right?.id || right?.url || '');
+    const sameItem = (left, right) => String(left?.id || left?.url || '') === String(right?.id || right?.url || '')
+        && media.fromItem(left)?.spotifyUri === media.fromItem(right)?.spotifyUri;
 
     let installed = false;
     let active = false;
@@ -28,7 +24,7 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
     let ended = false;
     let playbackRun = 0, latestEngineState = null;
     const volumeLane = window.EveAudioflixSpotifyVolume?.createManagedPlaybackLane?.(remote,
-        () => ({ active: active && !starting, run: playbackRun, item }), spotifyId);
+        () => ({ active: active && !starting, run: playbackRun, item }), media.fromItem);
     // Broker Play is staged (load -> volume -> activation). A single helper RPC is bounded, but the
     // whole broker command can legitimately outlive the old 20s browser timer while Spotify is
     // still activating. Keep the reply budget above that staged path so the client does not abandon
@@ -158,7 +154,7 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
     function applyEngineState(result) {
         if (!result?.ok || !active) return;
         const engine = result.engine || {};
-        if (engine.spotifyId && engine.spotifyId !== spotifyId(item)) return;
+        if ((engine.spotifyId || engine.spotifyUri || engine.mediaType) && !media.matches(engine, media.fromItem(item))) return;
         if (window.EveAudioflixSpotifyStatusWatch?.isCurrentState?.(result, latestEngineState, remote()?.snapshot?.().lastState) === false) return;
         latestEngineState = result;
         volumeLane?.observe(result);
@@ -229,13 +225,13 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
     // A cold engine start (launching the managed browser and Spotify's iframe API) can outlast the
     // play reply window while the broker still finishes load+play. Adopt that playback instead of
     // leaving it unobserved: an unobserved first track can never report Ended, so the queue stalls on #1.
-    async function adoptSlowStart(id, requested) {
+    async function adoptSlowStart(identity, requested) {
         const deadline = Date.now() + SLOW_START_ADOPT_MS;
         let last = null;
         while (Date.now() < deadline && item === requested) {
             const state = await remote().status().catch(() => null);
             const engine = state?.engine || {};
-            if (state?.ok && state.isOwner === true && engine.spotifyId === id) {
+            if (state?.ok && state.isOwner === true && media.matches(engine, identity)) {
                 last = state;
                 if (['playing', 'starting', 'ended'].includes(String(engine.status || ''))) return state;
             }
@@ -257,8 +253,8 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
             error.eveSpotifyFallback = connection.fallback === true;
             throw error;
         }
-        const id = spotifyId(nextItem);
-        if (!id) throw new Error('This Spotify item has no valid track ID.');
+        const identity = media.fromItem(nextItem);
+        if (!identity) throw new Error('This Spotify item has no valid track or episode identity.');
         if (!active) await stopLocalPlayback?.().catch?.(() => {});
         item = nextItem;
         playback = {
@@ -270,11 +266,11 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
         let result;
         try {
             result = await remote().send('play', {
-                spotifyId: id, title: item.title || '', duration: playback.duration,
+                ...identity, title: item.title || '', duration: playback.duration,
                 effectiveVolume: effectiveGain(item.volume ?? 1),
                 itemId: String(item.id || ''), type: String(item.type || 'music')
             }, { timeout: PLAY_REPLY_TIMEOUT_MS });
-            if (!result?.ok && result?.timeout) result = await adoptSlowStart(id, nextItem);
+            if (!result?.ok && result?.timeout) result = await adoptSlowStart(identity, nextItem);
         } catch (error) {
             if (run !== playbackRun) return false; // a superseded run's late failure is not a skip
             throw error;

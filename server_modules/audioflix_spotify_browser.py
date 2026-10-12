@@ -27,6 +27,7 @@ from server_modules.audioflix_spotify_browser_utils import (
     clamp_volume,
     normalize_track_id,
     validate_loopback_page_url,
+    volume_payload,
 )
 
 _DEFAULT_EVEOS_URL = "http://127.0.0.1:8765/EveOS.html"
@@ -198,6 +199,7 @@ class SpotifyBrowserManager:
                 "mediaCount": int((helper or {}).get("mediaCount") or 0),
                 "playingCount": int((helper or {}).get("playingCount") or 0),
                 "trackIds": list((helper or {}).get("trackIds") or []),
+                "mediaUris": list((helper or {}).get("mediaUris") or []),
                 "desiredVolume": (helper or {}).get("desiredVolume"),
                 "authState": (helper or {}).get("authState") or "unknown",
                 "browserChannel": (helper or {}).get("browserChannel") or "",
@@ -339,11 +341,9 @@ class SpotifyBrowserManager:
             return self._stop_locked(force=False)
 
     def _set_volume_locked(self, payload: dict, session_id: str) -> dict:
-        body = {
-            "sessionId": session_id,
-            "volume": clamp_volume(payload.get("volume"), 1),
-            "trackId": normalize_track_id(payload.get("trackId") or ""),
-        }
+        body = volume_payload(payload, session_id)
+        if body is None:
+            return {"ok": False, "reason": "A consistent Spotify volume media identity is required."}
         try:
             return self._request("POST", "/volume", body, timeout=3)
         except Exception as exc:

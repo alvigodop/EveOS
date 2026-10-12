@@ -13,14 +13,14 @@ const { handleManagedSeek } = require(path.join(MODULES, 'audioflix_spotify_medi
 const { reactivateStartup } = require(path.join(MODULES, 'audioflix_spotify_startup_reactivation.js'));
 
 const {
-    sleep, never, EMBED, fakeEngine, fakeButton, fakePage, fakeFrame, options
+    sleep, never, EMBED, fixtureId: id, fakeEngine, fakeButton, fakePage, fakeFrame, options
 } = require('./audioflix_spotify_playback_fakes.shared.js');
 
 (async () => {
     // 1. Lease primitives: deadline, cancellation wake-up and generation/intent fencing.
     const runtime = {};
     const engine = fakeEngine({ playRequested: true });
-    const short = lease.createPlaybackLease({ runtime, generation: 1, spotifyId: 'aaa', budgetMs: 60,
+    const short = lease.createPlaybackLease({ runtime, generation: 1, spotifyId: id('aaa'), budgetMs: 60,
         readState: async () => engine.snapshot() });
     let started = Date.now();
     await assert.rejects(short.bound(never), error => error.lifecycle === 'deadline');
@@ -34,7 +34,7 @@ const {
     assert.ok(Date.now() - started < 400, 'Stop wakes a sleeping recovery step immediately');
     cancelled.release();
 
-    const fenced = lease.createPlaybackLease({ runtime, generation: 1, spotifyId: 'aaa', budgetMs: 5000,
+    const fenced = lease.createPlaybackLease({ runtime, generation: 1, spotifyId: id('aaa'), budgetMs: 5000,
         readState: async () => engine.snapshot() });
     engine.st.generation = 2;
     await assert.rejects(fenced.verify(), error => error.lifecycle === 'superseded');
@@ -51,9 +51,9 @@ const {
 
     // 2. A start that never confirms answers inside its budget and withdraws its play intent.
     {
-        const eng = fakeEngine({ generation: 5, spotifyId: 'bbb' });
+        const eng = fakeEngine({ generation: 5, spotifyId: id('bbb') });
         const button = fakeButton();
-        const page = fakePage(eng, [fakeFrame('bbb', button)]);
+        const page = fakePage(eng, [fakeFrame(id('bbb'), button)]);
         const opts = options(page, { startBudgetMs: 900 });
         started = Date.now();
         const result = await activation.handleTransportWithActivation(opts, { action: 'play' });
@@ -72,15 +72,15 @@ const {
 
     // 3. A newer load arriving while the scan is between reading a control and clicking it.
     {
-        const eng = fakeEngine({ generation: 7, spotifyId: 'ccc' });
+        const eng = fakeEngine({ generation: 7, spotifyId: id('ccc') });
         let opts;
         let newer;
         const button = fakeButton({ onVisible: async () => {
             if (!newer) newer = activation.handleTransportWithActivation(opts,
-                { action: 'load', spotifyId: 'ddd', generation: 8 });
+                { action: 'load', spotifyId: id('ddd'), generation: 8 });
             await newer;
         } });
-        const page = fakePage(eng, [fakeFrame('ccc', button)]);
+        const page = fakePage(eng, [fakeFrame(id('ccc'), button)]);
         opts = options(page);
         const result = await activation.handleTransportWithActivation(opts, { action: 'play' });
         assert.equal(result.lifecycle, 'superseded');
@@ -92,9 +92,9 @@ const {
 
     // 4. An explicit Pause that reached the engine during the scan clears play intent.
     {
-        const eng = fakeEngine({ generation: 9, spotifyId: 'eee' });
+        const eng = fakeEngine({ generation: 9, spotifyId: id('eee') });
         const button = fakeButton({ onVisible: async () => { eng.command('pause'); } });
-        const opts = options(fakePage(eng, [fakeFrame('eee', button)]));
+        const opts = options(fakePage(eng, [fakeFrame(id('eee'), button)]));
         const result = await activation.handleTransportWithActivation(opts, { action: 'play' });
         assert.equal(result.lifecycle, 'paused');
         assert.equal(button.clicks, 0, 'explicit Pause is never overridden by a late Play click');
@@ -102,11 +102,11 @@ const {
 
     // 5. Happy path still requires strong media confirmation and keeps its lease bookkeeping clean.
     {
-        const eng = fakeEngine({ generation: 11, spotifyId: 'fff' });
+        const eng = fakeEngine({ generation: 11, spotifyId: id('fff') });
         let media = [];
         const button = fakeButton({ onClick: async () => { eng.st.status = 'playing';
             media = [{ paused: false, ended: false, readyState: 4 }]; } });
-        const opts = options(fakePage(eng, [fakeFrame('fff', button)]), {
+        const opts = options(fakePage(eng, [fakeFrame(id('fff'), button)]), {
             spotifySnapshots: async () => [{ media }]
         });
         const result = await activation.handleTransportWithActivation(opts, { action: 'play' });
@@ -118,8 +118,8 @@ const {
 
     // 6. A hung media seek is bounded, and a seek for a replaced generation is never acknowledged.
     {
-        const eng = fakeEngine({ generation: 13, spotifyId: 'ggg', status: 'playing' });
-        const opts = options(fakePage(eng, [fakeFrame('ggg', null, never)]), { seekBudgetMs: 300 });
+        const eng = fakeEngine({ generation: 13, spotifyId: id('ggg'), status: 'playing' });
+        const opts = options(fakePage(eng, [fakeFrame(id('ggg'), null, never)]), { seekBudgetMs: 300 });
         started = Date.now();
         const hung = await handleManagedSeek(opts, { seconds: 30 });
         assert.equal(hung.ok, false);
@@ -127,9 +127,9 @@ const {
         assert.ok(Date.now() - started < 1200, 'hung seek evaluation is bounded');
         assert.equal(eng.acks.length, 0);
 
-        const eng2 = fakeEngine({ generation: 14, spotifyId: 'hhh', status: 'playing' });
+        const eng2 = fakeEngine({ generation: 14, spotifyId: id('hhh'), status: 'playing' });
         const seek = () => { eng2.st.generation = 15; return { reached: true, currentTime: 30, duration: 200 }; };
-        const opts2 = options(fakePage(eng2, [fakeFrame('hhh', null, seek)]));
+        const opts2 = options(fakePage(eng2, [fakeFrame(id('hhh'), null, seek)]));
         const stale = await handleManagedSeek(opts2, { seconds: 30 });
         assert.equal(stale.lifecycle, 'superseded');
         assert.equal(eng2.acks.length, 0, 'stale seek completion is never acknowledged');
@@ -142,7 +142,7 @@ const {
         const attempts = [];
         const realClick = button.click;
         button.click = (opts) => { attempts.push(opts); return realClick(opts); };
-        const page = fakePage(fakeEngine(), [fakeFrame('iii', button)]);
+        const page = fakePage(fakeEngine(), [fakeFrame(id('iii'), button)]);
         const observe = async () => ({ transport: { generation: 3, status: 'provider-paused', paused: true,
             playRequested: true, currentTime: 0 }, playingCount: 0 });
         await assert.rejects(reactivateStartup({ page, observe, expectedGeneration: 3,
@@ -155,8 +155,8 @@ const {
     // 8-10. Late mutations: a click/dispatch whose actionability wait outlives the parent lease
     // must time out at the lease deadline, never land after it (old 1800ms/900ms waits did).
     const leaseFor = (budgetMs, gen = 21) => {
-        const eng = fakeEngine({ generation: gen, spotifyId: 'late', playRequested: true, status: 'provider-paused' });
-        return { eng, lease: lease.createPlaybackLease({ runtime: {}, generation: gen, spotifyId: 'late',
+        const eng = fakeEngine({ generation: gen, spotifyId: id('late'), playRequested: true, status: 'provider-paused' });
+        return { eng, lease: lease.createPlaybackLease({ runtime: {}, generation: gen, spotifyId: id('late'),
             budgetMs, readState: async () => eng.snapshot() }) };
     };
     const playMeta = visible => ({ index: 0, testId: 'play-pause-button', label: 'Play', visible });
@@ -186,7 +186,7 @@ const {
         const attempts = [];
         const realClick = button.click;
         button.click = (opts) => { attempts.push(opts); return realClick(opts); };
-        const page = fakePage(eng, [fakeFrame('late', button)]);
+        const page = fakePage(eng, [fakeFrame(id('late'), button)]);
         const observe = async () => ({ transport: eng.snapshot(), playingCount: 0 });
         const result = await reactivateStartup({ page, observe, expectedGeneration: 3, budgetMs: 3200,
             isSpotifyEmbedUrl: url => String(url).startsWith(EMBED), note: () => {}, runtime: { playbackKickCount: 0 },
@@ -196,6 +196,43 @@ const {
         assert.ok(attempts.length > 0, 'reactivation reached its trusted click');
         assert.equal(button.clicks, 0, 'reactivation click obeys the parent lease, not only its 3.2s budget');
         l.release();
+    }
+
+    // 11. Equal opaque IDs are not equal media: track/episode identity fences both leases and seek.
+    {
+        const sharedId = id('media');
+        const episodeUri = `spotify:episode:${sharedId}`, trackUri = `spotify:track:${sharedId}`;
+        const eng = fakeEngine({ generation: 51, spotifyId: sharedId, mediaType: 'episode', status: 'playing', playRequested: true });
+        const runtime = {};
+        const typed = lease.createPlaybackLease({ runtime, generation: 51, spotifyId: sharedId,
+            spotifyUri: episodeUri, readState: async () => eng.snapshot() });
+        Object.assign(eng.st, { mediaType: 'track', spotifyUri: trackUri });
+        await assert.rejects(typed.verify(), error => error.lifecycle === 'superseded', 'same ID and generation cannot override the media-type fence');
+        typed.release();
+        Object.assign(eng.st, { mediaType: 'episode', spotifyUri: episodeUri });
+        let wrongFrameSeeks = 0, episodeSeeks = 0;
+        const reached = { reached: true, currentTime: 30, duration: 200 };
+        const episodeSeek = () => {
+            episodeSeeks += 1;
+            if (episodeSeeks === 2) Object.assign(eng.st, { mediaType: 'track', spotifyUri: trackUri });
+            return reached;
+        };
+        const page = fakePage(eng, [
+            fakeFrame(sharedId, null, () => { wrongFrameSeeks += 1; return reached; }),
+            fakeFrame(sharedId, null, episodeSeek, 'episode')
+        ]);
+        const opts = options(page);
+        const good = await handleManagedSeek(opts, { seconds: 30 });
+        assert.equal(good.ok, true, good.reason);
+        assert.equal(wrongFrameSeeks, 0, 'episode seek never touches a track frame with the same ID');
+        assert.equal(episodeSeeks, 1);
+        assert.equal(eng.acks.length, 1);
+        assert.equal(eng.acks[0].spotifyUri, episodeUri);
+        const stale = await handleManagedSeek(opts, { seconds: 30 });
+        assert.equal(stale.lifecycle, 'superseded', 'late media-type switch aborts seek without a generation change');
+        assert.equal(eng.acks.length, 1, 'stale same-ID media completion is not acknowledged');
+        assert.equal(wrongFrameSeeks, 0);
+        assert.equal(opts.runtime.playbackLeases.size, 0);
     }
 
     console.log('AUDIOFLIX_SPOTIFY_PLAYBACK_LEASE_SMOKE_OK');

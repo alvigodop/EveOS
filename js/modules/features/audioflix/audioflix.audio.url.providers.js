@@ -9,6 +9,7 @@ window.EveAudioflixUrlProviders = window.EveAudioflixUrlProviders || {};
     function providerFor(rawUrl) {
         const raw = String(rawUrl || '').trim();
         if (/^blob:/i.test(raw) || /^data:audio\//i.test(raw)) return 'direct';
+        if (window.EveAudioflixSpotifyMedia?.parse(raw)) return 'spotify';
         let parsed;
         try {
             parsed = new URL(raw);

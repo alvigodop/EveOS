@@ -299,17 +299,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         }), reason, { authoritative: true });
     }
 
-    function addItem(type, item) {
-        const state = ensure();
-        const key = type === 'music' ? 'music' : 'soundboard';
-        const max = type === 'music' ? MAX_MUSIC : MAX_SOUNDBOARD;
-        state[key] = boundedItems([...(state[key] || []), item], type === 'music' ? 'music' : 'sound', max);
-        if (type === 'music') state.musicFolders = window.EveAudioflixStateRecovery?.folderRegistry?.(state) || state.musicFolders || [];
-        window.EveAudioflixStateRecovery?.applyTrackStructure?.(STORAGE_KEY, state, state[key][state[key].length - 1], type === 'music' ? 'music' : 'sound');
-        const next = syncRootOrFallback(state);
-        scheduleSave(`audioflix-add-${type}`);
-        return next[key][next[key].length - 1];
-    }
+    const { addItem } = window.EveAudioflixStateMutations.create({
+        ensure, boundedItems, syncRootOrFallback, scheduleSave, text, soundboardLimit: MAX_SOUNDBOARD, storageKey: STORAGE_KEY,
+        recovery: () => window.EveAudioflixStateRecovery
+    });
 
     function removeItem(type, itemId) {
         const state = ensure();

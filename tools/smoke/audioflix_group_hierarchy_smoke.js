@@ -37,7 +37,7 @@ const ctx = {
 Object.assign(ctx.window, { window: ctx.window, document: ctx.document, localStorage: ctx.localStorage, CustomEvent: ctx.CustomEvent, setTimeout, clearTimeout });
 
 ['audioflix.paths.js', 'audioflix.groups.tree.js', 'audioflix.state.schema.js', 'audioflix.state.recovery.js',
-    'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.localize.audit.js',
+    'audioflix.state.groups.js', 'audioflix.state.mutations.js', 'audioflix.state.js', 'audioflix.localize.audit.js',
     'audioflix.localize.port.js', 'audioflix.localize.js', 'audioflix.ui.group-tree.js']
     .forEach((name) => run(ctx, name));
 

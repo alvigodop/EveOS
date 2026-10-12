@@ -129,7 +129,7 @@ const context = {
         createElement() { return { style: {}, dataset: {}, append() {}, addEventListener() {}, remove() {} }; }
     }
 };
-vm.createContext(context);
+vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8'), context);
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.volume.js'), 'utf8'),
     context, { filename: 'audioflix.spotify.volume.js' });
 vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.status-watch.js'), 'utf8'),

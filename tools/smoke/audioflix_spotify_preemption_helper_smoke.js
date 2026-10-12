@@ -15,7 +15,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const MODULES = path.join(ROOT, 'server_modules');
 const activation = require(path.join(MODULES, 'audioflix_spotify_playback_activation.js'));
 const { handleInterrupt } = require(path.join(MODULES, 'audioflix_spotify_playback_preemption.js'));
-const { sleep, fakeEngine, fakeButton, fakePage, fakeFrame, options } = require('./audioflix_spotify_playback_fakes.shared.js');
+const { sleep, fixtureId: id, fakeEngine, fakeButton, fakePage, fakeFrame, options } = require('./audioflix_spotify_playback_fakes.shared.js');
 
 const play = opts => activation.handleTransportWithActivation(opts, { action: 'play' });
 const interrupt = (opts, reason) => handleInterrupt(opts, { reason });
@@ -23,11 +23,11 @@ const interrupt = (opts, reason) => handleInterrupt(opts, { reason });
 async function helperSide() {
     // 1. Interrupt while the lease exists (between reading a Play control and clicking it).
     {
-        const eng = fakeEngine({ generation: 31, spotifyId: 'a1' });
+        const eng = fakeEngine({ generation: 31, spotifyId: id('a1') });
         let opts;
         let fired;
         const button = fakeButton({ onVisible: async () => { fired = fired || interrupt(opts, 'paused'); await fired; } });
-        opts = options(fakePage(eng, [fakeFrame('a1', button)]));
+        opts = options(fakePage(eng, [fakeFrame(id('a1'), button)]));
         const started = Date.now();
         const result = await play(opts);
         assert.equal(result.lifecycle, 'paused');
@@ -40,7 +40,7 @@ async function helperSide() {
 
     // 2. Interrupt before lease creation: the engine Play is still pending when it arrives.
     {
-        const eng = fakeEngine({ generation: 33, spotifyId: 'a2' });
+        const eng = fakeEngine({ generation: 33, spotifyId: id('a2') });
         let release;
         const held = new Promise(resolve => { release = resolve; });
         const command = eng.command;
@@ -50,7 +50,7 @@ async function helperSide() {
             return held.then(() => ({ ...eng.st }));
         };
         const button = fakeButton();
-        const opts = options(fakePage(eng, [fakeFrame('a2', button)]));
+        const opts = options(fakePage(eng, [fakeFrame(id('a2'), button)]));
         const pending = play(opts);
         await sleep(50);
         assert.equal(opts.runtime.playbackLeases?.size || 0, 0, 'no lease exists yet');
@@ -67,7 +67,7 @@ async function helperSide() {
 
     // 4. A -> B: A is invalidated; B's ordinary load/play then proceeds and is not quiesced.
     {
-        const eng = fakeEngine({ generation: 35, spotifyId: 'a3' });
+        const eng = fakeEngine({ generation: 35, spotifyId: id('a3') });
         let media = [];
         let opts;
         let fired;
@@ -75,12 +75,12 @@ async function helperSide() {
             onVisible: async () => { fired = fired || interrupt(opts, 'superseded'); await fired; },
             onClick: async () => { eng.st.status = 'playing'; media = [{ paused: false, ended: false, readyState: 4 }]; }
         });
-        opts = options(fakePage(eng, [fakeFrame('a3', button), fakeFrame('b3', button)]),
+        opts = options(fakePage(eng, [fakeFrame(id('a3'), button), fakeFrame(id('b3'), button)]),
             { spotifySnapshots: async () => [{ media }] });
         const a = await play(opts);
         assert.equal(a.lifecycle, 'superseded');
         assert.equal(button.clicks, 0, 'A never clicks after B was accepted');
-        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: 'b3', generation: 36 });
+        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: id('b3'), generation: 36 });
         assert.equal(loaded.ok, true);
         const b = await play(opts);
         assert.equal(b.ok, true, b.reason);
@@ -90,7 +90,7 @@ async function helperSide() {
 
     // 5. Switch-away Stop while the old start is already audible but not yet confirmed stable.
     {
-        const eng = fakeEngine({ generation: 37, spotifyId: 'a4' });
+        const eng = fakeEngine({ generation: 37, spotifyId: id('a4') });
         let media = [];
         const audible = () => media.some(item => !item.paused);
         const command = eng.command;
@@ -100,7 +100,7 @@ async function helperSide() {
             if (action === 'pause') media = media.map(item => ({ ...item, paused: true }));
             return out;
         };
-        const opts = options(fakePage(eng, [fakeFrame('a4', fakeButton())]),
+        const opts = options(fakePage(eng, [fakeFrame(id('a4'), fakeButton())]),
             { spotifySnapshots: async () => [{ media }] });
         const pending = play(opts);
         await sleep(1700); // inside the 2.2s strong-confirmation verify window
@@ -117,10 +117,10 @@ async function helperSide() {
     // Load -> Play epoch binding. 3: an interrupt between Load and the initial Play's arrival makes
     // that Play stale even though the helper would otherwise capture the new epoch as current.
     {
-        const eng = fakeEngine({ generation: 40, spotifyId: 'z0' });
+        const eng = fakeEngine({ generation: 40, spotifyId: id('z0') });
         const button = fakeButton();
-        const opts = options(fakePage(eng, [fakeFrame('l1', button)]));
-        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: 'l1', generation: 41 });
+        const opts = options(fakePage(eng, [fakeFrame(id('l1'), button)]));
+        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: id('l1'), generation: 41 });
         assert.equal(loaded.ok, true);
         const loadEpoch = loaded.preemptEpoch;
         assert.equal(typeof loadEpoch, 'number');
@@ -139,8 +139,8 @@ async function helperSide() {
     }
     // An interrupt during an awaited Load leaves the Load's returned epoch at its older value.
     {
-        const eng = fakeEngine({ generation: 42, spotifyId: 'l2' });
-        const opts = options(fakePage(eng, [fakeFrame('l2', fakeButton())]));
+        const eng = fakeEngine({ generation: 42, spotifyId: id('l2') });
+        const opts = options(fakePage(eng, [fakeFrame(id('l2'), fakeButton())]));
         const command = eng.command;
         let fired;
         eng.command = (action, data) => {
@@ -149,7 +149,7 @@ async function helperSide() {
             return fired.then(() => command(action, data));
         };
         const start = opts.runtime.preemptEpoch || 0;
-        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: 'l3', generation: 43 });
+        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: id('l3'), generation: 43 });
         await fired;
         assert.equal(loaded.preemptEpoch, start, 'Load epoch is captured before its awaited work');
         assert.equal(opts.runtime.preemptEpoch, start + 1);
@@ -158,11 +158,11 @@ async function helperSide() {
     }
     // 5. No interrupt: the Load epoch matches and the ordinary lifecycle is unchanged.
     {
-        const eng = fakeEngine({ generation: 44, spotifyId: 'z1' });
+        const eng = fakeEngine({ generation: 44, spotifyId: id('z1') });
         let media = [];
         const button = fakeButton({ onClick: async () => { eng.st.status = 'playing'; media = [{ paused: false, ended: false, readyState: 4 }]; } });
-        const opts = options(fakePage(eng, [fakeFrame('l4', button)]), { spotifySnapshots: async () => [{ media }] });
-        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: 'l4', generation: 45 });
+        const opts = options(fakePage(eng, [fakeFrame(id('l4'), button)]), { spotifySnapshots: async () => [{ media }] });
+        const loaded = await activation.handleTransportWithActivation(opts, { action: 'load', spotifyId: id('l4'), generation: 45 });
         const played = await activation.handleTransportWithActivation(opts, { action: 'play', generation: 45, expectedPreemptEpoch: loaded.preemptEpoch });
         assert.equal(played.ok, true, played.reason);
         assert.equal(played.state.generation, 45);

@@ -26,7 +26,8 @@ function saveDiagnostics(ok, error) {
     fs.writeFileSync(artifact, JSON.stringify({ ...diagnostics, ok, finishedAt: Date.now(),
         error: error ? { message: error.message, stack: error.stack, actual: error.actual, expected: error.expected } : null }, null, 2));
 }
-fs.writeFileSync(fixture, `<!doctype html><html><body><div id="spotify-engine-player"></div><script>${engineSource.replace(/<\/script/gi, '<\\/script')}</script></body></html>`);
+const mediaSource = fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8');
+fs.writeFileSync(fixture, `<!doctype html><html><body><div id="spotify-engine-player"></div><script>${mediaSource}</script><script>${engineSource.replace(/<\/script/gi, '<\\/script')}</script></body></html>`);
 
 (async () => {
     const browser = await chromium.launch({ headless: true });

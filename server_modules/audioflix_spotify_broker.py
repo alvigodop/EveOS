@@ -14,6 +14,7 @@ from server_modules import audioflix_spotify_browser_rpc as engine
 from server_modules import audioflix_spotify_connections as connections
 from server_modules import audioflix_spotify_broker_preemption as preemption
 from server_modules import audioflix_spotify_broker_volume as volume_control
+from server_modules.audioflix_spotify_media_identity import parse_media, media_from_payload
 
 _PROTOCOL_VERSION = 1
 _PAIR_TTL_S = 300.0
@@ -38,11 +39,8 @@ def _fingerprint(action: str, payload: dict) -> str:
 
 
 def _spotify_id(value) -> str:
-    match = re.search(
-        r"(?:spotify:track:|open\.spotify\.com/(?:embed/)?track/)?([A-Za-z0-9]{22})(?:[?/#]|$)?",
-        str(value or ""), re.I,
-    )
-    return match.group(1) if match else ""
+    media = parse_media(value)
+    return media["spotifyId"] if media and media["mediaType"] == "track" else ""
 
 
 def _origin(value) -> str:
@@ -375,9 +373,9 @@ class SpotifyClientBroker:
                 self._owner_epoch += 1
             return {**self._state(client_id), "engineStopResult": stopped, "ok": bool(stopped.get("ok"))}
         if action == "play":
-            spotify_id = _spotify_id(args.get("spotifyId") or args.get("url"))
-            if not spotify_id:
-                return {"ok": False, "reason": "A valid Spotify track ID is required."}
+            media = media_from_payload(args)
+            if not media:
+                return {"ok": False, "reason": "A consistent Spotify track or episode identity is required."}
             started = self._start_engine(server_origin)
             if not started.get("ok") or not started.get("helperReachable"):
                 return {"ok": False, "reason": started.get("reason") or "Managed Spotify engine did not start."}
@@ -392,7 +390,7 @@ class SpotifyClientBroker:
                 generation = self._track_generation
             gain = max(0.0, min(1.0, float(args.get("effectiveVolume") if args.get("effectiveVolume") is not None else 1)))
             played = preemption.load_volume_play(self, {
-                "action": "load", "spotifyId": spotify_id, "title": _safe(args.get("title"), 240),
+                "action": "load", **media, "title": _safe(args.get("title"), 240),
                 "duration": max(0, float(args.get("duration") or 0)), "generation": generation,
             }, gain)
             return self._state(client_id, played.get("state")) if played.get("ok") else played

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from urllib.parse import urlsplit
+from server_modules.audioflix_spotify_media_identity import media_from_payload, has_media_identity
 
 _TRACK_ID_RE = re.compile(r"^[A-Za-z0-9]{22}$")
 
@@ -27,6 +28,18 @@ def normalize_track_id(value) -> str:
         re.I,
     )
     return match.group(1) if match else ""
+
+
+def volume_payload(payload: dict, session_id: str) -> dict | None:
+    identity = media_from_payload(payload)
+    if has_media_identity(payload) and not identity:
+        return None
+    return {
+        "sessionId": session_id,
+        "volume": clamp_volume(payload.get("volume"), 1),
+        "trackId": normalize_track_id(payload.get("trackId") or ""),
+        **(identity or {}),
+    }
 
 
 def validate_loopback_page_url(value: str) -> bool:

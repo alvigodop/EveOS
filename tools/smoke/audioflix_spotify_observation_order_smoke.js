@@ -98,6 +98,7 @@ async function playbackOrdering() {
     const context = vm.createContext({ window, console, document: { visibilityState: 'hidden', addEventListener() {},
         removeEventListener() {} }, setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
         CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options?.detail; } } });
+    vm.runInContext(read('audioflix.spotify.media.js'), context);
     vm.runInContext(read('audioflix.spotify.volume.js'), context);
     vm.runInContext(read('audioflix.spotify.status-watch.js'), context);
     const create = window.EveAudioflixSpotifyStatusWatch.create;

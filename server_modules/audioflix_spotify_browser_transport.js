@@ -1,6 +1,7 @@
 'use strict';
 
 const ALLOWED_ACTIONS = new Set(['status', 'load', 'play', 'resume', 'pause', 'seek', 'stop', 'restart']);
+const { fromPayload } = require('./audioflix_spotify_media_identity.js');
 
 function safeText(value, max = 240) {
     return String(value ?? '').trim().slice(0, max);
@@ -14,8 +15,9 @@ function expectedEpoch(body = {}) {
 }
 
 function sanitizePayload(body = {}) {
+    const identity = fromPayload(body);
     return {
-        spotifyId: safeText(body.spotifyId || body.trackId || body.url || body.uri, 512),
+        ...(identity || { spotifyId: '', spotifyUri: '', mediaType: '' }),
         title: safeText(body.title, 240),
         duration: Math.max(0, Number(body.duration || 0) || 0),
         seconds: Math.max(0, Number(body.seconds || 0) || 0),

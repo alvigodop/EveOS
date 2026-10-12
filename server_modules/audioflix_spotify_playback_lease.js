@@ -1,4 +1,5 @@
 'use strict';
+const { mediaKey } = require('./audioflix_spotify_media_identity.js');
 
 // One end-to-end lifecycle lease for a managed Spotify transport request.
 // The private RPC gives the helper TRANSPORT_TIMEOUT_S (18s) to answer. Every startup,
@@ -51,6 +52,7 @@ function createPlaybackLease(options = {}) {
     const kind = String(options.kind || 'start');
     const generation = Math.max(0, Number(options.generation || 0));
     const spotifyId = String(options.spotifyId || '');
+    const spotifyUri = String(options.spotifyUri || '');
     const deadline = now() + Math.max(1, Number(options.budgetMs ?? PLAYBACK_START_BUDGET_MS));
     // Optional helper preemption fence: the request's captured epoch must still be current.
     const preemption = typeof options.preempted === 'function' ? options.preempted : () => '';
@@ -59,7 +61,7 @@ function createPlaybackLease(options = {}) {
     const waiters = new Set();
 
     const lease = {
-        kind, generation, spotifyId, deadline,
+        kind, generation, spotifyId, spotifyUri, deadline,
         get reason() { return abortReason; },
         remaining() { return Math.max(0, deadline - now()); },
         cancel(reason) {
@@ -126,6 +128,7 @@ function createPlaybackLease(options = {}) {
             if (typeof readState !== 'function') return null;
             const state = await lease.bound(readState, LEASE_CHECK_TIMEOUT_MS);
             if (generation && Number(state?.generation || 0) !== generation) lease.cancel('superseded');
+            else if (spotifyUri && mediaKey(state) !== spotifyUri) lease.cancel('superseded');
             else if (spotifyId && state?.spotifyId && String(state.spotifyId) !== spotifyId) lease.cancel('superseded');
             else if (kind === 'start' && state?.playRequested === false) lease.cancel('paused');
             lease.ensureLive();

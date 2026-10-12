@@ -32,6 +32,9 @@ const tests = {
         ['node', 'tools/smoke/audioflix_soundlab_underrun_smoke.js']
     ],
     spotify: [
+        ['node', 'tools/smoke/audioflix_spotify_media_playback_smoke.js'],
+        ['node', 'tools/smoke/audioflix_spotify_typed_transport_smoke.js'],
+        ['python', 'tools/smoke/audioflix_spotify_typed_broker_smoke.py'],
         ['node', 'tools/smoke/audioflix_spotify_live_isolation_smoke.js'],
         ['node', 'tools/smoke/audioflix_spotify_browser_contract_smoke.js'],
         ['node', 'tools/smoke/audioflix_spotify_browser_runtime_smoke.js'],
@@ -48,6 +51,7 @@ const tests = {
         ['node', 'tools/smoke/audioflix_library_next_smoke.js']
     ],
     scale: [
+        ['node', 'tools/smoke/audioflix_sequential_add_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_large_library_lossless_smoke.mjs'],
         ['node', 'tools/benchmark/audioflix_scale_benchmark.mjs']
     ],
@@ -82,6 +86,11 @@ for (const entry of tests[profile]) {
 }
 
 let passed = 0;
+const verbose = process.argv.includes('--verbose');
+const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-audio-suite.json');
+const report = { profile, ok: false, commands: [], warnings: 0 };
+const save = () => { fs.mkdirSync(path.dirname(artifact), { recursive: true });
+    fs.writeFileSync(artifact, JSON.stringify(report, null, 2)); };
 for (const [runtime, relative] of unique) {
     const absolute = path.join(ROOT, relative);
     if (!fs.existsSync(absolute)) {
@@ -89,17 +98,24 @@ for (const [runtime, relative] of unique) {
         process.exit(2);
     }
     const command = runtime === 'python' ? (process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3')) : process.execPath;
-    console.log(`\n=== ${profile.toUpperCase()} :: ${relative} ===`);
-    const result = spawnSync(command, [absolute], { cwd: ROOT, stdio: 'inherit', env: process.env });
+    const started = Date.now();
+    const result = spawnSync(command, [absolute], { cwd: ROOT, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env: process.env });
+    const output = (result.stdout || '') + (result.stderr || '');
+    report.commands.push({ script: relative, exit: result.status, elapsedMs: Date.now() - started, output });
+    report.warnings += output.split(/\r?\n/).filter(line => /\bwarn(?:ing)?\b/i.test(line)).length;
+    save();
+    if (verbose && output) process.stdout.write(output);
     if (result.error) {
         console.error(`FAILED TO START :: ${relative} :: ${result.error.message}`);
         process.exit(1);
     }
     if (result.status !== 0) {
-        console.error(`FAIL :: ${relative} :: exit ${result.status}`);
+        console.error(`FAIL :: ${relative} :: exit ${result.status} artifact=${artifact}`);
+        console.error(output.trim().split(/\r?\n/).slice(-40).join('\n'));
         process.exit(result.status || 1);
     }
     passed += 1;
 }
 
-console.log(`\nAUDIOFLIX_AUDIO_SUITE_OK profile=${profile} passed=${passed}`);
+report.ok = true; save();
+console.log(`AUDIOFLIX_AUDIO_SUITE_OK profile=${profile} passed=${passed}/${unique.length} warnings=${report.warnings} artifact=${artifact}`);

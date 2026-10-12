@@ -10,7 +10,8 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const enginePath = path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.engine.js');
 const fixture = path.join(os.tmpdir(), `eveos-spotify-seek-end-${process.pid}.html`);
 const engineUrl = `file:///${enginePath.replace(/\\/g, '/')}`;
-fs.writeFileSync(fixture, `<!doctype html><html><body><div id="spotify-engine-player"></div><script src="${engineUrl}"></script></body></html>`);
+const mediaUrl = `file:///${path.join(ROOT, 'js/modules/features/audioflix/audioflix.spotify.media.js').replace(/\\/g, '/')}`;
+fs.writeFileSync(fixture, `<!doctype html><html><body><div id="spotify-engine-player"></div><script src="${mediaUrl}"></script><script src="${engineUrl}"></script></body></html>`);
 
 (async () => {
     const browser = await chromium.launch({ headless: true });

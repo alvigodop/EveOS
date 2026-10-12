@@ -108,6 +108,7 @@ global.CustomEvent = class CustomEvent {};
     'audioflix.state.schema.js',
     'audioflix.bulk.js',
     'audioflix.audio.url.providers.js',
+    'audioflix.spotify.media.js',
     'audioflix.audio.url.spotify.js',
     'audioflix.playlists.providers.js',
     'audioflix.playlists.spotify.js',
@@ -140,9 +141,9 @@ global.CustomEvent = class CustomEvent {};
     const virtualRows = await spotifyScraper.collectDomRows(fakePage);
     assert(virtualRows.length === expectedRows, `Spotify virtual scroll imports beyond 100 rows (got ${virtualRows.length})`);
 
-    const trackUrl = 'https://open.spotify.com/track/trackA123456';
+    const trackUrl = 'https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT';
     assert(window.EveAudioflixUrlProviders.providerFor(trackUrl) === 'spotify', 'Spotify track URLs use the Spotify transport');
-    assert(window.EveAudioflixSpotifyPlayback.spotifyTrackId(trackUrl) === 'trackA123456', 'Spotify track IDs normalize for the iframe controller');
+    assert(window.EveAudioflixSpotifyPlayback.spotifyTrackId(trackUrl) === '4cOdK2wGLETKBW3PvgPWqT', 'Spotify track IDs normalize for the iframe controller');
 
     const iframe = '<iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DX4WYpdgoIcn6?utm_source=generator"></iframe>';
     const normalized = window.EveAudioflixSpotify.normalizeInput(iframe);

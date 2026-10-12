@@ -136,19 +136,23 @@ window.EveAudioflixNexusQuick = window.EveAudioflixNexusQuick || {};
         renderResults();
     }
 
-    function cardFor(id) {
+    function cardFor(id, kind) {
         return [...document.querySelectorAll('#audioflix-overlay .audioflix-item-card')]
-            .find(card => card.querySelector('[data-af-action="play"]')?.dataset.afId === id) || null;
+            .find(card => { const play = card.querySelector('[data-af-action="play"]'); return play?.dataset.afId === id && play.dataset.afType === kind; }) || null;
     }
 
     function jumpToCard(id, options = {}) {
+        const kind = options.type === 'sound' ? 'sound' : options.type === 'music' ? 'music' : type;
         close();
         const reveal = () => {
-            const card = cardFor(id);
+            let card = window.EveAudioflix?.revealCard?.(id, kind) || cardFor(id, kind);
             if (!card) return false;
             const group = card.closest('.audioflix-group.is-collapsed');
             group?.querySelector('.audioflix-group-title')?.click();
+            card = cardFor(id, kind) || card;
             requestAnimationFrame(() => {
+                if (!card.isConnected) return;
+                card.querySelector('[data-af-action="play"]')?.focus({ preventScroll: true });
                 card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
                 card.classList.add('is-nexus-jump-target');
                 setTimeout(() => card.classList.remove('is-nexus-jump-target'), 2200);
@@ -157,7 +161,7 @@ window.EveAudioflixNexusQuick = window.EveAudioflixNexusQuick || {};
         };
         if (reveal()) return true;
         if (options.fallbackBackend === true) {
-            const key = options.type === 'sound' ? 'soundboardViewMode' : 'musicViewMode';
+            const key = kind === 'sound' ? 'soundboardViewMode' : 'musicViewMode';
             window.EveAudioflixState?.update?.({ [key]: 'backend' }, 'audioflix-nexus-jump-card');
         }
         window.EveAudioflix?.render?.();

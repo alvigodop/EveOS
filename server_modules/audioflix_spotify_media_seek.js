@@ -1,6 +1,7 @@
 'use strict';
 
 const { engineSnapshot } = require('./audioflix_spotify_browser_transport.js');
+const { parseMedia, mediaKey } = require('./audioflix_spotify_media_identity.js');
 const {
     MEDIA_SEEK_BUDGET_MS, PlaybackLeaseAbort, createPlaybackLease, leaseAbortResult
 } = require('./audioflix_spotify_playback_lease.js');
@@ -11,13 +12,14 @@ async function seekManagedMedia(options, state, seconds, lease = null) {
     const { page, isSpotifyEmbedUrl, note } = options;
     const generation = Number(state?.generation || 0);
     const id = String(state?.spotifyId || '');
+    const uri = mediaKey(state);
     if (!generation || !id) return { reached: false };
     const bounded = work => (lease ? lease.bound(work) : work());
     for (const frame of page.frames()) {
-        if (!isSpotifyEmbedUrl(frame.url()) || !new URL(frame.url()).pathname.endsWith(`/track/${id}`)) continue;
+        if (!isSpotifyEmbedUrl(frame.url()) || parseMedia(frame.url())?.spotifyUri !== uri) continue;
         try {
             const latest = await bounded(() => engineSnapshot(page));
-            if (latest.generation !== generation || latest.spotifyId !== id) return { reached: false, superseded: true };
+            if (latest.generation !== generation || mediaKey(latest) !== uri) return { reached: false, superseded: true };
             const result = await bounded(() => frame.evaluate(value => window.__eveSpotifyManagedControl?.seek?.(value), seconds));
             if (result?.reached) {
                 note('playback-media-seek', `${generation}: ${result.currentTime.toFixed(3)}s / ${result.duration.toFixed(3)}s`);
@@ -37,7 +39,7 @@ async function handleManagedSeek(options, body) {
         reason: 'Spotify replay start is not confirmed yet.' };
     const lease = createPlaybackLease({
         runtime: options.runtime || {}, page: options.page, kind: 'seek',
-        generation: Number(before.generation || 0), spotifyId: String(before.spotifyId || ''),
+        generation: Number(before.generation || 0), spotifyId: String(before.spotifyId || ''), spotifyUri: mediaKey(before),
         readState: () => engineSnapshot(options.page), budgetMs: options.seekBudgetMs ?? MEDIA_SEEK_BUDGET_MS
     });
     try {
@@ -50,7 +52,8 @@ async function handleManagedSeek(options, body) {
         const state = await lease.bound(() => options.page.evaluate(({ target, media }) =>
             window.EveAudioflixSpotifyEngine.acknowledgeMediaSeek({ ...target,
                 currentTime: Number(media.currentTime), duration: Number(media.duration) }),
-        { target: { generation: before.generation, spotifyId: before.spotifyId }, media: mediaSeek }));
+        { target: { generation: before.generation, spotifyId: before.spotifyId,
+            spotifyUri: mediaKey(before), mediaType: before.mediaType || 'track' }, media: mediaSeek }));
         return { ok: true, action: 'seek', state, mediaSeek };
     } catch (error) {
         if (!(error instanceof PlaybackLeaseAbort)) throw error;

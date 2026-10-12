@@ -22,6 +22,8 @@ const SERVER_LIVENESS_TIMEOUT_MS = 30000;
 const { MAX_MEDIA_REFS, browserInit } = require('./audioflix_spotify_browser_hook.js');
 const { scrapeManagedPlaylist } = require('./audioflix_spotify_managed_import.js');
 const { engineSnapshot } = require('./audioflix_spotify_browser_transport.js');
+const { parseMedia, fromPayload, normalizeTrackId, isSpotifyEmbedUrl,
+    spotifyFrameTrackId, playingTrackIds } = require('./audioflix_spotify_media_identity.js');
 const { cancelLeases } = require('./audioflix_spotify_playback_lease.js');
 const { handleInterrupt } = require('./audioflix_spotify_playback_preemption.js');
 const {
@@ -37,11 +39,6 @@ function clampVolume(value, fallback = 1) {
     if (!Number.isFinite(n)) return Math.max(0, Math.min(1, Number(fallback) || 0));
     return Math.max(0, Math.min(1, n));
 }
-function normalizeTrackId(value) {
-    const raw = String(value || '').trim();
-    const match = raw.match(/(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)?([A-Za-z0-9]{22})(?:[?/#]|$)?/i);
-    return match ? match[1] : '';
-}
 function isLoopbackHostname(hostname) {
     const host = String(hostname || '').toLowerCase().replace(/^\[|\]$/g, '');
     return host === '127.0.0.1' || host === 'localhost' || host === '::1';
@@ -50,27 +47,6 @@ function validateLoopbackPageUrl(value) {
     let parsed;
     try { parsed = new URL(String(value || '')); } catch { return false; }
     return /^https?:$/.test(parsed.protocol) && isLoopbackHostname(parsed.hostname);
-}
-function isSpotifyEmbedUrl(value) {
-    try {
-        const parsed = new URL(String(value || ''));
-        return parsed.protocol === 'https:'
-            && parsed.hostname.toLowerCase() === 'open.spotify.com'
-            && parsed.pathname.startsWith('/embed/');
-    } catch { return false; }
-}
-function spotifyFrameTrackId(value) {
-    try {
-        const parsed = new URL(String(value || ''));
-        if (parsed.hostname.toLowerCase() !== 'open.spotify.com') return '';
-        return parsed.pathname.match(/^\/embed\/track\/([A-Za-z0-9]{22})(?:\/|$)/i)?.[1] || '';
-    } catch { return ''; }
-}
-function playingTrackIds(snapshots) {
-    return [...new Set((Array.isArray(snapshots) ? snapshots : [])
-        .filter((item) => Number(item?.playingCount || 0) > 0)
-        .map((item) => String(item?.trackId || ''))
-        .filter(Boolean))];
 }
 function parseArgs(argv) {
     const out = {};
@@ -199,20 +175,22 @@ async function main() {
 
     async function spotifySnapshots(setVolume = null, trackId = '') {
         if (!page || page.isClosed()) return [];
-        const normalizedTrack = normalizeTrackId(trackId);
+        const expected = trackId ? parseMedia(trackId) : null;
+        if (trackId && !expected) return [];
         const out = [];
         for (const frame of page.frames()) {
             const frameUrl = frame.url();
             if (!isSpotifyEmbedUrl(frameUrl)) continue;
-            const frameTrack = spotifyFrameTrackId(frameUrl);
-            if (normalizedTrack && frameTrack && frameTrack !== normalizedTrack) continue;
+            const media = parseMedia(frameUrl);
+            if (expected && media?.spotifyUri !== expected.spotifyUri) continue;
             try {
                 const snap = await frame.evaluate(({ volume }) => {
                     const control = window.__eveSpotifyManagedControl;
                     if (!control) return null;
                     return volume == null ? control.snapshot() : control.setVolume(volume);
                 }, { volume: setVolume });
-                if (snap) out.push({ url: frameUrl, trackId: frameTrack, ...snap });
+                if (snap) out.push({ url: frameUrl, ...media,
+                    trackId: media?.mediaType === 'track' ? media.spotifyId : '', ...snap });
             } catch (error) {
                 note('frame-evaluate', `${frameUrl}: ${error.message}`);
             }
@@ -225,6 +203,8 @@ async function main() {
         const mediaCount = snapshots.reduce((sum, item) => sum + Number(item.mediaCount || 0), 0);
         const playingCount = snapshots.reduce((sum, item) => sum + Number(item.playingCount || 0), 0);
         const trackIds = playingTrackIds(snapshots);
+        const mediaUris = [...new Set(snapshots.filter(item => Number(item.playingCount) > 0)
+            .map(item => item.spotifyUri).filter(Boolean))];
         let transport = null;
         try { transport = await engineSnapshot(page); } catch {}
         if (transport?.status === 'playing' && !playingCount
@@ -249,7 +229,7 @@ async function main() {
             sessionId, state: runtime.state, phase: runtime.phase, startedAt: runtime.startedAt,
             pageUrl: page && !page.isClosed() ? page.url() : runtime.pageUrl,
             pageAttached: Boolean(page && !page.isClosed()), spotifyFrameCount: snapshots.length,
-            mediaCount, playingCount, trackIds, desiredVolume: runtime.desiredVolume,
+            mediaCount, playingCount, trackIds, mediaUris, desiredVolume: runtime.desiredVolume,
             lastAppliedAt: runtime.lastAppliedAt, lastError: runtime.lastError,
             authState: runtime.authState, browserChannel: runtime.browserChannel, playwrightVersion,
             headless: runtime.headless, playbackKickCount: runtime.playbackKickCount,
@@ -271,10 +251,11 @@ async function main() {
         if (!sameSession(body?.sessionId)) {
             return { ok: false, sessionMatch: false, reason: 'Managed browser session mismatch.' };
         }
-        const trackId = normalizeTrackId(body?.trackId || '');
+        const identity = fromPayload(body);
+        const trackId = identity?.mediaType === 'track' ? identity.spotifyId : '';
         const volume = clampVolume(body?.volume, runtime.desiredVolume);
         runtime.desiredVolume = volume;
-        const snapshots = await spotifySnapshots(volume, trackId);
+        const snapshots = await spotifySnapshots(volume, identity?.spotifyUri || '');
         const mediaCount = snapshots.reduce((sum, item) => sum + Number(item.mediaCount || 0), 0);
         const playingCount = snapshots.reduce((sum, item) => sum + Number(item.playingCount || 0), 0);
         const reached = snapshots.reduce((sum, item) => sum + Number(item.reached || 0), 0);
@@ -285,7 +266,7 @@ async function main() {
         runtime.lastAppliedAt = Date.now();
         runtime.state = playingCount > 0 ? 'controlling' : snapshots.length ? 'spotify-ready' : 'ready';
         return {
-            ok: true, sessionMatch: true, volume, trackId, spotifyFrameCount: snapshots.length,
+            ok: true, sessionMatch: true, volume, trackId, ...identity, spotifyFrameCount: snapshots.length,
             mediaCount, playingCount, reached, held, playingVolumes, lastAppliedAt: runtime.lastAppliedAt
         };
     }

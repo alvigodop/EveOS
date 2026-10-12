@@ -71,6 +71,7 @@ const context = vm.createContext({
     }
 });
 context.window.window = context.window;
+vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.library.health-view.js'), 'utf8'), context);
 vm.runInContext(source, context, { filename: 'audioflix.library.next.js' });
 const lib = context.window.EveAudioflixLibraryNext;
 assert.equal(lib?.ready, true, 'library-next health module should load');
@@ -102,5 +103,33 @@ assert.equal(descriptor?.className.includes('is-error'), true, 'failed provider 
 
 lib.setPrefs(item.id, { showProviderHealthOnCard: false });
 assert.equal(lib.markerDescriptor(item), null, 'per-song preference hides even a known provider status');
+
+lib.setPrefs(item.id, { showProviderHealthOnCard: true });
+for (const status of ['live', 'healthy', 'down', 'error']) {
+    lib.setHealth(item.id, { status, source: 'generic-resolver' });
+    const storedBefore = localStorage.getItem('eveAudioflixUrlHealthV1');
+    assert.equal(lib.effectiveHealth(item).status, 'provider', 'generic cached status is not Spotify playback evidence');
+    assert.equal(lib.markerDescriptor(item).className.includes('is-provider'), true);
+    assert.equal(localStorage.getItem('eveAudioflixUrlHealthV1'), storedBefore, 'derived health never rewrites durable cache');
+}
+lib.setHealth(item.id, { status: 'healthy', source: 'spotify-import' });
+assert.equal(lib.effectiveHealth(item).status, 'provider', 'successful metadata import alone cannot award health');
+lib.setHealth(item.id, { status: 'checking', source: 'spotify-playback-start' });
+assert.equal(lib.markerDescriptor(item).className.includes('is-checking'), true);
+lib.setHealth(item.id, { status: 'down', source: 'spotify-provider-error' });
+assert.equal(lib.effectiveHealth(item).status, 'down', 'provider-owned failures remain visible');
+storage.set('eveAudioflixUrlHealthV1', JSON.stringify({ [item.id]: {
+    status: 'healthy', source: 'spotify-playback', checkedAt: Date.now() - 7 * 60 * 60 * 1000
+} }));
+assert.equal(lib.effectiveHealth(item).status, 'stale', 'verified playback expires through the existing TTL');
+assert.equal(lib.markerDescriptor(item).className.includes('is-stale'), true);
+const episode = { ...item, id: 'episode-health', sourceMediaType: 'episode',
+    url: 'https://open.spotify.com/episode/1234567890123456789012' };
+assert.equal(lib.effectiveHealth(episode).status, 'provider', 'episodes retain neutral provider presentation');
+const direct = { id: 'direct-health', sourceProvider: 'direct', url: 'https://example.com/audio.mp3' };
+lib.setHealth(direct.id, { status: 'live', source: 'generic-resolver' });
+lib.setPrefs(direct.id, { showLive: true });
+assert.equal(lib.effectiveHealth(direct).status, 'live', 'non-Spotify cache semantics remain unchanged');
+assert.equal(lib.markerDescriptor(direct).className.includes('is-live'), true);
 
 console.log('AUDIOFLIX_PROVIDER_HEALTH_SEMANTICS_SMOKE_OK');

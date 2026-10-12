@@ -51,13 +51,17 @@ window.EveAudioflixUiShared = window.EveAudioflixUiShared || {};
         if (callback) script.onload = callback;
         document.head.appendChild(script);
     };
-    if (!window.EveAudioflixLibraryNext) {
-        load('audioflix.library.next.js?v=9e4ad3c7c26a', () => {
-            window.EveAudioflixLibraryNext?.boot?.();
-            load('audioflix.library.next.ui.js?v=b5c8000fa452', () => window.EveAudioflixLibraryNextUi?.boot?.());
-        });
-    } else {
-        window.EveAudioflixLibraryNext.boot?.();
-        load('audioflix.library.next.ui.js?v=b5c8000fa452', () => window.EveAudioflixLibraryNextUi?.boot?.());
+    function startLibrary() {
+        if (!window.EveAudioflixLibraryNext) {
+            load('audioflix.library.next.js?v=019f16902063', () => {
+                window.EveAudioflixLibraryNext?.boot?.();
+                load('audioflix.library.next.ui.js?v=567d64f04dcd', () => window.EveAudioflixLibraryNextUi?.boot?.());
+            });
+        } else {
+            window.EveAudioflixLibraryNext.boot?.();
+            load('audioflix.library.next.ui.js?v=567d64f04dcd', () => window.EveAudioflixLibraryNextUi?.boot?.());
+        }
     }
+    if (!window.EveAudioflixLibraryHealthView?.ready) load('audioflix.library.health-view.js?v=063678b9490d', startLibrary);
+    else startLibrary();
 })();

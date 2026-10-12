@@ -1,6 +1,7 @@
 'use strict';
 
 const { URL } = require('node:url');
+const { mediaKey } = require('./audioflix_spotify_media_identity.js');
 const { engineSnapshot, engineCommand, engineQuiesce, expectedEpoch } = require('./audioflix_spotify_browser_transport.js');
 const { captureEpoch, preempted, preemptReason } = require('./audioflix_spotify_playback_preemption.js');
 const { reactivateStartup, RECOVERY_BUDGET_MS } = require('./audioflix_spotify_startup_reactivation.js');
@@ -241,7 +242,7 @@ async function handleTransportWithActivation(options, body) {
         if (!result?.ok) return result;
         const generation = Number(result.state?.generation || 0);
         const lease = createPlaybackLease({
-            runtime, page, generation, spotifyId: String(result.state?.spotifyId || ''),
+            runtime, page, generation, spotifyId: String(result.state?.spotifyId || ''), spotifyUri: mediaKey(result.state),
             readState: () => engineSnapshot(page), budgetMs: options.startBudgetMs,
             preempted: () => (preempted(runtime, epoch) ? preemptReason(runtime) : '')
         });
@@ -264,7 +265,7 @@ async function loadOrControl(options, body, action) {
     const loadEpoch = action === 'load' ? captureEpoch(options.runtime) : null; // before awaited work
     const previous = action === 'load' ? await engineSnapshot(options.page).catch(() => null) : null;
     const result = await engineCommand(options.page, body);
-    if (result?.ok && action === 'load' && previous?.spotifyId === result.state?.spotifyId) {
+    if (result?.ok && action === 'load' && mediaKey(previous) && mediaKey(previous) === mediaKey(result.state)) {
         result.mediaSeek = await seekManagedMedia(options, result.state, 0);
     }
     if (result?.ok && loadEpoch !== null) result.preemptEpoch = loadEpoch;
@@ -362,7 +363,7 @@ async function startWithLease(options, body, action, result, lease) {
     await lease.verify();
     runtime.lastError = '';
     runtime.state = 'controlling';
-    const trackId = normalizeTrackId(body?.spotifyId || body?.trackId || body?.url || body?.uri || '');
+    const trackId = mediaKey(result.state) || normalizeTrackId(body?.spotifyId || body?.trackId || body?.url || body?.uri || '');
     if (Number.isFinite(Number(runtime.desiredVolume))) {
         await lease.bound(() => spotifySnapshots(runtime.desiredVolume, trackId));
     }

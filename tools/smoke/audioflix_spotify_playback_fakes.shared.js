@@ -4,16 +4,22 @@
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const never = () => new Promise(() => {});
 const EMBED = 'https://open.spotify.com/embed/track/';
+const fixtureId = seed => {
+    if (!/^[A-Za-z0-9]{1,22}$/.test(seed)) throw new Error('Invalid Spotify fixture ID seed');
+    return seed.padEnd(22, '0');
+};
 
 function fakeEngine(initial = {}) {
-    const st = { generation: 1, spotifyId: 'aaa', status: 'loaded', playRequested: false,
+    const st = { generation: 1, spotifyId: fixtureId('aaa'), mediaType: 'track', status: 'loaded', playRequested: false,
         paused: true, currentTime: 0, ...initial };
+    st.spotifyUri = initial.spotifyUri || `spotify:${st.mediaType}:${st.spotifyId}`;
     const engine = {
         ready: true, st, commands: [], acks: [],
         snapshot: () => ({ ...st }),
         command(action, data = {}) {
             engine.commands.push(action);
             if (action === 'load') Object.assign(st, { generation: data.generation, spotifyId: data.spotifyId,
+                spotifyUri: data.spotifyUri, mediaType: data.mediaType,
                 status: 'loaded', playRequested: false });
             if (action === 'play') Object.assign(st, { playRequested: true, status: 'starting' });
             if (action === 'pause') Object.assign(st, { playRequested: false, status: 'paused' });
@@ -68,9 +74,9 @@ function fakePage(engine, frames = []) {
     return page;
 }
 
-function fakeFrame(id, button, seek) {
+function fakeFrame(id, button, seek, mediaType = 'track') {
     return {
-        url: () => `${EMBED}${id}`,
+        url: () => `https://open.spotify.com/embed/${mediaType}/${id}`,
         locator: (selector) => {
             if (selector === 'body') return { count: async () => 1, hover: async () => {} };
             return { count: async () => (button ? 1 : 0), nth: () => button, first: () => button };
@@ -84,10 +90,10 @@ function options(page, extra = {}) {
     return {
         notes,
         page, runtime: { playbackKickCount: 0, lastPlaybackKickAt: 0 },
-        spotifySnapshots: async () => [], isSpotifyEmbedUrl: url => String(url).startsWith(EMBED),
+        spotifySnapshots: async () => [], isSpotifyEmbedUrl: url => /^https:\/\/open\.spotify\.com\/embed\/(?:track|episode)\/[A-Za-z0-9]{22}$/.test(String(url)),
         normalizeTrackId: value => String(value || ''), note: (kind, message) => notes.push([kind, message]),
         ...extra
     };
 }
 
-module.exports = { sleep, never, EMBED, fakeEngine, fakeButton, actionable, fakePage, fakeFrame, options };
+module.exports = { sleep, never, EMBED, fixtureId, fakeEngine, fakeButton, actionable, fakePage, fakeFrame, options };

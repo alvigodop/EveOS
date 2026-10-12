@@ -12,10 +12,11 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
     const END_TOLERANCE_MS = 1500;
     const END_RESET_MAX_MS = 500;
     const completion = window.EveAudioflixSpotifyCompletion;
+    const media = window.EveAudioflixSpotifyMedia;
     let apiPromise = null;
 
     function spotifyTrackId(value) {
-        return String(value || '').match(/(?:spotify:track:|open\.spotify\.com\/track\/)([A-Za-z0-9]+)/i)?.[1] || '';
+        return media.trackId(value);
     }
 
     function startTimeoutMs() {
@@ -61,10 +62,8 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
         const V = ctx.view;
 
         async function playSpotify(item) {
-            const id = spotifyTrackId(item?.url);
-            if (!id) throw new Error(/\/episode\/|spotify:episode:/i.test(String(item?.url || item?.sourceUri || ''))
-                ? 'Spotify podcast episodes are saved with their metadata, but EveOS playback supports Spotify tracks only for now.'
-                : 'This Spotify link does not contain a playable track ID.');
+            const identity = media.fromItem(item);
+            if (!identity) throw new Error('This Spotify link does not contain a playable track or episode identity.');
             const host = ensureStage(item, 'Spotify');
             const mount = document.createElement('div');
             mount.className = 'audioflix-spotify-player';
@@ -202,7 +201,7 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                 };
 
                 api.createController(mount, {
-                    uri: `spotify:track:${id}`,
+                    uri: identity.spotifyUri,
                     width: '100%',
                     height: 152
                 }, (controller) => {
@@ -263,8 +262,8 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                             return controller.destroy?.();
                         },
                         loadItem: async (nextItem) => {
-                            const nextId = spotifyTrackId(nextItem?.url);
-                            if (!nextId) throw new Error('This Spotify link does not contain a playable track ID.');
+                            const nextIdentity = media.fromItem(nextItem);
+                            if (!nextIdentity) throw new Error('This Spotify link does not contain a playable track or episode identity.');
                             const load = typeof controller.loadUri === 'function'
                                 ? controller.loadUri.bind(controller)
                                 : typeof controller.loadEntity === 'function'
@@ -280,7 +279,7 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                             resetCompletionEvidence();
                             clearStartTimer();
                             setStageStatus(`Loading ${nextItem.title || 'the next Spotify track'}...`);
-                            await Promise.resolve(load(`spotify:track:${nextId}`));
+                            await Promise.resolve(load(nextIdentity.spotifyUri));
                             switchingTrack = false;
                             return player.play();
                         }
@@ -291,7 +290,9 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                         player.play();
                         finish();
                     });
-                    controller.addListener?.('playback_started', () => {
+                    controller.addListener?.('playback_started', (event) => {
+                        const data = event?.data || event || {};
+                        if (data.playingURI && !media.matches({ spotifyUri: data.playingURI }, media.fromItem(selectedItem))) return;
                         markStarted();
                         ended = false;
                         lastPaused = false;
@@ -302,8 +303,7 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
                     });
                     controller.addListener?.('playback_update', (event) => {
                         const data = event?.data || event || {};
-                        const playingId = spotifyTrackId(data.playingURI);
-                        if (playingId && playingId !== spotifyTrackId(selectedItem?.url)) return;
+                        if (data.playingURI && !media.matches({ spotifyUri: data.playingURI }, media.fromItem(selectedItem))) return;
                         const positionMs = Math.max(0, Number(data.position || 0));
                         const durationMs = Math.max(0, Number(data.duration || 0));
                         const paused = data.isPaused !== false;

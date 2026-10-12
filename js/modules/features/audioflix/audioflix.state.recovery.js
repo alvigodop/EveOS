@@ -15,6 +15,7 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
     const STRUCTURE_SUFFIX = '.structure-v2';
     const STRUCTURE_VERSION = 3;
     const revisionFloors = new Map();
+    const trackStructures = new Map();
     const text = (value) => String(value ?? '').trim();
     const clone = (value, fallback) => {
         try { return JSON.parse(JSON.stringify(value)); } catch { return fallback; }
@@ -147,6 +148,35 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
         }
     }
 
+    // Only the private single-add path caches parsed refs. Public readStructure stays caller-owned.
+    // Compare actual storage on every lookup: cross-tab writes, imports and deletion retire the cache.
+    function trackStructure(key) {
+        const slot = `${key}${STRUCTURE_SUFFIX}`;
+        let raw;
+        try { raw = localStorage.getItem(slot); } catch { trackStructures.delete(slot); return null; }
+        if (!raw) { trackStructures.delete(slot); return null; }
+        const cached = trackStructures.get(slot);
+        if (cached?.raw === raw) return cached;
+        trackStructures.delete(slot);
+        let structure = null;
+        try { structure = JSON.parse(raw); } catch { /* Damaged data never reuses stale topology. */ }
+        const cache = { raw, structure, ids: new Map(), paths: new Map(), sources: new Map() };
+        const refs = Array.isArray(structure?.musicRefs) ? structure.musicRefs : [];
+        refs.forEach((ref, rank) => {
+            if (!ref || typeof ref !== 'object') return;
+            const entry = { ref, rank };
+            if (ref.id && !cache.ids.has(ref.id)) cache.ids.set(ref.id, entry);
+            const localPath = text(ref.localPath).toLowerCase();
+            if (localPath && !cache.paths.has(localPath)) cache.paths.set(localPath, entry);
+            const source = ref.playlistId && ref.sourceId ? JSON.stringify([ref.playlistId, ref.sourceId]) : '';
+            if (source && !cache.sources.has(source)) cache.sources.set(source, entry);
+        });
+        // One canonical library is usual; bound alternate/test pack keys without retaining old journals.
+        if (trackStructures.size >= 8) trackStructures.delete(trackStructures.keys().next().value);
+        trackStructures.set(slot, cache);
+        return cache;
+    }
+
     function mergeNamed(base, incoming, identity) {
         const out = Array.isArray(base) ? clone(base, []) : [];
         const seen = new Set(out.map((entry) => identity(entry)));
@@ -246,7 +276,7 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
 
     function applyTrackStructure(key, state, item, type) {
         if (!state || !item?.id) return false;
-        const structure = readStructure(key);
+        const cache = trackStructure(key), structure = cache?.structure;
         if (!structure) return false;
         if (type === 'sound') {
             const groups = structure.soundGroupMap?.[item.id] || [];
@@ -256,12 +286,12 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
             state.soundboardGroups = uniq([...(state.soundboardGroups || []), ...groups]);
             return true;
         }
-        const ref = (structure.musicRefs || []).find((entry) => (
-            (entry.id && entry.id === item.id)
-            || (entry.localPath && text(item.localPath).toLowerCase() === entry.localPath.toLowerCase())
-            || (entry.playlistId && entry.sourceId
-                && text(item.playlistId) === entry.playlistId && text(item.sourceId) === entry.sourceId)
-        ));
+        const source = text(item.playlistId) && text(item.sourceId) ? JSON.stringify([text(item.playlistId), text(item.sourceId)]) : '';
+        let match = null;
+        for (const candidate of [cache.ids.get(item.id), cache.paths.get(text(item.localPath).toLowerCase()), cache.sources.get(source)]) {
+            if (candidate && (!match || candidate.rank < match.rank)) match = candidate;
+        }
+        const ref = match?.ref;
         if (!ref) return false;
         const synthetic = {
             ...structure,

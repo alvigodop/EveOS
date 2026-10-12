@@ -5,9 +5,7 @@ window.EveAudioflixSpotifyEngineSurface = window.EveAudioflixSpotifyEngineSurfac
     const ns = window.EveAudioflixSpotifyEngineSurface;
     if (ns.ready) return;
 
-    const isSpotify = (item) => String(item?.sourceProvider || '').toLowerCase() === 'spotify'
-        || !!item?.spotifyUrl
-        || /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)/i.test(String(item?.url || item?.originalUrl || ''));
+    const isSpotify = (item) => !!window.EveAudioflixSpotifyMedia?.fromItem(item);
     const remote = () => window.EveAudioflixSpotifyRemote;
     const managed = () => window.EveAudioflixSpotifyAnyBrowser;
     const queueConnection = () => window.EveAudioflix?.queueConnection || null;

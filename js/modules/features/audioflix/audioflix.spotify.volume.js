@@ -169,7 +169,7 @@
         let flight = null, pending = null, acknowledged = null;
         const counts = { requested: 0, sent: 0, completed: 0, coalesced: 0, discarded: 0 };
         const key = (context) => context && JSON.stringify([
-            context.run, context.itemId, context.spotifyId,
+            context.run, context.itemId, context.spotifyId, context.spotifyUri, context.mediaType,
             context.ownerEpoch, context.engineEpoch, context.trackGeneration
         ]);
         function current() {
@@ -192,6 +192,7 @@
                 if (current()?.key !== intent.context.key) return { skipped: true };
                 return remote().send('volume', {
                     effectiveVolume: intent.volume, spotifyId: intent.context.spotifyId,
+                    spotifyUri: intent.context.spotifyUri, mediaType: intent.context.mediaType,
                     ownerEpoch: intent.context.ownerEpoch, engineEpoch: intent.context.engineEpoch,
                     trackGeneration: intent.context.trackGeneration
                 }, { timeout: 5000 });
@@ -221,7 +222,7 @@
             diagnostics: () => ({ ...counts, inFlight: flight ? 1 : 0, pending: pending ? 1 : 0 }) };
     }
 
-    function createManagedPlaybackLane(remote, currentPlayback, trackId) {
+    function createManagedPlaybackLane(remote, currentPlayback, mediaIdentity) {
         let accepted = null;
         const lane = createManagedLane({
             remote,
@@ -231,8 +232,9 @@
                 if (!accepted || !playback.active || !playback.item) return null;
                 if (observed && Number(observed.ownerEpoch || 0) >= accepted.ownerEpoch
                     && (observed.isOwner === false || Number(observed.ownerEpoch || 0) > accepted.ownerEpoch)) return null;
-                return { ...accepted, ...playback,
-                    itemId: String(playback.item.id || ''), spotifyId: trackId(playback.item) };
+                const identity = mediaIdentity(playback.item);
+                if (!identity) return null;
+                return { ...accepted, ...playback, ...identity, itemId: String(playback.item.id || '') };
             },
             onResult(result) {
                 if (!result?.ok) console.warn('[Audioflix] Managed Spotify volume:', result?.reason || 'failed');
