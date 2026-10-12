@@ -41,9 +41,8 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
         if (!mediaId) return null;
         return { type, id: mediaId, uri: `spotify:${type}:${mediaId}` };
     }
-    // Spotify playback in EveOS is the official track embed. Episodes and Spotify-local rows keep
-    // their identity and metadata but are not EveOS-playable until a later lane adds that path.
-    const SPOTIFY_PLAYABLE_TYPES = new Set(['track']);
+    // Official embeds support typed tracks and episodes. Spotify-local rows still require a file.
+    const SPOTIFY_PLAYABLE_TYPES = new Set(['track', 'episode']);
     function mediaIdentity(source) {
         const item = source && typeof source === 'object' ? source : {};
         const declaredProvider = text(item.sourceProvider, '').toLowerCase();
@@ -72,7 +71,7 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
         const uri = mediaId && type !== 'unknown' ? `spotify:${type}:${mediaId}` : text(item.sourceUri, '');
         const hasUrl = !!text(item.url, '');
         // A Spotify-imported row that was matched to another stream (no Spotify ref in its URL)
-        // still plays through that URL; only a bare Spotify episode/local reference cannot.
+        // still plays through that URL; a Spotify-local reference alone cannot supply audio.
         const otherStream = hasUrl && type === 'unknown' && !spotifyRef(item.url);
         const playable = hasLocal || otherStream
             || (SPOTIFY_PLAYABLE_TYPES.has(type) && !!mediaId && declaredAvailability !== 'unavailable');

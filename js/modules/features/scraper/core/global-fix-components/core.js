@@ -15,9 +15,25 @@ const GlobalFixCore = {
             window.EventBus = {
                 _isStub: true,
                 version: '1.0.0',
-                on: function () { },
-                off: function () { },
-                emit: function () { },
+                _events: Object.create(null),
+                on: function (event, callback) {
+                    (this._events[event] ||= []).push(callback);
+                    return this;
+                },
+                off: function (event, callback) {
+                    if (!callback) delete this._events[event];
+                    else if (this._events[event]) this._events[event] = this._events[event].filter(cb => cb !== callback);
+                    return this;
+                },
+                emit: function (event, data) {
+                    for (const callback of [...(this._events[event] || [])]) {
+                        try { callback(data); } catch (error) { console.error('EventBus fallback listener failed', error); }
+                    }
+                    return this;
+                },
+                subscribe: function (event, callback) { return this.on(event, callback); },
+                unsubscribe: function (event, callback) { return this.off(event, callback); },
+                publish: function (event, data) { return this.emit(event, data); },
                 addEventListener: function () { },
                 removeEventListener: function () { }
             };

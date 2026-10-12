@@ -43,8 +43,8 @@ assert.equal(episode.sourceMediaType, 'episode');
 assert.equal(episode.sourceUri, `spotify:episode:${EPISODE}`);
 assert.equal(episode.spotifyTrackId, '', 'episodes never populate the track-only alias');
 assert.equal(episode.spotifyUri, '');
-assert.equal(episode.sourcePlayable, false);
-assert.equal(episode.sourceAvailability, 'metadata-only');
+assert.equal(episode.sourcePlayable, true, 'typed episode playback is now supported');
+assert.equal(episode.sourceAvailability, 'playable');
 assert.deepEqual(clean(episode), episode, 'normalization is idempotent for episodes');
 
 const local = clean({ id: 'm4', title: 'My Weird Unreleased Song', artist: 'Drift', album: 'Basement Arc', sourceProvider: 'spotify', sourceMediaType: 'local', sourceUri: LOCAL_URI, sourceId: 'local:abc' });

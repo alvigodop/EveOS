@@ -202,11 +202,40 @@ async function fallbackCases() {
     assert.equal(calls.at(-1), uri('track'), 'fallback switches typed identity without manufacturing track IDs');
     view.active.player.destroy(); checks++;
 }
+async function preparationCases() {
+    const window = {}, context = contextFor(window);
+    load(context, 'audioflix.state.schema.js');
+    load(context, 'audioflix.playlists.spotify.js');
+    load(context, 'audioflix.audio.source.js');
+    load(context, 'audioflix.native.spotify.js');
+    let resolverCalls = 0;
+    window.EveAudioflixNative = { resolveUrl: () => { resolverCalls++; throw Error('Unexpected episode resolver'); } };
+    const episode = { id: 'prepared-episode', title: 'Episode', url: `https://open.spotify.com/episode/${ID}`,
+        ...window.EveAudioflixSpotify.entryPatch({ id: ID, uri: uri('episode'), mediaType: 'episode' }) };
+    assert.equal(window.EveAudioflixAudioSource.needsResolution(episode.url), false, 'Episode embeds never enter yt-dlp');
+    const resolved = await window.EveAudioflixAudioSource.resolveItem(episode);
+    assert.equal(resolverCalls, 0);
+    const prepared = await window.EveAudioflixNativeSpotify.preparePlaybackSource(resolved);
+    assert.equal(prepared.item.url, episode.url);
+    assert.equal(prepared.item.sourceUri, uri('episode'));
+    assert.equal(prepared.item.spotifyPlaybackMode, 'official-embed'); checks++;
+    const identity = window.EveAudioflixStateSchema.mediaIdentity(episode);
+    assert.equal(identity.sourcePlayable, true);
+    assert.equal(identity.sourceAvailability, 'playable');
+    assert.equal(window.EveAudioflixStateSchema.mediaIdentity({ ...episode, sourceAvailability: 'unavailable' }).sourcePlayable, false);
+    assert.equal(window.EveAudioflixStateSchema.mediaIdentity({ sourceProvider: 'spotify', sourceMediaType: 'local', sourceUri: 'spotify:local:a:b:c:5' }).sourcePlayable, false);
+    assert.equal(episode.spotifyTrackId, '', 'Imported episode never fills a legacy track ID'); checks++;
+    const local = { ...episode, localPath: 'C:/Music/episode.mp3' };
+    const localPrepared = { item: local, localPath: local.localPath };
+    assert.equal(await window.EveAudioflixNativeSpotify.preparePlaybackSource(local, localPrepared), localPrepared);
+    checks++;
+}
 (async () => {
     await engineCases('loadUri'); await engineCases('loadEntity');
     phase = 'strict-parser-contract'; parserCases();
     phase = 'any-browser-identity-volume-completion'; await anyBrowserCases();
     phase = 'official-embed-fallback'; await fallbackCases();
+    phase = 'episode-source-preparation'; await preparationCases();
     fs.mkdirSync(path.dirname(artifact), { recursive: true });
     fs.writeFileSync(artifact, JSON.stringify({ ok: true, checks, phase, synthetic: true }));
     console.log(`AUDIOFLIX_SPOTIFY_MEDIA_PLAYBACK_OK checks=${checks} typedUri=true episode=true legacyTrack=true`);

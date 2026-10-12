@@ -37,16 +37,8 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return [text(a), text(b)].sort().join('|');
     }
 
-    function dismissedSet() {
-        return new Set(state().dupDismissedPairs || []);
-    }
-
-    // findDuplicates is called once per rendered card (via isDuplicate), and each call re-derives
-    // the whole item list. ensure() re-normalizes state on every read, so it hands back a FRESH
-    // array each time — an identity cache would never hit. Instead cache per type for the current
-    // synchronous render pass and drop it on the next microtask: every card in one pass shares a
-    // single computation, while the next render recomputes against fresh state. Mutations
-    // (merge/dismiss) also clear it explicitly so a change is never shown stale.
+    // Share a descriptor/bucket index for one synchronous render pass. A card badge never asks for
+    // the quadratic full pair report. Revision/list checks and a microtask boundary retire stale data.
     const memo = { music: null, sound: null };
     let memoClearScheduled = false;
     function scheduleMemoClear() {
@@ -58,84 +50,128 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
 
     function normalizedPath(value) {
         const clean = normalize(value).replace(/^file:\/\/+/, '').replace(/\\/g, '/');
-        return clean && !/^https?:\/\//.test(clean) ? clean.replace(/\/+$/, '') : '';
+        return clean && !/^(?:https?:\/\/|spotify:)/.test(clean) ? clean.replace(/\/+$/, '') : '';
+    }
+
+    function spotifyRef(value) {
+        const raw = text(value);
+        const match = raw.match(/^spotify:(track|episode):([A-Za-z0-9]{22})$/i)
+            || raw.match(/^https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(track|episode)\/([A-Za-z0-9]{22})\/?(?:[?#].*)?$/i);
+        return match ? { type: match[1].toLowerCase(), id: match[2] } : null;
     }
 
     function sourceIdentity(item) {
-        const provider = normalize(item?.sourceProvider);
-        const sourceId = normalize(item?.sourceId);
-        return provider && sourceId ? `${provider}:${sourceId}` : '';
+        const refs = [item?.sourceUri, item?.spotifyUri, item?.url].map(spotifyRef).filter(Boolean);
+        const provider = normalize(item?.sourceProvider) || (refs.length ? 'spotify' : '');
+        if (provider !== 'spotify') {
+            const sourceId = normalize(item?.sourceId);
+            return provider && sourceId ? `${provider}:${sourceId}` : '';
+        }
+        const type = normalize(item?.sourceMediaType) || refs[0]?.type || 'track';
+        // Spotify-local/unknown metadata is not proof that two playable recordings are identical.
+        if (item?.sourceIsLocal === true || !['track', 'episode'].includes(type)) return '';
+        const id = text(item?.sourceMediaId) || refs.find(ref => ref.type === type)?.id
+            || text(item?.spotifyTrackId) || text(item?.sourceId);
+        if (!/^[A-Za-z0-9]{22}$/.test(id) || refs.some(ref => ref.type !== type || ref.id !== id)
+            || (item?.spotifyTrackId && (type !== 'track' || text(item.spotifyTrackId) !== id))) return '';
+        return `spotify:${type}:${id}`; // Base62 IDs are case-sensitive; namespace is mandatory.
+    }
+
+    function urlKey(item) {
+        const raw = text(item?.url);
+        if (!/^https?:\/\//i.test(raw)) return '';
+        if (/^https?:\/\/open\.spotify\.com(?:\/|$)/i.test(raw)) {
+            if (item?.sourceIsLocal === true || normalize(item?.sourceMediaType) === 'local') return '';
+            const ref = spotifyRef(raw);
+            return ref ? `spotify:${ref.type}:${ref.id}` : raw.replace(/\/$/, '');
+        }
+        return normalize(raw).replace(/\/$/, '');
+    }
+
+    function descriptor(item, position) {
+        return { item, position, id: item.id, url: urlKey(item),
+            path: normalizedPath(item.localPath) || normalizedPath(item.url), source: sourceIdentity(item),
+            title: normalize(stripMediaExt(item.title)), base: fileBaseName(item.url) || fileBaseName(item.localPath),
+            duration: Number(item.duration || 0) };
     }
 
     function pairClassification(a, b) {
         const reasons = [];
-        const urlA = /^https?:\/\//i.test(text(a?.url)) ? normalize(a.url).replace(/\/$/, '') : '';
-        const urlB = /^https?:\/\//i.test(text(b?.url)) ? normalize(b.url).replace(/\/$/, '') : '';
-        const pathA = normalizedPath(a?.localPath) || normalizedPath(a?.url);
-        const pathB = normalizedPath(b?.localPath) || normalizedPath(b?.url);
-        const sourceA = sourceIdentity(a);
-        const sourceB = sourceIdentity(b);
-
-        if (urlA && urlA === urlB) reasons.push('matching URL');
-        if (pathA && pathA === pathB) reasons.push('matching local path');
-        if (sourceA && sourceA === sourceB) reasons.push('matching provider identity');
+        if (a.url && a.url === b.url) reasons.push('matching URL');
+        if (a.path && a.path === b.path) reasons.push('matching local path');
+        if (a.source && a.source === b.source) reasons.push('matching provider identity');
         if (reasons.length) return { level: 'hard', reasons };
-
-        const titleA = normalize(stripMediaExt(a?.title));
-        const titleB = normalize(stripMediaExt(b?.title));
-        const baseA = fileBaseName(a?.url) || fileBaseName(a?.localPath);
-        const baseB = fileBaseName(b?.url) || fileBaseName(b?.localPath);
-        if (titleA && titleA === titleB) {
-            const durationA = Number(a?.duration || 0);
-            const durationB = Number(b?.duration || 0);
-            reasons.push(durationA > 0 && durationB > 0 && Math.abs(durationA - durationB) > 1
+        if (a.title && a.title === b.title) {
+            reasons.push(a.duration > 0 && b.duration > 0 && Math.abs(a.duration - b.duration) > 1
                 ? 'matching title, different duration'
                 : 'matching title');
         }
-        if (baseA && baseA === baseB) reasons.push('same file name');
+        if (a.base && a.base === b.base) reasons.push('same file name');
         return reasons.length ? { level: 'soft', reasons } : null;
+    }
+
+    const dimensions = ['url', 'path', 'source', 'title', 'base'];
+    function indexFor(type) {
+        const key = type === 'music' ? 'music' : 'sound', snapshot = state();
+        const items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
+        const revision = window.EveAudioflixState?.getRevision?.();
+        if (memo[key]?.items === items && memo[key].length === items.length && memo[key].revision === revision) return memo[key];
+        const index = { items, length: items.length, revision, docs: items.map(descriptor),
+            ids: new Map(), buckets: Object.fromEntries(dimensions.map(key => [key, new Map()])),
+            dismissed: new Set(snapshot.dupDismissedPairs || []), pairs: null };
+        for (const doc of index.docs) {
+            if (!index.ids.has(doc.id)) index.ids.set(doc.id, []);
+            index.ids.get(doc.id).push(doc.position);
+            for (const key of dimensions) {
+                if (!doc[key]) continue;
+                const bucket = index.buckets[key];
+                if (!bucket.has(doc[key])) bucket.set(doc[key], []);
+                bucket.get(doc[key]).push(doc.position);
+            }
+        }
+        memo[key] = index;
+        scheduleMemoClear();
+        return index;
+    }
+
+    function candidates(index, position) {
+        const found = new Set(), doc = index.docs[position];
+        for (const key of dimensions) {
+            for (const other of index.buckets[key].get(doc[key]) || []) if (other !== position) found.add(other);
+        }
+        return [...found].sort((a, b) => a - b);
+    }
+    function pair(index, left, right) {
+        const classification = pairClassification(index.docs[left], index.docs[right]);
+        return classification ? { ...classification, reason: classification.reasons.join(' + '),
+            items: [index.items[left], index.items[right]] } : null;
     }
 
     // Find all duplicate pairs for a given item type ('music' or 'sound'). A hard match has shared
     // source identity; title/file-name similarity alone is intentionally soft so edits, remixes and
     // clipped versions are never presented as certain destructive duplicates.
     function findDuplicates(type = 'sound') {
-        const key = type === 'music' ? 'music' : 'soundboard';
-        const memoKey = type === 'music' ? 'music' : 'sound';
-        if (memo[memoKey]) return memo[memoKey];
-        const items = state()[key] || [];
+        const index = indexFor(type);
+        if (index.pairs) return index.pairs;
         const pairs = [];
-        for (let left = 0; left < items.length; left += 1) {
-            for (let right = left + 1; right < items.length; right += 1) {
-                const classification = pairClassification(items[left], items[right]);
-                if (!classification) continue;
-                pairs.push({
-                    level: classification.level,
-                    reason: classification.reasons.join(' + '),
-                    reasons: classification.reasons,
-                    items: [items[left], items[right]]
-                });
+        for (let left = 0; left < index.docs.length; left += 1) {
+            for (const right of candidates(index, left)) {
+                if (right <= left) continue;
+                const found = pair(index, left, right);
+                if (found) pairs.push(found);
             }
         }
-
-        memo[memoKey] = pairs.sort((a, b) => (a.level === b.level ? 0 : (a.level === 'hard' ? -1 : 1)));
-        scheduleMemoClear();
-        return memo[memoKey];
+        return index.pairs = pairs.sort((a, b) => (a.level === b.level ? 0 : (a.level === 'hard' ? -1 : 1)));
     }
 
     // Get duplicate matches specifically for a single item ID. Pairs the user chose to "keep both"
     // are filtered out so an acknowledged pair stops flagging as a duplicate.
     function duplicatesFor(type, itemId) {
         if (!itemId) return [];
-        const clusters = findDuplicates(type);
-        const dismissed = dismissedSet();
         const seen = new Set();
-        return clusters.flatMap((cluster) => {
-            if (!cluster.items.some((entry) => entry.id === itemId)) return [];
-            return cluster.items.filter((entry) => entry.id !== itemId);
-        })
-            .filter((it) => {
-                if (it.id === itemId || seen.has(it.id) || dismissed.has(pairKey(itemId, it.id))) return false;
+        return duplicateInfoFor(type, itemId).map(entry => entry.item)
+            .filter(it => {
+                if (seen.has(it.id)) return false;
                 seen.add(it.id);
                 return true;
             });
@@ -143,18 +179,35 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
 
     function duplicateInfoFor(type, itemId) {
         if (!itemId) return [];
-        const dismissed = dismissedSet();
-        return findDuplicates(type).flatMap((pair) => {
-            if (!pair.items.some((item) => item.id === itemId)) return [];
-            const match = pair.items.find((item) => item.id !== itemId);
-            if (!match || dismissed.has(pairKey(itemId, match.id))) return [];
-            return [{ item: match, level: pair.level, reason: pair.reason, reasons: pair.reasons }];
-        });
+        const index = indexFor(type), seen = new Set(), matches = [];
+        for (const position of index.ids.get(itemId) || []) {
+            for (const other of candidates(index, position)) {
+                const left = Math.min(position, other), right = Math.max(position, other), key = `${left}:${right}`;
+                const item = index.items[other];
+                if (item.id === itemId || seen.has(key) || index.dismissed.has(pairKey(itemId, item.id))) continue;
+                seen.add(key);
+                const found = pair(index, left, right);
+                if (found) matches.push({ item, level: found.level, reason: found.reason, reasons: found.reasons, left, right });
+            }
+        }
+        matches.sort((a, b) => (a.level === b.level ? a.left - b.left || a.right - b.right : a.level === 'hard' ? -1 : 1));
+        return matches.map(({ left, right, ...match }) => match);
     }
 
     function duplicateLevelFor(type, itemId) {
-        const info = duplicateInfoFor(type, itemId);
-        return info.some((entry) => entry.level === 'hard') ? 'hard' : (info.length ? 'soft' : '');
+        const index = indexFor(type), positions = index.ids.get(itemId) || [];
+        for (const keys of [dimensions.slice(0, 3), dimensions.slice(3)]) {
+            for (const position of positions) {
+                const doc = index.docs[position];
+                for (const key of keys) {
+                    for (const other of index.buckets[key].get(doc[key]) || []) {
+                        const item = index.items[other];
+                        if (item.id !== itemId && !index.dismissed.has(pairKey(itemId, item.id))) return keys[0] === 'url' ? 'hard' : 'soft';
+                    }
+                }
+            }
+        }
+        return '';
     }
 
     // "Keep both": record that this pair is intentionally separate, then drop the memo so the badge
@@ -172,7 +225,7 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
 
     // Check if a specific item is part of any duplicate cluster
     function isDuplicate(type, itemId) {
-        return duplicatesFor(type, itemId).length > 0;
+        return !!duplicateLevelFor(type, itemId);
     }
 
     // Merge duplicate items into one primary item:
@@ -219,7 +272,7 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         // both whenever the merged pair supplied both.
         const isLocalSource = (value) => {
             const s = normalize(value);
-            return !!s && !/^https?:\/\//.test(s); // drive letter, file://, ported/relative path
+            return !!s && !/^(?:https?:\/\/|spotify:|blob:|data:)/.test(s); // drive letter, file://, ported/relative path
         };
         let onlineUrl = '';
         let localPath = '';

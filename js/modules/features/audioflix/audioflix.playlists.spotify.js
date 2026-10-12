@@ -52,7 +52,7 @@ window.EveAudioflixSpotify = window.EveAudioflixSpotify || {};
 
     // One extracted playlist row -> AudioFlix fields. Rows are media items, not just tracks:
     // track | episode | local | unknown. Never invent a track ID or an open.spotify.com URL for
-    // an episode or a Spotify-local file; keep what Spotify exposed and mark it metadata-only.
+    // a Spotify-local file; episodes retain their own typed URI and are provider-playable.
     function entryPatch(entry = {}) {
         const schema = window.EveAudioflixStateSchema;
         const declared = text(entry.mediaType).toLowerCase();
@@ -70,7 +70,7 @@ window.EveAudioflixSpotify = window.EveAudioflixSpotify || {};
             sourceMediaId: mediaId,
             sourceUri: mediaId ? `spotify:${mediaType}:${mediaId}` : text(entry.uri),
             sourceIsLocal: mediaType === 'local',
-            sourceAvailability: unavailable ? 'unavailable' : (mediaType === 'track' && mediaId ? 'playable' : 'metadata-only'),
+            sourceAvailability: unavailable ? 'unavailable' : (['track', 'episode'].includes(mediaType) && mediaId ? 'playable' : 'metadata-only'),
             spotifyTrackId: mediaType === 'track' ? mediaId : '',
             spotifyUri: mediaType === 'track' && mediaId ? `spotify:track:${mediaId}` : '',
             isrc: text(entry.isrc || entry.external_ids?.isrc || entry.externalIds?.isrc),

@@ -268,6 +268,7 @@ try {
             playItem: async () => true, seek: async () => true, stopAll: async () => true, updateItemVolume() {}
         };
     });
+    await page.addScriptTag({ content: read('js/modules/features/audioflix/audioflix.spotify.media.js') });
     await page.addScriptTag({ content: spotifySurface });
     await page.evaluate(() => window.EveAudioflixAudio.openInternalView({
         id: 'spotify-fixture', type: 'music', sourceProvider: 'spotify', title: 'Fixture Spotify',

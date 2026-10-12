@@ -4,7 +4,8 @@
  */
 const EventBus = {
     version: '1.0.0',
-    _events: {},
+    // Preserve subscriptions collected by a fallback while this deferred module was still loading.
+    _events: window.EventBus?._events || Object.create(null),
     _initialized: false,
     
     /**
@@ -57,6 +58,13 @@ const EventBus = {
      * @param {Function} callback - The callback function to remove
      * @returns {Object} - The EventBus object for chaining
      */
+    on: function(event, callback) { return this.subscribe(event, callback); },
+    off: function(event, callback) {
+        if (!callback) { delete this._events[event]; return this; }
+        return this.unsubscribe(event, callback);
+    },
+    emit: function(event, data) { return this.publish(event, data); },
+
     unsubscribe: function(event, callback) {
         if (this._events[event]) {
             this._events[event] = this._events[event].filter(cb => cb !== callback);

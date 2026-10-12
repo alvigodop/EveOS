@@ -7,7 +7,7 @@ window.EveAudioflixAudioSource = window.EveAudioflixAudioSource || {};
     if (ns.ready) return;
 
     const PLATFORM_RE = /^https?:\/\/(?:www\.|music\.)?(?:youtube\.com|youtu\.be|soundcloud\.com|bandcamp\.com|vimeo\.com|open\.spotify\.com|instagram\.com)\b/i;
-    const PROVIDER_NATIVE_RE = /^https?:\/\/open\.spotify\.com\/track\/[A-Za-z0-9]+(?:[/?#]|$)/i;
+    const PROVIDER_NATIVE_RE = /^https?:\/\/open\.spotify\.com\/(?:intl-[a-z-]+\/)?(?:embed\/)?(?:track|episode)\/[A-Za-z0-9]+(?:[/?#]|$)/i;
 
     function proxiedTarget(value) {
         const raw = String(value || '').trim();

@@ -64,6 +64,7 @@ async function fakeFetch(url) {
 
 const context = vm.createContext({
     window: windowObject,
+    document: { addEventListener() {} },
     location: windowObject.location,
     fetch: fakeFetch,
     AbortController,

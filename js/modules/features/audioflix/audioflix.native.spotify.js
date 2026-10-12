@@ -8,9 +8,7 @@ window.EveAudioflixNativeSpotify = window.EveAudioflixNativeSpotify || {};
     const PLAYBACK_POLICY_REVISION = 'official-embed-v3';
     const PLAYBACK_RESOLVER_REVISION = PLAYBACK_POLICY_REVISION;
     const text = (value) => String(value ?? '').trim();
-    const trackId = (value) => text(value)
-        .match(/(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)([A-Za-z0-9]+)/i)?.[1] || '';
-    const spotifyUrl = (id) => id ? `https://open.spotify.com/track/${id}` : '';
+    const mediaIdentity = item => window.EveAudioflixSpotifyMedia?.fromItem?.(item) || null;
 
     function state() {
         return window.EveAudioflixState?.ensure?.() || {};
@@ -22,22 +20,15 @@ window.EveAudioflixNativeSpotify = window.EveAudioflixNativeSpotify || {};
     }
 
     function isSpotifyTrack(track) {
-        return text(track?.sourceProvider).toLowerCase() === 'spotify'
-            || !!trackId(track?.spotifyUrl)
-            || !!trackId(track?.url)
-            || !!trackId(track?.originalUrl)
-            || !!text(track?.spotifyTrackId);
+        // Legacy facade name: playback preparation now supports tracks AND episodes.
+        return !!mediaIdentity(track);
     }
 
     function identityUrl(...tracks) {
         for (const track of tracks) {
             if (!track || typeof track !== 'object') continue;
-            for (const value of [track.spotifyUrl, track.originalUrl, track.url]) {
-                const id = trackId(value);
-                if (id) return spotifyUrl(id);
-            }
-            const storedId = text(track.spotifyTrackId);
-            if (storedId) return spotifyUrl(storedId);
+            const identity = mediaIdentity(track);
+            if (identity) return `https://open.spotify.com/${identity.mediaType}/${identity.spotifyId}`;
         }
         return '';
     }

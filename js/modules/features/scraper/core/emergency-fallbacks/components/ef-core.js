@@ -87,11 +87,11 @@ EmergencyFallbacksCore._ensureEventBus = function () {
             _initialized: true,
             _isEmergencyImplementation: true,
             version: '0.0.1-emergency',
-            _events: {},
+            _events: Object.create(null),
 
             init: function () {
                 console.log('Initializing emergency EventBus');
-                this._events = {};
+                this._initialized = true; // Re-init must not discard listeners collected during boot.
                 return this;
             },
 
@@ -112,6 +112,10 @@ EmergencyFallbacksCore._ensureEventBus = function () {
                 }
                 return this;
             },
+
+            subscribe: function (event, callback) { return this.on(event, callback); },
+            unsubscribe: function (event, callback) { return this.off(event, callback); },
+            publish: function (event, data) { return this.emit(event, data); },
 
             emit: function (event, data) {
                 if (!this._events[event]) return this;

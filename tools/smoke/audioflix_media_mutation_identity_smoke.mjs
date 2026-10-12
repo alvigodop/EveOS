@@ -62,8 +62,8 @@ assert.equal(afterEpisode.id, original.id, 'editing identity must preserve the A
 assert.equal(afterEpisode.sourceMediaType, 'episode');
 assert.equal(afterEpisode.sourceMediaId, EPISODE);
 assert.equal(afterEpisode.sourceUri, `spotify:episode:${EPISODE}`);
-assert.equal(afterEpisode.sourceAvailability, 'metadata-only');
-assert.equal(afterEpisode.sourcePlayable, false, 'derived playability is recomputed immediately at the mutation boundary');
+assert.equal(afterEpisode.sourceAvailability, 'playable');
+assert.equal(afterEpisode.sourcePlayable, true, 'derived episode playability is recomputed immediately at the mutation boundary');
 assert.equal(afterEpisode.spotifyTrackId, '', 'track-only legacy alias is cleared immediately when media becomes an episode');
 assert.equal(afterEpisode.spotifyUri, '', 'track-only legacy URI is cleared immediately when media becomes an episode');
 assert.equal(saves, 1, 'one logical item edit schedules one durable save');

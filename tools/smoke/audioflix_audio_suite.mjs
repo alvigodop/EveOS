@@ -51,6 +51,7 @@ const tests = {
         ['node', 'tools/smoke/audioflix_library_next_smoke.js']
     ],
     scale: [
+        ['node', 'tools/smoke/audioflix_duplicate_scale_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_sequential_add_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_large_library_lossless_smoke.mjs'],
         ['node', 'tools/benchmark/audioflix_scale_benchmark.mjs']
