@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -86,6 +89,60 @@ def run():
             assert "tools/demo/.runtime-venv/site.py" not in fallback["files"]
             assert not any("/.git/" in relative for relative in fallback["files"])
 
+            # More than one batch: real concurrent reads must retain serial
+            # ordering/digests, never exceed four readers, and drain on failure.
+            paths = []
+            for index in range(70):
+                relative = f"js/parallel-{index:03}.js"
+                write(relative, f"window.fixture = {index};")
+                paths.append(root / relative)
+            lock = threading.Lock()
+            counts = {"active": 0, "peak": 0, "reads": 0}
+
+            def delayed_digest(path):
+                with lock:
+                    counts["active"] += 1
+                    counts["peak"] = max(counts["peak"], counts["active"])
+                    counts["reads"] += 1
+                try:
+                    time.sleep(0.003 * (4 - int(path.stem[-3:]) % 4))
+                    return original_digest(path)
+                finally:
+                    with lock:
+                        counts["active"] -= 1
+
+            with patch.object(updates, "_iter_source_paths", return_value=iter(paths)), \
+                    patch.object(updates, "_file_digest", side_effect=delayed_digest):
+                parallel = updates._capture()
+            assert 1 < counts["peak"] <= 4 and counts["active"] == 0 and counts["reads"] == 70
+            expected_files = {}
+            expected_buckets = {key: hashlib.sha256() for key in updates._COMPONENT_ACTIONS}
+            for path in paths:
+                relative = path.relative_to(root).as_posix()
+                components = updates._classify(relative)
+                digest = original_digest(path)
+                expected_files[relative] = {"digest": digest, "components": components}
+                for component in components:
+                    expected_buckets[component].update(relative.encode("utf-8") + b"\0" + digest.encode("ascii") + b"\0")
+            assert list(parallel["files"]) == list(expected_files)
+            assert parallel["files"] == expected_files
+            assert parallel["components"] == {key: value.hexdigest() for key, value in expected_buckets.items()}
+
+            def failed_digest(path):
+                if path == paths[0]:
+                    raise OSError("fixture unreadable source")
+                return delayed_digest(path)
+
+            with patch.object(updates, "_iter_source_paths", return_value=iter(paths)), \
+                    patch.object(updates, "_file_digest", side_effect=failed_digest):
+                try:
+                    updates._capture()
+                except OSError as error:
+                    assert str(error) == "fixture unreadable source"
+                else:
+                    raise AssertionError("Unreadable source must fail, not manufacture a partial baseline")
+            assert counts["active"] == 0
+
 
 if __name__ == "__main__":
     try:
@@ -99,4 +156,4 @@ if __name__ == "__main__":
         print("EVEOS_UPDATE_INVENTORY_FAIL " + str(error), file=sys.stderr)
         print("\n".join(details.splitlines()[-30:]), file=sys.stderr)
         raise SystemExit(1)
-    print("EVEOS_UPDATE_INVENTORY_OK tracked=true untracked=true ignoredRuntimeExcluded=true css=true fallback=true")
+    print("EVEOS_UPDATE_INVENTORY_OK tracked=true untracked=true ignoredRuntimeExcluded=true css=true fallback=true boundedReaders=true orderedDigests=true failureDrained=true")

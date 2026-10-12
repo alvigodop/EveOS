@@ -12,7 +12,9 @@ import os
 import subprocess
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from itertools import islice
 from pathlib import Path
 
 
@@ -231,24 +233,34 @@ def _iter_source_paths(root: Path):
                     yield candidate
 
 
+def _source_record(root: Path, path: Path):
+    try:
+        relative = path.relative_to(root).as_posix()
+    except ValueError:
+        return None
+    if not _is_source(path, relative):
+        return None
+    return relative, _classify(relative), _file_digest(path)
+
+
 def _capture() -> dict:
     root = _root()
     files: dict[str, dict] = {}
     component_hashes = {key: hashlib.sha256() for key in _COMPONENT_ACTIONS}
-    for path in _iter_source_paths(root):
-        try:
-            relative = path.relative_to(root).as_posix()
-        except ValueError:
-            continue
-        if not _is_source(path, relative):
-            continue
-        components = _classify(relative)
-        digest = _file_digest(path)
-        files[relative] = {"digest": digest, "components": components}
-        for component in components:
-            bucket = component_hashes[component]
-            bucket.update(relative.encode("utf-8")); bucket.update(b"\0")
-            bucket.update(digest.encode("ascii")); bucket.update(b"\0")
+    candidates = iter(_iter_source_paths(root))
+    # Bound disk readers and queued work; ordered map preserves every existing
+    # component digest. Never cache, omit sources, or defer the startup baseline.
+    with ThreadPoolExecutor(max_workers=4, thread_name_prefix="eveos-source-hash") as pool:
+        while batch := list(islice(candidates, 64)):
+            for record in pool.map(lambda path: _source_record(root, path), batch):
+                if record is None:
+                    continue
+                relative, components, digest = record
+                files[relative] = {"digest": digest, "components": components}
+                for component in components:
+                    bucket = component_hashes[component]
+                    bucket.update(relative.encode("utf-8")); bucket.update(b"\0")
+                    bucket.update(digest.encode("ascii")); bucket.update(b"\0")
     return {
         "capturedAt": datetime.now(timezone.utc).isoformat(),
         "files": files,
