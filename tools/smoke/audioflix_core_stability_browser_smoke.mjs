@@ -131,10 +131,20 @@ try {
 
     await page.evaluate(() => {
         window.EveAudioflixLibraryNext = {
-            health: () => ({ status: 'provider', provider: 'spotify' }),
+            providerFor: () => 'spotify',
             effectiveHealth: () => ({ status: 'provider', provider: 'spotify' }),
-            prefs: () => ({ showLive: window.__providerMarkerVisible, hideDown: false }),
-            setPrefs: (_id, patch) => { if (Object.prototype.hasOwnProperty.call(patch, 'showLive')) window.__providerMarkerVisible = patch.showLive === true; }
+            prefs: () => ({ showProviderHealthOnCard: window.__providerMarkerVisible, showLive: false, hideDown: false }),
+            setPrefs: (_id, patch) => {
+                if (Object.prototype.hasOwnProperty.call(patch, 'showProviderHealthOnCard')) {
+                    window.__providerMarkerVisible = patch.showProviderHealthOnCard === true;
+                }
+                return { showProviderHealthOnCard: window.__providerMarkerVisible, showLive: false, hideDown: false };
+            },
+            markerDescriptor: () => window.__providerMarkerVisible ? {
+                className: 'eve-url-health-badge is-provider',
+                title: 'Spotify is the playback provider; health has not been verified by playback yet',
+                text: '○ Spotify Unverified'
+            } : null
         };
         const modal = document.createElement('div');
         modal.className = 'audioflix-info-modal';
@@ -145,13 +155,15 @@ try {
     await page.waitForTimeout(30);
     assert.equal(await page.locator('#target-card .eve-url-health-badge').count(), 0, 'Spotify marker must be hidden by default');
     const markerToggle = page.locator('[data-eve-provider-marker-toggle]');
-    assert.equal(await markerToggle.count(), 1, 'Song Settings should expose the provider marker toggle');
+    assert.equal(await markerToggle.count(), 1, 'Song Settings should expose the provider health marker toggle');
     await markerToggle.check();
     await page.waitForTimeout(20);
-    assert.equal(await page.locator('#target-card .eve-url-health-badge.is-provider').count(), 1, 'per-song toggle should show Spotify marker');
+    assert.equal(await page.locator('#target-card .eve-url-health-badge.is-provider').count(), 1, 'per-song toggle shows neutral Spotify provider state before health is verified');
+    assert.equal(await page.locator('#target-card .eve-url-health-badge.is-healthy').count(), 0, 'provider identity alone must not produce a green healthy badge');
+    assert.match(await page.locator('#target-card .eve-url-health-badge').textContent(), /Unverified/);
     await markerToggle.uncheck();
     await page.waitForTimeout(20);
-    assert.equal(await page.locator('#target-card .eve-url-health-badge').count(), 0, 'per-song toggle should hide Spotify marker again');
+    assert.equal(await page.locator('#target-card .eve-url-health-badge').count(), 0, 'per-song toggle should hide Spotify health marker again');
 
     await page.addScriptTag({ content: playlistUiSource });
     const placement = await page.evaluate(() => {
