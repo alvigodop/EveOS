@@ -50,14 +50,29 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
 
     installStableQueueView();
 
+    function patchTerminalTransport() {
+        const overlay = document.querySelector?.('#audioflix-overlay');
+        if (!overlay) return 0;
+        const stopButtons = overlay.querySelectorAll?.('[data-af-action="stop-music-group"]') || [];
+        let changed = 0;
+        stopButtons.forEach((button) => {
+            button.dataset.afAction = 'play-music-group';
+            button.classList?.remove?.('is-active');
+            button.textContent = '▶ Play Group';
+            changed += 1;
+        });
+        return changed;
+    }
+
     function syncTerminalView(snapshot) {
         const latest = snapshot?.();
         if (latest?.isPlaying) return false;
         window.EveAudioflixAudio?.syncQueueView?.();
-        // Group transport buttons are rendered from the authoritative queue state. Natural
-        // exhaustion used to set isPlaying=false inside playQueueIndex() and return before the
-        // normal rerender, leaving "Stop Group" visible after the final item ended.
-        window.EveAudioflix?.rerender?.();
+        // Terminal state is transport state, not a structural library change. Patch the live group
+        // button in place so natural exhaustion/skip-past-end cannot replace cards, steal focus, or
+        // jump a deeply scrolled library just to turn "Stop Group" back into "Play Group".
+        const patched = patchTerminalTransport();
+        window.EveAudioflixDiagnostics?.record?.('audioflix.queue.terminalPatch', patched, { structuralRender: false });
         return true;
     }
 
@@ -97,13 +112,18 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
             const tracks = new Map((state().music || []).map((track) => [track.id, track]));
             return queue().items.map((id) => ({ id, title: tracks.get(id)?.title || 'Untitled' }));
         };
+        const runIndex = async (index) => {
+            const result = await playIndex(index);
+            syncTerminalView(queue);
+            return result;
+        };
         window.EveAudioflixAudio?.setQueueBridge?.({
             list: entries,
             index: () => queue().currentIndex,
-            step: (delta) => playIndex(queue().currentIndex + (Number(delta) || 0)),
-            jump: (index) => playIndex(Number(index) || 0)
+            step: (delta) => runIndex(queue().currentIndex + (Number(delta) || 0)),
+            jump: (index) => runIndex(Number(index) || 0)
         });
-        return { trackAt, entries };
+        return { trackAt, entries, runIndex };
     }
 
     function createRuntime({ state, queue, playIndex, getRun, setRun, snapshot }) {
@@ -137,7 +157,7 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
                 || detail.item?.id == null || String(detail.item.id) !== String(active.items[active.currentIndex])) return false;
             invalidateRun();
             active.isPlaying = false;
-            window.EveAudioflixAudio?.syncQueueView?.();
+            syncTerminalView(queue);
             return true;
         };
         return { ...bridge, invalidateRun, restart, complete, release };
@@ -145,6 +165,6 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
 
     Object.assign(ns, {
         ready: true, create, createBridge, createRuntime, isStaleDelivery,
-        installStableQueueView, queueViewSignature, syncTerminalView
+        installStableQueueView, queueViewSignature, patchTerminalTransport, syncTerminalView
     });
 })();
