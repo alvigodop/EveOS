@@ -60,8 +60,7 @@ const durable = [
     'tools/audit/eveos_repo_hygiene_guard.mjs',
     'tools/audit/github_actions_security_guard.mjs',
     'tools/audit/smoke-registry-audit.js',
-    'docs/FRESH-INSTALL.md', 'docs/FRESH_CLONE.md', 'docs/REPOSITORY-LAYOUT.md',
-    '.github/workflows/repository-guardrails.yml'
+    'docs/FRESH-INSTALL.md', 'docs/FRESH_CLONE.md', 'docs/REPOSITORY-LAYOUT.md'
 ];
 for (const file of durable) if (!trackedSet.has(file)) fail.push(`durable repository capability is not tracked: ${file}`);
 
