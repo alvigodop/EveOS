@@ -16,6 +16,7 @@ const args = process.argv.slice(2), sourceArg = args[args.indexOf('--source') + 
 const entrypoint = args.find(arg => arg.startsWith('--entrypoint='))?.split('=')[1] || 'both';
 const scaleOnly = args.includes('--scale-only');
 const soak = args.includes('--soak') || args.includes('--soak-only'), soakOnly = args.includes('--soak-only');
+const soakIterations = Number(args.find(arg => arg.startsWith('--soak-iterations='))?.split('=')[1] || 500);
 assert.ok(['both', 'http', 'file'].includes(entrypoint));
 assert.ok(args.includes('--source') && sourceArg && !sourceArg.startsWith('--'), 'Explicit --source <backup JSON> is required');
 const source = fs.realpathSync(sourceArg);
@@ -49,11 +50,11 @@ let browser, currentPage, backendBefore;
 async function isolatedContext() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
     const barrier = await installBackendWriteBarrier(context, [base]);
-    let providerBlocked = 0, playbackBlocked = 0;
+    let providerBlocked = 0, playbackBlocked = 0; const blockedRequests = [];
     await context.route('**/*', route => {
         const request = route.request(), url = new URL(request.url());
         if (url.protocol === 'file:' || url.protocol === 'data:') return route.fallback();
-        if (url.origin !== base) { providerBlocked += 1; return route.abort(); }
+        if (url.origin !== base) { providerBlocked += 1; if (blockedRequests.length < 256) blockedRequests.push(request.url()); return route.abort(); }
         if (url.pathname.startsWith('/api/')) {
             if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
                 if (/\/spotify-|\/native\//.test(url.pathname)) { playbackBlocked += 1; return route.fulfill({ status: 403, contentType: 'application/json', body: '{"ok":false,"qualificationBlocked":true}' }); }
@@ -91,7 +92,7 @@ async function isolatedContext() {
             }
         });
     });
-    return { context, barrier, counters: () => ({ ...barrier.summary(), providerBlocked, playbackBlocked }) };
+    return { context, barrier, blockedRequests, counters: () => ({ ...barrier.summary(), providerBlocked, playbackBlocked }) };
 }
 
 async function boot(url, payload, scale = false) {
@@ -249,6 +250,12 @@ async function qualifyReal(url, entrypoint) {
 }
 function CSSSafe(value) { return String(value).replace(/[\\"]/g, '\\$&'); }
 async function failureEvidence(page) {
+    const debug = await page.evaluate(() => window.__soakDebug || null).catch(() => null);
+    if (debug) fs.writeFileSync(path.join(OUT, 'soak-debug.json'), JSON.stringify(debug, null, 2));
+    const soakFailure = await page.evaluate(() => window.__librarySoak ? { resources: window.__librarySoak.snapshot(),
+        calls: window.__soakCalls, search: window.__soakSearchDebug, searchTrace: window.__soakSearchTrace,
+        diagnostics: window.EveAudioflixDiagnostics?.snapshot?.(), revision: window.EveAudioflixState?.getRevision?.() } : null).catch(() => null);
+    if (soakFailure) fs.writeFileSync(path.join(OUT, 'soak-failure-diagnostics.json'), JSON.stringify(soakFailure, null, 2));
     await page.screenshot({ path: path.join(OUT, 'failure.png') }).catch(() => {});
     fs.writeFileSync(path.join(OUT, 'failure.html'), await page.content().catch(() => 'unavailable'));
 }
@@ -379,7 +386,7 @@ async function qualifySoak(url, payload, label) {
     report.phase = `soak-${label}`;
     const run = await boot(url, payload, true);
     try {
-        const row = await runLibrarySoak(run, { label, topology, settleMonitor, hash: sha, onProgress: progress => { report.soakProgress = progress; write(); } });
+        const row = await runLibrarySoak(run, { label, topology, settleMonitor, hash: sha, iterations: soakIterations, onProgress: progress => { report.soakProgress = progress; write(); } });
         assert.deepEqual(run.pageErrors, []); assert.equal(run.counters().allowedPlaybackCount, 0);
         report.soaks.push({ ...row, barrier: run.counters(), bootMs: run.bootMs, libraryUsableMs: run.libraryUsableMs }); write();
     } catch (error) { await failureEvidence(run.page); throw error; }

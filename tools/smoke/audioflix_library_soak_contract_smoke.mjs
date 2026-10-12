@@ -5,7 +5,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
-import { attachSoakConsole, scaleSoakFixture } from '../qualification/audioflix_library_soak.mjs';
+import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors } from '../qualification/audioflix_library_soak.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-soak-contract.json');
@@ -99,6 +99,18 @@ try {
         assert.equal(failures.length, 4);
         assert.deepEqual(failures.map(row => row.limit), [100, 150, 150, 50]);
         assert.equal(evaluateSoakBudgets({ 'group-expand-pointer': { p95: 499 } }, {}, {}, false).length, 0);
+    });
+    await check('supplementary-title-search-prefix-is-well-formed', () => {
+        const title = 'Track \u{1d42b}';
+        assert.equal(title.slice(0, -1).charCodeAt(title.length - 2), 0xd835, 'old UTF-16 slicing reproduces the malformed query');
+        assert.equal(codePointSearchQuery(title, 1), 'Track ');
+        assert.equal(codePointSearchQuery(title), title);
+        assert.equal(codePointSearchQuery('\u{1d42b}'.repeat(90)).length, 160, '80-codepoint limit cannot split a supplementary character');
+    });
+    await check('resource-errors-require-exact-deliberate-block-attribution', () => {
+        const result = classifyResourceErrors([{ url: 'https://blocked.invalid/image#icon', tag: 'IMG' }, { url: 'http://127.0.0.1:8765/critical.js', tag: 'SCRIPT' }], ['https://blocked.invalid/image']);
+        assert.equal(result.expected.length, 1); assert.equal(result.unexpected.length, 1);
+        assert.equal(result.unexpected[0].tag, 'SCRIPT');
     });
     fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, results }, null, 2));
     console.log(`AUDIOFLIX_LIBRARY_SOAK_CONTRACT_SMOKE_OK passed=${results.length}/${results.length}`);

@@ -4,6 +4,15 @@ import { latencyStats, sampleSoakResources, resourceGrowth, evaluateSoakBudgets 
 export { installLibrarySoakInstrumentation } from './audioflix_library_soak_resources.mjs';
 
 const css = value => String(value).replace(/[\\"]/g, '\\$&');
+export const codePointSearchQuery = (value, trim = 0, limit = 80) => {
+    const points = Array.from(String(value));
+    return points.slice(0, Math.max(1, Math.min(limit, points.length - trim))).join('');
+};
+const requestKey = value => { try { const url = new URL(value); url.hash = ''; return url.href; } catch { return value; } };
+export function classifyResourceErrors(errors, blockedRequests) {
+    const blocked = new Set(blockedRequests.map(requestKey));
+    return { expected: errors.filter(error => blocked.has(requestKey(error.url))), unexpected: errors.filter(error => !blocked.has(requestKey(error.url))) };
+}
 export function scaleSoakFixture(count) {
     return { music: Array.from({ length: count }, (_, index) => ({ id: `soak_scale_${index}`, title: `Soak Track ${index}`,
         folder: `Soak ${index % 50}`, artist: `Artist ${index % 100}`, url: `https://media.invalid/${index}.mp3`, duration: 120, exposed: true })),
@@ -32,7 +41,23 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         (rows[phase] ||= []).push(performance.now() - at); return result;
     };
     const topologyBefore = hash(JSON.stringify(await topology(page)));
+    const settledBoundaries = [];
+    const quiesce = async reason => {
+        const boundary = await page.evaluate(async reason => {
+            const result = await window.EveAudioflixState.flush(reason), diagnostics = window.EveAudioflixDiagnostics;
+            const before = diagnostics.snapshot().counters['ui:render-generations'] || 0;
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            return { written: result.written, before, after: diagnostics.snapshot().counters['ui:render-generations'] || 0 };
+        }, reason);
+        assert.equal(boundary.after, boundary.before, 'Canonical setup persistence must settle before transport assertions');
+        settledBoundaries.push({ reason, ...boundary });
+    };
     try {
+        await page.evaluate(() => {
+            const debug = window.__soakDebug = { enabled: true, events: [] };
+            const note = value => { if (!debug.enabled) return; debug.events.push({ at: performance.now(), phase: window.__librarySoak.snapshot().phase, ...value }); if (debug.events.length > 64) debug.events.shift(); };
+            window.addEventListener('eve:audioflix-state-changed', event => note({ kind: 'state-changed', reason: event.detail?.reason, reasons: event.detail?.reasons }));
+        });
         await settleMonitor(page);
         await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click();
         await page.waitForFunction(() => window.EveAudioflixState.ensure().musicViewMode === 'frontend');
@@ -57,8 +82,11 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             audio.updateItemVolume = function (...args) { calls.live += 1; return Reflect.apply(volume, this, args); };
             document.addEventListener('input', event => { if (event.target?.classList.contains('audioflix-volume-slider')) calls.inputs += 1; }, true);
             window.EveAudioflixDiagnostics.reset();
-            return { id: String(item.id), query: String(item.title || '').slice(0, 80), scopeCount: scope.length, libraryCount: state.ensure().music.length };
+            return { id: String(item.id), query: Array.from(String(item.title || '')).slice(0, 80).join(''), scopeCount: scope.length, libraryCount: state.ensure().music.length };
         });
+        await quiesce('soak-setup-ready');
+        const bootResources = classifyResourceErrors(await page.evaluate(() => window.__librarySoak.snapshot().resourceErrors), run.blockedRequests || []);
+        assert.deepEqual(bootResources.unexpected, [], 'Resource failures not attributable to a deliberately blocked request remain failures');
         const targetCard = () => page.locator(`.audioflix-item-card:has([data-af-action="play"][data-af-id="${css(target.id)}"])`);
         const reveal = async () => { await page.evaluate(id => window.EveAudioflix.revealCard(id, 'music'), target.id); await targetCard().scrollIntoViewIfNeeded(); };
         const playStop = async () => {
@@ -112,9 +140,11 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 revisions: after.revision - before.revision, persistsDuringGesture: after.persists - before.persists };
         };
         await reveal();
+        onProgress({ label, stage: 'warmup', counts: { ...counts } });
         // Warm all exercised card/modal/gesture paths before taking resource baselines.
         for (let i = 0; i < 10; i++) { await playStop(); await settings(); }
         await volume();
+        await page.evaluate(() => { window.__soakDebug.enabled = false; });
         for (const key of Object.keys(rows)) rows[key] = [];
         const startCalls = await page.evaluate(() => ({ ...window.__soakCalls }));
         samples.push(await sampleSoakResources(page, cdp, 'warm-card-paths'));
@@ -128,12 +158,30 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             await page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click();
             const search = page.locator('[data-af-nexus-search][data-af-type="music"]');
             const searchNode = await search.elementHandle();
+            await page.evaluate(() => {
+                window.__soakSearchTrace = [];
+                const diagnostics = window.EveAudioflixDiagnostics, original = diagnostics.span;
+                window.__soakRestoreTrace = () => { diagnostics.span = original; };
+                diagnostics.span = function (name, ...args) {
+                    if (name === 'ui:render:items' && window.__soakSearchTrace.length < 10) window.__soakSearchTrace.push(new Error('search-remount').stack);
+                    return Reflect.apply(original, this, [name, ...args]);
+                };
+            });
+            try {
             for (let i = 0; i < Math.max(1, iterations / 25); i++) {
-                const query = i % 2 ? target.query : target.query.slice(0, Math.max(1, target.query.length - 1));
+                const query = codePointSearchQuery(target.query, i % 2 ? 0 : 1);
                 await record('search-input', async () => { await search.fill(query); await page.locator(`[data-af-action="nexus-jump-card"][data-af-id="${css(target.id)}"]`).waitFor(); });
-                assert.equal(await search.evaluate((element, original) => element === original && document.activeElement === element, searchNode), true);
+                const focus = await search.evaluate((element, original) => {
+                    const value = { sameNode: element === original, focused: document.activeElement === element, activeTag: document.activeElement?.tagName,
+                        activeClass: document.activeElement?.className, inputConnected: element.isConnected, originalConnected: original.isConnected,
+                        generations: window.EveAudioflixDiagnostics.snapshot().counters['ui:render-generations'] || 0 };
+                    window.__soakSearchDebug = value; return value;
+                }, searchNode);
+                assert.equal(focus.sameNode, true, 'Live search must retain the same search control');
+                assert.equal(focus.focused, true, `Live search focus changed to ${focus.activeTag}.${focus.activeClass}`);
                 counts.searches += 1;
             }
+            } finally { await page.evaluate(() => window.__soakRestoreTrace?.()); }
             await searchNode.dispose();
             await page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click();
             await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click();
@@ -165,6 +213,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 return { applied, healthUpdates: 100 };
             });
             counts.playlistReconciliations += fixtureResult.applied; counts.healthUpdates += fixtureResult.healthUpdates;
+            await quiesce('soak-batch-ready');
             assert.equal(hash(JSON.stringify(await topology(page))), topologyBefore);
             await settleMonitor(page); samples.push(await sampleSoakResources(page, cdp, `card-batch-${batch + 1}`));
         }
@@ -207,6 +256,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.equal(hash(JSON.stringify(await topology(page))), topologyBefore);
         const final = await sampleSoakResources(page, cdp, 'settled-final'); samples.push(final);
         assert.equal(final.instrumentation.errorCount, 0, 'Window and unhandled Promise errors are not ignored');
+        const resourceErrors = classifyResourceErrors(final.instrumentation.resourceErrors, run.blockedRequests || []);
+        assert.deepEqual(resourceErrors.unexpected, [], 'Failed local JS/assets or unexplained resource failures are not suppressed');
         assert.equal(run.consoleProbe?.unexpectedErrors || 0, 0, 'Unexpected browser console errors fail qualification');
         assert.ok(samples.every(sample => sample.mountedCards <= 400));
         const growth = resourceGrowth(samples), latency = Object.fromEntries(Object.entries(rows).map(([key, values]) => [key, latencyStats(values)]));
@@ -229,8 +280,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             canonicalScopeCount: target.scopeCount, libraryCount: target.libraryCount, expandedGroupSize, topologyUnchanged: true, continuousQueueOrderPreserved: true,
             latency, visualResponse, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
-            gestureOutcomes, resources: samples, growth, longTaskAttribution,
+            gestureOutcomes, settledBoundaries, resources: samples, growth, longTaskAttribution,
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
-            calls: { before: startCalls, after: endCalls }, console: run.consoleProbe, warnings };
+            calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };
     } finally { await cdp.detach().catch(() => {}); }
 }

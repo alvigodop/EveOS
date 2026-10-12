@@ -1,10 +1,14 @@
 // Disposable qualification context only. No production module installs these counters.
 export function installLibrarySoakInstrumentation() {
     const timers = { timeout: new Set(), interval: new Set() }, observers = Object.create(null);
-    const errors = [], longTasks = [], phases = [], responses = [], responseBuckets = new Map();
+    const errors = [], resourceErrors = [], longTasks = [], phases = [], responses = [], responseBuckets = new Map();
     let phase = 'boot', errorCount = 0, longTaskCount = 0, droppedLongTasks = 0;
     const bounded = (list, value, max) => { list.push(value); if (list.length > max) list.shift(); };
     const noteError = event => {
+        if (event.type === 'error' && !event.message && event.target && event.target !== window) {
+            bounded(resourceErrors, { phase, tag: event.target.tagName || '', url: String(event.target.currentSrc || event.target.src || event.target.href || '') }, 64);
+            return;
+        }
         errorCount += 1;
         bounded(errors, { phase, type: event.type, message: String(event.reason?.message || event.message || event.reason || 'error').slice(0, 600) }, 30);
     };
@@ -69,7 +73,7 @@ export function installLibrarySoakInstrumentation() {
     }
     window.__librarySoak = {
         phase(name) { phase = name; bounded(phases, { name, at: performance.now() }, 2048); },
-        snapshot() { return { phase, errorCount, errors: errors.map(error => ({ ...error })),
+        snapshot() { return { phase, errorCount, errors: errors.map(error => ({ ...error })), resourceErrors: resourceErrors.map(error => ({ ...error })),
             timers: { timeout: timers.timeout.size, interval: timers.interval.size },
             observers: Object.fromEntries(Object.entries(observers).map(([key, value]) => [key, { ...value }])),
             longTaskCount, droppedLongTasks, longTasks: longTasks.map(task => ({ ...task })),
