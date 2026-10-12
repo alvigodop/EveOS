@@ -128,10 +128,15 @@ window.EveAudioflixStateSchema = window.EveAudioflixStateSchema || {};
         }
 
         function boundedItems(list, type, max) {
-            return (Array.isArray(list) ? list : [])
+            const cleaned = (Array.isArray(list) ? list : [])
                 .map((item) => cleanItem(item, type))
-                .filter((item) => !!item.url || !!item.localPath)
-                .slice(-max);
+                .filter((item) => !!item.url || !!item.localPath);
+            // Library size is a performance concern, never a data-retention policy. The old music
+            // path silently kept only the last MAX_MUSIC records via slice(-max), which could erase
+            // songs simply by normalizing/restoring a library above 10k. Keep soundboard's deliberate
+            // bounded behavior, but music must remain lossless; scale is handled by the view/runtime.
+            if (type === 'music') return cleaned;
+            return Number.isFinite(max) && max > 0 ? cleaned.slice(-max) : cleaned;
         }
 
         function boundedBindings(list, max) {

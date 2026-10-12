@@ -46,10 +46,14 @@ const tests = {
         ['node', 'tools/smoke/audioflix_state_recovery_smoke.js'],
         ['node', 'tools/smoke/audioflix_backup_guard_smoke.js'],
         ['node', 'tools/smoke/audioflix_library_next_smoke.js']
+    ],
+    scale: [
+        ['node', 'tools/smoke/audioflix_large_library_lossless_smoke.mjs'],
+        ['node', 'tools/benchmark/audioflix_scale_benchmark.mjs']
     ]
 };
 
-tests.full = [...tests.audio, ...tests.volume, ...tests.sounds, ...tests.spotify, ...tests.state];
+tests.full = [...tests.audio, ...tests.volume, ...tests.sounds, ...tests.spotify, ...tests.state, ...tests.scale];
 
 if (process.argv.includes('--list')) {
     for (const [name, entries] of Object.entries(tests)) console.log(`${name}: ${entries.length} smoke(s)`);
