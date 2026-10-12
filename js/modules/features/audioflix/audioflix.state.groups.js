@@ -179,8 +179,21 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
         function updateItem(type, itemId, patch) {
             const state = ensure();
             const key = type === 'music' ? 'music' : 'soundboard';
+            const schema = window.EveAudioflixStateSchema;
+            const cleaner = schema?.create?.({
+                text: schema.text,
+                normalizeVolume: schema.normalizeVolume,
+                id: schema.id
+            });
             if (state[key]) {
-                state[key] = state[key].map(entry => entry.id === itemId ? Object.assign({}, entry, patch || {}) : entry);
+                state[key] = state[key].map((entry) => {
+                    if (entry.id !== itemId) return entry;
+                    const merged = Object.assign({}, entry, patch || {}, { id: entry.id });
+                    // Generic provider/media fields are derived together. Re-clean every mutation so
+                    // sourcePlayable/sourceAvailability/legacy Spotify fields can never drift from
+                    // the canonical media identity until the next full store normalization.
+                    return cleaner?.cleanItem ? cleaner.cleanItem(merged, key) : merged;
+                });
             }
             if (type === 'music') state.musicFolders = window.EveAudioflixStateRecovery?.folderRegistry?.(state) || state.musicFolders || [];
             syncRootOrFallback(state);
