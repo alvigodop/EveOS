@@ -61,18 +61,25 @@ async function extractRows(page) {
                 const lines = raw.split(/\n+/).map(tidy).filter(Boolean).filter((line) => !/^(play|pause|more|saved on spotify|preview|explicit|e)$/i.test(line));
                 const durationText = durations[0];
                 const texts = lines.filter((line) => line !== durationText && !/^\d{1,4}$/.test(line));
-                const link = row.querySelector("a[href*='/track/']");
-                const titleNode = row.querySelector("[data-testid='internal-track-link'],[data-testid*='title'],a[href*='/track/']");
+                const link = row.querySelector("a[href*='/track/'],a[href*='/episode/']");
+                const titleNode = row.querySelector("[data-testid='internal-track-link'],[data-testid*='title'],a[href*='/track/'],a[href*='/episode/']");
                 const artists = [...row.querySelectorAll("a[href*='/artist/']")].map((a) => stripExplicitBadge(a.textContent)).filter(Boolean);
                 const title = tidy(titleNode?.textContent) || texts[0] || '';
                 if (!title) break;
                 if (!artists.length && texts[1]) artists.push(stripExplicitBadge(texts[1]));
                 const url = link?.href || link?.getAttribute('href') || '';
+                const media = url.match(/\/(track|episode)\/([A-Za-z0-9]{10,})/) || [];
+                // A row with no Spotify link is a local file or an unavailable item; keep its
+                // metadata and let the network payload (is_local / spotify:local:) classify it.
+                const mediaType = media[1] || 'unknown';
+                const showLink = row.querySelector("a[href*='/show/']");
+                const disabled = row.getAttribute('aria-disabled') === 'true' || !!row.querySelector("[aria-disabled='true'][data-testid^='tracklist-row']");
                 const key = `${title.toLowerCase()}|${artists.join(',').toLowerCase()}|${durationText}`;
                 if (!used.has(key)) {
                     used.add(key);
                     output.push({
-                        id: (url.match(/\/track\/([A-Za-z0-9]{10,})/) || [])[1] || '', title, artists,
+                        id: media[2] || '', mediaType, title, artists,
+                        show: tidy(showLink?.textContent), available: disabled ? false : undefined,
                         album: tidy(row.querySelector("a[href*='/album/']")?.textContent),
                         image: row.querySelector('img')?.currentSrc || row.querySelector('img')?.src || '', durationText,
                         explicit: Boolean(explicitBadge) || /\bexplicit\b/i.test(raw) || lines.includes('E'), url
@@ -184,7 +191,7 @@ async function scrape(context) {
         if (/application error/i.test(title)) throw new Error('Spotify embed failed to initialize (Application error). EveOS requested the en-US locale; reload once, and if it persists use Open Saved Session so Spotify can initialize in a normal player context.');
         const body = await page.locator('body').innerText().catch(() => '');
         for (const script of await page.locator('script').allTextContents()) {
-            if (script.length < 12000000 && /spotify:track:|\/track\//.test(script)) { try { scanValue(JSON.parse(script), network); } catch {} }
+            if (script.length < 12000000 && /spotify:(?:track|episode|local):|\/(?:track|episode)\//.test(script)) { try { scanValue(JSON.parse(script), network); } catch {} }
         }
         return { body, expectedCount: playlistCount(body) };
     }
@@ -210,7 +217,7 @@ async function scrape(context) {
         await Promise.allSettled([...pendingNetwork]);
         const embedScopedNetwork = playlistNetwork.size ? playlistNetwork : network;
         const embedRows = mergePlaylistRows(dom, embedScopedNetwork, loaded.expectedCount);
-        const embedUsableCount = embedRows.filter((row) => row?.title && row?.url).length;
+        const embedUsableCount = embedRows.filter((row) => row?.title && (row?.url || row?.mediaType === 'local')).length;
         if (shouldPromoteEmbedAfterScan(playlistUrl, loaded.expectedCount, embedUsableCount)) {
             loaded = await promoteToFullPlayer(); assertAccessible(loaded.body); dom = await collectDomRows(page, loaded.expectedCount);
         }
@@ -219,7 +226,7 @@ async function scrape(context) {
     const scopedNetwork = playlistNetwork.size ? playlistNetwork : network;
     const rows = mergePlaylistRows(dom, scopedNetwork, loaded.expectedCount), seen = new Set();
     const entries = rows.map((row, index) => ({ ...row, sourceId: stableId(row, index + 1), position: index + 1 }))
-        .filter((row) => row.title && row.url && !seen.has(row.sourceId) && seen.add(row.sourceId));
+        .filter((row) => row.title && (row.url || ['local', 'episode', 'unknown'].includes(row.mediaType)) && !seen.has(row.sourceId) && seen.add(row.sourceId));
     if (!entries.length) {
         const sourceHint = scrapeSource === 'saved-session' ? 'The saved Spotify session opened the playlist but exposed no usable song rows.' : 'Spotify exposed the playlist shell but no usable song rows.';
         throw new Error(`${sourceHint} Open Saved Session, verify the songs themselves are visible there, close that window, then import again.`);

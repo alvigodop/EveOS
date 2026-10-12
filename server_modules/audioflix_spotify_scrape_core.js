@@ -9,14 +9,41 @@ const durationSeconds = (value) => {
     return parts.reduce((total, part) => total * 60 + part, 0);
 };
 const trackId = (value) => clean(value).match(/(?:spotify:track:|\/track\/)([A-Za-z0-9]{10,})/)?.[1] || '';
+// Playlist rows are media items: track, podcast episode, or a Spotify-local file. Track and
+// episode IDs are separate namespaces, so a ref always carries its type.
+const mediaRef = (value) => {
+    const raw = clean(value);
+    const local = raw.match(/spotify:local:[^\s"'<>]+/)?.[0];
+    if (local) return { type: 'local', id: local, uri: local };
+    const match = raw.match(/(?:spotify:(track|episode):|\/(track|episode)\/)([A-Za-z0-9]{10,})/);
+    if (!match) return null;
+    const type = match[1] || match[2];
+    return { type, id: match[3], uri: `spotify:${type}:${match[3]}` };
+};
+const mediaUrl = (type, id) => (type === 'track' || type === 'episode') && id ? `https://open.spotify.com/${type}/${id}` : '';
+// Local URIs look like spotify:local:Artist:Album:Title:seconds (URL-encoded, + for spaces).
+function localUriMetadata(uri) {
+    const parts = clean(uri).replace(/^spotify:local:/, '').split(':')
+        .map((part) => { try { return decodeURIComponent(part.replace(/\+/g, ' ')); } catch { return part; } });
+    if (parts.length < 4) return {};
+    return { artist: clean(parts[0]), album: clean(parts[1]), title: clean(parts[2]), duration: Number(parts[3]) || 0 };
+}
 const playlistIdFromUrl = (value) => clean(value).match(/playlist\/([A-Za-z0-9]+)/)?.[1] || '';
 const matchKey = (value) => clean(value).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
-const stableId = (row, position) => trackId(row.url || row.uri)
-    || crypto.createHash('sha1').update(`${row.title}|${row.artist}|${position}`).digest('hex').slice(0, 22);
+// Tracks keep their bare ID as sourceId (existing libraries reconcile on it). Episodes and
+// locals are namespaced so they can never collide with a track that happens to share an ID.
+const stableId = (row, position) => {
+    const type = row.mediaType || mediaRef(row.uri || row.url)?.type || '';
+    const id = trackId(row.url || row.uri) || (type === 'track' ? clean(row.id) : '');
+    if (id) return id;
+    if (type === 'episode') { const ep = clean(row.id) || mediaRef(row.uri || row.url)?.id; if (ep) return `episode:${ep}`; }
+    if (type === 'local' && clean(row.uri)) return `local:${crypto.createHash('sha1').update(clean(row.uri)).digest('hex').slice(0, 22)}`;
+    return crypto.createHash('sha1').update(`${row.title}|${row.artist}|${position}`).digest('hex').slice(0, 22);
+};
 
 const playlistCount = (value) => {
     const text = clean(value);
-    const summary = text.match(/\b([\d,]+)\s+(?:songs?|tracks?)\s*,?\s*(?:about\s+)?(?:(?:\d+\s*(?:hr|hrs|hours?))(?:\s+\d+\s*(?:min|mins|minutes?))?|(?:\d+\s*(?:min|mins|minutes?)))\b/i);
+    const summary = text.match(/\b([\d,]+)\s+(?:songs?|tracks?|items?|episodes?)\s*,?\s*(?:about\s+)?(?:(?:\d+\s*(?:hr|hrs|hours?))(?:\s+\d+\s*(?:min|mins|minutes?))?|(?:\d+\s*(?:min|mins|minutes?)))\b/i);
     if (!summary) return 0;
     const count = Number(summary[1].replace(/,/g, ''));
     return Number.isFinite(count) && count > 0 ? count : 0;
@@ -75,9 +102,18 @@ function mergeTrack(base = {}, overlay = {}) {
     overlay = overlay && typeof overlay === 'object' ? overlay : {};
     const artists = overlay.artists?.length ? overlay.artists : (base.artists || []);
     const durationMs = Number(overlay.durationMs || base.durationMs || 0);
-    const id = overlay.id || base.id || trackId(overlay.url || base.url);
+    const known = (value) => value && value !== 'unknown' ? value : '';
+    const mediaType = known(overlay.mediaType) || known(base.mediaType)
+        || mediaRef(overlay.uri || overlay.url || base.uri || base.url)?.type || (overlay.mediaType || base.mediaType || '');
+    const id = overlay.id || base.id || mediaRef(overlay.url || base.url)?.id || trackId(overlay.url || base.url);
+    const uri = clean(overlay.uri || base.uri) || (mediaType && mediaType !== 'local' && mediaType !== 'unknown' && id ? `spotify:${mediaType}:${id}` : '');
+    const fallbackUrl = mediaType ? mediaUrl(mediaType, id) : (id ? `https://open.spotify.com/track/${id}` : '');
     return {
         id,
+        mediaType: mediaType || 'track',
+        uri,
+        show: clean(overlay.show || base.show),
+        available: overlay.available === false || base.available === false ? false : undefined,
         title: clean(overlay.title || overlay.name || base.title || base.name || 'Unknown track'),
         artists: [...new Set(artists.map(clean).filter(Boolean))],
         artist: clean(artists.join(', ')),
@@ -85,13 +121,17 @@ function mergeTrack(base = {}, overlay = {}) {
         image: clean(overlay.image || base.image),
         duration: durationMs > 0 ? durationMs / 1000 : durationSeconds(overlay.durationText || base.durationText),
         explicit: Boolean(overlay.explicit || base.explicit),
-        url: clean(overlay.url || overlay.spotifyUrl || base.url || base.spotifyUrl || (id ? `https://open.spotify.com/track/${id}` : ''))
+        // Never synthesize a URL for a local file: it has no Spotify page.
+        url: mediaType === 'local' ? '' : clean(overlay.url || overlay.spotifyUrl || base.url || base.spotifyUrl || fallbackUrl)
     };
 }
 
 function rowIdentity(row = {}) {
-    const id = clean(row.id) || trackId(row.url || row.uri);
-    if (id) return `id:${id}`;
+    const ref = mediaRef(row.uri || row.url);
+    const type = row.mediaType && row.mediaType !== 'unknown' ? row.mediaType : (ref?.type || '');
+    // Local files have no stable Spotify ID; the DOM row and the network row meet on metadata.
+    const id = type === 'local' ? '' : (clean(row.id) || ref?.id || trackId(row.url || row.uri));
+    if (id) return `id:${type || 'track'}:${id}`;
     const title = matchKey(row.title || row.name);
     const artist = matchKey(row.artist || row.artists?.join(' '));
     return title ? `meta:${title}|${artist}` : '';
@@ -100,7 +140,7 @@ function rowIdentity(row = {}) {
 function mergePlaylistRows(domRows = [], networkTracks = new Map(), expectedCount = 0) {
     const networkRows = networkTracks instanceof Map ? [...networkTracks.values()] : [...(networkTracks || [])];
     if (!domRows.length) return expectedCount ? networkRows.slice(0, expectedCount) : networkRows;
-    const domHasTrackUrls = domRows.some((row) => Boolean(trackId(row?.url || row?.uri)));
+    const domHasTrackUrls = domRows.some((row) => Boolean(mediaRef(row?.url || row?.uri)));
     if (!domHasTrackUrls && networkRows.length) {
         const firstDomTitle = matchKey(domRows[0]?.title || domRows[0]?.name);
         const titleAnchor = firstDomTitle
@@ -130,6 +170,8 @@ function mergePlaylistRows(domRows = [], networkTracks = new Map(), expectedCoun
     const seen = new Set(merged.map(rowIdentity).filter(Boolean));
     if (anchor >= 0) {
         for (const row of networkRows.slice(anchor)) {
+            // The DOM can already hold every row Spotify counted; never append past that count.
+            if (expectedCount && merged.length >= expectedCount) break;
             const key = rowIdentity(row);
             if (!key || seen.has(key)) continue;
             merged.push(row); seen.add(key);
@@ -150,8 +192,40 @@ function scanValue(value, tracks, depth = 0, seen = new WeakSet()) {
         value.uri, value.trackUri, value.spotifyUri, value.external_urls?.spotify,
         value.externalUrls?.spotify, value.spotifyUrl, value.url, value.href
     ];
-    let id = candidates.map(trackId).find(Boolean) || '';
-    if (!id && typeof value.id === 'string' && /^(track|Track|TRACK)$/.test(value.type || value.__typename || value.contentType || '')) id = value.id;
+    const kind = String(value.type || value.__typename || value.contentType || '').toLowerCase();
+    let ref = candidates.map(mediaRef).find(Boolean) || null;
+    if (!ref && typeof value.id === 'string' && /^(track|episode|podcastepisode)$/.test(kind)) {
+        const type = kind === 'track' ? 'track' : 'episode';
+        ref = { type, id: value.id, uri: `spotify:${type}:${value.id}` };
+    }
+    if (!ref && (value.is_local === true || value.isLocal === true || kind === 'localtrack') && (value.name || value.title)) {
+        const uri = clean(value.uri) || `spotify:local:${encodeURIComponent(clean(value.name || value.title))}`;
+        ref = { type: 'local', id: uri, uri };
+    }
+    // Containers (playlist items wrapper, show) carry the ref only through a child; skip shells
+    // that merely link to a show/album without naming a playable item.
+    if (ref && !(value.name || value.title || value.trackName) && ref.type !== 'track') ref = null;
+    const id = ref?.type === 'track' ? ref.id : '';
+    if (ref && ref.type !== 'track') {
+        const localMeta = ref.type === 'local' ? localUriMetadata(ref.uri) : {};
+        const show = value.podcastV2?.data?.name || value.podcast?.name || value.show?.name || '';
+        const images = value.coverArt?.sources || value.images || value.podcastV2?.data?.coverArt?.sources || [];
+        const key = `${ref.type}:${ref.id}`;
+        tracks.set(key, mergeTrack(tracks.get(key), {
+            id: ref.type === 'episode' ? ref.id : '',
+            mediaType: ref.type,
+            uri: ref.uri,
+            title: value.name || value.title || localMeta.title,
+            artists: ref.type === 'episode' ? (show ? [show] : []) : [value.artists?.[0]?.name || localMeta.artist].filter(Boolean),
+            show,
+            album: value.album?.name || localMeta.album,
+            image: (Array.isArray(images) ? images : []).map((entry) => entry?.url).find(Boolean) || '',
+            durationMs: value.duration_ms || value.durationMs || value.duration?.totalMilliseconds || (localMeta.duration ? localMeta.duration * 1000 : 0),
+            explicit: value.explicit || value.contentRating?.label === 'EXPLICIT',
+            available: value.playability?.playable === false ? false : undefined,
+            url: mediaUrl(ref.type, ref.id)
+        }));
+    }
     if (id) {
         const rawArtists = value.artists?.items || value.artists?.nodes || value.artists || value.artist || value.performers || [];
         const artists = (Array.isArray(rawArtists) ? rawArtists : [rawArtists])
@@ -172,6 +246,8 @@ function scanValue(value, tracks, depth = 0, seen = new WeakSet()) {
             image,
             durationMs: value.duration_ms || value.durationMs || value.duration?.totalMilliseconds,
             explicit: value.explicit || value.contentRating?.label === 'EXPLICIT',
+            mediaType: 'track',
+            available: value.playability?.playable === false || value.is_playable === false ? false : undefined,
             url: `https://open.spotify.com/track/${id}`
         });
         tracks.set(id, row);
@@ -180,7 +256,7 @@ function scanValue(value, tracks, depth = 0, seen = new WeakSet()) {
 }
 
 module.exports = {
-    clean, trackId, playlistIdFromUrl, stableId, playlistCount, isEmbedPlaylistUrl, fullPlaylistUrl,
+    clean, trackId, mediaRef, mediaUrl, localUriMetadata, playlistIdFromUrl, stableId, playlistCount, isEmbedPlaylistUrl, fullPlaylistUrl,
     needsFullPlayerPromotion, assessPlaylistCompleteness, shouldPromoteEmbedAfterScan,
     requestMentionsPlaylist, mergeTrack, mergePlaylistRows, scanValue
 };

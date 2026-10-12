@@ -6,10 +6,12 @@ window.EveAudioflixSpotifyAnyBrowser = window.EveAudioflixSpotifyAnyBrowser || {
     if (ns.ready) return;
 
     const remote = () => window.EveAudioflixSpotifyRemote;
-    const isSpotify = (item) => String(item?.sourceProvider || '').toLowerCase() === 'spotify'
+    // Episodes/locals must never reach the track engine: its ID regex would read a 22-char episode ID as a track.
+    const nonTrack = (item) => ['episode', 'local'].includes(item?.sourceMediaType) || /\/episode\/|spotify:(?:episode|local):/i.test(String(item?.url || item?.originalUrl || ''));
+    const isSpotify = (item) => !nonTrack(item) && (String(item?.sourceProvider || '').toLowerCase() === 'spotify'
         || !!item?.spotifyUrl
-        || /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)/i.test(String(item?.url || item?.originalUrl || ''));
-    const spotifyId = (item) => String(item?.spotifyTrackId || item?.spotifyUrl || item?.url || item?.originalUrl || '')
+        || /(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)/i.test(String(item?.url || item?.originalUrl || '')));
+    const spotifyId = (item) => nonTrack(item) ? '' : String(item?.spotifyTrackId || item?.spotifyUrl || item?.url || item?.originalUrl || '')
         .match(/(?:spotify:track:|open\.spotify\.com\/(?:embed\/)?track\/)?([A-Za-z0-9]{22})(?:[?/#]|$)?/i)?.[1] || '';
     const effectiveGain = (raw) => window.EveAudioflixSpotifyVolume.effectiveGain(raw);
     const sameItem = (left, right) => String(left?.id || left?.url || '') === String(right?.id || right?.url || '');

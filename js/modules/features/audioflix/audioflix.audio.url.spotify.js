@@ -62,7 +62,9 @@ window.EveAudioflixSpotifyPlayback = window.EveAudioflixSpotifyPlayback || {};
 
         async function playSpotify(item) {
             const id = spotifyTrackId(item?.url);
-            if (!id) throw new Error('This Spotify link does not contain a playable track ID.');
+            if (!id) throw new Error(/\/episode\/|spotify:episode:/i.test(String(item?.url || item?.sourceUri || ''))
+                ? 'Spotify podcast episodes are saved with their metadata, but EveOS playback supports Spotify tracks only for now.'
+                : 'This Spotify link does not contain a playable track ID.');
             const host = ensureStage(item, 'Spotify');
             const mount = document.createElement('div');
             mount.className = 'audioflix-spotify-player';

@@ -178,7 +178,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         const sameItem = String(prior?.item?.id || '') === String(item?.id || '');
         const prepared = await preparePlaybackItem(item);
         const requestedItem = prepared?.item || (item && typeof item === 'object' ? { ...item } : {});
-        if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
+        if (!requestedItem.url) throw new Error(requestedItem.sourceIsLocal ? 'This Spotify local file has no linked file in EveOS yet.' : 'Audioflix item is missing a URL.');
         let playableItem = requestedItem;
         if (window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url) && window.EveAudioflixUrlProviders?.providerFor?.(requestedItem.url) !== 'instagram') {
             try { playableItem = await window.EveAudioflixAudioSource.resolveItem(requestedItem); }
@@ -204,7 +204,7 @@ window.EveAudioflixAudio = window.EveAudioflixAudio || {};
         }
         const prepared = await preparePlaybackItem(item);
         const requestedItem = prepared?.item || (item && typeof item === 'object' ? { ...item } : {});
-        if (!requestedItem.url) throw new Error('Audioflix item is missing a URL.');
+        if (!requestedItem.url) throw new Error(requestedItem.sourceIsLocal ? 'This Spotify local file has no linked file in EveOS yet.' : 'Audioflix item is missing a URL.');
 
         const needsResolution = window.EveAudioflixAudioSource?.needsResolution?.(requestedItem.url);
         if (urlPlayback?.shouldPreferBrowser?.(requestedItem) && !needsResolution) {

@@ -9,13 +9,11 @@
  * opens one temporary Spotify page in the same BrowserContext and closes only that page.
  */
 
-const crypto = require('node:crypto');
 
 const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
-const trackId = (value) => clean(value).match(/(?:spotify:track:|\/track\/)([A-Za-z0-9]{10,})/)?.[1] || '';
 const playlistIdFromUrl = (value) => clean(value).match(/playlist\/([A-Za-z0-9]+)/)?.[1] || '';
-const stableId = (row, position) => trackId(row.url || row.uri)
-    || crypto.createHash('sha1').update(`${row.title}|${row.artist}|${position}`).digest('hex').slice(0, 22);
+// One sourceId rule for every extraction path (tracks bare, episodes/locals namespaced).
+const { stableId } = require('./audioflix_spotify_scrape_core.js');
 
 function normalizeManagedPlaylistUrl(value) {
     const raw = clean(value);
@@ -111,7 +109,7 @@ async function scrapeManagedPlaylist(context, playlistUrl) {
             }
 
             for (const script of await page.locator('script').allTextContents()) {
-                if (script.length < 12000000 && /spotify:track:|\/track\//.test(script)) {
+                if (script.length < 12000000 && /spotify:(?:track|episode|local):|\/(?:track|episode)\//.test(script)) {
                     try { scanValue(JSON.parse(script), network); } catch {}
                 }
             }
@@ -125,7 +123,7 @@ async function scrapeManagedPlaylist(context, playlistUrl) {
             const entries = rows.map((row, index) => {
                 const sourceId = stableId(row, index + 1);
                 return { ...row, sourceId, position: index + 1 };
-            }).filter((row) => row.title && row.url && !seen.has(row.sourceId) && seen.add(row.sourceId));
+            }).filter((row) => row.title && (row.url || ['local', 'episode', 'unknown'].includes(row.mediaType)) && !seen.has(row.sourceId) && seen.add(row.sourceId));
 
             if (!entries.length) {
                 throw new Error('The managed Spotify session opened the playlist but exposed no usable song rows.');

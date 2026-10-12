@@ -50,18 +50,35 @@ window.EveAudioflixSpotify = window.EveAudioflixSpotify || {};
         return window.EveAudioflixNative?.openSpotifySession?.(normalized.url);
     }
 
+    // One extracted playlist row -> AudioFlix fields. Rows are media items, not just tracks:
+    // track | episode | local | unknown. Never invent a track ID or an open.spotify.com URL for
+    // an episode or a Spotify-local file; keep what Spotify exposed and mark it metadata-only.
     function entryPatch(entry = {}) {
-        const spotifyTrackId = text(entry.spotifyTrackId || entry.id);
-        return {
+        const schema = window.EveAudioflixStateSchema;
+        const declared = text(entry.mediaType).toLowerCase();
+        const ref = schema?.spotifyRef?.(entry.uri || entry.spotifyUri || entry.url)
+            || (declared === 'track' || !declared ? schema?.spotifyRef?.(entry.spotifyTrackId || entry.id ? `spotify:track:${entry.spotifyTrackId || entry.id}` : '') : null);
+        const mediaType = ['track', 'episode', 'local', 'unknown'].includes(declared) ? declared : (ref?.type || 'unknown');
+        const mediaId = ref && ref.type === mediaType ? ref.id : '';
+        const unavailable = entry.available === false || entry.playable === false;
+        const patch = {
             album: text(entry.album),
             image: text(entry.image),
             explicit: entry.explicit === true,
             sourceProvider: 'spotify',
-            spotifyTrackId,
-            spotifyUri: text(entry.spotifyUri || entry.uri || (spotifyTrackId ? `spotify:track:${spotifyTrackId}` : '')),
+            sourceMediaType: mediaType,
+            sourceMediaId: mediaId,
+            sourceUri: mediaId ? `spotify:${mediaType}:${mediaId}` : text(entry.uri),
+            sourceIsLocal: mediaType === 'local',
+            sourceAvailability: unavailable ? 'unavailable' : (mediaType === 'track' && mediaId ? 'playable' : 'metadata-only'),
+            spotifyTrackId: mediaType === 'track' ? mediaId : '',
+            spotifyUri: mediaType === 'track' && mediaId ? `spotify:track:${mediaId}` : '',
             isrc: text(entry.isrc || entry.external_ids?.isrc || entry.externalIds?.isrc),
             playlistPosition: Math.max(0, Number(entry.position || 0) || 0)
         };
+        // Episodes carry their show as the artist line so cards stay readable.
+        if (mediaType === 'episode' && !text(entry.artist) && text(entry.show)) patch.artist = text(entry.show);
+        return patch;
     }
 
     function connectionPatch(payload = {}) {
