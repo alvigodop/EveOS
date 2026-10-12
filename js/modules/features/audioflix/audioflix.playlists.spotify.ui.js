@@ -65,6 +65,7 @@ window.EveAudioflixSpotifyUi = window.EveAudioflixSpotifyUi || {};
             const importForm = target.closest('form');
             const importValue = importForm?.querySelector('[name="url"]')?.value || '';
             const importFolder = importForm?.querySelector('[name="folder"]')?.value || '';
+            const importGroup = importForm?.querySelector('[name="group"]')?.value || '';
             const source = connection?.url || importValue;
             if (!source) {
                 ctx.playbackStatus = 'Enter a Spotify playlist URL or iframe first.';
@@ -77,6 +78,8 @@ window.EveAudioflixSpotifyUi = window.EveAudioflixSpotifyUi || {};
                     ctx.importFormValues = Object.assign({}, ctx.importFormValues, {
                         spotifyUrl: source,
                         spotifyFolder: importFolder,
+                        // Group is its own field now; a session rerender must not wipe it.
+                        spotifyGroup: importGroup,
                         spotifyStatus: ctx.playbackStatus
                     });
                 }

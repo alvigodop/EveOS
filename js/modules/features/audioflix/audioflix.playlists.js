@@ -203,6 +203,22 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         text, newId, connections, saveConnections, tracksFor, DEFAULT_WPL_FOLDER
     });
 
+    // Honest per-kind counts for the import report: "3 episodes, 2 local files (not linked)".
+    function mediaSummary(entries) {
+        const counts = { track: 0, episode: 0, local: 0, unknown: 0, unavailable: 0 };
+        (Array.isArray(entries) ? entries : []).forEach((entry) => {
+            const type = ['track', 'episode', 'local'].includes(entry?.mediaType) ? entry.mediaType : (entry?.mediaType ? 'unknown' : 'track');
+            counts[type] += 1;
+            if (entry?.available === false) counts.unavailable += 1;
+        });
+        const parts = [];
+        if (counts.episode) parts.push(`${counts.episode} podcast episode${counts.episode === 1 ? '' : 's'}`);
+        if (counts.local) parts.push(`${counts.local} Spotify local file${counts.local === 1 ? '' : 's'} (metadata only)`);
+        if (counts.unknown) parts.push(`${counts.unknown} unlinked row${counts.unknown === 1 ? '' : 's'} (metadata only)`);
+        if (counts.unavailable) parts.push(`${counts.unavailable} unavailable on Spotify`);
+        return { counts, text: parts.join(', ') };
+    }
+
     // Import a playlist URL as a group of tracks. options: { folder, group }
     async function importPlaylist(url, options = {}) {
         let clean = text(url);
@@ -212,7 +228,12 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         if (!normalized?.ok) return normalized;
         clean = normalized.url;
         const existing = connections().find((entry) => entry.provider === provider && entry.url === clean);
-        if (existing) return syncPlaylist(existing.id, true, options.folder);
+        if (existing) {
+            // Re-importing a connected playlist with an explicit Group moves it there; Folder was
+            // already honored as the sync target. Blank Group leaves the current placement alone.
+            if (text(options.group) && !sameName(options.group, existing.group)) updateConnection(existing.id, { group: text(options.group) });
+            return syncPlaylist(existing.id, true, options.folder);
+        }
 
         const upstream = await fetchUpstream(clean, true, provider, { title: options.group });
         if (!upstream.ok) return upstream;
@@ -233,7 +254,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         };
         const diff = reconcileBatch(connection, upstream.entries || [], options.folder,
             connections().concat(connection), 'audioflix-playlist-import');
-        return { ok: true, connection, added: diff.add.length, missing: 0 };
+        return { ok: true, connection, added: diff.add.length, missing: 0, media: mediaSummary(upstream.entries) };
     }
 
     // Re-read the upstream playlist and reconcile against what EveOS holds.
@@ -267,7 +288,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
             : entry);
         const diff = reconcileBatch(syncedConnection, upstream.entries || [], folderToUse,
             next, 'audioflix-playlist-sync');
-        return { ok: true, connection: syncedConnection, added: diff.add.length, restored: diff.restore.length, missing: diff.missing.length };
+        return { ok: true, connection: syncedConnection, added: diff.add.length, restored: diff.restore.length, missing: diff.missing.length, media: mediaSummary(upstream.entries) };
     }
 
     // Move a track OUT of the playlist connection but keep it in EveOS (its own folder/group).
@@ -373,7 +394,7 @@ window.EveAudioflixPlaylists = window.EveAudioflixPlaylists || {};
         DEFAULT_SPOTIFY_FOLDER,
         DEFAULT_INSTAGRAM_FOLDER,
         DEFAULT_WPL_FOLDER,
-        diffPlaylist,
+        diffPlaylist, mediaSummary,
         connections,
         getConnection,
         getPlaylistForGroup,

@@ -61,7 +61,7 @@ window.EveAudioflixUiForms = window.EveAudioflixUiForms || {};
                             ctx.rerender();
                             PL.importPlaylist(url, { folder: folder || '', group: group || '' }).then(res => {
                                 ctx.playbackStatus = res.ok
-                                    ? `Imported "${res.connection.title}" (${res.added} track${res.added === 1 ? '' : 's'}) into ${res.connection.folder}.`
+                                    ? `Imported "${res.connection.title}" (${res.added} item${res.added === 1 ? '' : 's'}${res.media?.text ? `; ${res.media.text}` : ''}) into ${res.connection.folder}.`
                                     : (res.reason || 'Playlist import failed.');
                                 if (res.ok) {
                                     ctx.importFormOpen = false;
