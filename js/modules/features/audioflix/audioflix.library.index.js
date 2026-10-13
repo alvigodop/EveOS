@@ -48,7 +48,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
         const started = window.performance?.now?.() ?? Date.now();
         const source = snapshot[kindKey(type)] || EMPTY;
         const index = { source, length: source.length, rows: new Map(), ids: new Map(), revision: ++contentRevision,
-            buckets: Object.fromEntries(dimensions.map(key => [key, new Map()])), nextRank: source.length, docs: null, updates: 0 };
+            buckets: Object.fromEntries(dimensions.map(key => [key, new Map()])), nextRank: source.length, docs: null, scopes: new Map(), updates: 0 };
         source.forEach((item, rank) => put(index, describe(snapshot, type, item, rank)));
         index.api = Object.freeze({
             getById(value) {
@@ -75,12 +75,17 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
             },
             scope(dimension, value) {
                 ensureSource(index, snapshot, type);
+                const cacheKey = `${dimension}\u0000${scopeKey(dimension, value)}`;
+                const cachedScope = index.scopes.get(cacheKey);
+                if (cachedScope?.revision === index.revision) return cachedScope.items;
                 let rows = index.buckets[dimension]?.get(scopeKey(dimension, value)) || [];
                 if ([...rows].some(row => index.source[row.position] !== row.item)) {
                     repair(index, snapshot, type);
                     rows = index.buckets[dimension]?.get(scopeKey(dimension, value)) || [];
                 }
-                return [...rows].sort((a, b) => a.rank - b.rank).map(row => row.item);
+                const scoped = Object.freeze([...rows].sort((a, b) => a.rank - b.rank).map(row => row.item));
+                index.scopes.set(cacheKey, { revision: index.revision, items: scoped });
+                return scoped;
             },
             docs() {
                 ensureSource(index, snapshot, type);
@@ -89,7 +94,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
                 return index.docs;
             },
             get contentRevision() { ensureSource(index, snapshot, type); return index.revision; },
-            diagnostics() { return { items: index.rows.size, contentRevision: index.revision, incrementalUpdates: index.updates }; }
+            diagnostics() { return { items: index.rows.size, contentRevision: index.revision, incrementalUpdates: index.updates, cachedScopes: index.scopes.size }; }
         });
         try {
             window.EveAudioflixDiagnostics?.increment?.('index:builds');
@@ -99,7 +104,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     }
     function repair(index, snapshot, type) {
         index.source = snapshot[kindKey(type)] || EMPTY; index.length = index.source.length;
-        index.rows.clear(); index.ids.clear();
+        index.rows.clear(); index.ids.clear(); index.scopes.clear();
         for (const dimension of dimensions) index.buckets[dimension].clear();
         index.source.forEach((item, position) => put(index, describe(snapshot, type, item, position)));
         index.nextRank = index.length; index.docs = null; index.revision = ++contentRevision;
@@ -120,7 +125,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     function changed(index, snapshot, type) {
         index.source = snapshot[kindKey(type)] || EMPTY;
         index.length = index.source.length;
-        index.revision = ++contentRevision; index.updates += 1; index.docs = null;
+        index.revision = ++contentRevision; index.updates += 1; index.docs = null; index.scopes.clear();
         try { window.EveAudioflixDiagnostics?.increment?.('index:updates'); } catch { /* Optional telemetry only. */ }
     }
     function upsert(snapshot, type, item, previous = item) {
