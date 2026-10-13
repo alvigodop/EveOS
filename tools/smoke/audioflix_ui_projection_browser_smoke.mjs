@@ -94,6 +94,16 @@ try {
     await page.locator('[data-af-action="toggle-routing-drawer"]').click();
     assert.equal(await page.locator('#narration-title').textContent(), 'Selected stopped reader');
     assert.equal(await page.evaluate(() => window.__card === document.querySelector('.audioflix-item-card')), true);
+    assert.deepEqual(await page.evaluate(() => ({
+        wave: !!document.querySelector('#audioflix-waveform'),
+        output: !!document.querySelector('#live-output')
+    })), { wave: true, output: true });
+    await page.evaluate(() => {
+        // Routing close/open intentionally remounts these controls. From here onward,
+        // this fresh identity is the baseline that library-only projection must preserve.
+        window.__wave = document.querySelector('#audioflix-waveform');
+        window.__output = document.querySelector('#live-output');
+    });
     checks.push('routing-open-hydrates-stopped-reader');
     await page.locator('[data-af-action="select-folder-scope"][data-af-scope="Test"]').click();
     await page.locator('[data-af-action="select-frontend-group"][data-af-group="Group A"]').click();
