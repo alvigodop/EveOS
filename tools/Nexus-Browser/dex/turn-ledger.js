@@ -51,20 +51,22 @@ function createTurnLedger({ filePath = DEFAULT_FILE, maxBytes = 2 * 1024 * 1024 
     const id = String(requestId || '').trim();
     const nextState = String(state || '').trim();
     if (!id || !ORDER[nextState]) return Promise.resolve(null);
-    const current = latest.get(id);
-    if (current && ORDER[current.state] >= ORDER[nextState] && current.state !== 'failed') return Promise.resolve({ ...current });
-    const event = {
-      ...(current || {}),
-      requestId: id,
-      state: nextState,
-      at: new Date().toISOString(),
-      ...(meta.targetClassId ? { targetClassId: meta.targetClassId } : {}),
-      ...(meta.targetId != null ? { targetId: meta.targetId } : {}),
-      ...(meta.providerId ? { providerId: meta.providerId } : {}),
-      ...(meta.code ? { code: meta.code } : {}),
-      ...(nextState === 'dispatching' ? { dispatchAttempts: Number(current?.dispatchAttempts || 0) + 1 } : {})
-    };
+    meta = { ...meta };
     chain = chain.catch(() => {}).then(async () => {
+      // Compare against the last committed event, not the state when this write was queued.
+      const current = latest.get(id);
+      if (current && ORDER[current.state] >= ORDER[nextState] && current.state !== 'failed') return { ...current };
+      const event = {
+        ...(current || {}),
+        requestId: id,
+        state: nextState,
+        at: new Date().toISOString(),
+        ...(meta.targetClassId ? { targetClassId: meta.targetClassId } : {}),
+        ...(meta.targetId != null ? { targetId: meta.targetId } : {}),
+        ...(meta.providerId ? { providerId: meta.providerId } : {}),
+        ...(meta.code ? { code: meta.code } : {}),
+        ...(nextState === 'dispatching' ? { dispatchAttempts: Number(current?.dispatchAttempts || 0) + 1 } : {})
+      };
       await fs.promises.appendFile(filePath, `${JSON.stringify(event)}\n`, 'utf8');
       latest.set(id, event);
       writes += 1;

@@ -51,6 +51,7 @@ test('Nexus lifecycle cold-starts Local Control only from an explicit Nexus acti
 
 test('Search Monitor Global Stop unloads the embedded Nexus workspace before server teardown', async () => {
   const listeners = {}, messages = [];
+  let pendingStatus = null;
   const frame = {
     attributes: new Map(),
     contentWindow: { postMessage(payload) { messages.push(payload); } },
@@ -76,6 +77,7 @@ test('Search Monitor Global Stop unloads the embedded Nexus workspace before ser
     EveOSLocalControl: {
       baseUrl: () => 'http://127.0.0.1:9082',
       async fetchJson() {
+        if (pendingStatus) return pendingStatus;
         return { running: true, state: 'running', url: 'http://127.0.0.1:9088/',
           extensionReady: true, appBinding: { connected: true } };
       }
@@ -90,7 +92,12 @@ test('Search Monitor Global Stop unloads the embedded Nexus workspace before ser
   windowMock.EveOSNexusBrowser.bind(root);
   await windowMock.EveOSNexusBrowser.activate();
   assert.equal(frame.getAttribute('src'), 'http://127.0.0.1:9088/');
+  let finishStatus;
+  pendingStatus = new Promise(resolve => { finishStatus = resolve; });
+  const staleRefresh = windowMock.EveOSNexusBrowser.refresh();
   listeners['eve:eveos-global-stop']({ detail: { source: 'search-monitor' } });
+  finishStatus({ running: true, state: 'running', url: 'http://127.0.0.1:9088/' });
+  await staleRefresh;
   assert.equal(frame.getAttribute('src'), 'about:blank');
   assert.equal(inline.hidden, true);
   assert.equal(messages.at(-1)?.action, 'standby');

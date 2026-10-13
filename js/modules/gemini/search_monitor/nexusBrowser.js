@@ -19,6 +19,7 @@
     let root = null;
     let status = null;
     let busy = false;
+    let statusGeneration = 0;
     let detachedWindow = null;
     let detachedSeenAt = 0;
 
@@ -118,6 +119,7 @@
     }
 
     function handleGlobalStop() {
+        statusGeneration += 1;
         workspaceControl('standby', 'eveos-global-stop');
         render({
             ...(status || {}),
@@ -251,11 +253,15 @@
     }
 
     async function refresh() {
+        if (busy) return null;
+        const generation = ++statusGeneration;
         try {
             const snapshot = await controlRequest(STATUS_PATH, null, 5000);
+            if (generation !== statusGeneration) return null;
             render(snapshot);
             return snapshot;
         } catch (error) {
+            if (generation !== statusGeneration) return null;
             const control = window.EveOSControlPlane?.getState?.() || {};
             const message = control.controllerAvailable
                 ? 'Local Control is online, but Nexus Browser status is temporarily unreachable. Keeping the current workspace while Search Monitor retries.'
@@ -269,17 +275,21 @@
     async function invoke(action) {
         if (busy || !ACTION_PATHS[action]) return null;
         busy = true;
+        const generation = ++statusGeneration;
         render(status || { state: 'stopped', running: false }, `${action === 'setup' ? 'Installing' : `${action}ing`} Nexus Browser…`);
         try {
             if (action !== 'restart') await window.EveOSLocalControl?.ensure?.({ timeoutMs: 45000, userInitiated: true });
+            if (generation !== statusGeneration) return null;
             const timeout = action === 'setup' ? 10 * 60 * 1000 : action === 'stop' ? 30000 : 15000;
             const snapshot = action === 'restart'
                 ? await window.EveOSServiceReload.restart('nexusBrowser')
                 : await controlRequest(ACTION_PATHS[action], { method: 'POST' }, timeout);
+            if (generation !== statusGeneration) return null;
             render(snapshot);
             if (action === 'stop' && snapshot?.running !== true) closeDetached();
             return snapshot;
         } catch (error) {
+            if (generation !== statusGeneration) return null;
             render(status || { state: 'error', running: false }, error?.message || `Nexus Browser ${action} failed.`);
             return null;
         } finally {

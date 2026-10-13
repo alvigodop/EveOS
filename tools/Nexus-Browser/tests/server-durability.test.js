@@ -1,6 +1,23 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createServerDurability } = require('../dex/server-durability.js');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { createTurnLedger } = require('../dex/turn-ledger.js');
+
+test('concurrent identical dispatches acquire the durable boundary only once', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dex-dispatch-race-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const ledger = createTurnLedger({ filePath: path.join(dir, 'turns.jsonl') });
+  const durability = createServerDurability({ ledger, incidents: { record() {}, stats() { return {}; } } });
+  const results = await Promise.all(Array.from({ length: 12 }, () =>
+    durability.beforeDispatch({ type: 'send_prompt', requestId: 'same-turn' })));
+  assert.equal(results.filter(result => result.ok).length, 1);
+  assert.equal(results.filter(result => result.duplicate).length, 11);
+  assert.equal(ledger.entry('same-turn').dispatchAttempts, 1);
+  assert.equal((await durability.beforeDispatch({ type: 'send_prompt', requestId: 'next-turn' })).ok, true);
+});
 
 function fakeLedger() {
   const values = new Map();

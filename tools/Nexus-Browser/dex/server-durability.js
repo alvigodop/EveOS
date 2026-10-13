@@ -6,11 +6,12 @@ function createServerDurability({
   ledger = createTurnLedger(),
   incidents = createIncidentStore()
 } = {}) {
+  const pendingDispatches = new Map();
 
   async function beforeDispatch(msg, meta = {}) {
     const requestId = String(msg?.requestId || '').trim();
     if (!requestId || msg?.type !== 'send_prompt') return { ok: true, tracked: false };
-    const existing = ledger.entry(requestId);
+    const existing = ledger.entry(requestId) || pendingDispatches.get(requestId);
     if (existing && failurePolicy.dispatchMayHaveOccurred(existing.state)) {
       incidents.record({
         code: 'DUPLICATE_DISPATCH_BLOCKED', requestId,
@@ -19,8 +20,14 @@ function createServerDurability({
       });
       return { ok: false, duplicate: true, entry: existing };
     }
-    const entry = await ledger.record(requestId, 'dispatching', meta);
-    return { ok: true, tracked: true, entry };
+    // Reserve before awaiting disk I/O; parallel callers must not all pass an empty ledger.
+    pendingDispatches.set(requestId, { ...meta, requestId, state: 'dispatching' });
+    try {
+      const entry = await ledger.record(requestId, 'dispatching', meta);
+      return { ok: true, tracked: true, entry };
+    } finally {
+      pendingDispatches.delete(requestId);
+    }
   }
 
   async function observe(payload = {}, meta = {}) {
