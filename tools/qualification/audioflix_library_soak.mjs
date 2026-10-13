@@ -38,6 +38,11 @@ export function assertHeldVolume(before, held) {
     assert.equal(held.persists, before.persists, 'Holding a pointer never persists');
 }
 
+export async function recordSoakPhase(page, phase, operation) {
+    await page.evaluate(name => window.__librarySoak.phase(name), phase);
+    return operation();
+}
+
 export async function settleSoakPersistence(page, reason) {
     const boundary = await page.evaluate(async reason => {
         const result = await window.EveAudioflixState.flush(reason), diagnostics = window.EveAudioflixDiagnostics;
@@ -80,15 +85,14 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
     const { page, context } = run, cdp = await context.newCDPSession(page);
     const rows = {}, samples = [], warnings = [], counts = { playStop: 0, settings: 0, queueTransitions: 0, searches: 0, expansionPairs: 0, gestures: 0, pointerMoves: 0, playlistReconciliations: 0, healthUpdates: 0 };
     let expandedGroupSize = 0;
-    const record = async (phase, operation) => {
-        await page.evaluate(phase => window.__librarySoak.phase(phase), phase);
+    const record = (phase, operation) => recordSoakPhase(page, phase, async () => {
         const at = performance.now(), result = await operation();
         (rows[phase] ||= []).push(performance.now() - at); return result;
-    };
+    });
     const topologyBefore = hash(JSON.stringify(await topology(page)));
     const settledBoundaries = [];
     const quiesce = async reason => {
-        const boundary = await settleSoakPersistence(page, reason);
+        const boundary = await record(`persistence:${reason}`, () => settleSoakPersistence(page, reason));
         settledBoundaries.push({ reason, ...boundary });
     };
     try {
@@ -135,12 +139,12 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         await page.waitForFunction(() => { const now = performance.now(), gen = window.EveAudioflixDiagnostics.snapshot().counters['ui:render-generations'] || 0;
             const q = window.__soakRenderQuiet ||= { gen, at: now }; if (q.gen !== gen) Object.assign(q, { gen, at: now });
             return now - q.at >= 2000; }, undefined, { timeout: 60000, polling: 250 });
-        await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click();
+        await record('view-mode-frontend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click());
         await page.waitForFunction(() => window.EveAudioflixState.ensure().musicViewMode === 'frontend');
         // The saved real backup has a folder focus. Clear it through its actual UI control so
         // the soak uses canonical All Folders/All Groups, rather than manufacturing a queue.
-        await page.locator('[data-af-action="select-folder-scope"][data-af-scope=""]').click();
-        await page.locator('[data-af-action="select-frontend-group"][data-af-type="music"][data-af-group=""]').click();
+        await record('folder-scope-pointer', () => page.locator('[data-af-action="select-folder-scope"][data-af-scope=""]').click());
+        await record('frontend-group-pointer', () => page.locator('[data-af-action="select-frontend-group"][data-af-type="music"][data-af-group=""]').click());
         const target = await page.evaluate(() => {
             const scope = window.EveAudioflix.frontendScope('music').items;
             const item = scope.find(item => Number(item.duration) > 0 && !/spotify/i.test(String(item.url || item.sourceProvider || ''))) || scope[0];
@@ -192,7 +196,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         const volume = async () => {
             // The previous release schedules a 500ms save; settle it outside this gesture's timing/counters.
             await quiesce('soak-volume-ready');
-            const slider = targetCard().locator('.audioflix-volume-slider'); await settleSoakSliderHover(slider);
+            const slider = targetCard().locator('.audioflix-volume-slider');
+            await record('volume-hover-preparation', () => settleSoakSliderHover(slider));
             const box = await slider.boundingBox(); assert.ok(box?.width > 30);
             const before = await page.evaluate(() => { window.__soakSlider = document.activeElement;
                 window.__soakCard = window.__soakSlider.closest('.audioflix-item-card');
@@ -217,6 +222,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             await page.mouse.up(); (rows['volume-drag-pointer'] ||= []).push(performance.now() - at);
             const after = await page.evaluate(id => {
                 const slider = window.__soakSlider, state = window.EveAudioflixState;
+                window.__librarySoak.phase('volume-drag-settled');
                 return { ...window.__soakCalls, revision: state.getRevision(), value: Number(slider.value),
                     stateValue: state.ensure().music.find(item => String(item.id) === id).volume,
                     sameNode: slider === document.activeElement && slider.isConnected && slider.closest('.audioflix-item-card') === window.__soakCard,
@@ -252,7 +258,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             await reveal();
             for (let i = 0; i < perBatch; i++) { await playStop(); counts.playStop += 1; await settings(); counts.settings += 1; }
             for (let i = 0; i < gesturesPerBatch; i++) { gestureOutcomes.push(await volume()); counts.gestures += 1; counts.pointerMoves += 20; }
-            await page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click();
+            await record('nexus-open-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
             const search = page.locator('[data-af-nexus-search][data-af-type="music"]');
             const searchNode = await search.elementHandle();
             await page.evaluate(() => {
@@ -280,8 +286,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             }
             } finally { await page.evaluate(() => window.__soakRestoreTrace?.()); }
             await searchNode.dispose();
-            await page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click();
-            await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click();
+            await record('nexus-close-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
+            await record('view-mode-backend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click());
             const header = page.locator('.audioflix-group-title').first();
             expandedGroupSize = Number((await header.locator('.audioflix-group-count').textContent()).match(/\d+/)?.[0] || 0);
             for (let i = 0; i < Math.max(1, iterations / 25); i++) {
@@ -290,7 +296,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 await record('group-collapse-pointer', () => header.click());
                 assert.equal(await page.locator('.audioflix-item-card').count(), 0); counts.expansionPairs += 1;
             }
-            await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click();
+            await record('view-mode-frontend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click());
             // The view-mode toggle persists; its save echo is a canonical render that must settle
             // before the card is located, exactly like the setup boundary.
             await quiesce('soak-view-mode-restored');
@@ -317,7 +323,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             assert.equal(hash(JSON.stringify(await topology(page))), topologyBefore);
             await settleMonitor(page); samples.push(await sampleSoakResources(page, cdp, `card-batch-${batch + 1}`));
         }
-        await page.locator('[data-af-action="play-music-group"]').click();
+        await record('group-play-pointer', () => page.locator('[data-af-action="play-music-group"]').click());
         await page.waitForFunction(() => window.__libraryRenderCtx.getActiveMusicQueue().isPlaying && !window.__librarySyntheticAudio.paused);
         const scopeIds = await page.evaluate(() => window.EveAudioflix.queueConnection.snapshot().entries.map(item => item.id));
         assert.ok(scopeIds.length > iterations, 'Full canonical queue supports continuous 500 transitions without restarting');
@@ -347,7 +353,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         }
         const finalQueue = await page.evaluate(() => window.EveAudioflix.queueConnection.snapshot());
         assert.deepEqual(finalQueue.entries.map(item => item.id), scopeIds); assert.equal(finalQueue.currentIndex, iterations);
-        await page.locator('[data-af-action="stop-music-group"]').click();
+        await record('group-stop-pointer', () => page.locator('[data-af-action="stop-music-group"]').click());
         await settleMonitor(page);
         const endCalls = await page.evaluate(() => ({ ...window.__soakCalls }));
         const inputEvents = endCalls.inputs - startCalls.inputs;

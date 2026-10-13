@@ -7,13 +7,13 @@ import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
 import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
-    assertHeldVolume, assertGestureTotals, settleSoakPersistence, settleSoakSliderHover } from '../qualification/audioflix_library_soak.mjs';
+    assertHeldVolume, assertGestureTotals, settleSoakPersistence, settleSoakSliderHover, recordSoakPhase } from '../qualification/audioflix_library_soak.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-soak-contract.json');
 const results = [], volumeSaveEvidence = [];
 let current = '';
-function instrumentationFixture() {
+function instrumentationFixture(requestFrame = callback => callback()) {
     const timers = new Map(), events = new Map();
     let next = 0, tick = 0, performanceObserver;
     class Observer {
@@ -29,10 +29,10 @@ function instrumentationFixture() {
         setInterval(callback, delay, ...args) { const id = ++next; timers.set(id, { callback, delay, args }); return id; },
         clearInterval(id) { timers.delete(id); return 'native-clear-interval'; } };
     window.window = window;
-    const context = vm.createContext({ window, document: { addEventListener() {} }, requestAnimationFrame: callback => callback(),
+    const context = vm.createContext({ window, document: { addEventListener(name, callback) { events.set(`document:${name}`, callback); } }, requestAnimationFrame: requestFrame,
         performance: { now: () => tick }, Reflect, Map, Set, WeakMap, Object, String });
     vm.runInContext(`(${installLibrarySoakInstrumentation.toString()})()`, context);
-    return { window, timers, events, advance: ms => { tick += ms; }, observer: () => performanceObserver };
+    return { window, timers, events, context, advance: ms => { tick += ms; }, observer: () => performanceObserver };
 }
 async function check(id, work) { current = id; await work(); results.push(id); }
 function volumeSaveFixture() {
@@ -60,6 +60,37 @@ function volumeSaveFixture() {
         snapshot: () => ({ commits: counters['state:volume-commit-count'] || 0, revision: state.getRevision(), persists: counters['state:persist-attempts'] || 0 }) };
 }
 try {
+    await check('delayed-long-tasks-use-action-start-phase-with-fixed-budgets', async () => {
+        const frames = [], f = instrumentationFixture(callback => frames.push(callback)), phases = [];
+        const page = { evaluate(callback, name) {
+            f.context.phaseName = name;
+            return vm.runInContext(`(${callback.toString()})(phaseName)`, f.context);
+        } };
+        f.advance(10);
+        const result = await recordSoakPhase(page, 'volume-drag-pointer', () => {
+            phases.push(f.window.__librarySoak.snapshot().phase); f.advance(60); return 'released';
+        });
+        assert.equal(result, 'released');
+        await recordSoakPhase(page, 'persistence:soak-volume-ready', () => {
+            phases.push(f.window.__librarySoak.snapshot().phase); f.advance(70);
+        });
+        await recordSoakPhase(page, 'nexus-open-pointer', () => {
+            phases.push(f.window.__librarySoak.snapshot().phase);
+            f.events.get('document:click')({ type: 'click', target: { classList: { contains: () => false }, closest: () => ({}) } });
+            f.advance(70); frames.shift()(); f.advance(31); frames.shift()(); f.advance(19);
+        });
+        await recordSoakPhase(page, 'group-play-pointer', () => { f.advance(20); });
+        f.observer().callback({ getEntries: () => [{ startTime: 12, duration: 51 }, { startTime: 75, duration: 60 }, { startTime: 150, duration: 101 }] });
+        const snapshot = f.window.__librarySoak.snapshot(), tasks = snapshot.longTasks;
+        assert.deepEqual(phases, ['volume-drag-pointer', 'persistence:soak-volume-ready', 'nexus-open-pointer']);
+        assert.deepEqual(Array.from(tasks, task => task.phase), phases, 'Late delivery cannot assign old work to the current group-play phase');
+        assert.equal(snapshot.responseSummary['nexus-open-pointer'].p95, 101, 'The real response callback retains slow control paint time');
+        const failures = evaluateSoakBudgets({}, snapshot.responseSummary,
+            { 'volume-drag-pointer': { max: tasks[0].duration } }, true);
+        assert.deepEqual(failures.map(row => [row.name, row.limit]),
+            [['nexus-open-pointer:visual-response', 100], ['volume-drag-pointer:self-longtask', 50]],
+            'Slow Nexus still fails 100ms; a true 51ms drag task still fails 50ms');
+    });
     await check('pointer-coordinates-wait-for-hover-layout-transition', async () => {
         let finishHover, settled = false, focused = false, hovered = false, trialChecked = false;
         const transition = new Promise(resolve => { finishHover = resolve; });
