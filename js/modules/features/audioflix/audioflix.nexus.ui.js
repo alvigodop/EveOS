@@ -15,11 +15,31 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
     // panel's scroll does nothing for it. Every rerender rebuilt it at the top -- and playing a
     // track rerenders -- so pressing Play on anything below the fold threw you back to the top of
     // the list. Keyed by type, because music and sounds each have their own container.
+    //
+    // A structural AudioFlix rerender can also arrive while the user is typing because another
+    // subsystem finishes an async state transition. Preserve the active Nexus input itself across
+    // that unavoidable rerender; restoring focus onto a replacement node is not equivalent because
+    // it breaks pointer/selection/IME continuity and the long-run soak treats DOM identity as part
+    // of the live-search contract.
     ns.captureScroll = function captureScroll(root) {
         const seen = new Map();
         (root ? root.querySelectorAll('[data-af-nexus-results]') : []).forEach((element) => {
             seen.set(element.dataset.afNexusResults, element.scrollTop);
         });
+        const active = root && root.contains?.(document.activeElement)
+            && document.activeElement?.matches?.('[data-af-nexus-search]')
+            ? document.activeElement
+            : null;
+        if (active) {
+            seen.activeSearch = {
+                node: active,
+                type: active.dataset.afType === 'sound' ? 'sound' : 'music',
+                value: String(active.value ?? ''),
+                selectionStart: Number.isInteger(active.selectionStart) ? active.selectionStart : null,
+                selectionEnd: Number.isInteger(active.selectionEnd) ? active.selectionEnd : null,
+                selectionDirection: active.selectionDirection || 'none'
+            };
+        }
         return seen;
     };
 
@@ -29,6 +49,21 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
             const top = seen.get(element.dataset.afNexusResults);
             if (top) element.scrollTop = top;
         });
+        const active = seen.activeSearch;
+        if (!active?.node) return;
+        const replacement = root.querySelector(`[data-af-nexus-search][data-af-type="${active.type}"]`);
+        if (!replacement || replacement === active.node) return;
+        // The newly rendered control reflects canonical Nexus state. Move that value onto the old
+        // node before reattaching it so an unrelated rerender cannot resurrect stale typed text.
+        active.node.value = replacement.value;
+        replacement.replaceWith(active.node);
+        active.node.focus?.({ preventScroll: true });
+        if (active.selectionStart !== null && active.selectionEnd !== null && active.node.setSelectionRange) {
+            const length = String(active.node.value ?? '').length;
+            const start = Math.min(active.selectionStart, length);
+            const end = Math.min(active.selectionEnd, length);
+            try { active.node.setSelectionRange(start, end, active.selectionDirection); } catch (_) { /* non-text input */ }
+        }
     };
 
     let expandedSections = { artist: false, group: false, folder: false, duration: false, classifier: false };
