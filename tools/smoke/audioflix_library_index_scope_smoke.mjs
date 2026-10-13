@@ -18,7 +18,10 @@ for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', '
 }
 const library = window.EveAudioflixLibraryIndex, X = window.EveAudioflixNexus;
 const view = library.get(state, 'music');
-assert.equal(view.scope('folder', 'Upper').length, 12500);
+const upperScope = view.scope('folder', 'Upper');
+assert.equal(upperScope.length, 12500);
+assert.equal(view.scope('folder', 'Upper'), upperScope, 'Repeated indexed scope reads keep stable array identity');
+assert.ok(Object.isFrozen(upperScope), 'Cached scope arrays are immutable derived projections');
 assert.equal(view.scope('folder', 'upper').length, 12500);
 assert.equal(view.scope('playlist', 'playlist-3').length, 1250);
 assert.equal(view.scope('artist', 'Artist 7').length, 250);
@@ -51,10 +54,18 @@ const before = view.contentRevision;
 const changed = { ...music[0], title: 'Edited', folder: 'Moved' };
 music[0] = changed; library.upsert(state, 'music', changed, docs[0].item);
 assert.ok(view.contentRevision > before);
+assert.notEqual(view.scope('folder', 'Upper'), upperScope, 'Content revision invalidates cached scope identity');
 assert.equal(view.scope('folder', 'Moved')[0], changed);
 assert.equal(view.scope('folder', 'upper').length, 12499);
 assert.equal(X.search('edited', 'music', [changed])[0], changed);
-// Source replacement without a notification is repaired on the FIRST group query, not the second.
+// Same-length replacement without a notification is repaired on the FIRST indexed scope query.
+const cachedUpper = view.scope('folder', 'Upper');
+const upperPosition = music.findIndex(item => item.folder === 'Upper');
+const silentReplacement = { ...music[upperPosition], title: 'Silent Replacement' };
+music[upperPosition] = silentReplacement;
+assert.equal(view.scope('folder', 'Upper')[0], silentReplacement);
+assert.notEqual(view.scope('folder', 'Upper'), cachedUpper, 'Repair replaces stale cached scope identity');
+// Group membership retains the same first-query repair guarantee.
 window.EveAudioflixGroupTree.itemsForGroup(state, 'music', 'Root', music);
 const replaced = { ...music[1], title: 'Replacement' }; music[1] = replaced;
 assert.equal(window.EveAudioflixGroupTree.itemsForGroup(state, 'music', 'Root', music)[1], replaced);
@@ -67,4 +78,4 @@ for (const type of ['track', 'episode']) {
 assert.equal(view.scope('identity', `spotify:track:${id}`)[0].id, 'typed-track');
 assert.equal(view.scope('identity', `spotify:episode:${id}`)[0].id, 'typed-episode');
 assert.equal(view.scope('identity', `spotify:track:${id.toLowerCase()}`).length, 0);
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true incremental=true searchCached=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
