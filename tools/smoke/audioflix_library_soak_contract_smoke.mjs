@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
 import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
@@ -60,17 +61,45 @@ function volumeSaveFixture() {
 }
 try {
     await check('pointer-coordinates-wait-for-hover-layout-transition', async () => {
-        let finishHover, settled = false, focused = false, hovered = false;
+        let finishHover, settled = false, focused = false, hovered = false, trialChecked = false;
         const transition = new Promise(resolve => { finishHover = resolve; });
         const element = { closest: () => ({ getAnimations: () => [{ finished: transition }] }) };
         const context = vm.createContext({ element, requestAnimationFrame: callback => callback() });
         const slider = { focus: async () => { focused = true; }, hover: async () => { hovered = true; },
-            evaluate: callback => vm.runInContext(`(${callback.toString()})(element)`, context) };
+            evaluate: callback => vm.runInContext(`(${callback.toString()})(element)`, context),
+            click: async options => { assert.deepEqual(options, { trial: true }); trialChecked = true; } };
         const preparing = settleSoakSliderHover(slider).then(() => { settled = true; });
         await new Promise(resolve => setImmediate(resolve));
         assert.equal(focused, true); assert.equal(hovered, true); assert.equal(settled, false,
             'Collapsed coordinates cannot be used while the hover expansion is moving the slider');
-        finishHover(); await preparing; assert.equal(settled, true);
+        assert.equal(trialChecked, false); finishHover(); await preparing;
+        assert.equal(settled, true); assert.equal(trialChecked, true);
+    });
+    await check('real-css-hover-drag-hit-target', async () => {
+        const browser = await chromium.launch({ headless: true });
+        try {
+            const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+            const css = fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.library.css'), 'utf8');
+            await page.setContent(`<style>${css} body{margin:0;padding-top:508.2656px}
+                .audioflix-item-volume-wrapper{width:240px;margin-left:50px}</style>
+                <div class="audioflix-item-volume-wrapper"><input class="audioflix-volume-slider" type="range" min="0" max="1" step=".01" value="1"><span class="audioflix-volume-label">100%</span></div>`);
+            await page.evaluate(() => { window.events = []; for (const type of ['pointerdown', 'input', 'change', 'pointerup'])
+                document.addEventListener(type, event => window.events.push({ type, hit: event.target.matches('.audioflix-volume-slider') }), true); });
+            const slider = page.locator('.audioflix-volume-slider');
+            for (let iteration = 0; iteration < 20; iteration++) {
+                await page.mouse.move(0, 0); await settleSoakSliderHover(slider);
+                const box = await slider.boundingBox(), start = Number(await slider.inputValue()) > .7 ? .9 : .15;
+                const end = start > .7 ? .55 : .85, y = box.y + box.height / 2;
+                await page.evaluate(() => window.events = []);
+                await page.mouse.move(box.x + box.width * start, y); await page.mouse.down();
+                for (let step = 1; step <= 20; step++) await page.mouse.move(box.x + box.width * (start + (end - start) * step / 20), y);
+                await page.mouse.up();
+                const events = await page.evaluate(() => window.events);
+                assert.ok(events.filter(event => event.type === 'input').length >= 15, `Native range receives actual drag inputs: ${iteration}`);
+                assert.equal(events.filter(event => event.type === 'change').length, 1);
+                assert.ok(events.every(event => event.hit), 'Every actual event lands on the intended range');
+            }
+        } finally { await browser.close(); }
     });
     await check('prior-autosave-isolated-from-held-preview', async () => {
         const f = volumeSaveFixture(), previous = {}, current = {};

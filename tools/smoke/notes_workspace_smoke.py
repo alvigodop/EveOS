@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import http.client
+import http.server
+import os
+import runpy
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from threading import Event
 from unittest.mock import patch
 import socket
 import tempfile
 import sys
+import time
+import traceback
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,6 +25,207 @@ if str(ROOT) not in sys.path:
 
 from server_modules import notes_workspace as notes, notes_workspace_ops as ops
 from server_modules import notes_control
+
+ARTIFACT = ROOT / "data" / "runtime" / "smoke-results" / "notes-workspace-native.json"
+EVIDENCE = {"ok": False, "cases": [], "workers": [], "requests": [], "python": sys.executable,
+            "pythonVersion": sys.version, "platform": sys.platform}
+CURRENT_CASE = "existing-workspace-roundtrip"
+
+
+def wait_for(predicate, label: str, timeout: float = 10) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"{label}: fixture deadline exceeded")
+
+
+def serve_native_fixture(root: Path) -> None:
+    root = root.resolve(strict=True)
+    owner = json.loads((root / "owner.json").read_text(encoding="utf-8"))
+    assert owner == {"kind": "eveos-notes-native-smoke", "pid": os.getppid(), "root": str(root)}
+    assert root != ROOT and ROOT not in root.parents and root not in ROOT.parents, "Native fixture must be outside the checkout"
+    spatial = root / "data" / "spatial-notes"
+    spatial.mkdir(parents=True, exist_ok=True)
+    notes._project_root = lambda: root
+    notes._spatial_root = lambda: spatial.resolve()
+    notes._state_path = lambda: root / "data" / "runtime" / "notes-workspace.json"
+    actual = runpy.run_path(str(ROOT / "server" / "notes-server.py"))["NotesHandler"]
+    original_write = Path.write_bytes
+    arrivals = []
+
+    def held_write(path, data):
+        if path == spatial / "race.txt.eve-notes-tmp" and data == b"native-client-one":
+            (root / "first-entered").write_text("entered", encoding="utf-8")
+            wait_for(lambda: (root / "race-release").exists(), "first-client release")
+        return original_write(path, data)
+
+    class Handler(actual):
+        def do_POST(self):
+            if self.path == "/api/notes/write" and (root / "race-enabled").exists():
+                arrivals.append(True)
+                if len(arrivals) == 2:
+                    (root / "second-entered").write_text("entered", encoding="utf-8")
+            super().do_POST()
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server.daemon_threads = True
+    ready = {"pid": os.getpid(), "port": server.server_port, "root": str(root),
+             "handlerSource": str(ROOT / "server" / "notes-server.py")}
+    ready_file = root / "ready.tmp"
+    ready_file.write_text(json.dumps(ready), encoding="utf-8")
+    ready_file.replace(root / "ready.json")
+    with patch.object(Path, "write_bytes", held_write):
+        server.serve_forever()
+
+
+def start_native_fixture(root: Path, log):
+    ready = root / "ready.json"
+    ready.unlink(missing_ok=True)
+    process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--native-worker", str(root)],
+                               cwd=ROOT, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                               env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    try:
+        wait_for(lambda: ready.exists() or process.poll() is not None, "native-server ready")
+        assert process.poll() is None, "Owned Notes worker exited before readiness"
+        value = json.loads(ready.read_text(encoding="utf-8"))
+        assert value["pid"] == process.pid and value["root"] == str(root)
+        EVIDENCE["workers"].append({**value, "startedAt": time.time()})
+        return process, value["port"]
+    except BaseException:
+        stop_native_fixture(process)
+        raise
+
+
+def stop_native_fixture(process) -> None:
+    if process and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def native_request(port: int, route: str, body=None, client="operator"):
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+    encoded = None if body is None else json.dumps(body).encode("utf-8")
+    try:
+        connection.request("GET" if body is None else "POST", route, encoded,
+                           {"Content-Type": "application/json", "Origin": f"http://127.0.0.1:{port}"})
+        response = connection.getresponse()
+        payload = json.loads(response.read().decode("utf-8"))
+        EVIDENCE["requests"].append({"client": client, "route": route, "status": response.status,
+                                     "revision": payload.get("revision") or payload.get("entry", {}).get("revision")})
+        return response.status, payload
+    finally:
+        connection.close()
+
+
+def fixture_hashes(root: Path) -> dict:
+    return {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+            for directory in (root / "data", root / "external") for path in sorted(directory.rglob("*")) if path.is_file()}
+
+
+def assert_native_http(root: Path) -> None:
+    global CURRENT_CASE
+    root.mkdir()
+    root = root.resolve()
+    (root / "owner.json").write_text(json.dumps({"kind": "eveos-notes-native-smoke", "pid": os.getpid(), "root": str(root)}), encoding="utf-8")
+    external = root / "external"
+    external.mkdir()
+    (external / "peer.md").write_text("native linked peer", encoding="utf-8")
+    process = None
+    log_path = root / "worker.log"
+    with log_path.open("w", encoding="utf-8") as log:
+        try:
+            process, port = start_native_fixture(root, log)
+            def call(route, body=None):
+                status, payload = native_request(port, route, body)
+                assert status == 200 and payload.get("ok"), f"{route}: unexpected HTTP {status}: {payload}"
+                return payload
+
+            assert call("/api/health")["service"] == "eveos-notes"
+            CURRENT_CASE = "native-two-clients-save-conflict"
+            call("/api/notes/create", {"rootId": "spatial", "name": "race.txt", "kind": "file"})
+            opened = [native_request(port, "/api/notes/read", {"rootId": "spatial", "path": "race.txt"}, client)[1]
+                      for client in ("client-one", "client-two")]
+            revision = opened[0]["entry"]["revision"]
+            assert opened[1]["entry"]["revision"] == revision
+            (root / "race-enabled").touch()
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                body = {"rootId": "spatial", "path": "race.txt", "revision": revision}
+                first = pool.submit(native_request, port, "/api/notes/write", {**body, "content": "native-client-one"}, "client-one")
+                wait_for(lambda: (root / "first-entered").exists(), "first HTTP client held")
+                second = pool.submit(native_request, port, "/api/notes/write", {**body, "content": "native-client-two-longer"}, "client-two")
+                try:
+                    wait_for(lambda: (root / "second-entered").exists(), "second HTTP client admitted")
+                    try:
+                        second.result(timeout=0.2)
+                    except TimeoutError:
+                        pass
+                    else:
+                        raise AssertionError("Second HTTP save bypassed the held first revision transaction")
+                finally:
+                    (root / "race-release").touch()
+                winning, losing = first.result(), second.result()
+            assert winning[0] == 200 and losing[0] == 409 and losing[1]["conflict"] is True
+            assert winning[1]["entry"]["revision"] != revision
+            assert losing[1]["revision"] == winning[1]["entry"]["revision"]
+            (root / "race-enabled").unlink()
+            assert call("/api/notes/read", {"rootId": "spatial", "path": "race.txt"})["content"] == "native-client-one"
+            EVIDENCE["cases"].append(CURRENT_CASE)
+
+            CURRENT_CASE = "native-owned-restart-durable-identities"
+            tracked_id = call("/api/notes/track", {"path": str(external)})["root"]["id"]
+            peer = f"{tracked_id}:peer.md"
+            call("/api/notes/favorite", {"rootId": "spatial", "path": "race.txt"})
+            call("/api/notes/link", {"source": "spatial:race.txt", "target": peer})
+            current = winning[1]["entry"]["revision"]
+            call("/api/notes/rename", {"rootId": "spatial", "path": "race.txt", "name": "renamed.txt", "revision": current})
+            call("/api/notes/create", {"rootId": "spatial", "name": "Archive", "kind": "folder"})
+            call("/api/notes/move", {"rootId": "spatial", "path": "renamed.txt", "destination": "Archive", "revision": current})
+            note_path = "Archive/renamed.txt"
+            before = call("/api/notes/read", {"rootId": "spatial", "path": note_path})
+            hashes = fixture_hashes(root)
+            old_pid = process.pid
+            stop_native_fixture(process)
+            process, port = start_native_fixture(root, log)
+            assert process.pid != old_pid and fixture_hashes(root) == hashes
+            assert any(row["id"] == tracked_id for row in call("/api/notes/workspace")["roots"])
+            after = call("/api/notes/read", {"rootId": "spatial", "path": note_path})
+            assert after["content"] == before["content"] and after["entry"]["revision"] == before["entry"]["revision"]
+            assert after["entry"]["favorite"] is True and after["entry"]["noteRef"] == f"spatial:{note_path}"
+            assert call("/api/notes/related", {"noteRef": peer})["entries"][0]["noteRef"] == f"spatial:{note_path}"
+            assert call("/api/notes/related", {"noteRef": f"spatial:{note_path}"})["entries"][0]["noteRef"] == peer
+            assert native_request(port, "/api/notes/write", {"rootId": "spatial", "path": note_path, "revision": revision, "content": "stale after restart"})[0] == 409
+            EVIDENCE["restart"] = {"previousPid": old_pid, "replacementPid": process.pid, "trackedRootId": tracked_id,
+                                   "noteRef": after["entry"]["noteRef"], "revision": after["entry"]["revision"], "hashes": hashes}
+            EVIDENCE["cases"].append(CURRENT_CASE)
+
+            metadata = root / "data" / "runtime" / "notes-workspace.json"
+            for label, corrupt in (("json", b'{"tracked":'), ("schema", b'{"tracked":"invalid"}')):
+                CURRENT_CASE = f"native-corrupt-{label}-fail-closed"
+                stop_native_fixture(process)
+                metadata.write_bytes(corrupt)
+                protected = fixture_hashes(root)
+                process, port = start_native_fixture(root, log)
+                assert call("/api/health")["running"] is True
+                for route, payload in (("workspace", None), ("read", {"path": note_path}),
+                        ("write", {"path": note_path, "revision": after["entry"]["revision"], "content": "must not save"}),
+                        ("create", {"name": "must-not-exist.txt", "kind": "file"}),
+                        ("rename", {"path": note_path, "name": "must-not-rename.txt"}),
+                        ("move", {"path": note_path, "destination": ""}), ("track", {"path": str(external)})):
+                    status, result = native_request(port, f"/api/notes/{route}", None if payload is None else {"rootId": "spatial", **payload})
+                    assert status == 400 and result["ok"] is False, f"Corrupt metadata did not block {route}"
+                    assert metadata.read_bytes() == corrupt and fixture_hashes(root) == protected
+                EVIDENCE["cases"].append(CURRENT_CASE)
+        finally:
+            stop_native_fixture(process)
+            log.flush()
+            EVIDENCE["workerLog"] = log_path.read_text(encoding="utf-8")
 
 
 def free_port() -> int:
@@ -191,8 +400,25 @@ def run() -> None:
             notes._state_path = original_state_path
             notes._spatial_root = original_spatial_root
             notes._project_root = original_project_root
+        EVIDENCE["cases"].append("existing-workspace-roundtrip")
+        assert_native_http(root / "native")
 
 
 if __name__ == "__main__":
-    run()
-    print("NOTES_WORKSPACE_SMOKE_OK")
+    if len(sys.argv) == 3 and sys.argv[1] == "--native-worker":
+        serve_native_fixture(Path(sys.argv[2]))
+    else:
+        try:
+            EVIDENCE["head"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
+            EVIDENCE["sourceHashes"] = {relative: hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+                for relative in ("tools/smoke/notes_workspace_smoke.py", "server/notes-server.py", "server_modules/notes_workspace.py", "server_modules/notes_workspace_ops.py")}
+            run()
+            EVIDENCE["ok"] = True
+            print(f"NOTES_WORKSPACE_SMOKE_OK passed={len(EVIDENCE['cases'])}/5")
+        except BaseException:
+            EVIDENCE.update(failedCase=CURRENT_CASE, error=traceback.format_exc())
+            print(f"NOTES_WORKSPACE_SMOKE_FAIL {CURRENT_CASE}\n" + "\n".join(EVIDENCE["error"].splitlines()[-30:]), file=sys.stderr)
+            sys.exit(1)
+        finally:
+            ARTIFACT.parent.mkdir(parents=True, exist_ok=True)
+            ARTIFACT.write_text(json.dumps(EVIDENCE, indent=2), encoding="utf-8")

@@ -58,6 +58,8 @@ export async function settleSoakSliderHover(slider) {
         await Promise.all(element.closest('.audioflix-item-volume-wrapper').getAnimations({ subtree: true })
             .map(animation => animation.finished));
     });
+    // A hover can also move ancestors; reuse Playwright's stable, enabled, hit-target checks.
+    await slider.click({ trial: true });
 }
 
 export function assertGestureTotals(inputEvents, counts, outcomes) {
@@ -95,6 +97,14 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             const note = value => { if (!debug.enabled) return; debug.events.push({ at: performance.now(), phase: window.__librarySoak.snapshot().phase, ...value }); if (debug.events.length > 64) debug.events.shift(); };
             debug.all = debugAll;
             debug.note = note;
+            for (const kind of ['pointerdown', 'pointerup']) document.addEventListener(kind, event => {
+                if (!debug.enabled || window.__librarySoak.snapshot().phase !== 'volume-drag-pointer') return;
+                const slider = window.__soakSlider;
+                note({ kind, hitSlider: event.target === slider, targetClass: String(event.target?.className || ''),
+                    sliderClass: String(slider?.className || ''), rect: slider?.getBoundingClientRect().toJSON(),
+                    hovered: slider?.closest('.audioflix-item-volume-wrapper')?.matches(':hover'),
+                    x: event.clientX, y: event.clientY });
+            }, true);
             if (!debugAll) {
                 window.addEventListener('eve:audioflix-state-changed', event => note({ kind: 'state-changed', reason: event.detail?.reason, reasons: event.detail?.reasons }));
                 return;
