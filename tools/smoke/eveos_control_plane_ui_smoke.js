@@ -4,6 +4,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const assert = require('node:assert/strict');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const localControlSource = fs.readFileSync(
@@ -147,7 +148,7 @@ const documentMock = {
         return [];
     },
     getElementById(id) { return id === 'gemini-ui-root' ? {} : null; },
-    createElement() { return { setAttribute() {}, click() {}, remove() {} }; },
+    createElement() { return { style: {}, setAttribute() {}, click() {}, remove() {} }; },
     addEventListener() {}
 };
 
@@ -346,9 +347,13 @@ vm.runInNewContext(source, context, { filename: 'eveosControlPlane.js' });
     if (windowMock.EveOSLocalControl.getBootstrapAttemptedAt() !== bootstrapBefore) {
         throw new Error('automatic ensure invoked the file-mode Local Control launcher');
     }
-    if (!localControlSource.includes('options?.userInitiated === true || launchAlreadyRequested')) {
-        throw new Error('Local Control no longer requires an explicit user launch grant');
-    }
+    // A launch that succeeds on the first health probe must still consume its one-shot grant.
+    windowMock.EveOSLocalControl.requestLaunch();
+    await windowMock.EveOSLocalControl.ensure();
+    controlPlaneReachable = false;
+    await assert.rejects(windowMock.EveOSLocalControl.ensure({ timeoutMs: 1 }),
+        { code: 'EVEOS_LOCAL_CONTROL_MANUAL_START_REQUIRED' });
+    controlPlaneReachable = true;
 
     console.log('EVEOS_CONTROL_PLANE_UI_SMOKE_OK');
 })().catch((error) => {

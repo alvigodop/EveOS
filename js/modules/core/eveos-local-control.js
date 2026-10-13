@@ -108,6 +108,10 @@
     }
 
     async function ensure(options) {
+        // Consume the explicit grant even when the initial probe succeeds. Otherwise a
+        // later passive refresh could resurrect Local Control after the user stops it.
+        const launchRequested = launchAlreadyRequested;
+        launchAlreadyRequested = false;
         try {
             await health(options?.probeTimeoutMs || 1000);
             return await status(options?.statusTimeoutMs || 5000);
@@ -115,7 +119,7 @@
             // Offline is observational unless an explicit user action grants one launch.
         }
 
-        const userInitiated = options?.userInitiated === true || launchAlreadyRequested;
+        const userInitiated = options?.userInitiated === true || launchRequested;
         if (!userInitiated) {
             const error = new Error(
                 'EveOS Local Control is off. Start it manually from Search Monitor when you want local tools online.'
@@ -127,8 +131,7 @@
         if (!ensurePromise) {
             ensurePromise = (async function () {
                 options?.onLaunching?.();
-                if (launchAlreadyRequested) launchAlreadyRequested = false;
-                else invokeProtocol();
+                if (!launchRequested) invokeProtocol();
                 try {
                     return await waitUntilReady(options?.timeoutMs, options?.onProgress);
                 } catch (error) {
