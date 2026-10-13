@@ -6,7 +6,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
 import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
-    assertHeldVolume, assertGestureTotals, settleSoakPersistence } from '../qualification/audioflix_library_soak.mjs';
+    assertHeldVolume, assertGestureTotals, settleSoakPersistence, settleSoakSliderHover } from '../qualification/audioflix_library_soak.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-soak-contract.json');
@@ -59,6 +59,19 @@ function volumeSaveFixture() {
         snapshot: () => ({ commits: counters['state:volume-commit-count'] || 0, revision: state.getRevision(), persists: counters['state:persist-attempts'] || 0 }) };
 }
 try {
+    await check('pointer-coordinates-wait-for-hover-layout-transition', async () => {
+        let finishHover, settled = false, focused = false, hovered = false;
+        const transition = new Promise(resolve => { finishHover = resolve; });
+        const element = { closest: () => ({ getAnimations: () => [{ finished: transition }] }) };
+        const context = vm.createContext({ element, requestAnimationFrame: callback => callback() });
+        const slider = { focus: async () => { focused = true; }, hover: async () => { hovered = true; },
+            evaluate: callback => vm.runInContext(`(${callback.toString()})(element)`, context) };
+        const preparing = settleSoakSliderHover(slider).then(() => { settled = true; });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(focused, true); assert.equal(hovered, true); assert.equal(settled, false,
+            'Collapsed coordinates cannot be used while the hover expansion is moving the slider');
+        finishHover(); await preparing; assert.equal(settled, true);
+    });
     await check('prior-autosave-isolated-from-held-preview', async () => {
         const f = volumeSaveFixture(), previous = {}, current = {};
         f.state.previewItemVolume('music', 'track', .6, previous); f.state.commitItemVolume('music', 'track', .6, previous);

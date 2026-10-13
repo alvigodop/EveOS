@@ -49,6 +49,17 @@ export async function settleSoakPersistence(page, reason) {
     return boundary;
 }
 
+export async function settleSoakSliderHover(slider) {
+    await slider.focus();
+    await slider.hover();
+    await slider.evaluate(async element => {
+        // Hover expands the wrapper and moves the 1.5px track; wait before recording pointer coordinates.
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        await Promise.all(element.closest('.audioflix-item-volume-wrapper').getAnimations({ subtree: true })
+            .map(animation => animation.finished));
+    });
+}
+
 export function assertGestureTotals(inputEvents, counts, outcomes) {
     assert.equal(outcomes.length, counts.gestures, 'Every gesture requires its own evidence');
     assert.equal(counts.pointerMoves, counts.gestures * 20);
@@ -83,6 +94,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             const debug = window.__soakDebug = { enabled: true, events: [] };
             const note = value => { if (!debug.enabled) return; debug.events.push({ at: performance.now(), phase: window.__librarySoak.snapshot().phase, ...value }); if (debug.events.length > 64) debug.events.shift(); };
             debug.all = debugAll;
+            debug.note = note;
             if (!debugAll) {
                 window.addEventListener('eve:audioflix-state-changed', event => note({ kind: 'state-changed', reason: event.detail?.reason, reasons: event.detail?.reasons }));
                 return;
@@ -93,6 +105,13 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 persists: window.EveAudioflixDiagnostics.snapshot().counters['state:persist-attempts'] || 0 });
             document.addEventListener('pointerdown', event => { if (event.target?.classList.contains('audioflix-volume-slider')) debug.held = true; }, true);
             document.addEventListener('pointerup', () => { debug.held = false; }, true);
+            for (const kind of ['pointerdown', 'pointerup', 'input', 'change', 'focusout']) document.addEventListener(kind, event => {
+                if (window.__librarySoak.snapshot().phase !== 'volume-drag-pointer') return;
+                const slider = window.__soakSlider, element = event.target;
+                note({ kind, hitSlider: element === slider, targetClass: String(element?.className || ''), targetId: element?.dataset?.afId,
+                    value: slider?.value, connected: slider?.isConnected, disabled: slider?.disabled,
+                    x: event.clientX, y: event.clientY, gesture: window.EveAudioflixVolumeGesture.diagnostics() });
+            }, true);
             const recovery = window.EveAudioflixStateRecovery, write = recovery.write;
             recovery.write = function (key, state, ...args) {
                 note({ kind: 'mirror-write', ...sample(), committedGain: gain(state) });
@@ -122,7 +141,12 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             for (const [name, counter] of [['previewItemVolume', 'previews'], ['commitItemVolume', 'commits']]) {
                 const original = state[name];
                 if (typeof original !== 'function') throw new Error(`Missing canonical ${name}; soak must not use a legacy shortcut.`);
-                state[name] = function (...args) { calls[counter] += 1; return Reflect.apply(original, this, args); };
+                state[name] = function (...args) {
+                    calls[counter] += 1; const result = Reflect.apply(original, this, args), gesture = args[3];
+                    if (window.__soakDebug.all) window.__soakDebug.note({ kind: name, id: String(args[1]), gain: args[2], accepted: result,
+                        dirty: gesture?.dirty, pointer: gesture?.pointer, blocked: gesture?.blocked, rejected: gesture?.rejected });
+                    return result;
+                };
             }
             const play = audio.playItem, volume = audio.updateItemVolume;
             audio.playItem = function (...args) { calls.playStarts += 1; return Reflect.apply(play, this, args); };
@@ -158,7 +182,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         const volume = async () => {
             // The previous release schedules a 500ms save; settle it outside this gesture's timing/counters.
             await quiesce('soak-volume-ready');
-            const slider = targetCard().locator('.audioflix-volume-slider'); await slider.focus();
+            const slider = targetCard().locator('.audioflix-volume-slider'); await settleSoakSliderHover(slider);
             const box = await slider.boundingBox(); assert.ok(box?.width > 30);
             const before = await page.evaluate(() => { window.__soakSlider = document.activeElement;
                 window.__soakCard = window.__soakSlider.closest('.audioflix-item-card');
@@ -167,10 +191,18 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                     renders: window.EveAudioflixDiagnostics.snapshot().counters['ui:render-generations'] || 0 }; });
             const at = performance.now(); await page.evaluate(() => window.__librarySoak.phase('volume-drag-pointer'));
             const endFraction = Number(await slider.inputValue()) > .7 ? .55 : .85, startFraction = endFraction > .7 ? .15 : .9;
-            await page.mouse.move(box.x + box.width * startFraction, box.y + box.height / 2); await page.mouse.down();
+            await page.mouse.move(box.x + box.width * startFraction, box.y + box.height / 2);
+            if (process.argv.includes('--soak-debug')) await page.evaluate(({ box, startFraction, before }) => {
+                const slider = window.__soakSlider, point = { x: box.x + box.width * startFraction, y: box.y + box.height / 2 };
+                window.__soakDebug.volume = { before, box, point, hoveredBox: slider.getBoundingClientRect().toJSON(),
+                    hitSlider: document.elementFromPoint(point.x, point.y) === slider, disabled: slider.disabled, id: slider.dataset.afId,
+                    canonicalId: window.__soakVolumeTarget, value: slider.value };
+            }, { box, startFraction, before });
+            await page.mouse.down();
             for (let i = 1; i <= 20; i++) await page.mouse.move(box.x + box.width * (startFraction + (endFraction - startFraction) * i / 20), box.y + box.height / 2);
             const held = await page.evaluate(() => ({ ...window.__soakCalls, revision: window.EveAudioflixState.getRevision(),
                 persists: window.EveAudioflixDiagnostics.snapshot().counters['state:persist-attempts'] || 0 }));
+            if (process.argv.includes('--soak-debug')) await page.evaluate(held => { window.__soakDebug.volume.held = held; }, held);
             assertHeldVolume(before, held);
             await page.mouse.up(); (rows['volume-drag-pointer'] ||= []).push(performance.now() - at);
             const after = await page.evaluate(id => {
@@ -181,6 +213,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                     scroll: document.querySelector('.audioflix-panel').scrollTop, persists: window.EveAudioflixDiagnostics.snapshot().counters['state:persist-attempts'] || 0,
                     renders: window.EveAudioflixDiagnostics.snapshot().counters['ui:render-generations'] || 0 };
             }, target.id);
+            if (process.argv.includes('--soak-debug')) await page.evaluate(after => { window.__soakDebug.volume.after = after; }, after);
             assert.equal(after.commits - before.commits, 1, 'Pointer release commits exactly once');
             assert.equal(after.revision - before.revision, 1); assert.equal(after.sameNode, true);
             assert.equal(after.renders, before.renders, 'Volume drag must not generate structural library renders');
@@ -338,6 +371,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             latency, visualResponse, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, resources: samples, growth, longTaskAttribution,
+            debug: process.argv.includes('--soak-debug') ? await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume })) : undefined,
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
             calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };
     } finally { await cdp.detach().catch(() => {}); }
