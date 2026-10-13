@@ -9,12 +9,15 @@ import json
 import os
 import secrets
 import zipfile
+from threading import RLock
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
 from . import gemini_control, notes_workspace_ops
 
+
+_STATE_LOCK = RLock()
 
 NOTE_EXTENSIONS = {".txt", ".md"}
 MAX_TEXT_BYTES = 2 * 1024 * 1024
@@ -48,12 +51,17 @@ def _load_state() -> dict:
         payload = json.loads(_state_path().read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError
-    except (OSError, ValueError, TypeError):
+    except FileNotFoundError:
         payload = _default_state()
+    except (OSError, ValueError, TypeError) as exc:
+        raise ValueError("Notes metadata is unreadable; preserve it and restore a valid backup before editing.") from exc
     payload.setdefault("tracked", [])
     payload.setdefault("favorites", [])
     payload.setdefault("recent", [])
     payload.setdefault("links", {})
+    if (any(not isinstance(payload[key], list) for key in ("tracked", "favorites", "recent"))
+            or not isinstance(payload["links"], dict)):
+        raise ValueError("Notes metadata has an invalid schema; no records were replaced.")
     return payload
 
 
@@ -131,6 +139,7 @@ def _entry(path: Path, relative_path: str, root_id: str, state: dict) -> dict:
     }
 
 
+@notes_workspace_ops.serialized
 def workspace() -> dict:
     state = _load_state()
     roots = [_root_record(SPATIAL_ROOT_ID, state)]
@@ -141,6 +150,7 @@ def workspace() -> dict:
     return {"ok": True, "roots": roots, "spatialRoot": str(_spatial_root())}
 
 
+@notes_workspace_ops.serialized
 def track(path_value: str) -> dict:
     if not str(path_value or "").strip():
         raise ValueError("Enter a note file or folder path.")
@@ -159,6 +169,7 @@ def track(path_value: str) -> dict:
     return {"ok": True, "root": record, "message": "Note location added."}
 
 
+@notes_workspace_ops.serialized
 def untrack(root_id: str) -> dict:
     if root_id == SPATIAL_ROOT_ID:
         raise ValueError("Spatial Notes is a permanent EveOS workspace.")
@@ -174,6 +185,7 @@ def untrack(root_id: str) -> dict:
     return {"ok": True, "message": "Tracked location removed. No files were deleted."}
 
 
+@notes_workspace_ops.serialized
 def list_entries(root_id: str, relative_path: str, include_markdown: bool) -> dict:
     target, normalized, record = _resolve(root_id, relative_path)
     state = _load_state()
@@ -195,6 +207,7 @@ def list_entries(root_id: str, relative_path: str, include_markdown: bool) -> di
     return {"ok": True, "rootId": root_id, "path": normalized, "entries": entries}
 
 
+@notes_workspace_ops.serialized
 def read_note(root_id: str, relative_path: str) -> dict:
     target, normalized, _record = _resolve(root_id, relative_path)
     if not _is_note(target):
@@ -208,6 +221,7 @@ def read_note(root_id: str, relative_path: str) -> dict:
     return {"ok": True, "entry": _entry(target, normalized, root_id, state), "content": target.read_text(encoding="utf-8-sig")}
 
 
+@notes_workspace_ops.serialized
 def write_note(root_id: str, relative_path: str, content: str, expected_revision: str) -> tuple[dict, int]:
     target, normalized, _record = _resolve(root_id, relative_path)
     if not _is_note(target):
@@ -224,6 +238,7 @@ def write_note(root_id: str, relative_path: str, content: str, expected_revision
     return {"ok": True, "entry": _entry(target, normalized, root_id, _load_state()), "message": "Note saved to disk."}, 200
 
 
+@notes_workspace_ops.serialized
 def create_entry(root_id: str, parent_path: str, name: str, kind: str) -> dict:
     parent, _normalized, _record = _resolve(root_id, parent_path)
     if not parent.is_dir():
@@ -243,6 +258,7 @@ def create_entry(root_id: str, parent_path: str, name: str, kind: str) -> dict:
     return {"ok": True, "message": f"{('Folder' if kind == 'folder' else 'Note')} created."}
 
 
+@notes_workspace_ops.serialized
 def toggle_favorite(root_id: str, relative_path: str) -> dict:
     target, normalized, _record = _resolve(root_id, relative_path)
     if not _is_note(target):
@@ -255,6 +271,7 @@ def toggle_favorite(root_id: str, relative_path: str) -> dict:
     return {"ok": True, "favorite": favorite}
 
 
+@notes_workspace_ops.serialized
 def link_notes(source_ref: str, target_ref: str) -> dict:
     if ":" not in source_ref or ":" not in target_ref:
         raise ValueError("Use two different EveOS note references.")
@@ -277,6 +294,7 @@ def link_notes(source_ref: str, target_ref: str) -> dict:
     return {"ok": True, "links": state["links"].get(source_ref, [])}
 
 
+@notes_workspace_ops.serialized
 def export_spatial() -> dict:
     root = _spatial_root()
     memory = io.BytesIO()
@@ -290,6 +308,7 @@ def export_spatial() -> dict:
     return {"ok": True, "filename": f"EveOS-Spatial-Notes-{datetime.now().date().isoformat()}.zip", "base64": base64.b64encode(raw).decode("ascii")}
 
 
+@notes_workspace_ops.serialized
 def import_spatial(encoded: str) -> dict:
     raw = base64.b64decode(encoded, validate=True)
     if len(raw) > MAX_ARCHIVE_BYTES:

@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from threading import Event
+from unittest.mock import patch
 import socket
 import tempfile
 import sys
@@ -43,6 +46,35 @@ def assert_independent_lifecycle(root: Path) -> None:
         notes_control.eveos_console_prefs.headless_for = original_headless
 
 
+def assert_concurrent_save() -> None:
+    notes.create_entry("spatial", "", "race.txt", "file")
+    revision = notes.read_note("spatial", "race.txt")["entry"]["revision"]
+    entered, release = Event(), Event()
+    original_write = Path.write_bytes
+
+    def held_write(path, data):
+        if path.name == "race.txt.eve-notes-tmp" and data == b"first":
+            entered.set()
+            assert release.wait(5), "First save was never released"
+        return original_write(path, data)
+
+    with patch.object(Path, "write_bytes", held_write), ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(notes.write_note, "spatial", "race.txt", "first", revision)
+        assert entered.wait(5), "First save never reached replacement"
+        second = pool.submit(notes.write_note, "spatial", "race.txt", "second", revision)
+        try:
+            # Old behavior allows this save to finish while the first is held.
+            second.result(timeout=0.5)
+        except TimeoutError:
+            pass
+        finally:
+            release.set()
+        assert first.result()[1] == 200
+        assert second.result()[1] == 409, "Concurrent save bypassed the revision check"
+    assert notes.read_note("spatial", "race.txt")["content"] == "first"
+    notes._resolve("spatial", "race.txt")[0].unlink()
+
+
 def run() -> None:
     with tempfile.TemporaryDirectory(prefix="eveos-notes-smoke-") as temporary:
         root = Path(temporary)
@@ -63,6 +95,18 @@ def run() -> None:
             notes._spatial_root = lambda: spatial.resolve()
             notes._project_root = lambda: root
             spatial.mkdir()
+            assert_concurrent_save()
+
+            for corrupt in ('{"tracked":', '{"tracked": "invalid"}'):
+                runtime.write_text(corrupt, encoding="utf-8")
+                try:
+                    notes.track(str(external))
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("Malformed Notes metadata was silently replaced")
+                assert runtime.read_text(encoding="utf-8") == corrupt
+            runtime.unlink()
 
             tracked = notes.track(str(external))["root"]
             txt_only = notes.list_entries(tracked["id"], "", False)["entries"]

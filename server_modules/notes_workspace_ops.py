@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from functools import wraps
 import shutil
 import time
 from pathlib import Path
@@ -15,6 +16,16 @@ MAX_SEARCH_RESULTS = 200
 def _core():
     from . import notes_workspace
     return notes_workspace
+
+
+def serialized(operation):
+    """Serialize Notes service operations across revision, file and metadata access."""
+    @wraps(operation)
+    def run(*args, **kwargs):
+        with _core()._STATE_LOCK:
+            _core()._load_state()  # Reject corrupt metadata before any file mutation.
+            return operation(*args, **kwargs)
+    return run
 
 
 def _validate_revision(path: Path, expected: str) -> None:
@@ -68,6 +79,7 @@ def _drop_state(root_id: str, relative_path: str) -> None:
     core._save_state(state)
 
 
+@serialized
 def search(root_id: str, query: str, include_content: bool = True) -> dict:
     core = _core()
     root, _normalized, record = core._resolve(root_id, "")
@@ -99,6 +111,7 @@ def search(root_id: str, query: str, include_content: bool = True) -> dict:
     return {"ok": True, "entries": results, "scanned": scanned, "truncated": scanned >= MAX_SEARCH_FILES or len(results) >= MAX_SEARCH_RESULTS}
 
 
+@serialized
 def related(note_ref: str) -> dict:
     core = _core()
     state = core._load_state()
@@ -116,6 +129,7 @@ def related(note_ref: str) -> dict:
     return {"ok": True, "entries": entries}
 
 
+@serialized
 def collection(kind: str) -> dict:
     core = _core()
     if kind not in {"favorites", "recent"}:
@@ -134,6 +148,7 @@ def collection(kind: str) -> dict:
     return {"ok": True, "entries": entries, "kind": kind}
 
 
+@serialized
 def rename(root_id: str, relative_path: str, name: str, revision: str = "") -> dict:
     core = _core()
     target, normalized, record = core._resolve(root_id, relative_path)
@@ -149,6 +164,7 @@ def rename(root_id: str, relative_path: str, name: str, revision: str = "") -> d
     return {"ok": True, "path": next_path, "message": f'Renamed to "{clean}".'}
 
 
+@serialized
 def move(root_id: str, relative_path: str, destination_path: str, revision: str = "") -> dict:
     core = _core()
     target, normalized, record = core._resolve(root_id, relative_path)
@@ -168,6 +184,7 @@ def move(root_id: str, relative_path: str, destination_path: str, revision: str 
     return {"ok": True, "path": next_path, "folder": destination_normalized, "message": f'Moved "{target.name}".'}
 
 
+@serialized
 def delete(root_id: str, relative_path: str, confirmation: str, revision: str = "") -> dict:
     core = _core()
     target, normalized, _record = core._resolve(root_id, relative_path)
