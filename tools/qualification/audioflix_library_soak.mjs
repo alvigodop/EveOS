@@ -32,6 +32,25 @@ export function attachSoakConsole(page) {
     return probe;
 }
 
+export function assertHeldVolume(before, held) {
+    assert.equal(held.commits, before.commits, 'Holding a pointer never commits each input');
+    assert.equal(held.revision, before.revision, 'Holding a pointer never increments durable revision');
+    assert.equal(held.persists, before.persists, 'Holding a pointer never persists');
+}
+
+export function assertGestureTotals(inputEvents, counts, outcomes) {
+    assert.equal(outcomes.length, counts.gestures, 'Every gesture requires its own evidence');
+    assert.equal(counts.pointerMoves, counts.gestures * 20);
+    for (const row of outcomes) {
+        assert.ok(row.inputs >= 15, 'Every twenty-move gesture requires at least fifteen real inputs');
+        assert.equal(row.previews, row.inputs, 'Each actual input has exactly one preview');
+        assert.equal(row.commits, 1); assert.equal(row.revisions, 1);
+        assert.equal(row.persistsWhileHeld, 0);
+    }
+    assert.equal(inputEvents, outcomes.reduce((sum, row) => sum + row.inputs, 0),
+        'Aggregate inputs must match observed gesture inputs, not pointer movements');
+}
+
 export async function runLibrarySoak(run, { label, topology, settleMonitor, hash, onProgress = () => {}, iterations = 500 }) {
     assert.ok(Number.isInteger(iterations) && iterations >= 5 && iterations % 5 === 0);
     const { page, context } = run, cdp = await context.newCDPSession(page);
@@ -126,9 +145,9 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             const endFraction = Number(await slider.inputValue()) > .7 ? .55 : .85, startFraction = endFraction > .7 ? .15 : .9;
             await page.mouse.move(box.x + box.width * startFraction, box.y + box.height / 2); await page.mouse.down();
             for (let i = 1; i <= 20; i++) await page.mouse.move(box.x + box.width * (startFraction + (endFraction - startFraction) * i / 20), box.y + box.height / 2);
-            const held = await page.evaluate(() => ({ ...window.__soakCalls, revision: window.EveAudioflixState.getRevision() }));
-            assert.equal(held.commits, before.commits, 'Holding a pointer never commits each input');
-            assert.equal(held.revision, before.revision, 'Holding a pointer never increments durable revision');
+            const held = await page.evaluate(() => ({ ...window.__soakCalls, revision: window.EveAudioflixState.getRevision(),
+                persists: window.EveAudioflixDiagnostics.snapshot().counters['state:persist-attempts'] || 0 }));
+            assertHeldVolume(before, held);
             await page.mouse.up(); (rows['volume-drag-pointer'] ||= []).push(performance.now() - at);
             const after = await page.evaluate(id => {
                 const slider = window.__soakSlider, state = window.EveAudioflixState;
@@ -147,7 +166,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             assert.equal(after.previews - before.previews, after.inputs - before.inputs, 'Every real slider input produces exactly one live canonical preview');
             assert.ok(after.inputs - before.inputs >= 15, `Twenty real pointer moves produce live inputs (${after.inputs - before.inputs})`);
             return { inputs: after.inputs - before.inputs, previews: after.previews - before.previews, commits: after.commits - before.commits,
-                revisions: after.revision - before.revision, persistsDuringGesture: after.persists - before.persists };
+                revisions: after.revision - before.revision, persistsWhileHeld: held.persists - before.persists,
+                persistsDuringGesture: after.persists - before.persists };
         };
         await reveal();
         onProgress({ label, stage: 'warmup', counts: { ...counts } });
@@ -264,7 +284,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         await settleMonitor(page);
         const endCalls = await page.evaluate(() => ({ ...window.__soakCalls }));
         const inputEvents = endCalls.inputs - startCalls.inputs;
-        assert.ok(inputEvents >= counts.pointerMoves, 'Soak counts genuine browser input events, not dispatch-only substitutes');
+        assertGestureTotals(inputEvents, counts, gestureOutcomes);
         assert.equal(endCalls.commits - startCalls.commits, counts.gestures);
         assert.equal(hash(JSON.stringify(await topology(page))), topologyBefore);
         const final = await sampleSoakResources(page, cdp, 'settled-final'); samples.push(final);

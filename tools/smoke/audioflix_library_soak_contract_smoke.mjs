@@ -5,7 +5,8 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
-import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors } from '../qualification/audioflix_library_soak.mjs';
+import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
+    assertHeldVolume, assertGestureTotals } from '../qualification/audioflix_library_soak.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-soak-contract.json');
@@ -34,6 +35,26 @@ function instrumentationFixture() {
 }
 async function check(id, work) { current = id; await work(); results.push(id); }
 try {
+    await check('held-volume-rejects-persistence-before-release', () => {
+        const before = { commits: 3, revision: 7, persists: 2 };
+        assertHeldVolume(before, { ...before });
+        for (const key of ['commits', 'revision', 'persists']) {
+            assert.throws(() => assertHeldVolume(before, { ...before, [key]: before[key] + 1 }));
+        }
+    });
+    await check('gesture-totals-count-real-inputs-without-weakening-durability', () => {
+        const counts = { gestures: 5, pointerMoves: 100 };
+        const rows = [15, 19, 20, 21, 18].map(inputs => ({ inputs, previews: inputs, commits: 1, revisions: 1, persistsWhileHeld: 0 }));
+        const total = rows.reduce((sum, row) => sum + row.inputs, 0);
+        assert.ok(total < counts.pointerMoves, 'Unchanged range steps legitimately emit no input');
+        assertGestureTotals(total, counts, rows);
+        assert.throws(() => assertGestureTotals(total + 1, counts, rows));
+        assert.throws(() => assertGestureTotals(total, counts, rows.slice(1)));
+        for (const [key, value] of [['inputs', 14], ['previews', 16], ['commits', 0], ['commits', 2], ['revisions', 0], ['revisions', 2], ['persistsWhileHeld', 1]]) {
+            const bad = rows.map(row => ({ ...row })); bad[0][key] = value;
+            assert.throws(() => assertGestureTotals(bad.reduce((sum, row) => sum + row.inputs, 0), counts, bad));
+        }
+    });
     await check('native-timer-semantics-and-counts', () => {
         const f = instrumentationFixture(), W = f.window;
         let invocation;
