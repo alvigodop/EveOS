@@ -5,7 +5,7 @@ window.EveModuleManifestScriptChunks = window.EveModuleManifestScriptChunks || [
 window.EveModuleManifestScriptChunks.push([
     // Feature Modules (Consolidated)
     "js/modules/features/audioflix/audioflix.audio.internal.queue.js?v=e8ab78e1f282",
-    "js/modules/features/audioflix/audioflix.ui.panel.js?v=a639f9ea3caf",
+    "js/modules/features/audioflix/audioflix.ui.panel.js?v=0833391f2062",
     "js/modules/features/audioflix/audioflix.library.index.js?v=a5751a3ad20c",
     "js/modules/features/audioflix/audioflix.audio.volume-target.js?v=463e7e2937f9",
     "js/modules/features/audioflix/audioflix.ui.volume-gesture.js?v=90ff34c71fe0",

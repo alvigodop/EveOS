@@ -312,14 +312,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         lastRenderedRevision = window.EveAudioflixState?.getRevision?.();
     }
 
-    function rerenderLibrary() {
-        if (!overlay || overlay.hidden || window.EveAudioflixSoundLabUi?.deferOuterRender?.(rerenderLibrary)) return;
-        if (!uiPanel.library?.(overlay)) return rerender();
-        lastRenderedRevision = window.EveAudioflixState?.getRevision?.();
-        updateStatusDOM();
-        window.EveAudioflixTransport?.sync?.(overlay);
-    }
-
+    function rerenderLibrary() { if (!overlay || overlay.hidden || window.EveAudioflixSoundLabUi?.deferOuterRender?.(rerenderLibrary)) return; if (!uiPanel.library?.(overlay)) return rerender(); lastRenderedRevision = window.EveAudioflixState?.getRevision?.(); updateStatusDOM(); window.EveAudioflixTransport?.sync?.(overlay); }
     const rerenderPlayback = () => uiPanel.playback(overlay);
 
     const stopRepeater = (itemId) => { if (activeRepeaters[itemId]) { clearInterval(activeRepeaters[itemId].id); delete activeRepeaters[itemId]; rerender(); } };

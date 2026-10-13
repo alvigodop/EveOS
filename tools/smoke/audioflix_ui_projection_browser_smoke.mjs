@@ -36,7 +36,7 @@ try {
         window.EveAudioflixUiForms = { create: () => () => {} };
         window.EveAudioflixAudio = { syncQueueView() {}, attachWaveform() {}, stopAll: async () => true };
     });
-    for (const file of ['audioflix.transport.js', 'audioflix.ui.window.js', 'audioflix.ui.render.js', 'audioflix.ui.panel.js', 'audioflix.ui.actions.js']) {
+    for (const file of ['audioflix.transport.js', 'audioflix.groups.tree.js', 'audioflix.ui.group-tree.js', 'audioflix.ui.window.js', 'audioflix.ui.render.js', 'audioflix.ui.panel.js', 'audioflix.ui.actions.js']) {
         await page.addScriptTag({ path: path.join(ROOT, 'js/modules/features/audioflix', file) });
     }
     await page.evaluate(() => {
