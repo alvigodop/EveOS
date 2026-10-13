@@ -30,6 +30,18 @@ state.musicGroupMap.foreign = ['CHILD'];
 assert.deepEqual(Array.from(window.EveAudioflixGroupTree.itemsForGroup(state, 'music', 'Root', [extra, music[2], music[0]]), item => item.id), ['foreign', 'index-2', 'index-0']);
 const docs = view.docs();
 assert.ok(Object.isFrozen(docs) && Object.isFrozen(docs[0]));
+const bounded = X.filterWindow({ type: 'music', query: 'indexed album' }, 80);
+assert.equal(bounded.total, 25000);
+assert.equal(bounded.items.length, 80);
+assert.deepEqual(Array.from(bounded.items.slice(0, 3), item => item.id), ['index-0', 'index-1', 'index-2']);
+assert.equal(X.filter({ type: 'music', query: 'indexed album' }).length, 25000, 'Full filter contract remains unchanged');
+window.EveAudioflixNexusUi.create = () => ({ renderResults: () => {
+    const list = X.filter({ type: 'music', query: 'indexed album' });
+    return { total: list.length, shown: list.slice(0, 80).filter(Boolean).length };
+} });
+const boundedUi = window.EveAudioflixNexusUi.create({}).renderResults('music');
+assert.deepEqual(Array.from(Object.entries(boundedUi)), [['total', 25000], ['shown', 80]]);
+assert.equal(X.filter({ type: 'music', query: 'indexed album' }).length, 25000, 'Live render restores full filter immediately');
 titleReads = 0;
 for (let i = 0; i < 20; i += 1) { music[0].volume = i / 20; revision += 1; X.search('indexed album', 'music'); }
 assert.equal(titleReads, 0, 'Volume/global revisions must not rebuild normalized search text');
@@ -55,4 +67,4 @@ for (const type of ['track', 'episode']) {
 assert.equal(view.scope('identity', `spotify:track:${id}`)[0].id, 'typed-track');
 assert.equal(view.scope('identity', `spotify:episode:${id}`)[0].id, 'typed-episode');
 assert.equal(view.scope('identity', `spotify:track:${id.toLowerCase()}`).length, 0);
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true incremental=true searchCached=true typed=true firstQueryRepair=true');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true incremental=true searchCached=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
