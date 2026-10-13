@@ -77,14 +77,18 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
                 ensureSource(index, snapshot, type);
                 const cacheKey = `${dimension}\u0000${scopeKey(dimension, value)}`;
                 const cachedScope = index.scopes.get(cacheKey);
-                if (cachedScope?.revision === index.revision) return cachedScope.items;
+                if (cachedScope?.revision === index.revision) {
+                    if (cachedScope.rows.every(row => index.source[row.position] === row.item)) return cachedScope.items;
+                    repair(index, snapshot, type);
+                }
                 let rows = index.buckets[dimension]?.get(scopeKey(dimension, value)) || [];
                 if ([...rows].some(row => index.source[row.position] !== row.item)) {
                     repair(index, snapshot, type);
                     rows = index.buckets[dimension]?.get(scopeKey(dimension, value)) || [];
                 }
-                const scoped = Object.freeze([...rows].sort((a, b) => a.rank - b.rank).map(row => row.item));
-                index.scopes.set(cacheKey, { revision: index.revision, items: scoped });
+                const ordered = [...rows].sort((a, b) => a.rank - b.rank);
+                const scoped = Object.freeze(ordered.map(row => row.item));
+                index.scopes.set(cacheKey, { revision: index.revision, rows: ordered, items: scoped });
                 return scoped;
             },
             docs() {
