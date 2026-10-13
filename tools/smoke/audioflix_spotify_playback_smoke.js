@@ -46,6 +46,7 @@ function runChild(runtime, relative) {
     const fixture = path.join(os.tmpdir(), `eveos-spotify-playback-${process.pid}.html`);
     const scripts = [
         'audioflix.audio.source.js',
+        'audioflix.audio.internal.queue.js',
         'audioflix.audio.internal.js',
         'audioflix.audio.url.loaders.js',
         'audioflix.audio.url.widgets.js',

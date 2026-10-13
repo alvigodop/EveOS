@@ -7,6 +7,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     let activeMusicQueue = { groupName: '', items: [], currentIndex: -1, isPlaying: false, shuffle: false, loop: false }, repeatCurrent = false;
     let queueTransition = Promise.resolve(), queueRunId = 0;
     const shared = window.EveAudioflixUiShared;
+    let lastRenderedRevision = -1;
     if (!shared?.ready) throw new Error('Audioflix UI shared module loaded out of order.');
     const { shuffleQueue, hotkeyComboIssue, playSvg, closeSvg, stopSvg, layerPlaySvg, viewSvg, cogSvg } = shared;
     let nativeHotkeysLive = false;
@@ -166,7 +167,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                         ? await window.EveAudioflixAudio.openInternalView(track)
                         : await window.EveAudioflixAudio.playItem(track);
                     // Superseded start: cancellation, not a broken track. Restore the authoritative index, no skip.
-                    if (started === false) { activeMusicQueue.currentIndex = startingIndex; finish?.(false); window.EveAudioflixAudio?.syncQueueView?.(); rerender(); return; }
+                    if (started === false) { activeMusicQueue.currentIndex = startingIndex; finish?.(false); window.EveAudioflixAudio?.syncQueueView?.(); rerenderPlayback(); return; }
                     didStart = true; break;
                 } catch (err) {
                     playbackStatus = `Skipped ${track?.title || 'unavailable track'}: ${err?.message || 'Playback failed'}`;
@@ -182,7 +183,7 @@ window.EveAudioflix = window.EveAudioflix || {};
             if (runId !== queueRunId) { finish?.(true); return; }
             activeMusicQueue.isPlaying = didStart; finish?.(!didStart);
             window.EveAudioflixAudio?.syncQueueView?.();
-            rerender();
+            rerenderPlayback();
         });
         return queueTransition;
     };
@@ -263,23 +264,14 @@ window.EveAudioflix = window.EveAudioflix || {};
         renderPortsManager: () => renderPortsManager(),
         getFlags: () => ({ addFormOpen, groupsOpen, foldersOpen, portsOpen, importFormOpen, localizeFormOpen, musicPortFormOpen, classifierManagerOpen, nexusState })
     });
-    function renderPanel() {
-        const snapshot = state(), musicCount = snapshot.music?.length || 0, soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length, routedCount = snapshot.counters?.routedGeminiEvents || 0;
-        const soundboardItems = [...(snapshot.soundboard || []), ...portedSounds];
-        const tabBody = activeTab === 'music'
-            ? `${renderAddSection('music')}${renderItems(snapshot.music || [], 'music')}`
-            : activeTab === 'piano' ? (window.EveAudioflixPianoUi?.render?.() || '<div class="audioflix-empty">Piano-Auto-Player is unavailable.</div>') : activeTab === 'soundlab'
-                ? (window.EveAudioflixSoundLabUi?.render?.() || '<div class="audioflix-empty">Sonic Forge is unavailable.</div>')
-                : activeTab === 'router'
-                    ? (window.EveAudioflixRouting?.renderRouter?.(snapshot) || '')
-                    : `${renderAddSection('sound')}${renderItems(soundboardItems, 'sound')}`;
-        return `<div class="audioflix-panel" role="dialog" aria-modal="true" aria-labelledby="audioflix-title"><header class="audioflix-header"><div><span class="audioflix-kicker">EveOS Audio Backend</span><h2 id="audioflix-title">Audioflix</h2><p>Soundboard, music library, piano automation, generative audio, and routed playback in one workspace.</p></div><div class="audioflix-header-actions"><button type="button" class="audioflix-clear-events" data-af-action="clear-gemini-events">Clear events</button><span>${soundCount} sounds · ${musicCount} tracks · ${routedCount} Gemini events</span><button type="button" class="audioflix-settings-toggle${settingsOpen ? ' is-active' : ''}" data-af-action="toggle-settings" title="Audioflix settings (hotkey bypass)" aria-label="Audioflix settings">⚙</button><button type="button" class="audioflix-fullscreen-toggle${fullscreenOn ? ' is-active' : ''}" data-af-action="toggle-fullscreen">⛶</button><button type="button" data-af-action="close">${closeSvg}</button></div></header><nav class="audioflix-tabs">${tabButton('soundboard', 'Soundboard')}${tabButton('music', 'Music Library')}${tabButton('piano', 'Piano-Auto-Player')}${tabButton('soundlab', 'Sonic Forge')}${tabButton('router', 'Routing Notes')}</nav>${renderSettings(snapshot)}${renderRoutingDrawer(snapshot)}<div class="audioflix-content">${tabBody}</div><div class="audioflix-modal-host">${renderModalHost()}</div></div>`;
-    }
-
-    const renderSettings = (snapshot) => { const combo = snapshot.hotkeyBypassCombo || '', issue = hotkeyComboIssue(combo), summary = combo ? esc(combo) : 'Not set'; return !settingsOpen ? `<section class="audioflix-settings-drawer"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Open settings</b></button></section>` : `<section class="audioflix-settings-drawer is-open"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-settings"><span>Hotkey Settings</span><strong>Bypass key</strong><em>${summary}</em><b>Collapse</b></button><div class="audioflix-settings-body"><label class="audioflix-settings-field"><span>Hotkey bypass toggle key</span><input type="text" class="audioflix-bypass-input${issue?.invalid ? ' audioflix-input-invalid' : ''}" placeholder="e.g. ctrl+shift+b" value="${esc(combo)}" title="${issue ? esc(issue.msg) : 'Press this to suspend/resume all sound hotkeys'}"></label><p class="audioflix-settings-hint">Press this key while in-game to <strong>suspend</strong> every sound hotkey so the keys type/act normally — press again to re-arm. Use a modifier combo (e.g. <strong>ctrl+shift+b</strong>) so it never clashes with normal typing. Single plain keys get grabbed globally.</p><div class="audioflix-bypass-status">Sound hotkeys: <span class="audioflix-bypass-state" data-state="unknown">—</span></div></div></section>`; };
-    const renderRoutingDrawer = (snapshot) => { const routeLabel = snapshot.nativeBridgeEnabled && snapshot.nativeOutputLabel ? snapshot.nativeOutputLabel : (snapshot.preferredSinkLabel || 'Default browser output'), stateLabel = snapshot.nativeBridgeEnabled ? 'Native route active' : (snapshot.geminiVoicePortEnabled ? 'Voice Port armed' : 'Local playback'); return `<section class="audioflix-routing-drawer ${routingOpen ? 'is-open' : ''}"><button type="button" class="audioflix-routing-summary" data-af-action="toggle-routing-drawer"><span>Audio Output / Voice Port</span><strong>${esc(stateLabel)}</strong><em>${esc(routeLabel)}</em><b>${routingOpen ? 'Collapse' : 'Open routing'}</b></button>${routingOpen ? `<div class="audioflix-routing-body">${window.EveAudioflixRouting?.renderStatusCards?.(snapshot, playbackStatus) || ''}${window.EveWorldBookNarrationCompanion?.renderAudioflixSummary?.() || ''}<section class="audioflix-player"><div><strong>Waveform</strong><span>${esc(playbackStatus)}</span></div><canvas id="audioflix-waveform" height="90"></canvas><button type="button" data-af-action="pause">Pause</button></section></div>` : ''}</section>`; };
-
-    const tabButton = (tab, label) => `<button type="button" class="${activeTab === tab ? 'active' : ''}" data-af-action="tab" data-af-tab="${tab}">${label}</button>`;
+    const uiPanel = window.EveAudioflixUiPanel.create({
+        state, esc, closeSvg, hotkeyComboIssue, renderItems, renderAddSection,
+        view: () => ({ activeTab, fullscreenOn, settingsOpen, routingOpen, portedSounds, playbackStatus }),
+        tools: () => ({ piano: window.EveAudioflixPianoUi, soundLab: window.EveAudioflixSoundLabUi, routing: window.EveAudioflixRouting, narration: window.EveWorldBookNarrationCompanion }),
+        playback: () => ({ queue: uiRender, status: updateStatusDOM, nexus: nexusState, nexusUi: uiNexus }),
+        modal: () => renderModalHost()
+    });
+    const renderPanel = () => uiPanel.render();
     const renderModalHost = () => (activeInfoItem ? renderInfoModal(activeInfoItem, activeInfoType) : '');
 
     // Opening a song's settings panel used to go through the full rerender below, rebuilding EVERY
@@ -298,8 +290,9 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (body) body.scrollTop = keepScroll;
     }
 
-    function rerender() {
+    function rerender(transient = false) {
         if (!overlay || overlay.hidden || window.EveAudioflixSoundLabUi?.deferOuterRender?.(rerender)) return;
+        if (transient === true && uiPanel.transient(overlay)) { updateStatusDOM(); window.EveAudioflixTransport?.sync?.(overlay); return; }
         if (activeInfoItem) activeInfoItem = findItem(activeInfoType, activeInfoItem.id) || activeInfoItem;
         const panel = overlay.querySelector('.audioflix-panel'), scrollTop = (panel && lastTab === activeTab) ? panel.scrollTop : 0, scrollLeft = (panel && lastTab === activeTab) ? panel.scrollLeft : 0;
         const infoBody = overlay.querySelector('.audioflix-info-body'), infoScrollTop = infoBody ? infoBody.scrollTop : 0;
@@ -316,7 +309,10 @@ window.EveAudioflix = window.EveAudioflix || {};
         window.EveAudioflixRouting?.populateOutputSelectors?.(overlay);
         window.EveAudioflixSoundLabUi?.setVisible?.(activeTab === 'soundlab'); window.EveAudioflixPianoUi?.setVisible?.(activeTab === 'piano'); window.EveAudioflixPianoUi?.afterRender?.(overlay);
         window.EveAudioflixSoundLabUi?.afterRender?.(overlay);
+        lastRenderedRevision = window.EveAudioflixState?.getRevision?.();
     }
+
+    const rerenderPlayback = () => uiPanel.playback(overlay);
 
     const stopRepeater = (itemId) => { if (activeRepeaters[itemId]) { clearInterval(activeRepeaters[itemId].id); delete activeRepeaters[itemId]; rerender(); } };
     const startRepeater = (item, intervalMs, count) => { stopRepeater(item.id); let rem = count; const play = () => Promise.resolve(window.EveAudioflixAudio?.playItem?.(item)).catch(() => {}); play(); if (rem > 0) rem--; const id = setInterval(() => { if (rem === 0) return stopRepeater(item.id); play(); if (rem > 0) rem--; }, intervalMs); activeRepeaters[item.id] = { id, intervalMs, count }; rerender(); };
@@ -326,6 +322,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     // Handlers live in sibling modules and reach this view's mutable state through `uiCtx`, so the
     // renderers above keep using the same closure variables unchanged.
     const uiCtx = {
+        rerenderTransient: () => rerender(true), rerenderPlayback,
         state, rerender, rerenderModal, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries, playQueueIndex, toggleGroup: uiRender.toggleGroup,
         invalidateQueueRun, waitForQueueTransition: () => queueTransition.catch(() => {}),
         get overlay() { return overlay; },
@@ -375,13 +372,13 @@ window.EveAudioflix = window.EveAudioflix || {};
         if (!forceOpen && nexusState.open && nexusState.type === nextType) {
             nexusState = { ...nexusState, open: false };
             overlay?.classList.remove('audioflix-nexus-over-internal');
-            rerender(); return false;
+            rerender(true); return false;
         }
         activeTab = nextType === 'sound' ? 'soundboard' : 'music';
         nexusState = { open: true, type: nextType, query: '', facet: '', selectedIds: [] };
         if (!overlay || overlay.hidden) open(); // no re-run of port reload/disk audit (2 late full rerenders)
         overlay?.classList.add('audioflix-nexus-over-internal');
-        rerender(); return true;
+        rerender(true); return true;
     };
 
     function updateStatusDOM() {
@@ -401,16 +398,18 @@ window.EveAudioflix = window.EveAudioflix || {};
         playbackStatus = e.detail?.status || playbackStatus;
         const status = String(e.detail?.status || '');
         if (status === 'Ended') completeQueue(e.detail);
-        if (queueRuntime.release(e.detail)) rerender();
+        if (queueRuntime.release(e.detail)) rerenderPlayback();
         updateStatusDOM();
         window.EveAudioflixTransport?.sync?.(overlay);
-        if (nexusState?.open) rerender();
+        if (nexusState?.open) rerenderPlayback();
     });
     window.addEventListener('eve:audioflix-progress', e => window.EveAudioflixTransport?.sync?.(overlay, e.detail));
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reasons = e.detail?.reasons || [e.detail?.reason];
         if (reasons.every(reason => reason?.startsWith('audioflix-soundlab-') || ['audioflix-volume', 'audioflix-play', 'audioflix-exposed', 'audioflix-groups', 'audioflix-active-group', 'audioflix-browser-folders'].includes(reason))) return;
         if (reasons.every(reason => reason === 'audioflix-gemini-audio')) { updateStatusDOM(); return; }
+        const scopeReasons = ['audioflix-music-view-mode', 'audioflix-view-mode', 'audioflix-folder-scope', 'audioflix-active-music-group', 'audioflix-active-music-artist', 'audioflix-active-music-classifier'];
+        if (reasons.every(reason => scopeReasons.includes(reason)) && lastRenderedRevision === window.EveAudioflixState?.getRevision?.()) return;
         rerender();
     });
     window.addEventListener('eve:audioflix-gemini-audio-seen', updateStatusDOM);
@@ -434,7 +433,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     });
     window.addEventListener('beforeunload', () => { window.EveAudioflixNative?.clearHotkeys?.().catch(() => {}); });
     ns.queueConnection = { snapshot: () => ({ groupName: activeMusicQueue.groupName, currentIndex: activeMusicQueue.currentIndex, playbackRunId: queueRunId, isPlaying: activeMusicQueue.isPlaying === true, shuffle: activeMusicQueue.shuffle, loop: activeMusicQueue.loop, repeatOne: repeatCurrent, entries: queueRuntime.entries(), actions: [{ id: 'restart', label: 'Restart' }, { id: 'repeat-one', label: repeatCurrent ? 'Loop track on' : 'Loop track', pressed: repeatCurrent }, { id: 'details', label: 'Track details' }] }),
-        step: delta => playQueueIndex(activeMusicQueue.currentIndex + delta), jump: index => playQueueIndex(index), syncGroupMembership: (id, group, on) => window.EveAudioflixQueueMembership?.sync?.(uiCtx, id, group, on) || false, move: (from, to) => { const q = activeMusicQueue, source = Number(from), target = Math.max(0, Math.min((q.items?.length || 1) - 1, Number(to))); if (!q.items?.length || !Number.isInteger(source) || !Number.isInteger(target) || source < 0 || source >= q.items.length || source === target) return false; const currentId = q.items[q.currentIndex], items = [...q.items], moved = items.splice(source, 1)[0]; items.splice(target, 0, moved); activeMusicQueue = { ...q, items, currentIndex: Math.max(0, items.indexOf(currentId)) }; playbackStatus = `Queue updated — ${queueTrackAt(target)?.title || 'track'} is #${target + 1}.`; window.EveAudioflixAudio?.syncQueueView?.(); rerender(); window.dispatchEvent(new CustomEvent('eve:audioflix-queue-changed')); return true; }, playNext: id => { const q = activeMusicQueue, currentId = q.items?.[q.currentIndex]; if (!q.isPlaying || !currentId || id === currentId) return false; const items = q.items.filter(entry => entry !== id), current = items.indexOf(currentId); if (current < 0) return false; items.splice(current + 1, 0, id); activeMusicQueue = { ...q, items, currentIndex: current }; playbackStatus = `${(state().music || []).find(track => track.id === id)?.title || 'Track'} queued next.`; window.EveAudioflixAudio?.syncQueueView?.(); rerender(); window.dispatchEvent(new CustomEvent('eve:audioflix-queue-changed')); return true; }, action: action => ['shuffle-music-group', 'loop-music-group'].includes(action) ? handleAction({ dataset: { afAction: action } }, {}) : action === 'restart' ? restartQueueCurrent() : action === 'repeat-one' ? (repeatCurrent = !repeatCurrent, window.EveAudioflixAudio?.syncQueueView?.(), repeatCurrent) : action === 'details' ? openQueueDetails() : false };
+        step: delta => playQueueIndex(activeMusicQueue.currentIndex + delta), jump: index => playQueueIndex(index), syncGroupMembership: (id, group, on) => window.EveAudioflixQueueMembership?.sync?.(uiCtx, id, group, on) || false, move: (from, to) => { const q = activeMusicQueue, source = Number(from), target = Math.max(0, Math.min((q.items?.length || 1) - 1, Number(to))); if (!q.items?.length || !Number.isInteger(source) || !Number.isInteger(target) || source < 0 || source >= q.items.length || source === target) return false; const currentId = q.items[q.currentIndex], items = [...q.items], moved = items.splice(source, 1)[0]; items.splice(target, 0, moved); activeMusicQueue = { ...q, items, currentIndex: Math.max(0, items.indexOf(currentId)) }; playbackStatus = `Queue updated — ${queueTrackAt(target)?.title || 'track'} is #${target + 1}.`; window.EveAudioflixAudio?.syncQueueView?.(); rerenderPlayback(); window.dispatchEvent(new CustomEvent('eve:audioflix-queue-changed')); return true; }, playNext: id => { const q = activeMusicQueue, currentId = q.items?.[q.currentIndex]; if (!q.isPlaying || !currentId || id === currentId) return false; const items = q.items.filter(entry => entry !== id), current = items.indexOf(currentId); if (current < 0) return false; items.splice(current + 1, 0, id); activeMusicQueue = { ...q, items, currentIndex: current }; playbackStatus = `${(state().music || []).find(track => track.id === id)?.title || 'Track'} queued next.`; window.EveAudioflixAudio?.syncQueueView?.(); rerenderPlayback(); window.dispatchEvent(new CustomEvent('eve:audioflix-queue-changed')); return true; }, action: action => ['shuffle-music-group', 'loop-music-group'].includes(action) ? handleAction({ dataset: { afAction: action } }, {}) : action === 'restart' ? restartQueueCurrent() : action === 'repeat-one' ? (repeatCurrent = !repeatCurrent, window.EveAudioflixAudio?.syncQueueView?.(), repeatCurrent) : action === 'details' ? openQueueDetails() : false };
     Object.assign(ns, { ready: true, open, openNexus, close, render: rerender, revealCard: uiRender.revealCard, frontendScope: frontendActiveGroup, probeMissingDurations, catalogItems: kind => kind === 'sound' ? [...(state().soundboard || []), ...portedSounds] : [...(state().music || [])] });
     window.EveOSResume?.register?.('audioflix', { open, resume: () => { if (overlay && !document.body.contains(overlay)) overlay = null; if (overlay && !overlay.hidden) rerender(); } });
 })();

@@ -6,10 +6,12 @@ const { chromium } = require('playwright');
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const PATHS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.paths.js');
 const LOCAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.local.js');
+const INTERNAL_QUEUE_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.internal.queue.js');
 const INTERNAL_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.internal.js');
 const LOADERS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.loaders.js');
 const WIDGETS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.widgets.js');
 const PROVIDERS_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.providers.js');
+const DIRECT_MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.direct.js');
 const MODULE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.audio.url.js');
 const STYLE_PATH = path.join(REPO_ROOT, 'js', 'modules', 'features', 'audioflix', 'audioflix.provider.css');
 
@@ -21,13 +23,15 @@ async function main() {
     const fixture = path.join(os.tmpdir(), `eveos-audioflix-url-${process.pid}.html`);
     const pathsModuleUrl = 'file:///' + PATHS_MODULE_PATH.replace(/\\/g, '/');
     const localModuleUrl = 'file:///' + LOCAL_MODULE_PATH.replace(/\\/g, '/');
+    const internalQueueModuleUrl = 'file:///' + INTERNAL_QUEUE_MODULE_PATH.replace(/\\/g, '/');
     const internalModuleUrl = 'file:///' + INTERNAL_MODULE_PATH.replace(/\\/g, '/');
     const loadersModuleUrl = 'file:///' + LOADERS_MODULE_PATH.replace(/\\/g, '/');
     const widgetsModuleUrl = 'file:///' + WIDGETS_MODULE_PATH.replace(/\\/g, '/');
     const providersModuleUrl = 'file:///' + PROVIDERS_MODULE_PATH.replace(/\\/g, '/');
+    const directModuleUrl = 'file:///' + DIRECT_MODULE_PATH.replace(/\\/g, '/');
     const moduleUrl = 'file:///' + MODULE_PATH.replace(/\\/g, '/');
     const styleUrl = 'file:///' + STYLE_PATH.replace(/\\/g, '/');
-    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${pathsModuleUrl}"></script><script src="${localModuleUrl}"></script><script src="${internalModuleUrl}"></script><script src="${loadersModuleUrl}"></script><script src="${widgetsModuleUrl}"></script><script src="${providersModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
+    fs.writeFileSync(fixture, `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${styleUrl}"></head><body><script src="${pathsModuleUrl}"></script><script src="${localModuleUrl}"></script><script src="${internalQueueModuleUrl}"></script><script src="${internalModuleUrl}"></script><script src="${loadersModuleUrl}"></script><script src="${widgetsModuleUrl}"></script><script src="${providersModuleUrl}"></script><script src="${directModuleUrl}"></script><script src="${moduleUrl}"></script></body></html>`);
 
     const browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();

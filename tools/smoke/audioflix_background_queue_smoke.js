@@ -225,6 +225,7 @@ function realQueueFixture(count = 20, options = {}) {
     window.EveAudioflixUiActions.create = ctx => { actions = create(ctx); return actions; };
     load('audioflix.ui.overlay.js');
     load('audioflix.queue.completion.js');
+    load('audioflix.ui.panel.js');
     load('audioflix.ui.js');
     load('audioflix.transport.resilience.js');
     return {

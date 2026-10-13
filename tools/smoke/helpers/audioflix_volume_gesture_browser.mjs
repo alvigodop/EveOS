@@ -155,6 +155,7 @@ async function verifyGestureLifecycle(page) {
         const before = await listenerCounts();
         const baseline = await page.evaluate(() => window.EveAudioflixVolumeGesture.diagnostics());
         const result = await page.evaluate(() => {
+            if (!window.EveAudioflixInternalQueue?.ready) throw Error('Internal queue dependency must load before provider controller lifecycle');
             const gesture = window.EveAudioflixVolumeGesture, baseline = gesture.diagnostics();
             const samples = [], track = window.__surfaceSmoke.tracks[2];
             let callbacks = 0;

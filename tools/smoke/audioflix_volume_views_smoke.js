@@ -43,6 +43,7 @@ function functionBody(source, signature) {
 function main() {
     const url = read('audioflix.audio.url.js');
     const internal = read('audioflix.audio.internal.js');
+    const internalQueue = read('audioflix.audio.internal.queue.js');
     const audio = read('audioflix.audio.js');
     const overlay = read('audioflix.ui.overlay.js');
     const resilience = read('audioflix.transport.resilience.js');
@@ -78,6 +79,9 @@ function main() {
         'a card-slider change reaches the provider currently playing');
 
     // ---- and the panel exposes the mirror the url player calls ----
+    assert(internal.includes('EveAudioflixInternalQueue.create(ensureStage)')
+        && internalQueue.includes('function create(ensureStage)'),
+        'the internal view delegates queue DOM to its loaded dependency, separately from volume controls');
     assert(/setQueue, setRate, setVolume,/.test(internal),
         'the internal view exports setVolume, or the mirror call silently does nothing');
     const mirror = functionBody(internal, 'function setVolume(');

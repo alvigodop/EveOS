@@ -38,6 +38,10 @@ export function assertHeldVolume(before, held) {
     assert.equal(held.persists, before.persists, 'Holding a pointer never persists');
 }
 
+export function assertQueueProjection(before, after) {
+    assert.equal(after, before, 'Canonical queue transitions must project playback without rebuilding the library');
+}
+
 export async function recordSoakPhase(page, phase, operation) {
     await page.evaluate(name => window.__librarySoak.phase(name), phase);
     return operation();
@@ -328,6 +332,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         const scopeIds = await page.evaluate(() => window.EveAudioflix.queueConnection.snapshot().entries.map(item => item.id));
         assert.ok(scopeIds.length > iterations, 'Full canonical queue supports continuous 500 transitions without restarting');
         const queueWarm = await sampleSoakResources(page, cdp, 'queue-start'); samples.push(queueWarm);
+        await page.evaluate(() => { window.__queueWarmCard = document.querySelector('.audioflix-item-card'); });
         for (let batch = 0; batch < 5; batch++) {
             onProgress({ label, stage: 'queue-batch', batch: batch + 1, counts: { ...counts } });
             const transitions = await page.evaluate(async ({ size, offset, expected }) => {
@@ -352,6 +357,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             samples.push(await sampleSoakResources(page, cdp, `queue-batch-${batch + 1}`));
         }
         const finalQueue = await page.evaluate(() => window.EveAudioflix.queueConnection.snapshot());
+        assertQueueProjection(queueWarm.diagnostics.counters['ui:render-generations'] || 0, samples.at(-1).diagnostics.counters['ui:render-generations'] || 0);
+        assert.equal(await page.evaluate(() => window.__queueWarmCard === document.querySelector('.audioflix-item-card')), true, 'Song handoffs retain mounted controls');
         assert.deepEqual(finalQueue.entries.map(item => item.id), scopeIds); assert.equal(finalQueue.currentIndex, iterations);
         await record('group-stop-pointer', () => page.locator('[data-af-action="stop-music-group"]').click());
         await settleMonitor(page);
@@ -380,7 +387,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         for (const [name, value] of Object.entries(end.observers)) {
             if (value.observing > (initial.observers[name]?.observing || 0) + 2) warnings.push(`${name} observing grew beyond warmup +2`);
         }
-        assert.ok(final.diagnostics?.counters['ui:render-generations'] >= iterations);
+        assert.ok(final.diagnostics?.summary['ui:render:group-toggle']?.count >= counts.expansionPairs * 2, 'Structural expand/collapse still executes');
         assert.ok(final.diagnostics?.summary['playlist:reconcile']?.count >= 50);
         return { label, syntheticAudio: true, providerPlaybackClaimed: false, counts: { ...counts, sliderInputEvents: inputEvents },
             canonicalScopeCount: target.scopeCount, libraryCount: target.libraryCount, expandedGroupSize, topologyUnchanged: true, continuousQueueOrderPreserved: true,

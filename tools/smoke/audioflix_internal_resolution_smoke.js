@@ -15,7 +15,7 @@ async function verifyReusedProviderHeading(browser) {
     try {
         // Isolated page: no EveOS boot, persisted library, localhost, or provider requests.
         await page.setContent('<button id="reopen">Reopen player</button>');
-        for (const file of ['audioflix.audio.volume-target.js', 'audioflix.audio.internal.js', 'audioflix.audio.url.providers.js']) {
+        for (const file of ['audioflix.audio.volume-target.js', 'audioflix.audio.internal.queue.js', 'audioflix.audio.internal.js', 'audioflix.audio.url.providers.js']) {
             await page.addScriptTag({ path: path.join(ROOT, 'js/modules/features/audioflix', file) });
         }
         await page.evaluate(() => {

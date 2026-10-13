@@ -64,6 +64,7 @@ const tests = {
         ['node', 'tools/benchmark/audioflix_scale_benchmark.mjs']
     ],
     'core-stability': [
+        ['node', 'tools/smoke/audioflix_ui_projection_browser_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_group_terminal_state_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_provider_health_semantics_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_core_stability_browser_smoke.mjs']

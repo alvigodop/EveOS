@@ -110,9 +110,9 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             }
             if (action === 'open-localhost') { window.open('http://localhost:8765/EveOS.html', '_blank', 'noopener'); ctx.playbackStatus = 'Opening Localhost EveOS in a new tab...'; ctx.rerender(); return; }
             if (action === 'toggle-local-badge') { actionTarget.closest('.audioflix-local-badge')?.classList.toggle('is-minimized'); return; }
-            if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; ctx.rerender(); return; }
+            if (action === 'toggle-routing-drawer') { ctx.routingOpen = !ctx.routingOpen; (ctx.rerenderTransient || ctx.rerender)(); return; }
             if (action === 'open-reader-companion') { window.EveWorldBookNarrationBridge?.openCompanion?.(); return; }
-            if (action === 'toggle-settings') { ctx.settingsOpen = !ctx.settingsOpen; ctx.rerender(); return; }
+            if (action === 'toggle-settings') { ctx.settingsOpen = !ctx.settingsOpen; (ctx.rerenderTransient || ctx.rerender)(); return; }
             if (action === 'toggle-group') { const gName = actionTarget.dataset.afGroup; if (gName) { ctx.collapsedGroups = { ...ctx.collapsedGroups, [gName]: !ctx.collapsedGroups[gName] }; if (!ctx.toggleGroup?.(actionTarget, !!ctx.collapsedGroups[gName])) ctx.rerender(); } return; }
             if (action === 'toggle-fullscreen') { ctx.fullscreenOn = !ctx.fullscreenOn; ctx.overlay?.classList.toggle('is-fullscreen', ctx.fullscreenOn); ctx.rerender(); return; }
             if (action === 'toggle-add') { const key = (type === 'music' || ctx.activeTab === 'music') ? 'music' : 'sound'; ctx.addFormOpen = { ...ctx.addFormOpen, [key]: !ctx.addFormOpen[key] }; ctx.rerender(); return; }
@@ -214,7 +214,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                         loop: prev.loop === true
                     };
                     try { await ctx.playQueueIndex(0); } catch (err) { ctx.playbackStatus = err.message || 'Playback failed'; }
-                    ctx.rerender();
+                    (ctx.rerenderPlayback || ctx.rerender)();
                 }
                 return;
             }
@@ -222,7 +222,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 // Queue-wide internal view: toggles manually open/closed on button press.
                 if (window.EveAudioflixAudio?.isInternalViewOpen?.()) {
                     window.EveAudioflixAudio?.hideInternalView?.();
-                    ctx.rerender();
+                    (ctx.rerenderPlayback || ctx.rerender)();
                     return;
                 }
                 await ctx.waitForQueueTransition?.();
@@ -246,7 +246,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                     catch (err) { ctx.playbackStatus = err.message || 'Could not open the queue view.'; }
                 }
                 window.EveAudioflixAudio?.syncQueueView?.();
-                ctx.rerender();
+                (ctx.rerenderPlayback || ctx.rerender)();
                 return;
             }
             if (action === 'stop-music-group') {
@@ -255,20 +255,20 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 // Keep the shuffle/loop preferences armed for the next Play Group.
                 ctx.activeMusicQueue = { groupName: '', sourceGroup: '', items: [], currentIndex: -1, isPlaying: false, shuffle: prev.shuffle === true, loop: prev.loop === true };
                 await window.EveAudioflixAudio?.stopAll?.();
-                ctx.rerender();
+                (ctx.rerenderPlayback || ctx.rerender)();
                 return;
             }
             if (action === 'shuffle-music-group') {
                 // Shuffle Order: the playing track becomes #1 and the rest is randomized.
                 const q = ctx.activeMusicQueue || {};
                 // Reordering keeps the same playback run, including any pending completion.
-                if (!q.items?.length) { ctx.activeMusicQueue = { ...q, shuffle: !q.shuffle }; ctx.rerender(); return; }
+                if (!q.items?.length) { ctx.activeMusicQueue = { ...q, shuffle: !q.shuffle }; (ctx.rerenderPlayback || ctx.rerender)(); return; }
                 const currentId = q.items[q.currentIndex] || q.items[0];
                 const rest = ctx.shuffleQueue(q.items.filter(id => id !== currentId));
                 ctx.activeMusicQueue = { ...q, items: [currentId, ...rest], currentIndex: 0, shuffle: true };
                 ctx.playbackStatus = `Shuffled — now playing #1 of ${rest.length + 1}.`;
                 window.EveAudioflixAudio?.syncQueueView?.();
-                ctx.rerender();
+                (ctx.rerenderPlayback || ctx.rerender)();
                 return;
             }
             if (action === 'loop-music-group') {
@@ -278,7 +278,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                 ctx.playbackStatus = loop
                     ? (q.shuffle ? 'Loop on — a new shuffle order starts each lap.' : 'Loop on — the group restarts from #1.')
                     : 'Loop off.';
-                ctx.rerender();
+                (ctx.rerenderPlayback || ctx.rerender)();
                 return;
             }
             if (action === 'rename-folder-prompt') {

@@ -12,7 +12,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const MOD = name => 'file:///' + path.join(ROOT, 'js', 'modules', 'features', 'audioflix', name).replace(/\\/g, '/');
-const MODULES = ['audioflix.paths.js', 'audioflix.audio.local.js', 'audioflix.audio.internal.js', 'audioflix.audio.url.loaders.js',
+const MODULES = ['audioflix.paths.js', 'audioflix.audio.local.js', 'audioflix.audio.internal.queue.js', 'audioflix.audio.internal.js', 'audioflix.audio.url.loaders.js',
     'audioflix.audio.url.widgets.js', 'audioflix.audio.url.providers.js', 'audioflix.audio.url.direct.js', 'audioflix.audio.url.js',
     'audioflix.queue.completion.js', 'audioflix.transport.resilience.js'];
 

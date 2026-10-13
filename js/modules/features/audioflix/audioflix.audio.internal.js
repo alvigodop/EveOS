@@ -83,6 +83,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
         let stage = null;
         let currentItem = null;
         let volumeGesture = null;
+        const queueView = window.EveAudioflixInternalQueue.create(ensureStage);
 
         function ensureStage() {
             if (stage) return stage;
@@ -139,6 +140,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
                 else if (action === 'collapse') {
                     stage.classList.toggle('is-collapsed');
                     button.textContent = stage.classList.contains('is-collapsed') ? 'Expand' : 'Minimize';
+                    queueView.refresh();
                 }
             });
             stage.addEventListener('change', (event) => {
@@ -202,6 +204,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             volume.value = String(level);
             volume.style.setProperty('--volume', `${level * 100}%`);
             setStatus('Connecting inside EveOS...');
+            queueView.refresh();
             return element.querySelector('.audioflix-provider-frame');
         }
 
@@ -215,34 +218,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             ensureStage().classList.toggle('is-audio-only', visible === false);
         }
 
-        // Queue mode: the stage follows a whole group instead of one locked-in track, so it lists
-        // what is coming and exposes prev/next. Passing an empty list returns it to single-track
-        // mode (queue block hidden, step buttons gone).
-        function setQueue(entries, currentIndex) {
-            const element = ensureStage();
-            const list = Array.isArray(entries) ? entries : [];
-            const box = element.querySelector('.audioflix-provider-queue');
-            const steps = element.querySelectorAll('.audioflix-provider-step');
-            box.hidden = list.length === 0;
-            steps.forEach((button) => { button.hidden = list.length === 0; });
-            const snapshot = window.EveAudioflix?.queueConnection?.snapshot?.() || {};
-            const repeat = element.querySelector('[data-url-player-action="repeat-one"]');
-            if (repeat) {
-                repeat.setAttribute('aria-pressed', String(snapshot.repeatOne === true));
-                repeat.textContent = snapshot.repeatOne === true ? '↻ Loop track on' : '↻ Loop track';
-            }
-            element.querySelector('.audioflix-provider-tools')?.toggleAttribute('hidden', list.length === 0);
-            if (!list.length) return;
-            const at = Number(currentIndex) || 0;
-            element.querySelector('[data-url-player-action="prev"]').disabled = at <= 0;
-            element.querySelector('[data-url-player-action="next"]').disabled = at >= list.length - 1;
-            element.querySelector('.audioflix-provider-queue-list').innerHTML = list.map((entry, index) => {
-                const title = String(entry?.title || 'Untitled');
-                const safe = title.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-                const state = index === at ? ' class="is-current"' : '';
-                return `<li${state}><button type="button" data-url-player-action="queue-jump" data-queue-index="${index}">${index === at ? '▶ ' : ''}${safe}</button></li>`;
-            }).join('');
-        }
+        const setQueue = queueView.setQueue;
 
         function setRate(rate) {
             const select = ensureStage().querySelector('.audioflix-provider-rate');
@@ -267,6 +243,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             element.classList.remove('is-transport-only', 'is-transport-hidden');
             element.classList.toggle('is-internal-view', expanded);
             if (expanded) element.classList.remove('is-collapsed');
+            queueView.refresh();
         }
 
         function setTransportOnly(enabled = true) {
@@ -278,6 +255,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
                 enabled === true && currentItem?.showProviderTransport !== true
             );
             if (enabled) element.classList.remove('is-internal-view', 'is-collapsed');
+            queueView.refresh();
         }
 
         function revealTransportFallback() {
@@ -285,6 +263,7 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             element.hidden = false;
             element.classList.add('is-transport-only');
             element.classList.remove('is-transport-hidden', 'is-internal-view', 'is-collapsed');
+            queueView.refresh();
             return element;
         }
 
@@ -308,10 +287,12 @@ window.EveAudioflixInternalPlayer = window.EveAudioflixInternalPlayer || {};
             volumeGesture?.flush?.();
             stage.classList.remove('is-transport-only', 'is-transport-hidden');
             stage.hidden = true;
+            queueView.refresh();
         }
         function destroy() {
             volumeGesture?.destroy?.(); stage?.remove();
             volumeGesture = null; stage = null; currentItem = null;
+            queueView.reset();
         }
 
         async function connectYouTubeBridge(item, videoId, callbacks = {}) {

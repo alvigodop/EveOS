@@ -282,6 +282,35 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             return `<div class="audioflix-group-selector"><span class="audioflix-scope-label">Group:</span>${all}${pills}</div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}">${items.map((it) => renderItemCard(it, 'sound')).join('')}</div>${items.some((it) => it.hotkey) ? '<div class="audioflix-hotkey-hint">Custom hotkeys are active system-wide.</div>' : ''}`;
         };
 
+        function queueControlMarkup(name, count) {
+            const amq = ctx.getActiveMusicQueue(), isQueuePlaying = amq.isPlaying && amq.groupName === name;
+            const playGroupBtn = count ? (isQueuePlaying ? `<button type="button" class="audioflix-play-group-btn is-active" data-af-action="stop-music-group">⏹ Stop Group</button>` : `<button type="button" class="audioflix-play-group-btn" data-af-action="play-music-group">▶ Play Group</button>`) : '';
+            const shuffleBtn = count ? `<button type="button" class="audioflix-play-group-btn${amq.shuffle ? ' is-active' : ''}" data-af-action="shuffle-music-group" title="Make the current track #1 and shuffle the rest">🔀 Shuffle Order</button>` : '';
+            const loopBtn = count ? `<button type="button" class="audioflix-play-group-btn${amq.loop ? ' is-active' : ''}" data-af-action="loop-music-group" title="When the last track ends, loop back to #1">🔁 ${amq.loop ? 'Loop On' : 'Activate Loop'}</button>` : '';
+            const queueViewBtn = count ? `<button type="button" class="audioflix-play-group-btn" data-af-action="open-queue-view" title="Open this group's queue inside EveOS">🖥 Queue View</button>` : '';
+            return playGroupBtn + shuffleBtn + loopBtn + queueViewBtn;
+        }
+
+        function syncQueueControls(root) {
+            const controls = root.querySelector('[data-af-queue-controls]'), q = ctx.getActiveMusicQueue();
+            if (controls) window.EveAudioflixUiPanel.syncButtons(controls, queueControlMarkup(controls.dataset.afQueueName, Number(controls.dataset.afQueueCount)));
+            const positions = new Map((q.items || []).map((id, index) => [String(id), index]));
+            root.querySelectorAll('.audioflix-item-card').forEach(card => {
+                const id = card.querySelector('[data-af-action="play"][data-af-type="music"]')?.dataset.afId;
+                const index = q.isPlaying ? positions.get(id) : undefined, row = card.querySelector('.audioflix-item-title-row');
+                let badge = row?.querySelector('.audioflix-queue-badge');
+                if (index === undefined) { badge?.remove(); return; }
+                if (!badge && row) { badge = document.createElement('span'); row.prepend(badge); }
+                if (!badge) return;
+                const status = index === q.currentIndex ? 'Playing' : index < q.currentIndex ? 'Played' : 'Queued';
+                const text = `#${index + 1} ${status}`, title = `Queue position #${index + 1} (${status})`;
+                const className = `audioflix-queue-badge${index === q.currentIndex ? ' is-active' : index < q.currentIndex ? ' is-past' : ''}`;
+                if (badge.className !== className) badge.className = className;
+                if (badge.textContent !== text) badge.textContent = text;
+                if (badge.title !== title) badge.title = title;
+            });
+        }
+
         const renderFrontendMusicActive = () => {
             const { name, items, entries, smart, classifiers, activeGroup, activeArtist, activeClassifier, displayName } = frontendActiveGroup('music');
             const musicItems = state().music || [];
@@ -298,13 +327,8 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const smartPills = smart?.length && smartOpen ? smart.map(([key, members, label]) => `<button type="button" class="audioflix-group-pill${filters.pillClass(key, activeArtist, 'musicArtists')}" data-af-action="select-frontend-group" data-af-dimension="artist" data-af-type="music" data-af-group="${esc(key)}" title="${filters.pillTitle(key, activeArtist, 'musicArtists')}">${esc(label)}<span class="audioflix-group-pill-count">${members.length}</span></button>`).join('') : '';
             const smartToggleBtn = smart?.length ? `<button type="button" class="audioflix-add-toggle${smartOpen ? ' is-active' : ''}" data-af-action="toggle-smart-artists" style="font-size:0.75rem; padding:3px 10px; border-radius:12px; cursor:pointer;" title="Toggle artist smart filters">🎤 Artists (${smart.length}) ${smartOpen ? '▲' : '▼'}</button>` : '';
             const smartSelector = smart?.length ? `<div class="audioflix-group-selector audioflix-smart-selector" style="align-items:center; gap:8px;"><span class="audioflix-scope-label">Smart:</span>${smartToggleBtn}${smartPills}</div>` : '';
-            const amq = ctx.getActiveMusicQueue(), isQueuePlaying = amq.isPlaying && amq.groupName === name;
-            const playGroupBtn = items.length ? (isQueuePlaying ? `<button type="button" class="audioflix-play-group-btn is-active" data-af-action="stop-music-group">⏹ Stop Group</button>` : `<button type="button" class="audioflix-play-group-btn" data-af-action="play-music-group">▶ Play Group</button>`) : '';
-            const shuffleBtn = items.length ? `<button type="button" class="audioflix-play-group-btn${amq.shuffle ? ' is-active' : ''}" data-af-action="shuffle-music-group" title="Make the current track #1 and shuffle the rest">🔀 Shuffle Order</button>` : '';
-            const loopBtn = items.length ? `<button type="button" class="audioflix-play-group-btn${amq.loop ? ' is-active' : ''}" data-af-action="loop-music-group" title="When the last track ends, loop back to #1">🔁 ${amq.loop ? 'Loop On' : 'Activate Loop'}</button>` : '';
-            const queueViewBtn = items.length ? `<button type="button" class="audioflix-play-group-btn" data-af-action="open-queue-view" title="Open this group's queue inside EveOS">🖥 Queue View</button>` : '';
             const key = frontendKey();
-            return `${scopePills}${selector}${smartSelector}${classifierRow}<div class="audioflix-frontend-subhead" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:0 4px;"><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:1.05rem; color:#f8fafc;">${esc(displayName)}</strong> <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">(${items.length} track${items.length === 1 ? '' : 's'})</span></div><div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${playGroupBtn}${shuffleBtn}${loopBtn}${queueViewBtn}</div></div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}"${windowAttrs(items, key, 'music')}>${cards(items, key, 'music')}</div>`;
+            return `${scopePills}${selector}${smartSelector}${classifierRow}<div class="audioflix-frontend-subhead" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:0 4px;"><div style="display:flex; align-items:center; gap:10px;"><strong style="font-size:1.05rem; color:#f8fafc;">${esc(displayName)}</strong> <span style="font-size:0.8rem; color:#94a3b8; font-weight:600;">(${items.length} track${items.length === 1 ? '' : 's'})</span></div><div data-af-queue-controls data-af-queue-name="${esc(name)}" data-af-queue-count="${items.length}" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${queueControlMarkup(name, items.length)}</div></div><div class="audioflix-item-grid" data-af-active-group="${esc(name)}"${windowAttrs(items, key, 'music')}>${cards(items, key, 'music')}</div>`;
         };
 
         function renderItems(items, type) {
@@ -379,7 +403,7 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             renderItems: timed('ui:render:items', renderItems, true),
             renderFrontendActive: timed('ui:render:sound-frontend', renderFrontendActive, true),
             renderFrontendMusicActive: timed('ui:render:music-frontend', renderFrontendMusicActive, true),
-            toggleGroup: timed('ui:render:group-toggle', toggleGroup, true), revealCard };
+            toggleGroup: timed('ui:render:group-toggle', toggleGroup, true), revealCard, syncQueueControls };
     };
 
     ns.ready = true;

@@ -25,6 +25,12 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
         ]);
     }
 
+    function queueViewState(stage) {
+        return !stage ? 'unmounted' : JSON.stringify([stage.hidden,
+            stage.classList.contains('is-transport-only'), stage.classList.contains('is-collapsed'),
+            stage.querySelector('.audioflix-provider-queue-list')?.childElementCount || 0]);
+    }
+
     function installStableQueueView() {
         const player = window.EveAudioflixInternalPlayer;
         if (!player?.createController) return false;
@@ -35,11 +41,14 @@ window.EveAudioflixQueueCompletion = window.EveAudioflixQueueCompletion || {};
             if (!controller?.setQueue) return controller;
             const renderQueue = controller.setQueue.bind(controller);
             let lastSignature = null;
+            let lastViewState = null;
             controller.setQueue = (entries, currentIndex) => {
                 const signature = queueViewSignature(entries, currentIndex);
-                if (signature === lastSignature) return false;
-                lastSignature = signature;
+                const viewState = queueViewState(controller.getStage?.());
+                if (signature === lastSignature && viewState === lastViewState) return false;
                 renderQueue(entries, currentIndex);
+                lastSignature = signature;
+                lastViewState = queueViewState(controller.getStage?.());
                 return true;
             };
             return controller;

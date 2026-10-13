@@ -133,6 +133,7 @@ window.EveAudioflixTransport = window.EveAudioflixTransport || {};
         const duration = Math.max(0, Number(playback.duration || 0) || 0);
         if (duration > 0 && playback.item) persistDuration(playback.item, duration, playback.item.type);
         if (!root) return;
+        syncVolumeCapability(root);
         const current = Math.max(0, Math.min(duration || Infinity, Number(playback.currentTime || 0) || 0));
 
         root.querySelectorAll('[data-af-transport-id]').forEach((transport) => {
@@ -156,9 +157,40 @@ window.EveAudioflixTransport = window.EveAudioflixTransport || {};
         });
     }
 
+    function syncVolumeCapability(root) {
+        const snapshot = window.EveAudioflixState?.ensure?.() || {};
+        const index = window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music');
+        root.querySelectorAll('.audioflix-volume-slider[data-af-type="music"]').forEach(slider => {
+            const item = index?.getById(slider.dataset.afId) || snapshot.music?.find(entry => String(entry.id) === slider.dataset.afId);
+            if (!item) return;
+            const owned = spotifyProviderOwned(item, 'music');
+            if (slider.disabled === owned && slider.hasAttribute('data-af-volume-provider-owned') === owned) return;
+            const wrapper = slider.closest('.audioflix-item-volume-wrapper'), label = wrapper?.querySelector('.audioflix-volume-label');
+            slider.disabled = owned;
+            slider.toggleAttribute('aria-disabled', owned);
+            for (const element of [slider, wrapper]) {
+                if (!element) continue;
+                if (owned) element.dataset.afVolumeProviderOwned = 'spotify'; else delete element.dataset.afVolumeProviderOwned;
+            }
+            if (owned) slider.setAttribute('aria-disabled', 'true');
+            wrapper?.classList.toggle('is-provider-owned', owned);
+            const percent = Math.round(Number(slider.value) * 100);
+            if (wrapper) wrapper.title = owned ? `Spotify's local official embed owns playback volume. Connect the managed Spotify engine to enable this slider; EveOS still saves ${percent}%.` : 'Volume';
+            for (const property of ['opacity', 'cursor']) {
+                if (owned) slider.style.setProperty(property, property === 'opacity' ? '0.42' : 'not-allowed'); else slider.style.removeProperty(property);
+            }
+            if (label) {
+                label.textContent = owned ? 'Spotify' : `${percent}%`;
+                for (const [property, value] of [['opacity', '1'], ['visibility', 'visible'], ['color', '#1ed760']]) {
+                    if (owned) label.style.setProperty(property, value); else label.style.removeProperty(property);
+                }
+            }
+        });
+    }
+
     function finishSeek(slider) {
         if (slider) delete slider.dataset.afSeeking;
     }
 
-    Object.assign(ns, { ready: true, render, preview, sync, finishSeek, formatTime, persistDuration, probeItem, spotifyProviderOwned });
+    Object.assign(ns, { ready: true, render, preview, sync, syncVolumeCapability, finishSeek, formatTime, persistDuration, probeItem, spotifyProviderOwned });
 })();

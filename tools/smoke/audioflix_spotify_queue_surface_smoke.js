@@ -217,6 +217,8 @@ async function browserPhase() {
         await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
             'js/modules/features/audioflix/audioflix.ui.volume-gesture.js'), 'utf8') });
         await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
+            'js/modules/features/audioflix/audioflix.audio.internal.queue.js'), 'utf8') });
+        await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
             'js/modules/features/audioflix/audioflix.audio.internal.js'), 'utf8') });
         await page.addScriptTag({ content: fs.readFileSync(path.join(ROOT,
             'js/modules/features/audioflix/audioflix.spotify.media.js'), 'utf8') });

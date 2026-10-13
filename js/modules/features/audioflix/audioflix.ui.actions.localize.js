@@ -181,20 +181,20 @@ window.EveAudioflixUiActionsLocalize = window.EveAudioflixUiActionsLocalize || {
         if (action === 'toggle-nexus') {
             const nType = actionTarget.dataset.afType || 'music', st = ctx.nexusState || {};
             ctx.nexusState = (st.open && st.type === nType) ? { open: false, type: nType, query: '', facet: '' } : { open: true, type: nType, query: st.query || '', facet: '' };
-            ctx.rerender(); return true;
+            (ctx.rerenderTransient || ctx.rerender)(); return true;
         }
         if (action === 'nexus-facet') {
             const targetFacet = actionTarget.dataset.afFacet || '';
             const st = ctx.nexusState || {};
             const nextFacet = st.facet === targetFacet ? '' : targetFacet;
             ctx.nexusState = { ...st, facet: nextFacet };
-            ctx.rerender();
+            (ctx.rerenderTransient || ctx.rerender)();
             return true;
         }
         if (action === 'toggle-nexus-section') {
             const sec = actionTarget.dataset.afSection;
             if (sec && window.EveAudioflixNexusUi?.toggleSection) window.EveAudioflixNexusUi.toggleSection(sec);
-            ctx.rerender();
+            (ctx.rerenderTransient || ctx.rerender)();
             return true;
         }
         if (action === 'audit-scope-disk') {

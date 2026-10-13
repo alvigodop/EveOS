@@ -97,6 +97,18 @@ Browser subprocesses return nonzero when Chromium is absent. These runs are inco
 - No new blanket resource ceilings were invented. Existing history/index caps and operation-ledger rejection bounds are preserved. No browser post-GC slope, DOM count, reconnect latency, queue mount cost or hardware response p95 was measured here.
 - AudioFlix queue DOM growth remains a documented flat level shift, not a demonstrated leak; no queue optimization was attempted.
 
+## Local renderer follow-through (Nova)
+
+Forward development is consolidated on `eve/core-hardening`; the older AudioFlix branch is an inactive reference. A detached qualification checkout is evidence isolation, not a second development branch.
+
+The completed 500-cycle library run exercised HTTP, file and synthetic 25k lanes without queue skips or topology changes, but failed the unchanged laptop timing budgets. A subsequent five-cycle CPU profile isolated full-panel rendering, not volume mutation, as the remaining interactive hotspot. These are diagnostics, not a performance seal.
+
+The renderer follow-through extracts panel markup, projects Nexus/settings/routing and queue toolbar/badges without rebuilding library cards, and suppresses already-rendered scope-save echoes. Structural metadata/scope changes retain the full renderer. Mounted volume controls refresh provider capability without replacing sliders or committing gain. Hidden/collapsed internal queues retain canonical metadata but mount no rows; reopening synchronously restores the latest queue. Queue authority, playback run fencing and fixed timing budgets are unchanged.
+
+Registered Chromium regressions cover real pointer-down/up across redundant queue updates, card/routing/slider identity, reorder/stop badges, routing-summary hydration and hidden 25k queue lifecycle. The soak now requires zero library render-generation changes across canonical queue transitions and retains all transition/input/durability counts; it no longer requires 500 unnecessary full renders.
+
+Focused source/loader, browser, volume, Spotify playback and guardrail checks pass. Exact candidate full-library timing, signed-in typed natural HTTP/file playback, 20 natural endings and remaining native acceptance are still required. No full-system seal, branch deletion, merge, deployment or GitHub CI re-enable is claimed.
+
 ## Exact Windows acceptance sequence
 
 1. Finish the separate AudioFlix qualification candidate first. In that candidate's clean checkout run `npm run --silent qualify:audioflix-library-soak -- --source <backup-copy.json>` for the full default 500 cycles, then `npm run --silent qualify:audioflix-typed-natural` and `npm run --silent qualify:audioflix-natural-queue`. Record source SHA, backup hash before/after and unchanged topology, natural terminal/queue/repeat/hidden transitions and fixed laptop timing budgets. Never use the canonical library as a writable fixture; no playlist edits are authorized.

@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
 import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
-    assertHeldVolume, assertGestureTotals, settleSoakPersistence, settleSoakSliderHover, recordSoakPhase } from '../qualification/audioflix_library_soak.mjs';
+    assertHeldVolume, assertQueueProjection, assertGestureTotals, settleSoakPersistence, settleSoakSliderHover, recordSoakPhase } from '../qualification/audioflix_library_soak.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-soak-contract.json');
@@ -60,6 +60,10 @@ function volumeSaveFixture() {
         snapshot: () => ({ commits: counters['state:volume-commit-count'] || 0, revision: state.getRevision(), persists: counters['state:persist-attempts'] || 0 }) };
 }
 try {
+    await check('queue-handoffs-do-not-rebuild-mounted-library', () => {
+        assertQueueProjection(3, 3);
+        assert.throws(() => assertQueueProjection(3, 4), /without rebuilding/);
+    });
     await check('delayed-long-tasks-use-action-start-phase-with-fixed-budgets', async () => {
         const frames = [], f = instrumentationFixture(callback => frames.push(callback)), phases = [];
         const page = { evaluate(callback, name) {
