@@ -55,6 +55,7 @@ const tests = {
         ['node', 'tools/smoke/audioflix_volume_mutation_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_volume_core_capture_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_library_soak_contract_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_nexus_search_identity_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_queue_snapshot_scale_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_library_diagnostics_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_duplicate_scale_smoke.mjs'],
