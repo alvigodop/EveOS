@@ -26,13 +26,17 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
         (root ? root.querySelectorAll('[data-af-nexus-results]') : []).forEach((element) => {
             seen.set(element.dataset.afNexusResults, element.scrollTop);
         });
-        const active = root && root.contains?.(document.activeElement)
+        const focused = root && root.contains?.(document.activeElement)
             && document.activeElement?.matches?.('[data-af-nexus-search]')
             ? document.activeElement
             : null;
+        // Keep the open control even when it is not focused yet: a late async rerender (ported
+        // sounds / disk audit finishing after open) must not swap the node out from under a click.
+        const active = focused || root?.querySelector?.('[data-af-nexus-search]') || null;
         if (active) {
             seen.activeSearch = {
                 node: active,
+                focused: active === focused,
                 type: active.dataset.afType === 'sound' ? 'sound' : 'music',
                 value: String(active.value ?? ''),
                 selectionStart: Number.isInteger(active.selectionStart) ? active.selectionStart : null,
@@ -55,8 +59,11 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
         if (!replacement || replacement === active.node) return;
         // The newly rendered control reflects canonical Nexus state. Move that value onto the old
         // node before reattaching it so an unrelated rerender cannot resurrect stale typed text.
+        for (const attr of [...(active.node.attributes || [])]) if (!replacement.hasAttribute(attr.name)) active.node.removeAttribute(attr.name);
+        for (const attr of [...(replacement.attributes || [])]) active.node.setAttribute(attr.name, attr.value);
         active.node.value = replacement.value;
         replacement.replaceWith(active.node);
+        if (!active.focused) return;
         active.node.focus?.({ preventScroll: true });
         if (active.selectionStart !== null && active.selectionEnd !== null && active.node.setSelectionRange) {
             const length = String(active.node.value ?? '').length;

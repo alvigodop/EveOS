@@ -379,7 +379,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         }
         activeTab = nextType === 'sound' ? 'soundboard' : 'music';
         nexusState = { open: true, type: nextType, query: '', facet: '', selectedIds: [] };
-        open();
+        if (!overlay || overlay.hidden) open(); // no re-run of port reload/disk audit (2 late full rerenders)
         overlay?.classList.add('audioflix-nexus-over-internal');
         rerender(); return true;
     };

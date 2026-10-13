@@ -48,6 +48,18 @@ async function main() {
     });
 
     await page.waitForSelector('#audioflix-overlay:not([hidden]) [data-af-nexus-search]', { timeout: 10000 });
+    // Re-opening Nexus over the open overlay must not re-run open()'s port reload / disk audit,
+    // whose late full rerenders replaced cards and the search control after every toggle.
+    const reopen = await page.evaluate(async () => {
+        const fsPorts = window.EveAudioflixFsPorts, original = fsPorts?.reconcile;
+        let calls = 0;
+        if (fsPorts) fsPorts.reconcile = async (...args) => { calls += 1; return original?.apply(fsPorts, args); };
+        window.EveAudioflix.openNexus('music'); window.EveAudioflix.openNexus('music');
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        if (fsPorts) fsPorts.reconcile = original;
+        return { calls, hasPorts: !!fsPorts, open: !!document.querySelector('#audioflix-overlay:not([hidden]) [data-af-nexus-search]') };
+    });
+    if (!reopen.hasPorts || reopen.calls !== 0 || !reopen.open) throw new Error(`Nexus reopen re-ran overlay open(): ${JSON.stringify(reopen)}`);
     await page.fill('[data-af-nexus-search]', 'Night Track');
     await page.waitForFunction(() => (
         document.querySelector('[data-af-bulk-match-count]')?.textContent === '60'
