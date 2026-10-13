@@ -38,6 +38,17 @@ export function assertHeldVolume(before, held) {
     assert.equal(held.persists, before.persists, 'Holding a pointer never persists');
 }
 
+export async function settleSoakPersistence(page, reason) {
+    const boundary = await page.evaluate(async reason => {
+        const result = await window.EveAudioflixState.flush(reason), diagnostics = window.EveAudioflixDiagnostics;
+        const before = diagnostics.snapshot().counters['ui:render-generations'] || 0;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return { written: result.written, before, after: diagnostics.snapshot().counters['ui:render-generations'] || 0 };
+    }, reason);
+    assert.equal(boundary.after, boundary.before, 'Canonical setup persistence must settle before transport assertions');
+    return boundary;
+}
+
 export function assertGestureTotals(inputEvents, counts, outcomes) {
     assert.equal(outcomes.length, counts.gestures, 'Every gesture requires its own evidence');
     assert.equal(counts.pointerMoves, counts.gestures * 20);
@@ -64,21 +75,31 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
     const topologyBefore = hash(JSON.stringify(await topology(page)));
     const settledBoundaries = [];
     const quiesce = async reason => {
-        const boundary = await page.evaluate(async reason => {
-            const result = await window.EveAudioflixState.flush(reason), diagnostics = window.EveAudioflixDiagnostics;
-            const before = diagnostics.snapshot().counters['ui:render-generations'] || 0;
-            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            return { written: result.written, before, after: diagnostics.snapshot().counters['ui:render-generations'] || 0 };
-        }, reason);
-        assert.equal(boundary.after, boundary.before, 'Canonical setup persistence must settle before transport assertions');
+        const boundary = await settleSoakPersistence(page, reason);
         settledBoundaries.push({ reason, ...boundary });
     };
     try {
-        await page.evaluate(() => {
+        await page.evaluate(debugAll => {
             const debug = window.__soakDebug = { enabled: true, events: [] };
             const note = value => { if (!debug.enabled) return; debug.events.push({ at: performance.now(), phase: window.__librarySoak.snapshot().phase, ...value }); if (debug.events.length > 64) debug.events.shift(); };
-            window.addEventListener('eve:audioflix-state-changed', event => note({ kind: 'state-changed', reason: event.detail?.reason, reasons: event.detail?.reasons }));
-        });
+            debug.all = debugAll;
+            if (!debugAll) {
+                window.addEventListener('eve:audioflix-state-changed', event => note({ kind: 'state-changed', reason: event.detail?.reason, reasons: event.detail?.reasons }));
+                return;
+            }
+            const gain = state => state?.music?.find(item => String(item.id) === window.__soakVolumeTarget)?.volume;
+            const sample = () => ({ held: debug.held === true, commits: window.__soakCalls?.commits,
+                revision: window.EveAudioflixState.getRevision(), liveGain: gain(window.EveAudioflixState.ensure()),
+                persists: window.EveAudioflixDiagnostics.snapshot().counters['state:persist-attempts'] || 0 });
+            document.addEventListener('pointerdown', event => { if (event.target?.classList.contains('audioflix-volume-slider')) debug.held = true; }, true);
+            document.addEventListener('pointerup', () => { debug.held = false; }, true);
+            const recovery = window.EveAudioflixStateRecovery, write = recovery.write;
+            recovery.write = function (key, state, ...args) {
+                note({ kind: 'mirror-write', ...sample(), committedGain: gain(state) });
+                return Reflect.apply(write, this, [key, state, ...args]);
+            };
+            window.addEventListener('eve:audioflix-state-changed', event => note({ kind: 'state-changed', ...sample(), reason: event.detail?.reason, reasons: event.detail?.reasons }));
+        }, process.argv.includes('--soak-debug'));
         await settleMonitor(page);
         // Opening the overlay starts an async port reload + disk audit that ends in canonical
         // renders; on a slow host they land late. Wait for 2s of render quiet before setup.
@@ -108,6 +129,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             audio.updateItemVolume = function (...args) { calls.live += 1; return Reflect.apply(volume, this, args); };
             document.addEventListener('input', event => { if (event.target?.classList.contains('audioflix-volume-slider')) calls.inputs += 1; }, true);
             window.EveAudioflixDiagnostics.reset();
+            window.__soakVolumeTarget = String(item.id);
             return { id: String(item.id), query: Array.from(String(item.title || '')).slice(0, 80).join(''), scopeCount: scope.length, libraryCount: state.ensure().music.length };
         });
         await quiesce('soak-setup-ready');
@@ -134,6 +156,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             assert.equal(await page.locator('.audioflix-info-modal').count(), 0);
         };
         const volume = async () => {
+            // The previous release schedules a 500ms save; settle it outside this gesture's timing/counters.
+            await quiesce('soak-volume-ready');
             const slider = targetCard().locator('.audioflix-volume-slider'); await slider.focus();
             const box = await slider.boundingBox(); assert.ok(box?.width > 30);
             const before = await page.evaluate(() => { window.__soakSlider = document.activeElement;
@@ -174,7 +198,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         // Warm all exercised card/modal/gesture paths before taking resource baselines.
         for (let i = 0; i < 10; i++) { await playStop(); await settings(); }
         await volume();
-        await page.evaluate(() => { window.__soakDebug.enabled = false; });
+        await page.evaluate(() => { window.__soakDebug.enabled = window.__soakDebug.all; });
         for (const key of Object.keys(rows)) rows[key] = [];
         const startCalls = await page.evaluate(() => ({ ...window.__soakCalls }));
         samples.push(await sampleSoakResources(page, cdp, 'warm-card-paths'));

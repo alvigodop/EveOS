@@ -6,11 +6,11 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
 import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
-    assertHeldVolume, assertGestureTotals } from '../qualification/audioflix_library_soak.mjs';
+    assertHeldVolume, assertGestureTotals, settleSoakPersistence } from '../qualification/audioflix_library_soak.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-soak-contract.json');
-const results = [];
+const results = [], volumeSaveEvidence = [];
 let current = '';
 function instrumentationFixture() {
     const timers = new Map(), events = new Map();
@@ -34,7 +34,61 @@ function instrumentationFixture() {
     return { window, timers, events, advance: ms => { tick += ms; }, observer: () => performanceObserver };
 }
 async function check(id, work) { current = id; await work(); results.push(id); }
+function volumeSaveFixture() {
+    const timers = new Map(), counters = {}, saves = [], events = [];
+    let nextTimer = 0;
+    const window = { eveState: { config: { audioflix: { music: [{ id: 'track', title: 'Fixture', url: 'https://media.invalid/fixture.mp3', volume: .2 }] } } },
+        setTimeout(callback) { const id = ++nextTimer; timers.set(id, callback); return id; }, clearTimeout(id) { timers.delete(id); },
+        addEventListener() {}, dispatchEvent(event) { events.push(event.detail); }, saveConfig: async () => true,
+        EveAudioflixDiagnostics: { span: () => () => {}, gauge() {}, increment(name) { counters[name] = (counters[name] || 0) + 1; },
+            snapshot: () => ({ counters }) } };
+    const storage = new Map(), context = vm.createContext({ window, console, requestAnimationFrame: callback => callback(),
+        localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
+        CustomEvent: class { constructor(_name, options) { this.detail = options.detail; } } });
+    for (const file of ['audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js',
+        'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.js']) {
+        vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix', file), 'utf8'), context, { filename: file });
+    }
+    const state = window.EveAudioflixState, write = window.EveAudioflixStateRecovery.write;
+    window.EveAudioflixStateRecovery.write = function (key, durable, ...args) {
+        saves.push({ committedGain: durable.music[0].volume, liveGain: state.ensure().music[0].volume, revision: state.getRevision() });
+        return Reflect.apply(write, this, [key, durable, ...args]);
+    };
+    state.ensure();
+    return { state, timers, saves, events, context, counters, window,
+        snapshot: () => ({ commits: counters['state:volume-commit-count'] || 0, revision: state.getRevision(), persists: counters['state:persist-attempts'] || 0 }) };
+}
 try {
+    await check('prior-autosave-isolated-from-held-preview', async () => {
+        const f = volumeSaveFixture(), previous = {}, current = {};
+        f.state.previewItemVolume('music', 'track', .6, previous); f.state.commitItemVolume('music', 'track', .6, previous);
+        const before = f.snapshot();
+        f.state.previewItemVolume('music', 'track', .8, current);
+        const pendingSave = [...f.timers.values()][0]; pendingSave(); await new Promise(resolve => setImmediate(resolve));
+        assert.throws(() => assertHeldVolume(before, f.snapshot()), /Holding a pointer never persists/,
+            'Legacy measurement falsely attributes the prior scheduled save to the current pointer');
+        assert.equal(f.snapshot().commits, before.commits); assert.equal(f.snapshot().revision, before.revision);
+        assert.equal(f.saves[0].committedGain, .6); assert.equal(f.saves[0].liveGain, .8);
+        assert.equal(f.events.at(-1).reason, 'audioflix-volume');
+        volumeSaveEvidence.push({ before, held: f.snapshot(), saves: f.saves, events: f.events });
+    });
+    await check('gesture-boundary-awaits-prior-save-before-measurement', async () => {
+        const f = volumeSaveFixture(), previous = {}, current = {};
+        f.state.previewItemVolume('music', 'track', .6, previous); f.state.commitItemVolume('music', 'track', .6, previous);
+        let release, settled = false;
+        f.window.saveConfig = () => new Promise(resolve => { release = resolve; });
+        const page = { evaluate(callback, reason) { f.context.reason = reason; return vm.runInContext(`(${callback.toString()})(reason)`, f.context); } };
+        const settling = settleSoakPersistence(page, 'soak-volume-ready').then(value => { settled = true; return value; });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(settled, false, 'Measurement cannot start until async canonical persistence finishes');
+        release(true); await settling;
+        assert.equal(f.timers.size, 0, 'Previous autosave is canceled before taking the next counter baseline');
+        const before = f.snapshot(); f.state.previewItemVolume('music', 'track', .8, current);
+        assertHeldVolume(before, f.snapshot());
+        assert.equal(f.state.durableSnapshot().music[0].volume, .6); assert.equal(f.state.ensure().music[0].volume, .8);
+        f.state.commitItemVolume('music', 'track', .8, current);
+        assert.equal(f.snapshot().commits - before.commits, 1); assert.equal(f.snapshot().revision - before.revision, 1);
+    });
     await check('held-volume-rejects-persistence-before-release', () => {
         const before = { commits: 3, revision: 7, persists: 2 };
         assertHeldVolume(before, { ...before });
@@ -133,7 +187,7 @@ try {
         assert.equal(result.expected.length, 1); assert.equal(result.unexpected.length, 1);
         assert.equal(result.unexpected[0].tag, 'SCRIPT');
     });
-    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, results }, null, 2));
+    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, results, volumeSaveEvidence }, null, 2));
     console.log(`AUDIOFLIX_LIBRARY_SOAK_CONTRACT_SMOKE_OK passed=${results.length}/${results.length}`);
 } catch (error) {
     fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: false, current, results, error: String(error.stack || error) }, null, 2));
