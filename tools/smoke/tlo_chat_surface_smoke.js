@@ -26,6 +26,43 @@ function requireContract(condition, message) {
     if (!condition) throw new Error(message);
 }
 
+async function assertSendRaces() {
+    const waiting = [];
+    let streams = 0;
+    const mock = { ...windowMock };
+    delete mock.EveOSTloChat;
+    vm.runInNewContext(source, {
+        window: mock, console, AbortController, TextDecoder, Uint32Array, Date,
+        fetch: async (url) => {
+            if (url.includes('/status')) return new Promise(resolve => waiting.push(resolve));
+            if (url.includes('/cancel')) return { ok: true };
+            streams += 1;
+            return { ok: true, body: new ReadableStream({ start(controller) {
+                controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"A"}}]}\n\ndata: {"choices":[{"delta":{"content":"B"}}]}\n\ndata: [DONE]\n\n'));
+                controller.close();
+            } }) };
+        }
+    });
+    const api = mock.EveOSTloChat;
+    api.bind({ addEventListener() {}, querySelector(selector) {
+        return selector === '[data-tlo-form]' ? { querySelector() { return null; } } : null;
+    } });
+    const first = api.sendWorkspaceMessage('first');
+    const second = api.sendWorkspaceMessage('second');
+    const results = Promise.allSettled([first, second]);
+    requireContract(waiting.length === 2, 'Fixture did not overlap readiness probes');
+    waiting.forEach(resolve => resolve({ ok: true, json: async () => ({ ok: true, canChat: true }) }));
+    const settled = await results;
+    requireContract(streams === 1, `Concurrent readiness produced ${streams} generations`);
+    requireContract(settled[0].status === 'fulfilled' && settled[1].reason?.code === 'TLO_WORKSPACE_BUSY', 'Duplicate admission was not rejected');
+    let partials = 0;
+    const canceled = await api.sendWorkspaceMessage('cancel', { onPartial() { partials += 1; api.cancel(); } })
+        .then(() => null, error => error);
+    requireContract(partials === 1, 'Canceled stream emitted late partials');
+    requireContract(canceled?.code === 'TLO_WORKSPACE_INTERRUPTED', 'Canceled stream reported success');
+    requireContract(!api.workspaceSnapshot().busy, 'Cancellation retained an active request');
+}
+
 async function run() {
     const api = windowMock.EveOSTloChat;
     const markup = api?.markup?.() || '';
@@ -63,6 +100,7 @@ async function run() {
     });
     requireContract(text === 'AB', `Streaming deltas were not ordered: ${text}`);
     requireContract(finalized === 1, `Streaming finalized ${finalized} times`);
+    await assertSendRaces();
     console.log('TLO_CHAT_SURFACE_SMOKE_OK');
 }
 

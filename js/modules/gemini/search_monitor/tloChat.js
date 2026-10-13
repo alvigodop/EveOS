@@ -235,6 +235,13 @@
             return null;
         }
 
+        // Readiness awaited above; another submission may have acquired the active slot.
+        if (active) {
+            if (!external) return null;
+            const error = new Error('TLO is already generating in the Search Monitor conversation.');
+            error.code = 'TLO_WORKSPACE_BUSY';
+            throw error;
+        }
         const priorHistory = conversation.slice(-40);
         conversation.push({ role: 'user', content: message });
         bubble('user', message);
@@ -259,14 +266,17 @@
             if (!response.ok) await jsonResponse(response);
             await consumeSseResponse(response, {
                 onDelta(piece) {
+                    if (run.cancelled || active !== run) return;
                     run.text += piece;
                     if (assistant?.content) assistant.content.textContent = run.text;
                     options.onPartial?.(run.text);
                 },
                 onDone() {
+                    if (run.cancelled || active !== run) return;
                     if (!run.text && assistant?.content) assistant.content.textContent = 'TLO completed without a visible response.';
                 }
             });
+            if (run.cancelled) throw new Error('TLO generation was canceled.');
             const finalText = run.text || 'TLO completed without a visible response.';
             if (!run.cancelled) conversation.push({ role: 'assistant', content: finalText });
             return finalText;

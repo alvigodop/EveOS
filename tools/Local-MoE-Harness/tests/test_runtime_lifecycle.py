@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 from app.services.model_registry import ModelRegistry
 from app.adapters.freetoken import FreeTokenAdapter
 from app.services.runtime_lifecycle import RuntimeLifecycle
+from app.services.runtime_lifecycle_windows import RuntimeLifecycle as WindowsRuntimeLifecycle
 
 
 class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
@@ -78,6 +79,7 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self._model_argument(args), str(record.local_path))
 
     def test_bonsai_uses_prism_backend_and_profile_offload(self):
+        self.lifecycle = WindowsRuntimeLifecycle(ROOT, "http://127.0.0.1:1919", registry=self.registry)
         record = self.registry.require("bonsai2-27b-ptq1")
         args = self.lifecycle._process_args(record)
         environment = self.lifecycle._profile_environment(record, "normal")
@@ -94,6 +96,7 @@ class RuntimeLifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.lifecycle.supports_dynamic_cache())
 
     def test_headed_runtime_title_uses_registry_metadata(self):
+        self.lifecycle = WindowsRuntimeLifecycle(ROOT, "http://127.0.0.1:1919", registry=self.registry)
         record = self.registry.require("qwen36-nvfp4")
         title = self.lifecycle._console_title(record)
         self.assertIn(str(record.data["display_name"]), title)
