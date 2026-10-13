@@ -121,6 +121,65 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         return list;
     }
 
+    // Live Nexus renders at most 80 rows. Preserve full-search semantics for every existing caller,
+    // but let that bounded surface count all matches without allocating a second 25k-item result array.
+    function filterWindow(options, limit = 80) {
+        const input = options && typeof options === 'object' ? options : {};
+        const max = Math.max(0, Math.floor(Number(limit) || 0));
+        if (input.list || text(input.facet)) {
+            const list = filter(input);
+            return { items: list.slice(0, max), total: list.length };
+        }
+        const type = input.type === 'sound' ? 'sound' : 'music', q = norm(input.query), docs = indexedDocs(type), found = [];
+        let total = 0;
+        for (const doc of docs) {
+            if (q && !doc.haystack.includes(q)) continue;
+            total += 1;
+            if (found.length < max) found.push(doc.item);
+        }
+        return { items: found, total };
+    }
+
+    // The Nexus UI is loaded immediately after this module. Intercept its factory once so only the
+    // live result surface consumes the bounded view; facets, bulk tools, smokes, and API callers keep
+    // receiving ordinary full arrays from filter(). A sparse facade preserves the UI's true count
+    // while its existing slice(0, 80) still sees only materialized rows.
+    function installBoundedUiResults() {
+        const ui = window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
+        let create = ui.create;
+        const wrap = (factory) => {
+            if (typeof factory !== 'function' || factory.__eveBoundedNexusResults) return factory;
+            const wrapped = function (...args) {
+                const api = Reflect.apply(factory, this, args);
+                const render = api?.renderResults;
+                if (typeof render !== 'function' || render.__eveBoundedNexusResults) return api;
+                const bounded = function (type, preparedList) {
+                    if (Array.isArray(preparedList)) return Reflect.apply(render, this, [type, preparedList]);
+                    const originalFilter = ns.filter;
+                    ns.filter = function (options) {
+                        const result = filterWindow(options, 80), facade = result.items.slice();
+                        facade.length = result.total;
+                        return facade;
+                    };
+                    try { return Reflect.apply(render, this, [type]); }
+                    finally { ns.filter = originalFilter; }
+                };
+                bounded.__eveBoundedNexusResults = true;
+                api.renderResults = bounded;
+                return api;
+            };
+            wrapped.__eveBoundedNexusResults = true;
+            return wrapped;
+        };
+        Object.defineProperty(ui, 'create', {
+            configurable: true,
+            enumerable: true,
+            get: () => create,
+            set: (factory) => { create = wrap(factory); }
+        });
+        create = wrap(create);
+    }
+
     // The minute a duration is "around": it rolls up to the next minute only PAST the :36 mark, so
     // 3:14/3:34/3:36 are "around 3" while 3:38/3:40 tip into "around 4" — the edge the spec calls for.
     const aroundMinute = (sec) => {
@@ -225,5 +284,6 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         }, 350);
     }
 
-    Object.assign(ns, { ready: true, items, groupsOf, search, filter, facets, dupReport, integrityReport, durationMatch, aroundMinute, recordSearch, getArtist });
+    Object.assign(ns, { ready: true, items, groupsOf, search, filter, filterWindow, facets, dupReport, integrityReport, durationMatch, aroundMinute, recordSearch, getArtist });
+    installBoundedUiResults();
 })();
