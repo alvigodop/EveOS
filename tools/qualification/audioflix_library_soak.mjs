@@ -24,6 +24,8 @@ export function attachSoakConsole(page) {
         if (message.type() !== 'error') return;
         const text = message.text();
         if (/Failed to load resource: (net::ERR_FAILED|the server responded with a status of (403|404))/i.test(text)) { probe.expectedNetworkErrors += 1; return; }
+        // Every third-party origin is aborted by the isolated context; the CSE embed reports its own blocked script.
+        if (/^GoogleCSEEmbedded: Script load error\b/.test(text)) { probe.expectedNetworkErrors += 1; return; }
         probe.unexpectedErrors += 1;
         if (probe.errors.length < 30) probe.errors.push(text.replace(/(?:https?|file):\/\/\S+/g, '[redacted-url]').slice(0, 600));
     });
@@ -59,6 +61,11 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             window.addEventListener('eve:audioflix-state-changed', event => note({ kind: 'state-changed', reason: event.detail?.reason, reasons: event.detail?.reasons }));
         });
         await settleMonitor(page);
+        // Opening the overlay starts an async port reload + disk audit that ends in canonical
+        // renders; on a slow host they land late. Wait for 2s of render quiet before setup.
+        await page.waitForFunction(() => { const now = performance.now(), gen = window.EveAudioflixDiagnostics.snapshot().counters['ui:render-generations'] || 0;
+            const q = window.__soakRenderQuiet ||= { gen, at: now }; if (q.gen !== gen) Object.assign(q, { gen, at: now });
+            return now - q.at >= 2000; }, undefined, { timeout: 60000, polling: 250 });
         await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click();
         await page.waitForFunction(() => window.EveAudioflixState.ensure().musicViewMode === 'frontend');
         // The saved real backup has a folder focus. Clear it through its actual UI control so
@@ -135,7 +142,10 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             assert.equal(after.revision - before.revision, 1); assert.equal(after.sameNode, true);
             assert.equal(after.renders, before.renders, 'Volume drag must not generate structural library renders');
             assert.ok(Math.abs(after.value - after.stateValue) < .001); assert.ok(Math.abs(after.scroll - before.scroll) <= 2);
-            assert.ok(after.previews - before.previews >= 20, 'Twenty real pointer moves produce live canonical previews');
+            // A pointer move that lands on the same slider step fires no `input` (HTML range semantics),
+            // so the contract is one canonical preview per real input, with most of the 20 moves changing value.
+            assert.equal(after.previews - before.previews, after.inputs - before.inputs, 'Every real slider input produces exactly one live canonical preview');
+            assert.ok(after.inputs - before.inputs >= 15, `Twenty real pointer moves produce live inputs (${after.inputs - before.inputs})`);
             return { inputs: after.inputs - before.inputs, previews: after.previews - before.previews, commits: after.commits - before.commits,
                 revisions: after.revision - before.revision, persistsDuringGesture: after.persists - before.persists };
         };
@@ -194,12 +204,15 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 assert.equal(await page.locator('.audioflix-item-card').count(), 0); counts.expansionPairs += 1;
             }
             await page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click();
+            // The view-mode toggle persists; its save echo is a canonical render that must settle
+            // before the card is located, exactly like the setup boundary.
+            await quiesce('soak-view-mode-restored');
             await reveal();
             await page.evaluate(() => window.__librarySoak.phase('playlist-health-fixture'));
             const fixtureResult = await page.evaluate(async () => {
                 const state = window.EveAudioflixState, st = state.ensure(), next = window.EveAudioflixLibraryNext;
                 const keep = { music: st.music.slice(), musicGroups: st.musicGroups.slice(), musicGroupMap: { ...st.musicGroupMap },
-                    musicPlaylists: st.musicPlaylists.slice(), musicFolders: st.musicFolders.slice(), musicGroupParents: { ...st.musicGroupParents }, scopeBindings: { ...st.scopeBindings } };
+                    musicPlaylists: st.musicPlaylists.slice(), musicFolders: st.musicFolders.slice(), musicGroupParents: { ...st.musicGroupParents }, scopeBindings: (st.scopeBindings || []).slice() };
                 const providers = window.EveAudioflixPlaylistProviders, saved = { ...providers };
                 let connection, applied = 0;
                 try {
@@ -258,7 +271,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.equal(final.instrumentation.errorCount, 0, 'Window and unhandled Promise errors are not ignored');
         const resourceErrors = classifyResourceErrors(final.instrumentation.resourceErrors, run.blockedRequests || []);
         assert.deepEqual(resourceErrors.unexpected, [], 'Failed local JS/assets or unexplained resource failures are not suppressed');
-        assert.equal(run.consoleProbe?.unexpectedErrors || 0, 0, 'Unexpected browser console errors fail qualification');
+        assert.equal(run.consoleProbe?.unexpectedErrors || 0, 0, `Unexpected browser console errors fail qualification: ${JSON.stringify(run.consoleProbe?.errors || [])}`);
         assert.ok(samples.every(sample => sample.mountedCards <= 400));
         const growth = resourceGrowth(samples), latency = Object.fromEntries(Object.entries(rows).map(([key, values]) => [key, latencyStats(values)]));
         const longTaskRows = final.instrumentation.longTasks, attribution = {};
