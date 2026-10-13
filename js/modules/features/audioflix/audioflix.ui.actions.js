@@ -126,7 +126,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                     activeFrontendMusicArtist: '',
                     activeFrontendMusicClassifier: ''
                 }, 'audioflix-folder-scope');
-                ctx.rerender();
+                (ctx.rerenderLibrary || ctx.rerender)();
                 return;
             }
             if (action === 'rename-group-prompt') {
@@ -153,7 +153,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
             if (action === 'remove-group') { if (type === 'music') window.EveAudioflixState?.removeMusicGroup?.(actionTarget.dataset.afGroup); else window.EveAudioflixState?.removeSoundboardGroup?.(actionTarget.dataset.afGroup); ctx.rerender(); return; }
             if (action === 'toggle-smart-artists') {
                 ctx.smartArtistExpanded = !ctx.smartArtistExpanded;
-                ctx.rerender();
+                (ctx.rerenderLibrary || ctx.rerender)();
                 return;
             }
             if (action === 'select-frontend-group') {
@@ -183,7 +183,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                     window.EveAudioflixState?.update?.({ activeFrontendGroup: next, soundboardViewMode: 'frontend' }, 'audioflix-active-group');
                 }
                 ctx.pushHotkeysToBridge();
-                ctx.rerender();
+                (ctx.rerenderLibrary || ctx.rerender)();
                 return;
             }
             if (action === 'toggle-view-mode') {
@@ -195,7 +195,7 @@ window.EveAudioflixUiActions = window.EveAudioflixUiActions || {};
                     window.EveAudioflixState?.update?.({ soundboardViewMode: next }, 'audioflix-view-mode');
                     ctx.pushHotkeysToBridge();
                 }
-                ctx.rerender(); return;
+                (ctx.rerenderLibrary || ctx.rerender)(); return;
             }
             if (action === 'play-music-group') {
                 const { name, items, activeGroup } = ctx.frontendActiveGroup('music');
