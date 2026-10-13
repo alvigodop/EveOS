@@ -312,6 +312,14 @@ window.EveAudioflix = window.EveAudioflix || {};
         lastRenderedRevision = window.EveAudioflixState?.getRevision?.();
     }
 
+    function rerenderLibrary() {
+        if (!overlay || overlay.hidden || window.EveAudioflixSoundLabUi?.deferOuterRender?.(rerenderLibrary)) return;
+        if (!uiPanel.library?.(overlay)) return rerender();
+        lastRenderedRevision = window.EveAudioflixState?.getRevision?.();
+        updateStatusDOM();
+        window.EveAudioflixTransport?.sync?.(overlay);
+    }
+
     const rerenderPlayback = () => uiPanel.playback(overlay);
 
     const stopRepeater = (itemId) => { if (activeRepeaters[itemId]) { clearInterval(activeRepeaters[itemId].id); delete activeRepeaters[itemId]; rerender(); } };
@@ -322,7 +330,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     // Handlers live in sibling modules and reach this view's mutable state through `uiCtx`, so the
     // renderers above keep using the same closure variables unchanged.
     const uiCtx = {
-        rerenderTransient: () => rerender(true), rerenderPlayback,
+        rerenderTransient: () => rerender(true), rerenderPlayback, rerenderLibrary,
         state, rerender, rerenderModal, pushHotkeysToBridge, loadPortedSounds, findItem, startRepeater, stopRepeater, frontendActiveGroup, frontendGroupEntries, playQueueIndex, toggleGroup: uiRender.toggleGroup,
         invalidateQueueRun, waitForQueueTransition: () => queueTransition.catch(() => {}),
         get overlay() { return overlay; },
