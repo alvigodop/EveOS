@@ -54,7 +54,7 @@ test('Codex targets expose one reusable ChatGPT spawned terminal', () => {
 test('Visible spawned terminal explicitly resumes noninteractive Codex sessions', () => {
   let captured = null;
   assert.equal(cli.openVisibleTerminal({
-    threadId: THREAD, cwd: 'C:\\Workspace', launch: { command: 'C:\\Codex\\codex.exe' },
+    platform: 'win32', threadId: THREAD, cwd: 'C:\\Workspace', launch: { command: 'C:\\Codex\\codex.exe' },
     settings: { model: 'gpt-5.6-sol', effort: 'low', sandbox: 'read-only' },
     spawnSyncImpl: (command, args, options) => { captured = { command, args, options }; return { status: 0 }; }
   }), true);

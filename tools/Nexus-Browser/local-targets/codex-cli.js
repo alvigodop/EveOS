@@ -52,8 +52,8 @@ function threadProcess(threadId, processes = discoverCodexProcesses()) {
   return processes.find((processInfo) => resumedThreadId(processInfo) === String(threadId || '').toLowerCase()) || null;
 }
 
-function openVisibleTerminal({ threadId, cwd, launch = resolveCodexLaunch(), settings = codexSettings(), spawnSyncImpl = spawnSync } = {}) {
-  if (process.platform !== 'win32' || !launch || !threadId) return false;
+function openVisibleTerminal({ platform = process.platform, threadId, cwd, launch = resolveCodexLaunch(), settings = codexSettings(), spawnSyncImpl = spawnSync } = {}) {
+  if (platform !== 'win32' || !launch || !threadId) return false;
   const script = [
     'Start-Process -FilePath $env:NEXUS_CODEX_EXE',
     '-ArgumentList @("resume",$env:NEXUS_CODEX_THREAD,"--include-non-interactive","--no-alt-screen","-m",$env:NEXUS_CODEX_MODEL,"-c",("model_reasoning_effort=" + $env:NEXUS_CODEX_EFFORT),"-s",$env:NEXUS_CODEX_SANDBOX,"-a","never","-C",$env:NEXUS_CODEX_CWD)',
