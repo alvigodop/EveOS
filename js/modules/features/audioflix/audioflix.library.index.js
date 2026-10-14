@@ -91,6 +91,28 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
                 index.scopes.set(cacheKey, { revision: index.revision, rows: ordered, items: scoped });
                 return scoped;
             },
+            // Search validates row identity while scanning, so live 25k queries do one O(N) pass
+            // instead of a separate whole-library integrity pass followed by another docs pass.
+            // A silent same-length replacement still repairs on the first indexed query.
+            search(query, limit = Infinity) {
+                ensureSource(index, snapshot, type);
+                const wanted = text(query).toLowerCase();
+                const max = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : Infinity;
+                for (let attempt = 0; attempt < 2; attempt += 1) {
+                    const found = [];
+                    let total = 0, stale = false;
+                    for (let position = 0; position < index.source.length; position += 1) {
+                        const item = index.source[position], row = index.rows.get(item);
+                        if (!row || row.position !== position) { stale = true; break; }
+                        if (wanted && !row.doc.haystack.includes(wanted)) continue;
+                        total += 1;
+                        if (found.length < max) found.push(item);
+                    }
+                    if (!stale) return { items: found, total };
+                    repair(index, snapshot, type);
+                }
+                return { items: [], total: 0 };
+            },
             docs() {
                 ensureSource(index, snapshot, type);
                 if (index.source.some((item, position) => index.rows.get(item)?.position !== position)) repair(index, snapshot, type);
