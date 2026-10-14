@@ -129,26 +129,21 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return index;
     }
 
-    // Badge lookups only need to know which normalized values actually collide. During construction we
-    // temporarily remember first-seen ids, then retain only duplicate buckets. A 25k unique library
-    // therefore keeps almost no duplicate-specific memory after the one O(N) content-revision scan.
+    // Badge lookups retain one canonical membership baseline. Temporary playlist/import work can add
+    // or remove a tiny number of objects and then restore the original array; keep the baseline alive
+    // across that excursion so the next user gesture does not normalize all 25k tracks again.
     const badgeMemo = { music: null, sound: null };
     function contentRevision(snapshot, type) {
         const view = window.EveAudioflixLibraryIndex?.get?.(snapshot, type);
         return view?.contentRevision ?? window.EveAudioflixState?.getRevision?.() ?? -1;
     }
-    function badgeIndexFor(type) {
-        const key = type === 'music' ? 'music' : 'sound', snapshot = state();
-        const items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
-        const revision = contentRevision(snapshot, type), dismissedSource = snapshot.dupDismissedPairs || [];
-        const cached = badgeMemo[key];
-        if (cached?.snapshot === snapshot && cached.items === items && cached.length === items.length && cached.revision === revision) {
-            if (cached.dismissedSource !== dismissedSource) {
-                cached.dismissedSource = dismissedSource;
-                cached.dismissed = new Set(dismissedSource);
-            }
-            return cached;
-        }
+    function refreshDismissed(index, dismissedSource) {
+        if (index.dismissedSource === dismissedSource) return index;
+        index.dismissedSource = dismissedSource;
+        index.dismissed = new Set(dismissedSource);
+        return index;
+    }
+    function buildBadgeIndex(snapshot, items, revision, dismissedSource, retainMembership) {
         const first = Object.fromEntries(dimensions.map(name => [name, new Map()]));
         const buckets = Object.fromEntries(dimensions.map(name => [name, new Map()]));
         for (const item of items) {
@@ -166,8 +161,53 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
                 ids.add(id);
             }
         }
-        return badgeMemo[key] = { snapshot, items, length: items.length, revision, buckets,
+        return { snapshot, items, length: items.length, revision, buckets,
+            members: retainMembership ? new Set(items) : null,
             dismissedSource, dismissed: new Set(dismissedSource) };
+    }
+    function membershipOverlap(index, items) {
+        if (!index?.members?.size || !items.length) return 0;
+        let reused = 0;
+        for (const item of items) if (index.members.has(item)) reused += 1;
+        return reused;
+    }
+    function sameMembership(index, items) {
+        if (!index?.members || index.members.size !== items.length) return false;
+        for (const item of items) if (!index.members.has(item)) return false;
+        return true;
+    }
+    function badgeIndexFor(type) {
+        const key = type === 'music' ? 'music' : 'sound', snapshot = state();
+        const items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
+        const revision = contentRevision(snapshot, type), dismissedSource = snapshot.dupDismissedPairs || [];
+        const cached = badgeMemo[key];
+        if (cached?.snapshot === snapshot) {
+            if (cached.items === items && cached.length === items.length && cached.revision === revision) {
+                return refreshDismissed(cached, dismissedSource);
+            }
+            // A different array containing the exact same canonical item objects is the common bulk
+            // restore case. The duplicate-sensitive fields live on those objects, so rebind the stable
+            // projection instead of repeating the expensive descriptor pass.
+            if (cached.items !== items && sameMembership(cached, items)) {
+                cached.items = items;
+                cached.length = items.length;
+                cached.revision = revision;
+                return refreshDismissed(cached, dismissedSource);
+            }
+            // If membership only wandered temporarily (playlist import/sync qualification, transient
+            // provider rows), build a disposable projection for that state but do not evict the stable
+            // baseline. Once the original objects return, the branch above reuses it immediately.
+            if (cached.members?.size) {
+                const overlapTarget = Math.min(cached.members.size, items.length);
+                const reused = membershipOverlap(cached, items);
+                if (overlapTarget && reused >= overlapTarget * 0.75) {
+                    return buildBadgeIndex(snapshot, items, revision, dismissedSource, false);
+                }
+            }
+        }
+        // Same-array/same-length content revisions can represent a real title/URL/source edit. Rebuild
+        // those conservatively so duplicate badges never trade correctness for speed.
+        return badgeMemo[key] = buildBadgeIndex(snapshot, items, revision, dismissedSource, true);
     }
     function badgeItem(snapshot, type, itemId) {
         const indexed = window.EveAudioflixLibraryIndex?.get?.(snapshot, type)?.getById?.(itemId);
