@@ -121,9 +121,9 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
         return list;
     }
 
-    // Live Nexus renders at most 80 rows. Preserve full-search semantics for every existing caller,
+    // Live Nexus renders at most 40 rows. Preserve full-search semantics for every existing caller,
     // but let that bounded surface count all matches without allocating a second 25k-item result array.
-    function filterWindow(options, limit = 80) {
+    function filterWindow(options, limit = 40) {
         const input = options && typeof options === 'object' ? options : {};
         const max = Math.max(0, Math.floor(Number(limit) || 0));
         if (input.list || text(input.facet)) {
@@ -160,7 +160,7 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
                     if (Array.isArray(preparedList)) return Reflect.apply(render, this, [type, preparedList]);
                     const originalFilter = ns.filter;
                     ns.filter = function (options) {
-                        const result = filterWindow(options, 80), facade = result.items.slice();
+                        const result = filterWindow(options, 40), facade = result.items.slice();
                         facade.length = result.total;
                         return facade;
                     };
