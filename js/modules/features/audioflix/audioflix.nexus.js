@@ -130,7 +130,10 @@ window.EveAudioflixNexus = window.EveAudioflixNexus || {};
             const list = filter(input);
             return { items: list.slice(0, max), total: list.length };
         }
-        const type = input.type === 'sound' ? 'sound' : 'music', q = norm(input.query), docs = indexedDocs(type), found = [];
+        const type = input.type === 'sound' ? 'sound' : 'music', q = norm(input.query), snapshot = state();
+        const index = window.EveAudioflixLibraryIndex?.get?.(snapshot, type);
+        if (index?.search) return index.search(q, max);
+        const docs = indexedDocs(type), found = [];
         let total = 0;
         for (const doc of docs) {
             if (q && !doc.haystack.includes(q)) continue;
