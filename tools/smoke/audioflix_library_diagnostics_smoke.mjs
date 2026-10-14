@@ -11,7 +11,7 @@ const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-d
 const passed = [];
 let active = '';
 function fixture(withDiagnostics = true) {
-    let clock = 0, sequence = 0, failApply = false, failCard = false;
+    let clock = 0, sequence = 0, failApply = false, failCard = false, renderWindowDiagnostics = null;
     const fault = new Error('synthetic-operation-failure');
     const store = { music: [], soundboard: [], musicPlaylists: [], musicGroups: [], musicGroupMap: {}, musicViewMode: 'backend' };
     const window = {
@@ -35,7 +35,13 @@ function fixture(withDiagnostics = true) {
     const context = vm.createContext({ window, document, localStorage: { getItem: () => null, setItem() {} }, console });
     const load = name => vm.runInContext(source(name), context, { filename: name });
     if (withDiagnostics) load('audioflix.playback.diagnostics.js');
-    load('audioflix.ui.window.js'); load('audioflix.ui.render.js'); load('audioflix.playlists.js');
+    load('audioflix.ui.window.js');
+    const createWindow = window.EveAudioflixUiWindow.create;
+    window.EveAudioflixUiWindow.create = options => {
+        const instance = createWindow(options); renderWindowDiagnostics = instance.diagnostics;
+        return instance;
+    };
+    load('audioflix.ui.render.js'); load('audioflix.playlists.js');
     const collapsed = {};
     const renderer = window.EveAudioflixUiRender.create({
         esc: value => String(value ?? ''), state: () => store, groupKey: item => item.folder || 'Ungrouped',
@@ -45,7 +51,7 @@ function fixture(withDiagnostics = true) {
         itemMeta: () => '', groupTags: () => '', internalViewButton: () => '',
         playSvg: '', stopSvg: '', closeSvg: '', cogSvg: '', layerPlaySvg: ''
     });
-    return { window, store, renderer, collapsed, fault, load, advance: ms => { clock += ms; },
+    return { window, store, renderer, collapsed, fault, load, windowing: () => renderWindowDiagnostics?.(), advance: ms => { clock += ms; },
         setApplyFailure: value => { failApply = value; }, setCardFailure: value => { failCard = value; } };
 }
 async function check(name, test) { active = name; await test(); passed.push(name); }
@@ -91,11 +97,14 @@ try {
         assert.equal(diag.snapshot().counters['ui:render-generations'], 1);
         f.collapsed.Closed = false;
         html = f.renderer.renderItems(f.store.music, 'music');
+        const windowing = f.windowing(), expectedCards = Math.min(f.store.music.length, windowing.pageSize);
         const observed = (html.match(/<article/g) || []).length, snap = diag.snapshot();
-        assert.equal(observed, 200); assert.equal(snap.gauges['ui:render-cards'], observed);
-        assert.equal(snap.counters['ui:card-generations'], 200);
-        assert.equal(snap.summary['ui:render:items'].maxMs, 2000, 'duration measures clock, not a card count disguised as milliseconds');
-        assert.equal(snap.summary['ui:render:card'].count, 200);
+        assert.ok(windowing.pageSize > 0 && f.store.music.length > windowing.threshold, 'fixture must exercise canonical music paging');
+        assert.equal(observed, expectedCards); assert.equal(snap.gauges['ui:render-cards'], expectedCards);
+        assert.equal(snap.counters['ui:render-generations'], 2);
+        assert.equal(snap.counters['ui:card-generations'], expectedCards);
+        assert.equal(snap.summary['ui:render:items'].maxMs, expectedCards * 10, 'duration must equal the synthetic 10ms per rendered card');
+        assert.equal(snap.summary['ui:render:card'].count, expectedCards);
         assert.ok(!JSON.stringify(snap).includes('synthetic-'), 'render diagnostics must not retain item/folder names');
         f.setCardFailure(true);
         assert.throws(() => f.renderer.renderItems(f.store.music, 'music'), error => error === f.fault);

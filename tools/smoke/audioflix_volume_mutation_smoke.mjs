@@ -338,9 +338,46 @@ try {
         const before = view.contentRevision;
         f.S.update({ music: [...f.state.music] }, 'fixture-replacement');
         const replaced = index.get(f.state, 'music');
-        assert.notEqual(replaced, view); assert.ok(replaced.contentRevision > before, 'bulk invalidation uses a new content revision');
+        assert.equal(replaced, view, 'same-row bulk replacement reconciles the existing API');
+        assert.ok(replaced.contentRevision > before, 'bulk replacement still invalidates content revision');
         assert.throws(() => { replaced.docs()[0].haystack = 'poison'; }, TypeError);
         assert.throws(() => { replaced.docs().push({}); }, { name: 'TypeError' });
+        const oldRow = replaced.getById('12'), oldDoc = replaced.docFor(oldRow), clonedRevision = replaced.contentRevision;
+        f.S.update({ music: f.state.music.map(row => row === oldRow ? { ...row, title: 'Clone lookup needle',
+            url: 'https://example.invalid/cloned-12.mp3', folder: 'Clone folder' } : row) }, 'fixture-cloned-row');
+        const cloned = index.get(f.state, 'music'), clonedRow = f.state.music.find(row => row.id === '12');
+        assert.equal(cloned, replaced, 'one cloned row reconciles unaffected canonical rows');
+        assert.ok(cloned.contentRevision > clonedRevision);
+        assert.notEqual(clonedRow, oldRow); assert.equal(cloned.getById('12'), clonedRow);
+        assert.equal(cloned.getById('12').url, 'https://example.invalid/cloned-12.mp3');
+        assert.equal(cloned.search('clone lookup needle').items[0], clonedRow);
+        assert.equal(cloned.search('needle title').total, 0, 'old title cannot survive a cloned-row replacement');
+        assert.equal(cloned.docFor(oldRow), null); assert.equal(cloned.docFor(clonedRow).item, clonedRow);
+        assert.ok(oldDoc.haystack.includes('needle title'), 'previous immutable document keeps its captured metadata');
+        assert.equal(cloned.scope('folder', 'Exact folder').length, 0);
+        assert.equal(cloned.scope('folder', 'Clone folder')[0], clonedRow);
+        assert.equal(cloned.scope('group', 'NEEDLE GROUP')[0], clonedRow);
+        const freshRevision = cloned.contentRevision;
+        f.S.update({ music: f.state.music.map(row => ({ ...row, ...(row.id === '12' ? {
+            title: 'Fresh lookup needle', url: 'https://example.invalid/fresh-12.mp3' } : {}) })) }, 'fixture-fresh-rows');
+        const fresh = index.get(f.state, 'music'), freshRow = f.state.music.find(row => row.id === '12');
+        assert.ok(fresh.contentRevision > freshRevision, 'fully fresh canonical rows invalidate content too');
+        assert.notEqual(freshRow, clonedRow); assert.equal(fresh.getById('12'), freshRow);
+        assert.equal(fresh.getById('12').url, 'https://example.invalid/fresh-12.mp3');
+        assert.equal(fresh.search('fresh lookup needle').items[0], freshRow);
+        assert.equal(fresh.search('clone lookup needle').total, 0);
+        assert.equal(fresh.docFor(clonedRow), null); assert.equal(fresh.docFor(freshRow).item, freshRow);
+        assert.equal(fresh.scope('group', 'Needle group')[0], freshRow);
+        assert.throws(() => { fresh.docs()[0].haystack = 'poison'; }, TypeError);
+        assert.throws(() => { fresh.docs().push({}); }, { name: 'TypeError' });
+        const removedRevision = fresh.contentRevision;
+        f.S.removeItem('music', '12');
+        assert.equal(index.get(f.state, 'music'), fresh);
+        assert.ok(fresh.contentRevision > removedRevision);
+        assert.equal(fresh.getById('12'), null); assert.equal(fresh.search('fresh lookup needle').total, 0);
+        assert.equal(fresh.scope('folder', 'Clone folder').length, 0);
+        assert.equal(fresh.scope('group', 'Needle group').length, 0);
+        assert.equal(fresh.getById('0'), f.state.music[0], 'removal preserves unrelated canonical lookups');
     });
     await test('telemetry-failure-does-not-change-write-outcome', async () => {
         const f = fixture(1);

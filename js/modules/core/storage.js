@@ -225,17 +225,22 @@ function _saveConfigImmediate(options = {}) {
         });
     }
     _lastConfigSignature = signature;
-    _lastConfigSnapshot = cloneConfigForDelta(persistedConfig, signature);
+    var capturedConfig = cloneConfigForDelta(persistedConfig, signature);
+    _lastConfigSnapshot = capturedConfig;
 
     var persistPromise = Promise.resolve(true);
     var storage = getCoreStorage();
     if (storage) {
-        storage.syncThemeBootConfig(persistedConfig);
-        persistPromise = storage.saveJson(EVE_CONFIG_KEY, persistedConfig, {
+        // Reuse only the detached full-config signature capture, never shallow live aliases.
+        // A null/unstable capture retains the backend's ordinary cloning/fallback policy.
+        var storageConfig = capturedConfig || persistedConfig;
+        storage.syncThemeBootConfig(storageConfig);
+        persistPromise = storage.saveJson(EVE_CONFIG_KEY, storageConfig, {
+            skipClone: !!capturedConfig,
             localFallbackKey: EVE_CONFIG_KEY,
             cleanupLocalKeys: [EVE_CONFIG_KEY],
             mirrorLocalKey: EVE_THEME_BOOT_KEY,
-            mirrorValue: storage.getThemeBootConfig(persistedConfig),
+            mirrorValue: storage.getThemeBootConfig(storageConfig),
             mirrorPruneRatio: 0.05
         }).catch((error) => {
             console.error('Core Storage: Failed to persist config', error);

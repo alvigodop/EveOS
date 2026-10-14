@@ -42,12 +42,15 @@ try {
             return { id: `unique-${i}`, get title() { titleReads += 1; return title; },
                 set title(value) { title = value; }, url: `https://example.invalid/${i}.mp3` };
         });
-        const f = fixture(music), started = performance.now();
-        for (let i = 0; i < Math.min(size, 20); i += 1) assert.equal(f.D.duplicateLevelFor('music', `unique-${i}`), '');
+        const f = fixture(music), started = performance.now(), queryCount = Math.min(size, 20);
+        for (let i = 0; i < queryCount; i += 1) assert.equal(f.D.duplicateLevelFor('music', `unique-${i}`), '');
         assert.ok(titleReads <= size * 2, 'per-card duplicate badges must index once, not classify every library pair');
         assert.equal(f.D.findDuplicates('music').length, 0);
-        assert.ok(titleReads <= size * 2, 'explicit report must classify only plausible bucket candidates');
-        evidence.measurements.push({ size, titleReads, badgeAndReportMs: performance.now() - started });
+        // Badge construction reads N descriptors and each query describes its selected item once;
+        // the independent full report then reads N descriptors, for an exact 2N + queryCount ceiling.
+        const linearReadBound = (size * 2) + queryCount;
+        assert.ok(titleReads <= linearReadBound, 'explicit report must classify only plausible bucket candidates');
+        evidence.measurements.push({ size, queryCount, titleReads, linearReadBound, badgeAndReportMs: performance.now() - started });
         f.S.update({ music: [...music, { id: 'mirror', title: 'Mirror', url: 'https://example.invalid/5.mp3' }] });
         assert.equal(f.D.duplicateLevelFor('music', 'unique-5'), 'hard', 'same-turn mutation invalidates descriptor cache');
         assert.equal(f.D.dismissDuplicate('unique-5', 'mirror').ok, true);

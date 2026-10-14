@@ -14,8 +14,9 @@ Episodes use the official episode embed path throughout import metadata, source 
 
 - Single additions normalize only the new item and preserve existing item/array identity. Folder lookup uses an ephemeral index. Structural recovery indexes an unchanged journal once, observes external journal rewrites, and bounds its private cache to eight packs.
 - Duplicate badges use shared descriptor buckets, not a full pair report for each card. Spotify duplicate keys retain namespace and base62 case. Similar titles alone remain soft matches, including local metadata. An explicit report containing genuinely quadratic numbers of matching pairs still has quadratic output; badges do not materialize that report.
+- Track Details scans current descriptors for its one selected item without allocating the full-library ID/bucket graph. Reason/order semantics remain identical; ambiguous legacy repeated IDs retain the indexed fallback, and same-array edits/dismissals are read fresh.
 - Collapsed groups mount headers, not hidden song cards. Opening a group mounts only its projection; closing it does not stop its playing song.
-- Music scopes up to 400 cards retain their existing layout. Larger scopes use 200-card pages with explicit Previous/Next controls, total counts and page numbers. The page-position cache is bounded to 32 entries and stores no song arrays.
+- Music scopes up to 40 cards retain their existing layout. Larger scopes use 40-card pages with explicit Previous/Next controls, total counts and page numbers. The page-position cache is bounded to 32 entries and stores no song arrays; this is a DOM bound, not a library or queue limit.
 - Paging remounts only the selected grid. Nonstructural playback/volume updates preserve other cards and focus. Main Nexus jumps reveal the containing page without closing Nexus or discarding the query.
 - Fast Track consumes the existing canonical frontend scope, including folder/group/artist/classifier filters and exclusions. It must not infer that scope from the currently mounted page. Play Group continues to receive the complete canonical source.
 
@@ -26,6 +27,8 @@ The canonical library arrays remain the persisted source. A weakly cached runtim
 Card and Internal Player controls share bounded volume gestures. Input previews change audible/live state without autosaving each tick; release, blur, cancellation or keyboard settlement commits one latest value. Music/sound namespaces stay distinct, including equal IDs and ported records. Pending gestures bind row identity, so a replaced/deleted track cannot inherit a late release.
 
 Unrelated autosaves and backup capture project committed gains into detached serialized data while retaining the audible preview in live state. Page close finalizes valid previews before the synchronous mirror flush; stale previews are rejected. Default programmatic volume calls remain durable.
+
+Core config persistence reuses its existing detached full-config signature capture for a queued storage write, avoiding a second JSON clone and freezing unrelated nested preferences at capture time. Null/unstable captures retain ordinary storage cloning; delta events, history and IndexedDB/local fallback remain unchanged.
 
 Production diagnostics record bounded numeric spans/counters for index builds, rendering, playlist reconciliation and persistence. They cannot change successful operation semantics, and metric keys contain no track identities or secrets.
 

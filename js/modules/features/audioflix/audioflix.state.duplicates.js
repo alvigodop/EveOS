@@ -40,7 +40,10 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
     function scheduleMemoClear() {
         if (memoClearScheduled) return;
         memoClearScheduled = true;
-        const clear = () => { memo.music = null; memo.sound = null; memoClearScheduled = false; };
+        const clear = () => {
+            memo.music = null; memo.sound = null; memoClearScheduled = false;
+            for (const key of ['music', 'sound']) if (badgeMemo[key]?.unindexed) badgeMemo[key] = null;
+        };
         (typeof queueMicrotask === 'function') ? queueMicrotask(clear) : setTimeout(clear, 0);
     }
 
@@ -162,6 +165,7 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
             }
         }
         return { snapshot, items, length: items.length, revision, buckets,
+            unindexed: typeof window.EveAudioflixLibraryIndex?.get !== 'function',
             members: retainMembership ? new Set(items) : null,
             dismissedSource, dismissed: new Set(dismissedSource) };
     }
@@ -177,6 +181,8 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return true;
     }
     function badgeIndexFor(type) {
+        // Without the canonical content-revision owner, retain only the original same-turn cache.
+        if (typeof window.EveAudioflixLibraryIndex?.get !== 'function') scheduleMemoClear();
         const key = type === 'music' ? 'music' : 'sound', snapshot = state();
         const items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
         const revision = contentRevision(snapshot, type), dismissedSource = snapshot.dupDismissedPairs || [];
@@ -279,6 +285,34 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
     }
 
     function duplicateInfoFor(type, itemId) {
+        if (!itemId) return [];
+        const snapshot = state(), items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
+        let position = -1;
+        for (let i = 0; i < items.length; i += 1) {
+            if (items[i].id !== itemId) continue;
+            // Preserve the indexed pair semantics for malformed/legacy repeated IDs.
+            if (position !== -1) return indexedDuplicateInfoFor(type, itemId);
+            position = i;
+        }
+        if (position === -1) return [];
+        // A selected item's details need one scan, not the full library's bucket/ID graph.
+        // Read current records on every call so same-array edits and dismissals stay visible.
+        const selected = descriptor(items[position], position), matches = [];
+        const dismissed = new Set(snapshot.dupDismissedPairs || []);
+        for (let other = 0; other < items.length; other += 1) {
+            const item = items[other];
+            if (item.id === itemId || dismissed.has(pairKey(itemId, item.id))) continue;
+            const candidate = descriptor(item, other);
+            const found = pairClassification(selected, candidate);
+            if (!found) continue;
+            matches.push({ item, ...found, reason: found.reasons.join(' + '),
+                left: Math.min(position, other), right: Math.max(position, other) });
+        }
+        matches.sort((a, b) => (a.level === b.level ? a.left - b.left || a.right - b.right : a.level === 'hard' ? -1 : 1));
+        return matches.map(({ left, right, ...match }) => match);
+    }
+
+    function indexedDuplicateInfoFor(type, itemId) {
         if (!itemId) return [];
         const index = indexFor(type), seen = new Set(), matches = [];
         for (const position of index.ids.get(itemId) || []) {
