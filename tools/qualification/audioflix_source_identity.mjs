@@ -6,7 +6,10 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const AUDIO = 'js/modules/features/audioflix/';
-export const CRITICAL_SOURCE_FILES = ['EveOS.html', 'js/config/manifest/scripts.parts/03-feature-modules.js',
+export const CRITICAL_SOURCE_FILES = ['EveOS.html', 'js/config/manifest/scripts.parts/01-ui.js',
+    'js/config/manifest/scripts.parts/03-feature-modules.js',
+    'js/modules/features/modular-state-sync/modular-state-sync.shared.js',
+    'js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js',
     'js/modules/core/storage.js', 'js/modules/core/storage.delta.js', 'js/modules/core/storage.runtime.io.js',
     'js/modules/features/data-state/data-state.capture.clone.js',
     ...['audioflix.state.js', 'audioflix.state.schema.js', 'audioflix.state.mutations.js', 'audioflix.state.recovery.js',

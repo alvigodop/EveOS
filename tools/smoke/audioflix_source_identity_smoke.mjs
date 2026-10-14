@@ -134,6 +134,15 @@ async function main() {
     await run('wrong-served-asset', async () => {
         await assert.rejects(verify(pair, { wrong: UI }), /served asset differs.*audioflix\.ui\.js/);
     });
+    await run('sync-cache-owners-attested', async () => {
+        const owners = ['js/config/manifest/scripts.parts/01-ui.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.shared.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js'];
+        for (const owner of owners) {
+            assert.ok(CRITICAL_SOURCE_FILES.includes(owner), `Missing sync owner: ${owner}`);
+            await assert.rejects(verify(pair, { wrong: owner }), /served asset differs/);
+        }
+    });
     await run('asset-404', async () => {
         await assert.rejects(verify(pair, { missing: UI }), /audioflix\.ui\.js status=404/);
     });
