@@ -30,8 +30,21 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
             .reduce((out, key) => { if (element.dataset[key] !== undefined) out[key] = element.dataset[key]; return out; }, {}) : null;
         const restoreFocus = (root, identity) => {
             if (!identity || !Object.keys(identity).length) return;
-            const target = [...root.querySelectorAll('[data-af-action]')].find(node => Object.entries(identity).every(([key, value]) => node.dataset[key] === value));
+            const attributes = { afAction: 'data-af-action', afId: 'data-af-id', afType: 'data-af-type', afScope: 'data-af-scope', afGroup: 'data-af-group', afDimension: 'data-af-dimension' };
+            let target = null;
+            if (window.CSS?.escape) {
+                const selector = Object.entries(identity).map(([key, value]) => `[${attributes[key]}="${CSS.escape(String(value))}"]`).join('');
+                target = selector ? root.querySelector(selector) : null;
+            }
+            if (!target) target = [...root.querySelectorAll('[data-af-action]')].find(node => Object.entries(identity).every(([key, value]) => node.dataset[key] === value));
             target?.focus?.({ preventScroll: true });
+        };
+        const measured = (name, operation) => {
+            let finish, failed = false;
+            try { finish = window.EveAudioflixDiagnostics?.span?.(name); } catch { /* optional telemetry */ }
+            try { return operation(); }
+            catch (error) { failed = true; throw error; }
+            finally { try { finish?.(failed); } catch { /* optional telemetry */ } }
         };
         function render() {
             const { activeTab, fullscreenOn, settingsOpen, portedSounds } = ctx.view(), tools = ctx.tools();
@@ -58,15 +71,26 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
             if (!['music', 'soundboard'].includes(tab) || panel?.dataset.afTab !== tab) return false;
             const addHost = panel.querySelector('.audioflix-add-host'), host = panel.querySelector('.audioflix-library-host');
             if (!addHost || !host) return false;
-            const focus = focusIdentity(document.activeElement?.closest?.('[data-af-action]'));
+            const focusedAction = document.activeElement?.closest?.('[data-af-action]');
+            const focus = focusIdentity(focusedAction);
             const scrollTop = panel.scrollTop, scrollLeft = panel.scrollLeft, snapshot = state(), type = tab === 'music' ? 'music' : 'sound';
             const items = type === 'music' ? (snapshot.music || []) : [...(snapshot.soundboard || []), ...(ctx.view().portedSounds || [])];
-            const nextAdd = renderAddSection(type);
-            if (addMarkup !== nextAdd) { addHost.innerHTML = nextAdd; addMarkup = nextAdd; }
-            host.innerHTML = renderItems(items, type);
-            panel.scrollTop = scrollTop; panel.scrollLeft = scrollLeft;
-            restoreFocus(panel, focus);
-            window.EveAudioflixTransport?.sync?.(host); window.EveAudioflixLayerVoices?.render?.(host);
+            const projection = measured('ui:panel:library:markup', () => ({ add: renderAddSection(type), items: renderItems(items, type) }));
+            measured('ui:panel:library:mount', () => {
+                if (addMarkup !== projection.add) { addHost.innerHTML = projection.add; addMarkup = projection.add; }
+                host.innerHTML = projection.items;
+            });
+            measured('ui:panel:library:restore', () => {
+                // Zero is the browser's natural position; rewriting it after connected-DOM replacement
+                // can force an otherwise avoidable style/layout flush on the common cold-view path.
+                if (scrollTop) panel.scrollTop = scrollTop;
+                if (scrollLeft) panel.scrollLeft = scrollLeft;
+                if (!focusedAction?.isConnected || document.activeElement !== focusedAction) restoreFocus(panel, focus);
+            });
+            measured('ui:panel:library:sync', () => {
+                window.EveAudioflixTransport?.sync?.(host);
+                window.EveAudioflixLayerVoices?.render?.(host);
+            });
             return true;
         }
 
