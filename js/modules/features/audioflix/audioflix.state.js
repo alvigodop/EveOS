@@ -17,6 +17,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     let fallbackState = null;
     let revision = 0;
     const pendingSaveReasons = new Set();
+    const span = name => { try { return window.EveAudioflixDiagnostics?.span?.(name); } catch { return null; } };
 
     function getConfigRoot() {
         if (window.eveState?.config && typeof window.eveState.config === 'object') return window.eveState.config;
@@ -38,8 +39,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
             console.warn('[Audioflix] recovery guard missing — not persisting, to avoid data loss.');
             return { written: false, kind: 'guard', reason: 'recovery guard not loaded' };
         }
-        const durable = mutations.durableProjection(state), result = guard.write(STORAGE_KEY, durable, options);
-        if (result?.written) fallbackState = getConfigRoot() ? JSON.parse(JSON.stringify(durable)) : state; return result;
+        const projectionDone = span('state:persist:projection'), durable = mutations.durableProjection(state); projectionDone?.(false);
+        const mirrorDone = span('state:persist:mirror'), result = guard.write(STORAGE_KEY, durable, options);
+        if (result?.written) fallbackState = getConfigRoot() ? fallbackRead() : state;
+        mirrorDone?.(result?.written !== true); return result;
     }
 
     const { text, normalizeVolume, id, bool } = window.EveAudioflixStateSchema;
@@ -218,11 +221,13 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         // Quota may fall through to core storage; rollback guards must remain authoritative.
         let coreWritten = null;
         if ((persisted?.written !== false || persisted?.kind === 'storage') && typeof window.saveConfig === 'function') {
-            coreWritten = await Promise.resolve(window.saveConfig({
+            const coreDone = span('state:persist:core');
+            try { coreWritten = await Promise.resolve(window.saveConfig({
                 immediate: true,
                 source: reason || 'audioflix',
                 meta: { skipEditHistory: true }
-            }));
+            })); coreDone?.(coreWritten !== true); }
+            catch (error) { coreDone?.(true); throw error; }
         }
         window.dispatchEvent(new CustomEvent('eve:audioflix-state-changed', { detail: { reason, reasons: reasons.length ? reasons : [reason] } }));
         const written = persisted?.written === true || coreWritten === true;
