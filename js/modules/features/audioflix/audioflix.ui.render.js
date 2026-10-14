@@ -356,6 +356,9 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const filtered = type === 'sound' && isF ? items.filter((it) => ctx.isItemExposed(it, 'sound')) : items;
             if (!filtered.length) return `<div class="audioflix-empty">No ${type === 'music' ? 'tracks' : 'exposed sounds'} yet.</div>`;
             if (isF) return type === 'music' ? renderFrontendMusicActive() : renderFrontendActive();
+            // Prepare compact music metadata during library boot, even when its groups are
+            // collapsed. The first Frontend gesture must not also build the badge baseline.
+            if (type === 'music') window.EveAudioflixDuplicates?.duplicateBadgeSummary?.(type);
             const collapsed = ctx.getCollapsedGroups(), groups = new Map();
             filtered.forEach((it) => { const key = ctx.groupKey(it, type); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(it); });
             const storedIds = groups.has('Ungrouped') ? new Set(((type === 'music' ? state().music : state().soundboard) || []).map((item) => item.id)) : null;

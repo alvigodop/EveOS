@@ -58,6 +58,7 @@ const tests = {
         ['node', 'tools/smoke/audioflix_capture_snapshot_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_classifier_projection_scale_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_nexus_classifier_projection_smoke.mjs'],
+        ['node', 'tools/smoke/audioflix_badge_preparation_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_library_soak_contract_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_nexus_search_identity_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_queue_snapshot_scale_smoke.mjs'],
