@@ -37,13 +37,15 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return [text(a), text(b)].sort().join('|');
     }
 
-    // Descriptor/bucket construction is O(library size). Keep it across render/microtask boundaries
-    // and invalidate on the library index's content revision, not on unrelated durable-state writes
-    // such as volume, play counters, or save timestamps. Dismissals are a tiny independent overlay.
+    // Share a descriptor/bucket index for one synchronous render pass. A card badge never asks for
+    // the quadratic full pair report. Revision/list checks and a microtask boundary retire stale data.
     const memo = { music: null, sound: null };
-    function contentRevision(snapshot, type) {
-        const view = window.EveAudioflixLibraryIndex?.get?.(snapshot, type);
-        return view?.contentRevision ?? window.EveAudioflixState?.getRevision?.() ?? -1;
+    let memoClearScheduled = false;
+    function scheduleMemoClear() {
+        if (memoClearScheduled) return;
+        memoClearScheduled = true;
+        const clear = () => { memo.music = null; memo.sound = null; memoClearScheduled = false; };
+        (typeof queueMicrotask === 'function') ? queueMicrotask(clear) : setTimeout(clear, 0);
     }
 
     function normalizedPath(value) {
@@ -112,19 +114,11 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
     function indexFor(type) {
         const key = type === 'music' ? 'music' : 'sound', snapshot = state();
         const items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
-        const revision = contentRevision(snapshot, type), dismissedSource = snapshot.dupDismissedPairs || [];
-        const cached = memo[key];
-        if (cached?.snapshot === snapshot && cached.items === items && cached.length === items.length && cached.revision === revision) {
-            if (cached.dismissedSource !== dismissedSource) {
-                cached.dismissedSource = dismissedSource;
-                cached.dismissed = new Set(dismissedSource);
-                cached.pairs = null;
-            }
-            return cached;
-        }
-        const index = { snapshot, items, length: items.length, revision, docs: items.map(descriptor),
+        const revision = window.EveAudioflixState?.getRevision?.();
+        if (memo[key]?.items === items && memo[key].length === items.length && memo[key].revision === revision) return memo[key];
+        const index = { items, length: items.length, revision, docs: items.map(descriptor),
             ids: new Map(), buckets: Object.fromEntries(dimensions.map(key => [key, new Map()])),
-            dismissedSource, dismissed: new Set(dismissedSource), pairs: null };
+            dismissed: new Set(snapshot.dupDismissedPairs || []), pairs: null };
         for (const doc of index.docs) {
             if (!index.ids.has(doc.id)) index.ids.set(doc.id, []);
             index.ids.get(doc.id).push(doc.position);
@@ -136,6 +130,7 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
             }
         }
         memo[key] = index;
+        scheduleMemoClear();
         return index;
     }
 
