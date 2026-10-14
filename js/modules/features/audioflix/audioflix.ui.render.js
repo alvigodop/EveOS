@@ -136,7 +136,7 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         const esc = ctx.esc;
         const state = ctx.state;
         const filters = window.EveAudioflixFrontendFilters;
-        let generatedCards = 0, renderGeneration = 0;
+        let generatedCards = 0, renderGeneration = 0, frontendMusicCache = null, frontendProjectionCache = null;
         const metric = (method, name, value) => { try { window.EveAudioflixDiagnostics?.[method]?.(name, value); } catch { /* optional telemetry */ } };
         const timed = (name, operation, render = false) => (...args) => {
             const firstCard = generatedCards;
@@ -163,10 +163,14 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         const windowAttrs = (items, key, type) => windows?.attrs(items, key, type) || '';
 
         function frontendMusicItems() {
-            const scope = state().activeMusicFolderScope || '';
-            const view = window.EveAudioflixLibraryIndex?.get?.(state(), 'music');
-            const source = scope && view ? view.scope('folder', scope) : state().music || [];
-            return source.filter(it => ctx.isItemExposed(it, 'music') && (!scope || String(it.folder || it.card || '').trim() === scope));
+            const snapshot = state(), source = snapshot.music || [], scope = snapshot.activeMusicFolderScope || '';
+            const revision = window.EveAudioflixState?.getRevision?.() ?? -1, cached = frontendMusicCache;
+            if (cached && cached.snapshot === snapshot && cached.source === source && cached.scope === scope && cached.revision === revision) return cached.items;
+            const view = window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music');
+            const scoped = scope && view ? view.scope('folder', scope) : source;
+            const items = scoped.filter(it => ctx.isItemExposed(it, 'music') && (!scope || String(it.folder || it.card || '').trim() === scope));
+            frontendMusicCache = { snapshot, source, scope, revision, items };
+            return items;
         }
 
         function frontendMusicSmartEntries(sourceItems) {
@@ -183,9 +187,9 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             return out;
         }
 
-        function frontendGroupEntries(type = 'sound') {
+        function frontendGroupEntries(type = 'sound', sourceItems) {
             if (type === 'music') {
-                const items = frontendMusicItems(), entries = [];
+                const items = sourceItems || frontendMusicItems(), entries = [];
                 ctx.allGroups('music').forEach((group) => {
                     const members = window.EveAudioflixGroupTree?.itemsForGroup?.(state(), 'music', group, items)
                         || items.filter((it) => ctx.groupsOf(it.id, 'music').includes(group));
@@ -205,27 +209,32 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         }
 
         function frontendActiveGroup(type = 'sound') {
-            const entries = frontendGroupEntries(type);
             if (type === 'music') {
-                const baseItems = frontendMusicItems();
-                const chosenGroup = entries.find(([name]) => name === (state().activeFrontendMusicGroup || ''));
+                const snapshot = state(), revision = window.EveAudioflixState?.getRevision?.() ?? -1, key = frontendKey();
+                const cached = frontendProjectionCache;
+                if (cached && cached.snapshot === snapshot && cached.revision === revision && cached.key === key) return cached.value;
+                const baseItems = frontendMusicItems(), entries = frontendGroupEntries(type, baseItems);
+                const chosenGroup = entries.find(([name]) => name === (snapshot.activeFrontendMusicGroup || ''));
                 const groupCandidates = chosenGroup ? chosenGroup[1] : baseItems;
                 const groupItems = filters.subtract(groupCandidates, entries, filters.get('musicGroups'));
                 const smart = frontendMusicSmartEntries(groupItems);
-                const chosenArtist = smart.find(([key]) => key === (state().activeFrontendMusicArtist || ''));
+                const chosenArtist = smart.find(([artistKey]) => artistKey === (snapshot.activeFrontendMusicArtist || ''));
                 const artistCandidates = chosenArtist ? chosenArtist[1] : groupItems;
                 const artistItems = filters.subtract(artistCandidates, smart, filters.get('musicArtists'));
                 const classifiers = ctx.classifierEntries(artistItems);
-                const chosenClassifier = classifiers.find(([key]) => key === (state().activeFrontendMusicClassifier || ''));
+                const chosenClassifier = classifiers.find(([classifierKey]) => classifierKey === (snapshot.activeFrontendMusicClassifier || ''));
                 const classifierCandidates = chosenClassifier ? chosenClassifier[1] : artistItems;
                 const items = filters.subtract(classifierCandidates, classifiers, filters.get('musicClassifiers'));
                 const labels = [chosenGroup?.[0] || 'All Groups', chosenArtist?.[2], chosenClassifier?.[2]].filter(Boolean);
-                return {
-                    name: labels.join(' / '), items, entries, smart, classifiers,
+                const value = {
+                    name: labels.join(' / '), items, entries, smart, classifiers, baseItems,
                     activeGroup: chosenGroup?.[0] || '', activeArtist: chosenArtist?.[0] || '',
                     activeClassifier: chosenClassifier?.[0] || '', displayName: labels.join(' / ')
                 };
+                frontendProjectionCache = { snapshot, revision, key, value };
+                return value;
             }
+            const entries = frontendGroupEntries(type);
             const source = [...(state().soundboard || []), ...ctx.getPorted()].filter((it) => ctx.isItemExposed(it, 'sound'));
             const active = String(state().activeFrontendGroup || '');
             const chosen = entries.find(([name]) => name === active);
@@ -312,14 +321,14 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         }
 
         const renderFrontendMusicActive = () => {
-            const { name, items, entries, smart, classifiers, activeGroup, activeArtist, activeClassifier, displayName } = frontendActiveGroup('music');
+            const { name, items, entries, smart, classifiers, baseItems, activeGroup, activeArtist, activeClassifier, displayName } = frontendActiveGroup('music');
             const musicItems = state().music || [];
             const allFolders = [...new Set([...(state().musicFolders || []), ...musicItems.map((it) => String(it.folder || it.card || '').trim())].filter(Boolean))];
             const activeScope = state().activeMusicFolderScope || '';
             const classifierRow = ctx.renderClassifierRow ? ctx.renderClassifierRow(activeClassifier, classifiers) : '';
             const scopePills = `<div class="audioflix-folder-scope-selector"><span class="audioflix-scope-label">Track Focus:</span><button type="button" class="audioflix-scope-pill${activeScope === '' ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="">🌐 All Folders (No Focus)</button>${allFolders.map((folder) => `<button type="button" class="audioflix-scope-pill${activeScope === folder ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="${esc(folder)}">📁 ${esc(folder)}</button>`).join('')}</div>`;
-            const allGroupPill = `<button type="button" class="audioflix-group-pill${activeGroup === '' ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-dimension="group" data-af-type="music" data-af-group="" title="Clear group include/exclude focus">All Groups (No Focus)<span class="audioflix-group-pill-count">${frontendMusicItems().length}</span></button>`;
-            const treeEntries = window.EveAudioflixGroupTree?.entries?.(state(), 'music', frontendMusicItems())
+            const allGroupPill = `<button type="button" class="audioflix-group-pill${activeGroup === '' ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-dimension="group" data-af-type="music" data-af-group="" title="Clear group include/exclude focus">All Groups (No Focus)<span class="audioflix-group-pill-count">${baseItems.length}</span></button>`;
+            const treeEntries = window.EveAudioflixGroupTree?.entries?.(state(), 'music', baseItems)
                 .filter((entry) => entry.members.length).concat(entries.filter(([group]) => group === 'Ungrouped').map(([group, members]) => ({ name: group, members, path: [group], depth: 0 }))) || [];
             const groupTree = window.EveAudioflixGroupTreeUi?.renderSelector?.({ type: 'music', entries: treeEntries, active: activeGroup, esc, bucket: 'musicGroups', filters, state: state() }) || '';
             const selector = `<div class="audioflix-group-selector"><span class="audioflix-scope-label">Group:</span>${allGroupPill}${groupTree}</div>`;
@@ -360,9 +369,11 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
             if (collapsed) grid.replaceChildren();
             else {
-                const type = button.dataset.afType === 'music' ? 'music' : 'sound';
-                const items = type === 'music' ? (state().music || []) : [...(state().soundboard || []), ...ctx.getPorted()];
-                const members = items.filter(item => ctx.groupKey(item, type) === button.dataset.afGroup), key = backendKey(button.dataset.afGroup, type);
+                const type = button.dataset.afType === 'music' ? 'music' : 'sound', snapshot = state();
+                const items = type === 'music' ? (snapshot.music || []) : [...(snapshot.soundboard || []), ...ctx.getPorted()];
+                const group = button.dataset.afGroup, view = type === 'music' ? window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music') : null;
+                const members = view ? view.scope('folder', group === 'Ungrouped' ? '' : group) : items.filter(item => ctx.groupKey(item, type) === group);
+                const key = backendKey(group, type);
                 windows?.configure(grid, members, key, type);
                 grid.innerHTML = cards(members, key, type);
                 window.EveAudioflixTransport?.sync?.(section);
