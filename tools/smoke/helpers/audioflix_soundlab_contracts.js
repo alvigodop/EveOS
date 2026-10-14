@@ -19,6 +19,10 @@ function staticContracts() {
     );
     const html = fs.readFileSync(path.join(ROOT, 'EveOS.html'), 'utf8');
     const ui = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.js'), 'utf8');
+    const panel = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.panel.js'), 'utf8');
+    const actions = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.actions.js'), 'utf8');
+    const overlay = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.ui.overlay.js'), 'utf8');
+    const soundLabUi = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.ui.js'), 'utf8');
     const engine = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.engine.js'), 'utf8');
     const steering = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.steering.js'), 'utf8');
     const connection = fs.readFileSync(path.join(AUDIOFLIX, 'audioflix.soundlab.connection.js'), 'utf8');
@@ -50,17 +54,43 @@ function staticContracts() {
     );
     const bridge = fs.readFileSync(path.join(ROOT, 'server_modules', 'audioflix_bridge.py'), 'utf8');
     const order = ['soundboard', 'music', 'piano', 'soundlab', 'router']
-        .map((tab) => ui.indexOf(`tabButton('${tab}'`));
+        .map((tab) => panel.indexOf(`tabButton('${tab}'`));
     assert(order.every((index) => index >= 0), 'all Audioflix tabs are wired');
     assert(
         order.every((index, position) => !position || index > order[position - 1]),
         'Piano and Sonic Forge tab order is stable'
     );
+    assert(
+        ui.includes('window.EveAudioflixUiPanel.create({')
+            && ui.includes('soundLab: window.EveAudioflixSoundLabUi')
+            && ui.includes('const renderPanel = () => uiPanel.render();')
+            && panel.includes("activeTab === 'soundlab'")
+            && panel.includes('tools.soundLab?.render?.()'),
+        'the panel owner renders Sonic Forge through the live SoundLab tool'
+    );
+    assert(
+        ui.includes("EveAudioflixSoundLabUi?.setVisible?.(activeTab === 'soundlab')")
+            && ui.includes('EveAudioflixSoundLabUi?.afterRender?.(overlay)')
+            && ui.includes('EveAudioflixSoundLabUi?.setVisible?.(false)')
+            && ui.includes('EveAudioflixSoundLabUi?.deferOuterRender?.(rerender)'),
+        'Sonic Forge visibility, post-render binding, close cleanup, and editor deferral remain wired'
+    );
+    assert(
+        actions.includes("startsWith('soundlab-')")
+            && actions.includes('EveAudioflixSoundLabUi?.handleAction')
+            && actions.includes('if (result?.rerender) ctx.rerender()')
+            && overlay.includes('EveAudioflixSoundLabUi?.handleInput?.(t, e)')
+            && overlay.includes('EveAudioflixSoundLabUi?.handleChange?.(t, e)'),
+        'Sonic Forge click, input, change, and requested-rerender delegation remains complete'
+    );
+    ['render:', 'afterRender,', 'setVisible,', 'handleAction,', 'handleInput,', 'handleChange,', 'deferOuterRender']
+        .forEach((contract) => assert(soundLabUi.includes(contract), `SoundLab UI exposes ${contract}`));
     [
         'audioflix.soundlab.state.js',
         'audioflix.capture.processor.src.js',
         'audioflix.soundlab.sdk.js',
         'audioflix.soundlab.proxy.js',
+        'audioflix.soundlab.codec.js',
         'audioflix.soundlab.concealment.js',
         'audioflix.soundlab.session-cache.js',
         'audioflix.soundlab.playback.js',
@@ -71,13 +101,21 @@ function staticContracts() {
         'audioflix.soundlab.continuity.js',
         'audioflix.soundlab.steering.js',
         'audioflix.soundlab.config.js',
+        'audioflix.soundlab.drift.js',
         'audioflix.soundlab.engine.js',
+        'audioflix.soundlab.reference-scenes.js',
         'audioflix.soundlab.scenes.js',
         'audioflix.soundlab.visualizer.overlay.js',
+        'audioflix.soundlab.visualizer.js',
+        'audioflix.soundlab.recording.js',
         'audioflix.soundlab.rendered.js',
+        'audioflix.soundlab.midi.js',
         'audioflix.soundlab.ui.advanced.js',
         'audioflix.soundlab.ui.advanced.events.js',
         'audioflix.soundlab.presets.js',
+        'audioflix.soundlab.ui.render.js',
+        'audioflix.soundlab.ui.events.js',
+        'audioflix.soundlab.knob-input.js',
         'audioflix.soundlab.ui.js',
         'geminiApiFailure.js'
     ].forEach((name) => assert(html.includes(name), `${name} is loaded by EveOS`));
@@ -87,6 +125,15 @@ function staticContracts() {
             && html.indexOf('audioflix.soundlab.session-cache.js')
             < html.indexOf('audioflix.soundlab.playback.js'),
         'concealment, session cache, and Sonic Forge scheduler load in dependency order'
+    );
+    const integrationOrder = [
+        'audioflix.soundlab.ui.render.js', 'audioflix.soundlab.ui.events.js',
+        'audioflix.soundlab.knob-input.js', 'audioflix.soundlab.ui.js',
+        'audioflix.ui.actions.js', 'audioflix.ui.overlay.js', 'audioflix.ui.panel.js', 'audioflix.ui.js'
+    ].map((name) => html.indexOf(name));
+    assert(
+        integrationOrder.every((index, position) => index >= 0 && (!position || index > integrationOrder[position - 1])),
+        'SoundLab render/events load before its facade and Audioflix delegation owners'
     );
     // "Auto" must mean the key is ABSENT from the payload, not a number the model then obeys.
     // Asserted at the source level because a wrong default here is silent: the generation would
