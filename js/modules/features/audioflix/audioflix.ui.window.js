@@ -3,10 +3,10 @@
     'use strict';
     const ns = window.EveAudioflixUiWindow = window.EveAudioflixUiWindow || {};
     if (ns.ready) return;
-    // Keep every live music surface under a small DOM bound. Forty complex cards keeps expansion
+    // Keep every live music surface under a small DOM bound. Twenty complex cards keeps expansion
     // comfortably interactive while the full canonical scope remains available to queues/search;
     // only presentation is paged.
-    const PAGE_SIZE = 40, THRESHOLD = 40, MAX_SCOPES = 32;
+    const PAGE_SIZE = 20, THRESHOLD = 20, MAX_SCOPES = 32;
     let nextOwner = 0;
     function create({ esc, renderCard, itemsForKey, afterMount }) {
         const owner = String(++nextOwner), pages = new Map();
