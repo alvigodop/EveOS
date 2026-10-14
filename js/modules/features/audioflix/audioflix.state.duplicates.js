@@ -182,13 +182,16 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         const revision = contentRevision(snapshot, type), dismissedSource = snapshot.dupDismissedPairs || [];
         const cached = badgeMemo[key];
         if (cached?.snapshot === snapshot) {
-            if (cached.items === items && cached.length === items.length && cached.revision === revision) {
-                return refreshDismissed(cached, dismissedSource);
+            if (cached.items === items && cached.length === items.length) {
+                if (cached.revision === revision) return refreshDismissed(cached, dismissedSource);
+                // Same live array + same membership with a new content revision can be a real
+                // title/URL/source edit. Replace the baseline so future card reads stay O(1).
+                return badgeMemo[key] = buildBadgeIndex(snapshot, items, revision, dismissedSource, true);
             }
             // A different array containing the exact same canonical item objects is the common bulk
             // restore case. The duplicate-sensitive fields live on those objects, so rebind the stable
             // projection instead of repeating the expensive descriptor pass.
-            if (cached.items !== items && sameMembership(cached, items)) {
+            if (sameMembership(cached, items)) {
                 cached.items = items;
                 cached.length = items.length;
                 cached.revision = revision;
@@ -205,8 +208,6 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
                 }
             }
         }
-        // Same-array/same-length content revisions can represent a real title/URL/source edit. Rebuild
-        // those conservatively so duplicate badges never trade correctness for speed.
         return badgeMemo[key] = buildBadgeIndex(snapshot, items, revision, dismissedSource, true);
     }
     function badgeItem(snapshot, type, itemId) {
