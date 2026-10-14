@@ -34,7 +34,13 @@ window.EveDataStore = window.EveDataStore || {};
         localStateEpoch: 0,
         hashCacheEpoch: -1,
         hashCacheValue: '',
-        hashCacheAt: 0
+        hashCacheAt: 0,
+        // Immutable detached payload memo paired to the exact semantic hash.
+        // Never cache the live state object: nested aliases can mutate silently.
+        payloadCacheEpoch: -1,
+        payloadCacheHash: '',
+        payloadCacheJson: '',
+        payloadCacheAt: 0
     }, ns.state || {});
 
     const HASH_CACHE_TTL_MS = 60000;
@@ -114,8 +120,16 @@ window.EveDataStore = window.EveDataStore || {};
         }
     }
 
+    function clearLocalPayloadCache() {
+        state.payloadCacheEpoch = -1;
+        state.payloadCacheHash = '';
+        state.payloadCacheJson = '';
+        state.payloadCacheAt = 0;
+    }
+
     function invalidateLocalStateHash() {
         state.localStateEpoch = (Number(state.localStateEpoch) || 0) + 1;
+        clearLocalPayloadCache();
     }
 
     function shouldRunIdleRemoteCheck() {
@@ -123,27 +137,58 @@ window.EveDataStore = window.EveDataStore || {};
         return (Date.now() - state.lastRemoteCheckAt) >= constants.IDLE_REMOTE_CHECK_INTERVAL_MS;
     }
 
+    function captureStatePayload(options = {}) {
+        const forceFresh = !!options?.forceFresh;
+        const now = Date.now();
+        if (!forceFresh
+            && state.payloadCacheEpoch === state.localStateEpoch
+            && state.payloadCacheHash
+            && typeof state.payloadCacheJson === 'string'
+            && state.payloadCacheJson
+            && (now - (Number(state.payloadCacheAt) || 0)) < HASH_CACHE_TTL_MS) {
+            return Object.freeze({
+                json: state.payloadCacheJson,
+                hash: state.payloadCacheHash,
+                epoch: state.payloadCacheEpoch,
+                capturedAt: state.payloadCacheAt
+            });
+        }
+
+        const store = getStore();
+        if (!store?.captureState) return null;
+        try {
+            const capturedState = store.captureState();
+            const json = JSON.stringify(capturedState);
+            const hash = hashState(capturedState);
+            if (typeof json !== 'string' || !hash) return null;
+
+            const capturedAt = Date.now();
+            const epoch = state.localStateEpoch;
+            state.payloadCacheEpoch = epoch;
+            state.payloadCacheHash = hash;
+            state.payloadCacheJson = json;
+            state.payloadCacheAt = capturedAt;
+            state.hashCacheEpoch = epoch;
+            state.hashCacheValue = hash;
+            state.hashCacheAt = capturedAt;
+            return Object.freeze({ json, hash, epoch, capturedAt });
+        } catch {
+            return null;
+        }
+    }
+
     function captureStateHash() {
         // Memoized by localStateEpoch: idle sync ticks (no mutation since last
         // capture) return the cached hash instantly instead of cloning +
         // stringifying + hashing the whole datapack. TTL forces a periodic
-        // recompute as a safety net against any unbroadcast mutation.
+        // recompute as a safety net against any unbroadcast mutation. A fresh
+        // detached payload is retained with the same hash for an ensuing push.
         if (state.hashCacheEpoch === state.localStateEpoch
             && state.hashCacheValue
             && (Date.now() - (Number(state.hashCacheAt) || 0)) < HASH_CACHE_TTL_MS) {
             return state.hashCacheValue;
         }
-        const store = getStore();
-        if (!store?.captureState) return '';
-        try {
-            const hash = hashState(store.captureState());
-            state.hashCacheEpoch = state.localStateEpoch;
-            state.hashCacheValue = hash;
-            state.hashCacheAt = Date.now();
-            return hash;
-        } catch {
-            return '';
-        }
+        return captureStatePayload()?.hash || '';
     }
 
     function refreshUiAfterRemoteApply() {
@@ -292,8 +337,10 @@ window.EveDataStore = window.EveDataStore || {};
         hashString,
         normalizeStateForHash,
         hashState,
+        clearLocalPayloadCache,
         invalidateLocalStateHash,
         shouldRunIdleRemoteCheck,
+        captureStatePayload,
         captureStateHash,
         refreshUiAfterRemoteApply,
         requestJson,

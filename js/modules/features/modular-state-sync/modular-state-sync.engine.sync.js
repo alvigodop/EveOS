@@ -81,23 +81,25 @@ window.EveDataStore = window.EveDataStore || {};
         const ignoreEnabled = !!options?.ignoreEnabled;
         if (!ns.isHttpContext() || (!ignoreEnabled && !ns.isEnabled())) return false;
 
-        const store = ns.getStore();
-        if (!store?.captureState) return false;
+        const snapshot = ns.captureStatePayload?.({ forceFresh: !knownHash });
+        if (!snapshot?.hash || typeof snapshot.json !== 'string') return false;
+        if (knownHash && snapshot.hash !== knownHash) return false;
 
-        const currentState = store.captureState();
-        const stateJson = JSON.stringify(currentState);
-        const stateHash = knownHash || ns.hashState(currentState);
+        const stateHash = snapshot.hash;
         if (!force && (stateHash === state.lastUploadedHash || stateHash === state.lastSyncedLocalHash)) return false;
 
         const { ok, payload } = await ns.requestJson('/api/eve-state/modular/save', {
             method: 'POST',
-            body: stateJson
+            body: snapshot.json
         });
         if (!ok || !payload?.ok) {
             console.warn('[ModularStateSync] Save failed:', payload?.error || 'Unknown error');
             return false;
         }
 
+        // This hash describes the immutable payload actually accepted remotely.
+        // A newer local mutation may already have advanced localStateEpoch; do
+        // not overwrite its memo, only advance the remote/local sync baseline.
         state.lastUploadedHash = stateHash;
         state.lastSyncedLocalHash = stateHash;
         state.remoteSignature = payload?.status?.signature || state.remoteSignature;
@@ -177,15 +179,22 @@ window.EveDataStore = window.EveDataStore || {};
         if (state.syncInFlight || state.applyingRemoteState) return;
         state.syncInFlight = true;
         try {
-            const localHash = ns.captureStateHash();
-            const localDirty = ns.isLocalDirty(localHash);
-            const hasBaseline = !!(state.lastUploadedHash || state.lastSyncedLocalHash);
+            let localHash = ns.captureStateHash();
+            let localDirty = ns.isLocalDirty(localHash);
+            let hasBaseline = !!(state.lastUploadedHash || state.lastSyncedLocalHash);
             const shouldCheckRemote = localDirty || !state.remoteSignature || ns.shouldRunIdleRemoteCheck();
             let remoteStatus = null;
 
             if (shouldCheckRemote) {
                 state.lastRemoteCheckAt = Date.now();
                 remoteStatus = await ns.getRemoteStatus();
+                // Remote status is an awaited boundary. Refresh local identity
+                // before making a push/pull decision so a mutation that occurred
+                // while awaiting cannot pair an older hash with newer payload.
+                localHash = ns.captureStateHash();
+                localDirty = ns.isLocalDirty(localHash);
+                hasBaseline = !!(state.lastUploadedHash || state.lastSyncedLocalHash);
+
                 if (!hasBaseline && remoteStatus?.signature) {
                     const rejectedAt = state.lastRejectedRemoteAt || 0;
                     const pulled = await pullRemoteState(true, remoteStatus.signature);
