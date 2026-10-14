@@ -9,12 +9,14 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
     if (ns.ready) return;
 
     const text = (value) => String(value ?? '').trim();
+    const EMPTY_GROUPS = Object.freeze([]);
+    const EMPTY_PARENTS = Object.freeze({});
     const sourceMembership = new WeakMap();
     const topologyMemo = new WeakMap();
     const keys = (type) => type === 'music'
         ? { groups: 'musicGroups', parents: 'musicGroupParents', map: 'musicGroupMap', items: 'music' }
         : { groups: 'soundboardGroups', parents: 'soundGroupParents', map: 'soundGroupMap', items: 'soundboard' };
-    const names = (state, type) => Array.isArray(state?.[keys(type).groups]) ? state[keys(type).groups] : [];
+    const names = (state, type) => Array.isArray(state?.[keys(type).groups]) ? state[keys(type).groups] : EMPTY_GROUPS;
     const canonical = (groups, value) => {
         const wanted = text(value).toLowerCase();
         return groups.find((name) => text(name).toLowerCase() === wanted) || '';
@@ -60,7 +62,7 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
     function topology(state, type) {
         const list = names(state, type), config = keys(type);
         const rawParents = state?.[config.parents] && typeof state[config.parents] === 'object'
-            ? state[config.parents] : {};
+            ? state[config.parents] : EMPTY_PARENTS;
         if (!state || typeof state !== 'object') return buildTopology(list, rawParents);
         let cache = topologyMemo.get(state);
         if (!cache) { cache = {}; topologyMemo.set(state, cache); }
@@ -111,8 +113,9 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
     }
 
     function children(state, type, group = '') {
-        const graph = topology(state, type);
-        const clean = text(group) ? topologyCanonical(graph, group) : '';
+        const graph = topology(state, type), requested = text(group);
+        const clean = requested ? topologyCanonical(graph, requested) : '';
+        if (requested && !clean) return [];
         return [...(graph.childMap.get(clean) || [])];
     }
 
