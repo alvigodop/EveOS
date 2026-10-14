@@ -103,6 +103,12 @@ music[duplicatePosition] = duplicateItem; library.upsert(state, 'music', duplica
 const beforeBadgeRebuild = titleReads;
 assert.equal(D.duplicateLevelFor('music', badgeTarget), 'soft');
 assert.ok(titleReads - beforeBadgeRebuild > 20000, 'Content revision invalidates and rebuilds the compact badge index');
+const summaryReads = titleReads, duplicateSummary = D.duplicateBadgeSummary('music');
+assert.equal(duplicateSummary.any, true);
+assert.equal(duplicateSummary.soft, true);
+assert.equal(duplicateSummary.hard, false);
+assert.equal(titleReads, summaryReads, 'Default Nexus duplicate summary reuses compact collision buckets without a 25k rescan');
 state.dupDismissedPairs = ['index-1000|index-24999'];
 assert.equal(D.duplicateLevelFor('music', badgeTarget), '', 'Keep-both dismissal updates without rebuilding library content');
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true duplicateBadges=true');
+assert.equal(D.duplicateBadgeSummary('music').any, false, 'Keep-both dismissal immediately clears the compact Nexus duplicate summary');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true duplicateBadges=true duplicateSummary=true');
