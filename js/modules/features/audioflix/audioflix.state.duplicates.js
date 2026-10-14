@@ -12,15 +12,12 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
 
     const text = (value) => String(value ?? '').trim();
     const normalize = (value) => text(value).toLowerCase();
-    // Strip stacked media extensions ("Song.wmv.mp3" -> "Song") so an extension glued onto a title
-    // never hides a duplicate. Bounded loop: real names don't stack more than a couple.
     const MEDIA_EXT = /\.(mp3|wav|ogg|m4a|aac|flac|opus|webm|wmv|mp4|mkv|avi|mov|flv)$/i;
     function stripMediaExt(value) {
         let out = text(value);
         for (let i = 0; i < 3 && MEDIA_EXT.test(out); i += 1) out = out.replace(MEDIA_EXT, '');
         return out;
     }
-    // Just the file name from a path/url, separator-agnostic. Empty for streaming links.
     function fileBaseName(value) {
         const clean = normalize(value).split('?')[0];
         if (!clean || /^https?:\/\//.test(clean)) return '';
@@ -32,13 +29,12 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return window.EveAudioflixState?.ensure?.() || {};
     }
 
-    // Stable key for a pair of item ids, order-independent, for "keep both" dismissals.
     function pairKey(a, b) {
         return [text(a), text(b)].sort().join('|');
     }
 
-    // Share a descriptor/bucket index for one synchronous render pass. A card badge never asks for
-    // the quadratic full pair report. Revision/list checks and a microtask boundary retire stale data.
+    // Full duplicate reports keep their existing short-lived index. Card badges use a separate compact
+    // content-revision cache below so ordinary renders never rebuild or retain the heavyweight graph.
     const memo = { music: null, sound: null };
     let memoClearScheduled = false;
     function scheduleMemoClear() {
@@ -68,13 +64,12 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
             return provider && sourceId ? `${provider}:${sourceId}` : '';
         }
         const type = normalize(item?.sourceMediaType) || refs[0]?.type || 'track';
-        // Spotify-local/unknown metadata is not proof that two playable recordings are identical.
         if (item?.sourceIsLocal === true || !['track', 'episode'].includes(type)) return '';
         const id = text(item?.sourceMediaId) || refs.find(ref => ref.type === type)?.id
             || text(item?.spotifyTrackId) || text(item?.sourceId);
         if (!/^[A-Za-z0-9]{22}$/.test(id) || refs.some(ref => ref.type !== type || ref.id !== id)
             || (item?.spotifyTrackId && (type !== 'track' || text(item.spotifyTrackId) !== id))) return '';
-        return `spotify:${type}:${id}`; // Base62 IDs are case-sensitive; namespace is mandatory.
+        return `spotify:${type}:${id}`;
     }
 
     function urlKey(item) {
@@ -117,16 +112,16 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         const revision = window.EveAudioflixState?.getRevision?.();
         if (memo[key]?.items === items && memo[key].length === items.length && memo[key].revision === revision) return memo[key];
         const index = { items, length: items.length, revision, docs: items.map(descriptor),
-            ids: new Map(), buckets: Object.fromEntries(dimensions.map(key => [key, new Map()])),
+            ids: new Map(), buckets: Object.fromEntries(dimensions.map(name => [name, new Map()])),
             dismissed: new Set(snapshot.dupDismissedPairs || []), pairs: null };
         for (const doc of index.docs) {
             if (!index.ids.has(doc.id)) index.ids.set(doc.id, []);
             index.ids.get(doc.id).push(doc.position);
-            for (const key of dimensions) {
-                if (!doc[key]) continue;
-                const bucket = index.buckets[key];
-                if (!bucket.has(doc[key])) bucket.set(doc[key], []);
-                bucket.get(doc[key]).push(doc.position);
+            for (const name of dimensions) {
+                if (!doc[name]) continue;
+                const bucket = index.buckets[name];
+                if (!bucket.has(doc[name])) bucket.set(doc[name], []);
+                bucket.get(doc[name]).push(doc.position);
             }
         }
         memo[key] = index;
@@ -134,10 +129,64 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return index;
     }
 
+    // Badge lookups only need to know which normalized values actually collide. During construction we
+    // temporarily remember first-seen ids, then retain only duplicate buckets. A 25k unique library
+    // therefore keeps almost no duplicate-specific memory after the one O(N) content-revision scan.
+    const badgeMemo = { music: null, sound: null };
+    function contentRevision(snapshot, type) {
+        const view = window.EveAudioflixLibraryIndex?.get?.(snapshot, type);
+        return view?.contentRevision ?? window.EveAudioflixState?.getRevision?.() ?? -1;
+    }
+    function badgeIndexFor(type) {
+        const key = type === 'music' ? 'music' : 'sound', snapshot = state();
+        const items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
+        const revision = contentRevision(snapshot, type), dismissedSource = snapshot.dupDismissedPairs || [];
+        const cached = badgeMemo[key];
+        if (cached?.snapshot === snapshot && cached.items === items && cached.length === items.length && cached.revision === revision) {
+            if (cached.dismissedSource !== dismissedSource) {
+                cached.dismissedSource = dismissedSource;
+                cached.dismissed = new Set(dismissedSource);
+            }
+            return cached;
+        }
+        const first = Object.fromEntries(dimensions.map(name => [name, new Map()]));
+        const buckets = Object.fromEntries(dimensions.map(name => [name, new Map()]));
+        for (const item of items) {
+            const id = text(item?.id);
+            if (!id) continue;
+            const doc = descriptor(item, 0);
+            for (const name of dimensions) {
+                const value = doc[name];
+                if (!value) continue;
+                const prior = first[name].get(value);
+                if (prior === undefined) { first[name].set(value, id); continue; }
+                if (prior === id) continue;
+                let ids = buckets[name].get(value);
+                if (!ids) { ids = new Set([prior]); buckets[name].set(value, ids); }
+                ids.add(id);
+            }
+        }
+        return badgeMemo[key] = { snapshot, items, length: items.length, revision, buckets,
+            dismissedSource, dismissed: new Set(dismissedSource) };
+    }
+    function badgeItem(snapshot, type, itemId) {
+        const indexed = window.EveAudioflixLibraryIndex?.get?.(snapshot, type)?.getById?.(itemId);
+        if (indexed) return indexed;
+        const items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
+        return items.find(item => text(item?.id) === text(itemId)) || null;
+    }
+    function bucketHasOther(index, name, value, itemId) {
+        if (!value) return false;
+        for (const otherId of index.buckets[name].get(value) || []) {
+            if (otherId !== itemId && !index.dismissed.has(pairKey(itemId, otherId))) return true;
+        }
+        return false;
+    }
+
     function candidates(index, position) {
         const found = new Set(), doc = index.docs[position];
-        for (const key of dimensions) {
-            for (const other of index.buckets[key].get(doc[key]) || []) if (other !== position) found.add(other);
+        for (const name of dimensions) {
+            for (const other of index.buckets[name].get(doc[name]) || []) if (other !== position) found.add(other);
         }
         return [...found].sort((a, b) => a - b);
     }
@@ -147,9 +196,6 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
             items: [index.items[left], index.items[right]] } : null;
     }
 
-    // Find all duplicate pairs for a given item type ('music' or 'sound'). A hard match has shared
-    // source identity; title/file-name similarity alone is intentionally soft so edits, remixes and
-    // clipped versions are never presented as certain destructive duplicates.
     function findDuplicates(type = 'sound') {
         const index = indexFor(type);
         if (index.pairs) return index.pairs;
@@ -164,8 +210,6 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return index.pairs = pairs.sort((a, b) => (a.level === b.level ? 0 : (a.level === 'hard' ? -1 : 1)));
     }
 
-    // Get duplicate matches specifically for a single item ID. Pairs the user chose to "keep both"
-    // are filtered out so an acknowledged pair stops flagging as a duplicate.
     function duplicatesFor(type, itemId) {
         if (!itemId) return [];
         const seen = new Set();
@@ -195,23 +239,15 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
     }
 
     function duplicateLevelFor(type, itemId) {
-        const index = indexFor(type), positions = index.ids.get(itemId) || [];
-        for (const keys of [dimensions.slice(0, 3), dimensions.slice(3)]) {
-            for (const position of positions) {
-                const doc = index.docs[position];
-                for (const key of keys) {
-                    for (const other of index.buckets[key].get(doc[key]) || []) {
-                        const item = index.items[other];
-                        if (item.id !== itemId && !index.dismissed.has(pairKey(itemId, item.id))) return keys[0] === 'url' ? 'hard' : 'soft';
-                    }
-                }
-            }
-        }
+        if (!itemId) return '';
+        const snapshot = state(), id = text(itemId), item = badgeItem(snapshot, type, id);
+        if (!item) return '';
+        const index = badgeIndexFor(type), doc = descriptor(item, 0);
+        for (const name of ['url', 'path', 'source']) if (bucketHasOther(index, name, doc[name], id)) return 'hard';
+        for (const name of ['title', 'base']) if (bucketHasOther(index, name, doc[name], id)) return 'soft';
         return '';
     }
 
-    // "Keep both": record that this pair is intentionally separate, then drop the memo so the badge
-    // recomputes immediately. Returns the updated dismissed-pair count.
     function dismissDuplicate(aId, bId) {
         if (!aId || !bId || aId === bId) return { ok: false };
         const current = state().dupDismissedPairs || [];
@@ -223,16 +259,10 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return { ok: true, dismissed: key };
     }
 
-    // Check if a specific item is part of any duplicate cluster
     function isDuplicate(type, itemId) {
         return !!duplicateLevelFor(type, itemId);
     }
 
-    // Merge duplicate items into one primary item:
-    // 1. Keeps primaryId
-    // 2. Moves all group tags from duplicateIds into primaryId
-    // 3. Updates primaryId's folder if targetFolder is specified
-    // 4. Removes duplicateIds items
     function mergeDuplicates(type, primaryId, duplicateIds = [], targetFolder = '') {
         const isM = type === 'music';
         const stateKey = isM ? 'music' : 'soundboard';
@@ -243,36 +273,24 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         const dupes = items.filter(it => duplicateIds.includes(it.id) && it.id !== primaryId);
         if (!dupes.length) return { ok: false, reason: 'No valid duplicate items selected for merge' };
 
-        // Collect all groups across primary and duplicates
         const getGroups = (id) => (isM ? (state().musicGroupMap?.[id] || []) : (state().soundGroupMap?.[id] || []));
         const allGroups = new Set(getGroups(primaryId));
-        dupes.forEach(d => {
-            getGroups(d.id).forEach(g => allGroups.add(g));
-        });
-
-        // Apply all group tags to primary item
+        dupes.forEach(d => getGroups(d.id).forEach(g => allGroups.add(g)));
         allGroups.forEach(g => {
             if (isM) window.EveAudioflixState?.toggleMusicGroup?.(primaryId, g, true);
             else window.EveAudioflixState?.toggleSoundGroup?.(primaryId, g, true);
         });
 
-        // Build ONE patch (folder + combined sources) so the item array is rebuilt just once.
         const patch = {};
-
-        // Target folder (optional).
         if (targetFolder !== undefined && targetFolder !== null && targetFolder !== '') {
             const cleanFolder = text(targetFolder);
             patch.folder = cleanFolder;
             patch.card = cleanFolder;
         }
 
-        // Combine playback sources: a file-path track and an online-url track for the same song
-        // survive as ONE item carrying BOTH. `url` holds the streamable/online source; `localPath`
-        // holds the local file. Whichever side the user kept as primary, the survivor ends up with
-        // both whenever the merged pair supplied both.
         const isLocalSource = (value) => {
             const s = normalize(value);
-            return !!s && !/^(?:https?:\/\/|spotify:|blob:|data:)/.test(s); // drive letter, file://, ported/relative path
+            return !!s && !/^(?:https?:\/\/|spotify:|blob:|data:)/.test(s);
         };
         let onlineUrl = '';
         let localPath = '';
@@ -281,36 +299,27 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
                 const clean = text(candidate);
                 if (!clean) return;
                 if (isLocalSource(clean)) { if (!localPath) localPath = clean; }
-                else if (!onlineUrl) { onlineUrl = clean; }
+                else if (!onlineUrl) onlineUrl = clean;
             });
         });
         const newUrl = onlineUrl || localPath || primary.url;
         if (newUrl && newUrl !== primary.url) patch.url = newUrl;
         if (localPath && localPath !== text(primary.localPath)) patch.localPath = localPath;
 
-        // Manual classifiers survive the merge: a label the user attached to the copy being removed
-        // would otherwise be silently lost. Automatic classifiers are derived, so they need nothing.
         const mergedClassifiers = new Set((primary.classifiers || []).map(text).filter(Boolean));
         dupes.forEach((d) => (d.classifiers || []).forEach((c) => { const v = text(c); if (v) mergedClassifiers.add(v); }));
         if (mergedClassifiers.size !== (primary.classifiers || []).length) patch.classifiers = [...mergedClassifiers];
 
-        // Localization entries survive too, keyed by scope so the survivor keeps every place the song
-        // physically lives (folder file, group copy, shortcut). The primary wins on a scope clash.
         const byScope = new Map();
         dupes.forEach((d) => (d.localizations || []).forEach((l) => { if (l?.source && l?.path) byScope.set(l.source, l); }));
         (primary.localizations || []).forEach((l) => { if (l?.source && l?.path) byScope.set(l.source, l); });
         if (byScope.size !== (primary.localizations || []).length) patch.localizations = [...byScope.values()];
 
-        if (Object.keys(patch).length) {
-            window.EveAudioflixState?.updateItem?.(type, primaryId, patch);
-        }
-
-        // Remove the duplicate items
-        dupes.forEach(d => {
-            window.EveAudioflixState?.removeItem?.(type, d.id);
-        });
+        if (Object.keys(patch).length) window.EveAudioflixState?.updateItem?.(type, primaryId, patch);
+        dupes.forEach(d => window.EveAudioflixState?.removeItem?.(type, d.id));
 
         memo.music = memo.sound = null;
+        badgeMemo.music = badgeMemo.sound = null;
         return { ok: true, mergedCount: dupes.length, primaryId, dualSource: !!(onlineUrl && localPath) };
     }
 
