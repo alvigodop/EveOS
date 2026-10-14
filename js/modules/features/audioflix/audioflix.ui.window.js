@@ -3,7 +3,9 @@
     'use strict';
     const ns = window.EveAudioflixUiWindow = window.EveAudioflixUiWindow || {};
     if (ns.ready) return;
-    const PAGE_SIZE = 200, THRESHOLD = 400, MAX_SCOPES = 32;
+    // Keep every live music surface under the same small DOM bound as Nexus results. The full
+    // canonical scope remains available to queues/search; only presentation is paged.
+    const PAGE_SIZE = 80, THRESHOLD = 80, MAX_SCOPES = 32;
     let nextOwner = 0;
     function create({ esc, renderCard, itemsForKey, afterMount }) {
         const owner = String(++nextOwner), pages = new Map();
