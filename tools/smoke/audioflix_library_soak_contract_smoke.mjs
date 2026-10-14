@@ -64,6 +64,70 @@ try {
         assertQueueProjection(3, 3);
         assert.throws(() => assertQueueProjection(3, 4), /without rebuilding/);
     });
+    await check('response-segments-exclude-warmup-without-hiding-cold-or-measured-failures', () => {
+        const frames = [], f = instrumentationFixture(callback => frames.push(callback)), soak = f.window.__librarySoak;
+        const click = () => f.events.get('document:click')({ type: 'click',
+            target: { classList: { contains: () => false }, closest: () => ({}) } });
+        const frame = delay => {
+            f.advance(delay); const callback = frames.shift();
+            assert.equal(typeof callback, 'function', 'A response frame must be pending'); callback();
+        };
+        soak.phase('play-pointer');
+        click(); frame(75); frame(75); // Startup/cold response: 150ms.
+        soak.segment?.('warmup');
+        click(); frame(500);
+        soak.segment?.('measured'); soak.phase('after-warmup');
+        frame(500); // Completion after the switch must remain attributed to warmup.
+        soak.phase('play-pointer');
+        click(); frame(25); frame(25); // Measured response: 50ms.
+        soak.phase('queue-pointer');
+        click(); frame(50); frame(51); // Measured regression: 101ms.
+
+        const snapshot = soak.snapshot(), strict = snapshot.responseSummary;
+        assert.equal(strict['play-pointer'].max, 150, 'A 1000ms warmup response cannot contaminate strict startup + measured stats');
+        assert.deepEqual({ ...strict['play-pointer'] }, { count: 2, retained: 2, max: 150, p50: 50, p95: 150 });
+        assert.deepEqual({ ...snapshot.warmupResponseSummary['play-pointer'] },
+            { count: 1, retained: 1, max: 1000, p50: 1000, p95: 1000 });
+        const warmup = Array.from(snapshot.responses).find(row => row.duration === 1000);
+        assert.deepEqual({ phase: warmup.phase, started: warmup.started, firstFrameAt: warmup.firstFrameAt,
+            finished: warmup.finished, finishedPhase: warmup.finishedPhase, segment: warmup.segment },
+        { phase: 'play-pointer', started: 150, firstFrameAt: 650, finished: 1150,
+            finishedPhase: 'after-warmup', segment: 'warmup' });
+        const failures = evaluateSoakBudgets({}, strict, {}, true);
+        assert.deepEqual(failures.map(row => [row.name, row.actual, row.limit]), [
+            ['play-pointer:visual-response', 150, 100],
+            ['queue-pointer:visual-response', 101, 100]
+        ], 'Cold 150ms and measured 101ms responses remain strict budget failures');
+    });
+    await check('phase-recording-awaits-operation-and-two-response-frames', async () => {
+        const frames = [], f = instrumentationFixture(callback => frames.push(callback));
+        const page = { evaluate(callback, value) {
+            f.context.argument = value;
+            return vm.runInContext(`(${callback.toString()})(argument)`, f.context);
+        } };
+        let releaseOperation, resolved = false;
+        const operationGate = new Promise(resolve => { releaseOperation = resolve; }), resultToken = { preserved: true };
+        const action = recordSoakPhase(page, 'settled-click', async () => {
+            f.events.get('document:click')({ type: 'click', target: { classList: { contains: () => false }, closest: () => ({}) } });
+            await operationGate;
+            return resultToken;
+        });
+        action.then(() => { resolved = true; }, () => { resolved = true; });
+        await new Promise(resolve => setImmediate(resolve));
+        assert.equal(resolved, false, 'The operation result must settle before the action can finish');
+        releaseOperation(); await new Promise(resolve => setImmediate(resolve));
+        assert.equal(resolved, false, 'A pending response cannot settle before its first frame');
+        f.advance(16); frames.shift()(); await new Promise(resolve => setImmediate(resolve));
+        assert.equal(resolved, false, 'A pending response cannot settle after only its first frame');
+        f.advance(17); frames.shift()();
+        assert.equal(await action, resultToken, 'Settling instrumentation preserves the operation result');
+        const response = f.window.__librarySoak.snapshot().responses[0];
+        assert.deepEqual({ started: response.started, firstFrameAt: response.firstFrameAt, finished: response.finished,
+            finishedPhase: response.finishedPhase, segment: response.segment },
+        { started: 0, firstFrameAt: 16, finished: 33, finishedPhase: 'settled-click', segment: 'startup' });
+        const rejection = new Error('operation-rejection');
+        await assert.rejects(recordSoakPhase(page, 'rejected-operation', async () => { throw rejection; }), error => error === rejection);
+    });
     await check('delayed-long-tasks-use-action-start-phase-with-fixed-budgets', async () => {
         const frames = [], f = instrumentationFixture(callback => frames.push(callback)), phases = [];
         const page = { evaluate(callback, name) {

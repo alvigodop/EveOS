@@ -210,6 +210,13 @@ try {
         window.EveAudioflixAudio = { stopItemLayers: async () => true, playItem: async item => { window.__playing = item.id; }, syncQueueView: () => {} };
     });
     await lazy.addScriptTag({ content: windowSource });
+    const pagePolicy = await lazy.evaluate(() => window.EveAudioflixUiWindow.create({
+        esc: String, renderCard: () => '', itemsForKey: () => null
+    }).diagnostics());
+    const pageSize = pagePolicy.pageSize, mountedGroupCards = Math.min(pageSize, 250);
+    const mountedTargetId = `lazy-1-${mountedGroupCards - 1}`;
+    assert.ok(Number.isInteger(pageSize) && pageSize > 0, 'window API must expose a positive canonical page size');
+    await lazy.evaluate(id => { window.__queue.items[0] = id; }, mountedTargetId);
     await lazy.addScriptTag({ content: renderSource });
     await lazy.addScriptTag({ content: nexusActionsSource });
     await lazy.addScriptTag({ content: actionsSource });
@@ -250,19 +257,19 @@ try {
     const header = lazy.locator('.audioflix-group-title[data-af-group="Collapsed 1"]');
     await header.scrollIntoViewIfNeeded();
     await header.click();
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 252, 'expanding mounts only the selected group');
-    assert.equal(await lazy.locator('[data-af-id="lazy-1-249"][data-af-action="play"]').count(), 1);
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 2 + mountedGroupCards, 'expanding mounts only one canonical page from the selected group');
+    assert.equal(await lazy.locator(`[data-af-id="${mountedTargetId}"][data-af-action="play"]`).count(), 1);
     assert.match(await lazy.locator('.audioflix-group[data-af-group="Collapsed 1"] .audioflix-queue-badge.is-active').textContent(), /#1 Playing/, 'late-mounted cards use current queue identity');
-    await lazy.locator('[data-af-id="lazy-1-249"][data-af-action="item-info"]').click();
-    assert.equal(await lazy.evaluate(() => window.__settings), 'lazy-1-249', 'late-mounted Song Settings uses delegated actions');
-    await lazy.locator('[data-af-id="lazy-1-249"][data-af-action="play"]').click();
-    await lazy.waitForFunction(() => window.__playing === 'lazy-1-249');
+    await lazy.locator(`[data-af-id="${mountedTargetId}"][data-af-action="item-info"]`).click();
+    assert.equal(await lazy.evaluate(() => window.__settings), mountedTargetId, 'late-mounted Song Settings uses delegated actions');
+    await lazy.locator(`[data-af-id="${mountedTargetId}"][data-af-action="play"]`).click();
+    await lazy.waitForFunction(id => window.__playing === id, mountedTargetId);
     await header.click();
     assert.equal(await lazy.locator('.audioflix-item-card').count(), 2, 'collapse retires only card UI, not playback');
-    assert.equal(await lazy.evaluate(() => window.__playing), 'lazy-1-249');
+    assert.equal(await lazy.evaluate(() => window.__playing), mountedTargetId);
     await header.focus();
     await lazy.keyboard.press('Enter');
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 252, 'keyboard activation mounts the same canonical group');
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), 2 + mountedGroupCards, 'keyboard activation mounts the same canonical group page');
     await lazy.keyboard.press('Enter');
     assert.equal(await lazy.locator('.audioflix-item-card').count(), 2);
     await lazy.locator('#jump').click();
@@ -295,12 +302,12 @@ try {
         ctx.playQueueIndex = async index => { window.__queue = ctx.activeMusicQueue; window.__playing = window.__queue.items[index]; };
         document.getElementById('audioflix-overlay').innerHTML = '<div class="audioflix-nexus-panel"><input value="Large 24999"><button id="large-jump" data-af-action="nexus-jump-card" data-af-id="large-24999" data-af-type="music">Jump to far card</button></div>' + window.__render.renderItems(window.__state.music, 'music');
     });
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200, '25k Frontend All Groups mounts one bounded card page');
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), pageSize, '25k Frontend All Groups mounts one canonical card page');
     assert.match(await lazy.locator('.audioflix-card-pages').textContent(), /of 25000 tracks/);
     assert.equal(await lazy.locator('[data-af-action="play"][data-af-id="large-24999"]').count(), 0, 'far cards are not hidden DOM');
     await lazy.getByRole('button', { name: 'Next page', exact: true }).click();
-    assert.equal(await lazy.locator('[data-af-action="play"][data-af-id="large-200"]').count(), 1);
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    assert.equal(await lazy.locator(`[data-af-action="play"][data-af-id="large-${pageSize}"]`).count(), 1);
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), pageSize);
     await lazy.getByRole('button', { name: 'Previous page', exact: true }).click();
     assert.equal(await lazy.locator('[data-af-action="play"][data-af-id="large-0"]').count(), 1);
     await lazy.addScriptTag({ content: read('js/modules/features/audioflix/audioflix.nexus.js') });
@@ -352,7 +359,7 @@ try {
     }, clearFocus);
     await lazy.locator('#large-jump').click();
     await lazy.waitForFunction(() => document.querySelector('.is-nexus-jump-target')?.querySelector('[data-af-action="play"]')?.dataset.afId === 'large-24999');
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), pageSize);
     assert.equal(await lazy.locator('.audioflix-nexus-panel input').inputValue(), 'Large 24999');
     assert.equal(await lazy.locator('.audioflix-nexus-panel').count(), 1, 'far jump keeps main Nexus open');
     assert.equal(await lazy.evaluate(() => window.__state.musicViewMode), 'frontend', 'matching cached page in another scope never forces backend fallback');
@@ -365,7 +372,7 @@ try {
     await lazy.locator('.audioflix-nexus-quick-results [data-quick-action="jump"]').click();
     await lazy.waitForFunction(id => document.querySelector('.is-nexus-jump-target')?.querySelector('[data-af-action="play"]')?.dataset.afId === id, replacementId);
     assert.equal(await lazy.evaluate(() => window.__state.musicViewMode), 'frontend', 'same-page changed membership reveals fresh IDs before scheduled rerender');
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), pageSize);
     await lazy.evaluate(() => {
         const item = window.__state.music.at(-1); item.id = 'large-24999'; item.title = 'Large 24999';
         window.EveAudioflix.revealCard(item.id, 'music');
@@ -374,7 +381,7 @@ try {
     await lazy.locator('[data-af-action="play-music-group"]').click();
     await lazy.waitForFunction(() => window.__queue.items.length === 25000);
     assert.equal(await lazy.evaluate(() => window.__queue.items.at(-1)), 'large-24999', 'Play Group queues the complete source, not the mounted page');
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), pageSize);
     await lazy.evaluate(() => {
         window.__state.musicViewMode = 'backend'; window.__collapsed.Large = true;
         document.getElementById('audioflix-overlay').innerHTML = '<div class="audioflix-nexus-panel"><input value="Large 24999"><button id="backend-far-jump" data-af-action="nexus-jump-card" data-af-id="large-24999" data-af-type="music">Jump to far card</button></div>' + window.__render.renderItems(window.__state.music, 'music');
@@ -383,10 +390,10 @@ try {
     assert.match(await lazy.locator('.audioflix-group-count').textContent(), /25000 items/);
     await lazy.locator('.audioflix-group-title').focus();
     await lazy.keyboard.press('Enter');
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200, 'large backend expansion is also bounded and keyboard-accessible');
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), pageSize, 'large backend expansion is also bounded and keyboard-accessible');
     await lazy.locator('#backend-far-jump').click();
     await lazy.waitForFunction(() => document.querySelector('.is-nexus-jump-target')?.querySelector('[data-af-action="play"]')?.dataset.afId === 'large-24999');
-    assert.equal(await lazy.locator('.audioflix-item-card').count(), 200);
+    assert.equal(await lazy.locator('.audioflix-item-card').count(), pageSize);
     assert.equal(await lazy.locator('.audioflix-nexus-panel input').inputValue(), 'Large 24999');
     const cache = await lazy.evaluate(() => {
         const windowed = window.EveAudioflixUiWindow.create({ esc: String, renderCard: () => '', itemsForKey: () => null });
@@ -394,12 +401,12 @@ try {
         return windowed.diagnostics();
     });
     assert.equal(cache.cachedScopes, 32, 'presentation page cache is bounded and holds only page positions');
-    assert.equal(cache.pageSize, 200);
+    assert.equal(cache.pageSize, pageSize);
     assert.deepEqual(errors, [], 'lazy mounting has no browser errors');
 
     fs.mkdirSync(evidence, { recursive: true });
-    fs.writeFileSync(path.join(evidence, 'result.json'), JSON.stringify({ ok: true, collapsedCards: 0, expandedGroupCards: 250,
-        boundedMusicScope: { source: 25000, mounted: 200, fullQueue: true, frontendPagination: true,
+    fs.writeFileSync(path.join(evidence, 'result.json'), JSON.stringify({ ok: true, collapsedCards: 0, expandedGroupCards: mountedGroupCards,
+        boundedMusicScope: { source: 25000, mounted: pageSize, fullQueue: true, frontendPagination: true,
             backendKeyboardExpansion: true, farNexusJump: true, offpageFastTrack: true,
             canonicalScopeFilters: true, cachedScopes: cache.cachedScopes },
         collapseRetiresCards: true, playbackRetained: true, queueBadgeCurrent: true, realPointer: true,

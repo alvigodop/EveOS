@@ -54,6 +54,7 @@ def assert_static_contract() -> None:
     assert PIANO.is_dir() and not (PIANO / ".git").exists()
     html = (ROOT / "EveOS.html").read_text(encoding="utf-8")
     ui = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.ui.js").read_text(encoding="utf-8")
+    panel = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.ui.panel.js").read_text(encoding="utf-8")
     actions = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.ui.actions.js").read_text(encoding="utf-8")
     piano_ui = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.ui.js").read_text(encoding="utf-8")
     piano_css = (ROOT / "js" / "modules" / "features" / "audioflix" / "audioflix.piano.css").read_text(encoding="utf-8")
@@ -65,8 +66,13 @@ def assert_static_contract() -> None:
     workspace_css = (PIANO / "web" / "piano_workspace.css").read_text(encoding="utf-8")
     state = (ROOT / "js" / "modules" / "core" / "state.js").read_text(encoding="utf-8")
 
-    order = [ui.index(f"tabButton('{name}'") for name in ("soundboard", "music", "piano", "soundlab", "router")]
+    order = [panel.index(f"tabButton('{name}'") for name in ("soundboard", "music", "piano", "soundlab", "router")]
     assert all(index >= 0 for index in order) and order == sorted(order)
+    assert "window.EveAudioflixUiPanel.create({" in ui and "piano: window.EveAudioflixPianoUi" in ui
+    assert "const renderPanel = () => uiPanel.render();" in ui
+    assert "activeTab === 'piano'" in panel and "tools.piano?.render?.()" in panel
+    assert "EveAudioflixPianoUi?.setVisible?.(activeTab === 'piano')" in ui and "EveAudioflixPianoUi?.afterRender?.(overlay)" in ui
+    assert html.index("audioflix.piano.ui.js") < html.index("audioflix.ui.panel.js") < html.index("audioflix.ui.js")
     for asset in ("audioflix.piano.css", "audioflix.piano.client.js", "audioflix.piano.ui.js"):
         assert asset in html
     assert "startsWith('piano-')" in actions and "EveAudioflixPianoUi?.handleAction" in actions

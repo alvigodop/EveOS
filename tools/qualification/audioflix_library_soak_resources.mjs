@@ -2,8 +2,14 @@
 export function installLibrarySoakInstrumentation() {
     const timers = { timeout: new Set(), interval: new Set() }, observers = Object.create(null);
     const errors = [], resourceErrors = [], longTasks = [], phases = [], responses = [], responseBuckets = new Map();
-    let phase = 'boot', errorCount = 0, longTaskCount = 0, droppedLongTasks = 0;
+    const warmupResponseBuckets = new Map(), pendingResponses = new Set();
+    let phase = 'boot', segment = 'startup', errorCount = 0, longTaskCount = 0, droppedLongTasks = 0;
     const bounded = (list, value, max) => { list.push(value); if (list.length > max) list.shift(); };
+    const summarizeResponses = buckets => Object.fromEntries([...buckets].map(([name, bucket]) => {
+        const sorted = [...bucket.values].sort((a, b) => a - b);
+        return [name, { count: bucket.count, retained: sorted.length, max: bucket.max,
+            p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0, p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0 }];
+    }));
     const noteError = event => {
         if (event.type === 'error' && !event.message && event.target && event.target !== window) {
             bounded(resourceErrors, { phase, tag: event.target.tagName || '', url: String(event.target.currentSrc || event.target.src || event.target.href || '') }, 64);
@@ -17,17 +23,26 @@ export function installLibrarySoakInstrumentation() {
     const response = event => {
         const target = event.target, volume = target?.classList?.contains('audioflix-volume-slider');
         if (!volume && !target?.closest?.('[data-af-action]')) return;
-        const started = performance.now(), owner = phase;
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            const duration = performance.now() - started;
-            bounded(responses, { phase: owner, type: event.type, duration }, 2048);
-            if (!responseBuckets.has(owner)) {
-                if (responseBuckets.size >= 32) responseBuckets.delete(responseBuckets.keys().next().value);
-                responseBuckets.set(owner, { count: 0, max: 0, values: [] });
-            }
-            const bucket = responseBuckets.get(owner); bucket.count += 1; bucket.max = Math.max(bucket.max, duration);
-            bounded(bucket.values, duration, 1024);
-        }));
+        const started = performance.now(), owner = phase, ownerSegment = segment;
+        let complete;
+        const pending = new Promise(resolve => { complete = resolve; });
+        pendingResponses.add(pending);
+        requestAnimationFrame(() => {
+            const firstFrameAt = performance.now();
+            requestAnimationFrame(() => {
+                const finished = performance.now(), duration = finished - started;
+                bounded(responses, { phase: owner, segment: ownerSegment, type: event.type, duration,
+                    started, firstFrameAt, finished, finishedPhase: phase }, 2048);
+                const buckets = ownerSegment === 'warmup' ? warmupResponseBuckets : responseBuckets;
+                if (!buckets.has(owner)) {
+                    if (buckets.size >= 32) buckets.delete(buckets.keys().next().value);
+                    buckets.set(owner, { count: 0, max: 0, values: [] });
+                }
+                const bucket = buckets.get(owner); bucket.count += 1; bucket.max = Math.max(bucket.max, duration);
+                bounded(bucket.values, duration, 1024);
+                pendingResponses.delete(pending); complete();
+            });
+        });
     };
     document.addEventListener('input', response, true); document.addEventListener('click', response, true);
     for (const [kind, setName, clearName] of [['timeout', 'setTimeout', 'clearTimeout'], ['interval', 'setInterval', 'clearInterval']]) {
@@ -72,25 +87,28 @@ export function installLibrarySoakInstrumentation() {
         };
     }
     window.__librarySoak = {
-        phase(name) { phase = name; bounded(phases, { name, at: performance.now() }, 2048); },
-        snapshot() { return { phase, errorCount, errors: errors.map(error => ({ ...error })), resourceErrors: resourceErrors.map(error => ({ ...error })),
+        phase(name) { phase = name; bounded(phases, { name, segment, at: performance.now() }, 2048); },
+        segment(name) {
+            if (!['startup', 'warmup', 'measured'].includes(name)) throw Error('Unknown soak measurement segment');
+            segment = name; bounded(phases, { name: phase, segment, at: performance.now() }, 2048);
+        },
+        async settleResponses() { while (pendingResponses.size) await Promise.all([...pendingResponses]); },
+        snapshot() { return { phase, segment, pendingResponses: pendingResponses.size,
+            errorCount, errors: errors.map(error => ({ ...error })), resourceErrors: resourceErrors.map(error => ({ ...error })),
             timers: { timeout: timers.timeout.size, interval: timers.interval.size },
             observers: Object.fromEntries(Object.entries(observers).map(([key, value]) => [key, { ...value }])),
             longTaskCount, droppedLongTasks, longTasks: longTasks.map(task => ({ ...task })),
-            responses: responses.map(value => ({ ...value })), responseSummary: Object.fromEntries([...responseBuckets].map(([name, bucket]) => {
-                const sorted = [...bucket.values].sort((a, b) => a - b);
-                return [name, { count: bucket.count, retained: sorted.length, max: bucket.max,
-                    p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0, p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0 }];
-            })) }; },
+            responses: responses.map(value => ({ ...value })), responseSummary: summarizeResponses(responseBuckets),
+            warmupResponseSummary: summarizeResponses(warmupResponseBuckets) }; },
         drainLongTasks() { const result = longTasks.splice(0); return result; }
     };
     try {
         const observer = new window.PerformanceObserver(list => {
             for (const entry of list.getEntries()) {
-                const owner = [...phases].reverse().find(mark => mark.at <= entry.startTime)?.name || 'boot';
+                const owner = [...phases].reverse().find(mark => mark.at <= entry.startTime);
                 longTaskCount += 1;
                 if (longTasks.length >= 2048) droppedLongTasks += 1;
-                bounded(longTasks, { phase: owner, duration: entry.duration, start: entry.startTime,
+                bounded(longTasks, { phase: owner?.name || 'boot', segment: owner?.segment || 'startup', duration: entry.duration, start: entry.startTime,
                     attribution: (entry.attribution || []).map(part => part.name || part.containerType || 'unknown').slice(0, 4) }, 2048);
             }
         });

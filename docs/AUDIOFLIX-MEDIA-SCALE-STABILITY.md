@@ -51,6 +51,12 @@ be recorded by a completed soak; missing measurements fail instead of becoming z
 samples. A mismatched historical run remains evidence about its actual old source, not a red
 or green qualification of the newer candidate. The source gate never starts/restarts services.
 
+Paint-response probes settle before the driver starts the next synthetic phase. Their bounded
+event/first-frame/second-frame timestamps expose overlap rather than treating a completed click
+as a completed paint. Startup and measured interactions retain the same strict budgets; the
+explicit ten-iteration warmup cohort has separate retained response/long-task summaries and
+does not contaminate the measured p95. This is a second-animation-frame probe, not Chrome INP.
+
 Registered deterministic lanes include:
 
 ```text

@@ -45,7 +45,11 @@ export function assertQueueProjection(before, after) {
 
 export async function recordSoakPhase(page, phase, operation) {
     await page.evaluate(name => window.__librarySoak.phase(name), phase);
-    return operation();
+    const result = await operation();
+    // A completed Playwright action is not a completed paint probe. Do not let the next
+    // synthetic persistence/bulk phase add its work to this control's second-RAF response.
+    await page.evaluate(() => window.__librarySoak.settleResponses());
+    return result;
 }
 
 export async function settleSoakPersistence(page, reason) {
@@ -225,6 +229,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             if (process.argv.includes('--soak-debug')) await page.evaluate(held => { window.__soakDebug.volume.held = held; }, held);
             assertHeldVolume(before, held);
             await page.mouse.up(); (rows['volume-drag-pointer'] ||= []).push(performance.now() - at);
+            await page.evaluate(() => window.__librarySoak.settleResponses());
             const after = await page.evaluate(id => {
                 const slider = window.__soakSlider, state = window.EveAudioflixState;
                 window.__librarySoak.phase('volume-drag-settled');
@@ -250,8 +255,10 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         await reveal();
         onProgress({ label, stage: 'warmup', counts: { ...counts } });
         // Warm all exercised card/modal/gesture paths before taking resource baselines.
+        await page.evaluate(() => window.__librarySoak.segment('warmup'));
         for (let i = 0; i < 10; i++) { await playStop(); await settings(); }
         await volume();
+        await page.evaluate(async () => { await window.__librarySoak.settleResponses(); window.__librarySoak.segment('measured'); });
         await page.evaluate(() => { window.__soakDebug.enabled = window.__soakDebug.all; });
         for (const key of Object.keys(rows)) rows[key] = [];
         const startCalls = await page.evaluate(() => ({ ...window.__soakCalls }));
@@ -377,9 +384,14 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.equal(run.consoleProbe?.unexpectedErrors || 0, 0, `Unexpected browser console errors fail qualification: ${JSON.stringify(run.consoleProbe?.errors || [])}`);
         assert.ok(samples.every(sample => sample.mountedCards <= 400));
         const growth = resourceGrowth(samples), latency = Object.fromEntries(Object.entries(rows).map(([key, values]) => [key, latencyStats(values)]));
-        const longTaskRows = final.instrumentation.longTasks, attribution = {};
-        for (const row of longTaskRows) (attribution[row.phase] ||= []).push(row.duration);
+        assert.equal(final.instrumentation.pendingResponses, 0, 'Every measured paint response must settle');
+        const longTaskRows = final.instrumentation.longTasks, attribution = {}, warmupAttribution = {};
+        for (const row of longTaskRows) {
+            const target = row.segment === 'warmup' ? warmupAttribution : attribution;
+            (target[row.phase] ||= []).push(row.duration);
+        }
         const longTaskAttribution = Object.fromEntries(Object.entries(attribution).map(([key, values]) => [key, latencyStats(values)]));
+        const warmupLongTaskAttribution = Object.fromEntries(Object.entries(warmupAttribution).map(([key, values]) => [key, latencyStats(values)]));
         const visualResponse = final.instrumentation.responseSummary;
         const normalGroup = expandedGroupSize <= 400;
         const failures = evaluateSoakBudgets(latency, visualResponse, longTaskAttribution, normalGroup);
@@ -394,7 +406,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.ok(final.diagnostics?.summary['playlist:reconcile']?.count >= 50);
         return { label, syntheticAudio: true, providerPlaybackClaimed: false, counts: { ...counts, sliderInputEvents: inputEvents },
             canonicalScopeCount: target.scopeCount, libraryCount: target.libraryCount, expandedGroupSize, topologyUnchanged: true, continuousQueueOrderPreserved: true,
-            latency, visualResponse, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
+            latency, visualResponse, warmupVisualResponse: final.instrumentation.warmupResponseSummary,
+            warmupLongTaskAttribution, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
             debug: process.argv.includes('--soak-debug') ? await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume })) : undefined,
