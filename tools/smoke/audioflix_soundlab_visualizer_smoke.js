@@ -12,6 +12,8 @@ const overlayPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.overlay.
 const visualizerPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.js');
 const diagnosticDir = path.join(ROOT, 'data', 'runtime', 'smoke-results');
 const diagnosticPath = path.join(diagnosticDir, 'audioflix-soundlab-visualizer.json');
+const diagnosticRun = { startedAt: new Date().toISOString(), pid: process.pid };
+let diagnosticResult = null;
 const stateSource = fs.readFileSync(statePath, 'utf8');
 const overlaySource = fs.readFileSync(overlayPath, 'utf8');
 const visualizerSource = fs.readFileSync(visualizerPath, 'utf8');
@@ -211,8 +213,9 @@ assert(
                 errors: window.__visualizerErrors
             };
         });
+        diagnosticResult = result;
         fs.mkdirSync(diagnosticDir, { recursive: true });
-        fs.writeFileSync(diagnosticPath, JSON.stringify(result, null, 2));
+        fs.writeFileSync(diagnosticPath, JSON.stringify({ ...diagnosticRun, ...result }, null, 2));
         assert(
             result.modes.join(',') === 'spectrum,waveform,radial,spectrogram,frequency-linear',
             'improved spectrum is first and the legacy frequency view is last'
@@ -245,6 +248,15 @@ assert(
         fs.rmSync(fixture, { force: true });
     }
 })().catch((error) => {
+    try {
+        fs.mkdirSync(diagnosticDir, { recursive: true });
+        fs.writeFileSync(diagnosticPath, JSON.stringify({
+            ...diagnosticRun, ...diagnosticResult, ok: false,
+            failure: { message: error.message, stack: error.stack }, finishedAt: new Date().toISOString()
+        }, null, 2));
+    } catch (diagnosticError) {
+        console.error(`DIAGNOSTIC_WRITE_FAILED: ${diagnosticError.message}`);
+    }
     console.error(`AUDIOFLIX SOUNDLAB VISUALIZER: FAIL 1 | ${error.message}`);
     console.error(`DIAGNOSTIC: ${path.relative(ROOT, diagnosticPath)}`);
     process.exitCode = 1;
