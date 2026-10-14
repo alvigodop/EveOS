@@ -68,7 +68,6 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     }
     function drop(index, row) {
         index.rows.delete(row.item);
-        if (index.ordered?.[row.position] === row) index.ordered[row.position] = undefined;
         if (row.id) collectionDelete(index.ids, row.id, row);
         for (const dimension of dimensions) for (const key of row.keys[dimension]) {
             collectionDelete(index.buckets[dimension], key, row);
@@ -76,7 +75,6 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     }
     function put(index, row) {
         index.rows.set(row.item, row);
-        if (index.ordered) index.ordered[row.position] = row;
         if (row.id) collectionAdd(index.ids, row.id, row);
         for (const dimension of dimensions) for (const key of row.keys[dimension]) {
             collectionAdd(index.buckets[dimension], key, row);
@@ -85,7 +83,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     function build(snapshot, type) {
         const started = window.performance?.now?.() ?? Date.now();
         const source = snapshot[kindKey(type)] || EMPTY;
-        const index = { source, length: source.length, rows: new Map(), ordered: new Array(source.length), ids: new Map(), revision: ++contentRevision,
+        const index = { source, length: source.length, rows: new Map(), ids: new Map(), revision: ++contentRevision,
             buckets: Object.fromEntries(dimensions.map(key => [key, new Map()])), nextRank: source.length, docs: null, scopes: new Map(), updates: 0 };
         source.forEach((item, rank) => put(index, describe(snapshot, type, item, rank)));
         index.api = Object.freeze({
@@ -129,9 +127,9 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
                 index.scopes.set(cacheKey, { revision: index.revision, rows: ordered, items: scoped });
                 return scoped;
             },
-            // Search validates canonical source identity while scanning. A position-aligned row vector
-            // avoids 25k Map lookups per keystroke but preserves first-query repair for silent
-            // same-length replacements because row.item must still match source[position].
+            // Search validates row identity while scanning, so live 25k queries do one O(N) pass
+            // instead of a separate whole-library integrity pass followed by another docs pass.
+            // A silent same-length replacement still repairs on the first indexed query.
             search(query, limit = Infinity) {
                 ensureSource(index, snapshot, type);
                 const wanted = text(query).toLowerCase();
@@ -140,8 +138,8 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
                     const found = [];
                     let total = 0, stale = false;
                     for (let position = 0; position < index.source.length; position += 1) {
-                        const item = index.source[position], row = index.ordered[position];
-                        if (!row || row.item !== item || row.position !== position) { stale = true; break; }
+                        const item = index.source[position], row = index.rows.get(item);
+                        if (!row || row.position !== position) { stale = true; break; }
                         if (wanted && !row.doc.haystack.includes(wanted)) continue;
                         total += 1;
                         if (found.length < max) found.push(item);
@@ -153,12 +151,12 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
             },
             docs() {
                 ensureSource(index, snapshot, type);
-                if (index.source.some((item, position) => index.ordered[position]?.item !== item || index.ordered[position]?.position !== position)) repair(index, snapshot, type);
-                if (!index.docs) index.docs = Object.freeze(index.ordered.map(row => row.doc));
+                if (index.source.some((item, position) => index.rows.get(item)?.position !== position)) repair(index, snapshot, type);
+                if (!index.docs) index.docs = Object.freeze([...index.rows.values()].sort((a, b) => a.rank - b.rank).map(row => row.doc));
                 return index.docs;
             },
             get contentRevision() { ensureSource(index, snapshot, type); return index.revision; },
-            diagnostics() { return { items: index.rows.size, contentRevision: index.revision, incrementalUpdates: index.updates, cachedScopes: index.scopes.size, compactCollections: true, orderedRows: true }; }
+            diagnostics() { return { items: index.rows.size, contentRevision: index.revision, incrementalUpdates: index.updates, cachedScopes: index.scopes.size, compactCollections: true }; }
         });
         try {
             window.EveAudioflixDiagnostics?.increment?.('index:builds');
@@ -168,7 +166,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     }
     function repair(index, snapshot, type) {
         index.source = snapshot[kindKey(type)] || EMPTY; index.length = index.source.length;
-        index.rows.clear(); index.ordered = new Array(index.length); index.ids.clear(); index.scopes.clear();
+        index.rows.clear(); index.ids.clear(); index.scopes.clear();
         for (const dimension of dimensions) index.buckets[dimension].clear();
         index.source.forEach((item, position) => put(index, describe(snapshot, type, item, position)));
         index.nextRank = index.length; index.docs = null; index.revision = ++contentRevision;
@@ -193,14 +191,12 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
             const wanted = new Set(source);
             for (const row of index.rows.values()) if (!wanted.has(row.item)) drop(index, row);
         }
-        const ordered = new Array(source.length);
         source.forEach((item, position) => {
-            let row = index.rows.get(item);
-            if (!row) { put(index, describe(snapshot, type, item, position)); row = index.rows.get(item); }
+            const row = index.rows.get(item);
+            if (!row) put(index, describe(snapshot, type, item, position));
             else { row.rank = position; row.position = position; }
-            ordered[position] = row;
         });
-        index.source = source; index.length = source.length; index.nextRank = source.length; index.ordered = ordered;
+        index.source = source; index.length = source.length; index.nextRank = source.length;
         index.docs = null; index.scopes.clear(); index.revision = ++contentRevision; index.updates += 1;
         try {
             window.EveAudioflixDiagnostics?.increment?.('index:reconciles');
@@ -246,12 +242,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
         if (!index) return;
         for (const row of collectionRows(index.ids.get(idKey(itemId)))) drop(index, row);
         changed(index, snapshot, type);
-        const ordered = new Array(index.source.length);
-        index.source.forEach((item, position) => {
-            const row = index.rows.get(item);
-            if (row) { row.position = position; row.rank = position; ordered[position] = row; }
-        });
-        index.ordered = ordered;
+        index.source.forEach((item, position) => { const row = index.rows.get(item); if (row) row.position = position; });
     }
     // Typed invalidation remains conservative for explicit item/folder/group mutation owners. The
     // untyped bulk-state path may preserve a cache only when the source array actually changed and
