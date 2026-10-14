@@ -376,7 +376,10 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         const state = ensure();
         const key = type === 'music' ? 'music' : 'soundboard';
         const entry = window.EveAudioflixLibraryIndex.get(state, type).getById(itemId);
-        if (entry) entry.exposed = exposed;
+        if (entry) {
+            entry.exposed = exposed;
+            window.EveAudioflixLibraryIndex.upsert(state, type, entry);
+        }
         state.exposedPortedSounds = state.exposedPortedSounds || {};
         state.exposedPortedSounds[itemId] = exposed;
         scheduleSave('audioflix-exposed');
