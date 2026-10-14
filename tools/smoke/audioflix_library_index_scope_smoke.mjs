@@ -37,6 +37,18 @@ const indexedBounded = view.search('indexed album', 80);
 assert.equal(indexedBounded.total, 25000);
 assert.equal(indexedBounded.items.length, 80);
 assert.deepEqual(Array.from(indexedBounded.items.slice(0, 3), item => item.id), ['index-0', 'index-1', 'index-2']);
+// Bulk sync/restore often replaces the array object while retaining almost every canonical item.
+// That source swap must reconcile existing rows rather than normalizing all 25k tracks again.
+const bulkTransient = { id: 'bulk-transient', title: 'Transient', artist: 'Transient', album: 'Indexed Album',
+    folder: 'Upper', playlistId: 'playlist-transient', sourceProvider: 'fixture', sourceMediaType: 'track', sourceMediaId: 'bulk-transient' };
+state.music = music.concat(bulkTransient); titleReads = 0; library.invalidate(state);
+assert.equal(library.get(state, 'music'), view, 'Bulk source growth preserves the existing index API');
+assert.equal(view.getById('bulk-transient'), bulkTransient);
+assert.equal(titleReads, 0, 'Bulk source growth describes only true additions, not all retained rows');
+state.music = music; library.invalidate(state);
+assert.equal(library.get(state, 'music'), view, 'Bulk source restore preserves the existing index API');
+assert.equal(view.search('indexed album', 80).total, 25000);
+assert.equal(titleReads, 0, 'Bulk source restore reuses retained normalized rows without a 25k rebuild');
 const bounded = X.filterWindow({ type: 'music', query: 'indexed album' }, 80);
 assert.equal(bounded.total, 25000);
 assert.equal(bounded.items.length, 80);
@@ -111,4 +123,4 @@ assert.equal(titleReads, summaryReads, 'Default Nexus duplicate summary reuses c
 state.dupDismissedPairs = ['index-1000|index-24999'];
 assert.equal(D.duplicateLevelFor('music', badgeTarget), '', 'Keep-both dismissal updates without rebuilding library content');
 assert.equal(D.duplicateBadgeSummary('music').any, false, 'Keep-both dismissal immediately clears the compact Nexus duplicate summary');
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true duplicateBadges=true duplicateSummary=true');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true duplicateBadges=true duplicateSummary=true bulkReconcile=true');
