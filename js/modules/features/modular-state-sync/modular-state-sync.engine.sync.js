@@ -199,7 +199,8 @@ window.EveDataStore = window.EveDataStore || {};
                     const rejectedAt = state.lastRejectedRemoteAt || 0;
                     const pulled = await pullRemoteState(true, remoteStatus.signature);
                     if (!pulled && state.lastRejectedRemoteAt && state.lastRejectedRemoteAt !== rejectedAt) {
-                        await pushLocalState(true, localHash);
+                        const fallbackHash = ns.captureStateHash();
+                        if (fallbackHash) await pushLocalState(true, fallbackHash);
                     }
                     return;
                 }
@@ -211,7 +212,8 @@ window.EveDataStore = window.EveDataStore || {};
                         const rejectedAt = state.lastRejectedRemoteAt || 0;
                         const pulled = await pullRemoteState(true, remoteStatus.signature);
                         if (!pulled && state.lastRejectedRemoteAt && state.lastRejectedRemoteAt !== rejectedAt) {
-                            await pushLocalState(true, localHash);
+                            const fallbackHash = ns.captureStateHash();
+                            if (fallbackHash) await pushLocalState(true, fallbackHash);
                         }
                     }
                     return;
@@ -245,22 +247,16 @@ window.EveDataStore = window.EveDataStore || {};
         state.lastRemoteCheckAt = Date.now();
 
         if ((remoteStatus.fileCount || 0) > 0 && remoteStatus.signature) {
-            const localHash = ns.captureStateHash();
             const rejectedAt = state.lastRejectedRemoteAt || 0;
             const pulled = await pullRemoteState(true, remoteStatus.signature);
             if (!pulled && state.lastRejectedRemoteAt && state.lastRejectedRemoteAt !== rejectedAt) {
-                await pushLocalState(true, localHash);
+                const fallbackHash = ns.captureStateHash();
+                if (fallbackHash) await pushLocalState(true, fallbackHash);
             }
-        } else {
-            await pushLocalState(true);
+            return;
         }
 
-        state.remoteSignature = remoteStatus.signature || state.remoteSignature;
-        const currentHash = ns.captureStateHash();
-        if (currentHash) {
-            state.lastSyncedLocalHash = currentHash;
-            if (!state.lastUploadedHash) state.lastUploadedHash = currentHash;
-        }
+        await pushLocalState(true);
     }
 
     Object.assign(ns, {
