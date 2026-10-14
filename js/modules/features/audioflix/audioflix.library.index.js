@@ -6,6 +6,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     if (ns.ready) return;
     const states = new WeakMap();
     const EMPTY = Object.freeze([]);
+    const NO_GROUP = Object.freeze(['']);
     let contentRevision = 0;
     const dimensions = ['folder', 'group', 'playlist', 'provider', 'identity', 'artist', 'classifier'];
     const text = value => String(value ?? '').trim();
@@ -41,11 +42,21 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
         ? (value.size === 1 ? value.values().next().value : null)
         : (value || null);
     const collectionRows = value => value instanceof Set ? [...value] : (value ? [value] : []);
+    function groupKeys(snapshot, type, id) {
+        const groups = snapshot[type === 'music' ? 'musicGroupMap' : 'soundGroupMap']?.[id] || [];
+        return groups.length ? [...new Set(groups.map(value => scopeKey('group', value)))] : NO_GROUP;
+    }
+    function sameValues(left, right) {
+        if (left === right) return true;
+        if (!left || !right || left.length !== right.length) return false;
+        for (let i = 0; i < left.length; i += 1) if (left[i] !== right[i]) return false;
+        return true;
+    }
 
     function describe(snapshot, type, item, rank, position = rank) {
         const id = idKey(item.id), groups = snapshot[type === 'music' ? 'musicGroupMap' : 'soundGroupMap']?.[id] || [];
         const keys = {
-            folder: [text(item.folder || item.card)], group: groups.length ? [...new Set(groups.map(value => scopeKey('group', value)))] : [''],
+            folder: [text(item.folder || item.card)], group: groupKeys(snapshot, type, id),
             playlist: [text(item.playlistId)], provider: [text(item.sourceProvider).toLowerCase()],
             identity: [window.EveAudioflixStateSchema?.identityKey?.(item) || ''],
             artist: [text(item.artist)], classifier: [...new Set((item.classifiers || []).map(text))]
@@ -160,9 +171,44 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
         index.source.forEach((item, position) => put(index, describe(snapshot, type, item, position)));
         index.nextRank = index.length; index.docs = null; index.revision = ++contentRevision;
     }
+    // Bulk state restore/sync commonly swaps the array object while retaining almost every canonical
+    // item object. Reconcile that shape in O(N) identity checks and only describe true additions,
+    // instead of rebuilding 25k normalized rows and buckets on the next user gesture.
+    function reconcile(index, snapshot, type) {
+        const started = window.performance?.now?.() ?? Date.now();
+        const source = snapshot[kindKey(type)] || EMPTY;
+        if (index.source === source && index.length === source.length) return true;
+        const overlapTarget = Math.min(source.length, index.rows.size);
+        let reused = 0;
+        for (const item of source) {
+            const row = index.rows.get(item);
+            if (!row) continue;
+            if (!sameValues(row.keys.group, groupKeys(snapshot, type, row.id))) return false;
+            reused += 1;
+        }
+        if (overlapTarget && reused < overlapTarget * 0.75) return false;
+        if (reused !== index.rows.size || reused !== source.length) {
+            const wanted = new Set(source);
+            for (const row of index.rows.values()) if (!wanted.has(row.item)) drop(index, row);
+        }
+        source.forEach((item, position) => {
+            const row = index.rows.get(item);
+            if (!row) put(index, describe(snapshot, type, item, position));
+            else { row.rank = position; row.position = position; }
+        });
+        index.source = source; index.length = source.length; index.nextRank = source.length;
+        index.docs = null; index.scopes.clear(); index.revision = ++contentRevision; index.updates += 1;
+        try {
+            window.EveAudioflixDiagnostics?.increment?.('index:reconciles');
+            window.EveAudioflixDiagnostics?.record?.('index:reconcile', (window.performance?.now?.() ?? Date.now()) - started);
+        } catch { /* Optional telemetry only. */ }
+        return true;
+    }
     function ensureSource(index, snapshot, type) {
         const source = snapshot[kindKey(type)] || EMPTY;
-        if (index.source !== source || index.length !== source.length) repair(index, snapshot, type);
+        if (index.source !== source || index.length !== source.length) {
+            if (!reconcile(index, snapshot, type)) repair(index, snapshot, type);
+        }
     }
     function cached(snapshot, type) { return states.get(snapshot)?.[kindKey(type)] || null; }
     function get(snapshot, type = 'music') {
@@ -170,7 +216,10 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
         let cache = states.get(snapshot);
         if (!cache) { cache = {}; states.set(snapshot, cache); }
         let index = cache[key];
-        if (!index || index.source !== source || index.length !== source.length) index = cache[key] = build(snapshot, type);
+        if (!index) index = cache[key] = build(snapshot, type);
+        else if (index.source !== source || index.length !== source.length) {
+            if (!reconcile(index, snapshot, type)) repair(index, snapshot, type);
+        }
         return index.api;
     }
     function changed(index, snapshot, type) {
@@ -195,9 +244,28 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
         changed(index, snapshot, type);
         index.source.forEach((item, position) => { const row = index.rows.get(item); if (row) row.position = position; });
     }
+    // Typed invalidation remains conservative for explicit item/folder/group mutation owners. The
+    // untyped bulk-state path may preserve a cache only when the source array actually changed and
+    // the retained rows still agree with current group membership.
     function invalidate(snapshot, type) {
-        if (!type) states.delete(snapshot);
-        else { const cache = states.get(snapshot); if (cache) delete cache[kindKey(type)]; }
+        const cache = states.get(snapshot);
+        if (!cache) return;
+        if (type) { delete cache[kindKey(type)]; return; }
+        for (const requestedType of ['music', 'sound']) {
+            const key = kindKey(requestedType), index = cache[key], source = snapshot[key] || EMPTY;
+            if (!index) continue;
+            if (index.source !== source || index.length !== source.length) {
+                if (!reconcile(index, snapshot, requestedType)) delete cache[key];
+                continue;
+            }
+            // A bulk patch can carry a freshly copied group map without changing its semantics.
+            // Keep that cache only while every indexed row still has exactly the same normalized groups.
+            let groupsStable = true;
+            for (const row of index.rows.values()) {
+                if (!sameValues(row.keys.group, groupKeys(snapshot, requestedType, row.id))) { groupsStable = false; break; }
+            }
+            if (!groupsStable) delete cache[key];
+        }
     }
     Object.assign(ns, { ready: true, get, upsert, remove, invalidate, idKey });
 })();
