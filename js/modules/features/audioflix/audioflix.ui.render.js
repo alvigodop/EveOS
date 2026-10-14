@@ -136,7 +136,7 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
         const esc = ctx.esc;
         const state = ctx.state;
         const filters = window.EveAudioflixFrontendFilters;
-        let generatedCards = 0, renderGeneration = 0, frontendMusicCache = null, frontendProjectionCache = null;
+        let generatedCards = 0, renderGeneration = 0, frontendMusicCache = null, frontendProjectionCache = null, frontendFolderCache = null;
         const metric = (method, name, value) => { try { window.EveAudioflixDiagnostics?.[method]?.(name, value); } catch { /* optional telemetry */ } };
         const timed = (name, operation, render = false) => (...args) => {
             const firstCard = generatedCards;
@@ -150,8 +150,9 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
                 try { finish?.(failed); } catch { /* optional telemetry */ }
             }
         };
-        const frontendKey = () => JSON.stringify(['frontend', 'music', state().activeMusicFolderScope || '',
-            state().activeFrontendMusicGroup || '', state().activeFrontendMusicArtist || '', state().activeFrontendMusicClassifier || '',
+        const frontendKey = (snapshot = state()) => JSON.stringify(['frontend', 'music', snapshot.activeMusicFolderScope || '',
+            snapshot.activeFrontendMusicGroup || '', snapshot.activeFrontendMusicArtist || '', snapshot.activeFrontendMusicClassifier || '',
+            snapshot.musicGroups || [], snapshot.musicGroupParents || {}, snapshot.musicClassifiers || [],
             filters.get('musicGroups'), filters.get('musicArtists'), filters.get('musicClassifiers')]);
         const backendKey = (name, type) => JSON.stringify(['backend', type, name]);
         const windows = window.EveAudioflixUiWindow?.create({ esc, renderCard: (item, type) => renderItemCard(item, type),
@@ -161,15 +162,26 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             afterMount: grid => { window.EveAudioflixTransport?.sync?.(grid); window.EveAudioflixLayerVoices?.render?.(grid); } });
         const cards = (items, key, type) => windows?.render(items, key, type) || items.map(item => renderItemCard(item, type)).join('');
         const windowAttrs = (items, key, type) => windows?.attrs(items, key, type) || '';
+        const musicRevision = (snapshot, view = window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music')) =>
+            view?.contentRevision ?? window.EveAudioflixState?.getRevision?.() ?? -1;
 
         function frontendMusicItems() {
             const snapshot = state(), source = snapshot.music || [], scope = snapshot.activeMusicFolderScope || '';
-            const revision = window.EveAudioflixState?.getRevision?.() ?? -1, cached = frontendMusicCache;
+            const view = window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music'), revision = musicRevision(snapshot, view), cached = frontendMusicCache;
             if (cached && cached.snapshot === snapshot && cached.source === source && cached.scope === scope && cached.revision === revision) return cached.items;
-            const view = window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music');
             const scoped = scope && view ? view.scope('folder', scope) : source;
             const items = scoped.filter(it => ctx.isItemExposed(it, 'music') && (!scope || String(it.folder || it.card || '').trim() === scope));
             frontendMusicCache = { snapshot, source, scope, revision, items };
+            return items;
+        }
+
+        function frontendMusicFolders() {
+            const snapshot = state(), source = snapshot.music || [], registry = snapshot.musicFolders || [];
+            const view = window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music'), revision = musicRevision(snapshot, view);
+            const registryKey = registry.join('\u0000'), cached = frontendFolderCache;
+            if (cached && cached.snapshot === snapshot && cached.source === source && cached.revision === revision && cached.registryKey === registryKey) return cached.items;
+            const items = [...new Set([...registry, ...source.map((it) => String(it.folder || it.card || '').trim())].filter(Boolean))];
+            frontendFolderCache = { snapshot, source, revision, registryKey, items };
             return items;
         }
 
@@ -210,8 +222,8 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
 
         function frontendActiveGroup(type = 'sound') {
             if (type === 'music') {
-                const snapshot = state(), revision = window.EveAudioflixState?.getRevision?.() ?? -1, key = frontendKey();
-                const cached = frontendProjectionCache;
+                const snapshot = state(), view = window.EveAudioflixLibraryIndex?.get?.(snapshot, 'music');
+                const revision = musicRevision(snapshot, view), key = frontendKey(snapshot), cached = frontendProjectionCache;
                 if (cached && cached.snapshot === snapshot && cached.revision === revision && cached.key === key) return cached.value;
                 const baseItems = frontendMusicItems(), entries = frontendGroupEntries(type, baseItems);
                 const chosenGroup = entries.find(([name]) => name === (snapshot.activeFrontendMusicGroup || ''));
@@ -322,9 +334,7 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
 
         const renderFrontendMusicActive = () => {
             const { name, items, entries, smart, classifiers, baseItems, activeGroup, activeArtist, activeClassifier, displayName } = frontendActiveGroup('music');
-            const musicItems = state().music || [];
-            const allFolders = [...new Set([...(state().musicFolders || []), ...musicItems.map((it) => String(it.folder || it.card || '').trim())].filter(Boolean))];
-            const activeScope = state().activeMusicFolderScope || '';
+            const allFolders = frontendMusicFolders(), activeScope = state().activeMusicFolderScope || '';
             const classifierRow = ctx.renderClassifierRow ? ctx.renderClassifierRow(activeClassifier, classifiers) : '';
             const scopePills = `<div class="audioflix-folder-scope-selector"><span class="audioflix-scope-label">Track Focus:</span><button type="button" class="audioflix-scope-pill${activeScope === '' ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="">🌐 All Folders (No Focus)</button>${allFolders.map((folder) => `<button type="button" class="audioflix-scope-pill${activeScope === folder ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="${esc(folder)}">📁 ${esc(folder)}</button>`).join('')}</div>`;
             const allGroupPill = `<button type="button" class="audioflix-group-pill${activeGroup === '' ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-dimension="group" data-af-type="music" data-af-group="" title="Clear group include/exclude focus">All Groups (No Focus)<span class="audioflix-group-pill-count">${baseItems.length}</span></button>`;
@@ -348,9 +358,9 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             if (isF) return type === 'music' ? renderFrontendMusicActive() : renderFrontendActive();
             const collapsed = ctx.getCollapsedGroups(), groups = new Map();
             filtered.forEach((it) => { const key = ctx.groupKey(it, type); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(it); });
+            const storedIds = groups.has('Ungrouped') ? new Set(((type === 'music' ? state().music : state().soundboard) || []).map((item) => item.id)) : null;
             return [...groups.entries()].map(([name, members]) => {
                 const isUngrouped = name === 'Ungrouped';
-                const storedIds = new Set(((type === 'music' ? state().music : state().soundboard) || []).map((item) => item.id));
                 const clearableCount = isUngrouped ? members.filter((item) => storedIds.has(item.id)).length : 0;
                 const menuAttrs = isUngrouped && clearableCount
                     ? ` data-af-context="ungrouped" data-af-type="${esc(type)}" data-af-clear-count="${clearableCount}" title="Right-click to clear Ungrouped"`
