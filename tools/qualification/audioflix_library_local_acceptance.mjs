@@ -115,6 +115,7 @@ async function boot(url, payload, scale = false) {
     await page.goto(url, { waitUntil: 'load', timeout: 180000 });
     await page.waitForFunction(() => window.EveAudioflix?.ready && window.__libraryRenderCtx && window.__EVE_DEFERRED_SCRIPT_STATE?.completedAt, undefined, { timeout: 120000 });
     const loadedSource = await sourceIdentity.verifyLoaded();
+    assert.deepEqual(loadedSource.unobservedFiles, [], 'Every critical candidate module must actually load in the qualified browser');
     const bootMs = performance.now() - started;
     const runtime = await page.evaluate(() => ({ eventBusKeys: Object.keys(window.EventBus || {}),
         subscribe: typeof window.EventBus?.subscribe, lexicalSubscribe: typeof EventBus === 'undefined' ? 'undefined' : typeof EventBus.subscribe,

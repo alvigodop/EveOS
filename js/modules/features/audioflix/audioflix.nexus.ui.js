@@ -182,8 +182,8 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
                 : '';
             const combinedDurChips = (durChips || belowChips) ? (durChips + belowChips) : '';
             // Classifier scope: the standalone classifier system (time filter, group rank, manual).
-            const classifierEntries = window.EveAudioflixClassifiers?.selectableEntries?.() || [];
-            const classifierChips = type === 'music' && deps.renderClassifierChips ? deps.renderClassifierChips(st.facet) : '';
+            const classifierEntries = type === 'music' ? window.EveAudioflixClassifiers?.selectableEntries?.() || [] : [];
+            const classifierChips = type === 'music' && deps.renderClassifierChips ? deps.renderClassifierChips(st.facet, classifierEntries) : '';
             const classifierCount = type === 'music' ? classifierEntries.length : 0;
 
             const clearBtn = st.facet ? `<button type="button" class="audioflix-icon-btn" data-af-action="nexus-facet" data-af-facet="${esc(st.facet)}" title="Clear filter">✕</button>` : '';

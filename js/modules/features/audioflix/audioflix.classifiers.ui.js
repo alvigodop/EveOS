@@ -89,8 +89,8 @@ window.EveAudioflixClassifiersUi = window.EveAudioflixClassifiersUi || {};
         }
 
         // Nexus Audio Link: classifier chips as one more collapsible scope.
-        function renderNexusChips(activeFacet) {
-            const entries = C()?.selectableEntries() || [];
+        function renderNexusChips(activeFacet, preparedEntries) {
+            const entries = Array.isArray(preparedEntries) ? preparedEntries : C()?.selectableEntries() || [];
             return entries.map(([key, tracks, label]) => {
                 const facet = `classifier::${key}`;
                 const on = activeFacet === facet;

@@ -93,7 +93,27 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
     const SPOTIFY_HOST = /(?:^|\.)spotify\.com$/i;
 
     function hostOf(url) {
-        try { return new URL(text(url)).hostname.toLowerCase(); } catch { return ''; }
+        try {
+            const value = text(url);
+            // Only unambiguous ASCII HTTP(S) domain authorities bypass the URL parser.
+            // Credentials, escapes, controls, Unicode, IP forms and unusual ports retain
+            // WHATWG normalization/validation, including non-HTTP source classifiers.
+            const match = /^https?:\/\/([a-z0-9]+(?:[.-][a-z0-9]+)*)(?::([0-9]{1,5}))?(?:[/?#]|$)/i.exec(value);
+            if (match && /\.[a-z][a-z0-9]*$/i.test(match[1])
+                && !/[^\x21-\x7e]|[%\\]/.test(value)
+                && (!match[2] || Number(match[2]) <= 65535)) return match[1].toLowerCase();
+            return new URL(value).hostname.toLowerCase();
+        } catch { return ''; }
+    }
+
+    function providerPartitions(items) {
+        const youtube = [], spotify = [];
+        items.forEach((item) => {
+            const host = hostOf(item.url);
+            if (YOUTUBE_HOST.test(host)) youtube.push(item);
+            if (SPOTIFY_HOST.test(host)) spotify.push(item);
+        });
+        return { youtube, spotify };
     }
 
     function youtubeTracks(list) {
@@ -201,6 +221,7 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         const loc = localizedTracks(items);
         const urls = urlTracks(items);
         const ported = portedTracks(items);
+        const providers = providerPartitions(items);
 
         const auto = [
             {
@@ -220,12 +241,12 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
             },
             {
                 id: 'auto:youtube', kind: 'auto', label: '▶️ YouTube Linked',
-                count: youtubeTracks(items).length, buckets: 1,
+                count: providers.youtube.length, buckets: 1,
                 note: 'tracks whose url points at youtube.com or youtu.be'
             },
             {
                 id: 'auto:spotify', kind: 'auto', label: '🟢 Spotify Linked',
-                count: spotifyTracks(items).length, buckets: 1,
+                count: providers.spotify.length, buckets: 1,
                 note: 'tracks whose url points at spotify.com'
             },
             {
@@ -277,6 +298,7 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
     function selectableEntries(list) {
         const items = list || musicItems();
         const out = [];
+        const providers = providerPartitions(items);
 
         const loc = localizedTracks(items);
         if (loc.length) out.push(['class:auto:localized', loc, '⚡ Localized']);
@@ -287,10 +309,10 @@ window.EveAudioflixClassifiers = window.EveAudioflixClassifiers || {};
         const ported = portedTracks(items);
         if (ported.length) out.push(['class:auto:ported', ported, '📁 Ported']);
 
-        const yt = youtubeTracks(items);
+        const yt = providers.youtube;
         if (yt.length) out.push(['class:auto:youtube', yt, '▶️ YouTube Linked']);
 
-        const sp = spotifyTracks(items);
+        const sp = providers.spotify;
         if (sp.length) out.push(['class:auto:spotify', sp, '🟢 Spotify Linked']);
 
         const wpl = wplTracks(items);

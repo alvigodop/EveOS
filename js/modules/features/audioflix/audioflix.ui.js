@@ -46,7 +46,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         getNexusState: () => nexusState,
         getPorted: () => portedSounds,
         // Late-bound: uiClass is created just below, so reach it lazily.
-        renderClassifierChips: (facet) => uiClass.renderNexusChips(facet)
+        renderClassifierChips: (facet, entries) => uiClass.renderNexusChips(facet, entries)
     });
     // Classifier system (automatic time-filter / group-rank + manual labels).
     let classifierManagerOpen = false;

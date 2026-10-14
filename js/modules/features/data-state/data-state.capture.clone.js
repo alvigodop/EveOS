@@ -71,9 +71,12 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             }
         }
 
-        function cloneAudioflixStructure() {
-            const audioflix = cloneAudioflix();
+        function structureFromAudioflixCapture(audioflix) {
             return audioflix ? window.EveAudioflixStateRecovery?.captureStructure?.(audioflix) || null : null;
+        }
+
+        function cloneAudioflixStructure() {
+            return structureFromAudioflixCapture(cloneAudioflix());
         }
 
         function cloneBookmarkFolders() {
@@ -198,7 +201,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
         }
 
         function captureState() {
-            return {
+            const snapshot = {
                 metadata: {
                     version: VERSION,
                     date: new Date().toISOString(),
@@ -215,9 +218,12 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                     connections: cloneConnections()
                 },
                 knowledge: cloneKnowledgeState(),
-                audioflix: cloneAudioflix(),
-                audioflixStructure: cloneAudioflixStructure()
+                audioflix: cloneAudioflix()
             };
+            // Derive both backup sections from one detached committed-state capture. A second
+            // live capture is unnecessary work and could describe a different revision.
+            snapshot.audioflixStructure = structureFromAudioflixCapture(snapshot.audioflix);
+            return snapshot;
         }
 
         return {
