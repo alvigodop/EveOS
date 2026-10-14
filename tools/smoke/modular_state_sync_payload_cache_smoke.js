@@ -20,6 +20,9 @@ function makeHarness(seed = { nested: { value: 1 }, bookmarks: { links: [] } }) 
     let captures = 0;
     const requests = [];
     const warnings = [];
+    const seedLinks = Array.isArray(seed?.bookmarks?.links)
+        ? seed.bookmarks.links
+        : (Array.isArray(seed?.links) ? seed.links : []);
 
     class FakeDate extends Date {
         static now() { return now; }
@@ -44,7 +47,7 @@ function makeHarness(seed = { nested: { value: 1 }, bookmarks: { links: [] } }) 
                 modularStateSyncEnabled: true,
                 modularStateConflictStrategy: 'remote_wins'
             },
-            links: []
+            links: clone(seedLinks)
         }
     };
     sandbox.window = sandbox;
@@ -161,6 +164,117 @@ function makeHarness(seed = { nested: { value: 1 }, bookmarks: { links: [] } }) 
     assert.strictEqual(JSON.parse(savedBody).nested.value, 11, 'post-await push uses refreshed payload');
     assert.strictEqual(a.ns.state.lastUploadedHash, a.ns.hashState(JSON.parse(savedBody)), 'post-await baseline hash matches saved payload');
 
+    const guardedLink = { title: 'Keep', url: 'https://example.test/keep', category: 'Test' };
+    const guardedSeed = { nested: { value: 10 }, bookmarks: { links: [guardedLink] } };
+    const emptyRemote = { nested: { value: 0 }, bookmarks: { links: [] } };
+
+    // Exact regression: bootstrap takes hash A, the local epoch changes while
+    // awaiting /load, destructive empty remote is rejected, and fallback must
+    // send the latest value/hash B rather than falsely marking it synchronized.
+    const b = makeHarness(guardedSeed);
+    b.ns.getRemoteStatus = async () => ({ signature: 'remote-zero', fileCount: 1 });
+    const bootstrapSaves = [];
+    b.ns.requestJson = async (url, options = {}) => {
+        b.requests.push({ url, options: clone(options) });
+        if (url.endsWith('/load')) {
+            b.setLive({ nested: { value: 11 }, bookmarks: { links: [guardedLink] } });
+            b.ns.invalidateLocalStateHash();
+            return {
+                ok: true,
+                payload: { ok: true, state: clone(emptyRemote), status: { signature: 'remote-zero' } }
+            };
+        }
+        if (url.endsWith('/save')) {
+            bootstrapSaves.push(options.body);
+            return { ok: true, payload: { ok: true, status: { signature: 'remote-eleven' } } };
+        }
+        return { ok: true, payload: { ok: true } };
+    };
+    await b.ns.bootstrap();
+    assert.strictEqual(bootstrapSaves.length, 1, 'rejected bootstrap load performs one fallback save');
+    assert.strictEqual(JSON.parse(bootstrapSaves[0]).nested.value, 11, 'bootstrap fallback sends newest local state');
+    const bootstrapSavedHash = b.ns.hashState(JSON.parse(bootstrapSaves[0]));
+    assert.strictEqual(b.ns.state.lastUploadedHash, bootstrapSavedHash, 'bootstrap uploaded baseline matches accepted payload');
+    assert.strictEqual(b.ns.state.lastSyncedLocalHash, bootstrapSavedHash, 'bootstrap synced baseline matches accepted payload');
+    assert.strictEqual(b.ns.state.remoteSignature, 'remote-eleven', 'bootstrap keeps signature returned by accepted save');
+
+    // A failed fallback save must leave bootstrap dirty/retryable. Advancing
+    // beyond the memo TTL and running another cycle must retry and synchronize;
+    // bootstrap must never manufacture a clean baseline after the failed POST.
+    const r = makeHarness(guardedSeed);
+    r.ns.getRemoteStatus = async () => ({ signature: 'remote-zero', fileCount: 1 });
+    let retryLoads = 0;
+    let retrySaves = 0;
+    let retrySavedBody = null;
+    r.ns.requestJson = async (url, options = {}) => {
+        r.requests.push({ url, options: clone(options) });
+        if (url.endsWith('/load')) {
+            retryLoads += 1;
+            if (retryLoads === 1) {
+                r.setLive({ nested: { value: 11 }, bookmarks: { links: [guardedLink] } });
+                r.ns.invalidateLocalStateHash();
+            }
+            return {
+                ok: true,
+                payload: { ok: true, state: clone(emptyRemote), status: { signature: 'remote-zero' } }
+            };
+        }
+        if (url.endsWith('/save')) {
+            retrySaves += 1;
+            if (retrySaves === 1) {
+                return { ok: false, payload: { ok: false, error: 'temporary-save-failure' } };
+            }
+            retrySavedBody = options.body;
+            return { ok: true, payload: { ok: true, status: { signature: 'remote-retried' } } };
+        }
+        return { ok: true, payload: { ok: true } };
+    };
+    await r.ns.bootstrap();
+    assert.strictEqual(retrySaves, 1, 'bootstrap attempted the rejected-load fallback save once');
+    assert.strictEqual(r.ns.state.lastUploadedHash, '', 'failed bootstrap save does not advance uploaded baseline');
+    assert.strictEqual(r.ns.state.lastSyncedLocalHash, '', 'failed bootstrap save does not advance synced baseline');
+    assert.strictEqual(r.ns.state.remoteSignature, '', 'failed bootstrap remains eligible for immediate remote retry');
+    r.advance(60001);
+    await r.ns.syncCycle();
+    assert.strictEqual(retrySaves, 2, 'later sync cycle retries failed bootstrap fallback');
+    assert(retrySavedBody, 'retry cycle eventually saves local state');
+    assert.strictEqual(JSON.parse(retrySavedBody).nested.value, 11, 'retry sends the unsent local edit');
+    const retryHash = r.ns.hashState(JSON.parse(retrySavedBody));
+    assert.strictEqual(r.ns.state.lastUploadedHash, retryHash, 'successful retry advances uploaded baseline to accepted payload');
+    assert.strictEqual(r.ns.state.lastSyncedLocalHash, retryHash, 'successful retry advances synced baseline to accepted payload');
+
+    // The analogous syncCycle rejected-load fallback must also refresh local
+    // identity after /load before uploading.
+    const s = makeHarness({ nested: { value: 30 }, bookmarks: { links: [guardedLink] } });
+    const sBaseline = s.ns.captureStateHash();
+    s.ns.state.lastUploadedHash = sBaseline;
+    s.ns.state.lastSyncedLocalHash = sBaseline;
+    s.ns.state.remoteSignature = 'remote-old';
+    s.setLive({ nested: { value: 31 }, bookmarks: { links: [guardedLink] } });
+    s.ns.invalidateLocalStateHash();
+    s.ns.getRemoteStatus = async () => ({ signature: 'remote-new', fileCount: 1 });
+    let syncFallbackBody = null;
+    s.ns.requestJson = async (url, options = {}) => {
+        s.requests.push({ url, options: clone(options) });
+        if (url.endsWith('/load')) {
+            s.setLive({ nested: { value: 32 }, bookmarks: { links: [guardedLink] } });
+            s.ns.invalidateLocalStateHash();
+            return {
+                ok: true,
+                payload: { ok: true, state: clone(emptyRemote), status: { signature: 'remote-new' } }
+            };
+        }
+        if (url.endsWith('/save')) {
+            syncFallbackBody = options.body;
+            return { ok: true, payload: { ok: true, status: { signature: 'remote-thirty-two' } } };
+        }
+        return { ok: true, payload: { ok: true } };
+    };
+    await s.ns.syncCycle();
+    assert(syncFallbackBody, 'syncCycle rejected-load fallback performs a save');
+    assert.strictEqual(JSON.parse(syncFallbackBody).nested.value, 32, 'syncCycle fallback refreshes identity after awaited load');
+    assert.strictEqual(s.ns.state.lastUploadedHash, s.ns.hashState(JSON.parse(syncFallbackBody)), 'syncCycle baseline matches accepted fallback payload');
+
     // Remote-wins behavior remains owned by the existing conflict path.
     const c = makeHarness({ nested: { value: 20 }, bookmarks: { links: [] } });
     const localHash = c.ns.captureStateHash();
@@ -186,7 +300,7 @@ function makeHarness(seed = { nested: { value: 1 }, bookmarks: { links: [] } }) 
     assert.strictEqual(c.live.nested.value, 21, 'remote-wins conflict still applies remote state');
     assert(!c.requests.some((entry) => entry.url.endsWith('/save')), 'remote-wins conflict does not introduce a push');
 
-    console.log('MODULAR_STATE_SYNC_PAYLOAD_CACHE_OK reuse=true payloadHash=true retry=true epoch=true ttl=true explicitFresh=true awaitedBoundary=true conflict=true');
+    console.log('MODULAR_STATE_SYNC_PAYLOAD_CACHE_OK reuse=true payloadHash=true retry=true epoch=true ttl=true explicitFresh=true awaitedBoundary=true bootstrapRejectedMutation=true failedSaveRetry=true syncRejectedMutation=true conflict=true');
 })().catch((error) => {
     console.error(`MODULAR_STATE_SYNC_PAYLOAD_CACHE_FAIL ${error.stack || error.message}`);
     process.exitCode = 1;
