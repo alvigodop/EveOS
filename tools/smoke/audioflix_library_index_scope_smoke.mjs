@@ -33,6 +33,10 @@ state.musicGroupMap.foreign = ['CHILD'];
 assert.deepEqual(Array.from(window.EveAudioflixGroupTree.itemsForGroup(state, 'music', 'Root', [extra, music[2], music[0]]), item => item.id), ['foreign', 'index-2', 'index-0']);
 const docs = view.docs();
 assert.ok(Object.isFrozen(docs) && Object.isFrozen(docs[0]));
+const indexedBounded = view.search('indexed album', 80);
+assert.equal(indexedBounded.total, 25000);
+assert.equal(indexedBounded.items.length, 80);
+assert.deepEqual(Array.from(indexedBounded.items.slice(0, 3), item => item.id), ['index-0', 'index-1', 'index-2']);
 const bounded = X.filterWindow({ type: 'music', query: 'indexed album' }, 80);
 assert.equal(bounded.total, 25000);
 assert.equal(bounded.items.length, 80);
@@ -50,13 +54,19 @@ for (let i = 0; i < 20; i += 1) { music[0].volume = i / 20; revision += 1; X.sea
 assert.equal(titleReads, 0, 'Volume/global revisions must not rebuild normalized search text');
 assert.equal(X.search('only foreign album', 'music', [extra]).length, 1);
 assert.equal(X.search('foreign-provider', 'music', [extra]).length, 1);
+const searchRepairPosition = 100;
+const searchReplacement = { ...music[searchRepairPosition], title: 'Silent Search Repair' };
+music[searchRepairPosition] = searchReplacement;
+const repairedSearch = view.search('silent search repair', 80);
+assert.equal(repairedSearch.total, 1, 'Indexed search repairs a silent same-length replacement on its first query');
+assert.equal(repairedSearch.items[0], searchReplacement);
 const before = view.contentRevision;
 const changed = { ...music[0], title: 'Edited', folder: 'Moved' };
 music[0] = changed; library.upsert(state, 'music', changed, docs[0].item);
 assert.ok(view.contentRevision > before);
 assert.notEqual(view.scope('folder', 'Upper'), upperScope, 'Content revision invalidates cached scope identity');
 assert.equal(view.scope('folder', 'Moved')[0], changed);
-assert.equal(view.scope('folder', 'upper').length, 12499);
+assert.equal(view.scope('folder', 'upper').length, 12498);
 assert.equal(X.search('edited', 'music', [changed])[0], changed);
 // Same-length replacement without a notification is repaired on the FIRST indexed scope query.
 const cachedUpper = view.scope('folder', 'Upper');
@@ -78,4 +88,4 @@ for (const type of ['track', 'episode']) {
 assert.equal(view.scope('identity', `spotify:track:${id}`)[0].id, 'typed-track');
 assert.equal(view.scope('identity', `spotify:episode:${id}`)[0].id, 'typed-episode');
 assert.equal(view.scope('identity', `spotify:track:${id.toLowerCase()}`).length, 0);
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
