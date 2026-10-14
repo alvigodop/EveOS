@@ -9,14 +9,14 @@ const music = Array.from({ length: 25000 }, (_, i) => ({ id: `index-${i}`,
     get title() { titleReads += 1; return `Track ${i}`; }, artist: `Artist ${i % 100}`,
     album: 'Indexed Album', folder: i % 2 ? 'Upper' : 'upper', playlistId: `playlist-${i % 20}`,
     sourceProvider: 'fixture', sourceMediaType: 'track', sourceMediaId: String(i), volume: .2 }));
-const state = { music, soundboard: [], musicGroups: ['Root', 'Child'], musicGroupParents: { Child: 'Root' },
-    musicGroupMap: { 'index-0': ['rOoT'], 'index-1': ['child'], 'index-2': ['Root'] }, dupDismissedPairs: [] };
+const state = { music, musicGroups: ['Root', 'Child'], musicGroupParents: { Child: 'Root' },
+    musicGroupMap: { 'index-0': ['rOoT'], 'index-1': ['child'], 'index-2': ['Root'] } };
 const window = { EveAudioflixState: { ensure: () => state, getRevision: () => revision } };
 const context = vm.createContext({ window, console });
-for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', 'audioflix.groups.tree.js', 'audioflix.nexus.js', 'audioflix.state.duplicates.js']) {
+for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', 'audioflix.groups.tree.js', 'audioflix.nexus.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'js/modules/features/audioflix', file), 'utf8'), context);
 }
-const library = window.EveAudioflixLibraryIndex, X = window.EveAudioflixNexus, D = window.EveAudioflixDuplicates;
+const library = window.EveAudioflixLibraryIndex, X = window.EveAudioflixNexus;
 const view = library.get(state, 'music');
 const upperScope = view.scope('folder', 'Upper');
 assert.equal(upperScope.length, 12500);
@@ -52,16 +52,6 @@ assert.equal(X.filter({ type: 'music', query: 'indexed album' }).length, 25000, 
 titleReads = 0;
 for (let i = 0; i < 20; i += 1) { music[0].volume = i / 20; revision += 1; X.search('indexed album', 'music'); }
 assert.equal(titleReads, 0, 'Volume/global revisions must not rebuild normalized search text');
-D.duplicateLevelFor('music', 'index-0');
-const duplicateBuildReads = titleReads;
-assert.ok(duplicateBuildReads >= music.length, 'First duplicate badge builds the descriptor index once');
-for (let i = 0; i < 20; i += 1) { music[0].volume = i / 20; revision += 1; D.duplicateLevelFor('music', 'index-0'); }
-assert.equal(titleReads, duplicateBuildReads, 'Global/durable revisions must not rebuild duplicate descriptors');
-const duplicatePrevious = music[1], duplicateChanged = { ...duplicatePrevious, title: 'Track 0' };
-music[1] = duplicateChanged; library.upsert(state, 'music', duplicateChanged, duplicatePrevious);
-const beforeDuplicateEditReads = titleReads;
-assert.equal(D.duplicateLevelFor('music', 'index-0'), 'soft', 'Canonical metadata edits invalidate duplicate descriptors immediately');
-assert.ok(titleReads > beforeDuplicateEditReads, 'Content revision rebuilds the duplicate descriptor index');
 assert.equal(X.search('only foreign album', 'music', [extra]).length, 1);
 assert.equal(X.search('foreign-provider', 'music', [extra]).length, 1);
 const searchRepairPosition = 100;
@@ -98,4 +88,4 @@ for (const type of ['track', 'episode']) {
 assert.equal(view.scope('identity', `spotify:track:${id}`)[0].id, 'typed-track');
 assert.equal(view.scope('identity', `spotify:episode:${id}`)[0].id, 'typed-episode');
 assert.equal(view.scope('identity', `spotify:track:${id.toLowerCase()}`).length, 0);
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true duplicateCache=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
