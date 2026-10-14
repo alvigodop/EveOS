@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { latencyStats, sampleSoakResources, resourceGrowth, evaluateSoakBudgets } from './audioflix_library_soak_resources.mjs';
+import { PERSISTENCE_SPANS } from './audioflix_source_identity.mjs';
 export { installLibrarySoakInstrumentation } from './audioflix_library_soak_resources.mjs';
 
 const css = value => String(value).replace(/[\\"]/g, '\\$&');
@@ -368,6 +369,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.equal(endCalls.commits - startCalls.commits, counts.gestures);
         assert.equal(hash(JSON.stringify(await topology(page))), topologyBefore);
         const final = await sampleSoakResources(page, cdp, 'settled-final'); samples.push(final);
+        const persistenceStages = Object.fromEntries(PERSISTENCE_SPANS.map(name => [name, final.diagnostics?.summary[name]]));
+        for (const [name, stage] of Object.entries(persistenceStages)) assert.ok(stage?.count > 0, `Required persistence-stage diagnostic was not recorded: ${name}`);
         assert.equal(final.instrumentation.errorCount, 0, 'Window and unhandled Promise errors are not ignored');
         const resourceErrors = classifyResourceErrors(final.instrumentation.resourceErrors, run.blockedRequests || []);
         assert.deepEqual(resourceErrors.unexpected, [], 'Failed local JS/assets or unexplained resource failures are not suppressed');
@@ -393,7 +396,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             canonicalScopeCount: target.scopeCount, libraryCount: target.libraryCount, expandedGroupSize, topologyUnchanged: true, continuousQueueOrderPreserved: true,
             latency, visualResponse, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
-            gestureOutcomes, settledBoundaries, resources: samples, growth, longTaskAttribution,
+            gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
             debug: process.argv.includes('--soak-debug') ? await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume })) : undefined,
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
             calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };

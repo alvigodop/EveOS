@@ -10,6 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
 import { installBackendWriteBarrier, readBackendAudioflixSnapshot, assertBackendAudioflixUnchanged } from '../smoke/audioflix_spotify_live_isolation.shared.js';
 import { installLibrarySoakInstrumentation, attachSoakConsole, runLibrarySoak, scaleSoakFixture } from './audioflix_library_soak.mjs';
+import { verifyQualificationSource, attachBrowserSourceIdentity } from './audioflix_source_identity.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2), sourceArg = args[args.indexOf('--source') + 1];
@@ -98,6 +99,7 @@ async function isolatedContext() {
 async function boot(url, payload, scale = false) {
     report.phase = `boot-${new URL(url).protocol}`; write();
     const isolated = await isolatedContext(), page = await isolated.context.newPage(); currentPage = page;
+    const sourceIdentity = attachBrowserSourceIdentity(page, report.sourceIdentity, url);
     const consoleProbe = soak ? attachSoakConsole(page) : null;
     const pageErrors = [];
     const requestFailures = [];
@@ -112,12 +114,13 @@ async function boot(url, payload, scale = false) {
     const started = performance.now();
     await page.goto(url, { waitUntil: 'load', timeout: 180000 });
     await page.waitForFunction(() => window.EveAudioflix?.ready && window.__libraryRenderCtx && window.__EVE_DEFERRED_SCRIPT_STATE?.completedAt, undefined, { timeout: 120000 });
+    const loadedSource = await sourceIdentity.verifyLoaded();
     const bootMs = performance.now() - started;
     const runtime = await page.evaluate(() => ({ eventBusKeys: Object.keys(window.EventBus || {}),
         subscribe: typeof window.EventBus?.subscribe, lexicalSubscribe: typeof EventBus === 'undefined' ? 'undefined' : typeof EventBus.subscribe,
         isStub: window.EventBus?._isStub === true, isEmergency: window.EventBus?._isEmergencyImplementation === true,
         eventBusScript: [...document.scripts].filter(script => /event-bus\.js/.test(script.src)).map(script => script.src) }));
-    report.boots.push({ phase: report.phase, bootMs, runtime, requestFailures }); write();
+    report.boots.push({ phase: report.phase, bootMs, runtime, requestFailures, loadedSource }); write();
     const bootErrors = await page.evaluate(() => window.__libraryWindowErrors);
     if (bootErrors.length) { report.browserErrors.push(...bootErrors.map(error => ({ phase: report.phase, ...error }))); write(); }
     assert.deepEqual(bootErrors, [], 'No bootstrap errors may be hidden by Search Monitor error handling');
@@ -146,7 +149,7 @@ async function boot(url, payload, scale = false) {
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const libraryUsableMs = performance.now() - libraryStarted;
     assert.equal(await page.locator('.audioflix-item-card').count(), 0, 'Collapsed initial library has no mounted song cards');
-    return { ...isolated, page, pageErrors, bootMs, libraryUsableMs, installed, consoleProbe };
+    return { ...isolated, page, pageErrors, bootMs, libraryUsableMs, installed, consoleProbe, sourceIdentity };
 }
 
 async function settleMonitor(page) {
@@ -387,6 +390,7 @@ async function qualifySoak(url, payload, label) {
     const run = await boot(url, payload, true);
     try {
         const row = await runLibrarySoak(run, { label, topology, settleMonitor, hash: sha, iterations: soakIterations, onProgress: progress => { report.soakProgress = progress; write(); } });
+        row.loadedSource = await run.sourceIdentity.verifyLoaded();
         assert.deepEqual(run.pageErrors, []); assert.equal(run.counters().allowedPlaybackCount, 0);
         report.soaks.push({ ...row, barrier: run.counters(), bootMs: run.bootMs, libraryUsableMs: run.libraryUsableMs }); write();
     } catch (error) { await failureEvidence(run.page); throw error; }
@@ -394,6 +398,7 @@ async function qualifySoak(url, payload, label) {
 }
 
 try {
+    report.sourceIdentity = await verifyQualificationSource({ root: ROOT, base, expectedHead: report.head }); write();
     backendBefore = await backend(); report.backendBefore = backendBefore;
     browser = await chromium.launch({ headless: true });
     if (!soakOnly && !scaleOnly && entrypoint !== 'file') await qualifyReal(base + '/EveOS.html', 'http');
@@ -419,8 +424,10 @@ try {
     }
 } finally {
     if (browser) await browser.close();
+    try { if (report.sourceIdentity) report.sourceIdentityAfter = await verifyQualificationSource({ root: ROOT, base, expectedHead: report.head }); }
+    catch (error) { report.errors.push(String(error.stack || error)); report.ok = false; process.exitCode = 1; }
     report.sourceUnchanged = sha(fs.readFileSync(source)) === sourceHash;
-    try { const after = await backend(); report.backendAfter = after; if (backendBefore) assertBackendAudioflixUnchanged(backendBefore, after); report.backendUnchanged = true; }
+    try { const after = await backend(); report.backendAfter = after; if (backendBefore) assertBackendAudioflixUnchanged(backendBefore, after); report.backendUnchanged = backendBefore ? true : null; }
     catch (error) { report.errors.push(String(error.stack || error)); report.ok = false; process.exitCode = 1; }
     if (!report.sourceUnchanged) { report.ok = false; process.exitCode = 1; report.errors.push('Source backup changed externally during qualification; no source was restored.'); }
     write();

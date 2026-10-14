@@ -39,6 +39,15 @@ GitHub Actions is intentionally disabled through `config/eveos-ci-policy.json`. 
 
 ## Verification
 
+Library qualification must prove source identity before benchmarking: the runner and the served
+checkout have the same clean Git HEAD, critical HTTP assets match the candidate (SHA-256 with
+CRLF/LF normalization only), and actual HTTP/file browser response bodies match that proof.
+The gate runs again after qualification to detect source changes during the run. A runner SHA
+alone is not a served-source proof. All three projection/mirror/core persistence stages must
+be recorded by a completed soak; missing measurements fail instead of becoming zero-duration
+samples. A mismatched historical run remains evidence about its actual old source, not a red
+or green qualification of the newer candidate. The source gate never starts/restarts services.
+
 Registered deterministic lanes include:
 
 ```text

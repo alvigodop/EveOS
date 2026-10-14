@@ -51,6 +51,7 @@ const tests = {
         ['node', 'tools/smoke/audioflix_library_next_smoke.js']
     ],
     scale: [
+        ['node', 'tools/smoke/audioflix_source_identity_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_library_index_scope_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_volume_mutation_smoke.mjs'],
         ['node', 'tools/smoke/audioflix_volume_core_capture_smoke.mjs'],
