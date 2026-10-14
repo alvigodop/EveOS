@@ -75,6 +75,11 @@ try {
         window.__output = root.querySelector('#live-output');
         window.__header = root.querySelector('.audioflix-header');
     });
+    assert.deepEqual(await page.evaluate(() => ({
+        items: window.__renderer.frontendMusicItems() === window.__renderer.frontendMusicItems(),
+        projection: window.__renderer.frontendActiveGroup('music') === window.__renderer.frontendActiveGroup('music')
+    })), { items: true, projection: true });
+    checks.push('same-revision-frontend-projection-reused');
     await page.locator('#nexus-toggle').click();
     await page.locator('#nexus-toggle').click();
     await page.locator('.audioflix-settings-toggle').click();
