@@ -155,8 +155,9 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
             const api = X();
             const all = api.items(type, type === 'sound' ? (getPorted() || []) : []);
             const f = api.facets(type, all);
-            const dup = api.dupReport(type, all);
-            const dupCount = dup.hard.length + dup.soft.length;
+            // The default Nexus panel only needs to know whether duplicate candidates exist. Exact
+            // pair construction stays lazy behind the explicit duplicates facet/settings flow.
+            const dup = window.EveAudioflixDuplicates?.duplicateBadgeSummary?.(type) || { hard: false, soft: false, any: false };
             const integrity = api.integrityReport?.() || {};
 
             const [activeKind] = String(st.facet || '').split('::');
@@ -168,8 +169,9 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
                 return `<div style="margin-top:6px;"><div style="display:flex; align-items:center; gap:6px;">${toggleBtn}</div>${isOpen ? `<div style="display:flex; flex-wrap:wrap; gap:2px; margin-top:4px; padding-left:4px;">${chips}</div>` : ''}</div>`;
             };
 
-            const dupChip = dupCount
-                ? chip('dups', '1', `👯 Duplicates`, dupCount, st.facet === 'dups::1') + `<span style="font-size:0.7rem; color:#94a3b8; margin-left:6px;">${dup.hard.length} hard · ${dup.soft.length} soft; open a hit's ⚙ to review</span>`
+            const dupKinds = [dup.hard ? 'hard' : '', dup.soft ? 'soft' : ''].filter(Boolean).join(' + ');
+            const dupChip = dup.any
+                ? chip('dups', '1', '👯 Review duplicates', null, st.facet === 'dups::1') + `<span style="font-size:0.7rem; color:#94a3b8; margin-left:6px;">${dupKinds} candidate${dup.hard && dup.soft ? 's' : ''}; open a hit's ⚙ to review</span>`
                 : '<span style="font-size:0.75rem; color:#94a3b8;">No duplicate names detected.</span>';
             const artistChips = f.artists.slice(0, 14).map((a) => chip('artist', a.name, a.name, a.count, st.facet === `artist::${a.name}`)).join('');
             const groupChips = f.groups.slice(0, 14).map((g) => chip('group', g.name, g.name, g.count, st.facet === `group::${g.name}`)).join('');
