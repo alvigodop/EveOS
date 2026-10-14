@@ -140,8 +140,8 @@ window.EveAudioflixNexusUi = window.EveAudioflixNexusUi || {};
                 ? window.EveAudioflixLinks.captureForScope(currentScope, { directOnly: true })
                 : null;
             const linkedIds = new Set((linkedCapture?.items || []).map((it) => it.id));
-            const shown = list.slice(0, 80).map((it) => rowHtml(it, type, selectedIds, linkedIds)).join('');
-            const more = list.length > 80 ? `<div style="padding:6px 8px; color:#94a3b8; font-size:0.75rem;">Showing first 80 of ${list.length}.</div>` : '';
+            const shown = list.slice(0, 40).map((it) => rowHtml(it, type, selectedIds, linkedIds)).join('');
+            const more = list.length > 40 ? `<div style="padding:6px 8px; color:#94a3b8; font-size:0.75rem;">Showing first 40 of ${list.length}.</div>` : '';
             return (shown || '<div style="color:#94a3b8; padding:10px;">No matches.</div>') + more;
         }
 
