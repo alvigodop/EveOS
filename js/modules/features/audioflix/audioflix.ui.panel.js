@@ -75,8 +75,16 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
             if (!['music', 'soundboard'].includes(tab) || panel?.dataset.afTab !== tab) return false;
             const host = panel.querySelector('.audioflix-add-host');
             if (!host) return false;
-            const html = renderAddSection(tab === 'music' ? 'music' : 'sound');
-            if (addMarkup !== html) { host.innerHTML = html; addMarkup = html; }
+            const type = tab === 'music' ? 'music' : 'sound';
+            const nexus = ctx.playback?.().nexus || {};
+            const needsNexusPanel = nexus.open === true && nexus.type === type;
+            const hasNexusPanel = !!host.querySelector('.audioflix-nexus-panel');
+            // Drawer-only changes must not rebuild Nexus/facets/duplicate analysis. Only refresh the
+            // add host when its Nexus panel actually needs to appear or disappear.
+            if (needsNexusPanel !== hasNexusPanel) {
+                const html = renderAddSection(type);
+                if (addMarkup !== html) { host.innerHTML = html; addMarkup = html; }
+            }
             const snapshot = state(), view = ctx.view(), changes = [];
             if (drawerState.settingsOpen !== view.settingsOpen || drawerState.combo !== (snapshot.hotkeyBypassCombo || '')) changes.push(['.audioflix-settings-drawer', renderSettings(snapshot)]);
             if (drawerState.routingOpen !== view.routingOpen) changes.push(['.audioflix-routing-drawer', renderRoutingDrawer(snapshot)]);
