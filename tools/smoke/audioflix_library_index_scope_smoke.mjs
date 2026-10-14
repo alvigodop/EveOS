@@ -9,14 +9,14 @@ const music = Array.from({ length: 25000 }, (_, i) => ({ id: `index-${i}`,
     get title() { titleReads += 1; return `Track ${i}`; }, artist: `Artist ${i % 100}`,
     album: 'Indexed Album', folder: i % 2 ? 'Upper' : 'upper', playlistId: `playlist-${i % 20}`,
     sourceProvider: 'fixture', sourceMediaType: 'track', sourceMediaId: String(i), volume: .2 }));
-const state = { music, musicGroups: ['Root', 'Child'], musicGroupParents: { Child: 'Root' },
+const state = { music, soundboard: [], dupDismissedPairs: [], musicGroups: ['Root', 'Child'], musicGroupParents: { Child: 'Root' },
     musicGroupMap: { 'index-0': ['rOoT'], 'index-1': ['child'], 'index-2': ['Root'] } };
 const window = { EveAudioflixState: { ensure: () => state, getRevision: () => revision } };
 const context = vm.createContext({ window, console });
-for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', 'audioflix.groups.tree.js', 'audioflix.nexus.js']) {
+for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', 'audioflix.state.duplicates.js', 'audioflix.groups.tree.js', 'audioflix.nexus.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'js/modules/features/audioflix', file), 'utf8'), context);
 }
-const library = window.EveAudioflixLibraryIndex, X = window.EveAudioflixNexus;
+const library = window.EveAudioflixLibraryIndex, X = window.EveAudioflixNexus, D = window.EveAudioflixDuplicates;
 const view = library.get(state, 'music');
 const upperScope = view.scope('folder', 'Upper');
 assert.equal(upperScope.length, 12500);
@@ -88,4 +88,21 @@ for (const type of ['track', 'episode']) {
 assert.equal(view.scope('identity', `spotify:track:${id}`)[0].id, 'typed-track');
 assert.equal(view.scope('identity', `spotify:episode:${id}`)[0].id, 'typed-episode');
 assert.equal(view.scope('identity', `spotify:track:${id.toLowerCase()}`).length, 0);
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true');
+// Card badges get a compact content-revision cache: unrelated durable/global revisions may read the
+// target card itself, but they must never rescan all 25k titles. Real content edits still invalidate.
+titleReads = 0;
+const badgeTarget = 'index-24999';
+assert.equal(D.duplicateLevelFor('music', badgeTarget), '');
+const badgeWarmReads = titleReads;
+assert.ok(badgeWarmReads > 20000, 'First badge lookup scans the current library exactly as a cold content revision');
+for (let i = 0; i < 20; i += 1) { revision += 1; D.duplicateLevelFor('music', badgeTarget); }
+assert.equal(titleReads - badgeWarmReads, 20, 'Global revisions only reread the requested badge item; they never rebuild the 25k badge scan');
+const duplicatePosition = 1000, duplicatePrevious = music[duplicatePosition];
+const duplicateItem = { ...duplicatePrevious, title: 'Track 24999' };
+music[duplicatePosition] = duplicateItem; library.upsert(state, 'music', duplicateItem, duplicatePrevious);
+const beforeBadgeRebuild = titleReads;
+assert.equal(D.duplicateLevelFor('music', badgeTarget), 'soft');
+assert.ok(titleReads - beforeBadgeRebuild > 20000, 'Content revision invalidates and rebuilds the compact badge index');
+state.dupDismissedPairs = ['index-1000|index-24999'];
+assert.equal(D.duplicateLevelFor('music', badgeTarget), '', 'Keep-both dismissal updates without rebuilding library content');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 typed=true firstQueryRepair=true duplicateBadges=true');
