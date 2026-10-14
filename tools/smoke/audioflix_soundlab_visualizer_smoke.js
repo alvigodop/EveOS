@@ -10,6 +10,8 @@ const driftPath = path.join(AUDIOFLIX, 'audioflix.soundlab.drift.js');
 const statePath = path.join(AUDIOFLIX, 'audioflix.soundlab.state.js');
 const overlayPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.overlay.js');
 const visualizerPath = path.join(AUDIOFLIX, 'audioflix.soundlab.visualizer.js');
+const diagnosticDir = path.join(ROOT, 'data', 'runtime', 'smoke-results');
+const diagnosticPath = path.join(diagnosticDir, 'audioflix-soundlab-visualizer.json');
 const stateSource = fs.readFileSync(statePath, 'utf8');
 const overlaySource = fs.readFileSync(overlayPath, 'utf8');
 const visualizerSource = fs.readFileSync(visualizerPath, 'utf8');
@@ -76,6 +78,10 @@ assert(
             };
             window.EveAudioflixSoundLabEngine = { getAnalyser: () => analyser };
             window.__visualizerErrors = [];
+            // Exercise mode invalidation even when a loaded browser delays animation frames
+            // beyond the old fixed 90 ms fixture sleep.
+            window.requestAnimationFrame = (callback) => setTimeout(() => callback(performance.now()), 160);
+            window.cancelAnimationFrame = (handle) => clearTimeout(handle);
             addEventListener('error', (event) => window.__visualizerErrors.push(event.message));
         </script>
         <script src="${fileUrl(configPath)}"></script>
@@ -93,33 +99,139 @@ assert(
             const canvas = document.querySelector('#visualizer');
             const visualizer = window.EveAudioflixSoundLabVisualizer;
             const modes = window.EveAudioflixSoundLabState.modes;
+            const originalGetContext = HTMLCanvasElement.prototype.getContext;
+            const instrumented = new WeakSet();
+            const methods = [
+                'beginPath', 'closePath', 'moveTo', 'lineTo', 'stroke', 'fill',
+                'fillRect', 'strokeRect', 'drawImage', 'fillText', 'setLineDash',
+                'save', 'restore', 'createLinearGradient', 'createRadialGradient'
+            ];
+            const normalizeArg = (value) => {
+                if (typeof value === 'number') return Number(value.toFixed(3));
+                if (typeof value === 'string') return value;
+                if (value instanceof HTMLCanvasElement) return `canvas:${value.width}x${value.height}`;
+                if (Array.isArray(value)) return value.map(normalizeArg);
+                return value?.constructor?.name || typeof value;
+            };
+            const instrument = (context) => {
+                if (!context || instrumented.has(context)) return context;
+                instrumented.add(context);
+                methods.forEach((name) => {
+                    const original = context[name]?.bind(context);
+                    if (!original) return;
+                    context[name] = (...args) => {
+                        const trace = window.__visualizerTrace;
+                        if (trace?.active) {
+                            trace.ops.push(JSON.stringify([
+                                name,
+                                args.map(normalizeArg),
+                                String(context.fillStyle),
+                                String(context.strokeStyle),
+                                Number(context.globalAlpha.toFixed(3)),
+                                Number(context.lineWidth.toFixed(3))
+                            ]));
+                        }
+                        return original(...args);
+                    };
+                });
+                return context;
+            };
+            HTMLCanvasElement.prototype.getContext = function getContext(type, ...args) {
+                return instrument(originalGetContext.call(this, type, ...args));
+            };
+            const fnv = (values) => {
+                let hash = 2166136261;
+                for (const value of values) hash = Math.imul(hash ^ value, 16777619);
+                return hash >>> 0;
+            };
+            const overlay = window.EveAudioflixSoundLabVisualizerOverlay;
+            const drawOverlay = overlay.draw.bind(overlay);
+            let frameWaiter = null;
+            overlay.draw = (options) => {
+                drawOverlay(options);
+                if (frameWaiter?.mode !== options?.mode) return;
+                const waiter = frameWaiter;
+                frameWaiter = null;
+                window.__visualizerTrace.active = false;
+                waiter.resolve();
+            };
+            const waitForModeFrame = (mode) => new Promise((resolve, reject) => {
+                const timer = setTimeout(() => {
+                    frameWaiter = null;
+                    if (window.__visualizerTrace) window.__visualizerTrace.active = false;
+                    reject(new Error(`Timed out waiting for visualizer mode ${mode}`));
+                }, 1500);
+                frameWaiter = {
+                    mode,
+                    resolve: () => {
+                        clearTimeout(timer);
+                        resolve();
+                    }
+                };
+            });
             visualizer.mount(canvas);
-            visualizer.setVisible(true);
-            const hashes = [];
+            const frames = [];
+            let started = false;
             for (const mode of modes) {
+                const trace = { active: true, ops: [] };
+                window.__visualizerTrace = trace;
+                const rendered = waitForModeFrame(mode);
                 window.__soundLabRoot.soundLab.visualizerMode = mode;
-                await new Promise((resolve) => setTimeout(resolve, 90));
+                if (!started) {
+                    started = true;
+                    visualizer.setVisible(true);
+                }
+                await rendered;
                 const pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
                 let hash = 2166136261;
                 for (let index = 0; index < pixels.length; index += 64) {
                     hash = Math.imul(hash ^ pixels[index] ^ pixels[index + 1], 16777619);
                 }
-                hashes.push(hash >>> 0);
+                const counts = {};
+                trace.ops.forEach((operation) => {
+                    const name = JSON.parse(operation)[0];
+                    counts[name] = (counts[name] || 0) + 1;
+                });
+                frames.push({
+                    mode,
+                    sparseHash: hash >>> 0,
+                    fullHash: fnv(pixels),
+                    operationHash: fnv(new TextEncoder().encode(trace.ops.join('|'))),
+                    operationCount: trace.ops.length,
+                    operationCounts: counts,
+                    operationSample: trace.ops.slice(0, 8)
+                });
             }
             visualizer.setVisible(false);
             return {
                 modes,
-                hashes,
+                frames,
                 labels: modes.map(window.EveAudioflixSoundLabState.modeLabel),
                 migrated: window.EveAudioflixSoundLabState.normalize({ visualizerMode: 'frequency' }).visualizerMode,
                 errors: window.__visualizerErrors
             };
         });
+        fs.mkdirSync(diagnosticDir, { recursive: true });
+        fs.writeFileSync(diagnosticPath, JSON.stringify(result, null, 2));
         assert(
             result.modes.join(',') === 'spectrum,waveform,radial,spectrogram,frequency-linear',
             'improved spectrum is first and the legacy frequency view is last'
         );
-        assert(new Set(result.hashes).size === result.modes.length, 'every visualizer renders a distinct frame');
+        const collisionsFor = (key) => [...new Set(result.frames.map((frame) => frame[key]))]
+            .map((value) => result.frames.filter((frame) => frame[key] === value).map((frame) => frame.mode))
+            .filter((modes) => modes.length > 1);
+        assert(
+            result.frames.every((frame) => frame.operationCount > 0),
+            `every visualizer mode completes a draw; missing=${result.frames.filter((frame) => !frame.operationCount).map((frame) => frame.mode).join(',')}`
+        );
+        assert(
+            collisionsFor('fullHash').length === 0,
+            `every visualizer renders a distinct full-pixel frame; collisions=${JSON.stringify(collisionsFor('fullHash'))}; diagnostic=${path.relative(ROOT, diagnosticPath)}`
+        );
+        assert(
+            collisionsFor('operationHash').length === 0,
+            `every visualizer uses a distinct canvas operation path; collisions=${JSON.stringify(collisionsFor('operationHash'))}; diagnostic=${path.relative(ROOT, diagnosticPath)}`
+        );
         assert(
             result.migrated === 'spectrum'
                 && result.labels[0] === 'Spectrum (Log)'
@@ -127,12 +239,13 @@ assert(
             'legacy saved state migrates to the labelled logarithmic spectrum'
         );
         assert(!result.errors.length, `visualizer emitted browser errors: ${result.errors.join('; ')}`);
-        console.log('AUDIOFLIX_SOUNDLAB_VISUALIZER_SMOKE_OK', JSON.stringify(result.hashes));
+        console.log(`AUDIOFLIX SOUNDLAB VISUALIZER: PASS ${result.frames.length} | FAIL 0 | TOTAL ${result.frames.length}`);
     } finally {
         await browser.close();
         fs.rmSync(fixture, { force: true });
     }
 })().catch((error) => {
-    console.error(error);
+    console.error(`AUDIOFLIX SOUNDLAB VISUALIZER: FAIL 1 | ${error.message}`);
+    console.error(`DIAGNOSTIC: ${path.relative(ROOT, diagnosticPath)}`);
     process.exitCode = 1;
 });
