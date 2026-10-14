@@ -10,6 +10,7 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
 
     const text = (value) => String(value ?? '').trim();
     const sourceMembership = new WeakMap();
+    const topologyMemo = new WeakMap();
     const keys = (type) => type === 'music'
         ? { groups: 'musicGroups', parents: 'musicGroupParents', map: 'musicGroupMap', items: 'music' }
         : { groups: 'soundboardGroups', parents: 'soundGroupParents', map: 'soundGroupMap', items: 'soundboard' };
@@ -51,45 +52,95 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
         return out;
     }
 
-    function parents(state, type) {
-        return normalizeParents(names(state, type), state?.[keys(type).parents]);
+    // Rendering one card used to rebuild/cycle-check the entire parent graph several times via
+    // deepest() -> path(). The topology only changes when the group registry or parent-map owner
+    // changes (official add/remove/rename/reparent mutations replace one of those identities, while
+    // an in-place add changes registry length). Keep the validated graph and derived paths stable
+    // across unrelated Audioflix revisions such as volume, view mode, persistence, and playback.
+    function topology(state, type) {
+        const list = names(state, type), config = keys(type);
+        const rawParents = state?.[config.parents] && typeof state[config.parents] === 'object'
+            ? state[config.parents] : {};
+        if (!state || typeof state !== 'object') return buildTopology(list, rawParents);
+        let cache = topologyMemo.get(state);
+        if (!cache) { cache = {}; topologyMemo.set(state, cache); }
+        const key = type === 'music' ? 'music' : 'sound';
+        const prior = cache[key];
+        if (prior && prior.groups === list && prior.groupCount === list.length && prior.rawParents === rawParents) return prior;
+        return cache[key] = buildTopology(list, rawParents);
     }
 
-    function path(state, type, group) {
-        const list = names(state, type), clean = canonical(list, group);
+    function buildTopology(list, rawParents) {
+        const parentMap = normalizeParents(list, rawParents);
+        const canonicalNames = new Map();
+        for (const name of list) canonicalNames.set(text(name).toLowerCase(), name);
+        const childMap = new Map([['', []]]);
+        for (const name of list) {
+            const parent = parentMap[name] || '';
+            if (!childMap.has(parent)) childMap.set(parent, []);
+            childMap.get(parent).push(name);
+            if (!childMap.has(name)) childMap.set(name, []);
+        }
+        return { groups: list, groupCount: list.length, rawParents, parentMap, canonicalNames, childMap, paths: new Map() };
+    }
+
+    const topologyCanonical = (graph, value) => graph.canonicalNames.get(text(value).toLowerCase()) || '';
+    function topologyPath(graph, group) {
+        const clean = topologyCanonical(graph, group);
         if (!clean) return [];
-        const parentMap = parents(state, type), chain = [clean], seen = new Set(chain);
+        const cached = graph.paths.get(clean);
+        if (cached) return cached;
+        const chain = [clean], seen = new Set(chain);
         let current = clean;
-        while (parentMap[current] && !seen.has(parentMap[current])) {
-            current = parentMap[current];
+        while (graph.parentMap[current] && !seen.has(graph.parentMap[current])) {
+            current = graph.parentMap[current];
             seen.add(current);
             chain.push(current);
         }
-        return chain.reverse();
+        const result = chain.reverse();
+        graph.paths.set(clean, result);
+        return result;
+    }
+
+    function parents(state, type) {
+        return { ...topology(state, type).parentMap };
+    }
+
+    function path(state, type, group) {
+        return topologyPath(topology(state, type), group).slice();
     }
 
     function children(state, type, group = '') {
-        const list = names(state, type), parentMap = parents(state, type);
-        return list.filter((name) => (parentMap[name] || '') === text(group));
+        const graph = topology(state, type);
+        const clean = text(group) ? topologyCanonical(graph, group) : '';
+        return [...(graph.childMap.get(clean) || [])];
     }
 
     function descendants(state, type, group) {
-        const out = [];
-        const visit = (parent) => children(state, type, parent).forEach((child) => {
+        const graph = topology(state, type), out = [];
+        const root = topologyCanonical(graph, group);
+        const visit = (parent) => (graph.childMap.get(parent) || []).forEach((child) => {
             out.push(child);
             visit(child);
         });
-        visit(canonical(names(state, type), group));
+        if (root) visit(root);
         return out;
     }
 
     function membershipNames(state, type, group) {
-        const clean = canonical(names(state, type), group);
-        return clean ? [clean, ...descendants(state, type, clean)] : [];
+        const graph = topology(state, type), clean = topologyCanonical(graph, group);
+        if (!clean) return [];
+        const out = [clean];
+        const visit = (parent) => (graph.childMap.get(parent) || []).forEach((child) => {
+            out.push(child);
+            visit(child);
+        });
+        visit(clean);
+        return out;
     }
 
     function itemsForGroup(state, type, group, sourceItems) {
-        const config = keys(type), wanted = new Set(membershipNames(state, type, group));
+        const config = keys(type), graph = topology(state, type), wanted = new Set(membershipNames(state, type, group));
         const items = Array.isArray(sourceItems) ? sourceItems : (state?.[config.items] || []);
         const map = state?.[config.map] || {};
         const view = window.EveAudioflixLibraryIndex?.get?.(state, type);
@@ -105,48 +156,56 @@ window.EveAudioflixGroupTree = window.EveAudioflixGroupTree || {};
             for (const name of wanted) for (const item of view.scope('group', name)) {
                 if (subset.positions.has(item)) matched.add(item);
             }
-            for (const item of subset.extras) if ((map[item.id] || []).some(name => wanted.has(canonical(names(state, type), name)))) matched.add(item);
+            for (const item of subset.extras) if ((map[item.id] || []).some(name => wanted.has(topologyCanonical(graph, name)))) matched.add(item);
             if (view.contentRevision !== subset.revision) { sourceMembership.delete(items); continue; }
             return [...matched].sort((a, b) => subset.positions.get(a) - subset.positions.get(b));
             }
         }
-        return items.filter((item) => (map[item.id] || []).some((name) => wanted.has(canonical(names(state, type), name))));
+        return items.filter((item) => (map[item.id] || []).some((name) => wanted.has(topologyCanonical(graph, name))));
     }
 
     function ordered(state, type) {
-        const out = [], visited = new Set();
+        const graph = topology(state, type), out = [], visited = new Set();
         const visit = (name, depth) => {
             if (visited.has(name)) return;
             visited.add(name);
-            out.push({ name, depth, path: path(state, type, name) });
-            children(state, type, name).forEach((child) => visit(child, depth + 1));
+            out.push({ name, depth, path: topologyPath(graph, name).slice() });
+            (graph.childMap.get(name) || []).forEach((child) => visit(child, depth + 1));
         };
-        children(state, type, '').forEach((root) => visit(root, 0));
-        names(state, type).forEach((name) => visit(name, 0));
+        (graph.childMap.get('') || []).forEach((root) => visit(root, 0));
+        graph.groups.forEach((name) => visit(name, 0));
         return out;
     }
 
     function deepest(state, type, groups) {
-        const direct = [...new Set((groups || []).map((name) => canonical(names(state, type), name)).filter(Boolean))];
+        const graph = topology(state, type);
+        const direct = [...new Set((groups || []).map((name) => topologyCanonical(graph, name)).filter(Boolean))];
         return direct.filter((candidate) => !direct.some((other) => other !== candidate
-            && path(state, type, other).slice(0, -1).includes(candidate)));
+            && topologyPath(graph, other).slice(0, -1).includes(candidate)));
     }
 
     function entries(state, type, sourceItems) {
+        const graph = topology(state, type);
         return ordered(state, type).map(({ name, depth, path: groupPath }) => ({
             name,
             depth,
             path: groupPath,
             members: itemsForGroup(state, type, name, sourceItems),
-            hasChildren: children(state, type, name).length > 0
+            hasChildren: (graph.childMap.get(name) || []).length > 0
         }));
     }
 
     function canParent(state, type, child, parent) {
-        const list = names(state, type), cleanChild = canonical(list, child), cleanParent = canonical(list, parent);
+        const graph = topology(state, type), cleanChild = topologyCanonical(graph, child), cleanParent = topologyCanonical(graph, parent);
         if (!cleanChild) return false;
         if (!text(parent)) return true;
-        return !!cleanParent && cleanChild !== cleanParent && !descendants(state, type, cleanChild).includes(cleanParent);
+        if (!cleanParent || cleanChild === cleanParent) return false;
+        const descendantsOfChild = [];
+        const visit = (owner) => (graph.childMap.get(owner) || []).forEach((name) => {
+            descendantsOfChild.push(name); visit(name);
+        });
+        visit(cleanChild);
+        return !descendantsOfChild.includes(cleanParent);
     }
 
     Object.assign(ns, {
