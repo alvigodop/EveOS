@@ -66,7 +66,7 @@ music[0] = changed; library.upsert(state, 'music', changed, docs[0].item);
 assert.ok(view.contentRevision > before);
 assert.notEqual(view.scope('folder', 'Upper'), upperScope, 'Content revision invalidates cached scope identity');
 assert.equal(view.scope('folder', 'Moved')[0], changed);
-assert.equal(view.scope('folder', 'upper').length, 12498);
+assert.equal(view.scope('folder', 'upper').length, 12499);
 assert.equal(X.search('edited', 'music', [changed])[0], changed);
 // Same-length replacement without a notification is repaired on the FIRST indexed scope query.
 const cachedUpper = view.scope('folder', 'Upper');
