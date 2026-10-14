@@ -9,7 +9,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/audioflix/audioflix.library.index.js?v=3b3a5843b8f8",
     "js/modules/features/audioflix/audioflix.audio.volume-target.js?v=463e7e2937f9",
     "js/modules/features/audioflix/audioflix.ui.volume-gesture.js?v=90ff34c71fe0",
-    "js/modules/features/audioflix/audioflix.ui.window.js?v=ca36db525372",
+    "js/modules/features/audioflix/audioflix.ui.window.js?v=54ac7a550f2a",
     "js/modules/features/favicon-cache.core.js?v=3503ac7dc339",
     "js/modules/features/favicon-cache.runtime.js?v=31d555566f46",
     "js/modules/features/favicon-cache.js?v=e0369c7946d2",
