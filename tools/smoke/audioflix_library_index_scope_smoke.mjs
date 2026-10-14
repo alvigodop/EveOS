@@ -59,7 +59,7 @@ window.EveAudioflixNexusUi.create = () => ({ renderResults: () => {
     return { total: list.length, shown: list.slice(0, 80).filter(Boolean).length };
 } });
 const boundedUi = window.EveAudioflixNexusUi.create({}).renderResults('music');
-assert.deepEqual(Array.from(Object.entries(boundedUi)), [['total', 25000], ['shown', 80]]);
+assert.deepEqual(Array.from(Object.entries(boundedUi)), [['total', 25000], ['shown', 40]]);
 assert.equal(X.filter({ type: 'music', query: 'indexed album' }).length, 25000, 'Live render restores full filter immediately');
 // Card-window paging is a presentation bound only; queues/search retain the full canonical scope.
 context.document = { addEventListener() {} };
@@ -70,8 +70,8 @@ const cardWindow = window.EveAudioflixUiWindow.create({
 });
 const windowItems = Array.from({ length: 100 }, (_, index) => ({ id: `window-${index}` }));
 const windowMarkup = cardWindow.render(windowItems, 'window-test', 'music');
-assert.equal(cardWindow.diagnostics().pageSize, 40, 'Live music card window remains capped at forty cards');
-assert.equal((windowMarkup.match(/data-window-card=/g) || []).length, 40, 'Paged render mounts only forty canonical items at once');
+assert.equal(cardWindow.diagnostics().pageSize, 20, 'Live music card window remains capped at twenty cards');
+assert.equal((windowMarkup.match(/data-window-card=/g) || []).length, 20, 'Paged render mounts only twenty canonical items at once');
 titleReads = 0;
 for (let i = 0; i < 20; i += 1) { music[0].volume = i / 20; revision += 1; X.search('indexed album', 'music'); }
 assert.equal(titleReads, 0, 'Volume/global revisions must not rebuild normalized search text');
@@ -134,4 +134,4 @@ assert.equal(titleReads, summaryReads, 'Default Nexus duplicate summary reuses c
 state.dupDismissedPairs = ['index-1000|index-24999'];
 assert.equal(D.duplicateLevelFor('music', badgeTarget), '', 'Keep-both dismissal updates without rebuilding library content');
 assert.equal(D.duplicateBadgeSummary('music').any, false, 'Keep-both dismissal immediately clears the compact Nexus duplicate summary');
-console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=80/25000 cardWindow=40 typed=true firstQueryRepair=true duplicateBadges=true duplicateSummary=true bulkReconcile=true');
+console.log('AUDIOFLIX_LIBRARY_INDEX_SCOPE_SMOKE_OK size=25000 scopes=true scopeIdentity=true incremental=true searchCached=true indexedSearch=true boundedNexus=40/25000 cardWindow=20 typed=true firstQueryRepair=true duplicateBadges=true duplicateSummary=true bulkReconcile=true');
