@@ -6,10 +6,10 @@ window.EveModuleManifestScriptChunks.push([
     // Feature Modules (Consolidated)
     "js/modules/features/audioflix/audioflix.audio.internal.queue.js?v=e8ab78e1f282",
     "js/modules/features/audioflix/audioflix.ui.panel.js?v=0833391f2062",
-    "js/modules/features/audioflix/audioflix.library.index.js?v=db95c587b49f",
+    "js/modules/features/audioflix/audioflix.library.index.js?v=acb5a54cb542",
     "js/modules/features/audioflix/audioflix.audio.volume-target.js?v=463e7e2937f9",
     "js/modules/features/audioflix/audioflix.ui.volume-gesture.js?v=90ff34c71fe0",
-    "js/modules/features/audioflix/audioflix.ui.window.js?v=4088baeb41bc",
+    "js/modules/features/audioflix/audioflix.ui.window.js?v=ca36db525372",
     "js/modules/features/favicon-cache.core.js?v=3503ac7dc339",
     "js/modules/features/favicon-cache.runtime.js?v=31d555566f46",
     "js/modules/features/favicon-cache.js?v=e0369c7946d2",
