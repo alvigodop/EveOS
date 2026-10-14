@@ -182,6 +182,22 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         }
         return false;
     }
+    function hasCollision(index, names) {
+        for (const name of names) {
+            for (const [value, ids] of index.buckets[name]) {
+                for (const id of ids) if (bucketHasOther(index, name, value, id)) return true;
+            }
+        }
+        return false;
+    }
+    // Nexus only needs a cheap "is there anything to review?" signal for its default panel. Exact
+    // duplicate pairs remain lazy behind the explicit duplicates facet/settings flow.
+    function duplicateBadgeSummary(type = 'sound') {
+        const index = badgeIndexFor(type);
+        const hard = hasCollision(index, ['url', 'path', 'source']);
+        const soft = hasCollision(index, ['title', 'base']);
+        return { hard, soft, any: hard || soft };
+    }
 
     function candidates(index, position) {
         const found = new Set(), doc = index.docs[position];
@@ -329,6 +345,7 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         duplicatesFor,
         duplicateInfoFor,
         duplicateLevelFor,
+        duplicateBadgeSummary,
         isDuplicate,
         mergeDuplicates,
         dismissDuplicate
