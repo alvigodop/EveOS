@@ -15,6 +15,33 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     }
     const kindKey = type => type === 'music' ? 'music' : 'soundboard';
     const scopeKey = (dimension, value) => ['provider', 'group'].includes(dimension) ? text(value).toLowerCase() : text(value);
+
+    // Most IDs and identity-like dimension values are unique. Storing every singleton in its own
+    // Set caused tens of thousands of tiny allocations whenever a 25k library index was rebuilt.
+    // Keep the common case as the row itself and promote to a Set only when a real collision exists.
+    function collectionAdd(map, key, row) {
+        const current = map.get(key);
+        if (!current) { map.set(key, row); return; }
+        if (current instanceof Set) { current.add(row); return; }
+        if (current !== row) map.set(key, new Set([current, row]));
+    }
+    function collectionDelete(map, key, row) {
+        const current = map.get(key);
+        if (!current) return;
+        if (current instanceof Set) {
+            current.delete(row);
+            if (!current.size) map.delete(key);
+            else if (current.size === 1) map.set(key, current.values().next().value);
+            return;
+        }
+        if (current === row) map.delete(key);
+    }
+    const collectionSize = value => value instanceof Set ? value.size : (value ? 1 : 0);
+    const collectionSingle = value => value instanceof Set
+        ? (value.size === 1 ? value.values().next().value : null)
+        : (value || null);
+    const collectionRows = value => value instanceof Set ? [...value] : (value ? [value] : []);
+
     function describe(snapshot, type, item, rank, position = rank) {
         const id = idKey(item.id), groups = snapshot[type === 'music' ? 'musicGroupMap' : 'soundGroupMap']?.[id] || [];
         const keys = {
@@ -30,18 +57,16 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     }
     function drop(index, row) {
         index.rows.delete(row.item);
-        const ids = index.ids.get(row.id); ids?.delete(row); if (!ids?.size) index.ids.delete(row.id);
+        if (row.id) collectionDelete(index.ids, row.id, row);
         for (const dimension of dimensions) for (const key of row.keys[dimension]) {
-            const bucket = index.buckets[dimension].get(key); bucket?.delete(row);
-            if (!bucket?.size) index.buckets[dimension].delete(key);
+            collectionDelete(index.buckets[dimension], key, row);
         }
     }
     function put(index, row) {
         index.rows.set(row.item, row);
-        if (row.id) { if (!index.ids.has(row.id)) index.ids.set(row.id, new Set()); index.ids.get(row.id).add(row); }
+        if (row.id) collectionAdd(index.ids, row.id, row);
         for (const dimension of dimensions) for (const key of row.keys[dimension]) {
-            if (!index.buckets[dimension].has(key)) index.buckets[dimension].set(key, new Set());
-            index.buckets[dimension].get(key).add(row);
+            collectionAdd(index.buckets[dimension], key, row);
         }
     }
     function build(snapshot, type) {
@@ -54,17 +79,17 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
             getById(value) {
                 ensureSource(index, snapshot, type);
                 let rows = index.ids.get(idKey(value));
-                if (rows?.size !== 1) return null;
-                let row = rows.values().next().value;
+                if (collectionSize(rows) !== 1) return null;
+                let row = collectionSingle(rows);
                 if (index.source[row.position] !== row.item || idKey(row.item.id) !== row.id) {
                     repair(index, snapshot, type);
                     rows = index.ids.get(idKey(value));
-                    if (rows?.size !== 1) return null;
-                    row = rows.values().next().value;
+                    if (collectionSize(rows) !== 1) return null;
+                    row = collectionSingle(rows);
                 }
                 return idKey(row.item.id) === row.id ? row.item : null;
             },
-            isAmbiguous(value) { ensureSource(index, snapshot, type); return (index.ids.get(idKey(value))?.size || 0) > 1; },
+            isAmbiguous(value) { ensureSource(index, snapshot, type); return collectionSize(index.ids.get(idKey(value))) > 1; },
             docFor(item) {
                 ensureSource(index, snapshot, type);
                 let row = index.rows.get(item);
@@ -81,12 +106,12 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
                     if (cachedScope.rows.every(row => index.source[row.position] === row.item)) return cachedScope.items;
                     repair(index, snapshot, type);
                 }
-                let rows = index.buckets[dimension]?.get(scopeKey(dimension, value)) || [];
-                if ([...rows].some(row => index.source[row.position] !== row.item)) {
+                let rows = collectionRows(index.buckets[dimension]?.get(scopeKey(dimension, value)));
+                if (rows.some(row => index.source[row.position] !== row.item)) {
                     repair(index, snapshot, type);
-                    rows = index.buckets[dimension]?.get(scopeKey(dimension, value)) || [];
+                    rows = collectionRows(index.buckets[dimension]?.get(scopeKey(dimension, value)));
                 }
-                const ordered = [...rows].sort((a, b) => a.rank - b.rank);
+                const ordered = rows.sort((a, b) => a.rank - b.rank);
                 const scoped = Object.freeze(ordered.map(row => row.item));
                 index.scopes.set(cacheKey, { revision: index.revision, rows: ordered, items: scoped });
                 return scoped;
@@ -120,7 +145,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
                 return index.docs;
             },
             get contentRevision() { ensureSource(index, snapshot, type); return index.revision; },
-            diagnostics() { return { items: index.rows.size, contentRevision: index.revision, incrementalUpdates: index.updates, cachedScopes: index.scopes.size }; }
+            diagnostics() { return { items: index.rows.size, contentRevision: index.revision, incrementalUpdates: index.updates, cachedScopes: index.scopes.size, compactCollections: true }; }
         });
         try {
             window.EveAudioflixDiagnostics?.increment?.('index:builds');
@@ -166,7 +191,7 @@ window.EveAudioflixLibraryIndex = window.EveAudioflixLibraryIndex || {};
     function remove(snapshot, type, itemId) {
         const index = cached(snapshot, type);
         if (!index) return;
-        for (const row of [...(index.ids.get(idKey(itemId)) || [])]) drop(index, row);
+        for (const row of collectionRows(index.ids.get(idKey(itemId)))) drop(index, row);
         changed(index, snapshot, type);
         index.source.forEach((item, position) => { const row = index.rows.get(item); if (row) row.position = position; });
     }
