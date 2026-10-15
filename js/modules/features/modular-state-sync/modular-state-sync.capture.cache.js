@@ -13,10 +13,17 @@
         const captureStructure = options.captureStructure || ((audioflix) => (
             window.EveAudioflixStateRecovery?.captureStructure?.(audioflix) || null
         ));
+        const hashPartsAsync = typeof options.hashPartsAsync === 'function' ? options.hashPartsAsync : null;
         const receipts = new WeakMap();
-        const counts = { fullCount: 0, incrementalCount: 0, reuseCount: 0, failureCount: 0 };
+        const counts = {
+            fullCount: 0,
+            incrementalCount: 0,
+            reuseCount: 0,
+            failureCount: 0,
+            staleAsyncCount: 0
+        };
         const fullCauses = Object.create(null);
-        const timings = { fullMs: 0, incrementalMs: 0 };
+        const timings = { fullMs: 0, incrementalMs: 0, asyncFullMs: 0, asyncIncrementalMs: 0 };
         let sections = null;
         let snapshot = null;
         let fullAuditAt = null;
@@ -25,6 +32,7 @@
         let epoch = 0;
         let sequence = 0;
         let latestReceipt = 0;
+        let captureGeneration = 0;
 
         function timestamp() {
             const value = Number(now());
@@ -49,6 +57,7 @@
             pendingReceipt = null;
             latestReceipt = 0;
             epoch += 1;
+            captureGeneration += 1;
         }
 
         function offerConfigSnapshot(signature, configDelta) {
@@ -92,6 +101,7 @@
             if (receipt.sequence <= latestReceipt) return true;
             latestReceipt = receipt.sequence;
             pendingReceipt = receipt;
+            captureGeneration += 1;
             return true;
         }
 
@@ -204,6 +214,96 @@
             return snapshot;
         }
 
+        function asyncHash(parts) {
+            if (!hashPartsAsync) return Promise.resolve(codec().hashParts(parts));
+            return Promise.resolve(hashPartsAsync(parts));
+        }
+
+        async function captureFullAsync(cause) {
+            const started = elapsedClock();
+            const generation = captureGeneration;
+            try {
+                const store = getStore();
+                if (typeof store?.captureState !== 'function') return null;
+                const json = JSON.stringify(store.captureState());
+                if (typeof json !== 'string') return null;
+                const parts = checkedParts(codec().splitObject(json));
+                const hash = await asyncHash(parts);
+                if (generation !== captureGeneration) {
+                    counts.staleAsyncCount += 1;
+                    return null;
+                }
+                return accept(parts, json, hash, true, cause, timestamp());
+            } catch {
+                counts.failureCount += 1;
+                if (generation === captureGeneration) requireFull('async-failure');
+                else counts.staleAsyncCount += 1;
+                return null;
+            } finally {
+                timings.asyncFullMs += Math.max(0, elapsedClock() - started);
+            }
+        }
+
+        async function captureIncrementalAsync() {
+            const started = elapsedClock();
+            const generation = captureGeneration;
+            const receipt = pendingReceipt;
+            try {
+                if (!receipt) return null;
+                const configSnapshot = JSON.parse(receipt.signature);
+                if (!configSnapshot || typeof configSnapshot !== 'object' || Array.isArray(configSnapshot)) {
+                    throw new Error('Invalid detached config snapshot');
+                }
+                const detachedAudioflix = Object.prototype.hasOwnProperty.call(configSnapshot, 'audioflix')
+                    ? configSnapshot.audioflix : null;
+                const audioflixJson = JSON.stringify(detachedAudioflix);
+                const structure = detachedAudioflix ? captureStructure(detachedAudioflix) : null;
+                const structureJson = JSON.stringify(structure || null);
+                const parts = new Map(sections);
+                parts.set('audioflix', audioflixJson);
+                parts.set('audioflixStructure', structureJson);
+                const json = assemble(parts);
+                const hash = await asyncHash(parts);
+                if (generation !== captureGeneration || pendingReceipt !== receipt) {
+                    counts.staleAsyncCount += 1;
+                    return null;
+                }
+                const at = timestamp();
+                if (!fresh(at)) {
+                    requireFull('expired');
+                    return null;
+                }
+                return accept(parts, json, hash, false, 'audioflix-config', at);
+            } catch {
+                counts.failureCount += 1;
+                if (generation === captureGeneration && pendingReceipt === receipt) requireFull('invalid-receipt');
+                else counts.staleAsyncCount += 1;
+                return null;
+            } finally {
+                timings.asyncIncrementalMs += Math.max(0, elapsedClock() - started);
+            }
+        }
+
+        async function captureAsync({ forceFresh = false } = {}) {
+            if (forceFresh) requireFull('forceFresh');
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+                const at = timestamp();
+                if (!snapshot || fullReason || !fresh(at)) {
+                    const next = await captureFullAsync(forceFresh ? 'forceFresh' : (fullReason || 'expired'));
+                    if (next) return next;
+                    continue;
+                }
+                if (pendingReceipt) {
+                    const next = await captureIncrementalAsync();
+                    if (next) return next;
+                    continue;
+                }
+                counts.reuseCount += 1;
+                return snapshot;
+            }
+            return null;
+        }
+
         function stats() {
             return Object.freeze({
                 ...counts,
@@ -213,11 +313,12 @@
                 capturedAt: snapshot?.capturedAt ?? null,
                 pending: !!pendingReceipt,
                 fullRequired: !!fullReason,
-                complete: !!complete()
+                complete: !!complete(),
+                generation: captureGeneration
             });
         }
 
-        return Object.freeze({ capture, invalidate, offerConfigSnapshot, stats });
+        return Object.freeze({ capture, captureAsync, invalidate, offerConfigSnapshot, stats });
     }
 
     window.EveModularCaptureCache = Object.freeze({ create });
