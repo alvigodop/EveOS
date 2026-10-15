@@ -13,9 +13,6 @@
     });
     // One generation only: immutable strings, never caller-owned Maps/objects.
     let sectionCache = new Map();
-    const arrayPrefixCache = new Map();
-    const ARRAY_CACHE_LIMIT = 16;
-    const MIN_CACHED_ARRAY_LENGTH = 128;
 
     class TokenHash {
         constructor() {
@@ -282,45 +279,12 @@
         }
     }
 
-    function hashArrayField(sectionKey, fieldKey, value, hash) {
-        const key = JSON.stringify([sectionKey, fieldKey]);
-        const json = JSON.stringify(value);
-        const first = hash.first, second = hash.second;
-        let cached = arrayPrefixCache.get(key);
-        if (cached && cached.json === json && cached.first === first && cached.second === second) {
-            hash.first = cached.endFirst;
-            hash.second = cached.endSecond;
-        } else {
-            hashParsedValue(value, hash);
-            cached = { json, first, second, endFirst: hash.first, endSecond: hash.second };
-        }
-        // At most one immutable byte string and prefix/result pair per field.
-        arrayPrefixCache.delete(key);
-        arrayPrefixCache.set(key, cached);
-        if (arrayPrefixCache.size > ARRAY_CACHE_LIMIT) {
-            arrayPrefixCache.delete(arrayPrefixCache.keys().next().value);
-        }
-    }
-
-    function hashSection(json, include, sectionKey) {
+    function hashSection(json, include) {
         if (typeof json !== 'string') throw new TypeError('Snapshot JSON must be a string');
         // Native validation plus the iterative token walk is faster than the JS
         // scanner for changed sections and remains bounded by active ancestors.
         const value = JSON.parse(json);
-        if (!include) return '';
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return hashValue(value);
-        const hash = new TokenHash();
-        hash.add(TAG.object);
-        for (const key of Object.keys(value)) {
-            if (VOLATILE_KEYS.has(key)) continue;
-            hash.string(key);
-            const field = value[key];
-            if (Array.isArray(field) && field.length >= MIN_CACHED_ARRAY_LENGTH) {
-                hashArrayField(sectionKey, key, field, hash);
-            } else hashParsedValue(field, hash);
-        }
-        hash.add(TAG.objectEnd);
-        return hash.finish();
+        return include ? hashValue(value) : '';
     }
 
     function hashValue(value) {
@@ -342,7 +306,7 @@
             const include = !VOLATILE_KEYS.has(key);
             let cached = sectionCache.get(key);
             if (!cached || cached.json !== json) {
-                cached = { json, digest: hashSection(json, include, key) };
+                cached = { json, digest: hashSection(json, include) };
             }
             nextCache.set(key, cached);
             if (include) {
