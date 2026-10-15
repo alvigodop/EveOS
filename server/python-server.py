@@ -331,7 +331,7 @@ def get_local_ip():
 class EveOSThreadingServer(socketserver.ThreadingTCPServer):
     """Thread-per-request server that supports dual-stack IPv4/IPv6 and exits cleanly after Ctrl+C."""
 
-    allow_reuse_address = True
+    request_queue_size, allow_reuse_address = socket.SOMAXCONN, True
     daemon_threads = True
     block_on_close = False
 
