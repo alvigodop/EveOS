@@ -74,6 +74,29 @@ function fixture() {
 const articleCount = html => (String(html).match(/<article\b/g) || []).length;
 
 try {
+    await check('remote-path-fast-exit-preserves-identity', () => {
+        const source = fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.state.duplicates.js'), 'utf8');
+        const helper = name => source.match(new RegExp(`    function ${name}\\(value\\) \\{[\\s\\S]*?\\n    \\}`))[0];
+        const scope = { text: value => String(value ?? '').trim(), normalize: value => String(value ?? '').trim().toLowerCase() };
+        vm.createContext(scope);
+        vm.runInContext(`${helper('fileBaseName')}\n${helper('normalizedPath')}`, scope);
+        const oldBase = value => {
+            const clean = scope.normalize(value).split('?')[0];
+            if (!clean || /^https?:\/\//.test(clean)) return '';
+            const base = clean.split('\\').join('/').split('/').pop();
+            return base && base.includes('.') ? base : '';
+        };
+        const oldPath = value => {
+            const clean = scope.normalize(value).replace(/^file:\/\/+/, '').replace(/\\/g, '/');
+            return clean && !/^(?:https?:\/\/|spotify:)/.test(clean) ? clean.replace(/\/+$/, '') : '';
+        };
+        for (const value of [undefined, null, '', '?only', ' HTTPS://media.invalid/a.mp3?q=1 ',
+            'http://x/y.mp3', 'spotify:track:abc', 'C:\\Music\\A.MP3?x', '/music/a.wav/',
+            'file:///C:/Music/A.mp3', 'file:///https://media.invalid/a.mp3', 'relative.mp3', 'folder/noext']) {
+            assert.equal(scope.fileBaseName(value), oldBase(value));
+            assert.equal(scope.normalizedPath(value), oldPath(value));
+        }
+    });
     const f = fixture();
     await check('collapsed-backend-prepares-compact-music-badges', async () => {
         const html = f.ui.renderItems(f.music, 'music');

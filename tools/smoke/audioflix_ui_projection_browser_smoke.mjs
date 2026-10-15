@@ -36,7 +36,7 @@ try {
         window.EveAudioflixUiForms = { create: () => () => {} };
         window.EveAudioflixAudio = { syncQueueView() {}, attachWaveform() {}, stopAll: async () => true };
     });
-    for (const file of ['audioflix.transport.js', 'audioflix.groups.tree.js', 'audioflix.ui.group-tree.js', 'audioflix.ui.window.js', 'audioflix.ui.render.js', 'audioflix.ui.panel.js', 'audioflix.ui.actions.js']) {
+    for (const file of ['audioflix.transport.js', 'audioflix.groups.tree.js', 'audioflix.ui.group-tree.js', 'audioflix.ui.window.js', 'audioflix.ui.render.js', 'audioflix.ui.toolbar.js', 'audioflix.ui.panel.js', 'audioflix.ui.actions.js']) {
         await page.addScriptTag({ path: path.join(ROOT, 'js/modules/features/audioflix', file) });
     }
     await page.evaluate(() => {
@@ -46,8 +46,12 @@ try {
             itemMeta: item => item.folder, groupTags: () => '', internalViewButton: () => '', groupKey: item => item.folder,
             isItemExposed: () => true, groupsOf: id => window.__state.musicGroupMap?.[id] || [], allGroups: () => window.__state.musicGroups || [], classifierEntries: () => [], getPorted: () => [], getActiveRepeaters: () => ({}),
             getActiveMusicQueue: () => window.__queue, getCollapsedGroups: () => ({}), stopSvg: 'Stop', playSvg: 'Play', cogSvg: 'Details', layerPlaySvg: 'Layer' });
+        const toolbar = window.EveAudioflixUiToolbar.create({ state: () => window.__state, esc,
+            uiNexus: { renderButton: () => '<button id="nexus-toggle" data-af-action="toggle-nexus" data-af-type="music">Nexus</button>', renderPanel: () => '<div class="audioflix-nexus-panel"><input value="query"></div>' },
+            uiClass: { renderButton: () => '<button data-af-action="toggle-classifiers">Classifiers</button>' },
+            getFlags: () => ({ addFormOpen: {}, localizeFormOpen: {}, groupsOpen: {}, foldersOpen: {}, nexusState: { open: window.__nexus, type: 'music' } }) });
         const panel = window.__panel = window.EveAudioflixUiPanel.create({ state: () => window.__state, esc, closeSvg: 'Close', hotkeyComboIssue: () => null,
-            renderItems: renderer.renderItems, renderAddSection: () => '<button id="nexus-toggle">Nexus</button><button id="view-toggle" data-af-action="toggle-view-mode" data-af-type="music">View</button>' + (window.__nexus ? '<div class="audioflix-nexus-panel"><input value="query"></div>' : ''),
+            renderItems: renderer.renderItems, renderAddSection: type => toolbar(type).replace('data-af-action="toggle-view-mode"', 'id="view-toggle" data-af-action="toggle-view-mode"'),
             view: () => window.__view, modal: () => '', tools: () => ({ routing: { renderStatusCards: () => '<select id="live-output"><option>Output</option></select>' },
                 narration: { renderAudioflixSummary: () => '<strong id="narration-title"></strong>', syncAudioflixSummary: () => { const title = document.getElementById('narration-title'); if (title) title.textContent = 'Selected stopped reader'; } } }),
             playback: () => ({ queue: renderer, status() {}, nexus: { open: false } }) });
@@ -112,8 +116,25 @@ try {
     checks.push('routing-open-hydrates-stopped-reader');
     await page.locator('[data-af-action="select-folder-scope"][data-af-scope="Test"]').click();
     await page.locator('[data-af-action="select-frontend-group"][data-af-group="Group A"]').click();
-    await page.locator('#view-toggle').click();
-    await page.locator('#view-toggle').click();
+    await page.evaluate(() => {
+        const toggle = window.__toggle = document.querySelector('#view-toggle');
+        window.__toggleFocus = { blur: 0, restored: 0, removed: 0 };
+        const focus = toggle.focus;
+        toggle.focus = function (...args) { window.__toggleFocus.restored++; return Reflect.apply(focus, this, args); };
+        toggle.addEventListener('blur', () => window.__toggleFocus.blur++);
+        new MutationObserver(records => {
+            for (const record of records) if ([...record.removedNodes].includes(toggle)) window.__toggleFocus.removed++;
+        }).observe(toggle.parentElement, { childList: true });
+    });
+    for (const mode of ['backend', 'frontend']) {
+        await page.locator('#view-toggle').click();
+        assert.deepEqual(await page.evaluate(() => ({ ...window.__toggleFocus,
+            sameNode: window.__toggle === document.querySelector('#view-toggle'), focused: document.activeElement === window.__toggle,
+            mode: window.__state.musicViewMode })),
+        { blur: 0, restored: 0, removed: 0, sameNode: true, focused: true, mode },
+        'Real view toggle must keep focus without detaching or calling focus() during toolbar reconciliation');
+    }
+    checks.push('view-toggle-retains-uninterrupted-native-focus');
     assert.deepEqual(await page.evaluate(() => ({ full: window.__fullRenders, library: window.__libraryRenders,
         header: window.__header === document.querySelector('.audioflix-header'), wave: window.__wave === document.querySelector('canvas'),
         output: window.__output === document.querySelector('#live-output'), folder: window.__state.activeMusicFolderScope,

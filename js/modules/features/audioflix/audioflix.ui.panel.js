@@ -6,8 +6,8 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
     if (ns.ready) return;
     ns.syncButtons = function (container, html) {
         const next = document.createElement('template'); next.innerHTML = html;
-        const wanted = [...next.content.children], retained = new Set();
-        for (const [index, child] of wanted.entries()) {
+        const wanted = [...next.content.children], retained = new Set(), ordered = [];
+        for (const child of wanted) {
             const key = child.dataset.afAction;
             const current = [...container.children].find(node => node.dataset.afAction === key);
             const node = current || child;
@@ -17,9 +17,14 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
                 if (current.innerHTML !== child.innerHTML) current.innerHTML = child.innerHTML;
             }
             retained.add(node);
+            ordered.push(node);
+        }
+        // Remove obsolete siblings first: retained controls often already have the wanted
+        // relative order. Moving a focused control merely past removed siblings blurs it.
+        for (const child of [...container.children]) if (!retained.has(child)) child.remove();
+        for (const [index, node] of ordered.entries()) {
             if (container.children[index] !== node) container.insertBefore(node, container.children[index] || null);
         }
-        for (const child of [...container.children]) if (!retained.has(child)) child.remove();
     };
     ns.create = function (ctx) {
         const { state, esc, closeSvg, hotkeyComboIssue, renderItems, renderAddSection } = ctx;

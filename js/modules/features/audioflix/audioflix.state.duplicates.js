@@ -19,9 +19,9 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         return out;
     }
     function fileBaseName(value) {
-        const clean = normalize(value).split('?')[0];
+        const clean = normalize(value);
         if (!clean || /^https?:\/\//.test(clean)) return '';
-        const base = clean.split('\\').join('/').split('/').pop();
+        const base = clean.split('?')[0].split('\\').join('/').split('/').pop();
         return base && base.includes('.') ? base : '';
     }
 
@@ -48,7 +48,11 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
     }
 
     function normalizedPath(value) {
-        const clean = normalize(value).replace(/^file:\/\/+/, '').replace(/\\/g, '/');
+        const raw = normalize(value);
+        // Most library rows are HTTP URLs or have no local path. Avoid allocating
+        // path-rewrite strings for values that cannot supply local identity.
+        if (!raw || /^(?:https?:\/\/|spotify:)/.test(raw)) return '';
+        const clean = raw.replace(/^file:\/\/+/, '').replace(/\\/g, '/');
         return clean && !/^(?:https?:\/\/|spotify:)/.test(clean) ? clean.replace(/\/+$/, '') : '';
     }
 
