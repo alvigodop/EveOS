@@ -26,6 +26,7 @@ function loadState(context) {
     runScript(context, 'js/modules/features/audioflix/audioflix.state.recovery.js')
     runScript(context, 'js/modules/features/audioflix/audioflix.library.index.js');
     runScript(context, 'js/modules/features/audioflix/audioflix.state.mutations.js');
+    runScript(context, 'js/modules/features/audioflix/audioflix.state.persistence.js');
     runScript(context, 'js/modules/features/audioflix/audioflix.state.js');
 }
 function assert(condition, message) { if (!condition) throw new Error('ASSERT FAILED: ' + message); }

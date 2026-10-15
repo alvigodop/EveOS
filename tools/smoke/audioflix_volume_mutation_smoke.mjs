@@ -21,7 +21,7 @@ function fixture(size) {
         getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value))
     }, CustomEvent: class {} });
     const files = ['audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js',
-        'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.js'];
+        'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.persistence.js', 'audioflix.state.js'];
     for (const file of files) {
         const target = path.join(ROOT, 'js/modules/features/audioflix', file);
         vm.runInContext(fs.readFileSync(target, 'utf8'), ctx, { filename: file });

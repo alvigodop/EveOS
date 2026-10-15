@@ -45,7 +45,7 @@ function fixture() {
             ConnectionsAPI: { getAll: () => [{ id: 'library-connection' }] } } };
     const context = vm.createContext({ window, console, localStorage, CustomEvent: class {} });
     for (const name of ['audioflix.state.schema.js', 'audioflix.state.recovery.js',
-        'audioflix.state.groups.js', 'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.js']) {
+        'audioflix.state.groups.js', 'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.persistence.js', 'audioflix.state.js']) {
         const file = path.join(root, 'js/modules/features/audioflix', name);
         vm.runInContext(fs.readFileSync(file, 'utf8'), context, { filename: file });
     }

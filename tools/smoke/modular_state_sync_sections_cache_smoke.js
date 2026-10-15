@@ -10,6 +10,14 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const delta = () => ({ kind: 'core-config-delta', complete: true, changedKeys: ['audioflix'], workspaceIds: [] });
 let codec, cacheApi;
 
+function freshCodec() {
+    const sandbox = { window: {} };
+    vm.createContext(sandbox);
+    const file = path.join(MODULES, 'modular-state-sync.capture.codec.js');
+    vm.runInContext(fs.readFileSync(file, 'utf8'), sandbox, { filename: file });
+    return sandbox.window.EveModularCaptureCodec;
+}
+
 function structure(audio) {
     if (!audio) return null;
     return { schema: 1, music: (audio.music || []).map(item => ({ id: item.id, folder: item.folder })),
@@ -87,6 +95,17 @@ const tests = [
         edited.knowledge.scopedStorage.test[0].text += ' meaningful';
         assert.notEqual(codec.hashState(edited), codec.hashState(original), 'Meaningful nested text must remain in hash');
     }],
+    ['codec-forged-overrides-cannot-poison-identity', () => {
+        const candidate = freshCodec(), oracle = freshCodec(), source = seed();
+        const parts = candidate.splitObject(JSON.stringify(source));
+        const overrides = new Map([['audioflix', 'sections-v1:0000000000000000']]);
+        const expected = oracle.hashState(source);
+        assert.equal(candidate.hashParts(parts, overrides), expected, 'Legacy extra arguments cannot supply section digests');
+        assert.equal(candidate.hashState(source), expected, 'Independent codec must agree after attempted override');
+        parts.set('audioflix', '{"music":');
+        assert.throws(() => candidate.hashParts(parts, overrides), 'An override cannot bypass JSON validation');
+        assert.equal(candidate.hashState(source), expected, 'Rejected malformed sections cannot poison memoized identity');
+    }],
     ['deep-snapshot-hash-and-ttl-mutation', () => {
         const h = harness(), leaf = { meaningful: 'before', date: 'volatile' };
         let nested = leaf;
@@ -141,6 +160,23 @@ const tests = [
         assert.equal(JSON.parse(result.json).audioflix.music[0].title, 'Receipt snapshot');
         assert.equal(JSON.parse(baseline.json).audioflix.music[0].title, 'Track "one" \\ 😀');
         assert.strictEqual(h.cache.capture(), result);
+    }],
+    ['receipt-signature-owns-actual-third-argument', () => {
+        const h = harness(); h.cache.capture();
+        const expected = nextAudio(h, 'Signed Audioflix');
+        h.live.audioflix = clone(expected);
+        const passed = clone({ theme: 'dark', audioflix: expected });
+        const signature = JSON.stringify(passed);
+        const token = h.cache.offerConfigSnapshot(signature, delta(), passed);
+        passed.audioflix.music[0].title = 'Mutated caller-owned snapshot';
+        h.cache.invalidate({ kind: 'config', captureReceipt: token });
+        passed.audioflix.musicFolders.push('Uncommitted folder');
+        const result = h.cache.capture(), payload = JSON.parse(result.json);
+        assert.equal(result.full, false);
+        assert.equal(h.captures, 1);
+        assert.deepEqual(payload.audioflix, expected, 'Caller aliases must not change offered signature bytes');
+        assert.deepEqual(payload.audioflixStructure, structure(expected));
+        assert.equal(result.hash, freshCodec().hashState(payload), 'An independent codec must verify the immutable payload identity');
     }],
     ['incremental-pair-matches-fresh-remote-state', () => {
         const h = harness(); h.cache.capture();

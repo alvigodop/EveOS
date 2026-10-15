@@ -14,6 +14,9 @@ var _lastCoreStateSignature = '';
 var _lastCoreStateSnapshot = null;
 var _lastConfigSignature = '';
 var _lastConfigSnapshot = null;
+var _pendingConfigSave = null;
+var _lastConfigMutationSignature = '';
+var _lastConfigMutationSnapshot = null;
 
 function markCoreStateClean(snapshot) {
     var currentSnapshot = snapshot || buildCoreStateSnapshot();
@@ -30,6 +33,8 @@ function markConfigClean(nextConfig) {
     var currentConfig = durableConfigSnapshot(nextConfig || config || {});
     _lastConfigSignature = buildStateSignature(currentConfig);
     _lastConfigSnapshot = cloneConfigForDelta(currentConfig, _lastConfigSignature);
+    _lastConfigMutationSignature = _lastConfigSignature;
+    _lastConfigMutationSnapshot = _lastConfigSnapshot;
 }
 
 function persistCoreStateAsync(coreSnapshot) {
@@ -202,6 +207,74 @@ function saveConfig(options) {
     return null;
 }
 
+function detachConfigForWrite(value) {
+    if (typeof structuredClone === 'function') {
+        try { return structuredClone(value); } catch (error) { /* Retain JSON-config compatibility. */ }
+    }
+    var seen = new Map();
+    function copy(current) {
+        if (!current || typeof current !== 'object') return current;
+        if (seen.has(current)) return seen.get(current);
+        if (Object.prototype.toString.call(current) === '[object Date]') return new Date(current.getTime());
+        var next = Array.isArray(current) ? [] : {};
+        seen.set(current, next);
+        Object.keys(current).forEach(function (key) { next[key] = copy(current[key]); });
+        return next;
+    }
+    return copy(value);
+}
+
+function queueConfigWrite(signature, capturedConfig, write) {
+    var previous = _pendingConfigSave;
+    var resolveSave;
+    var pending = { signature, promise: new Promise(function (resolve) { resolveSave = resolve; }) };
+    _pendingConfigSave = pending;
+    function complete(accepted, error) {
+        if (error) console.error('Core Storage: Failed to persist config', error);
+        if (accepted) {
+            _lastConfigSignature = signature;
+            _lastConfigSnapshot = capturedConfig;
+        }
+        if (_pendingConfigSave === pending) _pendingConfigSave = null;
+        resolveSave(accepted);
+    }
+    function start() {
+        try {
+            Promise.resolve(write()).then(function (accepted) {
+                complete(accepted === true);
+            }, function (error) { complete(false, error); });
+        } catch (error) { complete(false, error); }
+    }
+    // The initial backend call remains synchronous; later conflicting payloads
+    // cannot reach even an unordered backend before their predecessor settles.
+    if (previous) previous.promise.then(start);
+    else start();
+    return pending.promise;
+}
+
+function persistConfigCapture(storage, storageConfig, capturedConfig) {
+    if (storage) {
+        storage.syncThemeBootConfig(storageConfig);
+        return storage.saveJson(EVE_CONFIG_KEY, storageConfig, {
+            skipClone: !!capturedConfig,
+            localFallbackKey: EVE_CONFIG_KEY,
+            cleanupLocalKeys: [EVE_CONFIG_KEY],
+            mirrorLocalKey: EVE_THEME_BOOT_KEY,
+            mirrorValue: storage.getThemeBootConfig(storageConfig),
+            mirrorPruneRatio: 0.05
+        });
+    }
+    try {
+        localStorage.setItem(EVE_CONFIG_KEY, smartCompress(storageConfig));
+    } catch (error) {
+        var quota = error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED' || error.code === 22;
+        if (!quota || typeof window.CCMaintenance?.emergencyPrune !== 'function') throw error;
+        window.CCMaintenance.emergencyPrune(0.3);
+        localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(storageConfig));
+    }
+    return true;
+}
+
 function _saveConfigImmediate(options = {}) {
     var mutationSource = normalizeMutationSource(options.source || options.reason, 'saveConfig');
     var finishPerf = window.EvePerformanceMonitor?.startOperation?.('saveConfig', {
@@ -210,64 +283,50 @@ function _saveConfigImmediate(options = {}) {
     // Never swap live config while an async save runs. Only the captured payload is projected.
     var persistedConfig = durableConfigSnapshot(config || {});
     var signature = buildStateSignature(persistedConfig);
-    if (signature === _lastConfigSignature) {
+    if (_pendingConfigSave?.signature === signature) {
+        finishPerf?.({ dirty: true, pending: true });
+        return _pendingConfigSave.promise;
+    }
+    var conflictingPending = !!_pendingConfigSave;
+    var mutationDirty = signature !== _lastConfigMutationSignature;
+    var unacknowledgedMutation = _lastConfigMutationSignature !== _lastConfigSignature;
+    if (!conflictingPending && !mutationDirty && signature === _lastConfigSignature) {
         finishPerf?.({ dirty: false });
         return Promise.resolve(true);
     }
-    var configDelta = buildConfigDelta(_lastConfigSnapshot, persistedConfig);
-    if (!options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordConfigMutation === 'function') {
+    var configDelta = buildConfigDelta(_lastConfigMutationSnapshot, persistedConfig);
+    if (mutationDirty && !options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordConfigMutation === 'function') {
         window.EveEditHistory.recordConfigMutation({
-            before: _lastConfigSnapshot,
+            before: _lastConfigMutationSnapshot,
             after: persistedConfig,
             delta: configDelta,
             source: mutationSource,
             meta: options.meta
         });
     }
-    _lastConfigSignature = signature;
     var capturedConfig = cloneConfigForDelta(persistedConfig, signature);
-    _lastConfigSnapshot = capturedConfig;
-
-    var persistPromise = Promise.resolve(true);
+    // Fallback captures must also detach before waiting behind another write.
+    // Keep skipClone=false so the backend retains its ordinary fallback policy.
+    var storageConfig = capturedConfig || detachConfigForWrite(persistedConfig);
     var storage = getCoreStorage();
-    if (storage) {
-        // Reuse only the detached full-config signature capture, never shallow live aliases.
-        // A null/unstable capture retains the backend's ordinary cloning/fallback policy.
-        var storageConfig = capturedConfig || persistedConfig;
-        storage.syncThemeBootConfig(storageConfig);
-        persistPromise = storage.saveJson(EVE_CONFIG_KEY, storageConfig, {
-            skipClone: !!capturedConfig,
-            localFallbackKey: EVE_CONFIG_KEY,
-            cleanupLocalKeys: [EVE_CONFIG_KEY],
-            mirrorLocalKey: EVE_THEME_BOOT_KEY,
-            mirrorValue: storage.getThemeBootConfig(storageConfig),
-            mirrorPruneRatio: 0.05
-        }).catch((error) => {
-            console.error('Core Storage: Failed to persist config', error);
-            return false;
+    var persistPromise = !conflictingPending && signature === _lastConfigSignature
+        ? Promise.resolve(true)
+        : queueConfigWrite(signature, capturedConfig, function () {
+            return persistConfigCapture(storage, storageConfig, capturedConfig);
         });
-    } else {
-        try {
-            localStorage.setItem(EVE_CONFIG_KEY, smartCompress(persistedConfig));
-        } catch (e) {
-            if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22) {
-                if (window.CCMaintenance && typeof CCMaintenance.emergencyPrune === 'function') {
-                    CCMaintenance.emergencyPrune(0.3);
-                    try {
-                        localStorage.setItem(EVE_CONFIG_KEY, JSON.stringify(persistedConfig));
-                    } catch (retryError) { }
-                }
-            }
-        }
+    if (mutationDirty) {
+        _lastConfigMutationSignature = signature;
+        _lastConfigMutationSnapshot = capturedConfig;
+        dispatchStateMutation(mutationSource, {
+            kind: 'config',
+            immediate: !!options.immediate,
+            // A pending/failed predecessor may have moved modular state beyond
+            // the accepted baseline, so its successor requires full capture.
+            captureReceipt: conflictingPending || unacknowledgedMutation ? null
+                : window.EveDataStore?._modularSync?.offerConfigSnapshot?.(signature, configDelta),
+            meta: buildStateMutationMeta(options.meta, null, configDelta)
+        });
     }
-    dispatchStateMutation(mutationSource, {
-        kind: 'config',
-        immediate: !!options.immediate,
-        // Immutable serialization, not capturedConfig/live aliases. Only a
-        // complete Audioflix-only delta can produce a reusable receipt.
-        captureReceipt: window.EveDataStore?._modularSync?.offerConfigSnapshot?.(signature, configDelta, capturedConfig),
-        meta: buildStateMutationMeta(options.meta, null, configDelta)
-    });
     finishPerf?.({ dirty: true });
     return persistPromise;
 }

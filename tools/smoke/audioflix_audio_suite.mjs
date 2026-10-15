@@ -46,6 +46,7 @@ const tests = {
         ['node', 'tools/smoke/audioflix_spotify_scraper_smoke.js']
     ],
     state: [
+        ['node', 'tools/smoke/audioflix_persistence_scheduler_smoke.js'],
         ['node', 'tools/smoke/audioflix_state_recovery_smoke.js'],
         ['node', 'tools/smoke/audioflix_backup_guard_smoke.js'],
         ['node', 'tools/smoke/audioflix_library_next_smoke.js']

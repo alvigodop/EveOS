@@ -15,10 +15,10 @@ export const CRITICAL_SOURCE_FILES = ['EveOS.html', 'js/config/manifest/scripts.
     'js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js',
     'js/modules/core/storage.js', 'js/modules/core/storage.delta.js', 'js/modules/core/storage.runtime.io.js',
     'js/modules/features/data-state/data-state.capture.clone.js',
-    ...['audioflix.state.js', 'audioflix.state.schema.js', 'audioflix.state.mutations.js', 'audioflix.state.recovery.js',
+    ...['audioflix.state.js', 'audioflix.state.persistence.js', 'audioflix.state.schema.js', 'audioflix.state.mutations.js', 'audioflix.state.recovery.js',
         'audioflix.state.duplicates.js', 'audioflix.library.index.js', 'audioflix.groups.tree.js', 'audioflix.playback.diagnostics.js',
         'audioflix.ui.js', 'audioflix.ui.modal.js', 'audioflix.ui.panel.js', 'audioflix.ui.render.js', 'audioflix.ui.window.js', 'audioflix.ui.actions.js',
-        'audioflix.classifiers.js', 'audioflix.classifiers.ui.js', 'audioflix.nexus.js', 'audioflix.nexus.ui.js', 'audioflix.transport.js', 'audioflix.audio.internal.js',
+        'audioflix.classifiers.js', 'audioflix.classifiers.ui.js', 'audioflix.nexus.js', 'audioflix.nexus.quick.js', 'audioflix.nexus.ui.js', 'audioflix.transport.js', 'audioflix.audio.internal.js',
         'audioflix.audio.internal.queue.js'].map(file => AUDIO + file)];
 export const PERSISTENCE_SPANS = ['state:persist:projection', 'state:persist:mirror', 'state:persist:core'];
 
@@ -61,7 +61,13 @@ export async function verifyQualificationSource({ root, base, expectedHead, file
         const actual = Buffer.from(await (await readResponse(fetchImpl, url)).arrayBuffer());
         assert.equal(sourceDigest(actual), sourceDigest(wanted), `Qualification served asset differs from candidate: ${relative}`);
         if (relative === AUDIO + 'audioflix.state.js') {
-            for (const name of PERSISTENCE_SPANS) assert.ok(actual.toString('utf8').includes(name), `Candidate persistence span missing: ${name}`);
+            for (const name of ['state:persist:projection', 'state:persist:mirror']) {
+                assert.ok(actual.toString('utf8').includes(name), `Candidate persistence span missing from state owner: ${name}`);
+            }
+        }
+        if (relative === AUDIO + 'audioflix.state.persistence.js') {
+            assert.ok(actual.toString('utf8').includes('state:persist:core'),
+                'Candidate persistence core span missing from persistence scheduler');
         }
         hashes.push({ path: relative, sha256: sourceDigest(actual) });
     }

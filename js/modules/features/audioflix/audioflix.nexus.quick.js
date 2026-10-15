@@ -160,7 +160,9 @@ window.EveAudioflixNexusQuick = window.EveAudioflixNexusQuick || {};
             group?.querySelector('.audioflix-group-title')?.click();
             card = cardFor(id, kind) || card;
             requestAnimationFrame(() => {
-                if (!card.isConnected) return;
+                // A legitimate state projection can replace the node after reveal.
+                card = cardFor(id, kind);
+                if (!card?.isConnected) return;
                 card.querySelector('[data-af-action="play"]')?.focus({ preventScroll: true });
                 card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
                 card.classList.add('is-nexus-jump-target');

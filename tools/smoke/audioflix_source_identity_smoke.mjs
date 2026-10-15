@@ -12,6 +12,7 @@ import { sourceDigest, CRITICAL_SOURCE_FILES, PERSISTENCE_SPANS,
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const STATE = 'js/modules/features/audioflix/audioflix.state.js';
+const HELPER = 'js/modules/features/audioflix/audioflix.state.persistence.js';
 const UI = 'js/modules/features/audioflix/audioflix.ui.js';
 const PATH_API = '/api/eve-state/modular/path';
 const FAKE_BASE = 'http://127.0.0.1:45671';
@@ -36,9 +37,13 @@ function makePair(name, { spans = true } = {}) {
     fs.mkdirSync(root);
     git(root, 'init', '-q');
     for (const relative of CRITICAL_SOURCE_FILES) {
+        const ownedSpans = !spans ? ''
+            : relative === STATE ? '\nstate:persist:projection\nstate:persist:mirror'
+            : relative === HELPER ? '\nstate:persist:core'
+            : '';
         const body = relative === 'EveOS.html'
             ? `<!doctype html><html><head><meta charset="utf-8"></head><body><script src="${STATE}?v=fixture"></script><script src="${UI}?v=fixture"></script></body></html>\n`
-            : `/* Fixture ${relative}${relative === STATE && spans ? '\n' + PERSISTENCE_SPANS.join('\n') : ''} */\n`;
+            : `/* Fixture ${relative}${ownedSpans} */\n`;
         write(root, relative, body);
     }
     write(root, '.gitignore', 'data/runtime/\n'); write(root, 'README.md', 'Disposable source fixture\n');

@@ -9,7 +9,7 @@ const STATE_SOURCES = [
     'audioflix.state.recovery.js',
     'audioflix.state.schema.js',
     'audioflix.library.index.js', 'audioflix.state.mutations.js',
-    'audioflix.state.js'
+    'audioflix.state.persistence.js', 'audioflix.state.js'
 ].map((name) => path.join(ROOT, 'js', 'modules', 'features', 'audioflix', name));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const fails = [];

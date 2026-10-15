@@ -280,20 +280,11 @@
     }
 
     function hashSection(json, include) {
-        let hash = include ? new TokenHash() : null;
-        const scanner = new Scanner(json, hash);
-        try {
-            scanner.value(include, 1);
-            scanner.end();
-        } catch (error) {
-            if (!isDepthError(error)) throw error;
-            const value = JSON.parse(json);
-            if (include) {
-                hash = new TokenHash();
-                hashParsedValue(value, hash);
-            }
-        }
-        return hash ? hash.finish() : '';
+        if (typeof json !== 'string') throw new TypeError('Snapshot JSON must be a string');
+        // Native validation plus the iterative token walk is faster than the JS
+        // scanner for changed sections and remains bounded by active ancestors.
+        const value = JSON.parse(json);
+        return include ? hashValue(value) : '';
     }
 
     function hashValue(value) {
@@ -302,7 +293,7 @@
         return hash.finish();
     }
 
-    function hashParts(parts, digestOverrides = null) {
+    function hashParts(parts) {
         if (!(parts instanceof Map)) throw new TypeError('Snapshot parts must be a Map');
         const keys = Array.from(parts.keys());
         if (keys.some(key => typeof key !== 'string')) throw new TypeError('Snapshot keys must be strings');
@@ -313,13 +304,8 @@
         for (const key of keys) {
             const json = parts.get(key);
             const include = !VOLATILE_KEYS.has(key);
-            const overrideDigest = include && digestOverrides && typeof digestOverrides.get === 'function'
-                ? digestOverrides.get(key) : null;
             let cached = sectionCache.get(key);
-            if (typeof overrideDigest === 'string'
-                && /^sections-v1:[0-9a-f]{16}$/.test(overrideDigest)) {
-                cached = { json, digest: overrideDigest };
-            } else if (!cached || cached.json !== json) {
+            if (!cached || cached.json !== json) {
                 cached = { json, digest: hashSection(json, include) };
             }
             nextCache.set(key, cached);

@@ -38,6 +38,7 @@ function load(ctx) {
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.groups.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.library.index.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.mutations.js');
+    runScript(ctx, 'js/modules/features/audioflix/audioflix.state.persistence.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.state.duplicates.js');
     runScript(ctx, 'js/modules/features/audioflix/audioflix.nexus.js');

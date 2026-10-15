@@ -12,7 +12,7 @@ import { readBackendAudioflixSnapshot, assertBackendAudioflixUnchanged } from '.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const clone = value => JSON.parse(JSON.stringify(value));
 const MODULES = ['audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js',
-    'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.js', 'audioflix.bulk.js',
+    'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.persistence.js', 'audioflix.state.js', 'audioflix.bulk.js',
     'audioflix.playlists.providers.js', 'audioflix.playlists.spotify.js', 'audioflix.playlists.wpl.js', 'audioflix.playlists.js'];
 let latestArtifact = '';
 function sourceDigest() {

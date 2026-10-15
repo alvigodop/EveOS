@@ -122,6 +122,7 @@ async function main() {
     };
     const recovery = window.EveAudioflixStateRecovery, folderRegistry = recovery.folderRegistry;
     recovery.folderRegistry = state => { counts.folders += 1; return folderRegistry(state); };
+    vm.runInContext(feature('audioflix.state.persistence.js'), ctx, { filename: 'audioflix.state.persistence.js' });
     vm.runInContext(feature('audioflix.state.js'), ctx, { filename: 'audioflix.state.js' });
     const store = window.EveAudioflixState, state = store.ensure(), base = [...state.music], originalMusicArray = state.music;
     recovery.writeStructure('eveAudioflixFallbackState', state);

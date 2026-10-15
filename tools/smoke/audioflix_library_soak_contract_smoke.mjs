@@ -47,7 +47,7 @@ function volumeSaveFixture() {
         localStorage: { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, String(value)) },
         CustomEvent: class { constructor(_name, options) { this.detail = options.detail; } } });
     for (const file of ['audioflix.state.schema.js', 'audioflix.state.recovery.js', 'audioflix.state.groups.js',
-        'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.js']) {
+        'audioflix.library.index.js', 'audioflix.state.mutations.js', 'audioflix.state.persistence.js', 'audioflix.state.js']) {
         vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix', file), 'utf8'), context, { filename: file });
     }
     const state = window.EveAudioflixState, write = window.EveAudioflixStateRecovery.write;

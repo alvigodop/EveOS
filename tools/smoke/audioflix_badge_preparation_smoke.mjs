@@ -50,7 +50,7 @@ function fixture() {
         queueMicrotask: callback => microtasks.push(callback),
         setTimeout: window.setTimeout, clearTimeout: window.clearTimeout });
     for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', 'audioflix.state.mutations.js',
-        'audioflix.state.groups.js', 'audioflix.state.js', 'audioflix.state.duplicates.js', 'audioflix.ui.render.js']) {
+        'audioflix.state.groups.js', 'audioflix.state.persistence.js', 'audioflix.state.js', 'audioflix.state.duplicates.js', 'audioflix.ui.render.js']) {
         vm.runInContext(fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix', file), 'utf8'), context, { filename: file });
     }
     const S = window.EveAudioflixState, D = window.EveAudioflixDuplicates, L = window.EveAudioflixLibraryIndex;

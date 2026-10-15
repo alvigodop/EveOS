@@ -6,17 +6,14 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     if (ns.ready) return;
 
     const STORAGE_KEY = 'eveAudioflixFallbackState';
-    const SAVE_DELAY_MS = 500;
     const MAX_SOUNDBOARD = 240;
     const MAX_MUSIC = 10000;
     const MAX_SCOPE_BINDINGS = 20000;
     const MAX_RECENT = 60;
-    let saveTimer = 0;
     let cachedRoot = null;
     let cachedState = null;
     let fallbackState = null;
     let revision = 0;
-    const pendingSaveReasons = new Set();
     const span = name => { try { return window.EveAudioflixDiagnostics?.span?.(name); } catch { return null; } };
 
     function getConfigRoot() {
@@ -211,36 +208,15 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         return next;
     }
 
-    async function persistNow(reason) {
-        return mutations.persistTracked(async () => {
-        // Internal mutations already preserve the schema; do not re-clean 10k tracks during flush.
-        const state = ensure();
-        if (saveTimer) window.clearTimeout(saveTimer); saveTimer = 0;
-        const persisted = fallbackWrite(state);
-        const reasons = [...pendingSaveReasons]; pendingSaveReasons.clear();
-        // Quota may fall through to core storage; rollback guards must remain authoritative.
-        let coreWritten = null;
-        if ((persisted?.written !== false || persisted?.kind === 'storage') && typeof window.saveConfig === 'function') {
-            const coreDone = span('state:persist:core');
-            try { coreWritten = await Promise.resolve(window.saveConfig({
-                immediate: true,
-                source: reason || 'audioflix',
-                meta: { skipEditHistory: true }
-            })); coreDone?.(coreWritten !== true); }
-            catch (error) { coreDone?.(true); throw error; }
-        }
-        window.dispatchEvent(new CustomEvent('eve:audioflix-state-changed', { detail: { reason, reasons: reasons.length ? reasons : [reason] } }));
-        const written = persisted?.written === true || coreWritten === true;
-        return { state, written, mirrorWritten: persisted?.written === true, coreWritten, reason: written ? '' : (persisted?.reason || 'No durable Audioflix storage backend accepted the change.') };
-        });
-    }
-
-    function scheduleSave(reason) {
-        const durable = ensure(); durable.durabilityRevision = window.EveAudioflixStateRecovery?.nextRevision?.(STORAGE_KEY, durable) || (Number(durable.durabilityRevision || 0) + 1); durable.durabilityUpdatedAt = Date.now(); revision += 1;
-        pendingSaveReasons.add(reason);
-        if (saveTimer) window.clearTimeout(saveTimer);
-        saveTimer = window.setTimeout(() => { void persistNow(reason); }, SAVE_DELAY_MS);
-    }
+    const persistence = window.EveAudioflixPersistenceScheduler.create({
+        ensure, fallbackWrite, span,
+        touchDurability: () => {
+            const durable = ensure(); durable.durabilityRevision = window.EveAudioflixStateRecovery?.nextRevision?.(STORAGE_KEY, durable) || (Number(durable.durabilityRevision || 0) + 1); durable.durabilityUpdatedAt = Date.now(); revision += 1;
+        },
+        persistTracked: work => mutations.persistTracked(work)
+    });
+    function persistNow(reason) { return persistence.flush(reason); }
+    function scheduleSave(reason) { return persistence.schedule(reason); }
 
     function syncRootOrFallback(state) {
         const root = getConfigRoot();
@@ -412,7 +388,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     window.addEventListener('pagehide', () => {
         mutations.finalizePendingVolumes();
-        if (saveTimer) void persistNow('audioflix-pagehide');
+        if (persistence.hasPending()) void persistNow('audioflix-pagehide');
     });
 
     Object.assign(ns, {

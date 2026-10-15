@@ -65,7 +65,7 @@ const assert = (condition, message) => {
         'audioflix.state.recovery.js',
         'audioflix.state.groups.js',
         'audioflix.library.index.js', 'audioflix.state.mutations.js',
-        'audioflix.state.js',
+        'audioflix.state.persistence.js', 'audioflix.state.js',
         'audioflix.nexus.js',
         'audioflix.classifiers.js',
         'audioflix.localize.audit.js',
