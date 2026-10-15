@@ -26,9 +26,17 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
         let writtenGeneration = -1;
         let mirrorDirty = false;
         let coreDirty = false;
+        let traceSequence = 0;
         const pendingReasons = new Map();
 
         const canSaveCore = () => typeof window.saveConfig === 'function';
+        const traceEnabled = () => window.__soakDebug?.enabled === true;
+        const traceClock = () => typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now() : Date.now();
+        const trace = value => {
+            if (!traceEnabled()) return;
+            try { window.__soakDebug?.note?.(value); } catch { /* Qualification telemetry must never affect persistence. */ }
+        };
 
         function clearSaveTimer() {
             if (!saveTimer) return;
@@ -89,9 +97,24 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
 
             coreTimer = window.setTimeout(() => {
                 coreTimer = 0;
+                const enabled = traceEnabled();
+                const started = enabled ? traceClock() : 0;
+                const attempt = enabled ? ++traceSequence : 0;
+                const capturedGeneration = generation;
                 void replicateCore(latestReason).then(written => {
+                    if (enabled) trace({
+                        kind: 'persistence-deferred-core', attempt, generation: capturedGeneration,
+                        reason: latestReason, written, elapsedMs: Math.max(0, traceClock() - started)
+                    });
                     if (written !== true && written !== null) reportDeferredFailure('Core backend did not accept the change.');
-                }, reportDeferredFailure);
+                }, error => {
+                    if (enabled) trace({
+                        kind: 'persistence-deferred-core', attempt, generation: capturedGeneration,
+                        reason: latestReason, error: String(error?.message || error),
+                        elapsedMs: Math.max(0, traceClock() - started)
+                    });
+                    reportDeferredFailure(error);
+                });
             }, CORE_REPLICATION_IDLE_MS);
 
             return true;
@@ -102,9 +125,14 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                 clearSaveTimer();
                 clearCoreTimer();
 
+                const traceThis = traceEnabled();
+                const started = traceThis ? traceClock() : 0;
+                const attempt = traceThis ? ++traceSequence : 0;
                 const capturedGeneration = generation;
                 const state = ensure();
+                const mirrorStarted = traceThis ? traceClock() : 0;
                 const persisted = fallbackWrite(state);
+                const mirrorMs = traceThis ? Math.max(0, traceClock() - mirrorStarted) : 0;
                 const capturedReasons = [...pendingReasons];
                 const reasons = capturedReasons.map(([value]) => value);
                 const mirrorWritten = persisted?.written === true;
@@ -115,6 +143,7 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
 
                 let coreWritten = null;
                 let coreDeferred = false;
+                let coreMs = 0;
 
                 if (
                     mirrorWritten &&
@@ -126,7 +155,9 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                     coreAllowed &&
                     canSaveCore()
                 ) {
+                    const coreStarted = traceThis ? traceClock() : 0;
                     coreWritten = await replicateCore(reason);
+                    if (traceThis) coreMs = Math.max(0, traceClock() - coreStarted);
                 }
 
                 const written = mirrorWritten || coreWritten === true;
@@ -135,6 +166,15 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                         if (pendingReasons.get(value) === atGeneration) pendingReasons.delete(value);
                     }
                 }
+
+                if (traceThis && (!mirrorWritten || mirrorMs >= 8 || coreMs >= 8)) trace({
+                    kind: 'persistence-attempt', attempt, generation: capturedGeneration,
+                    reason: reason || 'audioflix', deferCore: deferCore === true,
+                    mirrorWritten, mirrorKind: String(persisted?.kind || ''),
+                    mirrorReason: String(persisted?.reason || ''), mirrorMs,
+                    coreAllowed, coreDeferred, coreWritten, coreMs,
+                    totalMs: Math.max(0, traceClock() - started)
+                });
 
                 window.dispatchEvent(new CustomEvent(
                     'eve:audioflix-state-changed',
