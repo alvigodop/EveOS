@@ -107,7 +107,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
     try {
         await page.evaluate(debugAll => {
             const debug = window.__soakDebug = { enabled: true, events: [] };
-            const note = value => { if (!debug.enabled) return; debug.events.push({ at: performance.now(), phase: window.__librarySoak.snapshot().phase, ...value }); if (debug.events.length > 64) debug.events.shift(); };
+            const note = value => { if (!debug.enabled) return; debug.events.push({ at: performance.now(), phase: window.__librarySoak.snapshot().phase, ...value }); if (debug.events.length > 256) debug.events.shift(); };
             debug.all = debugAll;
             debug.note = note;
             for (const kind of ['pointerdown', 'pointerup']) document.addEventListener(kind, event => {
@@ -433,7 +433,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             warmupLongTaskAttribution, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
-            debug: process.argv.includes('--soak-debug') ? await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume })) : undefined,
+            debug: await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume })),
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
             calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };
     } finally { await cdp.detach().catch(() => {}); }
