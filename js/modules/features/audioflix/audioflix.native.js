@@ -97,7 +97,9 @@ window.EveAudioflixNative = window.EveAudioflixNative || {};
                         bridgeOfflineNoticeShown = false;
                         console.info('[Audioflix] Native bridge is back online — CABLE routing and global hotkeys available again.');
                     }
-                    update({ nativeBridgeBase: base }, 'audioflix-native-bridge-base');
+                    if (state().nativeBridgeBase !== base) {
+                        update({ nativeBridgeBase: base }, 'audioflix-native-bridge-base');
+                    }
                     return payload;
                 }
                 attempts.push({ base, status: payload.status, message: payload.message });
