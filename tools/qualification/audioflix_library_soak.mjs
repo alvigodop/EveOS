@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { latencyStats, sampleSoakResources, resourceGrowth, evaluateSoakBudgets } from './audioflix_library_soak_resources.mjs';
 import { PERSISTENCE_SPANS } from './audioflix_source_identity.mjs';
+import { recordTracedSoakPhase } from './audioflix_library_soak_phase_trace.mjs';
 export { installLibrarySoakInstrumentation } from './audioflix_library_soak_resources.mjs';
 
 const css = value => String(value).replace(/[\\"]/g, '\\$&');
@@ -44,12 +45,7 @@ export function assertQueueProjection(before, after) {
 }
 
 export async function recordSoakPhase(page, phase, operation) {
-    await page.evaluate(name => window.__librarySoak.phase(name), phase);
-    const result = await operation();
-    // A completed Playwright action is not a completed paint probe. Do not let the next
-    // synthetic persistence/bulk phase add its work to this control's second-RAF response.
-    await page.evaluate(() => window.__librarySoak.settleResponses());
-    return result;
+    return recordTracedSoakPhase(page, phase, operation);
 }
 
 export async function settleSoakPersistence(page, reason) {
@@ -433,7 +429,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             warmupLongTaskAttribution, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
-            debug: await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume })),
+            debug: await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume, phaseTrace: window.__soakPhaseTrace || [] })),
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
             calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };
     } finally { await cdp.detach().catch(() => {}); }
