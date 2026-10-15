@@ -33,6 +33,7 @@
         let sequence = 0;
         let latestReceipt = 0;
         let captureGeneration = 0;
+        let traceSequence = 0;
 
         function timestamp() {
             const value = Number(now());
@@ -42,6 +43,20 @@
         function elapsedClock() {
             return typeof performance !== 'undefined' && typeof performance.now === 'function'
                 ? performance.now() : Date.now();
+        }
+
+        function traceEnabled() {
+            return window.__soakDebug?.enabled === true;
+        }
+
+        function trace(value) {
+            if (!traceEnabled()) return;
+            try { window.__soakDebug?.note?.(value); } catch { /* Qualification telemetry is observational only. */ }
+        }
+
+        function workerStats() {
+            try { return window.EveModularCaptureWorker?.stats?.() || null; }
+            catch { return null; }
         }
 
         function fresh(at) {
@@ -222,17 +237,31 @@
         async function captureFullAsync(cause) {
             const started = elapsedClock();
             const generation = captureGeneration;
+            const debug = traceEnabled();
+            const attempt = debug ? ++traceSequence : 0;
+            const stages = {};
+            let outcome = 'failed';
             try {
                 const store = getStore();
                 if (typeof store?.captureState !== 'function') return null;
-                const json = JSON.stringify(store.captureState());
+                let mark = debug ? elapsedClock() : 0;
+                const state = store.captureState();
+                if (debug) { stages.captureStateMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                const json = JSON.stringify(state);
+                if (debug) { stages.stateJsonMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 if (typeof json !== 'string') return null;
                 const parts = checkedParts(codec().splitObject(json));
-                const hash = await asyncHash(parts);
+                if (debug) { stages.splitMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                const pendingHash = asyncHash(parts);
+                if (debug) { stages.handoffMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                const hash = await pendingHash;
+                if (debug) stages.workerWaitMs = Math.max(0, elapsedClock() - mark);
                 if (generation !== captureGeneration) {
                     counts.staleAsyncCount += 1;
+                    outcome = 'stale';
                     return null;
                 }
+                outcome = 'accepted';
                 return accept(parts, json, hash, true, cause, timestamp());
             } catch {
                 counts.failureCount += 1;
@@ -240,7 +269,12 @@
                 else counts.staleAsyncCount += 1;
                 return null;
             } finally {
-                timings.asyncFullMs += Math.max(0, elapsedClock() - started);
+                const totalMs = Math.max(0, elapsedClock() - started);
+                timings.asyncFullMs += totalMs;
+                const worker = debug ? workerStats() : null;
+                if (debug && (totalMs >= 25 || worker?.mode !== 'worker' || worker?.failures || worker?.fallbacks)) {
+                    trace({ kind: 'capture-full-timing', attempt, generation, cause, outcome, totalMs, ...stages, worker });
+                }
             }
         }
 
@@ -248,31 +282,48 @@
             const started = elapsedClock();
             const generation = captureGeneration;
             const receipt = pendingReceipt;
+            const debug = traceEnabled();
+            const attempt = debug ? ++traceSequence : 0;
+            const stages = {};
+            let outcome = 'failed';
             try {
                 if (!receipt) return null;
+                let mark = debug ? elapsedClock() : 0;
                 const configSnapshot = JSON.parse(receipt.signature);
+                if (debug) { stages.receiptParseMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 if (!configSnapshot || typeof configSnapshot !== 'object' || Array.isArray(configSnapshot)) {
                     throw new Error('Invalid detached config snapshot');
                 }
                 const detachedAudioflix = Object.prototype.hasOwnProperty.call(configSnapshot, 'audioflix')
                     ? configSnapshot.audioflix : null;
                 const audioflixJson = JSON.stringify(detachedAudioflix);
+                if (debug) { stages.audioJsonMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const structure = detachedAudioflix ? captureStructure(detachedAudioflix) : null;
+                if (debug) { stages.captureStructureMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const structureJson = JSON.stringify(structure || null);
+                if (debug) { stages.structureJsonMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const parts = new Map(sections);
                 parts.set('audioflix', audioflixJson);
                 parts.set('audioflixStructure', structureJson);
+                if (debug) { stages.partsCopyMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const json = assemble(parts);
-                const hash = await asyncHash(parts);
+                if (debug) { stages.assembleMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                const pendingHash = asyncHash(parts);
+                if (debug) { stages.handoffMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                const hash = await pendingHash;
+                if (debug) stages.workerWaitMs = Math.max(0, elapsedClock() - mark);
                 if (generation !== captureGeneration || pendingReceipt !== receipt) {
                     counts.staleAsyncCount += 1;
+                    outcome = 'stale';
                     return null;
                 }
                 const at = timestamp();
                 if (!fresh(at)) {
                     requireFull('expired');
+                    outcome = 'expired';
                     return null;
                 }
+                outcome = 'accepted';
                 return accept(parts, json, hash, false, 'audioflix-config', at);
             } catch {
                 counts.failureCount += 1;
@@ -280,7 +331,13 @@
                 else counts.staleAsyncCount += 1;
                 return null;
             } finally {
-                timings.asyncIncrementalMs += Math.max(0, elapsedClock() - started);
+                const totalMs = Math.max(0, elapsedClock() - started);
+                timings.asyncIncrementalMs += totalMs;
+                const worker = debug ? workerStats() : null;
+                if (debug && (totalMs >= 25 || worker?.mode !== 'worker' || worker?.failures || worker?.fallbacks)) {
+                    trace({ kind: 'capture-incremental-timing', attempt, generation,
+                        receiptSequence: receipt?.sequence || 0, outcome, totalMs, ...stages, worker });
+                }
             }
         }
 
