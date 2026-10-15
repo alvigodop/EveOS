@@ -11,6 +11,7 @@ import { chromium } from 'playwright';
 import { installBackendWriteBarrier, readBackendAudioflixSnapshot, assertBackendAudioflixUnchanged } from '../smoke/audioflix_spotify_live_isolation.shared.js';
 import { installLibrarySoakInstrumentation, attachSoakConsole, runLibrarySoak, scaleSoakFixture } from './audioflix_library_soak.mjs';
 import { verifyQualificationSource, attachBrowserSourceIdentity } from './audioflix_source_identity.mjs';
+import { installSyntheticAudioFixtureBridge } from './audioflix_library_synthetic_audio.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2), sourceArg = args[args.indexOf('--source') + 1];
@@ -67,6 +68,7 @@ async function isolatedContext() {
     });
     await context.routeWebSocket('**/*', socket => socket.close());
     if (soak) await context.addInitScript(installLibrarySoakInstrumentation);
+    await context.addInitScript(installSyntheticAudioFixtureBridge);
     await context.addInitScript(() => {
         window.__eveSmokeNoAutoGemini = true;
         window.__libraryLongTasks = [];
@@ -134,36 +136,7 @@ async function boot(url, payload, scale = false) {
         const st = window.EveAudioflixState.ensure();
         const groups = [...new Set(st.music.map(item => String(item.folder || item.card || '').trim() || 'Ungrouped'))];
         Object.assign(window.__libraryRenderCtx.getCollapsedGroups(), Object.fromEntries(groups.map(group => [group, true])));
-        const audio = window.EveAudioflixAudio, fake = window.__librarySyntheticAudio = { item: null, paused: true, volume: 1 };
-        const emitSyntheticPlayback = (status, item, paused) => {
-            const detail = { status, item, synthetic: true };
-            window.dispatchEvent(new CustomEvent('eve:audioflix-playback', { detail }));
-            window.dispatchEvent(new CustomEvent('eve:audioflix-progress', { detail: {
-                item, currentTime: paused ? 0 : 12, duration: paused ? 0 : 120, paused, synthetic: true
-            } }));
-        };
-        audio.playItem = async item => {
-            Object.assign(fake, { item, paused: false, volume: item.volume ?? 1 });
-            emitSyntheticPlayback(`Playing ${item.title || 'audio'}`, item, false);
-            return true;
-        };
-        audio.stopItemLayers = async id => {
-            if (String(fake.item?.id) === String(id)) {
-                const stopped = fake.item;
-                Object.assign(fake, { item: null, paused: true });
-                emitSyntheticPlayback('Stopped', stopped, true);
-            }
-            return true;
-        };
-        audio.stopAll = async () => {
-            const stopped = fake.item;
-            Object.assign(fake, { item: null, paused: true });
-            if (stopped) emitSyntheticPlayback('Stopped', stopped, true);
-            return true;
-        };
-        audio.getPlaybackState = () => ({ ...fake, duration: fake.paused ? 0 : 120, currentTime: fake.paused ? 0 : 12, browserOnly: false });
-        audio.updateItemVolume = (id, volume) => { if (String(fake.item?.id) === String(id)) fake.volume = volume; };
-        audio.attachWaveform = () => {};
+        window.__installLibrarySyntheticAudio();
         if (scale) window.EveAudioflix.open(); else window.EveAudioflix.openNexus('music', true);
         return { installMs: performance.now() - started, music: st.music.length, groups: st.musicGroups.length, folders: st.musicFolders.length };
     }, { input: payload, scale });
