@@ -290,30 +290,25 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
 
     function duplicateInfoFor(type, itemId) {
         if (!itemId) return [];
-        const snapshot = state(), items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [];
-        let position = -1;
-        for (let i = 0; i < items.length; i += 1) {
-            if (items[i].id !== itemId) continue;
-            // Preserve the indexed pair semantics for malformed/legacy repeated IDs.
-            if (position !== -1) return indexedDuplicateInfoFor(type, itemId);
-            position = i;
+        const snapshot = state(), items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [], id = text(itemId);
+        const library = window.EveAudioflixLibraryIndex?.get?.(snapshot, type);
+        if (!library?.getById || library.isAmbiguous?.(id)) return indexedDuplicateInfoFor(type, id);
+        const item = library.getById(id);
+        if (!item) return [];
+        const index = badgeIndexFor(type), selected = descriptor(item, 0), candidateIds = new Set();
+        for (const name of dimensions) for (const otherId of index.buckets[name].get(selected[name]) || []) {
+            if (otherId !== id && !index.dismissed.has(pairKey(id, otherId))) candidateIds.add(otherId);
         }
-        if (position === -1) return [];
-        // A selected item's details need one scan, not the full library's bucket/ID graph.
-        // Read current records on every call so same-array edits and dismissals stay visible.
-        const selected = descriptor(items[position], position), matches = [];
-        const dismissed = new Set(snapshot.dupDismissedPairs || []);
-        for (let other = 0; other < items.length; other += 1) {
-            const item = items[other];
-            if (item.id === itemId || dismissed.has(pairKey(itemId, item.id))) continue;
-            const candidate = descriptor(item, other);
-            const found = pairClassification(selected, candidate);
-            if (!found) continue;
-            matches.push({ item, ...found, reason: found.reasons.join(' + '),
-                left: Math.min(position, other), right: Math.max(position, other) });
+        const matches = [];
+        for (const otherId of candidateIds) {
+            if (library.isAmbiguous?.(otherId)) return indexedDuplicateInfoFor(type, id);
+            const other = library.getById(otherId);
+            if (!other) continue;
+            const found = pairClassification(selected, descriptor(other, 0));
+            if (found) matches.push({ item: other, ...found, reason: found.reasons.join(' + '), position: items.indexOf(other) });
         }
-        matches.sort((a, b) => (a.level === b.level ? a.left - b.left || a.right - b.right : a.level === 'hard' ? -1 : 1));
-        return matches.map(({ left, right, ...match }) => match);
+        matches.sort((a, b) => (a.level === b.level ? a.position - b.position : a.level === 'hard' ? -1 : 1));
+        return matches.map(({ position, ...match }) => match);
     }
 
     function indexedDuplicateInfoFor(type, itemId) {
