@@ -39,6 +39,7 @@ try:
     from server_modules import bookmark_intel_control
     from server_modules import eveos_server_status
     from server_modules.eveos_http_cors import eveos_cors_origin
+    from server_modules.eveos_http_headers import EveOSHTTPHeadersMixin
 except ImportError as exc:
     raise SystemExit(f"[FATAL] EveOS server dependency import failed: {exc}") from exc
 
@@ -76,7 +77,7 @@ def configure_modular_store(modular_root=None, persist_modular_root=False):
         sys.exit(1)
 
 
-class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+class CORSHTTPRequestHandler(EveOSHTTPHeadersMixin, http.server.SimpleHTTPRequestHandler):
     """Custom HTTP request handler with CORS support"""
     
     def __init__(self, *args, **kwargs):
@@ -84,36 +85,6 @@ class CORSHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         # lives under server/ to keep the repo root clean.
         directory = PROJECT_ROOT
         super().__init__(*args, directory=directory, **kwargs)
-    
-    def end_headers(self):
-        # Add CORS headers to all responses (Origin allow-listed; see eveos_cors_origin).
-        has_acao = any(b'access-control-allow-origin:' in h.lower() for h in self._headers_buffer)
-        if not has_acao:
-            _acao = eveos_cors_origin(self.headers.get("Origin"))
-            if _acao is not None:
-                self.send_header("Access-Control-Allow-Origin", _acao)
-        self.send_header("Vary", "Origin")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Requested-With")
-        self.send_header("Access-Control-Max-Age", "86400")  # 24 hours
-        self._send_cache_control()
-        super().end_headers()
-
-    def _send_cache_control(self):
-        """Keep APIs private and force localhost assets to revalidate before reuse.
-
-        Committed asset URLs carry generated content fingerprints for deterministic file://
-        loading. Local development can change a file before those fingerprints are rebuilt, so
-        localhost deliberately revalidates every static response instead of trusting a stale URL.
-        """
-        path = self.path or ""
-        if path.startswith("/api/"):
-            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
-        else:
-            # Content fingerprints make file:// loads deterministic. Localhost still
-            # revalidates every asset so an unsynchronized development edit cannot
-            # leave an existing browser tab pinned to yesterday's implementation.
-            self.send_header("Cache-Control", "no-cache")
     
     def do_OPTIONS(self):
         """Handle OPTIONS request method for CORS preflight requests"""
