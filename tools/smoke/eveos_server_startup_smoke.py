@@ -12,10 +12,16 @@ from pathlib import Path
 from urllib.error import URLError
 from urllib.request import urlopen
 
+from helpers.owned_process_fixture import (
+    WindowsOwnedProcessTree, cleanup_regressions, live_cleanup_regression,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 SERVER = ROOT / "server" / "eveos-server-launch.py"
 LEGACY_SERVER = ROOT / "server" / "python-server.py"
 ARTIFACT = ROOT / "data" / "runtime" / "smoke-results" / "eveos-server-startup.json"
+if "--cleanup-regression-only" in sys.argv[1:]:
+    ARTIFACT = ARTIFACT.with_name("eveos-server-cleanup-regression.json")
 DIAGNOSTICS = {"ok": False, "readinessBudgetSeconds": 12, "attempts": []}
 
 
@@ -78,22 +84,14 @@ def assert_not_lan_reachable(port: int) -> None:
             continue
 
 
-def stop_owned_process(process: subprocess.Popen) -> None:
-    if process.poll() is not None:
-        return
+def stop_owned_process(process: subprocess.Popen, owned_tree=None) -> None:
     if os.name == "nt":
-        # The venv launcher can proxy a second Python process. Stop only this
-        # still-live Popen root and its descendants, rather than a port owner.
-        result = subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
-            timeout=5, check=False,
-        )
-        DIAGNOSTICS["cleanup"] = {"rootPid": process.pid, "returnCode": result.returncode,
-                                  "output": (result.stdout or "")[-4000:]}
+        if owned_tree is None:
+            raise RuntimeError("Windows fixture cleanup requires its launch-time process identity")
+        owned_tree.stop(DIAGNOSTICS)
         process.wait(timeout=3)
-        if result.returncode != 0:
-            raise RuntimeError("Owned server process-tree cleanup failed; inspect startup diagnostics")
+        return
+    if process.poll() is not None:
         return
     process.terminate()
     try:
@@ -104,6 +102,13 @@ def stop_owned_process(process: subprocess.Popen) -> None:
 
 
 def main() -> int:
+    DIAGNOSTICS["cleanupRegressions"] = cleanup_regressions()
+    if "--cleanup-regression-only" in sys.argv[1:]:
+        if os.name == "nt":
+            DIAGNOSTICS["liveCleanupRegression"] = live_cleanup_regression()
+            DIAGNOSTICS["cleanupRegressions"].append("native-live-survivor-rejected")
+        DIAGNOSTICS["ok"] = True
+        return 0
     if not SERVER.is_file() or not LEGACY_SERVER.is_file():
         raise SystemExit("ASSERT FAILED: missing EveOS server launcher/legacy implementation")
 
@@ -128,6 +133,7 @@ def main() -> int:
             stdout=output, stderr=subprocess.STDOUT,
         )
         DIAGNOSTICS["rootPid"] = process.pid
+        owned_tree = WindowsOwnedProcessTree(process) if os.name == "nt" else None
         deadline = time.monotonic() + 12
         try:
             while time.monotonic() < deadline:
@@ -161,7 +167,7 @@ def main() -> int:
 
             raise SystemExit("ASSERT FAILED: EveOS server did not become ready within 12 seconds.")
         finally:
-            stop_owned_process(process)
+            stop_owned_process(process, owned_tree)
             DIAGNOSTICS["exitCode"] = process.returncode
             DIAGNOSTICS["elapsedMs"] = round((time.monotonic() - started) * 1000)
 
@@ -182,7 +188,10 @@ if __name__ == "__main__":
                       file=sys.stderr)
         raise SystemExit(1)
     else:
-        print(f"EVEOS_SERVER_STARTUP_SMOKE_OK (python={DIAGNOSTICS['launcherPython']}, bind=127.0.0.1)")
+        if "--cleanup-regression-only" in sys.argv[1:]:
+            print(f"EVEOS_SERVER_CLEANUP_REGRESSION_OK ({len(DIAGNOSTICS['cleanupRegressions'])} cases)")
+        else:
+            print(f"EVEOS_SERVER_STARTUP_SMOKE_OK (python={DIAGNOSTICS['launcherPython']}, bind=127.0.0.1)")
         raise SystemExit(result)
     finally:
         ARTIFACT.parent.mkdir(parents=True, exist_ok=True)
