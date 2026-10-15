@@ -28,6 +28,7 @@ window.EveDataStore = window.EveDataStore || {};
         rejectedRemoteSignature: '',
         applyingRemoteState: false,
         syncInFlight: false,
+        syncQueued: false,
         // Local-state hash memo. Bumping localStateEpoch (on mutation / remote
         // apply) invalidates the cached hash so idle 5s sync ticks don't
         // re-capture+stringify+hash the entire datapack when nothing changed.
@@ -48,7 +49,13 @@ window.EveDataStore = window.EveDataStore || {};
         getStore,
         now: () => Date.now(),
         ttlMs: HASH_CACHE_TTL_MS,
-        captureStructure: audioflix => window.EveAudioflixStateRecovery?.captureStructure?.(audioflix) || null
+        captureStructure: audioflix => window.EveAudioflixStateRecovery?.captureStructure?.(audioflix) || null,
+        hashPartsAsync: parts => {
+            if (typeof window.EveModularCaptureWorker?.hashParts === 'function') {
+                return window.EveModularCaptureWorker.hashParts(parts);
+            }
+            return Promise.resolve(window.EveModularCaptureCodec.hashParts(parts));
+        }
     });
 
     function getStore() {
@@ -132,22 +139,33 @@ window.EveDataStore = window.EveDataStore || {};
         return (Date.now() - state.lastRemoteCheckAt) >= constants.IDLE_REMOTE_CHECK_INTERVAL_MS;
     }
 
+    function publishCapture(captured) {
+        if (!captured?.json || !captured.hash) return null;
+        const { json, hash, capturedAt } = captured;
+        const epoch = state.localStateEpoch;
+        state.payloadCacheEpoch = epoch;
+        state.payloadCacheHash = hash;
+        state.payloadCacheJson = json;
+        state.payloadCacheAt = capturedAt;
+        state.hashCacheEpoch = epoch;
+        state.hashCacheValue = hash;
+        state.hashCacheAt = capturedAt;
+        return Object.freeze({ json, hash, epoch, capturedAt });
+    }
+
     function captureStatePayload(options = {}) {
         try {
             // The section cache owns the unchanged 60s full-audit deadline. An
             // incremental epoch must never extend it via the public memo below.
-            const captured = captureCache.capture(options);
-            if (!captured?.json || !captured.hash) return null;
-            const { json, hash, capturedAt } = captured;
-            const epoch = state.localStateEpoch;
-            state.payloadCacheEpoch = epoch;
-            state.payloadCacheHash = hash;
-            state.payloadCacheJson = json;
-            state.payloadCacheAt = capturedAt;
-            state.hashCacheEpoch = epoch;
-            state.hashCacheValue = hash;
-            state.hashCacheAt = capturedAt;
-            return Object.freeze({ json, hash, epoch, capturedAt });
+            return publishCapture(captureCache.capture(options));
+        } catch {
+            return null;
+        }
+    }
+
+    async function captureStatePayloadAsync(options = {}) {
+        try {
+            return publishCapture(await captureCache.captureAsync(options));
         } catch {
             return null;
         }
@@ -156,6 +174,10 @@ window.EveDataStore = window.EveDataStore || {};
     function captureStateHash() {
         // Hash and outgoing JSON always come from the same detached receipt.
         return captureStatePayload()?.hash || '';
+    }
+
+    async function captureStateHashAsync() {
+        return (await captureStatePayloadAsync())?.hash || '';
     }
 
     function refreshUiAfterRemoteApply() {
@@ -308,9 +330,12 @@ window.EveDataStore = window.EveDataStore || {};
         invalidateLocalStateHash,
         shouldRunIdleRemoteCheck,
         captureStatePayload,
+        captureStatePayloadAsync,
         captureStateHash,
+        captureStateHashAsync,
         offerConfigSnapshot: (signature, delta) => captureCache.offerConfigSnapshot(signature, delta),
         captureCacheStats: () => captureCache.stats(),
+        captureWorkerStats: () => window.EveModularCaptureWorker?.stats?.() || null,
         refreshUiAfterRemoteApply,
         requestJson,
         getRemoteStatus,
