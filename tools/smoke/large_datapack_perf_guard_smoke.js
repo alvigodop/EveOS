@@ -159,6 +159,10 @@ function runModularSyncHashGuard() {
     context.globalThis = context;
     context.self = context.window;
     const ctx = vm.createContext(context);
+    for (const module of ['codec', 'cache']) {
+        const file = `js/modules/features/modular-state-sync/modular-state-sync.capture.${module}.js`;
+        vm.runInContext(readModule(file), ctx, { filename: file });
+    }
     vm.runInContext(readModule('js/modules/features/modular-state-sync/modular-state-sync.shared.js'), ctx,
         { filename: 'modular-state-sync.shared.js' });
 

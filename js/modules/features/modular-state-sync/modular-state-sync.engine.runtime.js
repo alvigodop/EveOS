@@ -28,10 +28,10 @@ window.EveDataStore = window.EveDataStore || {};
         state.syncTimer = setInterval(ns.syncCycle, ns.getIntervalMs());
     }
 
-    function onStateMutation() {
+    function onStateMutation(event) {
         // Local state changed — invalidate the memoized hash so the next sync
         // recomputes. Done even when sync is disabled so the memo stays honest.
-        if (typeof ns.invalidateLocalStateHash === 'function') ns.invalidateLocalStateHash();
+        if (typeof ns.invalidateLocalStateHash === 'function') ns.invalidateLocalStateHash(event?.detail);
         if (!ns.isEnabled() || state.applyingRemoteState) return;
         if (state.mutationTimer) clearTimeout(state.mutationTimer);
         state.mutationTimer = setTimeout(() => {

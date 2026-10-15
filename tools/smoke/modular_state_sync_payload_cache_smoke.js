@@ -67,6 +67,10 @@ function makeHarness(seed = { nested: { value: 1 }, bookmarks: { links: [] } }) 
     };
     sandbox.fetch = async () => ({ ok: true, json: async () => ({ ok: true }) });
     vm.createContext(sandbox);
+    for (const module of ['codec', 'cache']) {
+        const file = path.join(path.dirname(SHARED), `modular-state-sync.capture.${module}.js`);
+        vm.runInContext(fs.readFileSync(file, 'utf8'), sandbox, { filename: file });
+    }
     vm.runInContext(sharedSource, sandbox, { filename: SHARED });
     vm.runInContext(syncSource, sandbox, { filename: SYNC });
 
@@ -300,7 +304,65 @@ function makeHarness(seed = { nested: { value: 1 }, bookmarks: { links: [] } }) 
     assert.strictEqual(c.live.nested.value, 21, 'remote-wins conflict still applies remote state');
     assert(!c.requests.some((entry) => entry.url.endsWith('/save')), 'remote-wins conflict does not introduce a push');
 
-    console.log('MODULAR_STATE_SYNC_PAYLOAD_CACHE_OK reuse=true payloadHash=true retry=true epoch=true ttl=true explicitFresh=true awaitedBoundary=true bootstrapRejectedMutation=true failedSaveRetry=true syncRejectedMutation=true conflict=true');
+    // Exercise the new trusted receipt through the existing awaited sync and
+    // failed-save paths, not only through the standalone cache's API.
+    const incrementalSeed = { metadata: {}, bookmarks: { links: [guardedLink], config: {} },
+        library: {}, knowledge: {}, audioflix: { music: [{ id: 'retained', volume: 1 }] }, audioflixStructure: null };
+    const incremental = makeHarness(incrementalSeed);
+    const incrementalBaseline = incremental.ns.captureStateHash();
+    incremental.ns.state.lastUploadedHash = incrementalBaseline;
+    incremental.ns.state.lastSyncedLocalHash = incrementalBaseline;
+    incremental.ns.state.remoteSignature = 'same-remote';
+    let changedDuringAwait = false;
+    incremental.ns.getRemoteStatus = async () => {
+        if (!changedDuringAwait) {
+            changedDuringAwait = true;
+            incremental.live.audioflix.music[0].volume = 0.25;
+            const receipt = incremental.ns.offerConfigSnapshot(JSON.stringify({ audioflix: incremental.live.audioflix }),
+                { complete: true, changedKeys: ['audioflix'] });
+            incremental.ns.invalidateLocalStateHash({ kind: 'config', captureReceipt: receipt });
+        }
+        return { signature: 'same-remote', fileCount: 1 };
+    };
+    const incrementalBodies = [];
+    incremental.ns.requestJson = async (url, options = {}) => {
+        assert(url.endsWith('/save'), 'Unchanged remote does not need a pull');
+        incrementalBodies.push(options.body);
+        return { ok: incrementalBodies.length > 1, payload: { ok: incrementalBodies.length > 1 } };
+    };
+    await incremental.ns.syncCycle();
+    assert.strictEqual(incremental.captures, 1, 'Receipt received during status await avoids full capture');
+    assert.strictEqual(incremental.ns.captureCacheStats().incrementalCount, 1);
+    assert.strictEqual(JSON.parse(incrementalBodies[0]).audioflix.music[0].volume, 0.25);
+    assert.strictEqual(incremental.ns.state.lastUploadedHash, incrementalBaseline, 'Failed receipt push never advances baseline');
+    assert(incremental.ns.isLocalDirty(incremental.ns.captureStateHash()), 'Failed receipt push stays dirty');
+    await incremental.ns.syncCycle();
+    assert.strictEqual(incrementalBodies[0], incrementalBodies[1], 'Retry uses exact detached incremental payload');
+    assert.strictEqual(incremental.ns.state.lastUploadedHash, incremental.ns.hashState(JSON.parse(incrementalBodies[1])));
+    assert.strictEqual(incremental.captures, 1, 'Incremental retry never recaptures the complete store');
+
+    // A rejected destructive remote can mutate the trusted local epoch while
+    // load is awaited; fallback still sends the latest receipt, not the old memo.
+    const rejectedIncremental = makeHarness(incrementalSeed);
+    rejectedIncremental.ns.getRemoteStatus = async () => ({ signature: 'empty-remote', fileCount: 1 });
+    let rejectedBody;
+    rejectedIncremental.ns.requestJson = async (url, options = {}) => {
+        if (url.endsWith('/load')) {
+            rejectedIncremental.live.audioflix.music[0].volume = 0.4;
+            const receipt = rejectedIncremental.ns.offerConfigSnapshot(JSON.stringify({ audioflix: rejectedIncremental.live.audioflix }),
+                { complete: true, changedKeys: ['audioflix'] });
+            rejectedIncremental.ns.invalidateLocalStateHash({ kind: 'config', captureReceipt: receipt });
+            return { ok: true, payload: { ok: true, state: emptyRemote } };
+        }
+        rejectedBody = options.body;
+        return { ok: true, payload: { ok: true } };
+    };
+    await rejectedIncremental.ns.bootstrap();
+    assert.strictEqual(JSON.parse(rejectedBody).audioflix.music[0].volume, 0.4);
+    assert.strictEqual(rejectedIncremental.ns.state.lastUploadedHash, rejectedIncremental.ns.hashState(JSON.parse(rejectedBody)));
+    assert.strictEqual(rejectedIncremental.captures, 1, 'Rejected remote fallback uses latest trusted sections');
+
+    console.log('MODULAR_STATE_SYNC_PAYLOAD_CACHE_OK reuse=true payloadHash=true retry=true epoch=true ttl=true explicitFresh=true awaitedBoundary=true bootstrapRejectedMutation=true failedSaveRetry=true syncRejectedMutation=true conflict=true incrementalAwait=true incrementalRetry=true incrementalRejectedRemote=true');
 })().catch((error) => {
     console.error(`MODULAR_STATE_SYNC_PAYLOAD_CACHE_FAIL ${error.stack || error.message}`);
     process.exitCode = 1;

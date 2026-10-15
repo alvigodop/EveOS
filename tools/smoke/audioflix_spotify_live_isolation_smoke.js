@@ -15,6 +15,8 @@ const modules = [
     'features/audioflix/audioflix.groups.tree.js', 'features/audioflix/audioflix.state.schema.js',
     'features/audioflix/audioflix.state.recovery.js', 'features/audioflix/audioflix.state.groups.js',
     'features/audioflix/audioflix.library.index.js', 'features/audioflix/audioflix.state.mutations.js', 'features/audioflix/audioflix.state.js', 'features/data-state/data-state.capture.clone.js',
+    'features/modular-state-sync/modular-state-sync.capture.codec.js',
+    'features/modular-state-sync/modular-state-sync.capture.cache.js',
     'features/modular-state-sync/modular-state-sync.shared.js',
     'features/modular-state-sync/modular-state-sync.engine.sync.js',
     'features/modular-state-sync/modular-state-sync.engine.runtime.js'
@@ -84,9 +86,17 @@ async function main() {
         await S.flush('audioflix-live-isolation-fixture');
         const mirror = JSON.parse(localStorage.getItem('eveAudioflixFallbackState'));
         const journal = S.ensure() && window.EveAudioflixStateRecovery.readStructure('eveAudioflixFallbackState');
-        // Exercise the actual TTL safety net responsible for leaks when saveConfig was overridden.
-        sync.state.hashCacheAt = 0;
-        await sync.syncCycle();
+        // Exercise the actual 60s full-audit deadline. The section cache now owns
+        // that deadline, so advance its real clock instead of mutating the legacy
+        // public hash memo.
+        const originalDateNow = Date.now;
+        const ttlAuditNow = originalDateNow() + 60001;
+        Date.now = () => ttlAuditNow;
+        try {
+            await sync.syncCycle();
+        } finally {
+            Date.now = originalDateNow;
+        }
         return {
             mirror: mirror.music.some((item) => item.id === track.id),
             journal: journal.musicRefs.some((item) => item.id === track.id),

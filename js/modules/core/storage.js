@@ -263,6 +263,9 @@ function _saveConfigImmediate(options = {}) {
     dispatchStateMutation(mutationSource, {
         kind: 'config',
         immediate: !!options.immediate,
+        // Immutable serialization, not capturedConfig/live aliases. Only a
+        // complete Audioflix-only delta can produce a reusable receipt.
+        captureReceipt: window.EveDataStore?._modularSync?.offerConfigSnapshot?.(signature, configDelta),
         meta: buildStateMutationMeta(options.meta, null, configDelta)
     });
     finishPerf?.({ dirty: true });

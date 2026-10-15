@@ -136,6 +136,9 @@ async function main() {
     });
     await run('sync-cache-owners-attested', async () => {
         const owners = ['js/config/manifest/scripts.parts/01-ui.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.capture.codec.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.capture.cache.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.engine.runtime.js',
             'js/modules/features/modular-state-sync/modular-state-sync.shared.js',
             'js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js'];
         for (const owner of owners) {

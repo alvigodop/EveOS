@@ -44,9 +44,12 @@ window.EveDataStore = window.EveDataStore || {};
     }, ns.state || {});
 
     const HASH_CACHE_TTL_MS = 60000;
-    // Volatile metadata keys are stripped from the content hash so timestamp
-    // churn doesn't produce spurious "dirty" signals.
-    const VOLATILE_HASH_KEYS = new Set(['date', 'generatedAt', 'lastUpdated']);
+    const captureCache = window.EveModularCaptureCache.create({
+        getStore,
+        now: () => Date.now(),
+        ttlMs: HASH_CACHE_TTL_MS,
+        captureStructure: audioflix => window.EveAudioflixStateRecovery?.captureStructure?.(audioflix) || null
+    });
 
     function getStore() {
         return window.EveDataStore?.Store || null;
@@ -108,16 +111,7 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function hashState(sourceState) {
-        if (!sourceState || typeof sourceState !== 'object') return '';
-        try {
-            // Single-pass stringify with a replacer that drops volatile metadata
-            // keys — no deep clone, no double-stringify (was 3 full passes).
-            return hashString(JSON.stringify(sourceState, function (key, value) {
-                return VOLATILE_HASH_KEYS.has(key) ? undefined : value;
-            }));
-        } catch {
-            return '';
-        }
+        return window.EveModularCaptureCodec.hashState(sourceState);
     }
 
     function clearLocalPayloadCache() {
@@ -127,8 +121,9 @@ window.EveDataStore = window.EveDataStore || {};
         state.payloadCacheAt = 0;
     }
 
-    function invalidateLocalStateHash() {
+    function invalidateLocalStateHash(detail) {
         state.localStateEpoch = (Number(state.localStateEpoch) || 0) + 1;
+        captureCache.invalidate(detail);
         clearLocalPayloadCache();
     }
 
@@ -138,31 +133,12 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function captureStatePayload(options = {}) {
-        const forceFresh = !!options?.forceFresh;
-        const now = Date.now();
-        if (!forceFresh
-            && state.payloadCacheEpoch === state.localStateEpoch
-            && state.payloadCacheHash
-            && typeof state.payloadCacheJson === 'string'
-            && state.payloadCacheJson
-            && (now - (Number(state.payloadCacheAt) || 0)) < HASH_CACHE_TTL_MS) {
-            return Object.freeze({
-                json: state.payloadCacheJson,
-                hash: state.payloadCacheHash,
-                epoch: state.payloadCacheEpoch,
-                capturedAt: state.payloadCacheAt
-            });
-        }
-
-        const store = getStore();
-        if (!store?.captureState) return null;
         try {
-            const capturedState = store.captureState();
-            const json = JSON.stringify(capturedState);
-            const hash = hashState(capturedState);
-            if (typeof json !== 'string' || !hash) return null;
-
-            const capturedAt = Date.now();
+            // The section cache owns the unchanged 60s full-audit deadline. An
+            // incremental epoch must never extend it via the public memo below.
+            const captured = captureCache.capture(options);
+            if (!captured?.json || !captured.hash) return null;
+            const { json, hash, capturedAt } = captured;
             const epoch = state.localStateEpoch;
             state.payloadCacheEpoch = epoch;
             state.payloadCacheHash = hash;
@@ -178,16 +154,7 @@ window.EveDataStore = window.EveDataStore || {};
     }
 
     function captureStateHash() {
-        // Memoized by localStateEpoch: idle sync ticks (no mutation since last
-        // capture) return the cached hash instantly instead of cloning +
-        // stringifying + hashing the whole datapack. TTL forces a periodic
-        // recompute as a safety net against any unbroadcast mutation. A fresh
-        // detached payload is retained with the same hash for an ensuing push.
-        if (state.hashCacheEpoch === state.localStateEpoch
-            && state.hashCacheValue
-            && (Date.now() - (Number(state.hashCacheAt) || 0)) < HASH_CACHE_TTL_MS) {
-            return state.hashCacheValue;
-        }
+        // Hash and outgoing JSON always come from the same detached receipt.
         return captureStatePayload()?.hash || '';
     }
 
@@ -342,6 +309,8 @@ window.EveDataStore = window.EveDataStore || {};
         shouldRunIdleRemoteCheck,
         captureStatePayload,
         captureStateHash,
+        offerConfigSnapshot: (signature, delta) => captureCache.offerConfigSnapshot(signature, delta),
+        captureCacheStats: () => captureCache.stats(),
         refreshUiAfterRemoteApply,
         requestJson,
         getRemoteStatus,
