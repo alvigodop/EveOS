@@ -309,7 +309,7 @@ window.EveDataStore = window.EveDataStore || {};
         shouldRunIdleRemoteCheck,
         captureStatePayload,
         captureStateHash,
-        offerConfigSnapshot: (signature, delta) => captureCache.offerConfigSnapshot(signature, delta),
+        offerConfigSnapshot: (signature, delta, detachedConfig) => captureCache.offerConfigSnapshot(signature, delta, detachedConfig),
         captureCacheStats: () => captureCache.stats(),
         refreshUiAfterRemoteApply,
         requestJson,

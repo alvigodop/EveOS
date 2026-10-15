@@ -51,7 +51,7 @@
             epoch += 1;
         }
 
-        function offerConfigSnapshot(signature, configDelta) {
+        function offerConfigSnapshot(signature, configDelta, detachedConfig = null) {
             if (typeof signature !== 'string' || !signature
                 || configDelta?.complete !== true
                 || !Array.isArray(configDelta.changedKeys)
@@ -59,10 +59,19 @@
             for (let index = 0; index < configDelta.changedKeys.length; index += 1) {
                 if (configDelta.changedKeys[index] !== 'audioflix') return null;
             }
-            // Strings and copied scalar metadata are the entire receipt. No live config or
-            // delta references survive, and parsing stays outside the mutation event path.
+            // The optional Audioflix snapshot must already be detached and JSON-normalized
+            // by the persistence boundary. Never retain the live config or delta objects.
+            const hasDetachedAudioflix = !!detachedConfig
+                && typeof detachedConfig === 'object'
+                && Object.prototype.hasOwnProperty.call(detachedConfig, 'audioflix');
             const token = Object.freeze({});
-            receipts.set(token, Object.freeze({ signature, epoch, sequence: ++sequence }));
+            receipts.set(token, Object.freeze({
+                signature,
+                detachedAudioflix: hasDetachedAudioflix ? detachedConfig.audioflix : undefined,
+                hasDetachedAudioflix,
+                epoch,
+                sequence: ++sequence
+            }));
             return token;
         }
 
@@ -155,16 +164,36 @@
             const started = elapsedClock();
             try {
                 const helper = codec();
-                const configParts = checkedParts(helper.splitObject(pendingReceipt.signature));
-                const audioflixJson = configParts.has('audioflix') ? configParts.get('audioflix') : 'null';
-                const detachedAudioflix = JSON.parse(audioflixJson);
+                let detachedAudioflix;
+                let audioflixJson;
+
+                if (pendingReceipt.hasDetachedAudioflix) {
+                    detachedAudioflix = pendingReceipt.detachedAudioflix ?? null;
+                    audioflixJson = JSON.stringify(detachedAudioflix);
+                    if (typeof audioflixJson !== 'string') {
+                        throw new Error('Invalid detached Audioflix snapshot');
+                    }
+                } else {
+                    const configParts = checkedParts(helper.splitObject(pendingReceipt.signature));
+                    audioflixJson = configParts.has('audioflix') ? configParts.get('audioflix') : 'null';
+                    detachedAudioflix = JSON.parse(audioflixJson);
+                }
+
                 const structure = detachedAudioflix ? captureStructure(detachedAudioflix) : null;
                 const structureJson = JSON.stringify(structure || null);
                 const parts = new Map(sections);
                 parts.set('audioflix', audioflixJson);
                 parts.set('audioflixStructure', structureJson);
                 const json = assemble(parts);
-                const hash = helper.hashParts(parts);
+
+                let digestOverrides = null;
+                if (pendingReceipt.hasDetachedAudioflix && typeof helper.hashValue === 'function') {
+                    digestOverrides = new Map([
+                        ['audioflix', helper.hashValue(detachedAudioflix)]
+                    ]);
+                }
+
+                const hash = helper.hashParts(parts, digestOverrides);
                 const at = timestamp();
                 // Expensive structure construction must not let an audit deadline pass.
                 if (!fresh(at)) {

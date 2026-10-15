@@ -38,7 +38,8 @@ function harness(options = {}) {
         captureStructure(audio) { structures++; return structure(audio); } });
     function offer(nextAudio, configDelta = delta()) {
         live.audioflix = clone(nextAudio);
-        return cache.offerConfigSnapshot(JSON.stringify({ theme: 'dark', audioflix: live.audioflix }), configDelta);
+        const detachedConfig = clone({ theme: 'dark', audioflix: live.audioflix });
+        return cache.offerConfigSnapshot(JSON.stringify(detachedConfig), configDelta, detachedConfig);
     }
     return { cache, store, fresh, offer, get live() { return live; },
         get captures() { return captures; }, get structures() { return structures; },

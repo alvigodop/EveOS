@@ -296,7 +296,13 @@
         return hash ? hash.finish() : '';
     }
 
-    function hashParts(parts) {
+    function hashValue(value) {
+        const hash = new TokenHash();
+        hashParsedValue(value, hash);
+        return hash.finish();
+    }
+
+    function hashParts(parts, digestOverrides = null) {
         if (!(parts instanceof Map)) throw new TypeError('Snapshot parts must be a Map');
         const keys = Array.from(parts.keys());
         if (keys.some(key => typeof key !== 'string')) throw new TypeError('Snapshot keys must be strings');
@@ -307,8 +313,13 @@
         for (const key of keys) {
             const json = parts.get(key);
             const include = !VOLATILE_KEYS.has(key);
+            const overrideDigest = include && digestOverrides && typeof digestOverrides.get === 'function'
+                ? digestOverrides.get(key) : null;
             let cached = sectionCache.get(key);
-            if (!cached || cached.json !== json) {
+            if (typeof overrideDigest === 'string'
+                && /^sections-v1:[0-9a-f]{16}$/.test(overrideDigest)) {
+                cached = { json, digest: overrideDigest };
+            } else if (!cached || cached.json !== json) {
                 cached = { json, digest: hashSection(json, include) };
             }
             nextCache.set(key, cached);
@@ -331,5 +342,5 @@
         }
     }
 
-    window.EveModularCaptureCodec = Object.freeze({ splitObject, hashParts, hashState });
+    window.EveModularCaptureCodec = Object.freeze({ splitObject, hashParts, hashState, hashValue });
 })();
