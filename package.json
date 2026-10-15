@@ -160,7 +160,7 @@
     "smoke:unidex-smart-integrity": "node tools/smoke/smart_extract_card_per_file_smoke.js && node tools/smoke/smart_ghost_folder_calibration.js && node tools/smoke/smart_view_builder_modal_browser_smoke.js && node tools/smoke/unidex_datapack_summary_smoke.js && node tools/smoke/unidex_filtered_hybrid_scope_smoke.js && node tools/smoke/unidex_identifier_folder_reveal_smoke.js && node tools/smoke/unidex_reload_unified_entries_browser_smoke.js && node tools/smoke/unidex_unified_5k_progressive_browser_smoke.js && node tools/smoke/unidex_unified_masonry_browser_smoke.js && node tools/smoke/unidex_unified_subtabs_browser_smoke.js",
     "smoke:data-graph-integrity": "npm run --silent smoke:constellation-integrity && npm run --silent smoke:datapack-nebula-integrity && npm run --silent smoke:unidex-smart-integrity",
     "smoke:smoke-registry-contract": "node tools/smoke/smoke_registry_duplicate_scripts_smoke.js",
-    "smoke:modular-state-sync": "node tools/smoke/modular_state_sync_payload_cache_smoke.js && node tools/smoke/modular_state_sync_sections_cache_smoke.js",
+    "smoke:modular-state-sync": "node tools/smoke/modular_state_sync_payload_cache_smoke.js && node tools/smoke/modular_state_sync_sections_cache_smoke.js && node tools/smoke/modular_state_sync_worker_smoke.mjs",
     "smoke:core-storage": "node tools/smoke/core_config_retry_smoke.js && node tools/smoke/core_storage_backend_smoke.js && npm run --silent smoke:modular-state-sync",
     "smoke:browser-emulator-security": "node tools/smoke/browser_emulator_iframe_security_browser_smoke.js",
     "smoke:knowledge-cache": "node tools/smoke/wiki_fandom_cache_richness_smoke.js",
