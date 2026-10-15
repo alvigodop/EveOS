@@ -26,6 +26,17 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
         let addMarkup = '', drawerState = {};
         const renderModalHost = () => ctx.modal();
         const renderLibrary = (items, type) => { addMarkup = renderAddSection(type); return `<div class="audioflix-add-host" style="display:contents">${addMarkup}</div><div class="audioflix-library-host" style="display:contents">${renderItems(items, type)}</div>`; };
+        const syncAddHost = (host, html) => {
+            const template = document.createElement('template'); template.innerHTML = html;
+            const nextRow = [...template.content.children].find(node => node.classList?.contains('audioflix-add-section-row'));
+            const currentRow = [...host.children].find(node => node.classList?.contains('audioflix-add-section-row'));
+            if (!nextRow || !currentRow) { host.innerHTML = html; return; }
+            ns.syncButtons(currentRow, nextRow.innerHTML);
+            for (const attribute of [...currentRow.attributes]) if (!nextRow.hasAttribute(attribute.name)) currentRow.removeAttribute(attribute.name);
+            for (const attribute of [...nextRow.attributes]) if (currentRow.getAttribute(attribute.name) !== attribute.value) currentRow.setAttribute(attribute.name, attribute.value);
+            for (const child of [...host.children]) if (child !== currentRow) child.remove();
+            for (const child of [...template.content.children]) if (child !== nextRow) host.appendChild(child);
+        };
         const focusIdentity = element => element ? ['afAction', 'afId', 'afType', 'afScope', 'afGroup', 'afDimension']
             .reduce((out, key) => { if (element.dataset[key] !== undefined) out[key] = element.dataset[key]; return out; }, {}) : null;
         const restoreFocus = (root, identity) => {
@@ -77,7 +88,7 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
             const items = type === 'music' ? (snapshot.music || []) : [...(snapshot.soundboard || []), ...(ctx.view().portedSounds || [])];
             const projection = measured('ui:panel:library:markup', () => ({ add: renderAddSection(type), items: renderItems(items, type) }));
             measured('ui:panel:library:mount', () => {
-                if (addMarkup !== projection.add) { addHost.innerHTML = projection.add; addMarkup = projection.add; }
+                if (addMarkup !== projection.add) { syncAddHost(addHost, projection.add); addMarkup = projection.add; }
                 host.innerHTML = projection.items;
             });
             measured('ui:panel:library:restore', () => {

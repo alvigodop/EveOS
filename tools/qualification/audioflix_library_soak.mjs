@@ -148,8 +148,30 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         await page.waitForFunction(() => { const now = performance.now(), gen = window.EveAudioflixDiagnostics.snapshot().counters['ui:render-generations'] || 0;
             const q = window.__soakRenderQuiet ||= { gen, at: now }; if (q.gen !== gen) Object.assign(q, { gen, at: now });
             return now - q.at >= 2000; }, undefined, { timeout: 60000, polling: 250 });
+        await page.evaluate(() => {
+            window.__soakViewModeToggle = document.querySelector(
+                '[data-af-action="toggle-view-mode"][data-af-type="music"]'
+            );
+        });
         await record('view-mode-frontend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click());
         await page.waitForFunction(() => window.EveAudioflixState.ensure().musicViewMode === 'frontend');
+        const frontendToggleFocus = await page.evaluate(() => {
+            const original = window.__soakViewModeToggle;
+            const current = document.querySelector(
+                '[data-af-action="toggle-view-mode"][data-af-type="music"]'
+            );
+            return {
+                sameNode: original === current,
+                connected: original?.isConnected === true,
+                focused: document.activeElement === current
+            };
+        });
+        assert.equal(frontendToggleFocus.sameNode, true,
+            'Frontend view-mode rerender must retain the trusted toggle node');
+        assert.equal(frontendToggleFocus.connected, true,
+            'Frontend view-mode toggle must remain connected during library projection');
+        assert.equal(frontendToggleFocus.focused, true,
+            'Frontend view-mode rerender must preserve trusted toggle focus');
         // The saved real backup has a folder focus. Clear it through its actual UI control so
         // the soak uses canonical All Folders/All Groups, rather than manufacturing a queue.
         await record('folder-scope-pointer', () => page.locator('[data-af-action="select-folder-scope"][data-af-scope=""]').click());
