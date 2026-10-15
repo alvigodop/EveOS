@@ -288,7 +288,7 @@ async function failureEvidence(page) {
 }
 async function bounded(work, ms, label) {
     let timer;
-    try { return await Promise.race([work(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms; test-owned browser only`)), ms); })]);
+    try { return await Promise.race([work(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms; test-owned browser only`)), ms); })]); }
     finally { clearTimeout(timer); }
 }
 
