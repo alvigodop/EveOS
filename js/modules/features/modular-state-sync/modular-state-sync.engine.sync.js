@@ -77,11 +77,22 @@ window.EveDataStore = window.EveDataStore || {};
         return missingCount >= 10 && shrinkRatio < 0.5;
     }
 
+    async function captureLocalPayload(options = {}) {
+        if (typeof ns.captureStatePayloadAsync === 'function') {
+            return ns.captureStatePayloadAsync(options);
+        }
+        return ns.captureStatePayload?.(options) || null;
+    }
+
+    async function captureLocalHash(options = {}) {
+        return (await captureLocalPayload(options))?.hash || '';
+    }
+
     async function pushLocalState(force = false, knownHash = '', options = {}) {
         const ignoreEnabled = !!options?.ignoreEnabled;
         if (!ns.isHttpContext() || (!ignoreEnabled && !ns.isEnabled())) return false;
 
-        const snapshot = ns.captureStatePayload?.({ forceFresh: !knownHash });
+        const snapshot = await captureLocalPayload({ forceFresh: !knownHash });
         if (!snapshot?.hash || typeof snapshot.json !== 'string') return false;
         if (knownHash && snapshot.hash !== knownHash) return false;
 
@@ -147,7 +158,7 @@ window.EveDataStore = window.EveDataStore || {};
             return false;
         }
 
-        const localHash = ns.captureStateHash();
+        const localHash = await captureLocalHash();
         const incomingHash = ns.hashState(incomingState);
         if (!force && localHash && incomingHash === localHash) {
             state.remoteSignature = payload?.status?.signature || knownSignature || state.remoteSignature;
@@ -164,7 +175,7 @@ window.EveDataStore = window.EveDataStore || {};
             // Remote state was applied locally — invalidate the hash memo so the
             // post-apply capture reflects the new state instead of a stale cache.
             if (typeof ns.invalidateLocalStateHash === 'function') ns.invalidateLocalStateHash();
-            const appliedHash = ns.captureStateHash() || incomingHash;
+            const appliedHash = await captureLocalHash() || incomingHash;
             ns.refreshUiAfterRemoteApply();
             state.remoteSignature = payload?.status?.signature || knownSignature || state.remoteSignature;
             state.lastUploadedHash = appliedHash;
@@ -175,11 +186,24 @@ window.EveDataStore = window.EveDataStore || {};
         }
     }
 
+    function queueFollowupSync() {
+        if (!state.syncQueued) return;
+        state.syncQueued = false;
+        if (state.applyingRemoteState || !ns.isHttpContext() || !ns.isEnabled()) return;
+        setTimeout(() => { void ns.syncCycle(); }, 0);
+    }
+
     async function syncCycle() {
-        if (state.syncInFlight || state.applyingRemoteState) return;
+        if (state.applyingRemoteState) return;
+        if (state.syncInFlight) {
+            // A mutation/interval arriving while worker capture or transport is
+            // awaited must not disappear. One coalesced follow-up is enough.
+            state.syncQueued = true;
+            return;
+        }
         state.syncInFlight = true;
         try {
-            let localHash = ns.captureStateHash();
+            let localHash = await captureLocalHash();
             let localDirty = ns.isLocalDirty(localHash);
             let hasBaseline = !!(state.lastUploadedHash || state.lastSyncedLocalHash);
             const shouldCheckRemote = localDirty || !state.remoteSignature || ns.shouldRunIdleRemoteCheck();
@@ -191,7 +215,7 @@ window.EveDataStore = window.EveDataStore || {};
                 // Remote status is an awaited boundary. Refresh local identity
                 // before making a push/pull decision so a mutation that occurred
                 // while awaiting cannot pair an older hash with newer payload.
-                localHash = ns.captureStateHash();
+                localHash = await captureLocalHash();
                 localDirty = ns.isLocalDirty(localHash);
                 hasBaseline = !!(state.lastUploadedHash || state.lastSyncedLocalHash);
 
@@ -199,7 +223,7 @@ window.EveDataStore = window.EveDataStore || {};
                     const rejectedAt = state.lastRejectedRemoteAt || 0;
                     const pulled = await pullRemoteState(true, remoteStatus.signature);
                     if (!pulled && state.lastRejectedRemoteAt && state.lastRejectedRemoteAt !== rejectedAt) {
-                        const fallbackHash = ns.captureStateHash();
+                        const fallbackHash = await captureLocalHash();
                         if (fallbackHash) await pushLocalState(true, fallbackHash);
                     }
                     return;
@@ -212,7 +236,7 @@ window.EveDataStore = window.EveDataStore || {};
                         const rejectedAt = state.lastRejectedRemoteAt || 0;
                         const pulled = await pullRemoteState(true, remoteStatus.signature);
                         if (!pulled && state.lastRejectedRemoteAt && state.lastRejectedRemoteAt !== rejectedAt) {
-                            const fallbackHash = ns.captureStateHash();
+                            const fallbackHash = await captureLocalHash();
                             if (fallbackHash) await pushLocalState(true, fallbackHash);
                         }
                     }
@@ -236,6 +260,7 @@ window.EveDataStore = window.EveDataStore || {};
             console.warn('[ModularStateSync] Sync cycle failed:', error);
         } finally {
             state.syncInFlight = false;
+            queueFollowupSync();
         }
     }
 
@@ -250,7 +275,7 @@ window.EveDataStore = window.EveDataStore || {};
             const rejectedAt = state.lastRejectedRemoteAt || 0;
             const pulled = await pullRemoteState(true, remoteStatus.signature);
             if (!pulled && state.lastRejectedRemoteAt && state.lastRejectedRemoteAt !== rejectedAt) {
-                const fallbackHash = ns.captureStateHash();
+                const fallbackHash = await captureLocalHash();
                 if (fallbackHash) await pushLocalState(true, fallbackHash);
             }
             return;
