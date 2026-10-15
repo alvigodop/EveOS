@@ -10,6 +10,7 @@ export const CRITICAL_SOURCE_FILES = ['EveOS.html', 'js/config/manifest/scripts.
     'js/config/manifest/scripts.parts/03-feature-modules.js',
     'js/modules/features/modular-state-sync/modular-state-sync.shared.js',
     'js/modules/features/modular-state-sync/modular-state-sync.capture.codec.js',
+    'js/modules/features/modular-state-sync/modular-state-sync.capture.worker.js',
     'js/modules/features/modular-state-sync/modular-state-sync.capture.cache.js',
     'js/modules/features/modular-state-sync/modular-state-sync.engine.runtime.js',
     'js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js',
