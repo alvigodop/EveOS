@@ -326,9 +326,9 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             const header = page.locator('.audioflix-group-title').first();
             expandedGroupSize = Number((await header.locator('.audioflix-group-count').textContent()).match(/\d+/)?.[0] || 0);
             for (let i = 0; i < Math.max(1, iterations / 25); i++) {
-                await record('group-expand-pointer', () => header.click());
+                await header.click({ trial: true }); const expandBox = await header.boundingBox(); assert.ok(expandBox?.width > 0 && expandBox?.height > 0); await record('group-expand-pointer', () => page.mouse.click(expandBox.x + expandBox.width / 2, expandBox.y + expandBox.height / 2));
                 assert.ok(await page.locator('.audioflix-item-card').count() <= 400);
-                await record('group-collapse-pointer', () => header.click());
+                await header.click({ trial: true }); const collapseBox = await header.boundingBox(); assert.ok(collapseBox?.width > 0 && collapseBox?.height > 0); await record('group-collapse-pointer', () => page.mouse.click(collapseBox.x + collapseBox.width / 2, collapseBox.y + collapseBox.height / 2));
                 assert.equal(await page.locator('.audioflix-item-card').count(), 0); counts.expansionPairs += 1;
             }
             await record('view-mode-frontend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click());
