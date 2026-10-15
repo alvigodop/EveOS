@@ -63,7 +63,7 @@ window.EveModuleManifestScriptChunks.push([
     "js/modules/features/duplicate-sensor.merge.helpers.js?v=66fb420ba718",
     "js/modules/features/duplicate-sensor.merge.js?v=987a21418a11",
     "js/modules/features/duplicate-sensor.js?v=2909d4d41b00",
-    "js/modules/features/modular-state-sync/modular-state-sync.capture.codec.js?v=065bb5ba73df",
+    "js/modules/features/modular-state-sync/modular-state-sync.capture.codec.js?v=cafbb91999e5",
     "js/modules/features/modular-state-sync/modular-state-sync.capture.cache.js?v=d77d996d29ab",
     "js/modules/features/modular-state-sync/modular-state-sync.shared.js?v=296a67c27938",
     "js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js?v=ad41fca87828",

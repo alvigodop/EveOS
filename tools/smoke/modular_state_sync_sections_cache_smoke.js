@@ -18,6 +18,19 @@ function freshCodec() {
     return sandbox.window.EveModularCaptureCodec;
 }
 
+function countedCodec() {
+    const sandbox = { window: {}, tokenAdds: 0 };
+    vm.createContext(sandbox);
+    const file = path.join(MODULES, 'modular-state-sync.capture.codec.js');
+    const source = fs.readFileSync(file, 'utf8').replace('add(code) {', 'add(code) { globalThis.tokenAdds += 1;');
+    vm.runInContext(source, sandbox, { filename: file });
+    const api = sandbox.window.EveModularCaptureCodec;
+    return { measure(method, value) {
+        const start = sandbox.tokenAdds, hash = api[method](value);
+        return { hash, adds: sandbox.tokenAdds - start };
+    } };
+}
+
 function structure(audio) {
     if (!audio) return null;
     return { schema: 1, music: (audio.music || []).map(item => ({ id: item.id, folder: item.folder })),
@@ -105,6 +118,41 @@ const tests = [
         parts.set('audioflix', '{"music":');
         assert.throws(() => candidate.hashParts(parts, overrides), 'An override cannot bypass JSON validation');
         assert.equal(candidate.hashState(source), expected, 'Rejected malformed sections cannot poison memoized identity');
+    }],
+    ['codec-private-array-prefix-memo', () => {
+        const candidate = countedCodec();
+        const music = Array.from({ length: 256 }, (_, id) => ({ id, title: `Track ${id}`, folder: 'Keep' }));
+        const source = { audioflix: { prefix: 'A', music, musicViewMode: 'backend' } };
+        const check = () => {
+            const measured = candidate.measure('hashState', source);
+            const oracle = freshCodec();
+            assert.equal(measured.hash, oracle.hashState(source), 'Fresh independent codec must agree with memoized tokens');
+            const fullWalker = oracle.hashValue({ audioflix: oracle.hashValue(source.audioflix) });
+            assert.equal(measured.hash, fullWalker, 'Unmemoized public walkers must compose the unchanged sections-v1 token stream');
+            return measured;
+        };
+        const cold = check();
+        assert.ok(cold.adds > 5000, 'Cold array must emit its row tokens');
+        source.audioflix.musicViewMode = 'frontend';
+        const suffix = check();
+        assert.ok(suffix.adds < 300, 'A suffix-only view mutation must skip the unchanged large array tokens');
+        source.audioflix.music[0].title = 'Meaningful row edit';
+        const rowEdit = check();
+        assert.ok(rowEdit.adds > cold.adds * 0.8, 'Changed array bytes must emit row tokens again');
+        assert.notEqual(rowEdit.hash, suffix.hash);
+        source.audioflix.prefix = 'B';
+        const prefix = check();
+        assert.ok(prefix.adds > cold.adds * 0.8, 'Changed starting hash state must prevent prefix reuse');
+        const publicFirst = candidate.measure('hashValue', source.audioflix);
+        assert.ok(publicFirst.adds > cold.adds * 0.8, 'Public hashValue must walk caller-owned arrays');
+        source.audioflix.music[0].title = 'Caller alias changed again';
+        const publicEdited = candidate.measure('hashValue', source.audioflix);
+        assert.notEqual(publicEdited.hash, publicFirst.hash);
+        const bounded = countedCodec(), oldest = { s0: { music, viewMode: 'a' } };
+        const first = bounded.measure('hashState', oldest);
+        for (let index = 1; index <= 16; index += 1) bounded.measure('hashState', { [`s${index}`]: { music } });
+        oldest.s0.viewMode = 'b';
+        assert.ok(bounded.measure('hashState', oldest).adds > first.adds * 0.8, 'Sixteen newer fields must evict the oldest array prefix');
     }],
     ['deep-snapshot-hash-and-ttl-mutation', () => {
         const h = harness(), leaf = { meaningful: 'before', date: 'volatile' };
