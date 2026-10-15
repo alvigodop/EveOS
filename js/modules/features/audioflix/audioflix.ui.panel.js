@@ -117,8 +117,43 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
             // Drawer-only changes must not rebuild Nexus/facets/duplicate analysis. Only refresh the
             // add host when its Nexus panel actually needs to appear or disappear.
             if (needsNexusPanel !== hasNexusPanel) {
-                const html = renderAddSection(type);
-                if (addMarkup !== html) { host.innerHTML = html; addMarkup = html; }
+                const nexusUi = ctx.playback?.().nexusUi;
+                const toggle = host.querySelector(
+                    `[data-af-action="toggle-nexus"][data-af-type="${type}"]`
+                );
+
+                if (!needsNexusPanel) {
+                    // Closing Nexus only removes its own bounded panel. Replacing the full add-host
+                    // destroys unrelated toolbar controls and can delay the following compositor frame.
+                    host.querySelector('.audioflix-nexus-panel')?.remove();
+                    toggle?.classList.remove('is-active');
+
+                    // The mounted DOM was changed surgically. Invalidate the full-markup equality
+                    // shortcut so a later structural refresh can rebuild the canonical host markup.
+                    addMarkup = '';
+                } else if (typeof nexusUi?.renderPanel === 'function') {
+                    const row = host.querySelector('.audioflix-add-section-row');
+                    const html = nexusUi.renderPanel(type);
+
+                    if (row && html) {
+                        // renderAddSection places Nexus directly after the toolbar row.
+                        row.insertAdjacentHTML('afterend', html);
+                        toggle?.classList.add('is-active');
+                        addMarkup = '';
+                    } else {
+                        const full = renderAddSection(type);
+                        if (addMarkup !== full) {
+                            host.innerHTML = full;
+                            addMarkup = full;
+                        }
+                    }
+                } else {
+                    const full = renderAddSection(type);
+                    if (addMarkup !== full) {
+                        host.innerHTML = full;
+                        addMarkup = full;
+                    }
+                }
             }
             const snapshot = state(), view = ctx.view(), changes = [];
             if (drawerState.settingsOpen !== view.settingsOpen || drawerState.combo !== (snapshot.hotkeyBypassCombo || '')) changes.push(['.audioflix-settings-drawer', renderSettings(snapshot)]);
