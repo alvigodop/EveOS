@@ -322,6 +322,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             await searchNode.dispose();
             await record('nexus-close-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
             await record('view-mode-backend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click());
+            await quiesce('soak-view-mode-backend-ready');
             const header = page.locator('.audioflix-group-title').first();
             expandedGroupSize = Number((await header.locator('.audioflix-group-count').textContent()).match(/\d+/)?.[0] || 0);
             for (let i = 0; i < Math.max(1, iterations / 25); i++) {
