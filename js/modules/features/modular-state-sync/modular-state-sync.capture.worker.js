@@ -9,6 +9,7 @@
             string: 65540, stringEnd: 65541, number: 65542, numberEnd: 65543,
             true: 65544, false: 65545, null: 65546
         });
+        const decoder = typeof TextDecoder === 'function' ? new TextDecoder() : null;
         let sectionCache = new Map();
 
         class TokenHash {
@@ -86,9 +87,19 @@
             return include ? hashValue(value) : '';
         }
 
+        function decodeSection(value) {
+            if (typeof value === 'string') return value;
+            if (!decoder) throw new TypeError('TextDecoder unavailable in modular capture worker');
+            if (value instanceof ArrayBuffer) return decoder.decode(new Uint8Array(value));
+            if (ArrayBuffer.isView(value)) {
+                return decoder.decode(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+            }
+            throw new TypeError('Snapshot section must be JSON text or owned bytes');
+        }
+
         function hashEntries(entries) {
             if (!Array.isArray(entries)) throw new TypeError('Snapshot parts must be entries');
-            const parts = new Map(entries);
+            const parts = new Map(entries.map(([key, value]) => [key, decodeSection(value)]));
             if (parts.size !== entries.length) throw new TypeError('Snapshot keys must be unique');
             const keys = Array.from(parts.keys());
             if (keys.some((key) => typeof key !== 'string')) throw new TypeError('Snapshot keys must be strings');
@@ -98,7 +109,6 @@
             hash.add(TAG.object);
             for (const key of keys) {
                 const json = parts.get(key);
-                if (typeof json !== 'string') throw new TypeError('Snapshot section must be JSON text');
                 const include = !VOLATILE_KEYS.has(key);
                 let cached = sectionCache.get(key);
                 if (!cached || cached.json !== json) cached = { json, digest: hashSection(json, include) };
@@ -131,6 +141,8 @@
         const WorkerCtor = Object.prototype.hasOwnProperty.call(options, 'WorkerCtor') ? options.WorkerCtor : window.Worker;
         const BlobCtor = Object.prototype.hasOwnProperty.call(options, 'BlobCtor') ? options.BlobCtor : window.Blob;
         const URLApi = Object.prototype.hasOwnProperty.call(options, 'URLApi') ? options.URLApi : window.URL;
+        const TextEncoderCtor = Object.prototype.hasOwnProperty.call(options, 'TextEncoderCtor')
+            ? options.TextEncoderCtor : window.TextEncoder;
         const timeoutMs = Math.max(1000, Number(options.timeoutMs) || 30000);
         const setTimer = options.setTimer || (typeof window.setTimeout === 'function'
             ? window.setTimeout.bind(window) : (typeof globalThis.setTimeout === 'function' ? globalThis.setTimeout.bind(globalThis) : null));
@@ -141,7 +153,15 @@
         let workerUrl = '';
         let nextId = 0;
         const pending = new Map();
-        const counters = { jobs: 0, completed: 0, failures: 0, restarts: 0, fallbacks: 0 };
+        const counters = {
+            jobs: 0,
+            completed: 0,
+            failures: 0,
+            restarts: 0,
+            fallbacks: 0,
+            transferredBytes: 0,
+            stringCloneJobs: 0
+        };
         let mode = 'uninitialized';
 
         function releaseWorkerUrl() {
@@ -226,6 +246,22 @@
             return Promise.resolve().then(() => codec.hashParts(parts));
         }
 
+        function wirePayload(entries) {
+            if (typeof TextEncoderCtor !== 'function') {
+                counters.stringCloneJobs += 1;
+                return { entries, transfers: [] };
+            }
+            const encoder = new TextEncoderCtor();
+            const transfers = [];
+            const ownedEntries = entries.map(([key, json]) => {
+                const bytes = encoder.encode(json);
+                transfers.push(bytes.buffer);
+                counters.transferredBytes += bytes.byteLength;
+                return [key, bytes.buffer];
+            });
+            return { entries: ownedEntries, transfers };
+        }
+
         function hashParts(parts) {
             if (!(parts instanceof Map)) return Promise.reject(new TypeError('Snapshot parts must be a Map'));
             const entries = Array.from(parts.entries());
@@ -235,6 +271,9 @@
             counters.jobs += 1;
             const active = ensureWorker();
             if (!active) return inlineHash(new Map(entries));
+            let wire;
+            try { wire = wirePayload(entries); }
+            catch (error) { return Promise.reject(error); }
             const id = ++nextId;
             return new Promise((resolve, reject) => {
                 const timer = setTimer ? setTimer(() => {
@@ -248,7 +287,7 @@
                     mode = 'restart-pending';
                 }, timeoutMs) : null;
                 pending.set(id, { resolve, reject, timer });
-                try { active.postMessage({ type: 'hash-parts', id, entries }); }
+                try { active.postMessage({ type: 'hash-parts', id, entries: wire.entries }, wire.transfers); }
                 catch (error) {
                     pending.delete(id);
                     if (clearTimer) clearTimer(timer);
