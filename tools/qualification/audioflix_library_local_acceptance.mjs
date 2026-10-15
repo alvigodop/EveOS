@@ -135,10 +135,33 @@ async function boot(url, payload, scale = false) {
         const groups = [...new Set(st.music.map(item => String(item.folder || item.card || '').trim() || 'Ungrouped'))];
         Object.assign(window.__libraryRenderCtx.getCollapsedGroups(), Object.fromEntries(groups.map(group => [group, true])));
         const audio = window.EveAudioflixAudio, fake = window.__librarySyntheticAudio = { item: null, paused: true, volume: 1 };
-        audio.playItem = async item => { Object.assign(fake, { item, paused: false, volume: item.volume ?? 1 }); return true; };
-        audio.stopItemLayers = async id => { if (String(fake.item?.id) === String(id)) fake.paused = true; return true; };
-        audio.stopAll = async () => { fake.paused = true; return true; };
-        audio.getPlaybackState = () => ({ ...fake, duration: 120, currentTime: 12, browserOnly: false });
+        const emitSyntheticPlayback = (status, item, paused) => {
+            const detail = { status, item, synthetic: true };
+            window.dispatchEvent(new CustomEvent('eve:audioflix-playback', { detail }));
+            window.dispatchEvent(new CustomEvent('eve:audioflix-progress', { detail: {
+                item, currentTime: paused ? 0 : 12, duration: paused ? 0 : 120, paused, synthetic: true
+            } }));
+        };
+        audio.playItem = async item => {
+            Object.assign(fake, { item, paused: false, volume: item.volume ?? 1 });
+            emitSyntheticPlayback(`Playing ${item.title || 'audio'}`, item, false);
+            return true;
+        };
+        audio.stopItemLayers = async id => {
+            if (String(fake.item?.id) === String(id)) {
+                const stopped = fake.item;
+                Object.assign(fake, { item: null, paused: true });
+                emitSyntheticPlayback('Stopped', stopped, true);
+            }
+            return true;
+        };
+        audio.stopAll = async () => {
+            const stopped = fake.item;
+            Object.assign(fake, { item: null, paused: true });
+            if (stopped) emitSyntheticPlayback('Stopped', stopped, true);
+            return true;
+        };
+        audio.getPlaybackState = () => ({ ...fake, duration: fake.paused ? 0 : 120, currentTime: fake.paused ? 0 : 12, browserOnly: false });
         audio.updateItemVolume = (id, volume) => { if (String(fake.item?.id) === String(id)) fake.volume = volume; };
         audio.attachWaveform = () => {};
         if (scale) window.EveAudioflix.open(); else window.EveAudioflix.openNexus('music', true);
@@ -265,7 +288,7 @@ async function failureEvidence(page) {
 }
 async function bounded(work, ms, label) {
     let timer;
-    try { return await Promise.race([work(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms; test-owned browser only`)), ms); })]); }
+    try { return await Promise.race([work(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms; test-owned browser only`)), ms); })]);
     finally { clearTimeout(timer); }
 }
 
