@@ -397,7 +397,7 @@ async function qualifySoak(url, payload, label) {
 try {
     report.sourceIdentity = await verifyQualificationSource({ root: ROOT, base, expectedHead: report.head }); write();
     backendBefore = await backend(); report.backendBefore = backendBefore;
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, args: ['--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'] });
     if (!soakOnly && !scaleOnly && entrypoint !== 'file') await qualifyReal(base + '/EveOS.html', 'http');
     if (!soakOnly && !scaleOnly && entrypoint !== 'http') await qualifyReal(pathToFileURL(path.join(ROOT, 'EveOS.html')).href, 'file');
     if (!soakOnly && !args.includes('--skip-scale')) {
