@@ -20,12 +20,13 @@ window.EveDataStore = window.EveDataStore || {};
             clearTimeout(state.mutationTimer);
             state.mutationTimer = null;
         }
+        state.syncQueued = false;
     }
 
     function startPolling() {
         stopPolling();
         if (!ns.isHttpContext() || !ns.isEnabled()) return;
-        state.syncTimer = setInterval(ns.syncCycle, ns.getIntervalMs());
+        state.syncTimer = setInterval(() => { void ns.syncCycle(); }, ns.getIntervalMs());
     }
 
     function onStateMutation(event) {
@@ -36,7 +37,7 @@ window.EveDataStore = window.EveDataStore || {};
         if (state.mutationTimer) clearTimeout(state.mutationTimer);
         state.mutationTimer = setTimeout(() => {
             state.mutationTimer = null;
-            ns.syncCycle();
+            void ns.syncCycle();
         }, constants.MUTATION_DEBOUNCE_MS);
     }
 
@@ -87,7 +88,7 @@ window.EveDataStore = window.EveDataStore || {};
 
         if (cfg.modularStateSyncEnabled) {
             startPolling();
-            ns.syncCycle();
+            void ns.syncCycle();
         } else {
             stopPolling();
         }
