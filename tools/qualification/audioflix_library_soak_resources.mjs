@@ -45,7 +45,6 @@ export function installLibrarySoakInstrumentation() {
                 const toFirstFrame = firstFrameAt - started, frameGap = finished - firstFrameAt;
                 bounded(responses, { phase: owner, segment: ownerSegment, type: event.type, action, id, afType, duration,
                     toFirstFrame, frameGap, started, firstFrameAt, finished, finishedPhase: phase }, 2048);
-                if (ownerSegment === 'startup') { pendingResponses.delete(pending); complete(); return; }
                 const buckets = ownerSegment === 'warmup' ? warmupResponseBuckets : responseBuckets;
                 if (!buckets.has(owner)) {
                     if (buckets.size >= 32) buckets.delete(buckets.keys().next().value);

@@ -85,9 +85,9 @@ try {
 
         const snapshot = soak.snapshot(), strict = snapshot.responseSummary;
         assert.equal(strict['play-pointer'].max, 150, 'A 1000ms warmup response cannot contaminate strict startup + measured stats');
-        assert.deepEqual({ ...strict['play-pointer'] }, { count: 2, retained: 2, max: 150, p50: 50, p95: 150 });
+        assert.deepEqual({ ...strict['play-pointer'] }, { count: 2, retained: 2, max: 150, p50: 50, p95: 150, firstFrameP50: 25, firstFrameP95: 75, firstFrameMax: 75, frameGapP50: 25, frameGapP95: 75, frameGapMax: 75 });
         assert.deepEqual({ ...snapshot.warmupResponseSummary['play-pointer'] },
-            { count: 1, retained: 1, max: 1000, p50: 1000, p95: 1000 });
+            { count: 1, retained: 1, max: 1000, p50: 1000, p95: 1000, firstFrameP50: 500, firstFrameP95: 500, firstFrameMax: 500, frameGapP50: 500, frameGapP95: 500, frameGapMax: 500 });
         const warmup = Array.from(snapshot.responses).find(row => row.duration === 1000);
         assert.deepEqual({ phase: warmup.phase, started: warmup.started, firstFrameAt: warmup.firstFrameAt,
             finished: warmup.finished, finishedPhase: warmup.finishedPhase, segment: warmup.segment },
