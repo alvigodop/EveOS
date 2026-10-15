@@ -5,10 +5,17 @@ export function installLibrarySoakInstrumentation() {
     const warmupResponseBuckets = new Map(), pendingResponses = new Set();
     let phase = 'boot', segment = 'startup', errorCount = 0, longTaskCount = 0, droppedLongTasks = 0;
     const bounded = (list, value, max) => { list.push(value); if (list.length > max) list.shift(); };
+    const stats = values => {
+        const sorted = [...values].sort((a, b) => a - b);
+        return { retained: sorted.length, max: sorted.at(-1) || 0,
+            p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0,
+            p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0 };
+    };
     const summarizeResponses = buckets => Object.fromEntries([...buckets].map(([name, bucket]) => {
-        const sorted = [...bucket.values].sort((a, b) => a - b);
-        return [name, { count: bucket.count, retained: sorted.length, max: bucket.max,
-            p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0, p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0 }];
+        const total = stats(bucket.values), first = stats(bucket.firstFrames), gap = stats(bucket.frameGaps);
+        return [name, { count: bucket.count, retained: total.retained, max: total.max, p50: total.p50, p95: total.p95,
+            firstFrameP50: first.p50, firstFrameP95: first.p95, firstFrameMax: first.max,
+            frameGapP50: gap.p50, frameGapP95: gap.p95, frameGapMax: gap.max }];
     }));
     const noteError = event => {
         if (event.type === 'error' && !event.message && event.target && event.target !== window) {
@@ -22,8 +29,12 @@ export function installLibrarySoakInstrumentation() {
     window.addEventListener('unhandledrejection', noteError, true);
     const response = event => {
         const target = event.target, volume = target?.classList?.contains('audioflix-volume-slider');
-        if (!volume && !target?.closest?.('[data-af-action]')) return;
+        const actionTarget = volume ? target : target?.closest?.('[data-af-action]');
+        if (!volume && !actionTarget) return;
         const started = performance.now(), owner = phase, ownerSegment = segment;
+        const action = volume ? 'volume-input' : String(actionTarget?.dataset?.afAction || '');
+        const id = String(actionTarget?.dataset?.afId || '');
+        const afType = String(actionTarget?.dataset?.afType || '');
         let complete;
         const pending = new Promise(resolve => { complete = resolve; });
         pendingResponses.add(pending);
@@ -31,15 +42,16 @@ export function installLibrarySoakInstrumentation() {
             const firstFrameAt = performance.now();
             requestAnimationFrame(() => {
                 const finished = performance.now(), duration = finished - started;
-                bounded(responses, { phase: owner, segment: ownerSegment, type: event.type, duration,
-                    started, firstFrameAt, finished, finishedPhase: phase }, 2048);
+                const toFirstFrame = firstFrameAt - started, frameGap = finished - firstFrameAt;
+                bounded(responses, { phase: owner, segment: ownerSegment, type: event.type, action, id, afType, duration,
+                    toFirstFrame, frameGap, started, firstFrameAt, finished, finishedPhase: phase }, 2048);
                 const buckets = ownerSegment === 'warmup' ? warmupResponseBuckets : responseBuckets;
                 if (!buckets.has(owner)) {
                     if (buckets.size >= 32) buckets.delete(buckets.keys().next().value);
-                    buckets.set(owner, { count: 0, max: 0, values: [] });
+                    buckets.set(owner, { count: 0, values: [], firstFrames: [], frameGaps: [] });
                 }
-                const bucket = buckets.get(owner); bucket.count += 1; bucket.max = Math.max(bucket.max, duration);
-                bounded(bucket.values, duration, 1024);
+                const bucket = buckets.get(owner); bucket.count += 1;
+                bounded(bucket.values, duration, 1024); bounded(bucket.firstFrames, toFirstFrame, 1024); bounded(bucket.frameGaps, frameGap, 1024);
                 pendingResponses.delete(pending); complete();
             });
         });
