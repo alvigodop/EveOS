@@ -73,8 +73,9 @@ try {
             assert.equal(typeof callback, 'function', 'A response frame must be pending'); callback();
         };
         soak.phase('play-pointer');
-        click(); frame(75); frame(75); // Startup/cold response: 150ms.
+        click(); frame(75);
         soak.segment?.('warmup');
+        frame(75); // The startup/cold response remains startup after this switch: 150ms.
         click(); frame(500);
         soak.segment?.('measured'); soak.phase('after-warmup');
         frame(500); // Completion after the switch must remain attributed to warmup.
@@ -83,9 +84,12 @@ try {
         soak.phase('queue-pointer');
         click(); frame(50); frame(51); // Measured regression: 101ms.
 
-        const snapshot = soak.snapshot(), strict = snapshot.responseSummary;
-        assert.equal(strict['play-pointer'].max, 150, 'A 1000ms warmup response cannot contaminate strict startup + measured stats');
-        assert.deepEqual({ ...strict['play-pointer'] }, { count: 2, retained: 2, max: 150, p50: 50, p95: 150, firstFrameP50: 25, firstFrameP95: 75, firstFrameMax: 75, frameGapP50: 25, frameGapP95: 75, frameGapMax: 75 });
+        const snapshot = soak.snapshot(), strict = snapshot.responseSummary, startup = snapshot.startupResponseSummary;
+        assert.deepEqual({ ...strict['play-pointer'] },
+            { count: 1, retained: 1, max: 50, p50: 50, p95: 50, firstFrameP50: 25, firstFrameP95: 25, firstFrameMax: 25, frameGapP50: 25, frameGapP95: 25, frameGapMax: 25 },
+            'Cold and warmup samples cannot contaminate measured percentiles');
+        assert.deepEqual({ ...startup['play-pointer'] },
+            { count: 1, retained: 1, max: 150, p50: 150, p95: 150, firstFrameP50: 75, firstFrameP95: 75, firstFrameMax: 75, frameGapP50: 75, frameGapP95: 75, frameGapMax: 75 });
         assert.deepEqual({ ...snapshot.warmupResponseSummary['play-pointer'] },
             { count: 1, retained: 1, max: 1000, p50: 1000, p95: 1000, firstFrameP50: 500, firstFrameP95: 500, firstFrameMax: 500, frameGapP50: 500, frameGapP95: 500, frameGapMax: 500 });
         const warmup = Array.from(snapshot.responses).find(row => row.duration === 1000);
@@ -93,11 +97,17 @@ try {
             finished: warmup.finished, finishedPhase: warmup.finishedPhase, segment: warmup.segment },
         { phase: 'play-pointer', started: 150, firstFrameAt: 650, finished: 1150,
             finishedPhase: 'after-warmup', segment: 'warmup' });
-        const failures = evaluateSoakBudgets({}, strict, {}, true);
+        assert.deepEqual(evaluateSoakBudgets({}, { 'play-pointer': strict['play-pointer'] }, {}, true), [],
+            'Measured 50ms passes independently of the startup 150ms failure');
+        const failures = evaluateSoakBudgets({}, strict, {}, true, startup);
         assert.deepEqual(failures.map(row => [row.name, row.actual, row.limit]), [
-            ['play-pointer:visual-response', 150, 100],
-            ['queue-pointer:visual-response', 101, 100]
+            ['queue-pointer:visual-response', 101, 100],
+            ['startup:play-pointer:visual-response', 150, 100]
         ], 'Cold 150ms and measured 101ms responses remain strict budget failures');
+        for (let index = 0; index < 2050; index++) { click(); frame(1); frame(1); }
+        const overflow = soak.snapshot();
+        assert.equal(overflow.responses.some(row => row.segment === 'startup'), false, 'The shared raw ring has evicted cold rows');
+        assert.equal(overflow.startupResponseSummary['play-pointer'].p95, 150, 'The independent startup summary survives measured ring overflow');
     });
     await check('phase-recording-awaits-operation-and-two-response-frames', async () => {
         const frames = [], f = instrumentationFixture(callback => frames.push(callback));
@@ -152,11 +162,11 @@ try {
         const snapshot = f.window.__librarySoak.snapshot(), tasks = snapshot.longTasks;
         assert.deepEqual(phases, ['volume-drag-pointer', 'persistence:soak-volume-ready', 'nexus-open-pointer']);
         assert.deepEqual(Array.from(tasks, task => task.phase), phases, 'Late delivery cannot assign old work to the current group-play phase');
-        assert.equal(snapshot.responseSummary['nexus-open-pointer'].p95, 101, 'The real response callback retains slow control paint time');
+        assert.equal(snapshot.startupResponseSummary['nexus-open-pointer'].p95, 101, 'The real response callback retains slow cold control paint time');
         const failures = evaluateSoakBudgets({}, snapshot.responseSummary,
-            { 'volume-drag-pointer': { max: tasks[0].duration } }, true);
+            { 'volume-drag-pointer': { max: tasks[0].duration } }, true, snapshot.startupResponseSummary);
         assert.deepEqual(failures.map(row => [row.name, row.limit]),
-            [['nexus-open-pointer:visual-response', 100], ['volume-drag-pointer:self-longtask', 50]],
+            [['startup:nexus-open-pointer:visual-response', 100], ['volume-drag-pointer:self-longtask', 50]],
             'Slow Nexus still fails 100ms; a true 51ms drag task still fails 50ms');
     });
     await check('pointer-coordinates-wait-for-hover-layout-transition', async () => {

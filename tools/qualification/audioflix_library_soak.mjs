@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
-import { latencyStats, sampleSoakResources, resourceGrowth, evaluateSoakBudgets } from './audioflix_library_soak_resources.mjs';
+import { latencyStats, sampleSoakResources, resourceGrowth, evaluateSoakBudgets, summarizeSoakLongTasks } from './audioflix_library_soak_resources.mjs';
 import { PERSISTENCE_SPANS } from './audioflix_source_identity.mjs';
 import { recordTracedSoakPhase } from './audioflix_library_soak_phase_trace.mjs';
 import { createSoakPerformanceTrace } from './audioflix_library_soak_perf_trace.mjs';
@@ -406,17 +406,13 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.ok(samples.every(sample => sample.mountedCards <= 400));
         const growth = resourceGrowth(samples), latency = Object.fromEntries(Object.entries(rows).map(([key, values]) => [key, latencyStats(values)]));
         assert.equal(final.instrumentation.pendingResponses, 0, 'Every measured paint response must settle');
-        const longTaskRows = final.instrumentation.longTasks, attribution = {}, warmupAttribution = {};
-        for (const row of longTaskRows) {
-            const target = row.segment === 'warmup' ? warmupAttribution : attribution;
-            (target[row.phase] ||= []).push(row.duration);
-        }
-        const longTaskAttribution = Object.fromEntries(Object.entries(attribution).map(([key, values]) => [key, latencyStats(values)]));
-        const warmupLongTaskAttribution = Object.fromEntries(Object.entries(warmupAttribution).map(([key, values]) => [key, latencyStats(values)]));
+        const longTaskRows = final.instrumentation.longTasks;
+        const { longTaskAttribution, warmupLongTaskAttribution } = summarizeSoakLongTasks(longTaskRows);
         const visualResponse = final.instrumentation.responseSummary;
+        const startupVisualResponse = final.instrumentation.startupResponseSummary;
         for (const name of ['group-expand-pointer', 'group-collapse-pointer', 'view-mode-backend-pointer', 'view-mode-frontend-pointer']) assert.ok(visualResponse[name]?.count >= 25, `${name} requires at least 25 measured samples for p95`);
         const normalGroup = expandedGroupSize <= 400;
-        const failures = evaluateSoakBudgets(latency, visualResponse, longTaskAttribution, normalGroup);
+        const failures = evaluateSoakBudgets(latency, visualResponse, longTaskAttribution, normalGroup, startupVisualResponse);
         const budgets = { mountedCards: 400, visualResponseP95Ms: 100, warmedSearchP95Ms: 150,
             dragSelfLongtaskMaxMs: 50, normalFolderExpandP95Ms: 150, largePageRenderP95Ms: 500 };
         if (growth.nodesPerBatch > 1000 || growth.heapBytesPerBatch > 1024 * 1024) warnings.push('Post-GC resource trend is not flat; inspect phase samples before claiming stability');
@@ -428,10 +424,11 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.ok(final.diagnostics?.summary['playlist:reconcile']?.count >= 50);
         return { label, syntheticAudio: true, providerPlaybackClaimed: false, counts: { ...counts, sliderInputEvents: inputEvents },
             canonicalScopeCount: target.scopeCount, libraryCount: target.libraryCount, expandedGroupSize, topologyUnchanged: true, continuousQueueOrderPreserved: true,
-            latency, visualResponse, warmupVisualResponse: final.instrumentation.warmupResponseSummary,
+            latency, visualResponse, startupVisualResponse, warmupVisualResponse: final.instrumentation.warmupResponseSummary,
             warmupLongTaskAttribution, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
+            modularCapture: final.modularCapture,
             debug: { ...(await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume, phaseTrace: window.__soakPhaseTrace || [] }))), performanceTrace: perfTrace.snapshot() },
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
             calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };

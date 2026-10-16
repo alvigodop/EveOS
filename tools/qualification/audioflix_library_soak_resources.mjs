@@ -2,7 +2,7 @@
 export function installLibrarySoakInstrumentation() {
     const timers = { timeout: new Set(), interval: new Set() }, observers = Object.create(null);
     const errors = [], resourceErrors = [], longTasks = [], phases = [], responses = [], responseBuckets = new Map();
-    const warmupResponseBuckets = new Map(), pendingResponses = new Set();
+    const warmupResponseBuckets = new Map(), startupResponseBuckets = new Map(), pendingResponses = new Set();
     let phase = 'boot', segment = 'startup', errorCount = 0, longTaskCount = 0, droppedLongTasks = 0;
     const bounded = (list, value, max) => { list.push(value); if (list.length > max) list.shift(); };
     const stats = values => {
@@ -46,7 +46,7 @@ export function installLibrarySoakInstrumentation() {
                 bounded(responses, { phase: owner, segment: ownerSegment, type: event.type, action, id, afType, duration,
                     toFirstFrame, frameGap, started, firstFrameAt, finished, finishedPhase: phase }, 2048);
                 const buckets = ownerSegment === 'measured' ? responseBuckets
-                    : ownerSegment === 'warmup' ? warmupResponseBuckets : null;
+                    : ownerSegment === 'warmup' ? warmupResponseBuckets : startupResponseBuckets;
                 if (buckets) {
                     if (!buckets.has(owner)) {
                         if (buckets.size >= 32) buckets.delete(buckets.keys().next().value);
@@ -114,6 +114,7 @@ export function installLibrarySoakInstrumentation() {
             observers: Object.fromEntries(Object.entries(observers).map(([key, value]) => [key, { ...value }])),
             longTaskCount, droppedLongTasks, longTasks: longTasks.map(task => ({ ...task })),
             responses: responses.map(value => ({ ...value })), responseSummary: summarizeResponses(responseBuckets),
+            startupResponseSummary: summarizeResponses(startupResponseBuckets),
             warmupResponseSummary: summarizeResponses(warmupResponseBuckets) }; },
         drainLongTasks() { const result = longTasks.splice(0); return result; }
     };
@@ -143,6 +144,10 @@ export async function sampleSoakResources(page, cdp, label) {
     const [dom, heap, scoped] = await Promise.all([cdp.send('Memory.getDOMCounters'), cdp.send('Runtime.getHeapUsage'),
         page.evaluate(() => ({ instrumentation: window.__librarySoak.snapshot(),
             mountedCards: document.querySelectorAll('#audioflix-overlay .audioflix-item-card').length,
+            modularCapture: {
+                cache: window.EveDataStore?._modularSync?.captureCacheStats?.() || null,
+                worker: window.EveDataStore?._modularSync?.captureWorkerStats?.() || null
+            },
             diagnostics: window.EveAudioflixDiagnostics?.snapshot?.() || null }))]);
     return { label, gcRequested: true, dom, heap, ...scoped };
 }
@@ -163,12 +168,23 @@ export function resourceGrowth(samples) {
         caveat: 'post-GC trend in disposable context; not proof of leak freedom or provider endurance' };
 }
 
-export function evaluateSoakBudgets(latency, responses, tasks, normalGroup) {
+export function summarizeSoakLongTasks(rows) {
+    const attribution = {}, warmupAttribution = {};
+    for (const row of rows) {
+        const target = row.segment === 'warmup' ? warmupAttribution : attribution;
+        (target[row.phase] ||= []).push(row.duration);
+    }
+    const summarize = buckets => Object.fromEntries(Object.entries(buckets).map(([key, values]) => [key, latencyStats(values)]));
+    return { longTaskAttribution: summarize(attribution), warmupLongTaskAttribution: summarize(warmupAttribution) };
+}
+
+export function evaluateSoakBudgets(latency, responses, tasks, normalGroup, startupResponses = {}) {
     const failures = [];
     const check = (name, actual, limit, kind = 'p95') => {
         if (actual > limit) failures.push({ name, kind, actual, limit });
     };
     for (const [name, values] of Object.entries(responses)) check(`${name}:visual-response`, values.p95, 100);
+    for (const [name, values] of Object.entries(startupResponses)) check(`startup:${name}:visual-response`, values.p95, 100);
     if (latency['search-input']) check('search-input', latency['search-input'].p95, 150);
     if (latency['group-expand-pointer']) check('group-expand-pointer', latency['group-expand-pointer'].p95, normalGroup ? 150 : 500);
     const drag = tasks['volume-drag-pointer'];
