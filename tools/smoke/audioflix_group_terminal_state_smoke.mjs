@@ -84,4 +84,23 @@ await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(restarts, 1, 'repeat-one still restarts');
 assert.equal(renders, 0, 'non-terminal repeat must not force a structural rerender');
 
+button.dataset.afAction = 'stop-music-group';
+const owned = { items: ['owned'], currentIndex: 0, isPlaying: true };
+let run = 23;
+const runtime = completion.createRuntime({
+    state: () => ({ music: [{ id: 'owned', title: 'Owned' }] }), queue: () => owned,
+    playIndex: () => { throw new Error('Finishing an exhausted queue cannot start playback'); },
+    getRun: () => run, setRun: value => { run = value; },
+    snapshot: () => ({ entries: [{ id: 'owned' }], currentIndex: 0, isPlaying: owned.isPlaying, playbackRunId: run })
+});
+assert.equal(typeof runtime.finish, 'function', 'The queue owner must publish terminal state even when another Ended listener advances first');
+const priorSyncs = syncs;
+runtime.finish();
+assert.equal(owned.isPlaying, false);
+assert.equal(run, 23, 'Exhaustion must not create a fresh playback run');
+assert.equal(syncs, priorSyncs + 1);
+assert.equal(button.dataset.afAction, 'play-music-group');
+assert.equal(button, terminalButton);
+assert.equal(renders, 0, 'Owner-side exhaustion must remain a transport-only patch');
+
 console.log('AUDIOFLIX_GROUP_TERMINAL_STATE_SMOKE_OK');

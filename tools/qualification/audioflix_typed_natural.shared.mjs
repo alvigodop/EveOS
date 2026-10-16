@@ -2,6 +2,11 @@
 import assert from 'node:assert/strict';
 import { naturalPolicy, assertNaturalCompletion, hideNativeController, nativeControllerVisibility, assertObservers } from '../smoke/audioflix_spotify_long_queue_natural.mjs';
 
+export function typedEntrypoints(base, fileUrl, requested = 'both') {
+    assert.ok(['both', 'http', 'file'].includes(requested), '--entrypoint must be http, file or both');
+    return [...(requested === 'file' ? [] : [base + '/EveOS.html']), ...(requested === 'http' ? [] : [fileUrl])];
+}
+
 export function validateTypedCompletion(media, event) {
     assert.equal(event.spotifyUri, media.spotifyUri, 'Natural Ended must name the full typed URI');
     assert.equal(event.mediaType, media.mediaType, 'Natural Ended must preserve the media namespace');

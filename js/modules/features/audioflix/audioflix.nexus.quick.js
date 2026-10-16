@@ -163,8 +163,12 @@ window.EveAudioflixNexusQuick = window.EveAudioflixNexusQuick || {};
                 // A legitimate state projection can replace the node after reveal.
                 card = cardFor(id, kind);
                 if (!card?.isConnected) return;
-                card.querySelector('[data-af-action="play"]')?.focus({ preventScroll: true });
-                card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                const target = card.querySelector('[data-af-action="play"]') || card;
+                target.focus({ preventScroll: true });
+                // Target the usable control, not an estimated or taller-than-viewport card.
+                target.getBoundingClientRect(); // Materialize only this explicitly requested skipped subtree.
+                const behavior = getComputedStyle(card).contentVisibility === 'auto' ? 'instant' : 'smooth';
+                target.scrollIntoView({ behavior, block: 'center', inline: 'nearest' });
                 card.classList.add('is-nexus-jump-target');
                 setTimeout(() => card.classList.remove('is-nexus-jump-target'), 2200);
             });

@@ -11,7 +11,7 @@ import { createLongQueueHarness } from '../smoke/audioflix_spotify_long_queue_li
 import { validateBackendUrls, installBackendWriteBarrier, readBackendAudioflixSnapshot,
     assertBackendAudioflixUnchanged } from '../smoke/audioflix_spotify_live_isolation.shared.js';
 import { approveOwnFileSession } from './audioflix_file_pairing.shared.mjs';
-import { qualifyTypedNaturalSequence } from './audioflix_typed_natural.shared.mjs';
+import { qualifyTypedNaturalSequence, typedEntrypoints } from './audioflix_typed_natural.shared.mjs';
 import { settleNaturalProbe } from '../smoke/audioflix_spotify_long_queue_natural.mjs';
 
 const require = createRequire(import.meta.url);
@@ -297,6 +297,8 @@ async function main() {
     assert.ok(!requestedBase.username && !requestedBase.password && !requestedBase.search && !requestedBase.hash
         && requestedBase.pathname === '/', '--base must be an exact loopback origin');
     const base = requestedBase.origin;
+    const entrypoints = typedEntrypoints(base, pathToFileURL(path.join(ROOT, 'EveOS.html')).href, value('--entrypoint') || 'both');
+    E.requestedEntrypoints = entrypoints.map(entry => new URL(entry).protocol);
     const backend = () => readBackendAudioflixSnapshot(async () => {
         const response = await fetch(base + '/api/eve-state/modular/load', { signal: AbortSignal.timeout(10000), cache: 'no-store' });
         assert.ok(response.ok); return response.json();
@@ -310,7 +312,7 @@ async function main() {
     const browser = natural ? await require('./lane3-native-controller.cjs').launch({ nativeVisibility: true })
         : await chromium.launch({ headless: false });
     try {
-        for (const [index, entry] of [base + '/EveOS.html', pathToFileURL(path.join(ROOT, 'EveOS.html')).href].entries()) {
+        for (const [index, entry] of entrypoints.entries()) {
             await qualify(browser, base, entry, episode, track, index);
         }
         E.ok = true;
@@ -321,7 +323,7 @@ async function main() {
         assertBackendAudioflixUnchanged(E.backendBefore, E.backendAfter);
         E.backendUnchanged = true; E.finishedAt = new Date().toISOString(); checkpoint('complete');
     }
-    console.log(`AUDIOFLIX_TYPED_MEDIA_ACCEPTANCE_OK http=true file=true episode=true volumeReadback=true queue=${natural ? 'natural-repeat-hidden' : 'seek-assisted'} backend=unchanged artifact=${artifact}`);
+    console.log(`AUDIOFLIX_TYPED_MEDIA_ACCEPTANCE_OK http=${E.cases.some(test => test.entrypoint !== 'file:' && test.ok)} file=${E.cases.some(test => test.entrypoint === 'file:' && test.ok)} episode=true volumeReadback=true queue=${natural ? 'natural-repeat-hidden' : 'seek-assisted'} backend=unchanged artifact=${artifact}`);
 }
 main().catch(error => {
     E.ok = false; E.error = String(error.stack || error); checkpoint();

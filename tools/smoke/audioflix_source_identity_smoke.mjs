@@ -14,6 +14,8 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const STATE = 'js/modules/features/audioflix/audioflix.state.js';
 const HELPER = 'js/modules/features/audioflix/audioflix.state.persistence.js';
 const UI = 'js/modules/features/audioflix/audioflix.ui.js';
+const CSS = 'js/modules/features/audioflix/audioflix.css';
+const OBSERVED = ['EveOS.html', CSS, STATE, UI];
 const PATH_API = '/api/eve-state/modular/path';
 const FAKE_BASE = 'http://127.0.0.1:45671';
 const artifact = path.join(ROOT, `data/runtime/smoke-results/audioflix-source-identity-${Date.now()}.json`);
@@ -42,7 +44,8 @@ function makePair(name, { spans = true } = {}) {
             : relative === HELPER ? '\nstate:persist:core'
             : '';
         const body = relative === 'EveOS.html'
-            ? `<!doctype html><html><head><meta charset="utf-8"></head><body><script src="${STATE}?v=fixture"></script><script src="${UI}?v=fixture"></script></body></html>\n`
+            ? `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${CSS}?v=fixture"></head><body><script src="${STATE}?v=fixture"></script><script src="${UI}?v=fixture"></script></body></html>\n`
+            : relative === CSS ? 'body { border-top: 3px solid rgb(17, 34, 51); }\n'
             : `/* Fixture ${relative}${ownedSpans} */\n`;
         write(root, relative, body);
     }
@@ -139,6 +142,10 @@ async function main() {
     await run('wrong-served-asset', async () => {
         await assert.rejects(verify(pair, { wrong: UI }), /served asset differs.*audioflix\.ui\.js/);
     });
+    await run('layout-css-owner-attested', async () => {
+        assert.ok(CRITICAL_SOURCE_FILES.includes(CSS), 'Performance-critical AudioFlix CSS must be attested');
+        await assert.rejects(verify(pair, { wrong: CSS }), /served asset differs.*audioflix\.css/);
+    });
     await run('sync-cache-owners-attested', async () => {
         const owners = ['js/config/manifest/scripts.parts/00-core.js', 'js/config/manifest/scripts.parts/01-ui.js',
             'js/modules/core/cooperative-work.js',
@@ -176,7 +183,7 @@ async function main() {
     });
 
     const { chromium } = require('playwright');
-    let wrongBrowserAsset = false;
+    let wrongBrowserAsset = false, wrongBrowserCss = false;
     server = http.createServer((request, reply) => {
         const relative = new URL(request.url, 'http://127.0.0.1').pathname.slice(1);
         reply.setHeader('Cache-Control', 'no-store');
@@ -185,9 +192,11 @@ async function main() {
             reply.end(JSON.stringify({ ok: true, defaultPath: path.join(pair.served, 'data/modular-state') })); return;
         }
         if (!CRITICAL_SOURCE_FILES.includes(relative)) { reply.writeHead(404); reply.end('Not a fixture asset'); return; }
-        reply.setHeader('Content-Type', relative.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/javascript; charset=utf-8');
+        reply.setHeader('Content-Type', relative.endsWith('.html') ? 'text/html; charset=utf-8'
+            : relative.endsWith('.css') ? 'text/css; charset=utf-8' : 'application/javascript; charset=utf-8');
         const body = fs.readFileSync(path.join(pair.served, relative));
-        reply.end(wrongBrowserAsset && relative === UI ? Buffer.concat([body, Buffer.from('\n/* browser source changed */')]) : body);
+        reply.end((wrongBrowserAsset && relative === UI) || (wrongBrowserCss && relative === CSS)
+            ? Buffer.concat([body, Buffer.from('\n/* browser source changed */')]) : body);
     });
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     const base = `http://127.0.0.1:${server.address().port}`;
@@ -200,8 +209,11 @@ async function main() {
             const gate = attachBrowserSourceIdentity(page, proof, base + '/EveOS.html');
             await page.goto(base + '/EveOS.html', { waitUntil: 'load' });
             const loaded = await gate.verifyLoaded();
-            assert.deepEqual(loaded.verifiedFiles, ['EveOS.html', STATE, UI].sort());
-            assert.deepEqual(loaded.unobservedFiles, CRITICAL_SOURCE_FILES.filter(file => !['EveOS.html', STATE, UI].includes(file)));
+            assert.deepEqual(loaded.verifiedFiles, [...OBSERVED].sort());
+            assert.deepEqual(loaded.unobservedFiles, CRITICAL_SOURCE_FILES.filter(file => !OBSERVED.includes(file)));
+            assert.deepEqual(await page.evaluate(() => ({ width: getComputedStyle(document.body).borderTopWidth,
+                color: getComputedStyle(document.body).borderTopColor })), { width: '3px', color: 'rgb(17, 34, 51)' },
+            'HTTP fixture stylesheet actually applies, rather than merely being fetched');
             assert.deepEqual(pageErrors, []); evidence.browser = loaded;
         } finally { await page.close(); }
     });
@@ -213,8 +225,11 @@ async function main() {
             const gate = attachBrowserSourceIdentity(page, proof, entryURL);
             await page.goto(entryURL, { waitUntil: 'load' });
             const loaded = await gate.verifyLoaded();
-            assert.deepEqual(loaded.verifiedFiles, ['EveOS.html', STATE, UI].sort());
-            assert.deepEqual(loaded.unobservedFiles, CRITICAL_SOURCE_FILES.filter(file => !['EveOS.html', STATE, UI].includes(file)));
+            assert.deepEqual(loaded.verifiedFiles, [...OBSERVED].sort());
+            assert.deepEqual(loaded.unobservedFiles, CRITICAL_SOURCE_FILES.filter(file => !OBSERVED.includes(file)));
+            assert.deepEqual(await page.evaluate(() => ({ width: getComputedStyle(document.body).borderTopWidth,
+                color: getComputedStyle(document.body).borderTopColor })), { width: '3px', color: 'rgb(17, 34, 51)' },
+            'File fixture stylesheet actually applies, rather than merely being fetched');
             assert.deepEqual(pageErrors, []); evidence.fileBrowser = loaded;
         } finally { await page.close(); }
     });
@@ -226,6 +241,24 @@ async function main() {
             await page.goto(base + '/EveOS.html', { waitUntil: 'load' });
             await assert.rejects(gate.verifyLoaded(), /Browser source identity failed/);
         } finally { wrongBrowserAsset = false; await page.close(); }
+    });
+    await run('chromium-post-preflight-css-drift-rejected', async () => {
+        wrongBrowserCss = true;
+        const page = await browser.newPage();
+        try {
+            const gate = attachBrowserSourceIdentity(page, proof, base + '/EveOS.html');
+            await page.goto(base + '/EveOS.html', { waitUntil: 'load' });
+            await assert.rejects(gate.verifyLoaded(), /Browser source identity failed/);
+        } finally { wrongBrowserCss = false; await page.close(); }
+    });
+    await run('chromium-required-css-unobserved-rejected', async () => {
+        const page = await browser.newPage();
+        try {
+            await page.route('**/audioflix.css*', route => route.abort('failed'));
+            const gate = attachBrowserSourceIdentity(page, proof, base + '/EveOS.html');
+            await page.goto(base + '/EveOS.html', { waitUntil: 'load' });
+            await assert.rejects(gate.verifyLoaded(), /Required candidate source was not observed.*audioflix\.css/);
+        } finally { await page.close(); }
     });
     await run('chromium-required-unobserved-rejected', async () => {
         const page = await browser.newPage();

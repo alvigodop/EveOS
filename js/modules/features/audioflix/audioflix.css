@@ -212,6 +212,13 @@
         rgba(13, 19, 24, 0.76);
 }
 
+/* Keep the complete card page in the DOM, but let the browser skip off-screen work.
+   This is a placeholder body estimate, not a height cap; auto remembers measured sizes. */
+.audioflix-item-grid[data-af-window-owner] > .audioflix-item-card {
+    content-visibility: auto;
+    contain-intrinsic-block-size: auto 154px;
+}
+
 .audioflix-form button,
 .audioflix-player button {
     align-self: flex-start;

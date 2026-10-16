@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
-import { validateTypedCompletion, assertTypedResources } from '../qualification/audioflix_typed_natural.shared.mjs';
+import { validateTypedCompletion, assertTypedResources, typedEntrypoints } from '../qualification/audioflix_typed_natural.shared.mjs';
 import { naturalPolicy, assertNaturalCompletion, observerCounters, assertNativeControllerHidden } from './audioflix_spotify_long_queue_natural.mjs';
 const id = '4cOdK2wGLETKBW3PvgPWqT';
 const media = { spotifyId: id, spotifyUri: `spotify:episode:${id}`, mediaType: 'episode' };
+const base = 'http://127.0.0.1:8765', file = 'file:///isolated/EveOS.html';
+assert.deepEqual(typedEntrypoints(base, file), [base + '/EveOS.html', file]);
+assert.deepEqual(typedEntrypoints(base, file, 'http'), [base + '/EveOS.html']);
+assert.deepEqual(typedEntrypoints(base, file, 'file'), [file]);
+assert.throws(() => typedEntrypoints(base, file, 'unknown'), /entrypoint/);
 validateTypedCompletion(media, { ...media });
 assert.throws(() => validateTypedCompletion(media, { ...media, spotifyUri: `spotify:track:${id}`, mediaType: 'track' }));
 const policy = naturalPolicy(120, 2);

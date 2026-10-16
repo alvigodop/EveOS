@@ -19,7 +19,7 @@ export const CRITICAL_SOURCE_FILES = ['EveOS.html', 'js/config/manifest/scripts.
     'js/modules/core/indexeddb-store.js', 'js/modules/core/storage.load.js',
     'js/modules/features/data-state/data-state.capture.clone.js',
     'js/modules/features/data-state/data-state.core.js',
-    ...['audioflix.state.js', 'audioflix.state.persistence.js', 'audioflix.state.schema.js', 'audioflix.state.mutations.js', 'audioflix.state.recovery.js', 'audioflix.state.mirror.js',
+    ...['audioflix.css', 'audioflix.state.js', 'audioflix.state.persistence.js', 'audioflix.state.schema.js', 'audioflix.state.mutations.js', 'audioflix.state.recovery.js', 'audioflix.state.mirror.js',
         'audioflix.duplicates.details.js', 'audioflix.state.duplicates.js', 'audioflix.library.index.js', 'audioflix.groups.tree.js', 'audioflix.playback.diagnostics.js',
         'audioflix.ui.js', 'audioflix.ui.modal.js', 'audioflix.ui.panel.js', 'audioflix.ui.render.js', 'audioflix.ui.window.js', 'audioflix.ui.actions.js',
         'audioflix.classifiers.js', 'audioflix.classifiers.ui.js', 'audioflix.nexus.js', 'audioflix.nexus.quick.js', 'audioflix.nexus.ui.js', 'audioflix.transport.js', 'audioflix.audio.internal.js',
@@ -102,7 +102,7 @@ export function attachBrowserSourceIdentity(page, proof, entryURL) {
     return { async verifyLoaded() {
         while (pending.size) await Promise.all([...pending]);
         assert.deepEqual(errors, [], 'Browser source identity failed');
-        for (const name of ['EveOS.html', AUDIO + 'audioflix.state.js', AUDIO + 'audioflix.ui.js']) {
+        for (const name of ['EveOS.html', AUDIO + 'audioflix.css', AUDIO + 'audioflix.state.js', AUDIO + 'audioflix.ui.js']) {
             if (wanted.has(name)) assert.ok(observed.has(name), `Required candidate source was not observed in browser: ${name}`);
         }
         return { verifiedFiles: [...observed].sort(), unobservedFiles: [...wanted.keys()].filter(name => !observed.has(name)), hashMethod: proof.hashMethod };

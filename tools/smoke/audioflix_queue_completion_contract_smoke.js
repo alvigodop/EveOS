@@ -112,6 +112,41 @@ async function main() {
             await endDirect(page);
             expectOutcome('direct-provider-ended-two-copies', await settled(page), { starts: [before.queue.entries[2].id], index: 2, advance: 1 });
         });
+        await run('spotify-final-ended-patches-group-transport', async page => {
+            const before = await jump(page, 3);
+            await page.evaluate(() => window.EveAudioflixState.flush('queue-terminal-fixture-ready'));
+            await settled(page);
+            const stopSelector = '.audioflix-frontend-subhead [data-af-action="stop-music-group"]';
+            const button = await page.locator(stopSelector).elementHandle();
+            const card = await page.locator('.audioflix-item-card').first().elementHandle();
+            assert(button, 'Playing group has its Stop Group control');
+            await page.evaluate(() => {
+                const q = window.EveAudioflix.queueConnection, original = q.step, probe = window.__queueSmoke;
+                probe.restoreTerminalStep = () => { q.step = original; };
+                q.step = function (...args) {
+                    const result = Reflect.apply(original, this, args);
+                    if (!q.snapshot().isPlaying) probe.terminalProjection = {
+                        stops: document.querySelectorAll('.audioflix-frontend-subhead [data-af-action="stop-music-group"]').length,
+                        plays: document.querySelectorAll('.audioflix-frontend-subhead [data-af-action="play-music-group"]').length
+                    };
+                    return result;
+                };
+            });
+            try {
+                await end(page);
+                await page.waitForFunction(() => window.__queueSmoke.terminalProjection, undefined, { timeout: 5000 });
+            }
+            finally { await page.evaluate(() => window.__queueSmoke.restoreTerminalStep()); }
+            const state = await snapshot(page);
+            assert.strictEqual(state.queue.isPlaying, false, 'Final Ended terminates the canonical queue');
+            assert.strictEqual(state.queue.playbackRunId, before.queue.playbackRunId, 'Exhaustion must not create another playback run');
+            assert.deepStrictEqual(state.starts, [], 'Final Ended must not restart or advance another track');
+            assert.strictEqual(await page.locator(stopSelector).count(), 0, 'Final Spotify fast-path exhaustion must patch Stop Group');
+            assert.strictEqual(await page.locator('.audioflix-frontend-subhead [data-af-action="play-music-group"]').count(), 1);
+            assert.deepStrictEqual(await page.evaluate(() => window.__queueSmoke.terminalProjection), { stops: 0, plays: 1 },
+                'Terminal transport must be published by the queue owner before returning to other Ended consumers');
+            assert.strictEqual(await card.evaluate(node => node.isConnected), true, 'Terminal projection must preserve existing cards');
+        });
         // 8. Failed start: the unavailable entry is skipped inside the same advance, never twice.
         await run('failed-start-skips-once', async page => {
             const before = await jump(page, 0);

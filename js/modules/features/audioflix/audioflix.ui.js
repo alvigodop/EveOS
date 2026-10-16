@@ -146,7 +146,7 @@ window.EveAudioflix = window.EveAudioflix || {};
                     activeMusicQueue.items = [...rest, currentId];
                 }
             } else {
-                activeMusicQueue.isPlaying = false;
+                queueRuntime.finish();
                 return;
             }
         } else if (targetIndex < 0) {
