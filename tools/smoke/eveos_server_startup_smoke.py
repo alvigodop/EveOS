@@ -19,6 +19,8 @@ from helpers.owned_process_fixture import (
 ROOT = Path(__file__).resolve().parents[2]
 SERVER = ROOT / "server" / "eveos-server-launch.py"
 LEGACY_SERVER = ROOT / "server" / "python-server.py"
+STATUS_MODULE = ROOT / "server_modules" / "eveos_server_status.py"
+WEB_FINGERPRINT_MODULE = ROOT / "server_modules" / "eveos_web_fingerprint.py"
 ARTIFACT = ROOT / "data" / "runtime" / "smoke-results" / "eveos-server-startup.json"
 if "--cleanup-regression-only" in sys.argv[1:]:
     ARTIFACT = ARTIFACT.with_name("eveos-server-cleanup-regression.json")
@@ -101,6 +103,17 @@ def stop_owned_process(process: subprocess.Popen, owned_tree=None) -> None:
         process.wait(timeout=3)
 
 
+def assert_fast_status_dependency_contract() -> None:
+    if not STATUS_MODULE.is_file() or not WEB_FINGERPRINT_MODULE.is_file():
+        raise SystemExit("ASSERT FAILED: missing EveOS status/web-fingerprint module")
+    status_source = STATUS_MODULE.read_text(encoding="utf-8")
+    if "eveos_update_plan" in status_source:
+        raise SystemExit("ASSERT FAILED: server status regained eager Local Control update-plan import")
+    if "eveos_web_fingerprint" not in status_source or "capture_web_fingerprint()" not in status_source:
+        raise SystemExit("ASSERT FAILED: server status lost the lightweight web fingerprint contract")
+    DIAGNOSTICS["statusFingerprintDependency"] = "web-only"
+
+
 def main() -> int:
     DIAGNOSTICS["cleanupRegressions"] = cleanup_regressions()
     if "--cleanup-regression-only" in sys.argv[1:]:
@@ -112,6 +125,7 @@ def main() -> int:
     if not SERVER.is_file() or not LEGACY_SERVER.is_file():
         raise SystemExit("ASSERT FAILED: missing EveOS server launcher/legacy implementation")
 
+    assert_fast_status_dependency_contract()
     source = SERVER.read_text(encoding="utf-8")
     if 'default="127.0.0.1"' not in source or '{"127.0.0.1", "0.0.0.0"}' not in source:
         raise SystemExit("ASSERT FAILED: official EveOS launcher lost its loopback-default host contract")
