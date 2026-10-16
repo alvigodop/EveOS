@@ -282,7 +282,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         for (const key of Object.keys(rows)) rows[key] = [];
         const startCalls = await page.evaluate(() => ({ ...window.__soakCalls }));
         samples.push(await sampleSoakResources(page, cdp, 'warm-card-paths'));
-        const perBatch = iterations / 5, gestures = Math.max(5, Math.ceil(iterations / 10)), gesturesPerBatch = Math.max(1, Math.ceil(gestures / 5));
+        const perBatch = iterations / 5, minimumVisualSamplesPerBatch = 5, gestures = Math.max(5, Math.ceil(iterations / 10)), gesturesPerBatch = Math.max(1, Math.ceil(gestures / 5));
         const gestureOutcomes = [];
         for (let batch = 0; batch < 5; batch++) {
             onProgress({ label, stage: 'card-batch', batch: batch + 1, counts: { ...counts } });
@@ -322,7 +322,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             await quiesce('soak-view-mode-backend-ready');
             const header = page.locator('.audioflix-group-title').first();
             expandedGroupSize = Number((await header.locator('.audioflix-group-count').textContent()).match(/\d+/)?.[0] || 0);
-            for (let i = 0; i < Math.max(1, iterations / 25); i++) {
+            for (let i = 0; i < Math.max(minimumVisualSamplesPerBatch, Math.ceil(iterations / 25)); i++) {
                 await header.click({ trial: true }); const expandBox = await header.boundingBox(); assert.ok(expandBox?.width > 0 && expandBox?.height > 0); await record('group-expand-pointer', () => page.mouse.click(expandBox.x + expandBox.width / 2, expandBox.y + expandBox.height / 2));
                 assert.ok(await page.locator('.audioflix-item-card').count() <= 400);
                 await header.click({ trial: true }); const collapseBox = await header.boundingBox(); assert.ok(collapseBox?.width > 0 && collapseBox?.height > 0); await record('group-collapse-pointer', () => page.mouse.click(collapseBox.x + collapseBox.width / 2, collapseBox.y + collapseBox.height / 2));
@@ -332,6 +332,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             // The view-mode toggle persists; its save echo is a canonical render that must settle
             // before the card is located, exactly like the setup boundary.
             await quiesce('soak-view-mode-restored');
+            for (let i = 1; i < minimumVisualSamplesPerBatch; i++) { await record('view-mode-backend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click()); await quiesce('soak-view-mode-backend-ready'); await record('view-mode-frontend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click()); await quiesce('soak-view-mode-restored'); }
             await reveal();
             await page.evaluate(() => window.__librarySoak.phase('playlist-health-fixture'));
             const fixtureResult = await page.evaluate(async () => {
@@ -413,6 +414,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         const longTaskAttribution = Object.fromEntries(Object.entries(attribution).map(([key, values]) => [key, latencyStats(values)]));
         const warmupLongTaskAttribution = Object.fromEntries(Object.entries(warmupAttribution).map(([key, values]) => [key, latencyStats(values)]));
         const visualResponse = final.instrumentation.responseSummary;
+        for (const name of ['group-expand-pointer', 'group-collapse-pointer', 'view-mode-backend-pointer', 'view-mode-frontend-pointer']) assert.ok(visualResponse[name]?.count >= 25, `${name} requires at least 25 measured samples for p95`);
         const normalGroup = expandedGroupSize <= 400;
         const failures = evaluateSoakBudgets(latency, visualResponse, longTaskAttribution, normalGroup);
         const budgets = { mountedCards: 400, visualResponseP95Ms: 100, warmedSearchP95Ms: 150,
