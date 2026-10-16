@@ -23,7 +23,7 @@ const record = async name => {
 
 (async () => {
     assert.equal(process.platform, 'win32', 'Native visibility qualification requires the Windows desktop');
-    const { hideNativeController } = await import('./audioflix_spotify_long_queue_natural.mjs');
+    const { hideNativeController, nativeControllerVisibility, assertNativeControllerHidden } = await import('./audioflix_spotify_long_queue_natural.mjs');
     const { createLongQueueHarness } = await import('./audioflix_spotify_long_queue_live_support.mjs');
     const H = createLongQueueHarness({ transitionTimeout: 8000 });
     browser = await launch({ nativeVisibility: true });
@@ -48,6 +48,9 @@ const record = async name => {
     E.hiddenMethod = await hideNativeController(context, page, H);
     const hidden = await record('minimized-after-cdp-detach');
     assert.equal(hidden.visibility, 'hidden');
+    E.nativeHidden = await nativeControllerVisibility(page);
+    assertNativeControllerHidden(E.nativeHidden);
+    assert.equal(E.nativeHidden.windowId, E.nativeHidden.coverWindowId);
     const cdp = await context.newCDPSession(page);
     const { windowId } = await cdp.send('Browser.getWindowForTarget');
     E.minimizedBounds = (await cdp.send('Browser.getWindowBounds', { windowId })).bounds;
@@ -59,9 +62,15 @@ const record = async name => {
     assert.ok(settled.ticks > hidden.ticks, 'Hidden is not a frozen or script-disabled page');
     const restore = await context.newCDPSession(page);
     await restore.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
-    await restore.detach(); await page.bringToFront();
+    await restore.detach();
+    E.restoredWithCompanion = await nativeControllerVisibility(page);
+    assert.equal(E.restoredWithCompanion.bounds.windowState, 'normal');
+    assertNativeControllerHidden(E.restoredWithCompanion);
+    assert.equal((await record('native-restored-controller-remains-background-tab')).visibility, 'hidden');
+    await page.bringToFront();
     await page.waitForFunction(() => document.visibilityState === 'visible', null, { timeout: 8000 });
     const foreground = await record('native-restore');
+    await assert.rejects(nativeControllerVisibility(page).then(assertNativeControllerHidden), /genuinely backgrounded/);
     assert.ok(foreground.events.some(event => event.visibility === 'hidden'));
     assert.equal(foreground.events.at(-1)?.visibility, 'visible');
     E.forcedFocusSuppressed = browser.__eveNativeController.forcedFocusSuppressed;
@@ -78,6 +87,6 @@ const record = async name => {
     try { await browser?.close(); }
     catch (error) { E.ok = false; E.cleanupError = String(error.message); process.exitCode = 1; }
     fs.mkdirSync(directory, { recursive: true }); fs.writeFileSync(artifact, JSON.stringify(E, null, 2) + '\n');
-    console.log(E.ok ? 'AUDIOFLIX_NATIVE_VISIBILITY_BROWSER_OK pointer=true minimized=true hidden=true javascriptActive=true restored=true noVisibilitySpoof=true'
+    console.log(E.ok ? 'AUDIOFLIX_NATIVE_VISIBILITY_BROWSER_OK pointer=true minimized=true sameWindowCompanion=true restoredWindowStillHidden=true explicitActivationRejected=true javascriptActive=true restored=true noVisibilitySpoof=true'
         : `AUDIOFLIX_NATIVE_VISIBILITY_BROWSER_FAIL ${String(E.error || E.cleanupError || 'cleanup failed').split('\n')[0]} artifact=${artifact}`);
 });

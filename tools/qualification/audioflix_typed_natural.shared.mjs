@@ -1,6 +1,6 @@
 // Real-provider natural-duration proof; callers supply isolated, approved controllers.
 import assert from 'node:assert/strict';
-import { naturalPolicy, assertNaturalCompletion, hideNativeController, assertObservers } from '../smoke/audioflix_spotify_long_queue_natural.mjs';
+import { naturalPolicy, assertNaturalCompletion, hideNativeController, nativeControllerVisibility, assertObservers } from '../smoke/audioflix_spotify_long_queue_natural.mjs';
 
 export function validateTypedCompletion(media, event) {
     assert.equal(event.spotifyUri, media.spotifyUri, 'Natural Ended must name the full typed URI');
@@ -30,13 +30,19 @@ export async function awaitTypedNaturalEnd({ page, H, media, itemId, initial, ch
     while (Date.now() < deadline) {
         const current = await page.evaluate(() => ({
             visibility: document.visibilityState,
+            visibleViolations: window.__eveNaturalVisibility?.visibleViolations || 0,
             queue: window.EveAudioflix.queueConnection.snapshot(),
             relay: window.EveAudioflixSpotifyAnyBrowser.snapshot().relay.lastState,
             events: window.__eveTypedMediaProbe?.events || [],
             volume: window.EveAudioflixSpotifyAnyBrowser.volumeDiagnostics(),
             observation: window.EveAudioflixSpotifyAnyBrowser.snapshot().observation
         }));
+        if (current.visibility !== 'hidden' || current.visibleViolations > 0) {
+            checkpoint?.({ policy, proof: { ...proof }, elapsedMs: Date.now() - started,
+                visibilityFailure: await nativeControllerVisibility(page).catch(error => ({ error: String(error.message) })) });
+        }
         assert.equal(current.visibility, 'hidden', 'Natural observation must remain genuinely backgrounded');
+        assert.equal(current.visibleViolations, 0, 'Natural observation must not contain a visible interval');
         assert.equal(current.relay?.isOwner, true);
         assert.equal(current.relay.ownerEpoch, initial.current.ownerEpoch);
         assert.equal(current.relay.engineEpoch, initial.current.engineEpoch);

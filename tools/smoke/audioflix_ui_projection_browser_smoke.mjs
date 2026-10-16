@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { qualifyAudioflixProjectionGeometry } from './helpers/audioflix_projection_geometry.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-ui-projection-browser.json');
@@ -63,6 +64,7 @@ try {
             get smartArtistExpanded() { return false; }, set smartArtistExpanded(_value) {},
             get settingsOpen() { return window.__view.settingsOpen; }, set settingsOpen(value) { window.__view.settingsOpen = value; },
             get routingOpen() { return window.__view.routingOpen; }, set routingOpen(value) { window.__view.routingOpen = value; },
+            get fullscreenOn() { return window.__view.fullscreenOn; }, set fullscreenOn(value) { window.__view.fullscreenOn = value; },
             overlay: root, portedSounds: [], pushHotkeysToBridge() {}, rerender: window.__full, rerenderLibrary: window.__library,
             rerenderPlayback: () => panel.playback(root), rerenderTransient: () => panel.transient(root),
             shuffleQueue: ids => [...ids].reverse(), playQueueIndex: async index => { window.__queue.currentIndex = index; panel.playback(root); }, invalidateQueueRun() {} };
@@ -165,8 +167,9 @@ try {
     assert.equal(await page.locator('.audioflix-item-card').nth(0).locator('strong').textContent(), 'Changed metadata');
     assert.equal(await page.evaluate(() => window.__fullRenders), 2);
     checks.push('structural-render-remains-authoritative');
+    const geometry = await qualifyAudioflixProjectionGeometry(page, ROOT, checks);
     assert.deepEqual(errors, []);
-    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, checks, pageErrors: errors }));
+    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, checks, geometry, pageErrors: errors }));
     console.log(`AUDIOFLIX_UI_PROJECTION_BROWSER_OK checks=${checks.length} realPointer=true`);
 } catch (error) {
     fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: false, checks, error: String(error.stack || error), pageErrors: errors }));

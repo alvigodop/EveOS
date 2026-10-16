@@ -7,6 +7,37 @@ import { fileURLToPath } from 'node:url';
 
 export const observerCounters = ['watchJobs', 'watchRequests', 'progressRequests', 'retryTimers',
     'progressTimers', 'recoveryRequests', 'recoveryTimers'];
+const nativeControllers = new WeakMap();
+
+export function assertNativeControllerHidden(sample) {
+    assert.equal(sample.ownVisibility, false, 'Visibility must not be replaced on the document');
+    assert.equal(sample.nativeGetter, true, 'Visibility must come from the native browser getter');
+    assert.equal(sample.visibility, 'hidden', 'Natural observation must remain genuinely backgrounded');
+    assert.equal(sample.visibleViolations || 0, 0, 'Natural observation must not contain a visible interval');
+    assert.equal(sample.nativeWindowError, undefined, 'Native window identity must remain inspectable');
+    if (sample.coverWindowId !== undefined) {
+        assert.equal(sample.coverWindowId, sample.windowId, 'Companion and controller must share their owned native window');
+    }
+}
+
+export async function nativeControllerVisibility(page) {
+    const owned = nativeControllers.get(page);
+    const sample = await page.evaluate(() => ({ visibility: document.visibilityState, focus: document.hasFocus(),
+        ownVisibility: Object.hasOwn(document, 'visibilityState'),
+        nativeGetter: String(Object.getOwnPropertyDescriptor(Document.prototype, 'visibilityState')?.get).includes('[native code]'),
+        visibilityEvents: window.__eveNaturalVisibility?.events?.slice(-32) || [],
+        visibleViolations: window.__eveNaturalVisibility?.visibleViolations || 0 }));
+    const cdp = await page.context().newCDPSession(page);
+    try {
+        const { windowId } = await cdp.send('Browser.getWindowForTarget');
+        const { bounds } = await cdp.send('Browser.getWindowBounds', { windowId });
+        let coverWindowId;
+        if (owned) ({ windowId: coverWindowId } = await cdp.send('Browser.getWindowForTarget', { targetId: owned.coverTargetId }));
+        return { ...sample, windowId, bounds, ...(owned ? { coverWindowId, hiddenAt: owned.hiddenAt } : {}) };
+    } catch (error) {
+        return { ...sample, nativeWindowError: String(error.message).slice(0, 600) };
+    } finally { await cdp.detach(); }
+}
 
 export function assertObservers(observation, settled = false) {
     assert.ok(observation && typeof observation === 'object', 'Observer diagnostics required');
@@ -71,18 +102,50 @@ export function createQueueEvidence(mode, config) {
 
 export async function hideNativeController(context, page, H) {
     const cdp = await context.newCDPSession(page);
+    let cover, coverCdp;
     try {
         // Raw-CDP native launch avoids Playwright's always-focused launch flags. Explicitly disable
         // focus emulation before measurement and require the browser's real visibility signal.
         await cdp.send('Emulation.setFocusEmulationEnabled', { enabled: false });
         const { windowId } = await cdp.send('Browser.getWindowForTarget');
+        await page.evaluate(() => {
+            if (window.__eveNaturalVisibility) return;
+            const proof = window.__eveNaturalVisibility = { events: [], measuring: false, visibleViolations: 0 };
+            const note = () => {
+                if (proof.measuring && document.visibilityState !== 'hidden') proof.visibleViolations++;
+                proof.events.push({ at: Date.now(), visibility: document.visibilityState, focus: document.hasFocus() });
+                if (proof.events.length > 32) proof.events.shift();
+            };
+            document.addEventListener('visibilitychange', note); note();
+        });
+        cover = nativeControllers.get(page)?.cover;
+        if (!cover || cover.isClosed()) cover = await context.newPage();
+        coverCdp = await context.newCDPSession(cover);
+        const { targetInfo } = await coverCdp.send('Target.getTargetInfo');
+        const coverWindow = await coverCdp.send('Browser.getWindowForTarget');
+        assert.equal(coverWindow.windowId, windowId, 'Background companion must be a tab in the controller window');
+        await cover.setContent('<title>AudioFlix background qualification companion</title><p>Disposable background-playback proof. No provider or library data.</p>');
+        await cover.bringToFront();
+        await page.evaluate(() => {
+            if (document.visibilityState !== 'hidden') throw Error('Inactive controller tab did not become genuinely hidden');
+            const proof = window.__eveNaturalVisibility;
+            proof.events.length = 0; proof.visibleViolations = 0; proof.measuring = true;
+        });
+        nativeControllers.set(page, { cover, coverTargetId: targetInfo.targetId, hiddenAt: Date.now() });
+        // A real inactive tab stays hidden even if the OS later restores this window.
+        // Never re-hide a visible interval during measurement or fabricate its visibility.
         await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'minimized' } });
-    } finally { await cdp.detach(); }
+    } catch (error) {
+        await cover?.close().catch(() => {});
+        nativeControllers.delete(page);
+        throw error;
+    } finally { await coverCdp?.detach(); await cdp.detach(); }
     await H.pollNode(async () => {
         const visibility = await page.evaluate(() => document.visibilityState);
         return { ok: visibility === 'hidden', reason: `Native controller visibility remained ${visibility}` };
     }, 8000, 250);
-    return 'native-headed-minimized-window';
+    assertNativeControllerHidden(await nativeControllerVisibility(page));
+    return 'native-headed-minimized-window-with-inactive-controller-tab';
 }
 
 export async function installNaturalProbe(page, capacity) {
@@ -109,6 +172,7 @@ export async function naturalSnapshot(page, H) {
         const m = window.EveAudioflixSpotifyAnyBrowser.snapshot(), relay = m.relay.lastState || {};
         const playback = window.EveAudioflixAudio.getPlaybackState();
         return { observation: m.observation, volume: window.EveAudioflixSpotifyAnyBrowser.volumeDiagnostics(),
+            visibleViolations: window.__eveNaturalVisibility?.visibleViolations || 0,
             itemId: String(playback.item?.id || ''), engine: relay.engine || {},
             queueViewOpen: window.EveAudioflixAudio.isInternalViewOpen()
                 || window.EveAudioflixSpotifyEngineSurface?.snapshot?.().open === true,
@@ -131,6 +195,7 @@ function assertCurrent(snapshot, H, ids, index, ownerEpoch, run, engineEpoch, ge
     for (const key of ['inFlight', 'pending']) assert.ok(Number.isInteger(snapshot.volume?.[key])
         && snapshot.volume[key] >= 0 && snapshot.volume[key] <= 1, `Volume ${key} must remain <=1`);
     if (hidden) assert.equal(snapshot.visibility, 'hidden', 'Controller stopped being genuinely hidden');
+    if (hidden) assert.equal(snapshot.visibleViolations || 0, 0, 'Controller contained a visible interval');
 }
 
 export async function verifyCurrentVolume({ page, H, ids, index, ownerEpoch, expectedTrackId, hidden }) {
@@ -179,6 +244,7 @@ export async function awaitNaturalTrack({ page, H, ids, index, ownerEpoch, spoti
         assertObservers(snapshot.observation);
         assert.equal(snapshot.queueViewOpen, false, 'Queue View opened during natural playback');
         if (hidden) assert.equal(snapshot.visibility, 'hidden', 'Natural playback became visible');
+        if (hidden) assert.equal(snapshot.visibleViolations || 0, 0, 'Natural playback contained a visible interval');
         ended = snapshot.events.find(event => event.itemId === ids[index] && event.run === run) || ended;
         if (snapshot.queue.currentIndex !== index || snapshot.queue.isPlaying === false) break;
         assertCurrent(snapshot, H, ids, index, ownerEpoch, run, engineEpoch, generation, hidden);
