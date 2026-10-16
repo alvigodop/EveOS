@@ -5,6 +5,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
+import { checkLibraryQualificationEvidence } from './audioflix_library_evidence_contract.shared.mjs';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
 import { installSoakSearchDiagnostics, measureSoakSearchTiming, restoreSoakSearchDiagnostics } from '../qualification/audioflix_library_soak_search_timing.mjs';
 import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
@@ -12,7 +13,7 @@ import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyReso
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-library-soak-contract.json');
-const results = [], volumeSaveEvidence = [];
+const results = [], volumeSaveEvidence = [], evidenceOnly = process.argv.includes('--evidence-only');
 let current = '';
 function instrumentationFixture(requestFrame = callback => callback()) {
     const timers = new Map(), events = new Map();
@@ -35,7 +36,7 @@ function instrumentationFixture(requestFrame = callback => callback()) {
     vm.runInContext(`(${installLibrarySoakInstrumentation.toString()})()`, context);
     return { window, timers, events, context, advance: ms => { tick += ms; }, observer: () => performanceObserver };
 }
-async function check(id, work) { current = id; await work(); results.push(id); }
+async function check(id, work) { if (evidenceOnly && !id.startsWith('qualification-evidence:')) return; current = id; await work(); results.push(id); }
 function volumeSaveFixture() {
     const timers = new Map(), counters = {}, saves = [], events = [];
     let nextTimer = 0;
@@ -61,6 +62,7 @@ function volumeSaveFixture() {
         snapshot: () => ({ commits: counters['state:volume-commit-count'] || 0, revision: state.getRevision(), persists: counters['state:persist-attempts'] || 0 }) };
 }
 try {
+    await checkLibraryQualificationEvidence(check, ROOT);
     await check('queue-handoffs-do-not-rebuild-mounted-library', () => {
         assertQueueProjection(3, 3);
         assert.throws(() => assertQueueProjection(3, 4), /without rebuilding/);

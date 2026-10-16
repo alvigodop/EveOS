@@ -3,7 +3,7 @@
 Current development line: `eve/core-hardening`.
 Status as of 2026-10-16: the main feature/core-hardening baseline is sealed at `e68563ec994edd8f0fb020d5046225898573b3d4` according to the completed Eve/Drift handoff. Nova confirmed the canonical local checkout was clean at that exact SHA. The handoff reports final uncached verification passed and remote active branches/main were aligned; this documentation update does not claim Nova independently reran that verifier or refreshed every local reference.
 
-That seal is scoped: shipped functionality and the completed scale/performance lane are not a claim that every natural-duration, physical-device, external-account or crash-injection scenario below was executed. Newly authorized storage-mirror/qualification follow-through is in progress and is not covered by the earlier seal.
+That seal is scoped: shipped functionality and the completed scale/performance lane are not a claim that every natural-duration, physical-device, external-account or crash-injection scenario below was executed. The later recovery-mirror, learned-duration and viewport-layout corrections are a separate follow-through candidate, not a retroactive expansion of the earlier seal. Their exact qualification head and results belong to the completed local acceptance reports.
 
 ## Closure matrix (2026-10-16)
 
@@ -14,9 +14,13 @@ That seal is scoped: shipped functionality and the completed scale/performance l
 | Final repository verification | PASS reported by Eve/Drift for the final baseline | Distinguish supplied final-verifier evidence from Nova's direct Git/source review; no new gates ran for this ledger correction |
 | Signed-in typed playback / real mixed import | Prior HTTP/file transport and real track+episode import proof exists | Seek-assisted playback is not natural-duration endurance. The real mixed playlist did not contain local/unavailable rows; deterministic fixtures cover those categories |
 | Broader native / external acceptance | Partially proven, explicitly bounded | Natural provider endings/background/repeat, physical-phone WebRTC/output delay, Nexus/Dex provider recovery, model/account isolation and destructive crash/device-loss cases retain their own acceptance requirements |
-| Storage recovery mirror and qualification follow-through | IN PROGRESS; not passed by this document | Keep durable mirror scale/recovery and exact served-source qualification claims separate until the newly authorized fixes and their gates complete |
+| Storage recovery mirror | Large-state recovery implemented through the existing IndexedDB owner; small-state behavior retained | Focused 25k/30 MB HTTP/file recovery, reload, explicit-clear and prior-generation backup contracts passed; do not infer later candidate performance from this storage proof |
+| Learned durations / terminal controls | Metadata persistence no longer requires a structural library rebuild; final queue exhaustion publishes terminal controls | Existing queue/browser regressions retain node identity, ordinary structural edits and no-extra-start assertions |
+| Viewport layout / qualification evidence | Bounded visible-card materialization and explicit overlay tracks; preserved cold metrics and runtime identity | Exact candidate acceptance still requires ordered 10 → strict-50 → 500 HTTP/file/25k gates, then real provider checks and uncached verification; isolated diagnostic winners do not seal a candidate |
 
 The sections below retain the initial 2026-10-13 investigation and later renderer checkpoint as historical evidence. Their earlier `BLOCKED`, `PENDING`, `DEFERRED` and no-merge statements describe those checkpoints, not the current branch/seal status. Outstanding physical/provider proofs remain outstanding unless a later scoped artifact explicitly closes them.
+
+For the current manual closure pass, start real Spotify media, verify progress/identity, seek near the end and observe the actual provider completion when that is sufficient. Report this as **seek-assisted**, never full-duration endurance. Full-duration commands remain explicit opt-ins for bugs that require continuous playback. A physical phone was unavailable; its WatchFusion playout/handoff proof remains unqualified rather than being silently replaced by a local browser fixture. No merge or push is implied by this ledger.
 
 ## Initial pass context (2026-10-13; historical)
 

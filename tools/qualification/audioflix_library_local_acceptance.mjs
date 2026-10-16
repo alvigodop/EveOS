@@ -12,6 +12,7 @@ import { installBackendWriteBarrier, readBackendAudioflixSnapshot, assertBackend
 import { installLibrarySoakInstrumentation, attachSoakConsole, runLibrarySoak, scaleSoakFixture } from './audioflix_library_soak.mjs';
 import { verifyQualificationSource, attachBrowserSourceIdentity } from './audioflix_source_identity.mjs';
 import { installSyntheticAudioFixtureBridge } from './audioflix_library_synthetic_audio.mjs';
+import { captureQualificationEnvironment, captureQualificationBrowser, qualificationLaunchOptions, qualificationContextOptions, recordQualificationCohort } from './audioflix_library_environment.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2), sourceArg = args[args.indexOf('--source') + 1];
@@ -40,7 +41,8 @@ const report = { ok: false, syntheticAudio: true, providerPlaybackClaimed: false
     baselineScope: 'renderer-only: old render factory on current state/index/transport; not an old whole-branch runtime',
     head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     sourceCounts: { music: data.music.length, groups: data.musicGroups?.length || 0, folders: data.musicFolders?.length || 0 },
-    entrypoints: [], scales: [], soaks: [], errors: [], browserErrors: [], monitorAdjustments: [], boots: [] };
+    entrypoints: [], scales: [], soaks: [], errors: [], browserErrors: [], monitorAdjustments: [], boots: [], cohortOrder: [],
+    environment: captureQualificationEnvironment({ root: ROOT, chromium }) };
 const resultPath = path.join(OUT, 'result.json');
 const write = () => fs.writeFileSync(resultPath, JSON.stringify(report, null, 2));
 const stats = list => { const sorted = [...list].sort((a, b) => a - b); return { count: sorted.length, p50: sorted[Math.floor((sorted.length - 1) * .5)] || 0, p95: sorted[Math.ceil((sorted.length - 1) * .95)] || 0, max: sorted.at(-1) || 0 }; };
@@ -50,7 +52,7 @@ const backend = () => readBackendAudioflixSnapshot(async () => {
 });
 let browser, currentPage, backendBefore;
 async function isolatedContext() {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+    const context = await browser.newContext(qualificationContextOptions());
     const barrier = await installBackendWriteBarrier(context, [base]);
     let providerBlocked = 0, playbackBlocked = 0; const blockedRequests = [];
     await context.route('**/*', route => {
@@ -175,6 +177,7 @@ async function topology(page) {
 }
 
 async function qualifyReal(url, entrypoint) {
+    recordQualificationCohort(report, 'real', `real-${entrypoint}`, entrypoint);
     const run = await boot(url, data), { page } = run;
     try {
         const before = await topology(page);
@@ -344,6 +347,7 @@ async function frontendProbe(run, count) {
 }
 
 async function qualifyScale(count, baselineSource) {
+    recordQualificationCohort(report, 'scale', `synthetic-${count}`, 'http');
     const fixture = { music: Array.from({ length: count }, (_, i) => ({ id: `local_scale_${count}_${i}`, title: `Scale Track ${i}`, folder: `Scale ${i % 50}`, artist: `Artist ${i % 100}`, url: `https://media.invalid/${i}.mp3`, duration: 120, exposed: true })),
         musicFolders: Array.from({ length: 50 }, (_, i) => `Scale ${i}`), musicGroups: [], musicGroupMap: {}, musicPlaylists: [] };
     const run = await boot(base + '/EveOS.html', fixture, true), { page } = run;
@@ -383,6 +387,7 @@ async function qualifyScale(count, baselineSource) {
 }
 
 async function qualifySoak(url, payload, label) {
+    recordQualificationCohort(report, 'soak', label, new URL(url).protocol.slice(0, -1));
     report.phase = `soak-${label}`;
     const run = await boot(url, payload, true);
     try {
@@ -397,7 +402,8 @@ async function qualifySoak(url, payload, label) {
 try {
     report.sourceIdentity = await verifyQualificationSource({ root: ROOT, base, expectedHead: report.head }); write();
     backendBefore = await backend(); report.backendBefore = backendBefore;
-    browser = await chromium.launch({ headless: true, args: ['--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'] });
+    browser = await chromium.launch(qualificationLaunchOptions());
+    await captureQualificationBrowser(report.environment, browser); write();
     if (!soakOnly && !scaleOnly && entrypoint !== 'file') await qualifyReal(base + '/EveOS.html', 'http');
     if (!soakOnly && !scaleOnly && entrypoint !== 'http') await qualifyReal(pathToFileURL(path.join(ROOT, 'EveOS.html')).href, 'file');
     if (!soakOnly && !args.includes('--skip-scale')) {

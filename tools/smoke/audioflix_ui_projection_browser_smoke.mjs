@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { qualifyAudioflixProjectionGeometry } from './helpers/audioflix_projection_geometry.mjs';
+import { qualifyMaterialization } from './helpers/audioflix_projection_materialization.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-ui-projection-browser.json');
@@ -168,8 +169,9 @@ try {
     assert.equal(await page.evaluate(() => window.__fullRenders), 2);
     checks.push('structural-render-remains-authoritative');
     const geometry = await qualifyAudioflixProjectionGeometry(page, ROOT, checks);
+    const materialization = await qualifyMaterialization(page, checks);
     assert.deepEqual(errors, []);
-    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, checks, geometry, pageErrors: errors }));
+    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, checks, geometry, materialization, pageErrors: errors }));
     console.log(`AUDIOFLIX_UI_PROJECTION_BROWSER_OK checks=${checks.length} realPointer=true`);
 } catch (error) {
     fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: false, checks, error: String(error.stack || error), pageErrors: errors }));

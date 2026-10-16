@@ -277,9 +277,11 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         onProgress({ label, stage: 'warmup', counts: { ...counts } });
         // Warm all exercised card/modal/gesture paths before taking resource baselines.
         await page.evaluate(() => window.__librarySoak.segment('warmup'));
+        perfTrace.segment('warmup');
         for (let i = 0; i < 10; i++) { await playStop(); await settings(); }
         await volume();
         await page.evaluate(async () => { await window.__librarySoak.settleResponses(); window.__librarySoak.segment('measured'); });
+        perfTrace.segment('measured');
         await page.evaluate(() => { window.__soakDebug.enabled = window.__soakDebug.all; });
         for (const key of Object.keys(rows)) rows[key] = [];
         const startCalls = await page.evaluate(() => ({ ...window.__soakCalls }));
@@ -431,7 +433,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
             modularCapture: final.modularCapture,
-            debug: { ...(await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume, phaseTrace: window.__soakPhaseTrace || [] }))), performanceTrace: perfTrace.snapshot() },
+            debug: { ...(await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume, phaseTrace: window.__soakPhaseTrace || [] }))), performanceTrace: perfTrace.snapshot(), firstPerformanceTrace: perfTrace.firstSnapshot() },
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
             calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };
     } finally { await cdp.detach().catch(() => {}); }
