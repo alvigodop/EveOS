@@ -2,13 +2,13 @@
 
 import uuid
 
-from . import eveos_exposure, eveos_update_plan
+from . import eveos_exposure, eveos_web_fingerprint
 
 
 SERVICE_NAME = "eveos-local-server"
 SERVICE_VERSION = "0.6.0"
 _INSTANCE_ID = uuid.uuid4().hex
-_SOURCE_FINGERPRINT = eveos_update_plan.baseline_status().get("componentFingerprints", {}).get("web", "")
+_SOURCE_FINGERPRINT = eveos_web_fingerprint.capture_web_fingerprint()
 
 
 def _public_exposure(service: str) -> dict:
