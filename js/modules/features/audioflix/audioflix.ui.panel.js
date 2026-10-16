@@ -62,6 +62,18 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
             catch (error) { failed = true; throw error; }
             finally { try { finish?.(failed); } catch { /* optional telemetry */ } }
         };
+        const EAGER_MATERIALIZE_SOURCE_LIMIT = 40 * 100;
+        const EAGER_MATERIALIZE_OVERSCAN_PX = 154;
+        const materializeVisiblePagedCards = (panel, host) => {
+            const viewport = panel.getBoundingClientRect();
+            const eagerBottom = viewport.bottom + EAGER_MATERIALIZE_OVERSCAN_PX;
+            for (const card of host.querySelectorAll('.audioflix-item-grid[data-af-window-owner] > .audioflix-item-card')) {
+                const box = card.getBoundingClientRect();
+                if (box.bottom <= viewport.top) continue;
+                if (box.top >= eagerBottom) break;
+                card.querySelector('[data-af-action="play"]')?.getBoundingClientRect();
+            }
+        };
         function render() {
             const { activeTab, fullscreenOn, settingsOpen, portedSounds } = ctx.view(), tools = ctx.tools();
             const snapshot = state(), musicCount = snapshot.music?.length || 0, soundCount = (snapshot.soundboard?.length || 0) + portedSounds.length, routedCount = snapshot.counters?.routedGeminiEvents || 0;
@@ -103,6 +115,11 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
                 if (scrollLeft) panel.scrollLeft = scrollLeft;
                 if (!focusedAction?.isConnected || document.activeElement !== focusedAction) restoreFocus(panel, focus);
             });
+            if (type === 'music'
+                && (snapshot.musicViewMode || 'backend') === 'frontend'
+                && (snapshot.music?.length || 0) <= EAGER_MATERIALIZE_SOURCE_LIMIT) {
+                measured('ui:panel:library:materialize-visible', () => materializeVisiblePagedCards(panel, host));
+            }
             measured('ui:panel:library:sync', () => {
                 window.EveAudioflixTransport?.sync?.(host);
                 window.EveAudioflixLayerVoices?.render?.(host);
