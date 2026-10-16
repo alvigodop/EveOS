@@ -300,6 +300,9 @@
             let outcome = 'failed';
             try {
                 if (!receipt) return null;
+                // Do not begin a large native parse inline with the event that supplied a
+                // receipt. Recheck its generation after giving pending input/paint priority.
+                if (!await continueCapture(generation, receipt)) { outcome = 'stale'; return null; }
                 let mark = debug ? elapsedClock() : 0;
                 const configSnapshot = JSON.parse(receipt.signature);
                 if (debug) { stages.receiptParseMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }

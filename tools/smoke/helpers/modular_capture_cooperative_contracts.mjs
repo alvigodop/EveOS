@@ -20,25 +20,65 @@ async function bounded(promise, label) {
     }
 }
 
-function yieldingSandbox(moduleSandbox, schedulerYield) {
+function yieldingSandbox(moduleSandbox, schedulerYield, schedulerPostTask) {
     let clock = 0;
     return moduleSandbox({
         Blob, TextEncoder, TextDecoder,
         performance: { now: () => (clock += 10) },
-        scheduler: { yield: schedulerYield }
+        scheduler: { yield: schedulerYield, ...(schedulerPostTask ? { postTask: schedulerPostTask } : {}) }
     });
 }
 
-async function encodingContracts({ moduleSandbox, cooperativePath }) {
+async function taskPriorityContracts({ moduleSandbox, cooperativePath }) {
+    for (const mode of ['background', 'yield', 'timer', 'nonbrowser']) {
+        const tasks = [], calls = [];
+        const options = {};
+        const deferred = callback => new Promise(resolve => tasks.push(() => resolve(callback?.())));
+        if (mode === 'background') options.scheduler = {
+            postTask(callback, settings) { calls.push(['postTask', settings.priority]); return deferred(callback); },
+            yield() { throw new Error('Background task support must take precedence over scheduler.yield'); }
+        };
+        if (mode === 'yield') options.scheduler = { yield() { calls.push(['yield']); return deferred(); } };
+        if (mode === 'timer') {
+            options.document = {};
+            options.setTimeout = (callback, delay) => { calls.push(['timer', delay]); return deferred(callback); };
+        }
+        const sandbox = moduleSandbox(options);
+        load(sandbox, cooperativePath);
+        let finished = false;
+        const pending = sandbox.EveCooperativeWork.yieldTask().then(() => { finished = true; });
+        await Promise.resolve();
+        if (mode === 'nonbrowser') {
+            await pending;
+            assert.equal(tasks.length, 0, 'Non-browser sandboxes retain a settled Promise fallback');
+        } else {
+            assert.equal(finished, false, `${mode} continuation must not run inline or in a microtask-only drain`);
+            assert.equal(tasks.length, 1, `${mode} must schedule exactly one real task`);
+            assert.deepEqual(calls, [mode === 'background' ? ['postTask', 'background']
+                : mode === 'timer' ? ['timer', 0] : ['yield']]);
+            tasks.shift()();
+            await pending;
+            assert.equal(finished, true);
+        }
+    }
+}
+
+async function encodingModeContracts({ moduleSandbox, cooperativePath }, mode) {
     let calls = 0;
     let turns = 0;
-    const sandbox = yieldingSandbox(moduleSandbox, () => {
+    const task = () => {
         calls += 1;
         return new Promise(resolve => setImmediate(() => {
             turns += 1;
             resolve();
         }));
-    });
+    };
+    const sandbox = mode === 'background'
+        ? yieldingSandbox(moduleSandbox, () => { throw new Error('Unexpected yield fallback'); }, (callback, options) => {
+            assert.equal(options.priority, 'background');
+            return task().then(callback);
+        })
+        : yieldingSandbox(moduleSandbox, task);
     load(sandbox, cooperativePath);
     const api = sandbox.EveCooperativeWork;
     const inputs = [
@@ -266,7 +306,9 @@ async function captureOwnershipContracts({ moduleSandbox, cachePath, cacheSeed, 
 }
 
 export async function cooperativeCaptureContracts(options) {
-    await encodingContracts(options);
+    await taskPriorityContracts(options);
+    await encodingModeContracts(options, 'background');
+    await encodingModeContracts(options, 'yield');
     await preparationContracts(options);
     await cacheYieldContracts(options);
     await captureOwnershipContracts(options);

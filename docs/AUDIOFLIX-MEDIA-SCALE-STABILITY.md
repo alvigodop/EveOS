@@ -55,6 +55,13 @@ Search qualification records synchronous results-commit, automation overhead and
 second-animation-frame timing separately. The latter enters the unchanged 100 ms visual
 budget; the 150 ms search-processing budget is not a substitute for paint evidence.
 
+Noninteractive capture/storage task boundaries use background-priority `scheduler.postTask`
+when supported, then `scheduler.yield` or a real timer fallback. Large incremental receipt
+parsing yields before its first native parse and revalidates the owner generation afterward.
+This prevents default boosted continuations from unnecessarily competing with fresh input;
+it does not relax the full-audit TTL or alter payload/hash output. See the browser's
+[priority-inheritance explanation](https://developer.chrome.com/blog/use-scheduler-yield?hl=en).
+
 The registered opt-in `qualify:audioflix-library-soak` exercises real HTTP/file library copies and a synthetic 25k library. Its fixed latency/resource budgets are acceptance targets, not a claim that merely adding the harness passed them. Likewise `qualify:audioflix-typed-natural` requires actual full-duration hidden playback, typed Ended identity and repeat-on/off transitions; seek-assisted evidence is not interchangeable.
 
 ## Boot and audit policy

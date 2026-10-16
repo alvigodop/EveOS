@@ -4,6 +4,11 @@
     if (window.EveCooperativeWork) return;
 
     function yieldTask() {
+        // Capture/storage work is background work. A default scheduler.yield continuation
+        // is boosted ahead of same-priority tasks and can convoy in front of a fresh paint.
+        if (typeof window.scheduler?.postTask === 'function') {
+            return window.scheduler.postTask(() => {}, { priority: 'background' });
+        }
         if (typeof window.scheduler?.yield === 'function') return window.scheduler.yield();
         // A resolved Promise is not a browser task boundary. Retain a real fallback for
         // older engines; non-browser contract sandboxes have no render work to service.
