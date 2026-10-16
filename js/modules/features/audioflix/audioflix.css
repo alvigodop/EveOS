@@ -215,6 +215,8 @@
 /* Keep the complete card page in the DOM, but let the browser skip off-screen work.
    This is a placeholder body estimate, not a height cap; auto remembers measured sizes. */
 .audioflix-item-grid[data-af-window-owner] > .audioflix-item-card {
+    /* Viewport promotion must not drop auto's layout/style/paint isolation. */
+    contain: content;
     content-visibility: auto;
     contain-intrinsic-block-size: auto 154px;
 }

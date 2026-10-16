@@ -153,12 +153,14 @@ window.EveAudioflixTransport = window.EveAudioflixTransport || {};
                 slider.value = String(isCurrent ? current : 0);
                 slider.style.setProperty('--seek', `${isCurrent && duration > 0 ? (current / duration) * 100 : 0}%`);
                 const currentLabel = transport.querySelector('.audioflix-time-current');
-                if (currentLabel) currentLabel.textContent = formatTime(isCurrent ? current : 0);
+                const currentText = formatTime(isCurrent ? current : 0);
+                if (currentLabel && currentLabel.textContent !== currentText) currentLabel.textContent = currentText;
             }
             const durationLabel = transport.querySelector('.audioflix-time-duration');
             const knownDuration = Math.max(0, Number(transport.dataset.afDuration || 0) || 0);
-            if (durationLabel) durationLabel.textContent = isCurrent && duration > 0
+            const durationText = isCurrent && duration > 0
                 ? formatTime(duration) : (knownDuration > 0 ? formatTime(knownDuration) : '--:--');
+            if (durationLabel && durationLabel.textContent !== durationText) durationLabel.textContent = durationText;
         });
     }
 

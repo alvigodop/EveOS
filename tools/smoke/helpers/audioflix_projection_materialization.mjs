@@ -8,8 +8,11 @@ export async function qualifyMaterialization(page, checks) {
         const probe = window.__materializeProbe;
         window.EveAudioflixDiagnostics = { ...probe.diagnostics, span(name) {
             const finish = probe.diagnostics?.span?.(name);
+            if (name === 'ui:panel:library:markup') probe.syncDone = false;
+            if (name === 'ui:panel:library:sync') return error => { probe.syncDone = true; finish?.(error); };
             if (name !== 'ui:panel:library:materialize-visible') return finish;
-            const row = { reads: [], cards: document.querySelectorAll('.audioflix-item-card').length };
+            const row = { reads: [], syncDone: probe.syncDone,
+                cards: document.querySelectorAll('.audioflix-item-card').length };
             probe.active = row; probe.rows.push(row);
             return error => { probe.active = null; finish?.(error); };
         } };
@@ -50,6 +53,7 @@ export async function qualifyMaterialization(page, checks) {
             assert.equal(value.scroll, 0, 'Cold projection does not move the panel');
             if (count <= 4000) {
                 assert.equal(value.rows.length, 1, 'Bounded catalogs materialize in one owning projection span');
+                assert.equal(value.rows[0].syncDone, true, 'Transport/voice DOM writes finish before viewport geometry is read');
                 assert.deepEqual(value.rows[0].reads, [], 'Viewport selection never forces descendant layout inside its read loop');
                 assert.ok(value.materialized.length > 0 && value.materialized.length < 40,
                     'A declaratively materialized viewport subset never expands the entire mounted page');

@@ -119,15 +119,16 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
                 if (scrollLeft) panel.scrollLeft = scrollLeft;
                 if (!focusedAction?.isConnected || document.activeElement !== focusedAction) restoreFocus(panel, focus);
             });
+            // Finish connected-DOM writes before measuring the viewport/card estimates.
+            measured('ui:panel:library:sync', () => {
+                window.EveAudioflixTransport?.sync?.(host);
+                window.EveAudioflixLayerVoices?.render?.(host);
+            });
             if (type === 'music'
                 && (snapshot.musicViewMode || 'backend') === 'frontend'
                 && (snapshot.music?.length || 0) <= EAGER_MATERIALIZE_SOURCE_LIMIT) {
                 measured('ui:panel:library:materialize-visible', () => materializeVisiblePagedCards(panel, host));
             }
-            measured('ui:panel:library:sync', () => {
-                window.EveAudioflixTransport?.sync?.(host);
-                window.EveAudioflixLayerVoices?.render?.(host);
-            });
             return true;
         }
 
