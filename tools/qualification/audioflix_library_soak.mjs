@@ -3,6 +3,7 @@ import { performance } from 'node:perf_hooks';
 import { latencyStats, sampleSoakResources, resourceGrowth, evaluateSoakBudgets } from './audioflix_library_soak_resources.mjs';
 import { PERSISTENCE_SPANS } from './audioflix_source_identity.mjs';
 import { recordTracedSoakPhase } from './audioflix_library_soak_phase_trace.mjs';
+import { createSoakPerformanceTrace } from './audioflix_library_soak_perf_trace.mjs';
 export { installLibrarySoakInstrumentation } from './audioflix_library_soak_resources.mjs';
 
 const css = value => String(value).replace(/[\\"]/g, '\\$&');
@@ -87,13 +88,13 @@ export function assertGestureTotals(inputEvents, counts, outcomes) {
 
 export async function runLibrarySoak(run, { label, topology, settleMonitor, hash, onProgress = () => {}, iterations = 500 }) {
     assert.ok(Number.isInteger(iterations) && iterations >= 5 && iterations % 5 === 0);
-    const { page, context } = run, cdp = await context.newCDPSession(page);
+    const { page, context } = run, cdp = await context.newCDPSession(page), perfTrace = await createSoakPerformanceTrace(cdp);
     const rows = {}, samples = [], warnings = [], counts = { playStop: 0, settings: 0, queueTransitions: 0, searches: 0, expansionPairs: 0, gestures: 0, pointerMoves: 0, playlistReconciliations: 0, healthUpdates: 0 };
     let expandedGroupSize = 0;
-    const record = (phase, operation) => recordSoakPhase(page, phase, async () => {
+    const record = (phase, operation) => perfTrace.record(phase, () => recordSoakPhase(page, phase, async () => {
         const at = performance.now(), result = await operation();
         (rows[phase] ||= []).push(performance.now() - at); return result;
-    });
+    }));
     const topologyBefore = hash(JSON.stringify(await topology(page)));
     const settledBoundaries = [];
     const quiesce = async reason => {
@@ -429,7 +430,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             warmupLongTaskAttribution, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
-            debug: await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume, phaseTrace: window.__soakPhaseTrace || [] })),
+            debug: { ...(await page.evaluate(() => ({ events: window.__soakDebug.events, volume: window.__soakDebug.volume, phaseTrace: window.__soakPhaseTrace || [] }))), performanceTrace: perfTrace.snapshot() },
             longTaskRetention: { total: end.longTaskCount, retained: longTaskRows.length, dropped: end.droppedLongTasks },
             calls: { before: startCalls, after: endCalls }, resourceErrorAttribution: resourceErrors, console: run.consoleProbe, iterations, warnings };
     } finally { await cdp.detach().catch(() => {}); }
