@@ -29,7 +29,8 @@
         radial-gradient(circle at 18% 20%, rgba(255, 202, 95, 0.16), transparent 30%),
         radial-gradient(circle at 82% 16%, rgba(0, 212, 255, 0.14), transparent 32%),
         rgba(0, 0, 0, 0.72);
-    backdrop-filter: blur(10px);
+    /* Keep the dimmed gradient, not a viewport-sized blur on every transport paint. */
+    backdrop-filter: none;
 }
 
 .audioflix-overlay[hidden] {

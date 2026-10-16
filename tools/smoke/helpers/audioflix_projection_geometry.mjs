@@ -14,7 +14,8 @@ const snapshot = page => page.evaluate(() => {
     const card = root.querySelector('.audioflix-item-card');
     return { viewport: { width: innerWidth, height: innerHeight }, overlay: rect(root), panel: rect(panel),
         fixed: style.position, display: style.display, declaredColumns: declared?.gridTemplateColumns,
-        declaredRows: declared?.gridTemplateRows, scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight,
+        declaredRows: declared?.gridTemplateRows, backdropFilter: style.backdropFilter,
+        scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight,
         cards: root.querySelectorAll('.audioflix-item-card').length, sourceCount: window.__state.music.length,
         paged: !!card?.parentElement.dataset.afWindowOwner, cardContentVisibility: getComputedStyle(card).contentVisibility,
         visibility: [...root.querySelectorAll('.audioflix-item-card')].map(node => ({
@@ -45,6 +46,7 @@ function validate(value, fullscreen, label) {
     assert.ok(Math.abs(panel.y + panel.height / 2 - viewport.height / 2) <= 1, `${label} panel is vertically centered`);
     assert.equal(value.cards, 40, `${label} mounts forty production cards`);
     assert.equal(value.sourceCount, 80, `${label} preserves the full eighty-track canonical source`);
+    assert.equal(value.backdropFilter, 'none', `${label} transport paints must not composite a viewport-sized backdrop blur`);
     assert.equal(value.paged, true, `${label} exercises the production paged grid in either view mode`);
     assert.ok(value.visibility.every(row => row.computed === 'auto'
         || (row.computed === 'visible' && row.override === 'visible')),
