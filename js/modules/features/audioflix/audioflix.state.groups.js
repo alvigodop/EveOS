@@ -182,7 +182,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             return ensure();
         }
 
-        function updateItem(type, itemId, patch) {
+        function updateItem(type, itemId, patch, options = {}) {
             const state = ensure();
             const key = type === 'music' ? 'music' : 'soundboard';
             const schema = window.EveAudioflixStateSchema;
@@ -204,7 +204,7 @@ window.EveAudioflixStateGroups = window.EveAudioflixStateGroups || {};
             }
             deps.noteItem?.(type, entry);
             syncRootOrFallback(state);
-            scheduleSave(`audioflix-update-${type}`);
+            scheduleSave(options.reason || `audioflix-update-${type}`);
             return ensure();
         }
 

@@ -22,7 +22,12 @@ window.EveAudioflixTransport = window.EveAudioflixTransport || {};
         const stored = (window.EveAudioflixState?.ensure?.()[key] || []).find((entry) => entry.id === item.id);
         if (Number(stored?.duration || item.duration || 0) > 0) return Number(stored?.duration || item.duration);
         item.duration = seconds;
-        window.EveAudioflixState?.updateItem?.(itemType, item.id, { duration: seconds });
+        window.EveAudioflixState?.updateItem?.(
+            itemType,
+            item.id,
+            { duration: seconds },
+            { reason: `audioflix-duration-${itemType}` }
+        );
         return seconds;
     }
 

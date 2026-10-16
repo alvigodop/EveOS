@@ -9,6 +9,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 const { RESULT_DIR, createFixture, snapshot, pointerClick, libraryAction, end, resolveEnd, saveFailure } =
     require('./helpers/audioflix_queue_completion_fixture');
+const { qualifyDurationProjection } = require('./helpers/audioflix_duration_projection_contract');
 
 const root = path.resolve(__dirname, '..', '..');
 const counts = {};
@@ -107,6 +108,7 @@ async function main() {
             await end(page);
             expectOutcome('play-group-no-queue-view', await settled(page), { starts: [before.queue.entries[1].id], index: 1, method: 'playItem', advance: 1 });
         });
+        await run('playing-duration-metadata-preserves-library', qualifyDurationProjection);
         await run('direct-provider-ended-two-copies', async page => {
             const before = await jump(page, 1);
             await endDirect(page);

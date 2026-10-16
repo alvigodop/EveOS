@@ -407,7 +407,7 @@ window.EveAudioflix = window.EveAudioflix || {};
     window.addEventListener('eve:audioflix-progress', e => window.EveAudioflixTransport?.sync?.(overlay, e.detail));
     window.addEventListener('eve:audioflix-state-changed', e => {
         const reasons = e.detail?.reasons || [e.detail?.reason];
-        if (reasons.every(reason => reason?.startsWith('audioflix-soundlab-') || ['audioflix-volume', 'audioflix-play', 'audioflix-exposed', 'audioflix-groups', 'audioflix-active-group', 'audioflix-browser-folders'].includes(reason))) return;
+        if (reasons.every(reason => reason?.startsWith('audioflix-duration-') || reason?.startsWith('audioflix-soundlab-') || ['audioflix-volume', 'audioflix-play', 'audioflix-exposed', 'audioflix-groups', 'audioflix-active-group', 'audioflix-browser-folders'].includes(reason))) return;
         if (reasons.every(reason => reason === 'audioflix-gemini-audio')) { updateStatusDOM(); return; }
         const scopeReasons = ['audioflix-music-view-mode', 'audioflix-view-mode', 'audioflix-folder-scope', 'audioflix-active-music-group', 'audioflix-active-music-artist', 'audioflix-active-music-classifier'];
         if (reasons.every(reason => scopeReasons.includes(reason)) && lastRenderedRevision === window.EveAudioflixState?.getRevision?.()) return;
