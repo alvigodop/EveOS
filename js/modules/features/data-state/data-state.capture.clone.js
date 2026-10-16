@@ -200,7 +200,7 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             return { scopedStorage };
         }
 
-        function captureState() {
+        function captureSections(audioflix) {
             const snapshot = {
                 metadata: {
                     version: VERSION,
@@ -218,12 +218,25 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
                     connections: cloneConnections()
                 },
                 knowledge: cloneKnowledgeState(),
-                audioflix: cloneAudioflix()
+                audioflix
             };
+            return snapshot;
+        }
+
+        function captureState() {
+            const snapshot = captureSections(cloneAudioflix());
             // Derive both backup sections from one detached committed-state capture. A second
             // live capture is unnecessary work and could describe a different revision.
             snapshot.audioflixStructure = structureFromAudioflixCapture(snapshot.audioflix);
             return snapshot;
+        }
+
+        function captureStateSections() {
+            const source = getConfig()?.audioflix;
+            const projection = window.EveAudioflixState?.durableProjectionForSerialization;
+            const audioflix = source && typeof projection === 'function' ? projection(source) : cloneAudioflix();
+            // All sources are sealed synchronously; no live aliases escape to the async audit.
+            return new Map(Object.entries(captureSections(audioflix)).map(([key, value]) => [key, JSON.stringify(value)]));
         }
 
         return {
@@ -244,7 +257,8 @@ window.EveDataStore.CaptureModules = window.EveDataStore.CaptureModules || {};
             filterKnowledgeState,
             cloneAudioflix,
             cloneAudioflixStructure,
-            captureState
+            captureState,
+            captureStateSections
         };
     };
 })();

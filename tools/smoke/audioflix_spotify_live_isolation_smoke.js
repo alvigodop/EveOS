@@ -16,6 +16,7 @@ const modules = [
     'features/audioflix/audioflix.state.recovery.js', 'features/audioflix/audioflix.state.groups.js',
     'features/audioflix/audioflix.library.index.js', 'features/audioflix/audioflix.state.mutations.js', 'features/audioflix/audioflix.state.persistence.js', 'features/audioflix/audioflix.state.js', 'features/data-state/data-state.capture.clone.js',
     'features/modular-state-sync/modular-state-sync.capture.codec.js',
+    'features/modular-state-sync/modular-state-sync.capture.full.js',
     'features/modular-state-sync/modular-state-sync.capture.cache.js',
     'features/modular-state-sync/modular-state-sync.shared.js',
     'features/modular-state-sync/modular-state-sync.engine.sync.js',

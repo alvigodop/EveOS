@@ -140,8 +140,10 @@ async function main() {
         await assert.rejects(verify(pair, { wrong: UI }), /served asset differs.*audioflix\.ui\.js/);
     });
     await run('sync-cache-owners-attested', async () => {
-        const owners = ['js/config/manifest/scripts.parts/01-ui.js',
+        const owners = ['js/config/manifest/scripts.parts/00-core.js', 'js/config/manifest/scripts.parts/01-ui.js',
+            'js/modules/core/cooperative-work.js',
             'js/modules/features/modular-state-sync/modular-state-sync.capture.codec.js',
+            'js/modules/features/modular-state-sync/modular-state-sync.capture.full.js',
             'js/modules/features/modular-state-sync/modular-state-sync.capture.cache.js',
             'js/modules/features/modular-state-sync/modular-state-sync.engine.runtime.js',
             'js/modules/features/modular-state-sync/modular-state-sync.shared.js',

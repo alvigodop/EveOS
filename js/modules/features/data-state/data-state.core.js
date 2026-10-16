@@ -12,6 +12,7 @@ window.EveDataStore = window.EveDataStore || {};
 
     window.EveDataStore.Store = {
         captureState: ns.captureState,
+        captureStateSections: ns.captureStateSections,
         captureWorkspace: ns.captureWorkspace,
         captureGroup: ns.captureGroup,
         captureCard: ns.captureCard,

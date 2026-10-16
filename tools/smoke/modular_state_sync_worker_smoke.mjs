@@ -7,17 +7,20 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { chromium } from 'playwright';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { cooperativeCaptureContracts } from './helpers/modular_capture_cooperative_contracts.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MODULES = path.join(ROOT, 'js/modules/features/modular-state-sync');
 const CODEC = path.join(MODULES, 'modular-state-sync.capture.codec.js');
+const FULL = path.join(MODULES, 'modular-state-sync.capture.full.js');
 const CACHE = path.join(MODULES, 'modular-state-sync.capture.cache.js');
 const WORKER = path.join(MODULES, 'modular-state-sync.capture.worker.js');
+const COOPERATIVE = path.join(ROOT, 'js/modules/core/cooperative-work.js');
 const read = file => fs.readFileSync(file, 'utf8');
 const clone = value => JSON.parse(JSON.stringify(value));
 const nextTick = () => new Promise(resolve => setImmediate(resolve));
 
-function moduleSandbox() {
+function moduleSandbox(overrides = {}) {
     const sandbox = {
         console: { log() {}, warn() {}, error() {} },
         setTimeout,
@@ -32,12 +35,14 @@ function moduleSandbox() {
         String,
         Number,
         Math,
-        RegExp
+        RegExp,
+        ...overrides
     };
     sandbox.window = sandbox;
     sandbox.addEventListener = () => {};
     vm.createContext(sandbox);
     vm.runInContext(read(CODEC), sandbox, { filename: CODEC });
+    vm.runInContext(read(FULL), sandbox, { filename: FULL });
     return sandbox;
 }
 
@@ -196,6 +201,7 @@ async function asyncCaptureFencingContracts() {
 async function browserContext(label, url, page) {
     await page.goto(url, { waitUntil: 'load', timeout: 30000 });
     await page.addScriptTag({ path: CODEC });
+    await page.addScriptTag({ path: COOPERATIVE });
     await page.addScriptTag({ path: WORKER });
     const result = await page.evaluate(async () => {
         const state = {
@@ -217,15 +223,16 @@ async function browserContext(label, url, page) {
     assert.equal(result.actual, result.expected, `${label} worker must preserve sections-v1 identity`);
     assert.equal(result.stats.mode, 'worker', `${label} must actually execute the Blob worker, not degraded inline hashing`);
     assert.ok(result.stats.completed >= 1);
+    assert.ok(result.stats.cooperativeJobs > 0, `${label} worker must prepare owned bytes cooperatively`);
 }
 
 async function browserPushContracts(page, received) {
-    for (const file of [CACHE, path.join(MODULES, 'modular-state-sync.shared.js'),
+    for (const file of [FULL, CACHE, path.join(MODULES, 'modular-state-sync.shared.js'),
         path.join(MODULES, 'modular-state-sync.engine.sync.js')]) await page.addScriptTag({ path: file });
     const result = await page.evaluate(async () => {
         const state = {
             metadata: { version: 'transport' }, bookmarks: { links: [] }, library: {},
-            knowledge: { text: '音楽 😀 café', loneSurrogate: String.fromCharCode(0xd800) },
+            knowledge: { text: '音楽 😀 café'.repeat(40000), loneSurrogate: String.fromCharCode(0xd800) },
             audioflix: { music: Array.from({ length: 128 }, (_, id) => ({ id, title: `Track ${id} — 音楽 😀 café` })) },
             audioflixStructure: { schemaVersion: 3 }
         };
@@ -313,5 +320,9 @@ async function browserBootstrapContracts() {
 
 await nodeWorkerContracts();
 await asyncCaptureFencingContracts();
+await cooperativeCaptureContracts({
+    moduleSandbox, representativeParts, cacheSeed, structure,
+    cooperativePath: COOPERATIVE, workerPath: WORKER, cachePath: CACHE
+});
 await browserBootstrapContracts();
 console.log('MODULAR_STATE_SYNC_WORKER_SMOKE_OK');

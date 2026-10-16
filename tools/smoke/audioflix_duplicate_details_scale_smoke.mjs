@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const sourcePath = path.join(ROOT, 'js/modules/features/audioflix/audioflix.state.duplicates.js');
 const source = fs.readFileSync(sourcePath, 'utf8');
+const detailsPath = path.join(path.dirname(sourcePath), 'audioflix.duplicates.details.js');
+const libraryPath = path.join(path.dirname(sourcePath), 'audioflix.library.index.js');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-duplicate-details-scale.json');
 const evidence = { ok: false, cases: [], measurements: {} };
 let current = 'startup';
@@ -22,22 +24,41 @@ const shape = matches => copy(matches.map(({ item, level, reason, reasons }) => 
     id: item.id, level, reason, reasons
 })));
 
-function fixture(music, { MapClass = Map, dismissed = [] } = {}) {
+function fixture(music, { MapClass = Map, dismissed = [], withLibrary = false } = {}) {
     const queued = [], snapshot = { music, soundboard: [], dupDismissedPairs: [...dismissed] };
     let revision = 0;
+    let libraryBuilds = 0;
     const window = {
+        EveAudioflixDiagnostics: { increment(name) { if (name === 'index:builds') libraryBuilds += 1; } },
         EveAudioflixState: {
             ensure: () => snapshot,
             getRevision: () => revision,
-            update(patch) { Object.assign(snapshot, patch); revision += 1; return snapshot; }
+            update(patch) {
+                Object.assign(snapshot, patch);
+                if (['music', 'soundboard'].some(key => Object.hasOwn(patch, key))) window.EveAudioflixLibraryIndex?.invalidate(snapshot);
+                revision += 1;
+                return snapshot;
+            },
+            updateItem(type, itemId, patch) {
+                const item = snapshot[type === 'music' ? 'music' : 'soundboard'].find(row => row.id === itemId);
+                Object.assign(item, patch);
+                window.EveAudioflixLibraryIndex?.upsert(snapshot, type, item);
+                revision += 1;
+                return snapshot;
+            }
         }
     };
-    vm.runInNewContext(source, {
+    const context = vm.createContext({
         window, Map: MapClass, Set,
         queueMicrotask: fn => queued.push(fn),
         setTimeout: fn => queued.push(fn)
-    }, { filename: sourcePath });
-    return { D: window.EveAudioflixDuplicates, snapshot };
+    });
+    vm.runInContext(fs.readFileSync(detailsPath, 'utf8'), context, { filename: detailsPath });
+    if (withLibrary) vm.runInContext(fs.readFileSync(libraryPath, 'utf8'), context, { filename: libraryPath });
+    vm.runInContext(source, context, { filename: sourcePath });
+    return { D: window.EveAudioflixDuplicates, S: window.EveAudioflixState, snapshot,
+        library: window.EveAudioflixLibraryIndex, builds: () => libraryBuilds,
+        flush() { while (queued.length) queued.shift()(); } };
 }
 
 function reference(rows, itemId) {
@@ -48,8 +69,8 @@ function reference(rows, itemId) {
     }));
 }
 
-function exactDetails(rows, itemId) {
-    return shape(fixture(copy(rows)).D.duplicateInfoFor('music', itemId));
+function exactDetails(rows, itemId, options) {
+    return shape(fixture(copy(rows), options).D.duplicateInfoFor('music', itemId));
 }
 
 function test(id, run) {
@@ -74,6 +95,38 @@ try {
         assert.equal(SpyMap.writes, 0, 'ordinary details lookup built the full-library Map index');
         assert.ok(titleReads >= 25000 && titleReads <= 25001,
             `ordinary details lookup must scan descriptors once (title reads: ${titleReads})`);
+    });
+
+    test('indexed-25000-builds-once-and-warm-details-stay-bounded', () => {
+        let titleReads = 0;
+        const size = 25000;
+        const music = Array.from({ length: size }, (_, index) => ({
+            id: `indexed-${index}`,
+            get title() { titleReads += 1; return `Indexed ${index}`; },
+            url: `https://example.invalid/indexed/${index}`
+        }));
+        const f = fixture(music, { MapClass: SpyMap, withLibrary: true });
+        SpyMap.writes = 0;
+        assert.equal(f.D.duplicateInfoFor('music', 'indexed-12500').length, 0);
+        const cold = { titleReads, mapWrites: SpyMap.writes, builds: f.builds() };
+        assert.equal(cold.builds, 1, 'Cold details must build the canonical library index once');
+        assert.ok(cold.titleReads >= size * 2 && cold.titleReads <= size * 2 + 3,
+            'Cold details must stay within one library and one compact duplicate descriptor pass');
+        assert.ok(cold.mapWrites > 0 && cold.mapWrites <= size * 5 + 50, 'Cold index writes must stay linear');
+        titleReads = 0;
+        SpyMap.writes = 0;
+        const lookups = 10;
+        for (let index = 0; index < lookups; index += 1) {
+            f.flush();
+            f.S.update({ durabilityRevision: index + 1 });
+            assert.equal(f.D.duplicateInfoFor('music', `indexed-${12500 + index}`).length, 0);
+        }
+        const warm = { titleReads, mapWrites: SpyMap.writes, builds: f.builds(), lookups };
+        evidence.measurements.indexed25000 = { cold, warm };
+        assert.equal(warm.builds, 1, 'Global revisions and later turns must reuse the canonical library index');
+        assert.equal(warm.mapWrites, 0, 'Warm detail reads must not rebuild any Map projection');
+        assert.ok(warm.titleReads >= lookups && warm.titleReads <= lookups * 3,
+            'Each warm detail read must describe at most three records, not scan the 25k library');
     });
 
     test('exact-reasons-order-and-reference-parity', () => {
@@ -103,6 +156,8 @@ try {
         assert.deepEqual(details, expected);
         assert.deepEqual(details, reference(rows, 'selected'),
             'unique-ID detail results diverged from the independent full report');
+        assert.deepEqual(exactDetails(rows, 'selected', { withLibrary: true }), expected,
+            'Indexed details must preserve the same full-report reasons and ordering');
     });
 
     test('typed-spotify-and-local-identity', () => {
@@ -132,6 +187,10 @@ try {
         assert.deepEqual(local, [{ id: 'local-two', level: 'soft',
             reason: 'matching title', reasons: ['matching title'] }]);
         assert.deepEqual(local, reference(rows, 'local-one'));
+        for (const itemId of ['track', 'episode', 'case-variant', 'local-one']) {
+            assert.deepEqual(exactDetails(rows, itemId, { withLibrary: true }), exactDetails(rows, itemId),
+                'Indexed Spotify details must preserve typed, case-sensitive and local metadata semantics');
+        }
     });
 
     test('ambiguous-id-retains-indexed-fallback', () => {
@@ -181,8 +240,35 @@ try {
             'dismissal must not change full duplicate report semantics');
     });
 
+    test('indexed-canonical-same-array-edits-and-dismissal-stay-fresh', () => {
+        const target = { id: 'target', title: 'Alpha', url: 'https://example.invalid/target', localPath: 'C:/Folder/a.mp3' };
+        const peer = { id: 'peer', title: 'Beta', url: 'https://example.invalid/peer', localPath: 'C:/Folder/b.mp3' };
+        const f = fixture([target, peer], { withLibrary: true });
+        const originalArray = f.snapshot.music;
+        assert.deepEqual(shape(f.D.duplicateInfoFor('music', 'target')), []);
+        f.S.updateItem('music', 'peer', { title: 'Alpha' });
+        assert.equal(f.snapshot.music, originalArray, 'Canonical edits must retain the same array');
+        assert.equal(f.snapshot.music[1], peer, 'Canonical edits must retain the same item object');
+        assert.equal(f.D.duplicateInfoFor('music', 'target')[0]?.reason, 'matching title');
+        f.S.updateItem('music', 'peer', { title: 'Beta', localPath: 'c:\\folder\\a.mp3' });
+        assert.equal(f.D.duplicateInfoFor('music', 'target')[0]?.reason, 'matching local path');
+        f.S.updateItem('music', 'peer', { localPath: 'C:/Folder/b.mp3' });
+        assert.deepEqual(shape(f.D.duplicateInfoFor('music', 'target')), []);
+        const added = { id: 'added', title: 'Added', url: target.url };
+        f.snapshot.music.push(added);
+        f.library.upsert(f.snapshot, 'music', added);
+        assert.equal(f.D.duplicateInfoFor('music', 'target')[0]?.item.id, 'added');
+        assert.equal(f.D.dismissDuplicate('target', 'added').ok, true);
+        assert.deepEqual(shape(f.D.duplicateInfoFor('music', 'target')), []);
+        assert.equal(f.D.findDuplicates('music').length, 1, 'Indexed keep-both must preserve full report semantics');
+        f.snapshot.music.pop();
+        f.library.remove(f.snapshot, 'music', added.id);
+        assert.deepEqual(shape(f.D.duplicateInfoFor('music', 'target')), []);
+        assert.equal(f.builds(), 1, 'Canonical content edits must update the existing library index');
+    });
+
     evidence.ok = true;
-    console.log(`AUDIOFLIX_DUPLICATE_DETAILS_SCALE_SMOKE_OK PASS ${evidence.cases.length}/${evidence.cases.length} unique25000MapWrites=0`);
+    console.log(`AUDIOFLIX_DUPLICATE_DETAILS_SCALE_SMOKE_OK PASS ${evidence.cases.length}/${evidence.cases.length} legacyMapWrites=0 indexedWarmReads=${evidence.measurements.indexed25000.warm.titleReads}`);
 } catch (error) {
     evidence.error = { id: current, message: error.message, stack: error.stack };
     console.error(`AUDIOFLIX_DUPLICATE_DETAILS_SCALE_SMOKE_FAIL ${current}: ${error.message}\nArtifact: ${path.relative(ROOT, artifact)}`);

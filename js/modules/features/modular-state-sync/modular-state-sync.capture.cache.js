@@ -14,6 +14,7 @@
             window.EveAudioflixStateRecovery?.captureStructure?.(audioflix) || null
         ));
         const hashPartsAsync = typeof options.hashPartsAsync === 'function' ? options.hashPartsAsync : null;
+        const yieldTask = options.yieldTask || (() => window.EveCooperativeWork?.yieldTask?.() || Promise.resolve());
         const receipts = new WeakMap();
         const counts = {
             fullCount: 0,
@@ -234,6 +235,13 @@
             return Promise.resolve(hashPartsAsync(parts));
         }
 
+        async function continueCapture(generation, receipt) {
+            await yieldTask();
+            if (generation === captureGeneration && (!receipt || pendingReceipt === receipt)) return true;
+            counts.staleAsyncCount += 1;
+            return false;
+        }
+
         async function captureFullAsync(cause) {
             const started = elapsedClock();
             const generation = captureGeneration;
@@ -244,14 +252,18 @@
             try {
                 const store = getStore();
                 if (typeof store?.captureState !== 'function') return null;
+                const prepared = await window.EveModularCaptureFull.prepare({
+                    store, codec: codec(), captureStructure,
+                    checkpoint: () => continueCapture(generation),
+                    measure(name, operation) {
+                        const at = debug ? elapsedClock() : 0;
+                        try { return operation(); }
+                        finally { if (debug) stages[name] = Math.max(0, elapsedClock() - at); }
+                    }
+                });
+                if (!prepared) { outcome = 'stale'; return null; }
+                const { json } = prepared, parts = checkedParts(prepared.parts);
                 let mark = debug ? elapsedClock() : 0;
-                const state = store.captureState();
-                if (debug) { stages.captureStateMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
-                const json = JSON.stringify(state);
-                if (debug) { stages.stateJsonMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
-                if (typeof json !== 'string') return null;
-                const parts = checkedParts(codec().splitObject(json));
-                if (debug) { stages.splitMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const pendingHash = asyncHash(parts);
                 if (debug) { stages.handoffMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const hash = await pendingHash;
@@ -296,10 +308,16 @@
                 }
                 const detachedAudioflix = Object.prototype.hasOwnProperty.call(configSnapshot, 'audioflix')
                     ? configSnapshot.audioflix : null;
+                if (!await continueCapture(generation, receipt)) { outcome = 'stale'; return null; }
+                if (debug) mark = elapsedClock();
                 const audioflixJson = JSON.stringify(detachedAudioflix);
                 if (debug) { stages.audioJsonMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                if (!await continueCapture(generation, receipt)) { outcome = 'stale'; return null; }
+                if (debug) mark = elapsedClock();
                 const structure = detachedAudioflix ? captureStructure(detachedAudioflix) : null;
                 if (debug) { stages.captureStructureMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                if (!await continueCapture(generation, receipt)) { outcome = 'stale'; return null; }
+                if (debug) mark = elapsedClock();
                 const structureJson = JSON.stringify(structure || null);
                 if (debug) { stages.structureJsonMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const parts = new Map(sections);
@@ -308,6 +326,8 @@
                 if (debug) { stages.partsCopyMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const json = assemble(parts);
                 if (debug) { stages.assembleMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
+                if (!await continueCapture(generation, receipt)) { outcome = 'stale'; return null; }
+                if (debug) mark = elapsedClock();
                 const pendingHash = asyncHash(parts);
                 if (debug) { stages.handoffMs = Math.max(0, elapsedClock() - mark); mark = elapsedClock(); }
                 const hash = await pendingHash;

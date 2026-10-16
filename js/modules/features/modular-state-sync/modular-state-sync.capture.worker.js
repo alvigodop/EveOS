@@ -152,6 +152,8 @@
         let worker = null;
         let workerUrl = '';
         let nextId = 0;
+        let generation = 0;
+        let preparing = 0;
         const pending = new Map();
         const counters = {
             jobs: 0,
@@ -160,7 +162,8 @@
             restarts: 0,
             fallbacks: 0,
             transferredBytes: 0,
-            stringCloneJobs: 0
+            stringCloneJobs: 0,
+            cooperativeJobs: 0
         };
         let mode = 'uninitialized';
 
@@ -179,6 +182,7 @@
         }
 
         function reset(reason, reject = true) {
+            generation += 1;
             if (worker) {
                 try { worker.terminate?.(); } catch {}
                 worker = null;
@@ -246,23 +250,26 @@
             return Promise.resolve().then(() => codec.hashParts(parts));
         }
 
-        function wirePayload(entries) {
+        async function wirePayload(entries) {
             if (typeof TextEncoderCtor !== 'function') {
                 counters.stringCloneJobs += 1;
                 return { entries, transfers: [] };
             }
             const encoder = new TextEncoderCtor();
             const transfers = [];
-            const ownedEntries = entries.map(([key, json]) => {
-                const bytes = encoder.encode(json);
+            const ownedEntries = [];
+            const cooperative = typeof window.EveCooperativeWork?.encodeText === 'function';
+            if (cooperative) counters.cooperativeJobs += 1;
+            for (const [key, json] of entries) {
+                const bytes = cooperative ? await window.EveCooperativeWork.encodeText(json, TextEncoderCtor)
+                    : encoder.encode(json);
                 transfers.push(bytes.buffer);
-                counters.transferredBytes += bytes.byteLength;
-                return [key, bytes.buffer];
-            });
-            return { entries: ownedEntries, transfers };
+                ownedEntries.push([key, bytes.buffer]);
+            }
+            return { entries: ownedEntries, transfers, byteLength: transfers.reduce((total, part) => total + part.byteLength, 0) };
         }
 
-        function hashParts(parts) {
+        async function hashParts(parts) {
             if (!(parts instanceof Map)) return Promise.reject(new TypeError('Snapshot parts must be a Map'));
             const entries = Array.from(parts.entries());
             if (entries.some(([key, json]) => typeof key !== 'string' || typeof json !== 'string')) {
@@ -271,9 +278,13 @@
             counters.jobs += 1;
             const active = ensureWorker();
             if (!active) return inlineHash(new Map(entries));
+            const dispatchedGeneration = generation;
             let wire;
-            try { wire = wirePayload(entries); }
+            preparing += 1;
+            try { wire = await wirePayload(entries); }
             catch (error) { return Promise.reject(error); }
+            finally { preparing -= 1; }
+            if (generation !== dispatchedGeneration || worker !== active) throw new Error('Modular capture worker superseded during preparation');
             const id = ++nextId;
             return new Promise((resolve, reject) => {
                 const timer = setTimer ? setTimer(() => {
@@ -287,7 +298,10 @@
                     mode = 'restart-pending';
                 }, timeoutMs) : null;
                 pending.set(id, { resolve, reject, timer });
-                try { active.postMessage({ type: 'hash-parts', id, entries: wire.entries }, wire.transfers); }
+                try {
+                    active.postMessage({ type: 'hash-parts', id, entries: wire.entries }, wire.transfers);
+                    counters.transferredBytes += wire.byteLength || 0;
+                }
                 catch (error) {
                     pending.delete(id);
                     if (clearTimer) clearTimer(timer);
@@ -303,7 +317,7 @@
         }
 
         function stats() {
-            return Object.freeze({ ...counters, mode, inFlight: pending.size });
+            return Object.freeze({ ...counters, mode, inFlight: pending.size + preparing });
         }
 
         return Object.freeze({ hashParts, destroy, stats });

@@ -99,12 +99,14 @@ window.EveDataStore = window.EveDataStore || {};
         const stateHash = snapshot.hash;
         if (!force && (stateHash === state.lastUploadedHash || stateHash === state.lastSyncedLocalHash)) return false;
 
+        const body = typeof window.EveCooperativeWork?.jsonBody === 'function'
+            ? await window.EveCooperativeWork.jsonBody(snapshot.json)
+            : typeof window.Blob === 'function' ? new window.Blob([snapshot.json], { type: 'application/json' }) : snapshot.json;
         const { ok, payload } = await ns.requestJson('/api/eve-state/modular/save', {
             method: 'POST',
             // Blob-backed upload avoids Chromium's synchronous large inline-body
             // transport copy. It owns the same immutable JSON; hash/receipt fences stay unchanged.
-            body: typeof window.Blob === 'function'
-                ? new window.Blob([snapshot.json], { type: 'application/json' }) : snapshot.json
+            body
         });
         if (!ok || !payload?.ok) {
             console.warn('[ModularStateSync] Save failed:', payload?.error || 'Unknown error');

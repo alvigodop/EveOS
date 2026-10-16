@@ -67,7 +67,7 @@ function makeHarness(seed = { nested: { value: 1 }, bookmarks: { links: [] } }) 
     };
     sandbox.fetch = async () => ({ ok: true, json: async () => ({ ok: true }) });
     vm.createContext(sandbox);
-    for (const module of ['codec', 'cache']) {
+    for (const module of ['codec', 'full', 'cache']) {
         const file = path.join(path.dirname(SHARED), `modular-state-sync.capture.${module}.js`);
         vm.runInContext(fs.readFileSync(file, 'utf8'), sandbox, { filename: file });
     }

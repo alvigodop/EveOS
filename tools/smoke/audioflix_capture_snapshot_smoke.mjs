@@ -102,6 +102,9 @@ test('real-held-gain-projection-and-release-remain-canonical', () => {
     const musicGesture = {}, portGesture = {};
     assert.equal(S.previewItemVolume('music', 'track-1', .8, musicGesture), true);
     assert.equal(S.previewPortVolume('sound-1', .9, .3, portGesture), true);
+    const serialized = JSON.parse(JSON.stringify(S.durableProjectionForSerialization(f.state)));
+    assert.equal(serialized.music[0].volume, .2);
+    assert.equal(serialized.portVolumes['sound-1'], .3);
     const held = f.capture.captureState();
     assert.equal(held.audioflix.music[0].volume, .2);
     assert.equal(held.audioflix.portVolumes['sound-1'], .3);
@@ -113,6 +116,32 @@ test('real-held-gain-projection-and-release-remain-canonical', () => {
     assert.equal(released.audioflix.music[0].volume, .8);
     assert.equal(released.audioflixStructure.portVolumes['sound-1'], .9);
     assert.equal(held.audioflix.music[0].volume, .2, 'Later commits cannot rewrite an earlier capture');
+});
+
+test('native-json-sections-preserve-content-committed-gain-and-owned-bytes', () => {
+    const f = fixture(), S = f.window.EveAudioflixState;
+    S.previewItemVolume('music', 'track-1', .8, {});
+    S.previewPortVolume('sound-1', .9, .3, {});
+    Object.assign(f.state.music[0], { title: 'Native JSON 音楽 😀', nonFinite: Infinity, omitted: undefined });
+    const full = f.capture.captureState(), sections = f.capture.captureStateSections();
+    assert.deepEqual(Array.from(sections.keys()), ['metadata', 'bookmarks', 'library', 'knowledge', 'audioflix']);
+    for (const [key, raw] of sections) {
+        assert.equal(typeof raw, 'string', `${key} must be owned native JSON text`);
+        if (key === 'metadata') {
+            const actual = JSON.parse(raw), expected = copy(full.metadata);
+            delete actual.date; delete expected.date;
+            assert.deepEqual(actual, expected);
+        } else assert.equal(raw, JSON.stringify(full[key]), `${key} must preserve the full native JSON capture`);
+    }
+    assert.equal(f.snapshots.length, 1, 'Section capture must not add another full Audioflix clone');
+    const audio = JSON.parse(sections.get('audioflix'));
+    assert.equal(audio.music[0].volume, .2); assert.equal(audio.portVolumes['sound-1'], .3);
+    assert.equal(f.state.music[0].volume, .8); assert.equal(f.state.portVolumes['sound-1'], .9);
+    f.state.music[0].title = 'Later live edit'; f.state.music[0].classifiers.push('Later');
+    f.config.reader.mode = 'later'; f.window.eveState.links[0].url = 'https://later.invalid/';
+    assert.equal(sections.get('audioflix'), JSON.stringify(full.audioflix));
+    assert.equal(JSON.parse(sections.get('bookmarks')).config.reader.mode, 'fixture');
+    assert.equal(JSON.parse(sections.get('bookmarks')).links[0].url, 'https://example.invalid/');
 });
 
 test('detached-full-and-journal-preserve-all-content-and-topology', () => {

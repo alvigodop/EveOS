@@ -292,7 +292,11 @@ window.EveAudioflixDuplicates = window.EveAudioflixDuplicates || {};
         if (!itemId) return [];
         const snapshot = state(), items = snapshot[type === 'music' ? 'music' : 'soundboard'] || [], id = text(itemId);
         const library = window.EveAudioflixLibraryIndex?.get?.(snapshot, type);
-        if (!library?.getById || library.isAmbiguous?.(id)) return indexedDuplicateInfoFor(type, id);
+        if (!library?.getById) return window.EveAudioflixDuplicateDetails.scan({
+            items, itemId, dismissed: snapshot.dupDismissedPairs || [], descriptor, pairClassification,
+            indexedFallback: () => indexedDuplicateInfoFor(type, itemId)
+        });
+        if (library.isAmbiguous?.(id)) return indexedDuplicateInfoFor(type, id);
         const item = library.getById(id);
         if (!item) return [];
         const index = badgeIndexFor(type), selected = descriptor(item, 0), candidateIds = new Set();

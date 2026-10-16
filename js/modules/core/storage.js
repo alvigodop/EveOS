@@ -17,6 +17,7 @@ var _lastConfigSnapshot = null;
 var _pendingConfigSave = null;
 var _lastConfigMutationSignature = '';
 var _lastConfigMutationSnapshot = null;
+var _configRequestSequence = 0;
 
 function markCoreStateClean(snapshot) {
     var currentSnapshot = snapshot || buildCoreStateSnapshot();
@@ -30,6 +31,7 @@ function durableConfigSnapshot(current) {
 }
 
 function markConfigClean(nextConfig) {
+    _configRequestSequence += 1;
     var currentConfig = durableConfigSnapshot(nextConfig || config || {});
     _lastConfigSignature = buildStateSignature(currentConfig);
     _lastConfigSnapshot = cloneConfigForDelta(currentConfig, _lastConfigSignature);
@@ -224,7 +226,7 @@ function detachConfigForWrite(value) {
     return copy(value);
 }
 
-function queueConfigWrite(signature, capturedConfig, write) {
+function queueConfigWrite(signature, capturedConfig, write, getCapturedConfig) {
     var previous = _pendingConfigSave;
     var resolveSave;
     var pending = { signature, promise: new Promise(function (resolve) { resolveSave = resolve; }) };
@@ -233,7 +235,7 @@ function queueConfigWrite(signature, capturedConfig, write) {
         if (error) console.error('Core Storage: Failed to persist config', error);
         if (accepted) {
             _lastConfigSignature = signature;
-            _lastConfigSnapshot = capturedConfig;
+            _lastConfigSnapshot = getCapturedConfig ? getCapturedConfig() : capturedConfig;
         }
         if (_pendingConfigSave === pending) _pendingConfigSave = null;
         resolveSave(accepted);
@@ -275,24 +277,77 @@ function persistConfigCapture(storage, storageConfig, capturedConfig) {
     return true;
 }
 
+function saveConfigCooperatively(options, source, finishPerf, signature, sequence, fallbackConfig) {
+    var capturedConfig = null;
+    var conflictingPending = !!_pendingConfigSave;
+    var current = function () {
+        return sequence === _configRequestSequence
+            && (typeof options.isCurrent !== 'function' || options.isCurrent());
+    };
+    var yieldTask = function () { return window.EveCooperativeWork?.yieldTask?.() || Promise.resolve(); };
+    return queueConfigWrite(signature, null, async function () {
+        try {
+            await yieldTask();
+            if (!current()) return false;
+            capturedConfig = cloneConfigForDelta(null, signature);
+            var storageConfig = capturedConfig || fallbackConfig;
+            if (!storageConfig) storageConfig = JSON.parse(signature);
+            await yieldTask();
+            if (!current()) return false;
+            var mutationDirty = signature !== _lastConfigMutationSignature;
+            var unacknowledgedMutation = _lastConfigMutationSignature !== _lastConfigSignature;
+            var configDelta = buildConfigDelta(_lastConfigMutationSnapshot, storageConfig);
+            await yieldTask();
+            if (!current()) return false;
+            if (mutationDirty) {
+                if (!options.meta?.skipEditHistory && window.EveEditHistory?.recordConfigMutation) {
+                    window.EveEditHistory.recordConfigMutation({ before: _lastConfigMutationSnapshot,
+                        after: storageConfig, delta: configDelta, source, meta: options.meta });
+                }
+                _lastConfigMutationSignature = signature;
+                _lastConfigMutationSnapshot = capturedConfig;
+                dispatchStateMutation(source, {
+                    kind: 'config', immediate: !!options.immediate,
+                    captureReceipt: conflictingPending || unacknowledgedMutation ? null
+                        : window.EveDataStore?._modularSync?.offerConfigSnapshot?.(signature, configDelta),
+                    meta: buildStateMutationMeta(options.meta, null, configDelta)
+                });
+            }
+            await yieldTask();
+            if (!current()) return false;
+            if (!conflictingPending && signature === _lastConfigSignature) return true;
+            return await persistConfigCapture(getCoreStorage(), storageConfig, capturedConfig);
+        } finally { finishPerf?.({ dirty: true, cooperative: true, retired: !current() }); }
+    }, function () { return capturedConfig; });
+}
+
 function _saveConfigImmediate(options = {}) {
     var mutationSource = normalizeMutationSource(options.source || options.reason, 'saveConfig');
     var finishPerf = window.EvePerformanceMonitor?.startOperation?.('saveConfig', {
         source: mutationSource
     });
     // Never swap live config while an async save runs. Only the captured payload is projected.
-    var persistedConfig = durableConfigSnapshot(config || {});
+    var projection = window.EveAudioflixState?.durableProjectionForSerialization;
+    // A serialization projection may contain live aliases. Seal every byte before yielding.
+    var persistedConfig = options.cooperative && config?.audioflix && typeof projection === 'function'
+        ? { ...config, audioflix: projection(config.audioflix) } : durableConfigSnapshot(config || {});
     var signature = buildStateSignature(persistedConfig);
     if (_pendingConfigSave?.signature === signature) {
         finishPerf?.({ dirty: true, pending: true });
         return _pendingConfigSave.promise;
     }
+    var requestSequence = ++_configRequestSequence;
     var conflictingPending = !!_pendingConfigSave;
     var mutationDirty = signature !== _lastConfigMutationSignature;
     var unacknowledgedMutation = _lastConfigMutationSignature !== _lastConfigSignature;
     if (!conflictingPending && !mutationDirty && signature === _lastConfigSignature) {
         finishPerf?.({ dirty: false });
         return Promise.resolve(true);
+    }
+    if (options.cooperative) {
+        var fallbackConfig = typeof signature !== 'string' || signature.startsWith('unstable:')
+            ? detachConfigForWrite(persistedConfig) : null;
+        return saveConfigCooperatively(options, mutationSource, finishPerf, signature, requestSequence, fallbackConfig);
     }
     var configDelta = buildConfigDelta(_lastConfigMutationSnapshot, persistedConfig);
     if (mutationDirty && !options.meta?.skipEditHistory && window.EveEditHistory && typeof window.EveEditHistory.recordConfigMutation === 'function') {

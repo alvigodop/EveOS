@@ -13,7 +13,7 @@ function fixture(options = {}) {
     let clock = 0, nextTimer = 0, active = 0, peak = 0;
     let state = { value: 1, revision: 0 };
     let mirrorResult = { written: true }, coreResult = true;
-    const timers = new Map(), handlers = new Map(), mirrors = [], cores = [], errors = [], changes = [], held = [];
+    const timers = new Map(), handlers = new Map(), mirrors = [], cores = [], errors = [], changes = [], held = [], yieldGates = [];
     const window = {
         setTimeout(fn, delay) { timers.set(++nextTimer, { fn, at: clock + delay }); return nextTimer; },
         clearTimeout(id) { timers.delete(id); },
@@ -35,6 +35,7 @@ function fixture(options = {}) {
             });
         }
     };
+    if (options.yieldHeld) window.EveCooperativeWork = { yieldTask: () => new Promise(resolve => yieldGates.push(resolve)) };
     if (options.noCore) delete window.saveConfig;
     vm.runInNewContext(fs.readFileSync(SOURCE, 'utf8'), {
         window,
@@ -64,7 +65,7 @@ function fixture(options = {}) {
         clock = target; await drain();
     }
     return {
-        scheduler, mirrors, cores, held, errors, changes, timers, advance, drain,
+        scheduler, mirrors, cores, held, errors, changes, timers, yieldGates, advance, drain,
         peak: () => peak,
         setState(value) { state = { value, revision: state.revision }; },
         setMirror(value) { mirrorResult = value; },
@@ -209,6 +210,32 @@ async function test(id, work) {
         await f.advance(4099); assert.equal(f.cores.length, 1);
         await f.advance(4100); assert.equal(f.cores[1].state.value, 3);
         f.held[1].resolve(true); await f.drain(); assert.equal(f.scheduler.hasPending(), false);
+    });
+    await test('cooperative-core-yield-rechecks-newer-generation', async () => {
+        const f = fixture({ yieldHeld: true }); f.scheduler.schedule('first'); await f.advance(2000);
+        assert.equal(f.yieldGates.length, 1); assert.equal(f.cores.length, 0);
+        f.setState(2); f.scheduler.schedule('newer'); await f.advance(2500);
+        f.yieldGates.shift()(); await f.drain(); assert.equal(f.cores.length, 0);
+        await f.advance(4000); assert.equal(f.yieldGates.length, 1);
+        f.yieldGates.shift()(); await f.drain();
+        assert.equal(f.cores.length, 1); assert.equal(f.cores[0].state.value, 2);
+        assert.equal(f.cores[0].config.cooperative, true); assert.equal(f.cores[0].config.isCurrent(), true);
+        assert.equal(f.errors.length, 0); assert.equal(f.scheduler.hasPending(), false);
+    });
+    await test('explicit-pagehide-flush-keeps-immediate-core-path', async () => {
+        const f = fixture({ yieldHeld: true }); f.scheduler.schedule('pending'); await f.advance(500);
+        const pending = f.pagehide();
+        assert.equal(f.yieldGates.length, 0); assert.equal(f.cores.length, 1);
+        assert.equal(f.cores[0].config.cooperative, undefined);
+        assert.equal((await pending).written, true); assert.equal(f.scheduler.hasPending(), false);
+    });
+    await test('retired-cooperative-save-does-not-report-durability-failure', async () => {
+        const f = fixture({ held: true }); f.scheduler.schedule('first'); await f.advance(2000);
+        assert.equal(f.cores[0].config.cooperative, true);
+        f.setState(2); f.scheduler.schedule('newer');
+        assert.equal(f.cores[0].config.isCurrent(), false);
+        f.held[0].resolve(false); await f.drain();
+        assert.equal(f.errors.length, 0); assert.equal(f.scheduler.hasPending(), true);
     });
     await test('mirror-only-and-optional-telemetry', async () => {
         const mirror = fixture({ noCore: true }); mirror.scheduler.schedule('mirror-only'); await mirror.advance(500);

@@ -50,9 +50,10 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
             coreTimer = 0;
         }
 
-        async function replicateCore(reason) {
+        async function replicateCore(reason, cooperative = false) {
             const requestedGeneration = generation;
             clearCoreTimer();
+            if (cooperative) await (window.EveCooperativeWork?.yieldTask?.() || Promise.resolve());
             // Every waiter must reacquire the lock, then recheck the newest mirror.
             // A mutation or rejected mirror while waiting retires the older request.
             while (coreInFlight) await coreInFlight;
@@ -67,6 +68,8 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                 try { done = span('state:persist:core'); } catch { /* Optional telemetry. */ }
                 const written = await Promise.resolve(window.saveConfig({
                     immediate: true,
+                    ...(cooperative ? { cooperative: true,
+                        isCurrent: () => generation === capturedGeneration && eligibleGeneration === capturedGeneration } : {}),
                     source: reason || 'audioflix',
                     meta: { skipEditHistory: true }
                 }));
@@ -75,6 +78,7 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                     if (generation === capturedGeneration) { coreDirty = false; mirrorDirty = false; }
                 }
                 try { done?.(written !== true); } catch { /* Optional telemetry. */ }
+                if (written !== true && (generation !== capturedGeneration || eligibleGeneration !== capturedGeneration)) return null;
                 return written;
             } catch (error) {
                 try { done?.(true); } catch { /* Optional telemetry. */ }
@@ -101,7 +105,7 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                 const started = enabled ? traceClock() : 0;
                 const attempt = enabled ? ++traceSequence : 0;
                 const capturedGeneration = generation;
-                void replicateCore(latestReason).then(written => {
+                void replicateCore(latestReason, true).then(written => {
                     if (enabled) trace({
                         kind: 'persistence-deferred-core', attempt, generation: capturedGeneration,
                         reason: latestReason, written, elapsedMs: Math.max(0, traceClock() - started)
@@ -156,7 +160,7 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                     canSaveCore()
                 ) {
                     const coreStarted = traceThis ? traceClock() : 0;
-                    coreWritten = await replicateCore(reason);
+                    coreWritten = await replicateCore(reason, deferCore === true);
                     if (traceThis) coreMs = Math.max(0, traceClock() - coreStarted);
                 }
 

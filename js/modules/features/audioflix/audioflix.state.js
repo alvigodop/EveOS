@@ -408,6 +408,8 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         setItemExposed, setItemHotkey, ...groupOps,
         getSnapshot: function () { return JSON.parse(JSON.stringify(ensure())); },
         durableSnapshot: mutations.durableSnapshot,
+        // Serialize immediately; unlike durableSnapshot, this projection may retain live aliases.
+        durableProjectionForSerialization: mutations.durableProjection,
         getRevision: function () { return revision; },
         isTextBrainMode: function () { return ensure().geminiConversationMode === 'text-brain-live-voice'; }
     });

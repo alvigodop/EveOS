@@ -312,7 +312,7 @@ try {
     const sandbox = { console: { log() {}, warn() {}, error() {} } };
     sandbox.window = sandbox;
     vm.createContext(sandbox);
-    for (const name of ['modular-state-sync.capture.codec.js', 'modular-state-sync.capture.cache.js']) {
+    for (const name of ['modular-state-sync.capture.codec.js', 'modular-state-sync.capture.full.js', 'modular-state-sync.capture.cache.js']) {
         const file = path.join(MODULES, name);
         vm.runInContext(fs.readFileSync(file, 'utf8'), sandbox, { filename: file });
     }

@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const source = fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix/audioflix.state.duplicates.js'), 'utf8');
+const source = ['audioflix.duplicates.details.js', 'audioflix.state.duplicates.js']
+    .map(file => fs.readFileSync(path.join(ROOT, 'js/modules/features/audioflix', file), 'utf8')).join('\n');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-duplicate-scale.json');
 const evidence = { ok: false, cases: [], measurements: [] };
 let current = 'startup';

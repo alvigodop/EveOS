@@ -10,9 +10,9 @@ const deltaSource = fs.readFileSync(path.join(root, 'js/modules/core/storage.del
 const copy = value => JSON.parse(JSON.stringify(value));
 const evidence = { ok: false, passed: [], cases: {} };
 
-function fixture({ fallback = false, quota = false, prune = false } = {}) {
+function fixture({ fallback = false, quota = false, prune = false, staged = false } = {}) {
     const config = { theme: 'dark', reader: { choice: 'accepted' }, audioflix: { music: [{ id: 'a', title: 'accepted' }] } };
-    const calls = [], events = [], history = [], errors = [], offers = [], localWrites = [];
+    const calls = [], events = [], history = [], errors = [], offers = [], localWrites = [], yieldGates = [];
     let active = 0, peak = 0, prunes = 0;
     const storage = { syncThemeBootConfig() {}, getThemeBootConfig: value => ({ theme: value.theme }),
         saveJson(_key, value, options) {
@@ -31,6 +31,7 @@ function fixture({ fallback = false, quota = false, prune = false } = {}) {
                 ? { receipt: offers.length } : null;
         } } }, dispatchEvent: event => events.push(event.detail) };
     if (prune) window.CCMaintenance = { emergencyPrune() { prunes += 1; } };
+    if (staged) window.EveCooperativeWork = { yieldTask: () => new Promise(resolve => yieldGates.push(resolve)) };
     const context = vm.createContext({ window, config, setTimeout, clearTimeout,
         console: { ...console, error: (...args) => errors.push(args.map(String).join(' ')) },
         localStorage: { setItem(_key, value) {
@@ -43,11 +44,17 @@ function fixture({ fallback = false, quota = false, prune = false } = {}) {
     context.markConfigClean(config);
     const baseline = () => ({ signature: context._lastConfigSignature, snapshot: copy(context._lastConfigSnapshot) });
     const save = options => context.saveConfig({ immediate: true, source: 'core-config-retry-smoke', ...options });
-    return { context, config, calls, events, history, errors, offers, localWrites, baseline, save,
+    return { context, config, calls, events, history, errors, offers, localWrites, yieldGates, baseline, save,
         peak: () => peak, prunes: () => prunes };
 }
 
 async function drain() { for (let index = 0; index < 8; index += 1) await Promise.resolve(); }
+async function releaseStages(f, count = 4) {
+    for (let index = 0; index < count; index += 1) {
+        assert.ok(f.yieldGates.length, 'A cooperative stage must be waiting');
+        f.yieldGates.shift()(); await drain();
+    }
+}
 async function run(id, work) {
     evidence.activeCase = id;
     evidence.cases[id] = await work();
@@ -164,6 +171,95 @@ async function run(id, work) {
         assert.equal(f.calls[1].value.reader.choice, 'queued'); assert.equal(f.calls[1].options.skipClone, false);
         f.calls[1].settle(true); assert.equal(await second, true);
         return { values: f.calls.map(call => call.value.reader.choice), peak: f.peak() };
+    });
+
+    await run('cooperative-stages-immutable-duplicate-and-failed-retry', async () => {
+        const f = fixture({ staged: true }), initial = f.baseline();
+        f.config.reader.choice = 'sealed cooperative';
+        const first = f.save({ cooperative: true }), duplicate = f.save({ cooperative: true });
+        assert.equal(first, duplicate, 'Staged duplicates retain the exact pending persistence promise');
+        assert.equal(f.calls.length, 0); assert.equal(f.events.length, 0);
+        f.config.reader.choice = 'later unannounced live edit';
+        await releaseStages(f);
+        assert.equal(f.calls.length, 1); assert.equal(f.calls[0].value.reader.choice, 'sealed cooperative');
+        assert.equal(f.events.length, 1); assert.equal(f.history.length, 1);
+        f.calls[0].settle(false);
+        assert.deepEqual(await Promise.all([first, duplicate]), [false, false]);
+        assert.deepEqual(f.baseline(), initial);
+        f.config.reader.choice = 'sealed cooperative';
+        const retry = f.save({ cooperative: true }); await releaseStages(f);
+        assert.equal(f.calls.length, 2); assert.equal(f.events.length, 1); assert.equal(f.history.length, 1);
+        f.calls[1].settle(true); assert.equal(await retry, true);
+        assert.equal(f.baseline().snapshot.reader.choice, 'sealed cooperative');
+        return { backendCalls: f.calls.length, events: f.events.length, peak: f.peak() };
+    });
+
+    await run('cooperative-superseded-by-normal-save', async () => {
+        const f = fixture({ staged: true }); f.config.reader.choice = 'retired staged';
+        const retired = f.save({ cooperative: true });
+        f.config.reader.choice = 'new normal'; const newest = f.save();
+        assert.equal(f.calls.length, 0, 'Normal successor still waits for its staged predecessor');
+        await releaseStages(f, 1);
+        assert.equal(await retired, false); assert.equal(f.calls.length, 1);
+        assert.equal(f.calls[0].value.reader.choice, 'new normal');
+        assert.equal(f.events.length, 1, 'Retired preparation must never publish an older mutation');
+        f.calls[0].settle(true); assert.equal(await newest, true);
+        assert.equal(f.baseline().snapshot.reader.choice, 'new normal');
+        return { backendCalls: f.calls.length, events: f.events.length };
+    });
+
+    await run('cooperative-owner-retirement-before-publication', async () => {
+        const f = fixture({ staged: true }), initial = f.baseline(); let current = true;
+        f.config.reader.choice = 'retired by Audioflix generation';
+        const pending = f.save({ cooperative: true, isCurrent: () => current });
+        current = false; await releaseStages(f, 1);
+        assert.equal(await pending, false); assert.equal(f.calls.length, 0); assert.equal(f.events.length, 0);
+        assert.deepEqual(f.baseline(), initial);
+        return { backendCalls: 0, events: 0 };
+    });
+
+    await run('cooperative-revert-behind-normal-inflight', async () => {
+        const f = fixture({ staged: true }), initial = f.baseline();
+        f.config.reader.choice = 'inflight normal'; const first = f.save();
+        f.config.reader.choice = 'accepted'; const reverted = f.save({ cooperative: true });
+        assert.equal(f.calls.length, 1); f.calls[0].settle(true); await first; await drain();
+        await releaseStages(f);
+        assert.equal(f.calls.length, 2); assert.equal(f.calls[1].value.reader.choice, 'accepted');
+        assert.equal(f.events[1].captureReceipt, null, 'Revert behind an in-flight predecessor cannot offer a receipt');
+        f.calls[1].settle(true); assert.equal(await reverted, true); assert.deepEqual(f.baseline(), initial);
+        assert.equal(f.peak(), 1);
+        return { backendCalls: f.calls.length, peak: f.peak() };
+    });
+
+    await run('cooperative-retirement-after-publication-keeps-retry-dirty', async () => {
+        const f = fixture({ staged: true }), initial = f.baseline(); let current = true;
+        f.config.reader.choice = 'published pending';
+        const retired = f.save({ cooperative: true, isCurrent: () => current });
+        await releaseStages(f, 3); assert.equal(f.events.length, 1); assert.equal(f.calls.length, 0);
+        current = false; await releaseStages(f, 1); assert.equal(await retired, false);
+        assert.deepEqual(f.baseline(), initial);
+        const retry = f.save({ cooperative: true }); await releaseStages(f);
+        assert.equal(f.events.length, 1); assert.equal(f.calls.length, 1);
+        f.calls[0].settle(true); assert.equal(await retry, true);
+        assert.equal(f.baseline().snapshot.reader.choice, 'published pending');
+        return { events: f.events.length, backendCalls: f.calls.length };
+    });
+
+    await run('cooperative-seals-committed-volume-projection', async () => {
+        const f = fixture({ staged: true }); f.config.audioflix.music[0].volume = .8;
+        f.context.window.EveAudioflixState = {
+            durableProjectionForSerialization(value) {
+                return { ...value, music: value.music.map(row => ({ ...row, volume: .2 })) };
+            },
+            durableSnapshot() { throw new Error('Cooperative serialization must not add a redundant full clone'); }
+        };
+        const pending = f.save({ cooperative: true }); f.config.audioflix.music[0].volume = .9;
+        await releaseStages(f);
+        assert.equal(f.calls[0].value.audioflix.music[0].volume, .2);
+        assert.equal(JSON.parse(f.offers[0][0]).audioflix.music[0].volume, .2);
+        f.calls[0].settle(true); assert.equal(await pending, true);
+        assert.equal(f.config.audioflix.music[0].volume, .9, 'Serialization never swaps the audible preview');
+        return { persistedGain: f.baseline().snapshot.audioflix.music[0].volume, liveGain: .9 };
     });
 
     await run('fallback-success', async () => {

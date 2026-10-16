@@ -6,18 +6,20 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const AUDIO = 'js/modules/features/audioflix/';
-export const CRITICAL_SOURCE_FILES = ['EveOS.html', 'js/config/manifest/scripts.parts/01-ui.js',
+export const CRITICAL_SOURCE_FILES = ['EveOS.html', 'js/config/manifest/scripts.parts/00-core.js', 'js/config/manifest/scripts.parts/01-ui.js',
     'js/config/manifest/scripts.parts/03-feature-modules.js',
     'js/modules/features/modular-state-sync/modular-state-sync.shared.js',
     'js/modules/features/modular-state-sync/modular-state-sync.capture.codec.js',
     'js/modules/features/modular-state-sync/modular-state-sync.capture.worker.js',
+    'js/modules/features/modular-state-sync/modular-state-sync.capture.full.js',
     'js/modules/features/modular-state-sync/modular-state-sync.capture.cache.js',
     'js/modules/features/modular-state-sync/modular-state-sync.engine.runtime.js',
     'js/modules/features/modular-state-sync/modular-state-sync.engine.sync.js',
-    'js/modules/core/storage.js', 'js/modules/core/storage.delta.js', 'js/modules/core/storage.runtime.io.js',
+    'js/modules/core/cooperative-work.js', 'js/modules/core/storage.js', 'js/modules/core/storage.delta.js', 'js/modules/core/storage.runtime.io.js',
     'js/modules/features/data-state/data-state.capture.clone.js',
+    'js/modules/features/data-state/data-state.core.js',
     ...['audioflix.state.js', 'audioflix.state.persistence.js', 'audioflix.state.schema.js', 'audioflix.state.mutations.js', 'audioflix.state.recovery.js',
-        'audioflix.state.duplicates.js', 'audioflix.library.index.js', 'audioflix.groups.tree.js', 'audioflix.playback.diagnostics.js',
+        'audioflix.duplicates.details.js', 'audioflix.state.duplicates.js', 'audioflix.library.index.js', 'audioflix.groups.tree.js', 'audioflix.playback.diagnostics.js',
         'audioflix.ui.js', 'audioflix.ui.modal.js', 'audioflix.ui.panel.js', 'audioflix.ui.render.js', 'audioflix.ui.window.js', 'audioflix.ui.actions.js',
         'audioflix.classifiers.js', 'audioflix.classifiers.ui.js', 'audioflix.nexus.js', 'audioflix.nexus.quick.js', 'audioflix.nexus.ui.js', 'audioflix.transport.js', 'audioflix.audio.internal.js',
         'audioflix.audio.internal.queue.js'].map(file => AUDIO + file)];

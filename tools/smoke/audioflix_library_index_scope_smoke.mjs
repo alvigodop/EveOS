@@ -13,7 +13,7 @@ const state = { music, soundboard: [], dupDismissedPairs: [], musicGroups: ['Roo
     musicGroupMap: { 'index-0': ['rOoT'], 'index-1': ['child'], 'index-2': ['Root'] } };
 const window = { EveAudioflixState: { ensure: () => state, getRevision: () => revision } };
 const context = vm.createContext({ window, console });
-for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', 'audioflix.state.duplicates.js', 'audioflix.groups.tree.js', 'audioflix.nexus.js']) {
+for (const file of ['audioflix.state.schema.js', 'audioflix.library.index.js', 'audioflix.duplicates.details.js', 'audioflix.state.duplicates.js', 'audioflix.groups.tree.js', 'audioflix.nexus.js']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'js/modules/features/audioflix', file), 'utf8'), context);
 }
 const library = window.EveAudioflixLibraryIndex, X = window.EveAudioflixNexus, D = window.EveAudioflixDuplicates;
