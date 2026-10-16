@@ -1,7 +1,7 @@
 // Disposable qualification context only. No production module installs these counters.
 export function installLibrarySoakInstrumentation() {
     const timers = { timeout: new Set(), interval: new Set() }, observers = Object.create(null);
-    const errors = [], resourceErrors = [], longTasks = [], phases = [], responses = [], responseBuckets = new Map();
+    const errors = [], resourceErrors = [], longTasks = [], selfSpans = [], phases = [], responses = [], responseBuckets = new Map();
     const warmupResponseBuckets = new Map(), startupResponseBuckets = new Map(), pendingResponses = new Set();
     let phase = 'boot', segment = 'startup', errorCount = 0, longTaskCount = 0, droppedLongTasks = 0;
     const bounded = (list, value, max) => { list.push(value); if (list.length > max) list.shift(); };
@@ -108,6 +108,11 @@ export function installLibrarySoakInstrumentation() {
             segment = name; bounded(phases, { name: phase, segment, at: performance.now() }, 2048);
         },
         async settleResponses() { while (pendingResponses.size) await Promise.all([...pendingResponses]); },
+        measureSelf(name, operation) {
+            const started = performance.now(), ownerSegment = segment;
+            try { return operation(); }
+            finally { bounded(selfSpans, { name, segment: ownerSegment, start: started, end: performance.now() }, 4096); }
+        },
         snapshot() { return { phase, segment, pendingResponses: pendingResponses.size,
             errorCount, errors: errors.map(error => ({ ...error })), resourceErrors: resourceErrors.map(error => ({ ...error })),
             timers: { timeout: timers.timeout.size, interval: timers.interval.size },
@@ -122,9 +127,13 @@ export function installLibrarySoakInstrumentation() {
         const observer = new window.PerformanceObserver(list => {
             for (const entry of list.getEntries()) {
                 const owner = [...phases].reverse().find(mark => mark.at <= entry.startTime);
+                const ownerSegment = owner?.segment || 'startup', end = entry.startTime + entry.duration;
+                const self = [...new Set(selfSpans.filter(span =>
+                    span.segment === ownerSegment && span.start < end && span.end > entry.startTime
+                ).map(span => span.name))].slice(0, 4);
                 longTaskCount += 1;
                 if (longTasks.length >= 2048) droppedLongTasks += 1;
-                bounded(longTasks, { phase: owner?.name || 'boot', segment: owner?.segment || 'startup', duration: entry.duration, start: entry.startTime,
+                bounded(longTasks, { phase: owner?.name || 'boot', segment: ownerSegment, duration: entry.duration, start: entry.startTime, self,
                     attribution: (entry.attribution || []).map(part => part.name || part.containerType || 'unknown').slice(0, 4) }, 2048);
             }
         });
@@ -169,16 +178,19 @@ export function resourceGrowth(samples) {
 }
 
 export function summarizeSoakLongTasks(rows) {
-    const attribution = {}, warmupAttribution = {};
+    const attribution = {}, warmupAttribution = {}, selfAttribution = {}, warmupSelfAttribution = {};
     for (const row of rows) {
         const target = row.segment === 'warmup' ? warmupAttribution : attribution;
+        const selfTarget = row.segment === 'warmup' ? warmupSelfAttribution : selfAttribution;
         (target[row.phase] ||= []).push(row.duration);
+        for (const name of row.self || []) (selfTarget[name] ||= []).push(row.duration);
     }
     const summarize = buckets => Object.fromEntries(Object.entries(buckets).map(([key, values]) => [key, latencyStats(values)]));
-    return { longTaskAttribution: summarize(attribution), warmupLongTaskAttribution: summarize(warmupAttribution) };
+    return { longTaskAttribution: summarize(attribution), warmupLongTaskAttribution: summarize(warmupAttribution),
+        selfLongTaskAttribution: summarize(selfAttribution), warmupSelfLongTaskAttribution: summarize(warmupSelfAttribution) };
 }
 
-export function evaluateSoakBudgets(latency, responses, tasks, normalGroup, startupResponses = {}) {
+export function evaluateSoakBudgets(latency, responses, tasks, normalGroup, startupResponses = {}, selfTasks = tasks) {
     const failures = [];
     const check = (name, actual, limit, kind = 'p95') => {
         if (actual > limit) failures.push({ name, kind, actual, limit });
@@ -187,7 +199,7 @@ export function evaluateSoakBudgets(latency, responses, tasks, normalGroup, star
     for (const [name, values] of Object.entries(startupResponses)) check(`startup:${name}:visual-response`, values.p95, 100);
     if (latency['search-input']) check('search-input', latency['search-input'].p95, 150);
     if (latency['group-expand-pointer']) check('group-expand-pointer', latency['group-expand-pointer'].p95, normalGroup ? 150 : 500);
-    const drag = tasks['volume-drag-pointer'];
+    const drag = selfTasks['volume-drag-pointer'];
     if (drag) check('volume-drag-pointer:self-longtask', drag.max, 50, 'max');
     return failures;
 }

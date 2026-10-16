@@ -186,7 +186,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 const original = state[name];
                 if (typeof original !== 'function') throw new Error(`Missing canonical ${name}; soak must not use a legacy shortcut.`);
                 state[name] = function (...args) {
-                    calls[counter] += 1; const result = Reflect.apply(original, this, args), gesture = args[3];
+                    calls[counter] += 1; const result = window.__librarySoak.measureSelf('volume-drag-pointer', () => Reflect.apply(original, this, args)), gesture = args[3];
                     if (window.__soakDebug.all) window.__soakDebug.note({ kind: name, id: String(args[1]), gain: args[2], accepted: result,
                         dirty: gesture?.dirty, pointer: gesture?.pointer, blocked: gesture?.blocked, rejected: gesture?.rejected });
                     return result;
@@ -194,7 +194,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             }
             const play = audio.playItem, volume = audio.updateItemVolume;
             audio.playItem = function (...args) { calls.playStarts += 1; return Reflect.apply(play, this, args); };
-            audio.updateItemVolume = function (...args) { calls.live += 1; return Reflect.apply(volume, this, args); };
+            audio.updateItemVolume = function (...args) { calls.live += 1; return window.__librarySoak.measureSelf('volume-drag-pointer', () => Reflect.apply(volume, this, args)); };
             document.addEventListener('input', event => { if (event.target?.classList.contains('audioflix-volume-slider')) calls.inputs += 1; }, true);
             window.EveAudioflixDiagnostics.reset();
             window.__soakVolumeTarget = String(item.id);
@@ -407,12 +407,12 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         const growth = resourceGrowth(samples), latency = Object.fromEntries(Object.entries(rows).map(([key, values]) => [key, latencyStats(values)]));
         assert.equal(final.instrumentation.pendingResponses, 0, 'Every measured paint response must settle');
         const longTaskRows = final.instrumentation.longTasks;
-        const { longTaskAttribution, warmupLongTaskAttribution } = summarizeSoakLongTasks(longTaskRows);
+        const { longTaskAttribution, warmupLongTaskAttribution, selfLongTaskAttribution } = summarizeSoakLongTasks(longTaskRows);
         const visualResponse = final.instrumentation.responseSummary;
         const startupVisualResponse = final.instrumentation.startupResponseSummary;
         for (const name of ['group-expand-pointer', 'group-collapse-pointer', 'view-mode-backend-pointer', 'view-mode-frontend-pointer']) assert.ok(visualResponse[name]?.count >= 25, `${name} requires at least 25 measured samples for p95`);
         const normalGroup = expandedGroupSize <= 400;
-        const failures = evaluateSoakBudgets(latency, visualResponse, longTaskAttribution, normalGroup, startupVisualResponse);
+        const failures = evaluateSoakBudgets(latency, visualResponse, longTaskAttribution, normalGroup, startupVisualResponse, selfLongTaskAttribution);
         const budgets = { mountedCards: 400, visualResponseP95Ms: 100, warmedSearchP95Ms: 150,
             dragSelfLongtaskMaxMs: 50, normalFolderExpandP95Ms: 150, largePageRenderP95Ms: 500 };
         if (growth.nodesPerBatch > 1000 || growth.heapBytesPerBatch > 1024 * 1024) warnings.push('Post-GC resource trend is not flat; inspect phase samples before claiming stability');
@@ -425,7 +425,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         return { label, syntheticAudio: true, providerPlaybackClaimed: false, counts: { ...counts, sliderInputEvents: inputEvents },
             canonicalScopeCount: target.scopeCount, libraryCount: target.libraryCount, expandedGroupSize, topologyUnchanged: true, continuousQueueOrderPreserved: true,
             latency, visualResponse, startupVisualResponse, warmupVisualResponse: final.instrumentation.warmupResponseSummary,
-            warmupLongTaskAttribution, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
+            warmupLongTaskAttribution, selfLongTaskAttribution, budgets: { ...budgets, timingPolicy: 'fixed roadmap targets; record failures without raising thresholds',
                 visualMethod: 'trusted click/input capture through second animation frame; not the Chrome INP algorithm' }, budgetPassed: failures.length === 0, budgetFailures: failures,
             gestureOutcomes, settledBoundaries, persistenceStages, resources: samples, growth, longTaskAttribution,
             modularCapture: final.modularCapture,
