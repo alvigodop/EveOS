@@ -6,12 +6,14 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { qualifyAudioflixProjectionGeometry } from './helpers/audioflix_projection_geometry.mjs';
 import { qualifyMaterialization } from './helpers/audioflix_projection_materialization.mjs';
+import { qualifyProjectionAllocations } from './helpers/audioflix_projection_allocations.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const artifact = path.join(ROOT, 'data/runtime/smoke-results/audioflix-ui-projection-browser.json');
 const errors = [], checks = [];
 const browser = await chromium.launch({ headless: true });
 try {
+    const allocations = qualifyProjectionAllocations(ROOT, checks);
     const page = await browser.newPage();
     page.on('pageerror', error => errors.push(String(error)));
     await page.route('http://projection.test/**', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><body><div id="audioflix-overlay"></div></body>' }));
@@ -171,7 +173,7 @@ try {
     const geometry = await qualifyAudioflixProjectionGeometry(page, ROOT, checks);
     const materialization = await qualifyMaterialization(page, checks);
     assert.deepEqual(errors, []);
-    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, checks, geometry, materialization, pageErrors: errors }));
+    fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: true, checks, geometry, materialization, allocations, pageErrors: errors }));
     console.log(`AUDIOFLIX_UI_PROJECTION_BROWSER_OK checks=${checks.length} realPointer=true`);
 } catch (error) {
     fs.mkdirSync(path.dirname(artifact), { recursive: true }); fs.writeFileSync(artifact, JSON.stringify({ ok: false, checks, error: String(error.stack || error), pageErrors: errors }));

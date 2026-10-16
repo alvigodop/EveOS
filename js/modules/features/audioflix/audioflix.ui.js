@@ -201,7 +201,7 @@ window.EveAudioflix = window.EveAudioflix || {};
         return (map?.[id] || []).filter((g) => allGroups(type).includes(g));
     };
     const isItemExposed = (item, type = 'sound') => {
-        if (type === 'music') return groupsOf(item.id, 'music').length > 0 || item.exposed === true;
+        if (type === 'music') return item.exposed === true || groupsOf(item.id, 'music').length > 0;
         return groupsOf(item.id, 'sound').length > 0 || (item.isPorted ? state().exposedPortedSounds?.[item.id] === true : item.exposed === true);
     };
     const groupTags = (item, gs = groupsOf(item.id, item?.type || 'music')) => window.EveAudioflixGroupTreeUi?.renderTags?.({ type: item?.type || 'music', groups: gs, state: state(), esc }) || '';

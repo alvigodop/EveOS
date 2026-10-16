@@ -38,6 +38,9 @@ export async function qualifyMaterialization(page, checks) {
             await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
             const value = await page.evaluate(() => ({ source: window.__state.music.length,
                 rendered: document.querySelectorAll('.audioflix-item-card').length,
+                materialized: [...document.querySelectorAll('.audioflix-item-card')]
+                    .filter(card => card.style.contentVisibility === 'visible')
+                    .map(card => card.querySelector('[data-af-action="play"]').dataset.afId),
                 rows: window.__materializeProbe.rows,
                 focused: document.activeElement === document.querySelector('#view-toggle'),
                 scroll: document.querySelector('.audioflix-panel').scrollTop }));
@@ -47,11 +50,14 @@ export async function qualifyMaterialization(page, checks) {
             assert.equal(value.scroll, 0, 'Cold projection does not move the panel');
             if (count <= 4000) {
                 assert.equal(value.rows.length, 1, 'Bounded catalogs materialize in one owning projection span');
-                assert.ok(value.rows[0].reads.length > 0 && value.rows[0].reads.length < 40,
-                    'Eager layout reaches a viewport subset, never the entire mounted page');
-                assert.equal(new Set(value.rows[0].reads.map(row => row.id)).size, value.rows[0].reads.length,
-                    'Each selected control is materialized once');
-            } else assert.deepEqual(value.rows, [], 'Large catalogs retain their existing lazy-layout path');
+                assert.deepEqual(value.rows[0].reads, [], 'Viewport selection never forces descendant layout inside its read loop');
+                assert.ok(value.materialized.length > 0 && value.materialized.length < 40,
+                    'A declaratively materialized viewport subset never expands the entire mounted page');
+                assert.equal(new Set(value.materialized).size, value.materialized.length);
+            } else {
+                assert.deepEqual(value.rows, [], 'Large catalogs retain their existing lazy-layout path');
+                assert.deepEqual(value.materialized, [], 'Large catalogs receive no visibility overrides');
+            }
             samples.push({ count, ...value });
             await page.locator('#view-toggle').click();
             const after = await page.evaluate(() => window.__materializeProbe.rows.length);

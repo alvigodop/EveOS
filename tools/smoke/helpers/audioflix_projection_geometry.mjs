@@ -17,6 +17,8 @@ const snapshot = page => page.evaluate(() => {
         declaredRows: declared?.gridTemplateRows, scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight,
         cards: root.querySelectorAll('.audioflix-item-card').length, sourceCount: window.__state.music.length,
         paged: !!card?.parentElement.dataset.afWindowOwner, cardContentVisibility: getComputedStyle(card).contentVisibility,
+        visibility: [...root.querySelectorAll('.audioflix-item-card')].map(node => ({
+            computed: getComputedStyle(node).contentVisibility, override: node.style.contentVisibility })),
         cardIntrinsicBlockSize: getComputedStyle(card).containIntrinsicBlockSize, stage: rect(stage),
         stageFixed: getComputedStyle(stage).position, stageInBody: stage.parentElement === document.body };
 });
@@ -43,7 +45,10 @@ function validate(value, fullscreen, label) {
     assert.equal(value.cards, 40, `${label} mounts forty production cards`);
     assert.equal(value.sourceCount, 80, `${label} preserves the full eighty-track canonical source`);
     assert.equal(value.paged, true, `${label} exercises the production paged grid in either view mode`);
-    assert.equal(value.cardContentVisibility, 'auto', `${label} applies offscreen-layout optimization only to paged cards`);
+    assert.ok(value.visibility.every(row => row.computed === 'auto'
+        || (row.computed === 'visible' && row.override === 'visible')),
+    `${label} only explicit viewport promotions may override lazy card layout`);
+    assert.ok(value.visibility.some(row => row.computed === 'auto'), `${label} offscreen cards retain lazy layout`);
     assert.match(value.cardIntrinsicBlockSize, /^auto\s+154px$/,
         `${label} estimates unrendered card content while remembering its actual measured size`);
     assert.ok(value.scrollHeight > value.clientHeight, `${label} library uses its bounded panel scroller`);

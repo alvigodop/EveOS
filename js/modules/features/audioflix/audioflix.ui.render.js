@@ -201,13 +201,13 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
 
         function frontendGroupEntries(type = 'sound', sourceItems) {
             if (type === 'music') {
-                const items = sourceItems || frontendMusicItems(), entries = [];
-                ctx.allGroups('music').forEach((group) => {
+                const items = sourceItems || frontendMusicItems(), entries = [], groups = ctx.allGroups('music');
+                groups.forEach((group) => {
                     const members = window.EveAudioflixGroupTree?.itemsForGroup?.(state(), 'music', group, items)
                         || items.filter((it) => ctx.groupsOf(it.id, 'music').includes(group));
                     if (members.length) entries.push([group, members, null]);
                 });
-                entries.push(['Ungrouped', items.filter((it) => !ctx.groupsOf(it.id, 'music').length)]);
+                entries.push(['Ungrouped', groups.length ? items.filter((it) => !ctx.groupsOf(it.id, 'music').length) : items]);
                 return entries;
             }
             const items = [...(state().soundboard || []), ...ctx.getPorted()].filter((it) => ctx.isItemExposed(it, 'sound')), entries = [];
@@ -338,7 +338,8 @@ window.EveAudioflixUiRender = window.EveAudioflixUiRender || {};
             const classifierRow = ctx.renderClassifierRow ? ctx.renderClassifierRow(activeClassifier, classifiers) : '';
             const scopePills = `<div class="audioflix-folder-scope-selector"><span class="audioflix-scope-label">Track Focus:</span><button type="button" class="audioflix-scope-pill${activeScope === '' ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="">🌐 All Folders (No Focus)</button>${allFolders.map((folder) => `<button type="button" class="audioflix-scope-pill${activeScope === folder ? ' is-active' : ''}" data-af-action="select-folder-scope" data-af-scope="${esc(folder)}">📁 ${esc(folder)}</button>`).join('')}</div>`;
             const allGroupPill = `<button type="button" class="audioflix-group-pill${activeGroup === '' ? ' is-active' : ''}" data-af-action="select-frontend-group" data-af-dimension="group" data-af-type="music" data-af-group="" title="Clear group include/exclude focus">All Groups (No Focus)<span class="audioflix-group-pill-count">${baseItems.length}</span></button>`;
-            const treeEntries = window.EveAudioflixGroupTree?.entries?.(state(), 'music', baseItems)
+            const membersByGroup = new Map(entries.slice(0, -1).map(([group, members]) => [group, members]));
+            const treeEntries = window.EveAudioflixGroupTree?.ordered?.(state(), 'music').map(entry => ({ ...entry, members: membersByGroup.get(entry.name) || [] }))
                 .filter((entry) => entry.members.length).concat(entries.filter(([group]) => group === 'Ungrouped').map(([group, members]) => ({ name: group, members, path: [group], depth: 0 }))) || [];
             const groupTree = window.EveAudioflixGroupTreeUi?.renderSelector?.({ type: 'music', entries: treeEntries, active: activeGroup, esc, bucket: 'musicGroups', filters, state: state() }) || '';
             const selector = `<div class="audioflix-group-selector"><span class="audioflix-scope-label">Group:</span>${allGroupPill}${groupTree}</div>`;

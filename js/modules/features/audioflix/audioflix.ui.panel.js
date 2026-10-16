@@ -67,12 +67,16 @@ window.EveAudioflixUiPanel = window.EveAudioflixUiPanel || {};
         const materializeVisiblePagedCards = (panel, host) => {
             const viewport = panel.getBoundingClientRect();
             const eagerBottom = viewport.bottom + EAGER_MATERIALIZE_OVERSCAN_PX;
+            const visible = [];
             for (const card of host.querySelectorAll('.audioflix-item-grid[data-af-window-owner] > .audioflix-item-card')) {
                 const box = card.getBoundingClientRect();
                 if (box.bottom <= viewport.top) continue;
                 if (box.top >= eagerBottom) break;
-                card.querySelector('[data-af-action="play"]')?.getBoundingClientRect();
+                visible.push(card);
             }
+            // Read all estimates first, then promote together. Descendant readbacks inside
+            // the loop repeatedly forced layout as each skipped subtree became relevant.
+            for (const card of visible) card.style.contentVisibility = 'visible';
         };
         function render() {
             const { activeTab, fullscreenOn, settingsOpen, portedSounds } = ctx.view(), tools = ctx.tools();
