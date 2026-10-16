@@ -189,7 +189,9 @@ def run():
                        instanceId="web-new", sourceFingerprint="web-source-new")
         return dict(current)
 
+    modular_root = str(ROOT / "data" / "runtime")
     controller = SimpleNamespace(get_status=status, _status=status,
+                                 get_active_modular_root=lambda *_args, **_kwargs: modular_root,
                                  stop_server=stop, start_server=start)
     controllers = {key: controller for key in reload.SERVICE_KEYS
                    if key not in {"spotifyEngine", "localControl"}}
@@ -213,7 +215,7 @@ def run():
               "web replacement accepted a stale source fingerprint")
         check(("stop", {"persist": False, "port": 3000}) in calls,
               "web stop lost effective port or rewrote desired state")
-        check(("start", {"persist": False, "port": 3000, "scoped_restart": True}) in calls,
+        check(("start", {"persist": False, "port": 3000, "scoped_restart": True, "modular_root": modular_root}) in calls,
               "web start did not preserve its port or suppress unrelated boot restoration")
         check(result["previousPids"] == [101] and result["pids"] == [202],
               "restart receipt omitted before/after identity")
@@ -372,6 +374,8 @@ def run():
 
     planner_contract()
     source_contracts()
+    from helpers.eveos_web_restart_scope_contract import run_web_scope_contract
+    run_web_scope_contract()
 
 
 if __name__ == "__main__":

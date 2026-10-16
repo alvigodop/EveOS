@@ -4,6 +4,7 @@ from __future__ import annotations
 import threading
 from contextlib import nullcontext
 from datetime import datetime, timezone
+from pathlib import Path
 
 SERVICE_KEYS = ("web", "gemini", "worldBook", "notes", "piano", "watchFusion",
                 "bookmarkIntel", "localMoe", "nexusBrowser", "spotifyEngine", "localControl")
@@ -89,6 +90,7 @@ def restart_service(service, *, web_port=None):
     stage, before = "preflight", {}
     spotify_prepared = None
     expected_web_source = ""
+    preserved_modular_root = None
     try:
         if key == "spotifyEngine":
             return _restart_spotify(web_port)
@@ -119,6 +121,9 @@ def restart_service(service, *, web_port=None):
             if key == "web":
                 from . import eveos_spotify_reload, eveos_update_plan
                 options["port"] = before.get("port") or web_port
+                preserved_modular_root = controller.get_active_modular_root(
+                    options["port"], expected_instance_id=str(before.get("instanceId") or "")
+                )
                 expected_web_source = str(
                     eveos_update_plan.check_updates().get("componentFingerprints", {}).get("web") or ""
                 )
@@ -143,6 +148,7 @@ def restart_service(service, *, web_port=None):
             start_options = dict(options)
             if key == "web":
                 start_options["scoped_restart"] = True
+                start_options["modular_root"] = preserved_modular_root
             if key == "watchFusion":
                 start_options["host"] = "0.0.0.0" if mode == "lan" else "127.0.0.1"
             if key == "localMoe":
@@ -169,6 +175,13 @@ def restart_service(service, *, web_port=None):
                         expectedSourceFingerprint=expected_web_source, spotify=spotify_prepared,
                         message="Web replacement did not prove a fresh healthy runtime running the current source fingerprint.",
                     )
+                restored_root = controller.get_active_modular_root(
+                    options["port"], expected_instance_id=str(after.get("instanceId") or "")
+                )
+                if Path(restored_root) != Path(preserved_modular_root):
+                    return _receipt(key, after, ok=False, restartStage="verify", serviceRestarted=True,
+                                    previousModularRoot=preserved_modular_root, modularRoot=restored_root,
+                                    message="Web restarted with a different modular data root; do not resume writes.")
                 stage = "spotify-restore"
                 restored = eveos_spotify_reload.restore_helper(int(options["port"]), spotify_prepared)
                 if restored.get("ok") is not True:
@@ -188,6 +201,7 @@ def restart_service(service, *, web_port=None):
                 previousInstanceId=before.get("instanceId", "") if key == "web" else "",
                 previousSourceFingerprint=before.get("sourceFingerprint", "") if key == "web" else "",
                 expectedSourceFingerprint=expected_web_source if key == "web" else "",
+                modularRoot=preserved_modular_root if key == "web" else None,
                 restartRequestedAt=datetime.now(timezone.utc).isoformat(),
                 spotify=spotify_prepared,
                 message=(

@@ -149,6 +149,35 @@ def _listener_pids(port=None) -> list[int]:
     return sorted({int(value) for value in result.stdout.split() if value.isdigit()})
 
 
+def _validated_modular_root(value) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("The active modular data root was not reported.")
+    root = Path(value)
+    if not root.is_absolute() or not root.is_dir():
+        raise ValueError("The active modular data root is not an existing absolute directory.")
+    return str(root.resolve(strict=True))
+
+
+def get_active_modular_root(port=None, *, expected_instance_id: str) -> str:
+    """Read the exact running instance's data scope; never infer a replacement default."""
+    before = _health_payload(port)
+    if not expected_instance_id or (before or {}).get("instanceId") != expected_instance_id:
+        raise ValueError("Web identity changed before its modular data root could be verified.")
+    connection = http.client.HTTPConnection("127.0.0.1", _normalize_port(port), timeout=4.0)
+    try:
+        connection.request("GET", "/api/eve-state/modular/path", headers={"Connection": "close"})
+        response = connection.getresponse()
+        payload = json.loads(response.read(65536).decode("utf-8"))
+        if response.status != 200 or payload.get("ok") is not True:
+            raise ValueError("The active modular data root could not be read safely.")
+        root = _validated_modular_root(payload.get("rootPath"))
+    finally:
+        connection.close()
+    if (_health_payload(port) or {}).get("instanceId") != expected_instance_id:
+        raise ValueError("Web identity changed while its modular data root was being verified.")
+    return root
+
+
 def _terminate_pid(pid: int) -> bool:
     if pid <= 0 or pid == os.getpid():
         return False
@@ -212,9 +241,10 @@ def get_status(port=None) -> dict:
         return _status(port=port)
 
 
-def start_server(*, persist: bool = True, port=None, scoped_restart: bool = False) -> dict:
+def start_server(*, persist: bool = True, port=None, scoped_restart: bool = False, modular_root=None) -> dict:
     global _PROCESS, _PROCESS_PORT
     target_port = _normalize_port(port)
+    preserved_root = _validated_modular_root(modular_root) if modular_root is not None else None
     with _LOCK:
         if persist:
             _write_desired_state(True, target_port)
@@ -257,6 +287,8 @@ def start_server(*, persist: bool = True, port=None, scoped_restart: bool = Fals
                 else getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
             )
         command = [sys.executable, str(entry), str(target_port), "--no-browser"]
+        if preserved_root is not None:
+            command.extend(["--modular-root", preserved_root])
         if headless:
             with (
                 (log_root / "eveos-web.out.log").open("ab") as stdout_log,
