@@ -291,7 +291,10 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             await reveal();
             for (let i = 0; i < perBatch; i++) { await playStop(); counts.playStop += 1; await settings(); counts.settings += 1; }
             for (let i = 0; i < gesturesPerBatch; i++) { gestureOutcomes.push(await volume()); counts.gestures += 1; counts.pointerMoves += 20; }
-            await record('nexus-open-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
+            for (let i = 0; i < minimumVisualSamplesPerBatch; i++) {
+                await record('nexus-open-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
+                if (i + 1 < minimumVisualSamplesPerBatch) await record('nexus-close-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
+            }
             const search = page.locator('[data-af-nexus-search][data-af-type="music"]');
             const searchNode = await search.elementHandle();
             await installSoakSearchDiagnostics(page, target.id);
@@ -410,7 +413,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         const { longTaskAttribution, warmupLongTaskAttribution, selfLongTaskAttribution } = summarizeSoakLongTasks(longTaskRows);
         const visualResponse = final.instrumentation.responseSummary;
         const startupVisualResponse = final.instrumentation.startupResponseSummary;
-        for (const name of ['group-expand-pointer', 'group-collapse-pointer', 'view-mode-backend-pointer', 'view-mode-frontend-pointer']) assert.ok(visualResponse[name]?.count >= 25, `${name} requires at least 25 measured samples for p95`);
+        for (const name of ['nexus-open-pointer', 'nexus-close-pointer', 'group-expand-pointer', 'group-collapse-pointer', 'view-mode-backend-pointer', 'view-mode-frontend-pointer']) assert.ok(visualResponse[name]?.count >= 25, `${name} requires at least 25 measured samples for p95`);
         const normalGroup = expandedGroupSize <= 400;
         const failures = evaluateSoakBudgets(latency, visualResponse, longTaskAttribution, normalGroup, startupVisualResponse, selfLongTaskAttribution);
         const budgets = { mountedCards: 400, visualResponseP95Ms: 100, warmedSearchP95Ms: 150,
