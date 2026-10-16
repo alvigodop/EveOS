@@ -13,7 +13,7 @@ function fixture(options = {}) {
     let clock = 0, nextTimer = 0, active = 0, peak = 0;
     let state = { value: 1, revision: 0 };
     let mirrorResult = { written: true }, coreResult = true;
-    const timers = new Map(), handlers = new Map(), mirrors = [], cores = [], errors = [], changes = [], held = [], yieldGates = [];
+    const timers = new Map(), handlers = new Map(), mirrors = [], cores = [], errors = [], changes = [], held = [], yieldGates = [], mirrorGates = [];
     const window = {
         setTimeout(fn, delay) { timers.set(++nextTimer, { fn, at: clock + delay }); return nextTimer; },
         clearTimeout(id) { timers.delete(id); },
@@ -49,6 +49,11 @@ function fixture(options = {}) {
             if (mirrorResult instanceof Error) throw mirrorResult;
             return mirrorResult;
         },
+        fallbackWriteAsync: options.asyncMirror ? (input, controls) => {
+            const captured = JSON.parse(JSON.stringify(input));
+            mirrors.push({ at: clock, state: captured, result: mirrorResult });
+            return new Promise((resolve, reject) => mirrorGates.push({ resolve, reject, captured, isCurrent: controls.isCurrent }));
+        } : undefined,
         span: () => options.badDiagnostics ? () => { throw new Error('telemetry only'); } : () => {},
         touchDurability() { state.revision += 1; },
         persistTracked: work => work()
@@ -65,7 +70,7 @@ function fixture(options = {}) {
         clock = target; await drain();
     }
     return {
-        scheduler, mirrors, cores, held, errors, changes, timers, yieldGates, advance, drain,
+        scheduler, mirrors, cores, held, errors, changes, timers, yieldGates, mirrorGates, advance, drain,
         peak: () => peak,
         setState(value) { state = { value, revision: state.revision }; },
         setMirror(value) { mirrorResult = value; },
@@ -236,6 +241,60 @@ async function test(id, work) {
         assert.equal(f.cores[0].config.isCurrent(), false);
         f.held[0].resolve(false); await f.drain();
         assert.equal(f.errors.length, 0); assert.equal(f.scheduler.hasPending(), true);
+    });
+    await test('async-mirror-must-commit-before-ack-or-core-eligibility', async () => {
+        const f = fixture({ asyncMirror: true }); f.scheduler.schedule('change'); await f.advance(500);
+        assert.equal(f.mirrorGates.length, 1); assert.equal(f.mirrorGates[0].isCurrent(), true);
+        assert.equal(f.cores.length, 0); assert.equal(f.changes.length, 0);
+        assert.equal(f.scheduler.hasPending(), true); assert.equal(f.scheduler.hasUnmirrored(), true);
+        await f.advance(2500); assert.equal(f.cores.length, 0, 'A pending recovery write cannot start an idle core timer');
+        f.mirrorGates[0].resolve({ written: true }); await f.drain();
+        assert.equal(f.changes.length, 1); assert.equal(f.cores.length, 0);
+        assert.equal(f.scheduler.hasPending(), true); assert.equal(f.scheduler.hasUnmirrored(), false);
+        await f.advance(3999); assert.equal(f.cores.length, 0);
+        await f.advance(4000); assert.equal(f.cores.length, 1); assert.equal(f.scheduler.hasPending(), false);
+    });
+    await test('async-mirror-supersession-preserves-newer-reasons-and-followup', async () => {
+        const f = fixture({ asyncMirror: true }); f.scheduler.schedule('first'); await f.advance(500);
+        await f.advance(600); f.setState(2); f.scheduler.schedule('newer');
+        assert.equal(f.mirrorGates[0].isCurrent(), false);
+        f.mirrorGates[0].resolve({ written: false, superseded: true, kind: 'superseded' }); await f.drain();
+        assert.equal(f.errors.length, 0); assert.equal(f.changes.length, 0); assert.equal(f.cores.length, 0);
+        assert.equal(f.scheduler.hasPending(), true); assert.equal(f.scheduler.hasUnmirrored(), true);
+        await f.advance(1100); assert.equal(f.mirrorGates[1].captured.value, 2);
+        assert.equal(f.mirrorGates[1].isCurrent(), true);
+        f.mirrorGates[1].resolve({ written: true }); await f.drain();
+        assert.deepEqual(Array.from(f.changes[0].detail.reasons), ['first', 'newer']);
+        await f.advance(2599); assert.equal(f.cores.length, 0);
+        await f.advance(2600); assert.equal(f.cores[0].state.value, 2);
+        assert.equal(f.cores[0].config.source, 'newer'); assert.equal(f.scheduler.hasPending(), false);
+    });
+    await test('explicit-async-flush-awaits-mirror-and-core-durability', async () => {
+        const f = fixture({ asyncMirror: true, held: true });
+        let settled = false;
+        const pending = f.scheduler.flush('explicit').then(result => { settled = true; return result; });
+        assert.equal(f.mirrorGates.length, 1); assert.equal(f.cores.length, 0); assert.equal(settled, false);
+        assert.equal(f.scheduler.hasPending(), true); assert.equal(f.scheduler.hasUnmirrored(), true);
+        f.mirrorGates[0].resolve({ written: true }); await f.drain();
+        assert.equal(f.cores.length, 1); assert.equal(f.changes.length, 0); assert.equal(settled, false);
+        assert.equal(f.scheduler.hasPending(), true); assert.equal(f.scheduler.hasUnmirrored(), false);
+        f.held[0].resolve(true); const result = await pending;
+        assert.equal(result.written, true); assert.equal(result.mirrorWritten, true); assert.equal(result.coreWritten, true);
+        assert.equal(f.changes[0].detail.reason, 'explicit'); assert.equal(f.scheduler.hasPending(), false);
+    });
+    await test('pagehide-pending-guard-supersedes-inflight-mirror-safely', async () => {
+        const f = fixture({ asyncMirror: true }); f.scheduler.schedule('pending'); await f.advance(500);
+        assert.equal(f.scheduler.hasUnmirrored(), true);
+        const closing = f.pagehide();
+        assert.equal(f.mirrorGates.length, 2); assert.equal(f.mirrorGates[0].isCurrent(), false);
+        assert.equal(f.mirrorGates[1].isCurrent(), true);
+        f.mirrorGates[0].resolve({ written: false, superseded: true }); await f.drain();
+        assert.equal(f.cores.length, 0); assert.equal(f.changes.length, 0); assert.equal(f.errors.length, 0);
+        assert.equal(f.scheduler.hasUnmirrored(), true);
+        f.mirrorGates[1].resolve({ written: true }); const result = await closing;
+        assert.equal(result.written, true); assert.equal(f.cores.length, 1);
+        assert.equal(f.changes[0].detail.reason, 'audioflix-pagehide');
+        assert.equal(f.scheduler.hasUnmirrored(), false); assert.equal(f.scheduler.hasPending(), false);
     });
     await test('mirror-only-and-optional-telemetry', async () => {
         const mirror = fixture({ noCore: true }); mirror.scheduler.schedule('mirror-only'); await mirror.advance(500);

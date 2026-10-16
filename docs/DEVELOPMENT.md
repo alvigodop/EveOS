@@ -237,8 +237,11 @@ Core behavior:
 - `Nexus Audio Link` is both the Audioflix search surface and the bulk organizer.
 - Bulk actions operate atomically over the selected IDs: add/remove groups, add/remove manual
   classifiers, move to a folder, or clear the folder.
-- The library supports up to 10,000 music records and 20,000 scoped references. Search documents
-  are cached by Audioflix revision so repeated queries do not rebuild every record.
+- Music normalization and playlist batch replacement do not truncate the library at 10,000
+  records; registered lossless regressions cover 10,001 and 25,000 records. Card pagination bounds
+  mounted UI work, not saved music or queue membership. Scoped references retain their separate
+  20,000-entry policy. Search documents are cached by Audioflix revision so repeated queries do
+  not rebuild every record.
 - The playlist marker `Library-only` means a track is retained in Audioflix but is no longer in
   its imported playlist. It does not claim that the media is downloaded.
 - Localized files prefer `localPath`/persisted folder handles. Online-only provider URLs still

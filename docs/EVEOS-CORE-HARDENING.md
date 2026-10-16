@@ -1,9 +1,26 @@
 # EveOS Core Hardening
 
-Current lane: `eve/core-hardening`, starting at `560913b33bd17c8869e1513466622b3f9db38fb0` (2026-10-13).
-Status: first cross-system online hardening pass complete; browser and native acceptance INCOMPLETE. Not sealed, merged, or deployed.
-Qualified application-source checkpoint: `998895791e32e5ab12294870217e7e7053cb2a35` (subsequent ledger-only commits do not change that source).
-AudioFlix application behavior is frozen for its separate Windows qualification. Sharing a starting SHA with main does not establish a seal.
+Current development line: `eve/core-hardening`.
+Status as of 2026-10-16: the main feature/core-hardening baseline is sealed at `e68563ec994edd8f0fb020d5046225898573b3d4` according to the completed Eve/Drift handoff. Nova confirmed the canonical local checkout was clean at that exact SHA. The handoff reports final uncached verification passed and remote active branches/main were aligned; this documentation update does not claim Nova independently reran that verifier or refreshed every local reference.
+
+That seal is scoped: shipped functionality and the completed scale/performance lane are not a claim that every natural-duration, physical-device, external-account or crash-injection scenario below was executed. Newly authorized storage-mirror/qualification follow-through is in progress and is not covered by the earlier seal.
+
+## Closure matrix (2026-10-16)
+
+| Scope | Current conclusion | Evidence boundary / remaining work |
+| --- | --- | --- |
+| Original AudioFlix features | Implemented in the sealed baseline: per-song provider-health opt-in, typed imports, independent Folder/Group placement, lossless music retention above 10k, canonical queue ownership and stable controls | Source and registered deterministic/browser regressions support these contracts; unavailable/local Spotify rows remain metadata until an actual playable source exists |
+| Large-library responsiveness | Feature/scale baseline accepted; do not reopen the superseded renderer/hash investigations as unresolved defects | Local review found passing performance evidence on ancestor `65cc3ff75803b042a9e1137436385aef18ae23f9`; this is ancestor evidence, not an independently rerun exact-`e68563ec` benchmark |
+| Final repository verification | PASS reported by Eve/Drift for the final baseline | Distinguish supplied final-verifier evidence from Nova's direct Git/source review; no new gates ran for this ledger correction |
+| Signed-in typed playback / real mixed import | Prior HTTP/file transport and real track+episode import proof exists | Seek-assisted playback is not natural-duration endurance. The real mixed playlist did not contain local/unavailable rows; deterministic fixtures cover those categories |
+| Broader native / external acceptance | Partially proven, explicitly bounded | Natural provider endings/background/repeat, physical-phone WebRTC/output delay, Nexus/Dex provider recovery, model/account isolation and destructive crash/device-loss cases retain their own acceptance requirements |
+| Storage recovery mirror and qualification follow-through | IN PROGRESS; not passed by this document | Keep durable mirror scale/recovery and exact served-source qualification claims separate until the newly authorized fixes and their gates complete |
+
+The sections below retain the initial 2026-10-13 investigation and later renderer checkpoint as historical evidence. Their earlier `BLOCKED`, `PENDING`, `DEFERRED` and no-merge statements describe those checkpoints, not the current branch/seal status. Outstanding physical/provider proofs remain outstanding unless a later scoped artifact explicitly closes them.
+
+## Initial pass context (2026-10-13; historical)
+
+The lane started at `560913b33bd17c8869e1513466622b3f9db38fb0`; its first qualified application-source checkpoint was `998895791e32e5ab12294870217e7e7053cb2a35`. At that point the cross-system online pass was complete, but browser/native acceptance was incomplete and no seal, merge or deployment was claimed. AudioFlix application behavior was then frozen for separate Windows qualification; sharing a starting SHA with main was not evidence of a seal.
 
 ## Boundaries and evidence policy
 
@@ -11,9 +28,9 @@ Existing subsystem owners remain authoritative. No new lifecycle/state/telemetry
 Read-only/status calls must not acquire start/write authority. A delayed completion may not defeat a newer intent. Process ownership is proved, never inferred from a port. User records may not be silently truncated or replaced on recovery.
 Existing numeric budgets remain unchanged. Flat-resource invariants and baseline-only metrics are distinct; a one-time DOM level shift is not a leak.
 
-The online environment has Node 24.19.0, Playwright 1.58.2, and an isolated Python with pytest 9.1.1. Chromium 1208 is unavailable; the prior download attempt failed archive validation. Browser-dependent gates are ENVIRONMENT BLOCKED and must not be presented as application failures. No repeated installation attempts. Live Windows/provider/GPU/audio evidence remains pending.
+The initial online environment had Node 24.19.0, Playwright 1.58.2, and an isolated Python with pytest 9.1.1. Chromium 1208 was unavailable; the download attempt failed archive validation. Browser-dependent gates were ENVIRONMENT BLOCKED, not application failures, and repeated installation attempts were avoided. The tables below retain that run's limitations rather than describing the current workstation.
 
-## Ownership and qualification map
+## Initial ownership and qualification map (historical)
 
 | Subsystem | Durable / runtime owners | Main invariants and existing coverage | Demonstrated gap / correction | Machine proof / status |
 | --- | --- | --- | --- | --- |
@@ -30,7 +47,7 @@ The online environment has Node 24.19.0, Playwright 1.58.2, and an isolated Pyth
 | AudioFlix | AudioFlix state/journal and sole queueConnection owner | Separate candidate/qualification handoff; typed identity, durability, stable controls | Known 4,200-entry queue DOM level shift ~18k→78k, reportedly flat afterward; no redesign | 500-cycle real-copy soak, natural provider playback, laptop budgets; DEFERRED |
 | Repository / observability | Existing audit registry, capability sensors, per-subsystem diagnostics | Zero backlog, generated assets, private-data exclusion, 450-line cap/440 changed-file headroom | Baseline/final structural PASS; zero smoke backlog; generated hashes synchronized. Existing sensors/logs retained; final broad gates blocked by Chromium | Final uncached gate and exact-runtime source evidence; REVIEWED, ACCEPTANCE PENDING |
 
-## Current test ledger
+## Initial test ledger (historical)
 
 | Scope | Command | Result | Revision / evidence |
 | --- | --- | --- | --- |
@@ -47,11 +64,11 @@ The online environment has Node 24.19.0, Playwright 1.58.2, and an isolated Pyth
 | Capability state space | `npm run --silent smoke:capability-transitions` | PASS, 9 services / 40 variants | `LAST-EVEOS-CAPABILITY-MATRIX.json`; synthetic only |
 | Control plane profile | `npm run --silent smoke:control-plane` | PASS in final verify | `hardening-final-verify.log`; control, reload, active-restart, Gemini, stop/console and UI all passed |
 
-The Local Control change is shared launch policy, not an AudioFlix application edit. It does not alter playback/state/queue code. Its branch remains distinct from the frozen AudioFlix candidate; control-plane and active-restart checks are included in this branch's integration evidence.
+The initial Local Control change was shared launch policy, not an AudioFlix application edit. It did not alter playback/state/queue code. That pass used a branch distinct from the then-frozen AudioFlix candidate; control-plane and active-restart checks were included in its integration evidence. Development was subsequently consolidated on `eve/core-hardening`.
 
 Existing `LAST-EVEOS-SMOKE-COVERAGE.json` is generated by baseline guardrails. Capability state/matrix snapshots are synthetic/passive evidence only, not proof of the user's running machine. No private historical `LAST-*` file is assumed available in this isolated checkout.
 
-## Execution order
+## Initial execution order (historical)
 
 1. Local Control and system safety contracts.
 2. Nexus/Dex/Machine Spaces.
@@ -63,7 +80,7 @@ Existing `LAST-EVEOS-SMOKE-COVERAGE.json` is generated by baseline guardrails. C
 
 Each correction needs a demonstrated red, owning-layer repair, regression, structural preflight, affected deterministic gate and bounded checkpoint. Update entries rather than append a diary. Environmental limitations do not permit weakening tests. Final `verify` runs once after the online changes settle; any incomplete gate is explicitly retained.
 
-## Cross-system result matrix
+## Initial cross-system result matrix (historical)
 
 All log names below are under ignored `data/runtime/smoke-results/`; they are local evidence, not committed/private machine state. Python gates used the isolated environment with pytest, httpx, google-genai and psutil. WatchFusion used its pinned hls.js 1.7.0 from the existing dependency checkout; no dependency manifests changed.
 
@@ -87,17 +104,17 @@ All log names below are under ignored `data/runtime/smoke-results/`; they are lo
 
 Browser subprocesses return nonzero when Chromium is absent. These runs are incomplete, neither product regressions nor passing profiles. Tests were not skipped/edited to bypass that boundary. Focused non-browser checks beyond blocked profile stages were run separately as listed above.
 
-## Fault coverage and unresolved proof
+## Fault coverage and broader proof boundaries
 
 - Nexus: concurrent duplicate admission, ordered durable transitions, stale pre-stop shell result now have new red/green regressions. Existing full Node coverage includes provider recovery, viewer lease, supervisor, machine grants and target tests. It does not prove a real provider will acknowledge or capture correctly.
 - Notes: concurrent same-revision saves and malformed metadata now fail safely. The lock only coordinates threads in one service. External-editor races, OS crash/disk-full between file replacement and metadata update, cross-process writers and power-loss durability are not proven by this patch. Metadata remains on disk for explicit recovery; there is no invented automatic restore or discarded-record fallback.
 - TLO: admission after delayed readiness, cancellation-ignoring stream callbacks, exactly-once SSE completion and adapter context isolation have deterministic coverage. A real provider honoring cancellation and actual GPU/model rollback remain live gates.
 - World Book: existing atomic replacement, manifest hashes and pre-restore rollback were inspected. This pass did not inject process death at every restore boundary or establish multi-writer durability. Do not call integration string/shape assertions proof of those failure cases.
 - WatchFusion: revisions/source authority and reconnect/security contracts were reviewed. Real source replacement, phone/laptop playout and browser transport handoffs remain acceptance work.
-- No new blanket resource ceilings were invented. Existing history/index caps and operation-ledger rejection bounds are preserved. No browser post-GC slope, DOM count, reconnect latency, queue mount cost or hardware response p95 was measured here.
-- AudioFlix queue DOM growth remains a documented flat level shift, not a demonstrated leak; no queue optimization was attempted.
+- No new blanket resource ceilings were invented. Existing history/index caps and operation-ledger rejection bounds were preserved. The initial online pass measured no browser post-GC slope, DOM count, reconnect latency, queue mount cost or hardware response p95; subsequent library performance evidence has its own scoped artifacts.
+- The initial AudioFlix queue DOM observation was a documented flat level shift, not a demonstrated leak. Queue rendering was subsequently optimized as described below; neither observation alone proves every native resource boundary.
 
-## Local renderer follow-through (Nova)
+## Local renderer follow-through (Nova; historical intermediate checkpoint)
 
 Forward development is consolidated on `eve/core-hardening`; the older AudioFlix branch is an inactive reference. A detached qualification checkout is evidence isolation, not a second development branch.
 
@@ -107,9 +124,11 @@ The renderer follow-through extracts panel markup, projects Nexus/settings/routi
 
 Registered Chromium regressions cover real pointer-down/up across redundant queue updates, card/routing/slider identity, reorder/stop badges, routing-summary hydration and hidden 25k queue lifecycle. The soak now requires zero library render-generation changes across canonical queue transitions and retains all transition/input/durability counts; it no longer requires 500 unnecessary full renders.
 
-Focused source/loader, browser, volume, Spotify playback and guardrail checks pass. Exact candidate full-library timing, signed-in typed natural HTTP/file playback, 20 natural endings and remaining native acceptance are still required. No full-system seal, branch deletion, merge, deployment or GitHub CI re-enable is claimed.
+At this intermediate checkpoint, focused source/loader, browser, volume, Spotify playback and guardrail checks passed, while exact candidate full-library timing, signed-in typed natural HTTP/file playback, 20 natural endings and broader native acceptance remained. No full-system seal, branch deletion, merge, deployment or GitHub CI re-enable was claimed then. The later scoped feature/scale seal is summarized at the top; natural/physical acceptance must not be inferred from it.
 
-## Exact Windows acceptance sequence
+## Windows acceptance reference and remaining physical/provider gates
+
+This is the original acceptance procedure, not an instruction to rerun every completed gate or resume obsolete branch reconciliation. Reuse existing exact-source evidence only where its scope permits; identify the remaining scenario and current candidate first. Natural-duration tests remain deferred rather than being silently replaced by seek-assisted runs, and require a separately agreed playback window. All live actions still need the applicable user authority and verified process/fixture ownership.
 
 1. Finish the separate AudioFlix qualification candidate first. In that candidate's clean checkout run `npm run --silent qualify:audioflix-library-soak -- --source <backup-copy.json>` for the full default 500 cycles, then `npm run --silent qualify:audioflix-typed-natural` and `npm run --silent qualify:audioflix-natural-queue`. Record source SHA, backup hash before/after and unchanged topology, natural terminal/queue/repeat/hidden transitions and fixed laptop timing budgets. Never use the canonical library as a writable fixture; no playlist edits are authorized.
 2. Use a separate clean checkout/worktree for `eve/core-hardening`; fetch without merging, record `git rev-parse HEAD`, `git status --short`, and `git rev-list --left-right --count HEAD...origin/eve/core-hardening`. Preserve any dirty original checkout. Do not copy private state into the qualification worktree. Install the repository-declared dependencies/browser once through the normal setup.
@@ -121,4 +140,4 @@ Focused source/loader, browser, volume, Spotify playback and guardrail checks pa
 8. TLO/Gemini: explicit service start; double Send during readiness; cancel during streaming; send again; no old partials/new transcript contamination, zero orphan request. Test trusted model switch failure rollback and independent Gemini sessions using the user's chosen model/account. No automatic model download or credential changes.
 9. Piano/native audio/Matrix surfaces: disposable song/recording and explicitly selected target. Stop/pause/seek/crash cleanup releases held keys; canceled conversion does not replace the current choice; staged cache does not become library data. Repeated native route/device detach and window open/focus/close return handles/listeners/timers to baseline. These checks require local human/agent judgment.
 
-No full-system seal is warranted until missing browser/native gates pass and remaining durability/resource claims have evidence. Broader crash-injection and resource-baseline work can continue in this lane; this checkpoint does not claim every scenario in the master hardening plan has been executed.
+The main feature/core-hardening baseline seal does not assert a universal full-system/hardware seal. Broader crash-injection, provider endurance and physical resource-baseline claims require their own evidence. Preserve those explicit limitations without relabeling already completed feature/scale work as unfinished or treating an unexecuted scenario as a demonstrated product defect.

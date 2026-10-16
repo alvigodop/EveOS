@@ -35,6 +35,26 @@ Unified backup/sync capture derives its structural journal from the same detache
 
 Production diagnostics record bounded numeric spans/counters for index builds, rendering, playlist reconciliation and persistence. They cannot change successful operation semantics, and metric keys contain no track identities or secrets.
 
+## Independent large-library recovery
+
+Small recovery copies retain the synchronous guarded localStorage path. Libraries above 2,000
+tracks, or any smaller copy rejected by localStorage quota, use the existing IndexedDB store
+for an independent owned JSON/Blob mirror and a separate URL-free structural journal. Legacy
+copies are not removed. Success requires transaction completion, not merely request success.
+Cross-tab conditional writes reject older generations; asynchronous capture and bootstrap
+recovery cannot replace a newer local mutation. Core replication remains a separate fallback.
+
+Authoritative replacements preserve the prior mirror in the same IndexedDB transaction;
+failed/aborted backup transactions cannot accept the replacement. Pending unmirrored large
+changes request the browser's unsaved-changes confirmation on close. An unavailable database
+still permits the original guarded local/core fallback; it never turns memory into durability.
+The registered mirror contracts exercise actual 25k HTTP/file reloads, quota failure,
+independent topology recovery, corruption, stale completions, explicit clear and rollback data.
+
+Search qualification records synchronous results-commit, automation overhead and input through
+second-animation-frame timing separately. The latter enters the unchanged 100 ms visual
+budget; the 150 ms search-processing budget is not a substitute for paint evidence.
+
 The registered opt-in `qualify:audioflix-library-soak` exercises real HTTP/file library copies and a synthetic 25k library. Its fixed latency/resource budgets are acceptance targets, not a claim that merely adding the harness passed them. Likewise `qualify:audioflix-typed-natural` requires actual full-duration hidden playback, typed Ended identity and repeat-on/off transitions; seek-assisted evidence is not interchangeable.
 
 ## Boot and audit policy

@@ -1,11 +1,13 @@
 import { performance } from 'node:perf_hooks';
+import assert from 'node:assert/strict';
 
 /*
  * Qualification-only search timing.
  *
  * The acceptance clock begins in the browser's capturing input
- * listener and ends at document bubble, after AudioFlix's overlay
- * input handler synchronously commits Nexus results.
+ * listener. Handler time ends at document bubble, after AudioFlix's
+ * overlay input handler synchronously commits Nexus results. The
+ * separate paint probe awaits two animation frames; it is not INP.
  *
  * Playwright fill()/locator timing remains separately observable.
  */
@@ -15,7 +17,7 @@ export async function installSoakSearchDiagnostics(page, targetId) {
 
         const timingAbort = new AbortController();
         window.__soakSearchTimingAbort = timingAbort;
-        window.__soakSearchTiming = { current: null };
+        window.__soakSearchTiming = { current: null, paintDone: null };
 
         const selector =
             `[data-af-action="nexus-jump-card"][data-af-id="${CSS.escape(String(targetId))}"]`;
@@ -28,12 +30,29 @@ export async function installSoakSearchDiagnostics(page, targetId) {
         document.addEventListener('input', event => {
             if (!isMeasuredSearch(event)) return;
 
-            window.__soakSearchTiming.current = {
+            const row = window.__soakSearchTiming.current = {
                 started: performance.now(),
                 finished: 0,
                 duration: NaN,
-                targetPresent: false
+                targetPresent: false,
+                query: String(event.target.value),
+                paint: null
             };
+            window.__soakSearchTiming.paintDone = new Promise(resolve => {
+                requestAnimationFrame(() => {
+                    const firstFrameAt = performance.now();
+                    requestAnimationFrame(() => {
+                        const secondFrameAt = performance.now();
+                        row.paint = {
+                            started: row.started, firstFrameAt, secondFrameAt,
+                            duration: secondFrameAt - row.started,
+                            targetPresent: !!document.querySelector(selector),
+                            method: 'event-to-second-animation-frame'
+                        };
+                        resolve();
+                    });
+                });
+            });
         }, {
             capture: true,
             signal: timingAbort.signal
@@ -112,26 +131,27 @@ export async function measureSoakSearchTiming(
 
     await search.fill(query);
 
-    const timing =
-        await page.evaluate(() => {
-            const row =
-                window.__soakSearchTiming
-                    ?.current;
-
-            return row
-                ? { ...row }
-                : null;
-        });
-
     await page
         .locator(targetSelector)
         .waitFor();
+    const automationMs = performance.now() - automationAt;
+    const timing = await page.evaluate(async () => {
+        const state = window.__soakSearchTiming;
+        const row = state?.current;
+        if (!row) return null;
+        await state.paintDone;
+        return { ...row };
+    });
+    assert.equal(timing?.query, query, 'Search timing must belong to this input value');
+    assert.ok(Number.isFinite(timing.duration), 'Search input must produce browser-clock handler timing');
+    assert.equal(timing.targetPresent, true, 'Search result must be committed at the results-ready boundary');
+    assert.ok(Number.isFinite(timing.paint?.duration), 'Search input must reach its second-animation-frame boundary');
+    assert.equal(timing.paint.targetPresent, true, 'Search result must survive through the paint boundary');
 
     return {
         timing,
-        automationMs:
-            performance.now() -
-            automationAt
+        paint: { ...timing.paint },
+        automationMs
     };
 }
 

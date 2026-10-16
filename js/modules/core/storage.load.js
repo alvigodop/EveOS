@@ -79,6 +79,9 @@ async function loadData() {
         : {};
     if (loadedConfig && typeof loadedConfig === 'object') {
         config = { ...config, ...loadedConfig };
+        // Recover the independently committed large AudioFlix copy before declaring core
+        // config clean. A late read is fenced against a concurrent user edit/root switch.
+        await window.EveAudioflixRecoveryMirror?.restoreConfig?.(config);
 
         // --- Migration: ensure recursive subTabs on all workspaces ---
         const wsHelpers = window.EveWorkspaceHelpers;

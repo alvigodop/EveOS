@@ -65,11 +65,13 @@
         set: async function(key, value) {
             try {
                 const db = await this.init();
-                return new Promise((resolve, reject) => {
+                return await new Promise((resolve, reject) => {
                     const tx = db.transaction(STORE_NAME, 'readwrite');
                     const store = tx.objectStore(STORE_NAME);
                     const req = store.put(value, key);
-                    req.onsuccess = () => resolve(true);
+                    tx.oncomplete = () => resolve(true);
+                    tx.onabort = () => reject(tx.error || new Error('IndexedDB write aborted'));
+                    tx.onerror = () => reject(tx.error || new Error('IndexedDB write failed'));
                     req.onerror = () => reject(req.error);
                 });
             } catch (error) {
@@ -80,14 +82,55 @@
             }
         },
 
+        // Compare and commit in one transaction so another tab cannot insert a newer
+        // recovery generation between a read and put. Only a committed transaction is durable.
+        setIf: async function(key, value, accept, options = {}) {
+            try {
+                const db = await this.init();
+                return await new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readwrite', { durability: 'strict' });
+                    const store = tx.objectStore(STORE_NAME);
+                    let written = false;
+                    tx.oncomplete = () => resolve(written);
+                    tx.onabort = () => reject(tx.error || new Error('IndexedDB conditional write aborted'));
+                    tx.onerror = () => reject(tx.error || new Error('IndexedDB conditional write failed'));
+                    const request = store.get(key);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        try {
+                            if (!accept(request.result)) return;
+                            if (options.backupKey && request.result != null) {
+                                store.put(request.result, options.backupKey).onerror = event => {
+                                    reject(event.target.error);
+                                    tx.abort();
+                                };
+                            }
+                            const put = store.put(value, key);
+                            written = true;
+                            put.onerror = () => reject(put.error);
+                        } catch (error) {
+                            tx.abort();
+                            reject(error);
+                        }
+                    };
+                });
+            } catch (error) {
+                this._lastError = error;
+                console.warn('IDBStore.setIf failed:', error);
+                return false;
+            }
+        },
+
         remove: async function(key) {
             try {
                 const db = await this.init();
-                return new Promise((resolve, reject) => {
+                return await new Promise((resolve, reject) => {
                     const tx = db.transaction(STORE_NAME, 'readwrite');
                     const store = tx.objectStore(STORE_NAME);
                     const req = store.delete(key);
-                    req.onsuccess = () => resolve(true);
+                    tx.oncomplete = () => resolve(true);
+                    tx.onabort = () => reject(tx.error || new Error('IndexedDB removal aborted'));
+                    tx.onerror = () => reject(tx.error || new Error('IndexedDB removal failed'));
                     req.onerror = () => reject(req.error);
                 });
             } catch (error) {
@@ -101,11 +144,13 @@
         clear: async function() {
             try {
                 const db = await this.init();
-                return new Promise((resolve, reject) => {
+                return await new Promise((resolve, reject) => {
                     const tx = db.transaction(STORE_NAME, 'readwrite');
                     const store = tx.objectStore(STORE_NAME);
                     const req = store.clear();
-                    req.onsuccess = () => resolve(true);
+                    tx.oncomplete = () => resolve(true);
+                    tx.onabort = () => reject(tx.error || new Error('IndexedDB clear aborted'));
+                    tx.onerror = () => reject(tx.error || new Error('IndexedDB clear failed'));
                     req.onerror = () => reject(req.error);
                 });
             } catch (error) {

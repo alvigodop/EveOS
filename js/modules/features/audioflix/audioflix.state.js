@@ -7,13 +7,13 @@ window.EveAudioflixState = window.EveAudioflixState || {};
 
     const STORAGE_KEY = 'eveAudioflixFallbackState';
     const MAX_SOUNDBOARD = 240;
-    const MAX_MUSIC = 10000;
     const MAX_SCOPE_BINDINGS = 20000;
     const MAX_RECENT = 60;
     let cachedRoot = null;
     let cachedState = null;
     let fallbackState = null;
     let revision = 0;
+    let replacementIntent = null;
     const span = name => { try { return window.EveAudioflixDiagnostics?.span?.(name); } catch { return null; } };
 
     function getConfigRoot() {
@@ -27,10 +27,13 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     // copy. If the guard is somehow absent we refuse to persist at all rather than risk repeating
     // that: not saving is recoverable, overwriting the library is not.
     function fallbackRead() {
-        return window.EveAudioflixStateRecovery?.read(STORAGE_KEY)?.state || {};
+        const guard = window.EveAudioflixStateRecovery, legacy = guard?.read(STORAGE_KEY)?.state || {};
+        const mirror = window.EveAudioflixRecoveryMirror?.peek(STORAGE_KEY)?.state;
+        return mirror ? guard.prefer(legacy, mirror, STORAGE_KEY) : legacy;
     }
 
     function fallbackWrite(state, options) {
+        if (options?.allowDestructive === true) replacementIntent = { state, options };
         const guard = window.EveAudioflixStateRecovery;
         if (!guard) {
             console.warn('[Audioflix] recovery guard missing — not persisting, to avoid data loss.');
@@ -41,6 +44,15 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         if (result?.written) fallbackState = getConfigRoot() ? fallbackRead() : state;
         mirrorDone?.(result?.written !== true); return result;
     }
+
+    const fallbackWriteAsync = window.EveAudioflixRecoveryMirror?.createWriter({
+        key: STORAGE_KEY, fallbackWrite, span, project: state => mutations.durableProjection(state),
+        intent: state => replacementIntent?.state === state ? replacementIntent : null,
+        accepted(state, intent) {
+            fallbackState = getConfigRoot() ? null : state;
+            if (replacementIntent === intent) replacementIntent = null;
+        }
+    });
 
     const { text, normalizeVolume, id, bool } = window.EveAudioflixStateSchema;
 
@@ -86,7 +98,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
                 : 'text-brain-live-voice',
             geminiModeDefaultV2Applied: true,
             soundboard: boundedItems(source.soundboard, 'sound', MAX_SOUNDBOARD),
-            music: boundedItems(source.music, 'music', MAX_MUSIC),
+            music: boundedItems(source.music, 'music'),
             recentPlays: (Array.isArray(source.recentPlays) ? source.recentPlays : []).slice(-MAX_RECENT),
             ports: (Array.isArray(source.ports) ? source.ports : []).map(cleanPort),
             browserFolders: (Array.isArray(source.browserFolders) ? source.browserFolders : [])
@@ -209,7 +221,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
     }
 
     const persistence = window.EveAudioflixPersistenceScheduler.create({
-        ensure, fallbackWrite, span,
+        ensure, fallbackWrite, fallbackWriteAsync, span,
         touchDurability: () => {
             const durable = ensure(); durable.durabilityRevision = window.EveAudioflixStateRecovery?.nextRevision?.(STORAGE_KEY, durable) || (Number(durable.durabilityRevision || 0) + 1); durable.durabilityUpdatedAt = Date.now(); revision += 1;
         },
@@ -390,6 +402,7 @@ window.EveAudioflixState = window.EveAudioflixState || {};
         mutations.finalizePendingVolumes();
         if (persistence.hasPending()) void persistNow('audioflix-pagehide');
     });
+    window.EveAudioflixRecoveryMirror?.protectPendingClose(ensure, persistence.hasUnmirrored);
 
     Object.assign(ns, {
         ready: true,

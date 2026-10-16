@@ -304,9 +304,8 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 const searchResultSelector = `[data-af-action="nexus-jump-card"][data-af-id="${css(target.id)}"]`;
                 const measured = await trace('search-input', () =>
                     measureSoakSearchTiming(page, search, query, searchResultSelector));
-                assert.ok(Number.isFinite(measured.timing?.duration), 'Search input must produce browser-clock timing evidence');
-                assert.equal(measured.timing.targetPresent, true, 'Search result must be committed by the browser results-ready boundary');
                 (rows['search-input'] ||= []).push(measured.timing.duration);
+                (rows['search-input-paint'] ||= []).push(measured.paint.duration);
                 (rows['search-input-automation'] ||= []).push(measured.automationMs);
                 const focus = await search.evaluate((element, original) => {
                     const value = { sameNode: element === original, focused: document.activeElement === element, activeTag: document.activeElement?.tagName,
@@ -411,7 +410,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
         assert.equal(final.instrumentation.pendingResponses, 0, 'Every measured paint response must settle');
         const longTaskRows = final.instrumentation.longTasks;
         const { longTaskAttribution, warmupLongTaskAttribution, selfLongTaskAttribution } = summarizeSoakLongTasks(longTaskRows);
-        const visualResponse = final.instrumentation.responseSummary;
+        const visualResponse = { ...final.instrumentation.responseSummary, 'search-input': latencyStats(rows['search-input-paint']) };
         const startupVisualResponse = final.instrumentation.startupResponseSummary;
         for (const name of ['nexus-open-pointer', 'nexus-close-pointer', 'group-expand-pointer', 'group-collapse-pointer', 'view-mode-backend-pointer', 'view-mode-frontend-pointer']) assert.ok(visualResponse[name]?.count >= 25, `${name} requires at least 25 measured samples for p95`);
         const normalGroup = expandedGroupSize <= 400;

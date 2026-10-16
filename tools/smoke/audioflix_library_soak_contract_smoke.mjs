@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
 import { installLibrarySoakInstrumentation, latencyStats, resourceGrowth, evaluateSoakBudgets } from '../qualification/audioflix_library_soak_resources.mjs';
+import { installSoakSearchDiagnostics, measureSoakSearchTiming, restoreSoakSearchDiagnostics } from '../qualification/audioflix_library_soak_search_timing.mjs';
 import { attachSoakConsole, scaleSoakFixture, codePointSearchQuery, classifyResourceErrors,
     assertHeldVolume, assertQueueProjection, assertGestureTotals, settleSoakPersistence, settleSoakSliderHover, recordSoakPhase } from '../qualification/audioflix_library_soak.mjs';
 
@@ -325,6 +326,44 @@ try {
         assert.equal(failures.length, 4);
         assert.deepEqual(failures.map(row => row.limit), [100, 150, 150, 50]);
         assert.equal(evaluateSoakBudgets({ 'group-expand-pointer': { p95: 499 } }, {}, {}, false).length, 0);
+    });
+    await check('search-paint-awaits-two-frames-and-retains-separate-clocks', async () => {
+        const browser = await chromium.launch({ headless: true });
+        try {
+            const page = await browser.newPage();
+            await page.setContent('<input data-af-nexus-search data-af-type="music"><div id="results"></div>');
+            await page.evaluate(() => {
+                let clock = 0;
+                window.__searchFrames = [];
+                performance.now = () => clock;
+                window.requestAnimationFrame = callback => { window.__searchFrames.push(callback); return window.__searchFrames.length; };
+                window.__advanceSearchFrame = elapsed => { clock += elapsed; window.__searchFrames.shift()(clock); };
+                window.EveAudioflixDiagnostics = { span() {} };
+                document.querySelector('input').addEventListener('input', () => {
+                    document.querySelector('#results').innerHTML = '<button data-af-action="nexus-jump-card" data-af-id="target">Match</button>';
+                });
+            });
+            await installSoakSearchDiagnostics(page, 'target');
+            let settled = false;
+            const pending = measureSoakSearchTiming(page, page.locator('input'), 'Match', '[data-af-id="target"]');
+            pending.then(() => { settled = true; }, () => { settled = true; });
+            await page.waitForFunction(() => window.__searchFrames.length === 1, null, { polling: 10, timeout: 3000 });
+            assert.equal(settled, false, 'Results commit cannot finish the paint probe');
+            await page.evaluate(() => window.__advanceSearchFrame(60));
+            assert.equal(settled, false, 'One animation frame cannot finish the paint probe');
+            await page.evaluate(() => window.__advanceSearchFrame(60));
+            const measured = await pending;
+            assert.equal(measured.timing.duration, 0, 'Handler timing remains its own synchronous clock');
+            assert.equal(measured.paint.duration, 120);
+            assert.equal(measured.paint.targetPresent, true);
+            assert.equal(measured.paint.method, 'event-to-second-animation-frame');
+            assert.ok(measured.automationMs >= 0);
+            const failures = evaluateSoakBudgets({ 'search-input': latencyStats([measured.timing.duration]) },
+                { 'search-input': latencyStats([measured.paint.duration]) }, {}, true);
+            assert.deepEqual(failures.map(row => [row.name, row.limit]), [['search-input:visual-response', 100]]);
+            await restoreSoakSearchDiagnostics(page);
+            assert.equal(await page.evaluate(() => window.__soakSearchTimingAbort), null);
+        } finally { await browser.close(); }
     });
     await check('supplementary-title-search-prefix-is-well-formed', () => {
         const title = 'Track \u{1d42b}';

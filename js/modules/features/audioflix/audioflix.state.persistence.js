@@ -12,6 +12,7 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
         const {
             ensure,
             fallbackWrite,
+            fallbackWriteAsync,
             span,
             touchDurability,
             persistTracked
@@ -135,7 +136,12 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
                 const capturedGeneration = generation;
                 const state = ensure();
                 const mirrorStarted = traceThis ? traceClock() : 0;
-                const persisted = fallbackWrite(state);
+                let persisted = typeof fallbackWriteAsync === 'function'
+                    ? fallbackWriteAsync(state, { isCurrent: () => capturedGeneration === generation })
+                    : fallbackWrite(state);
+                if (typeof persisted?.then === 'function') persisted = await persisted;
+                if (capturedGeneration !== generation) return { state, written: false, superseded: true,
+                    reason: 'Persistence generation changed while the recovery copy was prepared.' };
                 const mirrorMs = traceThis ? Math.max(0, traceClock() - mirrorStarted) : 0;
                 const capturedReasons = [...pendingReasons];
                 const reasons = capturedReasons.map(([value]) => value);
@@ -225,7 +231,7 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
             saveTimer = window.setTimeout(() => {
                 saveTimer = 0;
                 void persist(latestReason, true).then(result => {
-                    if (result?.written !== true) reportDeferredFailure(result?.reason);
+                    if (result?.written !== true && result?.superseded !== true) reportDeferredFailure(result?.reason);
                 }, reportDeferredFailure);
             }, SAVE_DELAY_MS);
 
@@ -268,7 +274,8 @@ window.EveAudioflixPersistenceScheduler = window.EveAudioflixPersistenceSchedule
         return Object.freeze({
             schedule,
             flush,
-            hasPending
+            hasPending,
+            hasUnmirrored: () => mirrorDirty || !!saveTimer
         });
     };
 

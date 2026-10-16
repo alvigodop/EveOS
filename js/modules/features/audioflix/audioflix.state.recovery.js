@@ -136,15 +136,23 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
         }
     }
 
+    function preferredStructure(legacy, durable) {
+        if (!durable) return legacy;
+        const oldRevision = Number(legacy?.durabilityRevision || 0), newRevision = Number(durable.durabilityRevision || 0);
+        return !legacy || newRevision > oldRevision || (newRevision === oldRevision
+            && Number(durable.durabilityUpdatedAt || 0) > Number(legacy.durabilityUpdatedAt || 0)) ? durable : legacy;
+    }
+
     function readStructure(key) {
         const slot = `${key}${STRUCTURE_SUFFIX}`;
+        const durable = window.EveAudioflixRecoveryMirror?.peek(key)?.structure;
         try {
             const raw = localStorage.getItem(slot);
-            if (!raw) return null;
+            if (!raw) return durable ? clone(durable, null) : null;
             const parsed = JSON.parse(raw);
-            return parsed && typeof parsed === 'object' ? parsed : null;
+            return clone(preferredStructure(parsed && typeof parsed === 'object' ? parsed : null, durable), null);
         } catch {
-            return null;
+            return durable ? clone(durable, null) : null;
         }
     }
 
@@ -152,15 +160,17 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
     // Compare actual storage on every lookup: cross-tab writes, imports and deletion retire the cache.
     function trackStructure(key) {
         const slot = `${key}${STRUCTURE_SUFFIX}`;
+        const durable = window.EveAudioflixRecoveryMirror?.peek(key)?.structure;
         let raw;
-        try { raw = localStorage.getItem(slot); } catch { trackStructures.delete(slot); return null; }
-        if (!raw) { trackStructures.delete(slot); return null; }
+        try { raw = localStorage.getItem(slot); } catch { if (!durable) { trackStructures.delete(slot); return null; } }
+        if (!raw && !durable) { trackStructures.delete(slot); return null; }
         const cached = trackStructures.get(slot);
-        if (cached?.raw === raw) return cached;
+        if (cached?.raw === raw && cached.durable === durable) return cached;
         trackStructures.delete(slot);
         let structure = null;
         try { structure = JSON.parse(raw); } catch { /* Damaged data never reuses stale topology. */ }
-        const cache = { raw, structure, ids: new Map(), paths: new Map(), sources: new Map() };
+        structure = preferredStructure(structure, durable);
+        const cache = { raw, durable, structure, ids: new Map(), paths: new Map(), sources: new Map() };
         const refs = Array.isArray(structure?.musicRefs) ? structure.musicRefs : [];
         refs.forEach((ref, rank) => {
             if (!ref || typeof ref !== 'object') return;
@@ -345,9 +355,8 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
         return next;
     }
 
-    function write(key, state, options = {}) {
+    function validateWrite(state, existing, options = {}) {
         const incoming = countEntries(state);
-        const existing = read(key);
         if (incoming === 0 && options.allowEmpty !== true) {
             if (existing.damaged) return { written: false, kind: 'guard', reason: 'stored data is unreadable; refusing to overwrite it' };
             if (countEntries(existing.state) > 0) {
@@ -364,6 +373,12 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
             console.warn('[Audioflix] Refused a stale partial rollback over richer music structure.');
             return { written: false, kind: 'guard', reason: 'stale state would have rolled back richer music structure' };
         }
+        return null;
+    }
+
+    function write(key, state, options = {}) {
+        const rejected = validateWrite(state, read(key), options);
+        if (rejected) return rejected;
 
         // The small journal is written first so topology can survive even if the large state hits quota.
         writeStructure(key, state);
@@ -384,6 +399,7 @@ window.EveAudioflixStateRecovery = window.EveAudioflixStateRecovery || {};
         ready: true,
         read,
         write,
+        validateWrite,
         countEntries,
         captureStructure,
         snapshotStructure: captureStructure,
