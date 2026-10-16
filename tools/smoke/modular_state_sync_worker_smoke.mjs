@@ -219,11 +219,77 @@ async function browserContext(label, url, page) {
     assert.ok(result.stats.completed >= 1);
 }
 
+async function browserPushContracts(page, received) {
+    for (const file of [CACHE, path.join(MODULES, 'modular-state-sync.shared.js'),
+        path.join(MODULES, 'modular-state-sync.engine.sync.js')]) await page.addScriptTag({ path: file });
+    const result = await page.evaluate(async () => {
+        const state = {
+            metadata: { version: 'transport' }, bookmarks: { links: [] }, library: {},
+            knowledge: { text: '音楽 😀 café', loneSurrogate: String.fromCharCode(0xd800) },
+            audioflix: { music: Array.from({ length: 128 }, (_, id) => ({ id, title: `Track ${id} — 音楽 😀 café` })) },
+            audioflixStructure: { schemaVersion: 3 }
+        };
+        window.EveDataStore.Store = { captureState: () => JSON.parse(JSON.stringify(state)) };
+        const ns = window.EveDataStore._modularSync, snapshot = ns.captureStatePayload();
+        const expectedHash = ns.hashState(JSON.parse(snapshot.json));
+        Object.assign(ns.state, { lastUploadedHash: 'old-upload', lastSyncedLocalHash: 'old-sync', remoteSignature: 'old-remote' });
+        const nativeFetch = window.fetch.bind(window), NativeBlob = window.Blob, bodies = [];
+        window.fetch = (url, options = {}) => {
+            bodies.push({ blob: options.body instanceof NativeBlob, type: typeof options.body,
+                contentType: options.headers?.['Content-Type'] });
+            return nativeFetch(url, options);
+        };
+        try {
+            const failed = await ns.pushLocalState(true, snapshot.hash);
+            const afterFailure = { uploaded: ns.state.lastUploadedHash, synced: ns.state.lastSyncedLocalHash,
+                remote: ns.state.remoteSignature };
+            const retried = await ns.pushLocalState(true, snapshot.hash);
+            const afterRetry = { uploaded: ns.state.lastUploadedHash, synced: ns.state.lastSyncedLocalHash,
+                remote: ns.state.remoteSignature };
+            window.Blob = undefined;
+            const fallback = await ns.pushLocalState(true, snapshot.hash);
+            return { failed, afterFailure, retried, afterRetry, fallback, bodies, json: snapshot.json,
+                hash: snapshot.hash, expectedHash, finalUploaded: ns.state.lastUploadedHash,
+                finalSynced: ns.state.lastSyncedLocalHash, finalRemote: ns.state.remoteSignature };
+        } finally {
+            window.fetch = nativeFetch;
+            window.Blob = NativeBlob;
+        }
+    });
+    assert.equal(result.failed, false);
+    assert.deepEqual(result.afterFailure, { uploaded: 'old-upload', synced: 'old-sync', remote: 'old-remote' },
+        'Failed Blob POST must not advance any accepted baseline');
+    assert.equal(result.retried, true);
+    assert.equal(result.hash, result.expectedHash, 'Posted JSON must remain paired with its sections-v1 identity');
+    assert.deepEqual(result.afterRetry, { uploaded: result.hash, synced: result.hash, remote: 'saved-2' });
+    assert.equal(result.fallback, true, 'Unavailable Blob must retain working string transport');
+    assert.equal(result.finalUploaded, result.hash);
+    assert.equal(result.finalSynced, result.hash);
+    assert.equal(result.finalRemote, 'saved-3');
+    assert.deepEqual(result.bodies.map(body => [body.blob, body.type]), [[true, 'object'], [true, 'object'], [false, 'string']]);
+    assert.ok(result.bodies.every(body => body.contentType === 'application/json'));
+    assert.equal(received.length, 3);
+    for (const request of received) {
+        assert.equal(request.contentType, 'application/json');
+        assert.deepEqual(request.body, Buffer.from(result.json, 'utf8'), 'Blob, retry and fallback must send identical native JSON bytes');
+    }
+}
+
 async function browserBootstrapContracts() {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'eve-modular-worker-'));
     const html = path.join(temp, 'index.html');
     fs.writeFileSync(html, '<!doctype html><meta charset="utf-8"><title>worker smoke</title>', 'utf8');
-    const server = http.createServer((_request, response) => {
+    const received = [];
+    const server = http.createServer(async (request, response) => {
+        if (request.method === 'POST' && request.url === '/api/eve-state/modular/save') {
+            const chunks = [];
+            for await (const chunk of request) chunks.push(chunk);
+            received.push({ body: Buffer.concat(chunks), contentType: request.headers['content-type'] });
+            const ok = received.length > 1;
+            response.writeHead(ok ? 200 : 503, { 'Content-Type': 'application/json' });
+            response.end(JSON.stringify({ ok, status: { signature: `saved-${received.length}` } }));
+            return;
+        }
         response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         response.end('<!doctype html><meta charset="utf-8"><title>worker smoke</title>');
     });
@@ -237,6 +303,7 @@ async function browserBootstrapContracts() {
         const page = await browser.newPage();
         await browserContext('file://', pathToFileURL(html).href, page);
         await browserContext('http://', `http://127.0.0.1:${address.port}/`, page);
+        await browserPushContracts(page, received);
     } finally {
         await browser.close();
         await new Promise(resolve => server.close(resolve));

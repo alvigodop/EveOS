@@ -101,7 +101,10 @@ window.EveDataStore = window.EveDataStore || {};
 
         const { ok, payload } = await ns.requestJson('/api/eve-state/modular/save', {
             method: 'POST',
-            body: snapshot.json
+            // Blob-backed upload avoids Chromium's synchronous large inline-body
+            // transport copy. It owns the same immutable JSON; hash/receipt fences stay unchanged.
+            body: typeof window.Blob === 'function'
+                ? new window.Blob([snapshot.json], { type: 'application/json' }) : snapshot.json
         });
         if (!ok || !payload?.ok) {
             console.warn('[ModularStateSync] Save failed:', payload?.error || 'Unknown error');
