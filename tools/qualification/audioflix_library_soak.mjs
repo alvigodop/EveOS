@@ -4,6 +4,7 @@ import { latencyStats, sampleSoakResources, resourceGrowth, evaluateSoakBudgets,
 import { PERSISTENCE_SPANS } from './audioflix_source_identity.mjs';
 import { recordTracedSoakPhase } from './audioflix_library_soak_phase_trace.mjs';
 import { createSoakPerformanceTrace } from './audioflix_library_soak_perf_trace.mjs';
+import { installSoakSearchDiagnostics, measureSoakSearchTiming, restoreSoakSearchDiagnostics } from './audioflix_library_soak_search_timing.mjs';
 export { installLibrarySoakInstrumentation } from './audioflix_library_soak_resources.mjs';
 
 const css = value => String(value).replace(/[\\"]/g, '\\$&');
@@ -91,10 +92,11 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
     const { page, context } = run, cdp = await context.newCDPSession(page), perfTrace = await createSoakPerformanceTrace(cdp);
     const rows = {}, samples = [], warnings = [], counts = { playStop: 0, settings: 0, queueTransitions: 0, searches: 0, expansionPairs: 0, gestures: 0, pointerMoves: 0, playlistReconciliations: 0, healthUpdates: 0 };
     let expandedGroupSize = 0;
-    const record = (phase, operation) => perfTrace.record(phase, () => recordSoakPhase(page, phase, async () => {
+    const trace = (phase, operation) => perfTrace.record(phase, () => recordSoakPhase(page, phase, operation));
+    const record = (phase, operation) => trace(phase, async () => {
         const at = performance.now(), result = await operation();
         (rows[phase] ||= []).push(performance.now() - at); return result;
-    }));
+    });
     const topologyBefore = hash(JSON.stringify(await topology(page)));
     const settledBoundaries = [];
     const quiesce = async reason => {
@@ -292,19 +294,17 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
             await record('nexus-open-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
             const search = page.locator('[data-af-nexus-search][data-af-type="music"]');
             const searchNode = await search.elementHandle();
-            await page.evaluate(() => {
-                window.__soakSearchTrace = [];
-                const diagnostics = window.EveAudioflixDiagnostics, original = diagnostics.span;
-                window.__soakRestoreTrace = () => { diagnostics.span = original; };
-                diagnostics.span = function (name, ...args) {
-                    if (name === 'ui:render:items' && window.__soakSearchTrace.length < 10) window.__soakSearchTrace.push(new Error('search-remount').stack);
-                    return Reflect.apply(original, this, [name, ...args]);
-                };
-            });
+            await installSoakSearchDiagnostics(page, target.id);
             try {
             for (let i = 0; i < Math.max(1, iterations / 25); i++) {
                 const query = codePointSearchQuery(target.query, i % 2 ? 0 : 1);
-                await record('search-input', async () => { await search.fill(query); await page.locator(`[data-af-action="nexus-jump-card"][data-af-id="${css(target.id)}"]`).waitFor(); });
+                const searchResultSelector = `[data-af-action="nexus-jump-card"][data-af-id="${css(target.id)}"]`;
+                const measured = await trace('search-input', () =>
+                    measureSoakSearchTiming(page, search, query, searchResultSelector));
+                assert.ok(Number.isFinite(measured.timing?.duration), 'Search input must produce browser-clock timing evidence');
+                assert.equal(measured.timing.targetPresent, true, 'Search result must be committed by the browser results-ready boundary');
+                (rows['search-input'] ||= []).push(measured.timing.duration);
+                (rows['search-input-automation'] ||= []).push(measured.automationMs);
                 const focus = await search.evaluate((element, original) => {
                     const value = { sameNode: element === original, focused: document.activeElement === element, activeTag: document.activeElement?.tagName,
                         activeClass: document.activeElement?.className, inputConnected: element.isConnected, originalConnected: original.isConnected,
@@ -315,7 +315,7 @@ export async function runLibrarySoak(run, { label, topology, settleMonitor, hash
                 assert.equal(focus.focused, true, `Live search focus changed to ${focus.activeTag}.${focus.activeClass}`);
                 counts.searches += 1;
             }
-            } finally { await page.evaluate(() => window.__soakRestoreTrace?.()); }
+            } finally { await restoreSoakSearchDiagnostics(page); }
             await searchNode.dispose();
             await record('nexus-close-pointer', () => page.locator('[data-af-action="toggle-nexus"][data-af-type="music"]').click());
             await record('view-mode-backend-pointer', () => page.locator('[data-af-action="toggle-view-mode"][data-af-type="music"]').click());
