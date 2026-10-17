@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
 
 from server_modules import notes_workspace as notes, notes_workspace_ops as ops
 from server_modules import notes_control
+from tools.smoke.helpers import notes_fixture_lifecycle as native_lifecycle
 
 ARTIFACT = ROOT / "data" / "runtime" / "smoke-results" / "notes-workspace-native.json"
 EVIDENCE = {"ok": False, "cases": [], "workers": [], "requests": [], "python": sys.executable,
@@ -41,11 +42,9 @@ def wait_for(predicate, label: str, timeout: float = 10) -> None:
     raise AssertionError(f"{label}: fixture deadline exceeded")
 
 
-def serve_native_fixture(root: Path) -> None:
+def serve_native_fixture(root: Path, nonce: str) -> None:
     root = root.resolve(strict=True)
-    owner = json.loads((root / "owner.json").read_text(encoding="utf-8"))
-    assert owner == {"kind": "eveos-notes-native-smoke", "pid": os.getppid(), "root": str(root)}
-    assert root != ROOT and ROOT not in root.parents and root not in ROOT.parents, "Native fixture must be outside the checkout"
+    owner = native_lifecycle.worker_owner(root, ROOT, nonce)
     spatial = root / "data" / "spatial-notes"
     spatial.mkdir(parents=True, exist_ok=True)
     notes._project_root = lambda: root
@@ -71,42 +70,17 @@ def serve_native_fixture(root: Path) -> None:
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server.daemon_threads = True
-    ready = {"pid": os.getpid(), "port": server.server_port, "root": str(root),
-             "handlerSource": str(ROOT / "server" / "notes-server.py")}
-    ready_file = root / "ready.tmp"
-    ready_file.write_text(json.dumps(ready), encoding="utf-8")
-    ready_file.replace(root / "ready.json")
-    with patch.object(Path, "write_bytes", held_write):
-        server.serve_forever()
+    with patch.object(Path, "write_bytes", held_write), native_lifecycle.serving(server, root, owner, ROOT / "server" / "notes-server.py"):
+        server.serve_forever(poll_interval=0.05)
 
 
 def start_native_fixture(root: Path, log):
-    ready = root / "ready.json"
-    ready.unlink(missing_ok=True)
-    process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--native-worker", str(root)],
-                               cwd=ROOT, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                               env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    try:
-        wait_for(lambda: ready.exists() or process.poll() is not None, "native-server ready")
-        assert process.poll() is None, "Owned Notes worker exited before readiness"
-        value = json.loads(ready.read_text(encoding="utf-8"))
-        assert value["pid"] == process.pid and value["root"] == str(root)
-        EVIDENCE["workers"].append({**value, "startedAt": time.time()})
-        return process, value["port"]
-    except BaseException:
-        stop_native_fixture(process)
-        raise
+    return native_lifecycle.start(root, log, ROOT, Path(__file__).resolve(), EVIDENCE)
 
 
 def stop_native_fixture(process) -> None:
-    if process and process.poll() is None:
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
+    if process:
+        process.stop()
 
 
 def native_request(port: int, route: str, body=None, client="operator"):
@@ -133,7 +107,6 @@ def assert_native_http(root: Path) -> None:
     global CURRENT_CASE
     root.mkdir()
     root = root.resolve()
-    (root / "owner.json").write_text(json.dumps({"kind": "eveos-notes-native-smoke", "pid": os.getpid(), "root": str(root)}), encoding="utf-8")
     external = root / "external"
     external.mkdir()
     (external / "peer.md").write_text("native linked peer", encoding="utf-8")
@@ -285,6 +258,7 @@ def assert_concurrent_save() -> None:
 
 
 def run() -> None:
+    EVIDENCE["ownershipContracts"] = native_lifecycle.ownership_regressions(ROOT)
     with tempfile.TemporaryDirectory(prefix="eveos-notes-smoke-") as temporary:
         root = Path(temporary)
         assert_independent_lifecycle(root)
@@ -405,13 +379,14 @@ def run() -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "--native-worker":
-        serve_native_fixture(Path(sys.argv[2]))
+    if len(sys.argv) == 4 and sys.argv[1] == "--native-worker":
+        serve_native_fixture(Path(sys.argv[2]), sys.argv[3])
     else:
         try:
             EVIDENCE["head"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
             EVIDENCE["sourceHashes"] = {relative: hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
-                for relative in ("tools/smoke/notes_workspace_smoke.py", "server/notes-server.py", "server_modules/notes_workspace.py", "server_modules/notes_workspace_ops.py")}
+                for relative in ("tools/smoke/notes_workspace_smoke.py", "tools/smoke/helpers/notes_fixture_lifecycle.py",
+                                 "server/notes-server.py", "server_modules/notes_workspace.py", "server_modules/notes_workspace_ops.py")}
             run()
             EVIDENCE["ok"] = True
             print(f"NOTES_WORKSPACE_SMOKE_OK passed={len(EVIDENCE['cases'])}/5")
