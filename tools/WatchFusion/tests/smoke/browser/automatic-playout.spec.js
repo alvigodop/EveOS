@@ -94,6 +94,13 @@ test('linked source and mixed viewers synchronize with diagnostics closed and mi
     await Promise.all([page.waitForFunction(controller),phonePage.waitForFunction(controller)]);
     await expect(page.locator('#roomPlayoutStatus')).toHaveText('Auto sync active');
     await expect(phonePage.locator('#roomPlayoutStatus')).toHaveText('Auto sync active');
+    await page.locator('#watchSyncCenter > summary').click();
+    await page.locator('#syncCenterMore > summary').click();
+    await page.getByText('Connected device timing', {exact:true}).click();
+    await expect(page.locator('#presentationPeers')).toBeVisible();
+    await expect(page.locator('#presentationRecordReference')).toBeHidden();
+    await expect(page.locator('#syncRoomLog')).toBeVisible();
+    await page.locator('#watchSyncCenter > summary').click();
     await page.waitForFunction(() => window.fixturePlayer.seeks.length === 1);
     for (const [client,saved] of [[page,'-850'],[phonePage,'15']]) {
       const state = await client.evaluate(() => ({...window.fixturePlayer, loaded:window.fixturePlayer.loaded(),

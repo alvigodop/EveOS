@@ -71,7 +71,9 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
           attempts: metric(report.seekHealth.attempts, 0, 1e6),
           failures: metric(report.seekHealth.failures, 0, 100),
           overshoots: metric(report.seekHealth.overshoots, 0, 1e6),
-          cooldownRemainingMs: metric(report.seekHealth.cooldownRemainingMs, 0, 60000)
+          cooldownRemainingMs: metric(report.seekHealth.cooldownRemainingMs, 0, 60000),
+          recoveryAttempts: Number.isInteger(report.seekHealth.recoveryAttempts) ? metric(report.seekHealth.recoveryAttempts, 0, 1e6) : null,
+          lastRecoveryBiasMs: metric(report.seekHealth.lastRecoveryBiasMs, 0, 2500)
         } : null,
         ready: report.ready === true, playing: report.playing === true, buffering: report.buffering === true,
         bufferedUntilMs: metric(report.bufferedUntilMs, 0, 1e10),

@@ -261,3 +261,40 @@ test('natural ended host state issues exactly one authoritative end pause comman
   });
   expect(result.length).toBeLessThanOrEqual(2);
 });
+
+test('a primed linked host forwards native YouTube volume and keeps it until the source acknowledges', async ({ page }) => {
+  await page.goto('/');
+  const volume = await page.evaluate(() => {
+    roomId = 'linked-volume-room';
+    session = { publicId: 'linked-host', memberId: 'host-session' };
+    state = { hostId: session.publicId, linkedSourceActive: true, presentationEpoch: 7,
+      source: { videoId: 'M7lc1UVf-VE' }, playback: { volume: 100, muted: false } };
+    ytPlayerReady = true;
+    let nativeVolume = 100, pending = false;
+    const controls = [];
+    ytPlayer = {
+      getVolume: () => nativeVolume, setVolume: value => { nativeVolume = value; },
+      isMuted: () => false
+    };
+    window.watchFusionLinkedTab = {
+      active: () => true, applying: () => false, pendingControl: () => pending,
+      control: (...args) => { controls.push(args); pending = true; }
+    };
+    applyRoomAudioState(ytPlayer, true);
+    nativeVolume = 58;
+    applyRoomAudioState(ytPlayer, true);
+    observeYouTubeAudio();
+    applyRoomAudioState(ytPlayer, true);
+    observeYouTubeAudio();
+    state.playback.volume = 58;
+    pending = false;
+    applyRoomAudioState(ytPlayer, true);
+    observeYouTubeAudio();
+    const acknowledged = nativeVolume;
+    nativeVolume = 43;
+    applyRoomAudioState(ytPlayer, true);
+    observeYouTubeAudio();
+    return { controls, acknowledged, current: nativeVolume };
+  });
+  expect(volume).toEqual({ controls: [['volume', 0.58], ['volume', 0.43]], acknowledged: 58, current: 43 });
+});

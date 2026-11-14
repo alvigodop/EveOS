@@ -98,3 +98,6 @@
   .watch-sync-center .device-timing-actions { display: grid; grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .sync-chevron { transition: none; } }
+
+/* Keep the player timing cards visible while retiring the manual recording wizard. */
+#watchSyncCenter #presentationCapture { display: none !important; }

@@ -126,3 +126,53 @@ test('standalone phone rooms use the viewport and keep member chips readable', a
   expect(geometry.panelBottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth + 1);
 });
+
+for (const { width, height } of [{width: 320, height: 600}, {width: 390, height: 844}, {width: 760, height: 650}]) {
+  test(`bottom splitter reaches members-only peek and restores chat at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    const room = `LAYOUTPEEK${width}`;
+    await createEmbeddedRoom(page, room);
+    for (const name of ['Living Room Television', 'Nearby phone', 'Second nearby phone']) {
+      const response = await page.request.post(`/api/rooms/${room}/join`, {data:{name,accountId:name.replaceAll(' ', '-')}});
+      expect(response.ok()).toBe(true);
+    }
+    const panel = page.locator('#partyPanel');
+    const splitter = page.locator('#roomSplitter');
+    const members = page.locator('#members');
+    const chat = page.locator('#chat');
+    const composer = page.locator('#chatForm');
+    const input = page.locator('#chatInput');
+    await expect(members.locator('.member')).toHaveCount(4);
+    const chipsClear = () => members.evaluate(node => {
+      const top = node.getBoundingClientRect().top;
+      return [...node.querySelectorAll('.member,.member-transfer')].every(chip => {
+        const rect = chip.getBoundingClientRect();
+        return rect.top >= top && rect.bottom <= top + node.clientHeight + 1;
+      });
+    });
+    await expect(input).toBeVisible();
+    await input.fill('Keep this draft');
+    await splitter.scrollIntoViewIfNeeded();
+    const geometry = await splitter.boundingBox();
+    const startY = geometry.y + geometry.height / 2;
+    await page.mouse.move(geometry.x + geometry.width / 2, startY);
+    await page.mouse.down();
+    await page.mouse.move(geometry.x + geometry.width / 2, height - 1, { steps: 5 });
+    await page.mouse.up();
+    await expect(splitter).toHaveAttribute('aria-valuenow', '80');
+    expect((await panel.boundingBox()).height).toBeCloseTo(80, 0);
+    await expect(members.getByText('ResponsiveHost', { exact: false })).toBeVisible();
+    expect(await chipsClear()).toBe(true);
+    await expect(chat).toBeHidden();
+    await expect(composer).toBeHidden();
+
+    await splitter.press('ArrowUp');
+    await expect(splitter).toHaveAttribute('aria-valuenow', '145');
+    await expect(input).toHaveValue('Keep this draft');
+    await expect(composer).toBeVisible();
+    await expect(chat).toBeVisible();
+    expect(await chipsClear()).toBe(true);
+    const [panelBox, formBox] = await Promise.all([panel.boundingBox(), composer.boundingBox()]);
+    expect(formBox.y + formBox.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1);
+  });
+}

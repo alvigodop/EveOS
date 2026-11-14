@@ -117,3 +117,44 @@ html.watchfusion-room-active #partyPanel .chatform { margin-top: 4px; }
 .sync-log-actions button { min-height:30px; padding:5px 9px; font-size:10px; }
 .sync-log-actions span { color: var(--sync-soft); font-size:10px; margin-left:auto; }
 .sync-log-panel textarea { display:block; box-sizing:border-box; width:100%; max-height:115px; resize:vertical; overflow:auto; font-size:10px; line-height:1.4; border:1px solid rgba(166,190,225,.16); border-radius:7px; padding:6px; color:var(--sync-ink); background:rgba(5,9,16,.7); font-family:ui-monospace,Consolas,monospace; }
+
+html.watchfusion-party-shallow #partyPanel .sidehead { min-height: 22px; margin-bottom: 2px; }
+html.watchfusion-party-shallow #partyPanel #partyDetails {
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 3px;
+}
+html.watchfusion-party-bottom #partyPanel #members {
+  flex: 0 0 auto; scrollbar-width: thin;
+}
+html.watchfusion-party-shallow #partyPanel #members { min-height: 39px; padding-block: 1px; }
+html.watchfusion-party-shallow #partyPanel #chat { min-height: 0; padding-block: 1px; }
+html.watchfusion-party-shallow #partyPanel .chatform { margin-top: 0; padding-top: 3px; }
+html.watchfusion-party-shallow #partyPanel .chatform textarea {
+  height: 36px; min-height: 36px; padding-block: 3px; resize: none;
+}
+html.watchfusion-party-shallow #partyPanel .chatform button { min-height: 36px; padding-block: 4px; }
+html.watchfusion-party-shallow #partyPanel .chat-hint { display: none; }
+html.eveos-embedded.watchfusion-room-active.watchfusion-room-idle.watchfusion-party-peek .grid {
+  grid-template-rows: auto 8px var(--watchfusion-party-height);
+}
+
+/* Members-only peek when the bottom splitter is dragged down. Side panel unchanged. */
+html.watchfusion-party-bottom.watchfusion-party-peek #partyPanel.side {
+  display:flex; flex-direction:column; gap:2px; overflow:hidden;
+  padding:5px clamp(6px, 1vw, 10px); min-height:0;
+}
+html.watchfusion-party-bottom.watchfusion-party-peek #partyPanel .sidehead {
+  flex:0 0 auto; min-height:22px; margin:0;
+}
+html.watchfusion-party-bottom.watchfusion-party-peek #partyDetails {
+  display:block; flex:0 0 auto; height:auto; min-height:0; overflow:hidden;
+  margin:0; padding:0;
+}
+html.watchfusion-party-bottom.watchfusion-party-peek #partyDetails > :not(#members) { display:none !important; }
+html.watchfusion-party-bottom.watchfusion-party-peek #members {
+  display:flex; flex-wrap:nowrap; min-height:39px; max-height:39px; height:39px; box-sizing:border-box;
+  padding:2px 0; margin:0; gap:5px; overflow-x:auto; overflow-y:hidden;
+}
+html.watchfusion-party-bottom.watchfusion-party-peek #members .member,
+html.watchfusion-party-bottom.watchfusion-party-peek #members .member-transfer {
+  flex-shrink:0; min-height:23px; padding-block:3px; line-height:1.2;
+}

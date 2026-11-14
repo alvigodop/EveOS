@@ -129,7 +129,9 @@ export async function runPresentationTimingChecks(check) {
       assert.equal((await post(host, {rate:0})).status, 400);
       assert.equal((await post(host, {sampledAt:Date.now() - 5000})).status, 400);
       assert.equal((await post(host)).status, 200);
-      assert.equal((await post(tv, {rate:1.25,envelope:[42]})).status, 200);
+      assert.equal((await post(tv, {rate:1.25,envelope:[42],seekHealth:{
+        reason:'seek-awaiting-proof',attempts:3,recoveryAttempts:1,lastRecoveryBiasMs:1955,untrusted:'ignore'
+      }})).status, 200);
       const token = {target:tv.publicId,outputSession:'device-for-' + tv.publicId,id:'calibration-123',adjustmentMs:-850,observedMs:850,uncertaintyMs:12};
       assert.equal((await read(tv,{proposal:token})).status, 403);
       assert.equal((await read(host,{proposal:token})).status, 200);
@@ -138,7 +140,11 @@ export async function runPresentationTimingChecks(check) {
       assert.equal(passive.body.peers,undefined); assert.equal(passive.body.proposal,undefined);
       const viewer = await read(tv);
       assert.equal(viewer.body.proposal.adjustmentMs, -850);
-      assert.equal(viewer.body.peers.find(peer => peer.member === tv.publicId).rate, 1.25);
+      const tvReport = viewer.body.peers.find(peer => peer.member === tv.publicId);
+      assert.equal(tvReport.rate, 1.25);
+      assert.equal(tvReport.seekHealth.recoveryAttempts, 1);
+      assert.equal(tvReport.seekHealth.lastRecoveryBiasMs, 1955);
+      assert.equal(tvReport.seekHealth.untrusted, undefined);
       assert.equal(viewer.headers['Cache-Control'], 'no-store');
       assert.doesNotMatch(JSON.stringify(viewer.body), /envelope|host-present-testing/);
       assert.equal((await read(phone)).body.proposal, null);

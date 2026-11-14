@@ -6,6 +6,19 @@
   let enabled = true, pageMedia = null, sampleTimer = null, runtimeListenerAttached = false;
   const frameToken = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
   const PAGE_CHANNEL = 'eveos.watchfusion.page-media.v1';
+  const mediaEvents=['play','pause','playing','seeking','seeked','ratechange','volumechange','waiting','ended'];
+  let observedElement=null, eventTimer=null;
+  function onMediaEvent(event) {
+    if (!enabled || event.target !== observedElement) return;
+    clearTimeout(eventTimer);
+    eventTimer=setTimeout(() => { eventTimer=null; snapshot(); },25);
+  }
+  function observeMedia(element) {
+    if (element===observedElement) return;
+    if (observedElement) for (const type of mediaEvents) observedElement.removeEventListener(type,onMediaEvent);
+    observedElement=element;
+    if (element) for (const type of mediaEvents) element.addEventListener(type,onMediaEvent,{passive:true});
+  }
 
   function isRuntimeInvalidated(error) {
     return /Extension context invalidated/i.test(String(error?.message || error || ''));
@@ -69,6 +82,8 @@
     if (!window.__watchFusionMediaProbe) return;
     enabled = false; pageMedia = null;
     clearInterval(sampleTimer); sampleTimer = null;
+    if (eventTimer !== null) clearTimeout(eventTimer);
+    eventTimer = null; observeMedia(null);
     window.removeEventListener('message', onWindowMessage);
     document.removeEventListener('load', onDocumentLoad, true);
     const runtime = runtimeListenerAttached ? runtimeApi() : null;
@@ -97,6 +112,7 @@
   function snapshot() {
     if (!enabled) return;
     const element = media();
+    observeMedia(element);
     const controller = element ? null : pagePlayer();
     const hasMedia = Boolean(element || controller);
     const score = (element && !element.paused ? 4 : 0) + (element?.tagName === 'VIDEO' ? 2 : 0) + (controller ? 3 : 0);

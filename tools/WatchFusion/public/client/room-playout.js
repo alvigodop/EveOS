@@ -1,6 +1,6 @@
 // Playback timing is exchanged during ordinary room playback. Microphone input is never used here.
 (() => {
-  let lease = null, phaseSentAt = -Infinity, latestRoom, nextIdlePoll = 0;
+  let lease = null, phaseSentAt = -Infinity, latestRoom, nextIdlePoll = 0, lastTransportKey = null;
   const health = $('roomPlayoutStatus');
   const roomKey = () => roomId && session && state?.presentationEpoch != null && state.playoutSegment != null
     ? [roomId, session.memberId, state.presentationEpoch, state.playoutSegment].join(':') : null;
@@ -13,6 +13,12 @@
     health.hidden = !available;
     window.watchFusionSyncCenter?.setVisible(available);
     if (!available) return;
+    const lifecycle = roomKey() + ':' + (playing()?'play':'pause');
+    if (lifecycle !== lastTransportKey) {
+      lastTransportKey = lifecycle;
+      window.watchFusionRoomSyncLog?.note?.('room-transition',{
+        playing:playing(),segment:state.playoutSegment,positionMs:Math.round((state.playback?.position||0)*1000)});
+    }
     const current = target();
     const label = !playing() ? 'Auto sync ready' : current?.authorityBuffering ? 'Auto sync · source buffering'
       : (!current || current.reference === 'room-clock') ? 'Auto sync · room clock' : 'Auto sync active';

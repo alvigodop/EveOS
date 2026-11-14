@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 
-function configureViewer(page, { current, target = 100, paused = false, rate = 1, samples = 1, currentRate = 1, advancing = false }) {
-  return page.evaluate(({ current, target, paused, rate, samples, currentRate, advancing }) => {
+function configureViewer(page, { current, target = 100, paused = false, rate = 1, samples = 1, currentRate = 1,
+  advancing = false, resumed = false, resumeFrom = target, lagPerTick = 0 }) {
+  return page.evaluate(({ current, target, paused, rate, samples, currentRate, advancing, resumed, resumeFrom, lagPerTick }) => {
     const calls = { seek: [], rates: [], play: 0, pause: 0 };
     roomId = 'drift-room';
     state = {
       hostId: 'host-member',
+      presentationEpoch: 1, playoutSegment: 12,
       source: { type: 'youtube', videoId: 'M7lc1UVf-VE', originalUrl: 'https://www.youtube.com/watch?v=M7lc1UVf-VE' },
       playback: {
         paused,
@@ -32,13 +34,26 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
       mute: () => {},
       unMute: () => {}
     };
+    if (resumed) {
+      const firstPlayingPosition = current;
+      state.playback = {...state.playback, paused:true, position:resumeFrom};
+      current = resumeFrom;
+      paused = true;
+      syncPlayer();
+      current = firstPlayingPosition;
+      paused = false;
+      state.playoutSegment++;
+      state.playback = {...state.playback, paused:false, position:target, projectedAt:Date.now(),
+        updatedAt:state.playback.updatedAt + 1};
+      calls.seek.length = 0;
+    }
     const descriptor = Object.getOwnPropertyDescriptor(performance, 'now');
     const began = performance.now();
     try {
       for (let index = 0; index < samples; index++) {
         Object.defineProperty(performance, 'now', { configurable: true, value: () => began + index * 250 });
         if (advancing && index > 0 && !calls.seek.length) {
-          current += .25 * rate;
+          current += .25 * rate - (index > 9 && index < 28 ? lagPerTick : 0);
           state.playback.position += .25 * rate;
           state.playback.updatedAt++;
           state.playback.projectedAt = Date.now();
@@ -52,7 +67,7 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
     calls.status = document.querySelector('#syncStatus').textContent;
     calls.diagnostics = window.watchFusionSyncDiagnostics();
     return calls;
-  }, { current, target, paused, rate, samples, currentRate, advancing });
+  }, { current, target, paused, rate, samples, currentRate, advancing, resumed, resumeFrom, lagPerTick });
 }
 
 test.describe('Adaptive playback drift regression', () => {
@@ -164,24 +179,80 @@ test.describe('Adaptive playback drift regression', () => {
     expect(calls.diagnostics.action).toBe('steady');
   });
 
-  test('filtered phase correction waits for observed alignment before reporting Connected', async ({ page }) => {
+  test('a steady 600 ms post-resume phase does not trigger a corrective seek', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, { current: 99, target: 100, samples: 5, advancing: true });
-    expect(calls.seek).toHaveLength(1);
+    const calls = await configureViewer(page, { current: 99.4, target: 100, samples: 90, advancing: true, resumed: true });
+    expect(calls.seek).toEqual([]);
     expect(calls.rates).toEqual([]);
-    expect(calls.status).toBe('Catching up…');
-    expect(calls.diagnostics.action).toBe('stable-seek');
-    const statuses = await page.evaluate(() => {
-      syncPlayer();
-      const settled = document.querySelector('#syncStatus').textContent;
-      setStatus('Catching up…');
-      state.playback.paused = true;
-      syncPlayer({ force: true });
-      return { settled, paused: document.querySelector('#syncStatus').textContent };
-    });
+    expect(calls.diagnostics.seekGuard.phaseBiasMs).toBeCloseTo(600, -1);
+    expect(calls.diagnostics.seekGuard.attempts).toBe(0);
+    expect(calls.diagnostics.seekGuard.reason).toBe('stable-post-resume-phase');
+  });
 
-    expect(statuses.settled).toBe('Catching up…');
-    expect(statuses.paused).toMatch(/^Connected/);
+  test('persistent lag growth can trigger one guarded correction after resume', async ({ page }) => {
+    await page.goto('/');
+    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:46, lagPerTick:.03});
+    expect(calls.seek).toHaveLength(1);
+    expect(calls.diagnostics.seekGuard.attempts).toBe(1);
+  });
+
+  for (const succeeds of [true, false]) {
+    test(`a 1190 ms TV residual gets two spaced attempts and ${succeeds ? 'converges' : 'backs off'}`, async ({ page }) => {
+      await page.goto('/');
+      const result = await page.evaluate(succeeds => {
+        const wall = Date.now();
+        let t = 0, drift = 1.19, bufferingUntil = 0, reloads = 0;
+        const seeks = [];
+        const realDateNow = Date.now;
+        const realPerformanceNow = Object.getOwnPropertyDescriptor(performance, 'now');
+        Date.now = () => wall + t;
+        Object.defineProperty(performance, 'now', {configurable:true, value:() => t});
+        try {
+          roomId = 'residual-room';
+          session = {memberId:'tv'};
+          state = {hostId:'host', presentationEpoch:1, playoutSegment:1,
+            source:{videoId:'M7lc1UVf-VE'},
+            playback:{paused:false, position:30, updatedAt:wall, projectedAt:wall, rate:1, volume:100}};
+          ytPlayerReady = playerPrimed = true;
+          ytPlayer = {
+            getPlayerState: () => t < bufferingUntil ? 3 : 1,
+            getVideoData: () => ({video_id:'M7lc1UVf-VE'}),
+            getCurrentTime: () => 30 + t / 1000 - drift,
+            getDuration: () => 300, getVolume: () => 100, getPlaybackRate: () => 1,
+            getVideoLoadedFraction: () => 1, playVideo(){},
+            loadVideoById(){reloads++;},
+            seekTo(position) {
+              const lead = position - (30 + t / 1000);
+              seeks.push({t,lead});
+              drift = .85 - (succeeds ? lead : 0);
+              bufferingUntil = t + 500;
+            }
+          };
+          for (t = 0; t <= 120000; t += 250) syncPlayer();
+          return {seeks, reloads, drift, health:window.watchFusionSyncDiagnostics().seekGuard};
+        } finally {
+          Date.now = realDateNow;
+          if (realPerformanceNow) Object.defineProperty(performance, 'now', realPerformanceNow);
+          else delete performance.now;
+        }
+      }, succeeds);
+      expect(result.reloads).toBe(0);
+      expect(result.seeks).toHaveLength(2);
+      expect(result.seeks[0].t).toBeGreaterThanOrEqual(5000);
+      expect(result.seeks[0].lead).toBeCloseTo(0, 3);
+      expect(result.seeks[1].t - result.seeks[0].t).toBeGreaterThanOrEqual(15000);
+      expect(result.seeks[1].lead).toBeCloseTo(.85 * .65, 3);
+      expect(result.health.fineAttempts).toBe(2);
+      if (succeeds) expect(result.drift).toBeLessThan(.35);
+      else expect(result.health.reason).toMatch(/backoff|budget-used/);
+    });
+  }
+
+  test('a large source jump from paused still forces room catch-up', async ({ page }) => {
+    await page.goto('/');
+    const calls = await configureViewer(page, {current:80, target:100, resumed:true, resumeFrom:80});
+    expect(calls.seek).toHaveLength(1);
+    expect(calls.seek[0]).toBeGreaterThanOrEqual(100);
   });
 
   test('unsolicited room snapshots preserve measured server clock latency', async ({ page }) => {
@@ -208,6 +279,46 @@ test.describe('Adaptive playback drift regression', () => {
 
     expect(calls.seek).toHaveLength(1);
     expect(calls.seek[0]).toBeGreaterThanOrEqual(100);
+  });
+
+  test('a TV that lands 2.3 seconds behind can recover after two failed seeks', async ({ page }) => {
+    await page.goto('/');
+    const result = await page.evaluate(() => {
+      const wall = Date.now();
+      let t = 0, landing = 0, bufferingUntil = 0, reloads = 0;
+      const seeks = [];
+      Date.now = () => wall + t;
+      Object.defineProperty(performance, 'now', {configurable:true, value:() => t});
+      roomId = 'recovery-room';
+      session = {memberId:'tv'};
+      state = {hostId:'host', presentationEpoch:1, playoutSegment:1,
+        source:{videoId:'M7lc1UVf-VE'},
+        playback:{paused:false, position:30, updatedAt:wall, projectedAt:wall, rate:1, volume:100}};
+      ytPlayerReady = playerPrimed = true;
+      ytPlayer = {
+        getPlayerState: () => t < bufferingUntil ? 3 : 1,
+        getVideoData: () => ({video_id:'M7lc1UVf-VE'}),
+        getCurrentTime: () => 30 + t / 1000 - 2.3 + landing,
+        getDuration: () => 300, getVolume: () => 100, getPlaybackRate: () => 1,
+        getVideoLoadedFraction: () => 1, playVideo(){},
+        loadVideoById(){reloads++;},
+        seekTo(position) {
+          const lead = position - (30 + t / 1000);
+          seeks.push({t,lead});
+          if (seeks.length === 3) landing = lead;
+          bufferingUntil = t + 500;
+        }
+      };
+      for (t = 0; t <= 110000; t += 250) syncPlayer();
+      return {seeks, reloads, health:window.watchFusionSyncDiagnostics().seekGuard};
+    });
+    expect(result.reloads).toBe(0);
+    expect(result.seeks).toHaveLength(3);
+    expect(result.seeks.slice(0,2).every(seek => Math.abs(seek.lead) < .01)).toBe(true);
+    expect(result.seeks[2].lead).toBeCloseTo(1.955, 2);
+    expect(result.seeks[2].t - result.seeks[1].t).toBeGreaterThanOrEqual(24000);
+    expect(result.health.recoveryAttempts).toBe(1);
+    expect(result.health.failures).toBe(0);
   });
 
   test('a buffering TV that is room host follows the linked timeline without repeated play or seek', async ({ page }) => {

@@ -69,7 +69,9 @@
       filteredDriftMs: Number.isFinite(diagnostics?.filteredDriftSec) ? Math.round(diagnostics.filteredDriftSec * 1000) : null,
       seekHealth: diagnostics?.seekGuard ? {reason:diagnostics.seekGuard.reason, attempts:diagnostics.seekGuard.attempts,
         failures:diagnostics.seekGuard.failures, overshoots:diagnostics.seekGuard.overshoots,
-        cooldownRemainingMs:diagnostics.seekGuard.cooldownRemainingMs} : null
+        cooldownRemainingMs:diagnostics.seekGuard.cooldownRemainingMs,
+        recoveryAttempts:diagnostics.seekGuard.recoveryAttempts,
+        lastRecoveryBiasMs:diagnostics.seekGuard.lastRecoveryBiasMs} : null
     };
   }
 
@@ -165,10 +167,9 @@
     $p('Clear').hidden = !applied;
     if (proposal && !statusMessage) $p('Status').textContent = 'Measured adjustment ' + adjustment(proposal.adjustmentMs) + ' (±' + proposal.uncertaintyMs + ' ms). Keep the same speaker output.';
     else if (applied && !statusMessage) $p('Status').textContent = 'Measured adjustment active · ' + adjustment(applied.adjustmentMs) + '.';
-    else if (!statusMessage) $p('Status').textContent = host && !canRecord
-      ? 'To measure speaker delay, open WatchFusion on the laptop at 127.0.0.1 or on HTTPS.'
-      : host && !following.length ? 'Waiting for a timing report from another device.'
-      : 'Speaker delay is unmeasured. The latest player timing appears below.';
+    else if (!statusMessage) $p('Status').textContent = host && !following.length
+      ? 'Waiting for a timing report from another device.'
+      : 'The latest player timing appears below.';
   }
 
   async function report(onTiming, roomKey) {
@@ -396,7 +397,7 @@
     const previous = applied?.adjustmentMs;
     outputSession = makeClientId();
     invalidate();
-    setStatus('Audio devices changed. Measure again for the current output.');
+    setStatus('Audio output changed. Waiting for current device timing.');
     resync(previous);
     updatePanel();
   });

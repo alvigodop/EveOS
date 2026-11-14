@@ -228,9 +228,11 @@
     try {
       setViewerRate(baseRate);
       window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
-      ytPlayer.seekTo?.(target, allowNetwork);
-      correctiveSeeks++; tvSeekGuard?.record(attempt);
-    } catch {}
+      const proposed = tvSeekGuard?.seekTarget(attempt) ?? target;
+      const requested = Math.max(0, Math.min(Number(ytPlayer.getDuration?.()) || Infinity, proposed));
+      ytPlayer.seekTo(requested, allowNetwork);
+      correctiveSeeks++; tvSeekGuard?.record({...attempt, requested});
+    } catch { return false; }
     awaitSeekRecovery(nowMs);
     if (action === 'manual-sync') autoGovernor?.reset(viewerScope);
     autoGovernor?.onSeek(nowMs);
@@ -241,9 +243,12 @@
   function applyViewerCorrection(force = false, bufferedOnly = false) {
     if (!roomId || !state?.source?.videoId || !ytPlayer || !ytPlayerReady || !followsRoomPlayback()) return;
     if (playerInitializing || primingPlayer) return;
-
     const scope = [roomId, state.source.videoId, state.presentationEpoch, state.playoutSegment].join(':');
-    force ||= !!viewerScope && scope !== viewerScope && scope.slice(0, scope.lastIndexOf(':')) === viewerScope.slice(0, viewerScope.lastIndexOf(':'));
+    const roomPaused = !!(state.playback.paused || state.playback.ended);
+    const sameSource = viewerScope && scope.slice(0, scope.lastIndexOf(':')) === viewerScope.slice(0, viewerScope.lastIndexOf(':'));
+    // A transport segment also changes when playback resumes from the paused position.
+    const ordinaryResume = !anchorRate && !roomPaused && Math.abs(Number(state.playback.position) - anchorPosition) < .75;
+    force ||= !!sameSource && scope !== viewerScope && !ordinaryResume;
     if (scope !== viewerScope) {
       viewerScope = scope; viewerProgress = null;
       autoGovernor?.reset(scope);
@@ -257,7 +262,6 @@
     }
     applyRoomAudioState();
     refreshAnchor(false);
-
     const baseRate = Math.min(2, Math.max(0.25, Number(state.playback.rate) || 1));
     const current = Number(ytPlayer.getCurrentTime?.()); if (!Number.isFinite(current)) return false;
     const duration = Number(ytPlayer.getDuration?.()) || 0;
@@ -270,10 +274,9 @@
     const absRaw = Math.abs(rawDrift), nowMs = performance.now();
     const playerState = ytPlayer.getPlayerState?.();
     const buffering = playerState === (window.YT?.PlayerState?.BUFFERING ?? 3);
-    const playerEnded = playerState === (window.YT?.PlayerState?.ENDED ?? 0); tvSeekGuard?.observe({scope, nowMs, current, drift:rawDrift, target, rate:baseRate, playing:playerState === 1, buffering});
+    const playerEnded = playerState === (window.YT?.PlayerState?.ENDED ?? 0); tvSeekGuard?.observe({scope, nowMs, current, drift:rawDrift, target, rate:baseRate, playing:!roomPaused && playerState === 1, buffering});
     try { setViewerRate(baseRate); } catch {}
-
-    if (state.playback.paused || state.playback.ended) {
+    if (roomPaused) {
       viewerSawEnded = !!state.playback.ended;
       try {
         const shouldSeek = absRaw > SYNC_TOLERANCE_SEC && (force || (!buffering && !awaitingSeekRecovery));
@@ -293,7 +296,6 @@
       markStable();
       return true;
     }
-
     if (!force && (buffering || window.watchFusionPlayout?.sourceBuffering())) {
       if (!viewerWasBuffering) resetDriftSensor('buffering');
       viewerProgress = null;
@@ -305,12 +307,10 @@
       viewerWasBuffering = false;
       resetDriftSensor('settling');
     }
-
     if (!force && playerEnded && duration > 0 && target >= duration - SYNC_TOLERANCE_SEC) return true;
 
     if (viewerSawEnded && target <= 1.5 && restartViewerFromEnded(target, baseRate)) return true;
     viewerSawEnded = false;
-
     if (force) {
       if (bufferedOnly) {
         const bufferedEnd = duration * (Number(ytPlayer.getVideoLoadedFraction?.()) || 0);

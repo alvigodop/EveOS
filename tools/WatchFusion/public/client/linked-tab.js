@@ -5,6 +5,7 @@
   let lastTransportTiming=null, lastSampleAt=0, lastSampleUrl="", playbackEchoUntil=0;
   const pendingControls=new Map();
 
+
   function active(){return !!link;}
   function roomProof(){return roomId && link?.roomId === roomId ? {id:link.id,token:link.publisherToken} : undefined;}
   async function bindRoom(source, targetRoom) {
@@ -53,6 +54,8 @@
     if(!peer||!canControl())return false;
     const numeric=Number(value)||0;
     if(['seek','play','pause','rate','volume'].includes(action))pendingControls.set(action,{value:numeric,at:performance.now(),sampledAt:Date.now()});
+    window.watchFusionRoomSyncLog?.note?.('embedded-control',action==='volume' ? {action,volumePct:Math.round(numeric*100)} :
+      action==='rate' ? {action,rate:Math.round(numeric*100)/100} : {action,positionMs:Math.round(numeric*1000)});
     peer.control(action,numeric);return true;
   }
   function pendingSatisfied(action,pending,metadata){
@@ -66,7 +69,11 @@
   function applyPendingControls(metadata={}){
     const next={...metadata},now=performance.now();
     for(const [action,pending] of pendingControls){
-      if(now-pending.at>CONTROL_ECHO_TTL_MS||pendingSatisfied(action,pending,metadata)){pendingControls.delete(action);continue;}
+      const sampledAfterCommand = Number(metadata.sampledAt) >= pending.sampledAt;
+      if (now - pending.at > CONTROL_ECHO_TTL_MS || (sampledAfterCommand && pendingSatisfied(action,pending,metadata))) {
+        pendingControls.delete(action);
+        continue;
+      }
       if(action==='seek'||action==='play'||action==='pause'){
         next.currentTime=pending.value;next.sampledAt=pending.sampledAt;
         if(action==='play')next.paused=false;
@@ -92,6 +99,8 @@
     }
     const plan=window.WatchFusionLinkedPlaybackSync?.mirrorPlan?.(metadata,lastMirrorAnchor,{force});
     if(!plan?.publish)return false;
+    window.watchFusionRoomSyncLog?.note?.('mirror-request',{
+      reason:plan.reason,paused:!!metadata.paused,positionMs:Math.round(plan.target*1000)});
     if(!roomId){
       if(state?.playback)state.playback={...state.playback,position:plan.target,paused:!!metadata.paused,ended:!!metadata.ended,
         rate:Number(metadata.rate)||1,volume:Math.max(0,Math.min(100,(Number(metadata.volume)||0)*100)),muted:Number(metadata.volume)===0,updatedAt:Date.now()};
@@ -156,7 +165,14 @@
     if (metadata.pageUrl === lastSampleUrl && Number(metadata.sampledAt) <= lastSampleAt) return;
     lastSampleAt = Number(metadata.sampledAt);
     lastSampleUrl = metadata.pageUrl;
+    const previous=lastMetadata;
     lastMetadata = { ...lastMetadata, ...sample };
+    if(previous.pageUrl===sample.pageUrl && previous.paused!==undefined && previous.paused!==sample.paused)
+      window.watchFusionRoomSyncLog?.note?.(sample.paused?'source-pause':'source-play',
+        {positionMs:Math.round((Number(sample.currentTime)||0)*1000),sampleAgeMs:Math.round(now-Number(sample.sampledAt))});
+    if(previous.pageUrl===sample.pageUrl && Number.isFinite(Number(previous.volume)) &&
+        Math.abs(Number(previous.volume)-Number(sample.volume))>.03)
+      window.watchFusionRoomSyncLog?.note?.('source-volume',{volumePct:Math.round(Number(sample.volume)*100)});
     const display = applyPendingControls(lastMetadata);
     renderControls(display);
     const pageUrl=String(lastMetadata.pageUrl||'');
@@ -197,5 +213,7 @@
   function reconnect(){if(!link)return start();connectPeer();return true;}
   $('linkTabBtn').onclick=()=>{void(active()?stop():start());};
   window.watchFusionLinkedTab={active,promoteToRoom,publishing:()=>!!(roomProof()&&state?.linkedSourceActive),applying:()=>applying || performance.now()<playbackEchoUntil,setApplying,suppressPlaybackEcho,control,start,stop,reconnect,render:renderControls,
-    metadata:()=>lastMetadata,diagnostics:()=>({transport:lastTransportTiming})};
+    metadata:()=>lastMetadata,pendingControl:action=>active() &&
+      performance.now() - (pendingControls.get(action)?.at ?? -Infinity) <= CONTROL_ECHO_TTL_MS,
+    diagnostics:()=>({transport:lastTransportTiming})};
 })();
