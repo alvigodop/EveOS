@@ -171,6 +171,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
     },
     close() { globalThis.Date = RealDate; }
   };
+  globalThis.__watchFusionSyncLabs?.push(lab); // opt-in registry for metrics.mjs
   return lab;
 }
 
