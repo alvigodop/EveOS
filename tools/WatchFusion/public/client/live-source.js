@@ -400,10 +400,19 @@
     if(window.watchFusionLinkedTab?.active?.())window.watchFusionLinkedTab.control(button.dataset.liveAction,Number(button.dataset.value));
     else receiver?.control(button.dataset.liveAction,Number(button.dataset.value));
   });
-  for(const [id,action] of [['liveSeek','seek'],['liveRate','rate'],['liveVolume','volume']])$(id).onchange=()=>{
+  for(const [id,action] of [['liveSeek','seek'],['liveRate','rate']])$(id).onchange=()=>{
     if(!canControl())return;const value=Number($(id).value);
     if(window.watchFusionLinkedTab?.active?.())window.watchFusionLinkedTab.control(action,value);else receiver?.control(action,value);
   };
+  const liveVolume = $('liveVolume');
+  function updateLiveVolume(commit) {
+    if (!canControl()) return;
+    const link = window.watchFusionLinkedTab;
+    if (link?.active?.()) link.queueVolume(liveVolume.valueAsNumber,commit);
+    else if (commit) receiver?.control('volume',liveVolume.valueAsNumber);
+  }
+  liveVolume.addEventListener('input', () => updateLiveVolume(false));
+  liveVolume.addEventListener('change', () => updateLiveVolume(true));
   window.watchFusionLive = { load, disconnect, share, unload, diagnostics: () => receiver?.diagnostics?.() || Promise.resolve([]) };
   connectionActions();
   window.watchPartyProviders.register({ id: 'live', supports: source => source?.kind === 'live', load: async source => load(source), unload });

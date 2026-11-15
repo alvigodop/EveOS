@@ -60,10 +60,12 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
       entry.reports.set(member.id, {
         member: member.publicId, mode: current.mode, receivedAt: at, sampledAt: report.sampledAt, outputSession: report.outputSession,
         positionMs: report.positionMs, roomPositionMs: report.roomPositionMs, rate: report.rate,
+        targetPositionMs: metric(report.targetPositionMs, 0, 1e10),
         rttMs: metric(report.rttMs, 0, 5000), offsetMs: metric(report.offsetMs, -1e12, 1e12),
         adjustmentMs: metric(report.adjustmentMs, -1500, 1500),
         videoFrameOffsetMs: metric(report.videoFrameOffsetMs, -2000, 2000),
         sourceAgeMs: metric(report.sourceAgeMs, 0, 10000),
+        startupWaitMs: metric(report.startupWaitMs, 0, 30000),
         corrections: metric(report.corrections, 0, 1e6),
         filteredDriftMs: metric(report.filteredDriftMs, -200000, 200000),
         seekHealth: report.seekHealth && typeof report.seekHealth === 'object' ? {

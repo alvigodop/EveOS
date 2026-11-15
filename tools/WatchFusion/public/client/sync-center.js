@@ -50,7 +50,9 @@
       name: names.get(peer.member) || 'Viewer',
       status: !peer.ready ? 'Loading' : peer.buffering ? 'Buffering' : peer.playing ? 'Playing' : 'Paused',
       metrics: [
-        ['Player offset', peer.ready ? signed(peer.positionMs - peer.roomPositionMs) : null],
+        ['Target error', peer.ready && Number.isFinite(peer.targetPositionMs) ? signed(peer.positionMs - peer.targetPositionMs) : null],
+        ['Room offset', peer.ready ? signed(peer.positionMs - peer.roomPositionMs) : null],
+        ['Timing adjustment', peer.ready && Math.abs(peer.adjustmentMs || 0) >= 1 ? signed(peer.adjustmentMs) : null],
         ['Round trip', peer.rttMs == null ? null : Math.round(peer.rttMs) + ' ms'],
         ['Source sample age', peer.sourceAgeMs == null ? null : Math.round(peer.sourceAgeMs) + ' ms'],
         ['Video frame', peer.videoFrameOffsetMs == null ? null : signed(peer.videoFrameOffsetMs)],

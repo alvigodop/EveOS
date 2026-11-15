@@ -21,7 +21,8 @@
     }
     const current = target();
     const label = !playing() ? 'Auto sync ready' : current?.authorityBuffering ? 'Auto sync · source buffering'
-      : (!current || current.reference === 'room-clock') ? 'Auto sync · room clock' : 'Auto sync active';
+      : (!current || current.reference === 'room-clock') ? 'Auto sync · room clock'
+      : current.reference === 'peer-cohort' ? 'Auto sync · shared timing' : 'Auto sync active';
     if (health.textContent !== label) health.textContent = label;
   }
 

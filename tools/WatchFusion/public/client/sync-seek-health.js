@@ -11,8 +11,15 @@
     let lastRescueAt = -Infinity, rescueCount = 0, rescueBiasSec = 0;
     // Use a separate, limited budget for sustained residual drift below the hard-seek threshold.
     let fineCount = 0, lastFineAt = -Infinity, landingResidualSec = 0;
+    // An explicit Sync me becomes a temporary, source-scoped playout proof.
+    // Do not re-seek a *stable* offset until the phase actually changes.
+    let explicitProof = null, proofWindow = [];
+    const MAX_MANUAL_PHASE_SEC = 2;
     const FINE_MIN = .7, FINE_MAX = 1.5, FINE_GAP_MS = 15000;
-    function reset(nextScope = '') {
+    function reset(nextScope = '', preserveManualSync = false) {
+      if (explicitProof && !preserveManualSync) explicitProof = null;
+      else if (explicitProof) { explicitProof.baseline = null; explicitProof.at = -1; }
+      proofWindow = [];
       scope = nextScope; pending = previous = null; cooldownUntil = 0;
       advancingSince = -1; failures = overshoots = rejected = corrections = 0;
       phaseAt = -1; phaseBias = null; phaseWindow = []; referenceHoldUntil = 0;
@@ -31,6 +38,7 @@
       }
       if (buffering || !playing) {
         largeLagSamples = [];
+        proofWindow = [];
         // A buffering transition invalidates the previous phase baseline.
         if (buffering || previous) { phaseAt = -1; phaseBias = null; phaseWindow = []; }
         previous = null; advancingSince = -1;
@@ -56,6 +64,22 @@
         }
       }
       previous = {at:nowMs, current, target};
+      if (explicitProof && !progressing && elapsed > 750) proofWindow = [];
+      if (explicitProof && progressing && !pending) {
+        if (explicitProof.at < 0) explicitProof.at = nowMs;
+        proofWindow.push({at:nowMs, drift});
+        proofWindow = proofWindow.filter(item => nowMs - item.at < 4000).slice(-18);
+        if (proofWindow.length >= 4 && nowMs - proofWindow[0].at >= 800) {
+          const values = proofWindow.map(item => item.drift).sort((a,b)=>a-b);
+          const middle = values[Math.floor(values.length/2)];
+          if (explicitProof.baseline === null && values.at(-1) - values[0] < .18) {
+            if (Math.abs(middle) <= MAX_MANUAL_PHASE_SEC) explicitProof.baseline = middle;
+            else explicitProof = null;
+          }
+          else if (explicitProof.baseline !== null && Math.abs(middle - explicitProof.baseline) > .45)
+            explicitProof = null; // genuine accumulating drift or reference change
+        }
+      }
       // A TV can have a stable, genuinely bad 2-3 second offset. v4 correctly
       // protects small phase biases, but may never retry after two failed seeks.
       if (progressing && !pending && nowMs >= referenceHoldUntil &&
@@ -164,6 +188,12 @@
         rejected++; reason = 'implausible-player-position'; return false;
       }
       const drift = target - current;
+      if (explicitProof && Math.abs(drift) <= MAX_MANUAL_PHASE_SEC &&
+          (explicitProof.at < 0 || nowMs - explicitProof.at < 3500 ||
+           (explicitProof.baseline !== null && proofWindow.length >= 3 &&
+            nowMs - proofWindow.at(-1).at < 750 && Math.abs(drift - explicitProof.baseline) < .30))) {
+        rejected++; reason = 'verified-manual-sync-phase-hold'; return false;
+      }
       const recovering = action === 'hard-seek' && credibleLargeLag(nowMs, drift);
       const refining = fineAction(action) && credibleFineLag(nowMs, drift);
       if (pending || nowMs < cooldownUntil || (failures >= 2 && !recovering && !refining)) {
@@ -199,11 +229,13 @@
     }
     function record({scope:next, nowMs, current, target, action, requested}) {
       if (next !== scope) reset(next);
-      if (action === 'manual-sync') {
+      if (action === 'manual-sync' || action === 'transport-seek') {
+        explicitProof = action === 'manual-sync' ? {at:-1,baseline:null} : null;
+        proofWindow = [];
         pending = null; cooldownUntil = 0; failures = 0; largeLagSamples = []; failedLandingSec = 0;
         phaseAt = nowMs; phaseBias = null; phaseWindow = []; referenceHoldUntil = 0;
         fineCount = 0; lastFineAt = -Infinity; landingResidualSec = 0;
-        reason = 'explicit-sync'; return;
+        reason = action === 'manual-sync' ? 'explicit-sync' : 'transport-alignment'; return;
       }
       const recovery = action === 'hard-seek' && credibleLargeLag(nowMs, target - current);
       if (recovery) {

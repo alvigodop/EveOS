@@ -25,6 +25,10 @@
   <link rel="stylesheet" href="/youtube-playback-mode.css">
   <link rel="stylesheet" href="/sync-center.css">
   <link rel="stylesheet" href="/sync-compact-room.css">
+  <link rel="stylesheet" href="/room-viewport-fit.css">
+  <link rel="stylesheet" href="/room-density-v8.css">
+  <link rel="stylesheet" href="/watchfusion-responsive-v9.css">
+  <link rel="stylesheet" href="/watchfusion-responsive-v10.css">
 </head>
 <body>
   <header class="topbar" id="watchfusionHeader">
@@ -155,7 +159,7 @@
               <span>Choose Nuvio, VoxelVision, or Find Media to start.</span>
             </div>
 
-            <div class="smallrow media-status-row">
+            <div class="smallrow media-status-row" hidden>
               <span id="mediaMeta"></span>
               <div id="youtubePlaybackMode" class="youtube-playback-mode" hidden>
                 <span>Playback</span>
@@ -257,7 +261,17 @@
 
         <div id="roomSplitter" class="room-splitter" role="separator" aria-orientation="horizontal" aria-label="Resize Watch Party height" tabindex="0" hidden></div>
         <aside class="side panel" id="partyPanel" hidden>
-          <div class="sidehead"><h2>Watch Party</h2><span id="hostBadge"></span></div>
+          <div class="sidehead"><h2>Watch Party</h2><span id="hostBadge"></span>
+            <details id="roomIdleOptions" class="room-idle-actions" hidden>
+              <summary>Room tools</summary>
+              <div>
+                <button type="button" data-room-idle-action="copyBtn">Copy room link</button>
+                <button type="button" data-room-idle-action="copyLanBtn">Copy LAN link</button>
+                <button type="button" data-room-idle-action="leaveRoomBtn">Leave room</button>
+                <button type="button" class="danger" data-room-idle-action="deleteRoomBtn">Delete room</button>
+              </div>
+            </details>
+          </div>
           <div id="partyDetails">
             <div id="members" class="members"></div>
             <p class="hint host-handoff-hint">The room host controls shared playback. Joiners receive the authoritative source and room state.</p>

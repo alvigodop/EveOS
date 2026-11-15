@@ -144,7 +144,8 @@ function metadata(value = {}) {
     publisherReceivedAt: Math.max(0, Number(value.publisherReceivedAt) || 0),
     publisherSentAt: Math.max(0, Number(value.publisherSentAt) || 0), relayReceivedAt,
     currentTime: Math.max(0, Number(value.currentTime) || 0), duration: Math.max(0, Number(value.duration) || 0),
-    rate: Math.min(4, Math.max(0.25, Number(value.rate) || 1)), volume: Math.min(1, Math.max(0, Number(value.volume) || 0)),
+    rate: Math.min(4, Math.max(0.25, Number(value.rate) || 1)),
+    volume: pageUrl && !Number.isFinite(value.volume) ? null : Math.min(1, Math.max(0, Number(value.volume) || 0)),
     index: Math.max(0, Number(value.index) || 0), shuffle: !!value.shuffle, loop: !!value.loop,
     status: text(value.status), queue: Array.isArray(value.queue) ? value.queue.slice(0, 500).map(item => ({ id: text(item.id, 100), title: text(item.title) })) : [] };
 }

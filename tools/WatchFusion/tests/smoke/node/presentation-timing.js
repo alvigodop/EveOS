@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { Readable } from 'node:stream';
 import { handleRoomRoute } from '../../../src/server/room-routes.js';
+import { createPlayoutCoordinator } from '../../../src/server/playout-coordinator.js';
 
 const client = name => fs.readFileSync(new URL('../../../public/client/' + name, import.meta.url), 'utf8');
 
@@ -86,6 +87,30 @@ export async function runPresentationTimingChecks(check) {
     assert.equal(acoustics.commonTarget(paths.map(path => ({...path, uncertaintyMs:50}))), null);
   });
 
+  await check('PRESENT-COHORT:room falls back to a fresh phase shared by unadjusted devices', () => {
+    const coordinator = createPlayoutCoordinator(), start = 100000, viewers = new Set(['host','phone','tv']);
+    coordinator.transport({position:12,rate:1,paused:false,updatedAt:start});
+    const read = now => coordinator.coordinate({now,authority:'linked',viewers,allowHoldback:false});
+    const report = (id,at,phase,adjustmentMs=0,buffering=false) => coordinator.observe(id,{
+      sampledAt:at,outputSession:id+'-device',positionMs:12000+at-start+phase,
+      ready:true,playing:true,buffering,adjustmentMs,uncertaintyMs:35
+    },at);
+    for (let t = start; t <= start+2450; t+=350) {
+      report('host',t,-303); report('phone',t,-222); report('tv',t,-1000);
+    }
+    assert.equal(read(start+2450).reference,'peer-cohort');
+    assert.equal(read(start+2450).phaseMs,-262);
+    assert.equal(read(start+7200).reference,'room-clock');
+    for (let t = start+8000; t <= start+10450; t+=350) {
+      report('host',t,-303,-300); report('phone',t,-222); report('tv',t,-1000,0,true);
+    }
+    assert.equal(read(start+10450).reference,'room-clock');
+    for (let t = start+11000; t <= start+13450; t+=350) {
+      report('host',t,-303); report('phone',t,-222); report('linked',t,30);
+    }
+    assert.equal(read(start+13450).reference,'linked-tab');
+  });
+
   await check('PRESENT-05:worklet sends bounded features and leaves playback output silent', () => {
     let Processor, received;
     const environment = vm.createContext({
@@ -129,7 +154,7 @@ export async function runPresentationTimingChecks(check) {
       assert.equal((await post(host, {rate:0})).status, 400);
       assert.equal((await post(host, {sampledAt:Date.now() - 5000})).status, 400);
       assert.equal((await post(host)).status, 200);
-      assert.equal((await post(tv, {rate:1.25,envelope:[42],seekHealth:{
+      assert.equal((await post(tv, {rate:1.25,targetPositionMs:5850,startupWaitMs:1635,envelope:[42],seekHealth:{
         reason:'seek-awaiting-proof',attempts:3,recoveryAttempts:1,lastRecoveryBiasMs:1955,untrusted:'ignore'
       }})).status, 200);
       const token = {target:tv.publicId,outputSession:'device-for-' + tv.publicId,id:'calibration-123',adjustmentMs:-850,observedMs:850,uncertaintyMs:12};
@@ -142,6 +167,8 @@ export async function runPresentationTimingChecks(check) {
       assert.equal(viewer.body.proposal.adjustmentMs, -850);
       const tvReport = viewer.body.peers.find(peer => peer.member === tv.publicId);
       assert.equal(tvReport.rate, 1.25);
+      assert.equal(tvReport.startupWaitMs, 1635);
+      assert.equal(tvReport.targetPositionMs, 5850);
       assert.equal(tvReport.seekHealth.recoveryAttempts, 1);
       assert.equal(tvReport.seekHealth.lastRecoveryBiasMs, 1955);
       assert.equal(tvReport.seekHealth.untrusted, undefined);

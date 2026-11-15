@@ -55,7 +55,7 @@ export function createPlayoutCoordinator() {
     if (previous && report.sampledAt - previous.at > 2400) samples.readings = [];
     const phase = report.positionMs - position(report.sampledAt);
     samples.readings.push({at:report.sampledAt, phase, uncertaintyMs:report.uncertaintyMs,
-      bufferedUntilMs:report.bufferedUntilMs});
+      bufferedUntilMs:report.bufferedUntilMs, hasDeviceOffset: Math.abs(report.adjustmentMs || 0) >= 1});
     samples.readings = samples.readings.filter(item => report.sampledAt - item.at <= MAX_AGE).slice(-8);
   }
 
@@ -74,6 +74,24 @@ export function createPlayoutCoordinator() {
     return {phase, at:last.at, uncertaintyMs:Math.ceil(jitter + Math.max(...inliers.map(item => item.uncertaintyMs)))};
   }
 
+  // Use agreement between *independent*, steady room players only when a linked
+  // source has no trustworthy phase. Outliers or buffered players cannot vote.
+  function peerCohort(now, viewers) {
+    const candidates = [...viewers].filter(id => !history.get(id)?.readings.at(-1)?.hasDeviceOffset)
+      .map(id => estimate(id, now)).filter(value => value && value.uncertaintyMs <= 105);
+    let best = null;
+    for (let i=0;i<candidates.length;i++) for(let j=i+1;j<candidates.length;j++) {
+      const a=candidates[i], b=candidates[j], spread=Math.abs(a.phase-b.phase);
+      if (spread > 140) continue;
+      const uncertainty=Math.ceil(Math.max(a.uncertaintyMs,b.uncertaintyMs) + spread/2);
+      if (uncertainty > 125) continue;
+      if (!best || spread < best.spread) best={phase:(a.phase+b.phase)/2,
+        at:Math.min(a.at,b.at),uncertaintyMs:uncertainty,spread};
+    }
+    return best ? {phase:best.phase,at:best.at,uncertaintyMs:best.uncertaintyMs,
+      authority:'linked',origin:'peer-cohort'} : null;
+  }
+
   function coordinate({now, authority, viewers, allowHoldback}) {
     for (const [id, entry] of history) {
       if ((!viewers.has(id) && id !== authority) || now - entry.readings.at(-1).at > MAX_AGE) history.delete(id);
@@ -84,9 +102,17 @@ export function createPlayoutCoordinator() {
     if (reference && reference.authority !== authority) reference = null;
     const observed = estimate(authority, now);
     if (observed && observed.uncertaintyMs <= 125) {
-      if (!reference || Math.abs(observed.phase - reference.phase) > Math.max(20, observed.uncertaintyMs)) reference = {...observed, authority};
+      if (!reference || reference.origin === 'peer-cohort' || Math.abs(observed.phase - reference.phase) > Math.max(20, observed.uncertaintyMs)) reference = {...observed, authority};
       else reference = {...reference, at:observed.at, uncertaintyMs:observed.uncertaintyMs};
     } else if (reference && now - reference.at > MAX_AGE) reference = null;
+    if (authority === 'linked' && (!observed || observed.uncertaintyMs > 125)) {
+      const cohort = peerCohort(now, viewers);
+      if (cohort && (!reference || reference.origin === 'peer-cohort')) {
+        // Keep one stable room target; do not oscillate with minor peer jitter.
+        reference = !reference || Math.abs(cohort.phase-reference.phase) > 250
+          ? cohort : {...reference,at:cohort.at,uncertaintyMs:cohort.uncertaintyMs};
+      }
+    }
 
     if (!allowHoldback) holdbackMs = 0;
     if (allowHoldback && observed && observed.uncertaintyMs <= 125 && reference && !authorityBuffering && viewers.size >= 2) {
@@ -105,7 +131,7 @@ export function createPlayoutCoordinator() {
       }
     }
     return {
-      segment, reference:reference ? (authority === 'linked' ? 'linked-tab' : 'host-player') : 'room-clock',
+      segment, reference:reference ? (reference.origin === 'peer-cohort' ? 'peer-cohort' : authority === 'linked' ? 'linked-tab' : 'host-player') : 'room-clock',
       phaseMs:Math.round(reference?.phase ?? 0), uncertaintyMs:reference?.uncertaintyMs ?? null,
       holdbackMs, authorityBuffering, outputTiming:'speaker-unmeasured'
     };

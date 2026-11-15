@@ -1,0 +1,94 @@
+/* Keep narrow navigation in one scrollable row above the clock. */
+@media (max-width: 760px) {
+  #main-content > .top-bar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    align-content: center !important;
+    min-width: 0;
+    min-height: 34px !important;
+    height: auto !important;
+    overflow: hidden !important;
+    gap: 5px !important;
+    isolation: isolate;
+    margin-bottom: 9px !important;
+  }
+  #main-content > .top-bar > div:first-child {
+    flex: 0 0 auto !important;
+    min-width: 0;
+    max-width: 83px;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  #main-content > .top-bar .logo {
+    font-size: 12px !important;
+    line-height: 1.05;
+    white-space: normal !important;
+  }
+  #main-content > .top-bar .top-right {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    align-content: center !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 2px 0 3px;
+    gap: 4px !important;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+  #main-content > .top-bar .top-right > button {
+    flex: 0 0 auto !important;
+    white-space: nowrap;
+    min-height: 27px;
+  }
+  #main-content > .header {
+    position: relative !important;
+    clear: both;
+    z-index: 0;
+    margin-top: 3px !important;
+  }
+}
+
+/* Keep the WatchFusion service title and LAN/actions in separate, bounded lanes. */
+@media (max-width: 680px), (max-height: 700px) {
+  #watchfusion-overlay .watchfusion-shell-head {
+    display: grid;
+    grid-template-columns: minmax(112px, 1fr) minmax(0, 2.2fr);
+    gap: 4px;
+    align-items: center;
+    min-width: 0;
+    overflow: hidden;
+    padding: 4px 5px;
+  }
+  #watchfusion-overlay .watchfusion-brand { flex: initial; gap: 5px; min-width: 0; overflow: hidden; }
+  .watchfusion-brand > div { min-width: 0; }
+  .watchfusion-brand strong { font-size: 12px; overflow-wrap: anywhere; line-height: 1.15; }
+  .watchfusion-brand div > span { font-size: 9px; max-width: 100%; }
+  #watchfusion-overlay .watchfusion-head-actions {
+    display: flex;
+    flex: initial;
+    flex-wrap: nowrap !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+    gap: 3px;
+    scrollbar-width: thin;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x;
+  }
+  .watchfusion-head-actions > * { flex: 0 0 auto; }
+  .watchfusion-shell button { min-width: 0; }
+  #watchfusion-overlay .watchfusion-shell-head button { padding: 5px 7px; font-size: 11px; }
+  #watchfusion-overlay .watchfusion-status { font-size: 9px; padding: 3px 5px; }
+  #watchfusion-overlay select.watchfusion-status { display: block; }
+  #watchfusion-overlay .watchfusion-brand-mark { width: 22px; height: 22px; flex-basis: 22px; }
+}

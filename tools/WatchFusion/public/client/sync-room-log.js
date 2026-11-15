@@ -14,7 +14,9 @@
   const currentScope = () => roomId && session && state?.presentationEpoch != null
     ? [roomId, session.memberId, state.presentationEpoch].join(':') : '';
   function strip(peer, now) {
-    const phase = finite(peer.positionMs - peer.roomPositionMs);
+    const rawPhase = finite(peer.positionMs - peer.roomPositionMs);
+    const targetError = Number.isFinite(peer.targetPositionMs) ? finite(peer.positionMs - peer.targetPositionMs) : null;
+    const phase = targetError ?? rawPhase;
     const last = lastPeers.get(peer.member);
     const corrections = finite(peer.corrections);
     const recoveries = peer.seekHealth?.recoveryAttempts ?? 0;
@@ -42,8 +44,9 @@
       signals.push('PLAYER_PHASE_JUMP');
     lastPeers.set(peer.member, {phase, corrections, recoveries});
     return {device:memberName(peer.member), playing:peer.playing, buffering:peer.buffering,
-      reportAgeMs:finite(now - peer.sampledAt), playerOffsetMs:phase,
-      rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs),
+      reportAgeMs:finite(now - peer.sampledAt), playerOffsetMs:rawPhase,
+      rawOffsetMs:rawPhase, targetErrorMs:targetError, adjustmentMs:finite(peer.adjustmentMs),
+      rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
       corrections, action:peer.recentCorrection || null,
       filteredDriftMs:finite(peer.filteredDriftMs),
       seekHealth:peer.seekHealth || null,
@@ -54,7 +57,7 @@
     refreshScope();
     prune();
     const recent = entries.slice(-15).map(item => {
-      const peers = item.peers.map(p => `${p.device}: ${p.playerOffsetMs === null ? '?' : p.playerOffsetMs + 'ms'} · ${p.corrections ?? '-'} seeks${p.signals.length ? ' [' + p.signals.join(',') + ']' : ''}`).join(' / ');
+      const peers = item.peers.map(p => `${p.device}: ${p.targetErrorMs === null ? 'room ' + (p.rawOffsetMs ?? '?') : 'target ' + p.targetErrorMs}ms · startup ${p.startupWaitMs ?? '?'}ms · ${p.corrections ?? '-'} seeks${p.signals.length ? ' [' + p.signals.join(',') + ']' : ''}`).join(' / ');
       return `${item.at.slice(11,19)} ${item.ref || 'room-clock'} | ${peers}`;
     }).join('\n');
     const transitions = events.slice(-10).map(e => `${e.at.slice(11,19)} ! ${e.kind}${e.reason?' · '+e.reason:''}`).join('\n');

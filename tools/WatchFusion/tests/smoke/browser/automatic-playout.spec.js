@@ -133,3 +133,61 @@ test('linked source and mixed viewers synchronize with diagnostics closed and mi
     await post(request,room+'/command',{type:'delete-room'},host);
   }
 });
+
+test('a buffered TV pause aligns once and explicit Sync me preserves stable resume', async ({ page }) => {
+  await page.goto('/');
+  const observed = await page.evaluate(() => {
+    const wall = Date.now(), realDateNow = Date.now;
+    const perf = Object.getOwnPropertyDescriptor(performance, 'now');
+    let t = 0, current = 26, playerState = 1;
+    const seeks = [];
+    Date.now = () => wall + t;
+    Object.defineProperty(performance, 'now', {configurable:true, value:() => t});
+    try {
+      roomId = 'v9-tv';
+      session = {memberId:'tv'};
+      state = {hostId:'host', presentationEpoch:1, playoutSegment:1, source:{videoId:'M7lc1UVf-VE'},
+        playback:{paused:false, position:30, updatedAt:wall, projectedAt:wall, rate:1, volume:100}};
+      ytPlayerReady = playerPrimed = true;
+      ytPlayer = {
+        getPlayerState: () => playerState, getCurrentTime: () => current,
+        getVideoData: () => ({video_id:'M7lc1UVf-VE'}),
+        getDuration: () => 300, getVolume: () => 100, getPlaybackRate: () => 1,
+        getVideoLoadedFraction: () => 1, playVideo(){ playerState = 1; },
+        pauseVideo(){ playerState = 2; },
+        seekTo(target, network){ seeks.push({target,network}); current = target; }
+      };
+      syncPlayer();
+      state.playoutSegment++;
+      state.playback.paused = true;
+      state.playback.updatedAt++;
+      syncPlayer();
+      syncPlayer();
+      const pausedAlignment = seeks.slice();
+      document.getElementById('syncBtn').click();
+      t = 500;
+      state.playoutSegment++;
+      state.playback = {...state.playback, paused:false, updatedAt:wall+t, projectedAt:wall+t};
+      for (; t <= 20000; t += 250) {
+        current = 30 + (t - 500) / 1000 - 1.19;
+        syncPlayer();
+      }
+      const stable = window.watchFusionSyncDiagnostics().seekGuard;
+      const afterStable = seeks.length;
+      state.playoutSegment++;
+      state.playback = {...state.playback, position:90, updatedAt:wall+t, projectedAt:wall+t};
+      syncPlayer();
+      for (let i = 0; i < 10 && seeks.length === afterStable; i++) { t += 250; current += .25; syncPlayer(); }
+      const hostSeekApplied = seeks.length > afterStable;
+      return {pausedAlignment, afterStable, stable, hostSeekApplied};
+    } finally {
+      Date.now = realDateNow;
+      if (perf) Object.defineProperty(performance, 'now', perf);
+      else delete performance.now;
+    }
+  });
+  expect(observed.pausedAlignment).toEqual([{target:30, network:false}]);
+  expect(observed.afterStable).toBe(1);
+  expect(observed.stable.reason).toBe('verified-manual-sync-phase-hold');
+  expect(observed.hostSeekApplied).toBe(true);
+});

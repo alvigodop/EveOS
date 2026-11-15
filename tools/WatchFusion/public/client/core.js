@@ -66,15 +66,15 @@ function loadPlayerAudioPrefs() {
     const raw = storage.get(PLAYER_AUDIO_PREFS_KEY);
     if (!raw) return { volume: 100, muted: false };
     const parsed = JSON.parse(raw);
-    const volume = Math.max(0, Math.min(100, Number(parsed?.volume)));
-    return { volume: Number.isFinite(volume) ? volume : 100, muted: !!parsed?.muted };
+    const volume = typeof parsed?.volume === 'number' && Number.isFinite(parsed.volume) ? Math.max(0, Math.min(100, parsed.volume)) : 100;
+    return { volume, muted: !!parsed?.muted };
   } catch { return { volume: 100, muted: false }; }
 }
 function savePlayerAudioPrefs(player = ytPlayer) {
   if (!player || suppressAudioPersistence) return;
   try {
-    const volume = Math.max(0, Math.min(100, Number(player.getVolume?.()) ?? playerAudioPrefs.volume ?? 100));
-    const muted = !!player.isMuted?.();
+    const observed = player.getVolume?.(), muted = player.isMuted?.() ?? playerAudioPrefs.muted;
+    const volume = Number.isFinite(observed) ? Math.max(0, Math.min(100, observed)) : (playerAudioPrefs.volume ?? 100);
     playerAudioPrefs = { volume, muted };
     storage.set(PLAYER_AUDIO_PREFS_KEY, JSON.stringify(playerAudioPrefs));
   } catch {}
@@ -90,8 +90,8 @@ function restorePlayerAudioPrefs(player = ytPlayer) {
 }
 function authoritativeRoomAudio() {
   if (!roomId || !state?.playback) return null;
-  const rawVolume = Number(state.playback.volume);
-  return { volume: Number.isFinite(rawVolume) ? Math.min(100, Math.max(0, rawVolume)) : 100, muted: !!state.playback.muted };
+  const rawVolume = state.playback.volume;
+  return { volume: Number.isFinite(rawVolume) ? Math.min(100, Math.max(0, rawVolume)) : playerAudioPrefs.volume, muted: !!state.playback.muted };
 }
 function clearRoomAudioCandidate() {
   if (roomAudioCommandTimer) clearTimeout(roomAudioCommandTimer);
@@ -384,8 +384,7 @@ async function copyText(value) {
   const text=String(value||''); if(!text) return false;
   try { if(navigator.clipboard?.writeText){ await navigator.clipboard.writeText(text); return true; } } catch {}
   try { const area=document.createElement('textarea'); area.value=text; area.setAttribute('readonly',''); area.style.position='fixed'; area.style.opacity='0'; document.body.appendChild(area); area.select(); const copied=document.execCommand('copy'); area.remove(); return copied; } catch { return false; }
-}
-function setCopyButtonFeedback(button, copied, idleLabel='Copy') {
+}function setCopyButtonFeedback(button, copied, idleLabel='Copy') {
   if(!button)return;
   const previousTimer=Number(button.dataset.copyFeedbackTimer||0);
   if(previousTimer)clearTimeout(previousTimer);
@@ -415,7 +414,9 @@ function leaveRoom(message='') {
   replaceRoomHistory();
   app.hidden=false;
   lobby.hidden=true;
-  document.documentElement.classList.remove('watchfusion-room-active');
+  document.documentElement.classList.remove('watchfusion-room-active', 'watchfusion-room-idle');
+  document.querySelector('.watch-shell')?.classList.remove('room-idle');
+  if ($('roomIdleOptions')) { $('roomIdleOptions').hidden = true; $('roomIdleOptions').open = false; }
   if ($('partyPanel')) $('partyPanel').hidden = true;
   if ($('roomSplitter')) $('roomSplitter').hidden = true;
   if ($('partyDetails')) $('partyDetails').hidden = true;
@@ -434,7 +435,6 @@ function leaveRoom(message='') {
   $('roomPill').textContent = 'Solo';
   $('roomPill').disabled = true;
   window.watchFusionPresentation?.render?.();
-  window.watchFusionPlayout?.render?.();
-  if(message)setStatus(message);
+  window.watchFusionPlayout?.render?.(); if(message)setStatus(message);
 }
 function escapeHtml(v){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}

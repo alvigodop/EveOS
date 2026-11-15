@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 
 test.describe('WatchFusion host source controls', () => {
   test('In active room: Close Nuvio closes view locally without changing room source', async ({ browser }) => {
@@ -147,4 +148,63 @@ test.describe('WatchFusion host source controls', () => {
     await expect(page.locator('#nuvioFrame')).toBeVisible();
     expect(pageErrors).toEqual([]);
   });
+});
+
+
+test('linked volume reaches the source before release and follows later source changes', async ({ page, context }) => {
+  await page.goto('/');
+  const pairing = await page.evaluate(async () => {
+    window.watchFusionMediaResolver.resolveAndLoad = async () => true;
+    await watchFusionLinkedTab.start();
+    return document.getElementById('livePairLink').value;
+  });
+  const source = await context.newPage(), origin = new URL(pairing).origin;
+  await source.route(url => url.pathname === '/volume-fixture.html', route => route.fulfill({
+    contentType:'text/html', body:'<!doctype html><video></video><script src="/live-peer.js"></script>'
+  }));
+  await source.goto(origin + '/volume-fixture.html');
+  await source.evaluate(link => {
+    const video = document.querySelector('video');
+    Object.defineProperty(video,'readyState',{value:4});
+    video.volume = .62;
+    window.volumeCommands = [];
+    const runtimeListeners = new Set(), url = new URL(link);
+    const [id, token] = url.hash.slice(6).split('.');
+    const publisher = new WatchFusionLivePeer({base:url.origin,id,token,publisher:true,
+      onControl(action,value) {
+        if (action === 'volume') {
+          window.volumeCommands.push(value);
+          if (window.volumeCommands.length === 1) return; // drop the first message before the source can apply it
+        }
+        runtimeListeners.forEach(listener => listener({type:'source-control',action,value}));
+      }
+    });
+    Object.defineProperty(window.chrome,'runtime',{configurable:true,value:{
+      id:'volume-fixture',sendMessage(message){if(message.type==='sample')publisher.metadata(message.metadata);},
+      onMessage:{addListener(listener){runtimeListeners.add(listener);},removeListener(listener){runtimeListeners.delete(listener);}}
+    }});
+    window.stopPublisher = () => publisher.stop();
+  },pairing);
+  await source.addScriptTag({path: fileURLToPath(new URL('../../../browser-extension/source-probe.js',import.meta.url))});
+  const slider = page.locator('#liveVolume');
+  await expect(slider).toHaveValue('0.62');
+  await page.bringToFront();
+  await slider.scrollIntoViewIfNeeded();
+  const box = await slider.boundingBox(), y = box.y + box.height / 2;
+  await page.mouse.move(box.x + box.width * .32,y);
+  await page.mouse.down();
+  try {
+    const requested = Number(await slider.inputValue());
+    expect(requested).toBeLessThan(.4);
+    await expect.poll(() => source.locator('video').evaluate(video => video.volume)).toBeCloseTo(requested,2);
+    await expect.poll(() => page.evaluate(() => watchFusionLinkedTab.pendingControl('volume'))).toBe(false);
+    expect(await source.evaluate(() => window.volumeCommands)).toEqual([requested,requested]);
+  } finally {
+    await page.mouse.up();
+  }
+  await source.locator('video').evaluate(video => {video.volume = .73;});
+  await expect(slider).toHaveValue('0.73');
+  await page.evaluate(() => watchFusionLinkedTab.stop({quiet:true}));
+  await source.evaluate(() => window.stopPublisher());
+  await source.close();
 });

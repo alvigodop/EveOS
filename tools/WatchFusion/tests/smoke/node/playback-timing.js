@@ -133,7 +133,7 @@ export async function runPlaybackTimingChecks(check) {
     const preferences = new Map();
     const playback = { position: 100, paused: false, rate: 1, updatedAt: 10000, projectedAt: 10000 };
     const context = {
-      roomId: 'linked-room', state: { source: { videoId: 'fixture' }, playback },
+      roomId: 'linked-room', state: { source: { videoId: 'fixture' }, playoutSegment:1, playback },
       ytPlayerReady: true, playerInitializing: false, primingPlayer: false,
       ytPlayer: {
         getCurrentTime: () => position, getPlayerState: () => playerState,
@@ -151,7 +151,7 @@ export async function runPlaybackTimingChecks(check) {
       setInterval() {}, document: { addEventListener() {} }
     };
     context.globalThis = context.window;
-    for (const script of ['client/linked-playback-sync.js', 'playback-sync.js']) {
+    for (const script of ['client/linked-playback-sync.js', 'client/youtube-startup-gate.js', 'playback-sync.js']) {
       vm.runInNewContext(fs.readFileSync(path.join(CLIENT, '..', script), 'utf8'), context);
     }
     const tickViewer = context.window.applyAdaptiveViewerSync;
@@ -159,55 +159,51 @@ export async function runPlaybackTimingChecks(check) {
       if (elapsed === 5000) Object.assign(playback, { position: 105, updatedAt: 15000, projectedAt: 15000 });
       tickViewer();
     }
-    assert.equal(seeks.length, 1, 'a stalled clock and an equivalent new room anchor cannot restart catch-up');
-    assert.match(status.textContent, /Playback is behind/);
+    assert.equal(seeks.length, 0, 'a stalled clock never seeks after an equivalent room anchor');
+    assert.equal(context.window.watchFusionSyncDiagnostics().startup.reason, 'viewer-warming-after-play');
 
     tickViewer(true);
-    assert.equal(seeks.length, 2, 'manual Sync me bypasses the seek latch');
+    assert.equal(seeks.length, 1, 'manual Sync me bypasses the seek latch');
+    context.state.playoutSegment++;
     Object.assign(playback, { position: 60, updatedAt: 19000, projectedAt: 19000 });
     tickViewer();
-    tickViewer();
-    assert.equal(seeks.length, 3, 'a genuine source jump rearms correction');
+    assert.equal(seeks.length, 1, 'a genuine source jump still waits for progress');
     elapsed += 3000;
     playerState = 3;
     tickViewer();
     tickViewer();
-    assert.equal(seeks.length, 3, 'buffering still owns recovery');
+    assert.equal(seeks.length, 1, 'buffering still owns recovery');
     playerState = 1;
-    for (let tick = 0; tick < 8; tick++) {
+    for (let tick = 0; tick < 17; tick++) {
       elapsed += 250;
       position = 60 + (elapsed - 9000) / 1000;
       tickViewer();
     }
-    assert.equal(context.window.watchFusionSyncDiagnostics().autoSync.attempts, 0);
-    position -= 3;
-    for (let tick = 0; tick < 8; tick++) {
-      elapsed += 250;
-      position += .25;
-      tickViewer();
-    }
-    assert.equal(seeks.length, 4, 'a viewer that recovered can correct a later independent drift');
+    assert.equal(seeks.length, 2, 'the queued transport seek runs once after playback advances');
 
+    context.state.playoutSegment++;
     Object.assign(playback, { position: 60, paused: true, updatedAt: 26001, projectedAt: 26001 });
     tickViewer();
     tickViewer();
-    assert.equal(seeks.length, 5, 'a paused snapshot issues one seek while the TV position is stale');
+    assert.equal(seeks.length, 2, 'ordinary pause preserves the current buffer');
     assert.equal(playerState, 2);
 
     position = 60;
-    tickViewer();
+    context.state.playoutSegment++;
     Object.assign(playback, { position: 59, updatedAt: 26002, projectedAt: 26002 });
     tickViewer();
-    assert.equal(seeks.length, 6, 'subsequent paused seeks still follow the host');
+    assert.equal(seeks.length, 3, 'subsequent paused seeks still follow the host');
 
+    playerState = 1;
+    elapsed = 16000;
     Object.assign(playback, { position: 60, paused: false, rate: 2, updatedAt: 26000, projectedAt: 26000 });
     context.render();
     elements.get('deviceTimingEarlier').click();
     elements.get('deviceTimingEarlier').click();
-    assert.equal(seeks.length, 6, 'staging device timing never seeks');
+    assert.equal(seeks.length, 3, 'staging device timing never seeks');
     elements.get('deviceTimingApply').click();
     assert.ok(Math.abs(seeks.at(-1) - 60.1) < 1e-8, '50 ms earlier advances 100 ms on the 2x media timeline');
-    assert.equal(seeks.length, 7, 'Apply requests one local seek');
+    assert.equal(seeks.length, 4, 'Apply requests one local seek');
     assert.equal(playback.position, 60, 'device timing never changes the shared timeline');
     assert.equal(preferences.get('watchfusion.youtubePlaybackDelayMs'), '-50');
     elements.get('deviceTimingReset').click();

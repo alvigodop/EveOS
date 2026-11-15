@@ -97,8 +97,7 @@
     const target=projectedPosition(metadata,now);
     const paused=metadata.paused===true,ended=metadata.ended===true;
     const rate=Math.min(2,Math.max(.25,Number(metadata.rate)||1));
-    const volume=Number(metadata.volume);
-    const normalizedVolume=Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):null;
+    const normalizedVolume=Number.isFinite(metadata.volume)?Math.max(0,Math.min(1,metadata.volume)):null;
     const nextAnchor={position:target,sampledAt:now,paused,ended,rate,volume:normalizedVolume};
     const age=now-Number(metadata.sampledAt);
     if(metadata.sampledAt&&(age<0||age>MAX_SAMPLE_AGE_MS))return{publish:false,reason:'stale',target,drift:0,anchor};
@@ -109,7 +108,7 @@
     }
     const stateChanged=paused!==(anchor.paused===true)||ended!==(anchor.ended===true)
       ||Math.abs(rate-(Number(anchor.rate)||1))>.01
-      ||normalizedVolume!==null&&Number.isFinite(Number(anchor.volume))&&Math.abs(normalizedVolume-Number(anchor.volume))>.02;
+      ||normalizedVolume!==null&&(anchor.volume==null||Math.abs(normalizedVolume-anchor.volume)>.02);
     const elapsed=Math.max(0,now-anchor.sampledAt)/1000;
     const expected=anchor.position+(anchor.paused||anchor.ended?0:elapsed*(Number(anchor.rate)||1));
     const drift=target-expected;

@@ -1,0 +1,39 @@
+/* Keep the unloaded Find Media panel and Watch Party controls in normal flow. */
+html:is(.eveos-embedded, .eveos-detached) #app .grid > .maincol { min-inline-size: 0; }
+html:is(.eveos-embedded, .eveos-detached) .watch-shell:is(.room-idle, .solo-idle) > .find-media-panel { overflow: visible; }
+html.eveos-embedded .watch-shell, html.eveos-detached .watch-shell,
+html.eveos-embedded .maincol, html.eveos-detached .maincol,
+html.eveos-embedded .find-media-panel, html.eveos-detached .find-media-panel { min-width: 0; max-width: 100%; box-sizing: border-box; }
+html.eveos-embedded .find-media-title, html.eveos-detached .find-media-title {
+  display: flex; flex-wrap: nowrap; align-items: flex-start; min-width: 0; max-width: 100%; gap: 6px;
+}
+.find-media-title > div { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+.find-media-title > #closeFindMediaBtn { flex: 0 0 auto; position: static; min-width: 48px; max-width: 90px; margin-left: auto; }
+.find-media-panel .find-media-row, .find-media-panel .live-source-options { min-width: 0; max-width: 100%; box-sizing: border-box; flex-wrap: wrap; }
+.find-media-panel #sourceInput { min-width: 0; max-width: 100%; flex: 1 1 180px; box-sizing: border-box; }
+.find-media-panel #loadBtn { flex: 1 1 90px; min-width: 0; }
+html.eveos-embedded .source-tabs, html.eveos-detached .source-tabs { min-width: 0; max-width: 100%; box-sizing: border-box; }
+html.eveos-embedded .media-status-row, html.eveos-detached .media-status-row { position: static !important; inset: auto !important; transform: none !important; }
+html.eveos-embedded .watch-shell.room-idle > .media-status-row,
+html.eveos-detached .watch-shell.room-idle > .media-status-row,
+html.eveos-embedded .watch-shell.solo-idle > .media-status-row,
+html.eveos-detached .watch-shell.solo-idle > .media-status-row { display: none !important; }
+.room-idle-actions { flex: 0 0 auto; max-width: 100%; }
+.room-idle-actions[hidden] { display: none !important; }
+#partyPanel .sidehead { min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#partyPanel .sidehead h2 { flex: 1 1 auto; }
+#partyPanel .sidehead .room-idle-actions { margin: 0; }
+#partyPanel .sidehead .room-idle-actions[open] { flex-basis: 100%; }
+html #partyPanel:has(.room-idle-actions[open]) { overflow-y: auto; overscroll-behavior: contain; }
+html.watchfusion-party-bottom.watchfusion-party-peek #partyPanel:has(.room-idle-actions[open]) { overflow-y: auto; }
+@media (max-width: 670px), (max-height: 680px) {
+  html.eveos-embedded .find-media-panel, html.eveos-detached .find-media-panel { padding: 8px 7px; }
+  html.eveos-embedded .find-media-title strong, html.eveos-detached .find-media-title strong { font-size: 13px; }
+  html.eveos-embedded .find-media-title span, html.eveos-detached .find-media-title span { font-size: 10px; line-height: 1.3; }
+  html.eveos-embedded .find-media-title #closeFindMediaBtn, html.eveos-detached .find-media-title #closeFindMediaBtn { padding: 5px 6px; font-size: 11px; }
+  html.eveos-embedded #sourceInput, html.eveos-detached #sourceInput { font-size: 12px; }
+  html.eveos-embedded .watch-shell-head, html.eveos-detached .watch-shell-head { max-width: 100%; }
+  html.eveos-embedded .watch-shell-head > *, html.eveos-detached .watch-shell-head > * { min-width: 0; }
+  html.eveos-embedded .source-tabs, html.eveos-detached .source-tabs { gap: 3px; }
+  html.eveos-embedded #partyPanel .sidehead h2, html.eveos-detached #partyPanel .sidehead h2 { font-size: 12px; }
+}

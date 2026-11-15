@@ -167,7 +167,7 @@ test('millisecond viewer drift never speeds the phone up', async ({ page }) => {
     ytPlayer = {
       getVideoData: () => ({ video_id: 'M7lc1UVf-VE' }),
       getPlayerState: () => 1,
-      getCurrentTime: () => 9.60,
+      getCurrentTime: () => 9.60 + (Date.now() - projectedAt) / 1000,
       getPlaybackRate: () => 1,
       setPlaybackRate: rate => { rates.push(rate); },
       getVolume: () => 100,
@@ -179,7 +179,7 @@ test('millisecond viewer drift never speeds the phone up', async ({ page }) => {
       pauseVideo: () => {},
       seekTo: value => { seeks.push(value); }
     };
-    for (let i = 0; i < 6; i += 1) {
+    for (let i = 0; i < 16; i += 1) {
       window.applyAdaptiveViewerSync(false);
       await new Promise(resolve => setTimeout(resolve, 190));
     }
@@ -297,4 +297,132 @@ test('a primed linked host forwards native YouTube volume and keeps it until the
     return { controls, acknowledged, current: nativeVolume };
   });
   expect(volume).toEqual({ controls: [['volume', 0.58], ['volume', 0.43]], acknowledged: 58, current: 43 });
+});
+
+test('YouTube resume waits for timeline motion and preserves a paused seek through buffering', async ({page}) => {
+  await page.goto('/');
+  const observed = await page.evaluate(() => {
+    roomId = 'resume-room';
+    session = {memberId:'viewer'};
+    const wall = Date.now();
+    let t = 0, position = 28.6, playerState = 2, plays = 0;
+    const seeks = [];
+    state = {hostId:'host', presentationEpoch:1, playoutSegment:1, source:{videoId:'M7lc1UVf-VE'},
+      playback:{position:30, updatedAt:wall, projectedAt:wall, paused:true, rate:1, volume:100}};
+    ytPlayerReady = playerPrimed = true;
+    ytPlayer = {
+      getVideoData:() => ({video_id:'M7lc1UVf-VE'}), getPlayerState:() => playerState,
+      getCurrentTime:() => position, getDuration:() => 300, getPlaybackRate:() => 1,
+      getVolume:() => 100, getVideoLoadedFraction:() => 1,
+      playVideo(){plays++;playerState=3;}, pauseVideo(){playerState=2;},
+      seekTo(next){position=next;seeks.push(next);}
+    };
+    const realWall = Date.now, descriptor = Object.getOwnPropertyDescriptor(performance,'now');
+    Date.now = () => wall + t;
+    Object.defineProperty(performance,'now',{configurable:true,value:() => t});
+    try {
+      for (;t<1500;t+=250) syncPlayer();
+      const pausedSeeks = seeks.length;
+      state.playoutSegment++;
+      Object.assign(state.playback,{paused:false,updatedAt:Date.now(),projectedAt:Date.now()});
+      syncPlayer();
+      for (;t<3000;t+=250) syncPlayer();
+      playerState = 1;
+      for (;t<7000;t+=250) syncPlayer();
+      const stalled = {seeks:seeks.length, ...window.watchFusionSyncDiagnostics().startup};
+      state.playoutSegment++;
+      Object.assign(state.playback,{paused:true,position:32,updatedAt:Date.now(),projectedAt:Date.now()});
+      syncPlayer();
+      playerState = 3;
+      state.playoutSegment++;
+      Object.assign(state.playback,{position:87,updatedAt:Date.now()+1});
+      syncPlayer();
+      playerState = 2;
+      syncPlayer();
+      syncPlayer();
+      return {pausedSeeks, plays, stalled, seeks};
+    } finally {
+      Date.now = realWall;
+      if (descriptor) Object.defineProperty(performance,'now',descriptor);
+      else delete performance.now;
+    }
+  });
+  expect(observed.pausedSeeks).toBe(0);
+  expect(observed.plays).toBe(1);
+  expect(observed.stalled).toMatchObject({seeks:0,startDelayMs:1500,reason:'viewer-warming-after-play'});
+  expect(observed.seeks).toEqual([87]);
+});
+
+
+test('player target diagnostics share the signed room target and preserve valid stored volume', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('watchfusion.youtubePlaybackDelayMs','-850');
+    localStorage.setItem('wp-youtube-audio-prefs-v1','{"volume":null,"muted":false}');
+  });
+  await page.goto('/');
+  const sample = await page.evaluate(() => {
+    const time = Date.now();
+    const ytId = 'M7lc1UVf-VE';
+    roomId = '111';
+    session = {memberId:'viewer'};
+    state = {hostId:'host',source:{videoId:ytId},serverTime:time,
+      playback:{position:10,projectedAt:time,updatedAt:time,rate:2,paused:false}};
+    ytPlayerReady = true;
+    ytPlayer = {getCurrentTime:()=>10,getDuration:()=>100, getPlayerState:()=>1,getPlaybackRate:()=>2,
+      getVideoData:()=>({video_id:ytId}),getVolume:()=>undefined};
+    window.watchFusionPlayout.position = position => position - .12;
+    const fetchedTarget = window.watchFusionYouTubeTarget(time,100);
+    const fallback = loadPlayerAudioPrefs().volume;
+    playerAudioPrefs.volume = 37;
+    savePlayerAudioPrefs();
+    const missing = loadPlayerAudioPrefs().volume;
+    ytPlayer.getVolume = () => 0;
+    savePlayerAudioPrefs();
+    return {fetchedTarget,fallback,missing,zero:loadPlayerAudioPrefs().volume};
+  });
+  expect(sample.fetchedTarget).toBeCloseTo(11.58,3);
+  expect(sample).toMatchObject({fallback:100,missing:37,zero:0});
+});
+
+
+test('linked toolbar play and pause reach the source exactly once', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    window.YT = { PlayerState:{PLAYING:1, PAUSED:2, BUFFERING:3} };
+    window.sourceActions = [];
+    window.WatchFusionLivePeer = class {
+      constructor({onMetadata}) {
+        window.publishLinkedPlayback = paused => onMetadata({pageUrl:'https://www.youtube.com/watch?v=M7lc1UVf-VE',
+          sampledAt:Date.now(), paused, currentTime:10, duration:100, rate:1, volume:.37});
+      }
+      stop() {}
+      control(action) { window.sourceActions.push(action); }
+    };
+    window.watchFusionMediaResolver.resolveAndLoad = async () => true;
+    await watchFusionLinkedTab.start();
+    window.publishLinkedPlayback(true);
+  });
+  const toggle = page.locator('#liveToggle');
+  await expect(toggle).toHaveText('Play');
+  await toggle.click();
+  await expect(toggle).toHaveText('Pause');
+  const sentPlay = await page.evaluate(() => {
+    session = {memberId:'fixture-host'};
+    state = {hostId:'fixture-host', source:{}, playback:{paused:true}};
+    onYouTubeStateChange({data:1});
+    window.publishLinkedPlayback(false);
+    onYouTubeStateChange({data:1});
+    return window.sourceActions;
+  });
+  expect(sentPlay).toEqual(['play']);
+  await toggle.click();
+  await expect(toggle).toHaveText('Play');
+  const sentBoth = await page.evaluate(async () => {
+    onYouTubeStateChange({data:2});
+    window.publishLinkedPlayback(true);
+    onYouTubeStateChange({data:2});
+    await watchFusionLinkedTab.stop({quiet:true});
+    return window.sourceActions;
+  });
+  expect(sentBoth).toEqual(['play','pause']);
 });

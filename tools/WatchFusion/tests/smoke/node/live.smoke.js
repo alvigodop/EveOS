@@ -51,6 +51,10 @@ export async function runLiveSmokes() {
       publisher.send({ type: 'metadata', metadata: { title: 'Song', queue: [{ id: '1', title: 'Track', localPath: 'private' }], localPath: 'private' } });
       await viewer.take('metadata');
       const meta = await viewer.take('metadata'); assert.equal(meta.metadata.title, 'Song'); assert.ok(!JSON.stringify(meta).includes('private'));
+      for (const volume of [null, .37, 0]) {
+        publisher.send({type:'metadata', metadata:{pageUrl:'https://www.youtube.com/watch?v=M7lc1UVf-VE',volume}});
+        assert.equal((await viewer.take('metadata')).metadata.volume, volume);
+      }
       viewer.messages.length = 0; viewer.send({ type: 'control', action: 'next' });
       assert.match((await viewer.take('status')).status, /Only the host/);
       const controller = await connect({ id: live.id, roomId: 'LIVEA', memberId: host.memberId }); await controller.take('ready');

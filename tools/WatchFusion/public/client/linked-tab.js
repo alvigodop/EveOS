@@ -4,6 +4,8 @@
   let lastMirrorAnchor=null,mirrorInFlight=false,queuedMirror=null;
   let lastTransportTiming=null, lastSampleAt=0, lastSampleUrl="", playbackEchoUntil=0;
   const pendingControls=new Map();
+  const VOLUME_ECHO_TTL_MS = 3000;
+  let queuedVolume = null, volumeTimer = null;
 
 
   function active(){return !!link;}
@@ -30,16 +32,17 @@
     const res=await fetch(apiUrl(path),{method:'POST',headers:{'Content-Type':'application/json',...(session?.memberId?{'x-member-id':session.memberId}:{})},body:JSON.stringify(body)});
     const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.error||data.message||'Linked-tab request failed.');return data;
   }
-  function renderControls(metadata=lastMetadata){
+  function renderControls(metadata=applyPendingControls(lastMetadata,{})){
     if(!active())return;
     document.querySelector('.watch-shell')?.classList.add('linked-tab-active');
     const controls=$('liveControls');if(controls)controls.hidden=false;
     $('liveVideo').hidden=true;$('liveListen').hidden=true;$('liveStats').hidden=true;$('liveAudioSyncWrap').hidden=true;$('liveQueueTools').hidden=true;$('liveQueueWrap').hidden=true;
     $('liveTitle').textContent=metadata.title||'Attached tab';$('liveGroup').textContent='State link';
-    $('liveToggle').textContent=metadata.paused?'Play':'Pause';$('liveTime').textContent=`${clock(metadata.currentTime)} / ${clock(metadata.duration)}`;
+    $('liveToggle').textContent=metadata.paused!==false?'Play':'Pause';$('liveTime').textContent=`${clock(metadata.currentTime)} / ${clock(metadata.duration)}`;
     if(document.activeElement!==$('liveSeek')){$('liveSeek').max=metadata.duration||0;$('liveSeek').value=metadata.currentTime||0;}
     if(document.activeElement!==$('liveRate'))$('liveRate').value=String(metadata.rate||1);
-    if(document.activeElement!==$('liveVolume'))$('liveVolume').value=metadata.volume??1;
+    const volume = $('liveVolume');
+    volume.value = queuedVolume ?? metadata.volume ?? ((state?.playback?.volume ?? playerAudioPrefs.volume ?? 100) / 100);
     for(const button of controls.querySelectorAll('[data-live-action]'))button.disabled=!canControl();
     for(const id of ['liveSeek','liveRate','liveVolume'])$(id).disabled=!canControl();
     $('liveStop').hidden=false;$('linkTabBtn').textContent='Unlink playing tab';$('linkTabBtn').setAttribute('aria-pressed','true');
@@ -52,25 +55,78 @@
   }
   function control(action,value){
     if(!peer||!canControl())return false;
-    const numeric=Number(value)||0;
-    if(['seek','play','pause','rate','volume'].includes(action))pendingControls.set(action,{value:numeric,at:performance.now(),sampledAt:Date.now()});
+    if (action === 'toggle') {
+      const transport = applyPendingControls(lastMetadata,{});
+      action = transport.paused !== false ? 'play' : 'pause';
+      value = window.WatchFusionLinkedPlaybackSync.projectedPosition(transport);
+    }
+    const numeric = ['prev','next'].includes(action) ? 0 : Number(value);
+    if (!Number.isFinite(numeric)) return false;
+    if (action === 'volume' && (pendingControls.get('volume')?.value ?? lastMetadata.volume) === numeric) return true;
+    if (action === 'play' || action === 'pause') pendingControls.delete(action === 'play' ? 'pause' : 'play');
+    if (['seek','play','pause','rate','volume'].includes(action)) {
+      const at = performance.now();
+      pendingControls.set(action,{value:numeric,at,sampledAt:Date.now(),lastSent:at,retries:0});
+    }
     window.watchFusionRoomSyncLog?.note?.('embedded-control',action==='volume' ? {action,volumePct:Math.round(numeric*100)} :
       action==='rate' ? {action,rate:Math.round(numeric*100)/100} : {action,positionMs:Math.round(numeric*1000)});
-    peer.control(action,numeric);return true;
+    peer.control(action,numeric);
+    if (action === 'play' || action === 'pause') renderControls();
+    return true;
   }
+  function queueVolume(value, commit = false) {
+    if (!peer || !canControl() || !Number.isFinite(value)) return;
+    queuedVolume = value;
+    const flush = () => {
+      clearTimeout(volumeTimer);
+      volumeTimer = null;
+      const requested = queuedVolume;
+      queuedVolume = null;
+      if (requested !== null) control('volume',requested);
+    };
+    if (commit) flush();
+    else if (volumeTimer === null) volumeTimer = setTimeout(flush,120);
+  }
+  function clearVolumeDraft() {
+    clearTimeout(volumeTimer);
+    volumeTimer = null;
+    queuedVolume = null;
+  }
+
+  // A source-tab command travels through two peers. Do not silently assume a
+  // volume adjustment succeeded: retry it only twice, until source telemetry
+  // confirms the requested level. Do not retry play/pause/seek commands.
+  function retryVolumeControl() {
+    if (!active() || !peer || !canControl() || document.hidden) return;
+    const pending=pendingControls.get('volume');
+    if (!pending) return;
+    const age=performance.now()-pending.at;
+    if (age > VOLUME_ECHO_TTL_MS) {
+      pendingControls.delete('volume');
+      renderControls();
+      window.watchFusionRoomSyncLog?.note?.('source-volume-unconfirmed',{volumePct:Math.round(pending.value*100)});
+      return;
+    }
+    if (pending.retries >= 2 || performance.now()-pending.lastSent < 650) return;
+    pending.retries++;
+    pending.lastSent=performance.now();
+    peer.control('volume',pending.value);
+  }
+  setInterval(retryVolumeControl, 260);
   function pendingSatisfied(action,pending,metadata){
     if(action==='seek')return Math.abs((Number(metadata.currentTime)||0)-pending.value)<=0.65;
     if(action==='play')return metadata.paused===false;
     if(action==='pause')return metadata.paused===true;
     if(action==='rate')return Math.abs((Number(metadata.rate)||1)-pending.value)<=0.02;
-    if(action==='volume')return Math.abs((Number(metadata.volume)||0)-pending.value)<=0.03;
+    if(action==='volume')return Number.isFinite(metadata.volume) && Math.abs(metadata.volume-pending.value)<=0.03;
     return true;
   }
-  function applyPendingControls(metadata={}){
+  function applyPendingControls(metadata, sample){
     const next={...metadata},now=performance.now();
     for(const [action,pending] of pendingControls){
-      const sampledAfterCommand = Number(metadata.sampledAt) >= pending.sampledAt;
-      if (now - pending.at > CONTROL_ECHO_TTL_MS || (sampledAfterCommand && pendingSatisfied(action,pending,metadata))) {
+      const sampledAfterCommand = Number(sample.sampledAt) >= pending.sampledAt;
+      const expired = now - pending.at > (action === 'volume' ? VOLUME_ECHO_TTL_MS : CONTROL_ECHO_TTL_MS);
+      if ((expired && action !== 'volume') || (sampledAfterCommand && pendingSatisfied(action,pending,sample))) {
         pendingControls.delete(action);
         continue;
       }
@@ -79,7 +135,7 @@
         if(action==='play')next.paused=false;
         if(action==='pause')next.paused=true;
       }else if(action==='rate')next.rate=pending.value;
-      else if(action==='volume')next.volume=pending.value;
+      else if(action==='volume'&&!expired)next.volume=pending.value;
     }
     return next;
   }
@@ -93,6 +149,8 @@
   }
   async function mirrorNow(metadata,force=false){
     if(!active()||!loadedPageUrl)return;
+    const sourceVolume = metadata.volume;
+    const audio = Number.isFinite(sourceVolume) ? {volume:Math.round(sourceVolume * 100),muted:sourceVolume === 0} : {};
     if (roomId && mirrorInFlight) {
       queuedMirror={metadata:{...metadata},force:queuedMirror?.force===true||force};
       return false;
@@ -103,7 +161,7 @@
       reason:plan.reason,paused:!!metadata.paused,positionMs:Math.round(plan.target*1000)});
     if(!roomId){
       if(state?.playback)state.playback={...state.playback,position:plan.target,paused:!!metadata.paused,ended:!!metadata.ended,
-        rate:Number(metadata.rate)||1,volume:Math.max(0,Math.min(100,(Number(metadata.volume)||0)*100)),muted:Number(metadata.volume)===0,updatedAt:Date.now()};
+        rate:Number(metadata.rate)||1,...audio,updatedAt:Date.now()};
       lastMirrorAnchor=plan.anchor;return true;
     }
     const linkedSource=roomProof();
@@ -114,7 +172,7 @@
     try{
       const sourceKey = state?.source?.videoId || state?.source?.url || '';
       const ok=await command('mirror',{linkedSource,sourceKey,position:plan.target,paused:!!metadata.paused,ended:!!metadata.ended,
-        rate:Number(metadata.rate)||1,volume:Math.max(0,Math.min(100,(Number(metadata.volume)||0)*100)),muted:Number(metadata.volume)===0});
+        rate:Number(metadata.rate)||1,...audio});
       if(ok&&link===activeLink&&loadedPageUrl===activePage)lastMirrorAnchor=plan.anchor;
       return ok;
     }catch{
@@ -146,7 +204,9 @@
     if(revision!==resolveRevision)return;
     resolvingUrl='';
     if(ok){
-      loadedPageUrl=value;lastMirrorAnchor=null;queuedMirror=null;pendingControls.clear();
+      loadedPageUrl=value;lastMirrorAnchor=null;queuedMirror=null;
+      if (lastMetadata.pageUrl !== value) clearVolumeDraft();
+      for (const action of pendingControls.keys()) if (action !== 'volume') pendingControls.delete(action);
       if (lastMetadata.pageUrl === value) {
         renderControls(lastMetadata);followLocal(lastMetadata,true);scheduleMirror(lastMetadata,true);
       }
@@ -166,14 +226,18 @@
     lastSampleAt = Number(metadata.sampledAt);
     lastSampleUrl = metadata.pageUrl;
     const previous=lastMetadata;
-    lastMetadata = { ...lastMetadata, ...sample };
+    if (previous.pageUrl && previous.pageUrl !== sample.pageUrl) {
+      clearVolumeDraft();
+      pendingControls.delete('volume');
+    }
+    lastMetadata = { ...lastMetadata, ...sample, volume:Number.isFinite(sample.volume) ? Math.max(0,Math.min(1,sample.volume)) : previous.volume };
     if(previous.pageUrl===sample.pageUrl && previous.paused!==undefined && previous.paused!==sample.paused)
       window.watchFusionRoomSyncLog?.note?.(sample.paused?'source-pause':'source-play',
         {positionMs:Math.round((Number(sample.currentTime)||0)*1000),sampleAgeMs:Math.round(now-Number(sample.sampledAt))});
-    if(previous.pageUrl===sample.pageUrl && Number.isFinite(Number(previous.volume)) &&
-        Math.abs(Number(previous.volume)-Number(sample.volume))>.03)
-      window.watchFusionRoomSyncLog?.note?.('source-volume',{volumePct:Math.round(Number(sample.volume)*100)});
-    const display = applyPendingControls(lastMetadata);
+    if(previous.pageUrl===sample.pageUrl && Number.isFinite(previous.volume) && Number.isFinite(sample.volume) &&
+        Math.abs(previous.volume-sample.volume)>.03)
+      window.watchFusionRoomSyncLog?.note?.('source-volume',{volumePct:Math.round(sample.volume*100)});
+    const display = applyPendingControls(lastMetadata,sample);
     renderControls(display);
     const pageUrl=String(lastMetadata.pageUrl||'');
     if(pageUrl&&pageUrl!==loadedPageUrl){void followUrl(pageUrl);return;}
@@ -205,6 +269,7 @@
   }
   async function stop(options={}){
     if(!link)return true;
+    clearVolumeDraft();
     const old=link;link=null;resolveRevision++;resolvingUrl='';pendingUrl='';loadedPageUrl='';lastMirrorAnchor=null;queuedMirror=null;pendingControls.clear();
     peer?.stop();peer=null;const stopped=await post(`/api/live/${old.id}/stop`,old).catch(()=>null);
     if(stopped?.state&&stopped.state.roomId===roomId&&applyIncomingRoomState(stopped.state))render();
@@ -212,8 +277,8 @@
   }
   function reconnect(){if(!link)return start();connectPeer();return true;}
   $('linkTabBtn').onclick=()=>{void(active()?stop():start());};
-  window.watchFusionLinkedTab={active,promoteToRoom,publishing:()=>!!(roomProof()&&state?.linkedSourceActive),applying:()=>applying || performance.now()<playbackEchoUntil,setApplying,suppressPlaybackEcho,control,start,stop,reconnect,render:renderControls,
+  window.watchFusionLinkedTab={active,promoteToRoom,publishing:()=>!!(roomProof()&&state?.linkedSourceActive),applying:()=>applying || performance.now()<playbackEchoUntil,setApplying,suppressPlaybackEcho,control,queueVolume,start,stop,reconnect,render:renderControls,
     metadata:()=>lastMetadata,pendingControl:action=>active() &&
-      performance.now() - (pendingControls.get(action)?.at ?? -Infinity) <= CONTROL_ECHO_TTL_MS,
+      performance.now() - (pendingControls.get(action)?.at ?? -Infinity) <= (action === 'volume' ? VOLUME_ECHO_TTL_MS : CONTROL_ECHO_TTL_MS),
     diagnostics:()=>({transport:lastTransportTiming})};
 })();

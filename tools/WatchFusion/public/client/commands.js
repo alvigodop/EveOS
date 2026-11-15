@@ -143,7 +143,6 @@ function ensurePlayer(videoId) {
     setStatus(error?.message || 'YouTube player failed to initialize.');
   });
 }
-
 function waitForPlayerCued(videoId, timeoutMs = 2500) {
   const started = performance.now();
   return new Promise((resolve, reject) => {
@@ -161,7 +160,6 @@ function waitForPlayerCued(videoId, timeoutMs = 2500) {
     tick();
   });
 }
-
 function primeYouTubePlayer(force = false) {
   installUserGesturePrime();
   if (!ytPlayer || !ytPlayerReady || primingPlayer) return Promise.resolve();
@@ -228,7 +226,6 @@ function primeYouTubePlayer(force = false) {
     else setTimeout(start, 50);
   });
 }
-
 function onYouTubeError(event) {
   const code = Number(event?.data);
   if (code === 2) return setStatus('YouTube rejected the video ID.');
@@ -241,7 +238,6 @@ function onYouTubeError(event) {
   }
   setStatus(`YouTube error ${code || 'unknown'}`);
 }
-
 function hostPlaybackEventAllowed(playerState) {
   if (!state || primingPlayer || playerInitializing || followsRoomPlayback()) return false;
   if (!applyingRemote) return true;
@@ -256,14 +252,17 @@ function hostPlaybackEventAllowed(playerState) {
 }
 
 function onYouTubeStateChange(event) {
-  if(window.watchFusionLinkedTab?.active?.()&&isHost()){
+  const linked = window.watchFusionLinkedTab;
+  if (linked?.active?.() && isHost()) {
     window.watchFusionYoutubeStability?.observe?.(event.data);
-    if(window.watchFusionLinkedTab?.applying?.())return;
-    const position=Number(ytPlayer?.getCurrentTime?.())||0;
-    if(event.data===YT.PlayerState.PLAYING)window.watchFusionLinkedTab.control('play',position);
-    else if(event.data===YT.PlayerState.PAUSED)window.watchFusionLinkedTab.control('pause',position);
-    else if(event.data===YT.PlayerState.BUFFERING&&window.WatchFusionLinkedPlaybackSync?.positionJumped(position,linkedYoutubePositionSample))window.watchFusionLinkedTab.control('seek',position);
-    if(event.data!==YT.PlayerState.BUFFERING)sampleLinkedYoutubePosition();
+    if (linked.applying?.()) return;
+    const paused = event.data === YT.PlayerState.PAUSED;
+    const position = Number(ytPlayer?.getCurrentTime?.()) || 0;
+    if (paused || event.data === YT.PlayerState.PLAYING) {
+      const matchesSource = linked.metadata?.()?.paused === paused;
+      if (!matchesSource && !linked.pendingControl?.('play') && !linked.pendingControl?.('pause')) linked.control(paused ? 'pause' : 'play', position);
+    } else if (event.data === YT.PlayerState.BUFFERING && window.WatchFusionLinkedPlaybackSync?.positionJumped(position, linkedYoutubePositionSample)) linked.control('seek', position);
+    if (event.data !== YT.PlayerState.BUFFERING) sampleLinkedYoutubePosition(false);
     return;
   }
   if (window.watchFusionYoutubeStability?.observe?.(event.data)) return;
@@ -383,7 +382,7 @@ function syncPlayer(options = {}) {
   if (followsRoomPlayback() && typeof window.applyAdaptiveViewerSync === 'function') {
     // Playback lifecycle ownership stays here. Adaptive sync is a focused
     // viewer-correction service and must not replace this function wholesale.
-    window.applyAdaptiveViewerSync(Boolean(options?.force));
+    window.applyAdaptiveViewerSync(Boolean(options.force), false, options.explicitSync === true);
     return;
   }
 
@@ -406,14 +405,14 @@ function syncPlayer(options = {}) {
   }
 }
 let linkedYoutubePositionSample=null;
-function sampleLinkedYoutubePosition(){
+function sampleLinkedYoutubePosition(forwardSeek = true){
   const linked=window.watchFusionLinkedTab;
   if(!linked?.active?.()||!ytPlayer||!ytPlayerReady||linked.applying?.()||playerInitializing){if(!linked?.active?.())linkedYoutubePositionSample=null;return;}
   const playerState=ytPlayer.getPlayerState?.();
   if(playerState===YT.PlayerState.BUFFERING)return;
   const position=Number(ytPlayer.getCurrentTime?.())||0,now=performance.now(),rate=Number(ytPlayer.getPlaybackRate?.())||1;
   const jumped=window.WatchFusionLinkedPlaybackSync?.positionJumped?.(position,linkedYoutubePositionSample,now)===true;
-  if(jumped&&isHost())linked.control('seek',position);
+  if(forwardSeek&&jumped&&isHost())linked.control('seek',position);
   linkedYoutubePositionSample={position,at:now,playing:playerState===YT.PlayerState.PLAYING,rate};
 }
 setInterval(()=>{observeYouTubeAudio();sampleLinkedYoutubePosition();},250);
@@ -423,7 +422,7 @@ function followAttachedYouTube(metadata = {}, options = {}) {
   const current=Number(ytPlayer.getCurrentTime?.())||0,playerState=ytPlayer.getPlayerState?.();
   const plan=window.WatchFusionLinkedPlaybackSync?.youtubePlan(metadata,playerState,current,options);
   if(!plan)return false;
-  const rate=Math.min(2,Math.max(.25,Number(metadata.rate)||1)),volume=Number(metadata.volume);
+  const rate=Math.min(2,Math.max(.25,Number(metadata.rate)||1)),volume=metadata.volume;
   const rateChanged=Math.abs((Number(ytPlayer.getPlaybackRate?.())||1)-rate)>.01;
   const volumeChanged=Number.isFinite(volume)&&Math.abs((Number(ytPlayer.getVolume?.())||0)-Math.max(0,Math.min(1,volume))*100)>.5;
   if(!plan.seek&&!plan.pause&&!plan.play&&!rateChanged&&!volumeChanged)return true;

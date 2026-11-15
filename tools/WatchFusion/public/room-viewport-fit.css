@@ -1,0 +1,22 @@
+/* Keep the YouTube frame and its controls scrollable in a short EveOS workspace. */
+@media (max-width: 979px), (max-height: 660px) {
+  html:is(.eveos-embedded, .eveos-detached) .watch-shell:has(#playerHost.youtube-active) {
+    display: block;
+    box-sizing: border-box;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-block: 8px;
+  }
+  html:is(.eveos-embedded, .eveos-detached) #mediaStage.player-wrap:has(> #playerHost.youtube-active) {
+    display: block;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
+  html:is(.eveos-embedded, .eveos-detached) .watch-shell.linked-tab-active:has(#playerHost.youtube-active) .live-controls {
+    max-height: none;
+    overflow: visible;
+  }
+}

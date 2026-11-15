@@ -21,7 +21,7 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
     session = { memberId: 'viewer-member' };
     ytPlayerReady = true;
     ytPlayer = {
-      getPlayerState: () => paused ? 2 : 1,
+      getPlayerState: () => paused && resumed ? 2 : 1,
       getVideoData: () => ({ video_id: 'M7lc1UVf-VE' }),
       getCurrentTime: () => current,
       getPlaybackRate: () => currentRate,
@@ -160,7 +160,7 @@ test.describe('Adaptive playback drift regression', () => {
 
   test('small viewer drift does not introduce an aggressive correction', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, { current: 99.97, target: 100, samples: 5 });
+    const calls = await configureViewer(page, { current: 99.97, target: 100, samples: 14, advancing: true });
 
     expect(calls.seek).toEqual([]);
     expect(calls.rates).not.toContain(1.25);
@@ -170,7 +170,7 @@ test.describe('Adaptive playback drift regression', () => {
 
   test('stable fractional sensor drift preserves the host rate without seeking', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, { current: 99.82, target: 100, samples: 5 });
+    const calls = await configureViewer(page, { current: 99.82, target: 100, samples: 14, advancing: true });
 
     expect(calls.seek).toEqual([]);
     expect(calls.rates).toEqual([]);
@@ -250,7 +250,7 @@ test.describe('Adaptive playback drift regression', () => {
 
   test('a large source jump from paused still forces room catch-up', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, {current:80, target:100, resumed:true, resumeFrom:80});
+    const calls = await configureViewer(page, {current:80, target:100, resumed:true, resumeFrom:80, samples:14, advancing:true});
     expect(calls.seek).toHaveLength(1);
     expect(calls.seek[0]).toBeGreaterThanOrEqual(100);
   });
@@ -275,7 +275,7 @@ test.describe('Adaptive playback drift regression', () => {
 
   test('large viewer drift uses one corrective seek instead of a repeated seek loop', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, { current: 97, target: 100, samples: 2 });
+    const calls = await configureViewer(page, { current: 97, target: 100, samples: 14, advancing: true });
 
     expect(calls.seek).toHaveLength(1);
     expect(calls.seek[0]).toBeGreaterThanOrEqual(100);
@@ -345,8 +345,21 @@ test.describe('Adaptive playback drift regression', () => {
       for (let tick = 0; tick < 20; tick++) syncPlayer();
       const buffering = { ...calls, action: window.watchFusionSyncDiagnostics().action };
       playerState = 1;
-      syncPlayer();
-      syncPlayer();
+      const descriptor = Object.getOwnPropertyDescriptor(performance, 'now');
+      const started = performance.now();
+      try {
+        for (let step = 0; step < 15; step++) {
+          Object.defineProperty(performance, 'now', {configurable:true,value:() => started + step * 250});
+          current += .25;
+          state.playback.position += .25;
+          state.playback.updatedAt++;
+          state.playback.projectedAt = Date.now();
+          syncPlayer();
+        }
+      } finally {
+        if (descriptor) Object.defineProperty(performance, 'now', descriptor);
+        else delete performance.now;
+      }
       return { buffering, settled: calls };
     });
     expect(result.buffering).toEqual({ seek: 0, play: 0, action: 'buffering' });
@@ -377,6 +390,7 @@ test.describe('Adaptive playback drift regression', () => {
       ytPlayer = {
         getVideoData: () => ({ video_id: 'M7lc1UVf-VE' }),
         getCurrentTime: () => 96,
+        getPlayerState: () => 1,
         getPlaybackRate: () => 1,
         setPlaybackRate: () => {},
         seekTo: value => seek.push(value),
@@ -387,7 +401,7 @@ test.describe('Adaptive playback drift regression', () => {
         mute: () => {},
         unMute: () => {}
       };
-      syncPlayer({ force: true });
+      document.getElementById('syncBtn').click();
       return seek;
     });
 

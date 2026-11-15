@@ -178,11 +178,11 @@ function render() {
   if($('soloEmptyState'))$('soloEmptyState').hidden=!idleSolo||findMediaPanel?.hidden===false;
   if($('mediaStage'))$('mediaStage').classList.toggle('media-stage-empty',!hasVisualMedia);
   if($('unloadMediaBtn'))$('unloadMediaBtn').hidden=!hasLoadedMedia||(inRoom&&!isHost());
-  if(document.querySelector('.media-status-row')){
-    const statusText=String($('syncStatus')?.textContent||'').trim();
-    const meaningfulStatus=statusText&&statusText!=='Solo mode';
-    document.querySelector('.media-status-row').hidden=idleSolo&&!meaningfulStatus;
-  }
+  document.querySelector('.media-status-row').hidden = !hasLoadedMedia;
+  const idleTools = $('roomIdleOptions');
+  idleTools.hidden = !roomIdleNoMedia;
+  if (!roomIdleNoMedia) idleTools.open = false;
+  for (const button of idleTools.querySelectorAll('[data-room-idle-action]')) button.hidden = $(button.dataset.roomIdleAction).hidden;
   if(nuvioFrame){nuvioFrame.hidden=!nuvioViewVisible;nuvioFrame.style.display=nuvioViewVisible?'block':'none';}
   if(nuvioToolbar)nuvioToolbar.hidden=!nuvioViewVisible;
   if(voxelVisionFrame){voxelVisionFrame.hidden=!isVoxelVision;voxelVisionFrame.style.display=isVoxelVision?'block':'none';}

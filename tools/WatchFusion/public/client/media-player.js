@@ -131,12 +131,12 @@ function refreshMediaAnchor(force = false) {
   mediaAnchorServerTime = at;
 }
 
-function projectedMediaTarget() {
+function projectedMediaTarget(at = estimatedServerNow()) {
   const playback = state?.playback;
   if (!playback) return 0;
   if (playback.paused || playback.ended) return Number(playback.position) || 0;
   if (!mediaAnchorServerTime) refreshMediaAnchor(true);
-  const elapsed = Math.max(0, (estimatedServerNow() - mediaAnchorServerTime) / 1000);
+  const elapsed = Math.max(0, (at - mediaAnchorServerTime) / 1000);
   return Math.max(0, mediaAnchorPosition + elapsed * (Number(playback.rate) || 1));
 }
 
@@ -358,15 +358,17 @@ function replayViewerFromTerminal(target) {
   return true;
 }
 
+function roomMediaTarget(at, duration) {
+  refreshMediaAnchor(false);
+  const delay = state.playback.paused || state.playback.ended ? 0 : (window.watchFusionPresentation?.adjustmentMs?.() ?? 0) * mediaAnchorRate / 1000;
+  const position = projectedMediaTarget(at);
+  return Math.max(0, Math.min((window.watchFusionPlayout?.position(position, 'direct') ?? position) - delay, duration > 0 ? duration : Infinity));
+}
 function syncMediaPlayer(options = {}) {
   if (!roomId || !isMediaSource() || !mediaVideo || !mediaPlayerReady || !followsRoomPlayback()) return;
 
-  refreshMediaAnchor(false);
   const playback = state.playback || {}, video = mediaVideo;
-  const speakerTiming = window.watchFusionPresentation?.active?.();
-  const delay = playback.paused || playback.ended ? 0 : (speakerTiming?.adjustmentMs || 0) * mediaAnchorRate / 1000;
-  const position = projectedMediaTarget();
-  const target = Math.max(0, Math.min((window.watchFusionPlayout?.position(position, 'direct') ?? position) - delay, video.duration > 0 ? video.duration : Infinity));
+  const target = roomMediaTarget(estimatedServerNow(), video.duration);
   const drift = target - currentMediaPosition();
   const baseRate = Math.min(2, Math.max(0.25, Number(playback.rate) || 1));
   const now = performance.now(), force = options.force === true;
@@ -416,7 +418,7 @@ function followAttachedMedia(metadata = {}, options = {}) {
   if (!mediaVideo || !mediaPlayerReady) return false;
   const plan=window.WatchFusionLinkedPlaybackSync?.mediaPlan?.(metadata,currentMediaPosition(),options);
   if(!plan)return false;
-  const volume=Number(metadata.volume),targetVolume=Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):null;
+  const volume=metadata.volume,targetVolume=Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):null;
   const seek=plan.seek&&mediaVideo.readyState>=1;
   const rateChanged=Math.abs((Number(mediaVideo.playbackRate)||1)-plan.rate)>.01;
   const volumeChanged=targetVolume!==null&&Math.abs(mediaVideo.volume-targetVolume)>.01;
@@ -432,6 +434,6 @@ function followAttachedMedia(metadata = {}, options = {}) {
   });
   return true;
 }
-window.mediaPlayback = { ensureSource: ensureMediaSource, sync: syncMediaPlayer, followAttached: followAttachedMedia, position: currentMediaPosition, state: mediaPlaybackState, restore: restoreMediaPlayback, clear: clearMediaPlayer };
+window.mediaPlayback = { ensureSource: ensureMediaSource, sync: syncMediaPlayer, followAttached: followAttachedMedia, position: currentMediaPosition, target: roomMediaTarget, state: mediaPlaybackState, restore: restoreMediaPlayback, clear: clearMediaPlayer };
 setInterval(() => { try { syncMediaPlayer(); } catch {} }, 250);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && roomId && isMediaSource() && followsRoomPlayback()) { refreshMediaAnchor(true); syncMediaPlayer(); } });
