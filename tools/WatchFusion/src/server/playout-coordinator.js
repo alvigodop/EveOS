@@ -36,9 +36,12 @@ export function createPlayoutCoordinator() {
     const fresh = finite(report.sampledAt, receivedAt - 1500, receivedAt + 50);
     const previousReport = latestReport.get(id);
     if (!fresh || (previousReport && report.sampledAt <= previousReport.sampledAt)) return;
-    latestReport.set(id, {at:receivedAt, sampledAt:report.sampledAt, buffering:report.buffering === true, output:report.outputSession});
+    // A viewer under active correction (rate burst, scheduled hold) stays visible as
+    // telemetry but can never vote for, or become, the room reference.
+    const correcting = report.correcting === true;
+    latestReport.set(id, {at:receivedAt, sampledAt:report.sampledAt, buffering:report.buffering === true, output:report.outputSession, correcting});
     let samples = history.get(id);
-    const valid = anchor?.rate > 0 && Number.isFinite(receivedAt) && report.ready && report.playing && !report.buffering &&
+    const valid = !correcting && anchor?.rate > 0 && Number.isFinite(receivedAt) && report.ready && report.playing && !report.buffering &&
       finite(report.positionMs, 0, 1e10) && finite(report.uncertaintyMs, 0, 150);
     const routeChanged = previousReport && previousReport.output !== report.outputSession;
     if (reference?.authority === id && routeChanged) reference = null;
@@ -77,7 +80,7 @@ export function createPlayoutCoordinator() {
   // Use agreement between *independent*, steady room players only when a linked
   // source has no trustworthy phase. Outliers or buffered players cannot vote.
   function peerCohort(now, viewers) {
-    const candidates = [...viewers].filter(id => !history.get(id)?.readings.at(-1)?.hasDeviceOffset)
+    const candidates = [...viewers].filter(id => !history.get(id)?.readings.at(-1)?.hasDeviceOffset && !latestReport.get(id)?.correcting)
       .map(id => estimate(id, now)).filter(value => value && value.uncertaintyMs <= 105);
     let best = null;
     for (let i=0;i<candidates.length;i++) for(let j=i+1;j<candidates.length;j++) {
@@ -133,7 +136,11 @@ export function createPlayoutCoordinator() {
     return {
       segment, reference:reference ? (reference.origin === 'peer-cohort' ? 'peer-cohort' : authority === 'linked' ? 'linked-tab' : 'host-player') : 'room-clock',
       phaseMs:Math.round(reference?.phase ?? 0), uncertaintyMs:reference?.uncertaintyMs ?? null,
-      holdbackMs, authorityBuffering, outputTiming:'speaker-unmeasured'
+      holdbackMs, authorityBuffering, outputTiming:'speaker-unmeasured',
+      // The absolute reference timeline, so a viewer never combines a new room
+      // anchor with a phase that was computed against the previous one.
+      anchorPositionMs:anchor ? Math.round(anchor.positionMs) : null, anchorAt:anchor?.at ?? null, rate:anchor?.rate ?? null,
+      correcting:[...latestReport.values()].filter(item => item.correcting).length
     };
   }
 

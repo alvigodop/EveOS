@@ -80,10 +80,14 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
         ready: report.ready === true, playing: report.playing === true, buffering: report.buffering === true,
         bufferedUntilMs: metric(report.bufferedUntilMs, 0, 1e10),
         recentCorrection: typeof report.recentCorrection === 'string' && /^[a-z-]{1,32}$/.test(report.recentCorrection) ? report.recentCorrection : null,
-        audible: report.audible === true, follows: report.follows === true
+        audible: report.audible === true, follows: report.follows === true, correcting: report.correcting === true
       });
-      if (body.segment === segment && (!report.playing || Math.abs(report.rate - room.playback.rate) <= .041 * room.playback.rate)) entry.playout.observe(member.id, {
-        ...entry.reports.get(member.id), uncertaintyMs: finite(report.rttMs, 0, 200) ? (current.mode === 'youtube' ? 35 : 12) + report.rttMs / 2 : Infinity
+      // Off-rate playback is active correction, not a reason to drop the device:
+      // it remains observed as telemetry while excluded from reference selection.
+      const offRate = report.playing && Math.abs(report.rate - room.playback.rate) > .041 * room.playback.rate;
+      if (body.segment === segment) entry.playout.observe(member.id, {
+        ...entry.reports.get(member.id), correcting: offRate || report.correcting === true,
+        uncertaintyMs: finite(report.rttMs, 0, 200) ? (current.mode === 'youtube' ? 35 : 12) + report.rttMs / 2 : Infinity
       }, at);
     }
   }

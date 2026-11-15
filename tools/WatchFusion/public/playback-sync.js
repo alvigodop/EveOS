@@ -1,8 +1,6 @@
 /* YouTube room sync preserves the room rate and verifies recovery from bounded seeks. */
 (() => {
   const SYNC_TOLERANCE_SEC = 0.15;
-  const SEEK_DRIFT_SEC = 0.42;
-  const BUFFERED_DRIFT_SEC = 0.18;
   const HARD_DRIFT_SEC = 1.5;
   const SEEK_COOLDOWN_MS = 2500;
   const TICK_MS = 250;
@@ -15,7 +13,7 @@
   const DEVICE_TIMING_LIMIT_MS = 1000;
   let deviceDelayMs = normalizeDeviceDelay(storage.get(DEVICE_TIMING_KEY));
   let draftDeviceDelayMs = deviceDelayMs;
-  const autoGovernor = window.WatchFusionLinkedPlaybackSync?.createAutoRoomGovernor?.(); const tvSeekGuard = window.watchFusionSeekHealth;
+  const arbiter = window.watchFusionViewerArbiter;
   let anchorKey = '';
   let anchorPosition = 0;
   let anchorServerTime = 0;
@@ -120,7 +118,6 @@
       if (anchorKey && (changedRate || jumped)) {
         resetDriftSensor('new-anchor');
         resetSeekRecovery();
-        autoGovernor?.reset(viewerScope); tvSeekGuard?.reset(viewerScope, !anchorRate && rate > 0 && Math.abs(position - anchorPosition) < .75);
       }
     }
     anchorKey = key;
@@ -198,7 +195,7 @@
       }
       setViewerRate(baseRate);
       awaitSeekRecovery(performance.now());
-      autoGovernor?.reset(viewerScope);
+      arbiter?.intent('replay');
       requestViewerPlayback();
       resetDriftSensor('replay');
       return true;
@@ -212,24 +209,38 @@
     awaitingSeekRecovery = true;
     seekCooldownUntil = nowMs + SEEK_COOLDOWN_MS;
   }
+  // Fallback only when the arbiter module is unavailable; intentional actions only.
   function seekViewer(target, baseRate, nowMs, action = 'seek', allowNetwork = true) {
-    const attempt = {scope:viewerScope, nowMs, current:Number(ytPlayer.getCurrentTime?.()), target, action};
-    const intentional = ['manual-sync','transport-seek','viewer-reclaim'].includes(action);
-    if (!intentional && tvSeekGuard && !tvSeekGuard.permit(attempt)) { diagnostics.action = 'seek-guard-hold'; return false; }
     try {
       setViewerRate(baseRate);
       window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
-      const proposed = tvSeekGuard?.seekTarget(attempt) ?? target;
-      const requested = Math.max(0, Math.min(Number(ytPlayer.getDuration?.()) || Infinity, proposed));
-      ytPlayer.seekTo(requested, allowNetwork);
-      correctiveSeeks++; tvSeekGuard?.record({...attempt, requested});
+      ytPlayer.seekTo(Math.max(0, Math.min(Number(ytPlayer.getDuration?.()) || Infinity, target)), allowNetwork);
+      correctiveSeeks++;
     } catch { return false; }
     awaitSeekRecovery(nowMs, action === 'viewer-reclaim');
-    if (intentional) autoGovernor?.reset(viewerScope);
-    autoGovernor?.onSeek(nowMs);
     resetDriftSensor(action);
     setStatus('Catching up…');
     return true;
+  }
+
+  // The only actuator handed to the arbiter: every automatic seek/rate/pause/play passes here.
+  function arbiterIo(baseRate, duration) {
+    return {
+      baseRate, now: () => performance.now(),
+      target: () => youtubeTarget(estimatedServerNow(), duration),
+      current: () => Number(ytPlayer.getCurrentTime?.()), state: () => ytPlayer.getPlayerState?.(),
+      availableRates: () => ytPlayer.getAvailablePlaybackRates?.(),
+      buffered: position => duration * (Number(ytPlayer.getVideoLoadedFraction?.()) || 0) >= position + 1,
+      seek: (position, allowNetwork) => {
+        window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
+        ytPlayer.seekTo(Math.max(0, Math.min(duration || Infinity, position)), allowNetwork);
+        correctiveSeeks++; setStatus('Catching up…');
+      },
+      pause: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.pauseVideo?.(); },
+      play: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.playVideo?.(); },
+      rate: rate => setViewerRate(rate),
+      sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.()
+    };
   }
 
   function applyViewerCorrection(force = false, bufferedOnly = false, explicitSync = false) {
@@ -240,10 +251,13 @@
     const sameSource = viewerScope && scope.slice(0, scope.lastIndexOf(':')) === viewerScope.slice(0, viewerScope.lastIndexOf(':'));
     const ordinaryResume = viewerPausedPosition !== null && !roomPaused && Math.abs(Number(state.playback.position) - viewerPausedPosition) < .75;
     viewerPausedPosition = roomPaused ? Number(state.playback.position) : null;
+    const baseRate = Math.min(2, Math.max(0.25, Number(state.playback.rate) || 1));
+    const duration = Number(ytPlayer.getDuration?.()) || 0;
+    const io = arbiterIo(baseRate, duration);
     if (scope !== viewerScope) {
       transportSeekPending = !!sameSource && !roomPaused && !ordinaryResume;
-      viewerScope = scope; viewerProgress = null;
-      autoGovernor?.reset(scope); tvSeekGuard?.reset(scope, !!sameSource && ordinaryResume);
+      viewerScope = scope;
+      arbiter?.intent(roomPaused ? 'pause' : 'transport', io); arbiter?.tick(scope, performance.now(), io);
       viewerWasBuffering = false;
       viewerSawEnded = !!sameSource && viewerSawEnded;
       resetSeekRecovery();
@@ -254,112 +268,69 @@
     }
     applyRoomAudioState();
     refreshAnchor(false);
-    const baseRate = Math.min(2, Math.max(0.25, Number(state.playback.rate) || 1));
     const current = Number(ytPlayer.getCurrentTime?.()); if (!Number.isFinite(current)) return false;
-    const duration = Number(ytPlayer.getDuration?.()) || 0;
     const target = youtubeTarget(estimatedServerNow(), duration);
     const rawDrift = target - current;
     const absRaw = Math.abs(rawDrift), nowMs = performance.now();
     const playerState = ytPlayer.getPlayerState?.();
     const buffering = playerState === (window.YT?.PlayerState?.BUFFERING ?? 3);
-    const playerEnded = playerState === (window.YT?.PlayerState?.ENDED ?? 0); tvSeekGuard?.observe({scope, nowMs, current, drift:rawDrift, target, rate:baseRate, playing:!roomPaused && playerState === 1, buffering});
+    const playerEnded = playerState === (window.YT?.PlayerState?.ENDED ?? 0);
     const transport = {roomId, videoId:state.source.videoId, epoch:state.presentationEpoch, segment:state.playoutSegment};
-    const startup = roomPaused ? null : window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
-    const catchup = !isHost() && window.watchFusionGentleCatchup;
-    const sourceBuffering = !!window.watchFusionPlayout?.sourceBuffering();
-    const canAdjust = !roomPaused && !force && !transportSeekPending && !startup?.reclaim && !awaitingSeekRecovery
-      && playerState === 1 && startup?.ready === true && !tvSeekGuard?.manualStable(nowMs,rawDrift)
-      && !(tvSeekGuard?.snapshot(nowMs)?.referenceHoldMs > 0);
-    const gentle = catchup?.plan?.({scope,nowMs,drift:rawDrift,baseRate,player:ytPlayer,playable:canAdjust,buffering:buffering || sourceBuffering});
-    try { setViewerRate(gentle?.rate ?? baseRate); } catch {}
     if (roomPaused) {
+      if (arbiter?.owns()) arbiter.intent('pause', io);
+      setViewerRate(baseRate);
       viewerSawEnded = !!state.playback.ended;
       const bufferedEnd = duration * (Number(ytPlayer.getVideoLoadedFraction?.()) || 0);
       const warmPause = !state.playback.ended && target > current && bufferedEnd >= target + .25;
       const pause = window.watchFusionYouTubeStartup?.paused({...transport, position:target, current, buffering:buffering || playerState === 1, force:force && !bufferedOnly, alignBuffered:warmPause, explicitSync});
       try {
         if (pause?.seek) { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); awaitSeekRecovery(nowMs); ytPlayer.seekTo?.(target, pause.allowNetwork); }
-        if (pause?.manual || pause?.reclaim) tvSeekGuard?.record({scope,nowMs,action:pause.manual ? 'manual-sync' : 'viewer-reclaim'});
         if (!playerEnded && playerState !== (window.YT?.PlayerState?.PAUSED ?? 2)
             && (!buffering || !awaitingSeekRecovery)) {
           window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.pauseVideo?.();
         }
       } catch {}
-      viewerProgress = null; resetDriftSensor('paused');
+      resetDriftSensor('paused');
       if (pause && !pause.seek) resetSeekRecovery();
       markStable(); return true;
     }
-    if (!force && (buffering || sourceBuffering)) {
+    // While the arbiter holds the player (scheduled release, rate burst) nothing else may touch it.
+    if (arbiter?.owns() && !force) {
+      const decision = arbiter.tick(scope, nowMs, io);
+      diagnostics.action = decision.reason;
+      if (decision.owned) return true;
+    }
+    if (!arbiter?.owns()) setViewerRate(baseRate);
+    const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
+    if (!force && buffering) {
       if (!viewerWasBuffering) resetDriftSensor('buffering');
-      viewerProgress = null;
-      autoGovernor?.observe({nowMs, current, drift:rawDrift, buffering:true});
+      arbiter?.tick(scope, nowMs, io);
       viewerWasBuffering = true;
       return true;
     }
-    if (viewerWasBuffering) {
-      viewerWasBuffering = false;
-      resetDriftSensor('settling');
-    }
+    if (viewerWasBuffering) { viewerWasBuffering = false; resetDriftSensor('settling'); }
     if (!force && playerEnded && duration > 0 && target >= duration - SYNC_TOLERANCE_SEC) return true;
     if (viewerSawEnded && target <= 1.5 && restartViewerFromEnded(target, baseRate)) return true;
     viewerSawEnded = false;
     if (playerState !== (window.YT?.PlayerState?.PLAYING ?? 1)) { diagnostics.action = startup?.reason || 'viewer-awaiting-play'; requestViewerPlayback(); return true; }
-    if (!force && startup?.ready === false) { sampleDrift(rawDrift, nowMs); diagnostics.action = startup.reason; return true; }
     if (force || transportSeekPending || startup?.reclaim) {
-      if (bufferedOnly) {
-        const bufferedEnd = duration * (Number(ytPlayer.getVideoLoadedFraction?.()) || 0);
-        if (buffering || awaitingSeekRecovery || absRaw < .01 || bufferedEnd < Math.max(current, target) + 1) return false;
-      }
-      const action = explicitSync ? 'manual-sync' : transportSeekPending || force ? 'transport-seek' : 'viewer-reclaim';
-      if (explicitSync && absRaw < .18) { tvSeekGuard?.record({scope,nowMs,action}); transportSeekPending = false; }
-      else if (seekViewer(target, baseRate, nowMs, action, explicitSync ? absRaw >= 1.5 : !bufferedOnly)) transportSeekPending = false;
-      requestViewerPlayback();
+      // Sync me, a host transport change and a scrub reclaim use the same landing-aware rejoin.
+      if (bufferedOnly) { arbiter?.intent('calibration', io); return true; }
+      if (explicitSync && absRaw < .18) arbiter?.intent('manual', io);
+      else if (arbiter) arbiter.rejoinNow(nowMs, io, explicitSync ? 'manual' : force ? 'hydrate' : transportSeekPending ? 'transport' : 'reclaim');
+      else seekViewer(target, baseRate, nowMs, explicitSync ? 'manual-sync' : 'transport-seek');
+      transportSeekPending = false;
+      window.watchFusionYouTubeStartup?.seekIssued?.(!!startup?.reclaim);
+      diagnostics.action = arbiter?.snapshot().reason || 'transport-seek';
       return true;
     }
-    const sensor = sampleDrift(rawDrift, nowMs);
-    const filteredAbs = Math.abs(sensor.filteredDriftSec);
-    const playing = playerState === (window.YT?.PlayerState?.PLAYING ?? 1);
-    const governorDecision = autoGovernor?.observe({nowMs, current,
-      drift:sensor.filteredDriftSec, playing, buffering, stable:sensor.stable});
-    const advancing = playing && viewerProgress && current > viewerProgress.current
-      && current - viewerProgress.current < 1 && nowMs > viewerProgress.nowMs && nowMs - viewerProgress.nowMs <= 1000;
-    if (playing && (!viewerProgress || current !== viewerProgress.current)) viewerProgress = {current, nowMs};
-    if (awaitingSeekRecovery) {
-      if (governorDecision?.settled || (nowMs >= seekCooldownUntil && (governorDecision?.retry || tvSeekGuard?.canRetry(nowMs)))) {
-        resetSeekRecovery();
-        if (governorDecision.settled) {
-          resetDriftSensor('aligned'); markStable();
-          requestViewerPlayback(); return true;
-        }
-      } else {
-        diagnostics.action = governorDecision?.reason || 'waiting-for-player';
-        const message = nowMs < seekCooldownUntil ? 'Catching up…'
-          : filteredAbs >= SEEK_DRIFT_SEC ? 'Playback is behind · use Sync me to catch up' : 'Connected · playback timing is settling';
-        if ($('syncStatus')?.textContent !== message) setStatus(message);
-        requestViewerPlayback();
-        return true;
-      }
-    }
-    if (gentle?.hold || (gentle && !canAdjust && absRaw <= 1.5 && !tvSeekGuard?.manualStable(nowMs,rawDrift))) {
-      if (gentle.bufferedRejoin && duration * (Number(ytPlayer.getVideoLoadedFraction?.()) || 0) >= Math.max(current,target) + 1.5 &&
-          seekViewer(target,baseRate,nowMs,'buffered-seek',false)) catchup.noteBufferedRejoin();
-      if (!awaitingSeekRecovery) { markStable(); diagnostics.action = gentle.reason; }
-      requestViewerPlayback(); return true;
-    }
-    const hardConsistent = sensor.sampleCount >= 2
-      && driftSamples.slice(-2).every(sample => Math.sign(sample.drift) === Math.sign(sensor.filteredDriftSec));
-    if (filteredAbs >= HARD_DRIFT_SEC && hardConsistent && !awaitingSeekRecovery) {
-      seekViewer(target, baseRate, nowMs, 'hard-seek');
-    } else if (sensor.stable && filteredAbs >= SEEK_DRIFT_SEC && !awaitingSeekRecovery) {
-      seekViewer(target, baseRate, nowMs, 'stable-seek');
-    } else if (!awaitingSeekRecovery && advancing && sensor.stable && sensor.spreadSec <= .09
-        && filteredAbs >= (window.watchFusionPlayout?.bufferedThreshold() ?? BUFFERED_DRIFT_SEC)
-        && duration * (Number(ytPlayer.getVideoLoadedFraction?.()) || 0) >= Math.max(current, target) + 1) {
-      seekViewer(target, baseRate, nowMs, 'buffered-seek', false);
-    } else {
-      markStable();
-    }
-
+    sampleDrift(rawDrift, nowMs);
+    if (startup?.ready === false && !arbiter?.owns()) { diagnostics.action = startup.reason; requestViewerPlayback(); return true; }
+    const decision = arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
+    diagnostics.action = decision.reason;
+    if (decision.owned) return true;
+    markStable();
+    diagnostics.action = decision.reason;
     requestViewerPlayback();
     return true;
   }
@@ -369,7 +340,7 @@
     ...diagnostics,
     correctiveSeeks,
     replayLoads,
-    autoSync: autoGovernor?.snapshot() || null, seekGuard: tvSeekGuard?.snapshot() || null,
+    arbiter: arbiter?.snapshot() || null, seekGuard: null,
     deviceDelayMs: hasDeviceTiming() ? deviceDelayMs : 0,
     revision: state?.revision ?? null,
     playerState: ytPlayer?.getPlayerState?.() ?? null,
@@ -430,6 +401,14 @@
       else { hostPositionSample = null; applyViewerCorrection(false); }
     } catch {}
   }, TICK_MS);
+
+  // Timestamp position changes finely so held getCurrentTime() values can be projected.
+  setInterval(() => {
+    try {
+      if (roomId && followsRoomPlayback() && ytPlayerReady && ytPlayer?.getPlayerState?.() === 1)
+        arbiter?.observePosition(performance.now(), Number(ytPlayer.getCurrentTime?.()));
+    } catch {}
+  }, 50);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {

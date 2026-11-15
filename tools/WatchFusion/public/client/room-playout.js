@@ -38,12 +38,26 @@
     return lease.value;
   }
 
+  // The coordinator's anchor and phase always travel together. Using them as one
+  // absolute timeline keeps the target continuous when the room anchor is
+  // republished before the next coordination lease arrives (v13).
+  function sameAnchor(current) {
+    const p = state?.playback;
+    return p && Number.isFinite(current.anchorPositionMs) && Number.isFinite(current.anchorAt) && current.rate > 0 &&
+      Math.abs(current.rate - (Number(p.rate) || 1)) < .001;
+  }
   function adjustedPosition(position, mode) {
     const current = target();
     if (!current) return position;
     // A phase report is in units of media time. Holdback is measured in wall time.
     const phase = current.phaseMs / 1000;
     const holdback = mode === 'direct' ? current.holdbackMs / 1000 * state.playback.rate : 0;
+    if (sameAnchor(current)) {
+      const now = typeof estimatedServerNow === 'function' ? estimatedServerNow() : Date.now();
+      const absolute = (current.anchorPositionMs + (now - current.anchorAt) * current.rate) / 1000 + phase;
+      // Only bridge a republished anchor; a real transport change starts a new segment.
+      if (Math.abs(absolute - (position + phase)) < .6) return Math.max(0, absolute - holdback);
+    }
     return Math.max(0, position + phase - holdback);
   }
 

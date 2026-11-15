@@ -189,7 +189,8 @@ test('millisecond viewer drift never speeds the phone up', async ({ page }) => {
   expect(result.rates).not.toContain(1.25);
   expect(result.seeks).toHaveLength(0);
   expect(result.diagnostics?.filteredDriftSec).toBeGreaterThan(0.2);
-  expect(result.diagnostics?.action).toBe('observing-sustained-200ms-drift');
+  // Fixed-rate phone: the sustained drift is still being observed, not chased.
+  expect(result.diagnostics?.action).toBe('observing');
 });
 
 test('server clock sensor replaces one bad sample with low-latency median', async ({ page }) => {

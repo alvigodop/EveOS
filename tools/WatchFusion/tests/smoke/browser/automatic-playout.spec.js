@@ -136,7 +136,7 @@ test('linked source and mixed viewers synchronize with diagnostics closed and mi
   }
 });
 
-test('a buffered TV pause aligns once and explicit Sync me preserves stable resume', async ({ page }) => {
+test('a buffered TV pause aligns once and an ineffective correction stays bounded', async ({ page }) => {
   await page.goto('/');
   const observed = await page.evaluate(() => {
     const wall = Date.now(), realDateNow = Date.now;
@@ -174,7 +174,7 @@ test('a buffered TV pause aligns once and explicit Sync me preserves stable resu
         current = 30 + (t - 500) / 1000 - .26;
         syncPlayer();
       }
-      const stable = window.watchFusionSyncDiagnostics().seekGuard;
+      const stable = window.watchFusionSyncDiagnostics().arbiter;
       const afterStable = seeks.length;
       state.playoutSegment++;
       state.playback = {...state.playback, position:90, updatedAt:wall+t, projectedAt:wall+t};
@@ -189,13 +189,15 @@ test('a buffered TV pause aligns once and explicit Sync me preserves stable resu
     }
   });
   expect(observed.pausedAlignment).toEqual([{target:30, network:false}]);
-  expect(observed.afterStable).toBe(1);
-  expect(observed.stable.reason).toBe('verified-manual-sync-phase-hold');
+  // A player whose corrections never land (this fixture overwrites its position)
+  // gets a bounded number of attempts with backoff, never a seek loop.
+  expect(observed.afterStable).toBeLessThanOrEqual(4);
+  expect(observed.stable.failures).toBeGreaterThanOrEqual(1);
   expect(observed.hostSeekApplied).toBe(true);
 });
 
 
-test('Sync me on a paused lagging TV does not request new media or bless the old phase', async ({ page }) => {
+test('Sync me on a paused lagging TV does not request new media or bless the old phase, then rejoins once', async ({ page }) => {
   await page.goto('/');
   const result = await page.evaluate(() => {
     const epoch = Date.now();
@@ -225,8 +227,8 @@ test('Sync me on a paused lagging TV does not request new media or bless the old
         time = 30 + now / 1000 - .712;
         syncPlayer();
       }
-      const seekGuard = window.watchFusionSyncDiagnostics().seekGuard;
-      return {pauseSeeks, recoveryAttempts:seeks.length-pauseSeeks.length, seekGuard};
+      const arbiter = window.watchFusionSyncDiagnostics().arbiter;
+      return {pauseSeeks, recoveryAttempts:seeks.length-pauseSeeks.length, arbiter};
     } finally {
       Date.now = dateNow;
       if (perfNow) Object.defineProperty(performance,'now',perfNow);
@@ -234,8 +236,10 @@ test('Sync me on a paused lagging TV does not request new media or bless the old
     }
   });
   expect(result.pauseSeeks).toEqual([{at:30,network:false}]);
-  expect(result.seekGuard.reason).not.toBe('verified-manual-sync-phase-hold');
-  expect(result.recoveryAttempts).toBe(0);
+  // The old phase is not blessed: a real 712 ms lag gets one landing-aware rejoin
+  // (pause, seek ahead in the buffer, scheduled release), never a network chase.
+  expect(result.recoveryAttempts).toBe(1);
+  expect(result.arbiter.rejoins).toBe(1);
 });
 
 test('a local viewer scrub returns to the paused and playing room positions', async ({ page }) => {

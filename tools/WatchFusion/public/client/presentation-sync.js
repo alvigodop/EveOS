@@ -66,7 +66,7 @@
       buffering: direct ? media.seeking || media.readyState < 3 : ytState === 3,
       ready: direct ? !!mediaPlayerReady : !!ytPlayerReady && !playerInitializing && !primingPlayer,
       audible: volume > .01 && (direct ? !media.muted : media.isMuted?.() === false),
-      outputSession, follows: !isHost() && following, adjustmentMs,
+      outputSession, follows: !isHost() && following, adjustmentMs, correcting: !direct && window.watchFusionViewerArbiter?.correcting?.() === true,
       videoFrameOffsetMs: direct && videoFrame && performance.now() - videoFrame.at < 500 ? videoFrame.offset : null,
       rttMs: window.watchPartyClock.rttMs(), offsetMs: window.watchPartyClock.offsetMs(),
       corrections: diagnostics?.correctiveSeeks ?? null, recentCorrection: diagnostics?.action ?? null, sourceAgeMs,

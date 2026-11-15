@@ -50,10 +50,12 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
       calls.seek.length = 0;
     }
     const descriptor = Object.getOwnPropertyDescriptor(performance, 'now');
-    const began = performance.now();
+    const began = performance.now(), wall = Date.now(), realDateNow = Date.now;
     try {
       for (let index = 0; index < samples; index++) {
+        // Wall and monotonic clocks advance together, as they do on a real device.
         Object.defineProperty(performance, 'now', { configurable: true, value: () => began + index * 250 });
+        Date.now = () => wall + index * 250;
         if (advancing && index > 0 && !calls.seek.length) {
           current += .25 * rate - (index > 9 && index < 28 ? lagPerTick : 0);
           state.playback.position += .25 * rate;
@@ -63,6 +65,7 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
         syncPlayer();
       }
     } finally {
+      Date.now = realDateNow;
       if (descriptor) Object.defineProperty(performance, 'now', descriptor);
       else delete performance.now;
     }
@@ -167,7 +170,7 @@ test.describe('Adaptive playback drift regression', () => {
     expect(calls.seek).toEqual([]);
     expect(calls.rates).not.toContain(1.25);
     expect(calls.diagnostics.stable).toBe(true);
-    expect(calls.diagnostics.action).toBe('near-synchronized');
+    expect(['observing', 'locked']).toContain(calls.diagnostics.action);
   });
 
   test('stable fractional sensor drift preserves the host rate without seeking', async ({ page }) => {
@@ -178,24 +181,26 @@ test.describe('Adaptive playback drift regression', () => {
     expect(calls.rates).toEqual([]);
     expect(calls.diagnostics.stable).toBe(true);
     expect(calls.diagnostics.filteredDriftSec).toBeGreaterThan(0.15);
-    expect(calls.diagnostics.action).toBe('near-synchronized');
+    expect(['observing', 'locked']).toContain(calls.diagnostics.action);
   });
 
-  test('a steady 600 ms post-resume phase does not trigger a corrective seek', async ({ page }) => {
+  // v13 policy: a steady 600 ms error is a real error (the target is <=200 ms), so it
+  // is corrected by a landing-aware rejoin. This fixture freezes after any seek, so
+  // every attempt fails: the arbiter must back off and suspend, never loop.
+  test('a steady 600 ms post-resume phase is corrected with bounded attempts', async ({ page }) => {
     await page.goto('/');
     const calls = await configureViewer(page, { current: 99.4, target: 100, samples: 90, advancing: true, resumed: true });
-    expect(calls.seek).toEqual([]);
+    expect(calls.seek.length).toBeGreaterThanOrEqual(1);
+    expect(calls.seek.length).toBeLessThanOrEqual(3);
     expect(calls.rates).toEqual([]);
-    expect(calls.diagnostics.seekGuard.phaseBiasMs).toBeCloseTo(600, -1);
-    expect(calls.diagnostics.seekGuard.attempts).toBe(0);
-    expect(calls.diagnostics.action).toBe('rate-unavailable-keep-playing');
+    expect(calls.diagnostics.arbiter.rejoins).toBe(calls.seek.length);
   });
 
   test('persistent lag growth can trigger one guarded correction after resume', async ({ page }) => {
     await page.goto('/');
     const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:90, lagPerTick:.03});
     expect(calls.seek).toHaveLength(1);
-    expect(calls.diagnostics.seekGuard.attempts).toBe(1);
+    expect(calls.diagnostics.arbiter.rejoins).toBe(1);
   });
 
   for (const succeeds of [true, false]) {
@@ -231,7 +236,7 @@ test.describe('Adaptive playback drift regression', () => {
             }
           };
           for (t = 0; t <= 120000; t += 250) syncPlayer();
-          return {seeks, reloads, drift, health:window.watchFusionSyncDiagnostics().seekGuard};
+          return {seeks, reloads, drift, health:window.watchFusionSyncDiagnostics().arbiter};
         } finally {
           Date.now = realDateNow;
           if (realPerformanceNow) Object.defineProperty(performance, 'now', realPerformanceNow);
@@ -239,13 +244,21 @@ test.describe('Adaptive playback drift regression', () => {
         }
       }, succeeds);
       expect(result.reloads).toBe(0);
-      expect(result.seeks).toHaveLength(1);
-      expect(result.seeks[0].t).toBeGreaterThanOrEqual(5200);
-      expect(result.seeks[0].lead).toBeCloseTo(0, 3);
-      expect(result.seeks[0].network).toBe(false);
-      expect(result.health.fineAttempts).toBe(1);
-      if (succeeds) expect(result.drift).toBeLessThan(.20);
-      else expect(result.drift).toBeCloseTo(1.19);
+      // Never on the first samples: the error must be observed over a stable window.
+      expect(result.seeks[0].t).toBeGreaterThanOrEqual(1400);
+      // A rejoin seeks AHEAD of the room within the buffer and releases on schedule.
+      expect(result.seeks.every(seek => seek.lead > 0 && seek.network === false)).toBe(true);
+      if (succeeds) {
+        expect(result.seeks).toHaveLength(1);
+        expect(result.drift).toBeLessThan(.20);
+      } else {
+        // Corrections that never land back off with growing gaps, then suspend.
+        expect(result.seeks.length).toBeLessThanOrEqual(3);
+        for (let i = 2; i < result.seeks.length; i++)
+          expect(result.seeks[i].t - result.seeks[i-1].t).toBeGreaterThan(result.seeks[i-1].t - result.seeks[i-2].t);
+        expect(result.health.phase).toBe('suspended');
+        expect(result.drift).toBeCloseTo(1.19);
+      }
     });
   }
 
@@ -282,7 +295,10 @@ test.describe('Adaptive playback drift regression', () => {
     expect(calls.seek[0]).toBeGreaterThanOrEqual(100);
   });
 
-  test('a TV that lands 2.3 seconds behind can recover after two failed seeks', async ({ page }) => {
+  // v13 policy: seeks that never land are bounded (backoff, then suspend) instead of
+  // escalating into ever-larger blind seeks; recovery of keyframe-snapping players is
+  // covered by the sync lab's landing models (SYNC-01, SYNC-11, SYNC-12).
+  test('a TV whose seeks never land gets bounded attempts and no reloads', async ({ page }) => {
     await page.goto('/');
     const result = await page.evaluate(() => {
       const wall = Date.now();
@@ -311,15 +327,13 @@ test.describe('Adaptive playback drift regression', () => {
         }
       };
       for (t = 0; t <= 110000; t += 250) syncPlayer();
-      return {seeks, reloads, health:window.watchFusionSyncDiagnostics().seekGuard};
+      return {seeks, reloads, health:window.watchFusionSyncDiagnostics().arbiter};
     });
     expect(result.reloads).toBe(0);
-    expect(result.seeks).toHaveLength(3);
-    expect(result.seeks.slice(0,2).every(seek => Math.abs(seek.lead) < .01)).toBe(true);
-    expect(result.seeks[2].lead).toBeCloseTo(1.955, 2);
-    expect(result.seeks[2].t - result.seeks[1].t).toBeGreaterThanOrEqual(24000);
-    expect(result.health.recoveryAttempts).toBe(1);
-    expect(result.health.failures).toBe(0);
+    expect(result.seeks.length).toBeGreaterThanOrEqual(1);
+    expect(result.seeks.length).toBeLessThanOrEqual(3);
+    expect(result.seeks.every(seek => seek.lead > 0)).toBe(true);
+    expect(result.health.failures).toBeGreaterThanOrEqual(1);
   });
 
   test('a buffering TV that is room host follows the linked timeline without repeated play or seek', async ({ page }) => {

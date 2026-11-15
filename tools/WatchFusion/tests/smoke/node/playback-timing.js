@@ -120,10 +120,9 @@ export async function runPlaybackTimingChecks(check) {
     assert.ok(ping.serverReceivedAt > 0 && ping.serverTime >= ping.serverReceivedAt);
   });
 
-  await check('TIMING-25:stalled-youtube-viewer-does-not-loop-seeks', () => {
+  await check('TIMING-25:arbiter-owns-viewer-correction-and-device-timing-never-moves-the-room', () => {
     let elapsed = 0, position = 90, playerState = 1;
-    const seeks = [], network = [];
-    let roundToKeyframe = false;
+    const seeks = [], pauses = [];
     const status = { textContent: '' };
     const elements = new Map([['syncStatus', status]]);
     for (const id of ['devicePlaybackTiming', 'deviceTimingSummary', 'deviceTimingValue',
@@ -138,8 +137,7 @@ export async function runPlaybackTimingChecks(check) {
       ytPlayer: {
         getCurrentTime: () => position, getPlayerState: () => playerState,
         getPlaybackRate: () => 1, getDuration: () => 250, getVideoLoadedFraction: () => 1,
-        seekTo: (value, allowNetwork) => { seeks.push(value); network.push(allowNetwork); if (roundToKeyframe) position = Math.floor(value * 2) / 2 - .5; },
-        pauseVideo: () => { playerState = 2; }
+        seekTo: value => { seeks.push(value); }, pauseVideo: () => { pauses.push(elapsed); playerState = 2; }, playVideo() {}
       },
       window: { YT: { PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 } } },
       followsRoomPlayback: () => true, isHost: () => false, isTryCloudflare: false,
@@ -148,10 +146,13 @@ export async function runPlaybackTimingChecks(check) {
       applyRoomAudioState() {}, requestViewerPlayback() {}, render() {},
       syncPlayer: options => context.window.applyAdaptiveViewerSync(options.force),
       $: id => elements.get(id), setStatus: value => { status.textContent = value; },
-      setInterval() {}, document: { addEventListener() {} }
+      setInterval() {}, setTimeout() { return 0; }, clearTimeout() {}, document: { addEventListener() {} }
     };
     context.globalThis = context.window;
-    for (const script of ['client/linked-playback-sync.js', 'client/youtube-startup-gate.js', 'playback-sync.js']) {
+    const bundle = fs.readFileSync(path.join(CLIENT, '..', '..', 'src', 'server', 'static-files.js'), 'utf8');
+    assert.match(bundle, /'client\/viewer-sync-arbiter\.js',\s*'playback-sync\.js'/, 'the arbiter loads before the viewer path');
+    assert.doesNotMatch(bundle, /gentle-catchup|sync-seek-health/, 'retired controllers cannot actuate the player');
+    for (const script of ['client/linked-playback-sync.js', 'client/youtube-startup-gate.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js']) {
       vm.runInNewContext(fs.readFileSync(path.join(CLIENT, '..', script), 'utf8'), context);
     }
     const tickViewer = context.window.applyAdaptiveViewerSync;
@@ -159,95 +160,40 @@ export async function runPlaybackTimingChecks(check) {
       if (elapsed === 5000) Object.assign(playback, { position: 105, updatedAt: 15000, projectedAt: 15000 });
       tickViewer();
     }
-    assert.equal(seeks.length, 0, 'a stalled clock never seeks after an equivalent room anchor');
+    assert.equal(seeks.length, 0, 'a frozen clock reporting PLAYING never triggers a correction');
     assert.equal(context.window.watchFusionSyncDiagnostics().startup.reason, 'viewer-warming-after-play');
 
     tickViewer(true);
-    assert.equal(seeks.length, 1, 'manual Sync me bypasses the seek latch');
-    context.state.playoutSegment++;
-    Object.assign(playback, { position: 60, updatedAt: 19000, projectedAt: 19000 });
+    assert.equal(seeks.length, 1, 'a forced transport alignment of a large lag is one rejoin');
+    assert.ok(seeks[0] > 10000 / 1000 + 100 - 1 && pauses.length === 1, 'the rejoin pauses and seeks ahead of the room');
+    assert.equal(context.window.watchFusionSyncDiagnostics().arbiter.owned, true, 'the arbiter owns the player until release');
     tickViewer();
-    assert.equal(seeks.length, 1, 'a genuine source jump still waits for progress');
-    elapsed += 3000;
-    playerState = 3;
-    tickViewer();
-    tickViewer();
-    assert.equal(seeks.length, 1, 'buffering still owns recovery');
-    playerState = 1;
-    for (let tick = 0; tick < 17; tick++) {
-      elapsed += 250;
-      position = 60 + (elapsed - 9000) / 1000;
-      tickViewer();
-    }
-    assert.equal(seeks.length, 2, 'the queued transport seek runs once after playback advances');
+    assert.equal(seeks.length, 1, 'no other controller re-seeks a held player');
 
     context.state.playoutSegment++;
     Object.assign(playback, { position: 60, paused: true, updatedAt: 26001, projectedAt: 26001 });
     tickViewer();
-    tickViewer();
-    assert.equal(seeks.length, 2, 'ordinary pause preserves the current buffer');
-    assert.equal(playerState, 2);
-
-    position = 60;
-    context.state.playoutSegment++;
-    Object.assign(playback, { position: 59, updatedAt: 26002, projectedAt: 26002 });
-    tickViewer();
-    assert.equal(seeks.length, 3, 'subsequent paused seeks still follow the host');
+    assert.equal(context.window.watchFusionSyncDiagnostics().arbiter.owned, false, 'a room pause cancels the held rejoin');
 
     playerState = 1;
+    position = 60;
     elapsed = 16000;
     Object.assign(playback, { position: 60, paused: false, rate: 2, updatedAt: 26000, projectedAt: 26000 });
+    context.state.playoutSegment++;
     context.render();
+    const before = context.window.watchFusionYouTubeTarget(26000, 250);
     elements.get('deviceTimingEarlier').click();
     elements.get('deviceTimingEarlier').click();
-    assert.equal(seeks.length, 3, 'staging device timing never seeks');
+    const staged = seeks.length;
+    assert.equal(context.window.watchFusionYouTubeTarget(26000, 250), before, 'staging device timing changes nothing');
     elements.get('deviceTimingApply').click();
-    assert.ok(Math.abs(seeks.at(-1) - 60.1) < 1e-8, '50 ms earlier advances 100 ms on the 2x media timeline');
-    assert.equal(seeks.length, 4, 'Apply requests one local seek');
+    assert.ok(Math.abs(context.window.watchFusionYouTubeTarget(26000, 250) - before - .1) < 1e-8, '50 ms earlier is 100 ms of media at 2x');
+    assert.equal(seeks.length, staged, 'a small device-timing change is corrected by observation, not a blind seek');
     assert.equal(playback.position, 60, 'device timing never changes the shared timeline');
     assert.equal(preferences.get('watchfusion.youtubePlaybackDelayMs'), '-50');
     elements.get('deviceTimingReset').click();
-    assert.equal(seeks.at(-1), 60, 'Reset targets the original room position');
+    assert.equal(context.window.watchFusionYouTubeTarget(26000, 250), before);
     assert.equal(preferences.get('watchfusion.youtubePlaybackDelayMs'), '0');
-
-    context.window.watchFusionPresentation = { adjustmentMs: () => -850 };
-    context.syncPlayer({force:true});
-    assert.ok(Math.abs(seeks.at(-1) - 61.7) < 1e-8, 'calibration overrides the saved manual setting at 2x');
-    assert.equal(preferences.get('watchfusion.youtubePlaybackDelayMs'), '0');
-    delete context.window.watchFusionPresentation;
-
-    // A source change re-arms one in-buffer adjustment at a steady 240 ms lag.
-    context.state = { ...context.state, source: {videoId:'next-video'} };
-    Object.assign(playback, { position: 60, rate: 1, updatedAt: 26000, projectedAt: 26000 });
-    playerState = 1;
-    // Clearing the exact local preference is distinct from changing room state.
-    assert.equal(context.window.watchFusionSyncDiagnostics().deviceDelayMs, 0);
-    const before = seeks.length;
-    for (let tick = 0; tick < 64; tick++) {
-      elapsed = 16000 + tick * 250;
-      position = 60 + tick * .25 - .24;
-      tickViewer();
-    }
-    assert.equal(seeks.length - before, 1, JSON.stringify(context.window.watchFusionSyncDiagnostics()));
-    assert.equal(network.at(-1), false, 'small YouTube corrections cannot request a fresh stream segment');
-    assert.equal(context.window.watchFusionSyncDiagnostics().replayLoads, 0);
-
-    elapsed += 250;
-    context.state.source.videoId = 'keyframe-fixture';
-    Object.assign(playback, { position: 80.12, updatedAt: 10000 + elapsed, projectedAt: 10000 + elapsed });
-    position = 80.12;
-    roundToKeyframe = true;
-    context.window.watchFusionPresentation = { adjustmentMs: () => 15 };
-    const beforeCalibration = seeks.length;
-    tickViewer(true, true);
-    assert.equal(seeks.length - beforeCalibration, 1);
-    assert.equal(network.at(-1), false, 'a small offset only tries an in-buffer seek');
-    assert.ok(Math.abs(seeks.at(-1) - 80.105) < 1e-6);
-    const simulatedLanding = position;
-    playerState = 3;
-    for (let tick = 0; tick < 60; tick++) { elapsed += 250; tickViewer(); }
-    assert.equal(position, simulatedLanding);
-    assert.equal(seeks.length - beforeCalibration, 1, 'keyframe rounding followed by buffering cannot loop');
     assert.equal(context.window.watchFusionSyncDiagnostics().replayLoads, 0);
   });
 

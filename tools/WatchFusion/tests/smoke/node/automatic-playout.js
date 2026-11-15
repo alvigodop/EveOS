@@ -81,4 +81,23 @@ export async function runAutomaticPlayoutChecks(check) {
     assert.equal(sync.segment(),segment+1);
     assert.equal(get(start+3650).reference,'room-clock');
   });
+
+  await check('AUTO-05:a correcting viewer stays observed but can never vote for the reference', () => {
+    const sync = createPlayoutCoordinator(), get = room(sync);
+    sync.transport(play);
+    // No trustworthy linked phase: the room falls back to agreeing peers.
+    feed(sync,'tv',start,[-40,-40,-40,-40,-40,-40]);
+    feed(sync,'phone',start,[-40,-40,-40,-40,-40,-40]);
+    const cohort = get(start + 1800);
+    assert.equal(cohort.reference,'peer-cohort');
+    assert.equal(cohort.phaseMs,-40);
+    // The TV now runs a deliberate catch-up burst (or a scheduled hold).
+    feed(sync,'tv',start + 2100,[400,520,640,760,880,1000],{correcting:true});
+    const during = get(start + 3900);
+    assert.equal(during.correcting,1,'the correction remains visible as telemetry');
+    assert.equal(during.phaseMs,-40,'a deliberately accelerated device never moves the target');
+    assert.ok(Number.isFinite(during.anchorPositionMs) && during.anchorAt === start && during.rate === 1,
+      'the absolute reference timeline travels with the phase');
+  });
+
 }

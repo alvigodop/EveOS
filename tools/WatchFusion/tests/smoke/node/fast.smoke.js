@@ -8,6 +8,7 @@ import { request } from '../helpers/http-client.js';
 import { runPlaybackTimingChecks } from './playback-timing.js';
 import { runPresentationTimingChecks } from './presentation-timing.js';
 import { runAutomaticPlayoutChecks } from './automatic-playout.js';
+import { runSyncLabChecks } from './sync-lab/scenarios.js';
 import { isM3u8Response } from '../../../src/server/media-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -190,8 +191,8 @@ export async function runFastSmoke() {
     assert.match(commands, /!ytPlayer \|\| !ytPlayerReady\)[\s\S]*setTimeout\(tick, 50\)/);
     assert.match(commands, /const forceViewer = followsRoomPlayback\(\)/);
     assert.match(commands, /syncPlayer\(\{ hydrateHost: true, force: forceViewer \}\)/);
-    assert.match(playbackSync, /sensor\.stable && filteredAbs >= SEEK_DRIFT_SEC && !awaitingSeekRecovery/);
-    assert.match(playbackSync, /SENSOR_MIN_SAMPLES = 5/);
+    assert.match(playbackSync, /arbiter\.tick\(scope, nowMs, io\)/);
+    assert.doesNotMatch(playbackSync, /watchFusionGentleCatchup|watchFusionSeekHealth|createAutoRoomGovernor/);
     assert.doesNotMatch(playbackSync, /nearestHigherRate|nearestLowerRate/);
     assert.match(mediaPlayer, /mediaAnchorServerTime/);
     assert.match(mediaPlayer, /mediaEnsurePromise && mediaEnsureUrl === url/);
@@ -250,6 +251,7 @@ export async function runFastSmoke() {
   await runPlaybackTimingChecks(check);
   await runPresentationTimingChecks(check);
   await runAutomaticPlayoutChecks(check);
+  await runSyncLabChecks(check);
 
   await check('FAST-02A:nuvio-browser-plugin-bridge-contract', () => {
     const build = fs.readFileSync(path.join(PROJECT_ROOT, 'scripts', 'BUILD-NUVIO.bat'), 'utf8');
