@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 function configureViewer(page, { current, target = 100, paused = false, rate = 1, samples = 1, currentRate = 1,
-  advancing = false, resumed = false, resumeFrom = target, lagPerTick = 0 }) {
-  return page.evaluate(({ current, target, paused, rate, samples, currentRate, advancing, resumed, resumeFrom, lagPerTick }) => {
+  advancing = false, resumed = false, resumeFrom = target, lagPerTick = 0, advanceAfterSeek = false }) {
+  return page.evaluate(({ current, target, paused, rate, samples, currentRate, advancing, resumed, resumeFrom, lagPerTick, advanceAfterSeek }) => {
     const calls = { seek: [], rates: [], play: 0, pause: 0 };
     roomId = 'drift-room';
     state = {
@@ -56,7 +56,8 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
         // Wall and monotonic clocks advance together, as they do on a real device.
         Object.defineProperty(performance, 'now', { configurable: true, value: () => began + index * 250 });
         Date.now = () => wall + index * 250;
-        if (advancing && index > 0 && !calls.seek.length) {
+        // Without advanceAfterSeek the fake decoder freezes after its first seek (stall-ladder case).
+        if (advancing && index > 0 && (advanceAfterSeek || !calls.seek.length)) {
           current += .25 * rate - (index > 9 && index < 28 ? lagPerTick : 0);
           state.playback.position += .25 * rate;
           state.playback.updatedAt++;
@@ -72,7 +73,7 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
     calls.status = document.querySelector('#syncStatus').textContent;
     calls.diagnostics = window.watchFusionSyncDiagnostics();
     return calls;
-  }, { current, target, paused, rate, samples, currentRate, advancing, resumed, resumeFrom, lagPerTick });
+  }, { current, target, paused, rate, samples, currentRate, advancing, resumed, resumeFrom, lagPerTick, advanceAfterSeek });
 }
 
 test.describe('Adaptive playback drift regression', () => {
@@ -198,9 +199,21 @@ test.describe('Adaptive playback drift regression', () => {
 
   test('persistent lag growth can trigger one guarded correction after resume', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:90, lagPerTick:.03});
+    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:90, lagPerTick:.03,
+      advanceAfterSeek:true});
     expect(calls.seek).toHaveLength(1);
     expect(calls.diagnostics.arbiter.rejoins).toBe(1);
+    expect(calls.diagnostics.arbiter.stallSteps).toBe(0);
+  });
+
+  test('a decoder that freezes after its lag correction gets the bounded stall ladder, not a seek loop', async ({ page }) => {
+    await page.goto('/');
+    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:90, lagPerTick:.03});
+    // One lag rejoin, then the v13.1 ladder: a seekless kick, then exactly one stall rejoin.
+    expect(calls.seek).toHaveLength(2);
+    expect(calls.seek[1]).toBeGreaterThan(calls.seek[0] + 10);
+    expect(calls.diagnostics.arbiter.stallSteps).toBe(2);
+    expect(calls.diagnostics.arbiter.rejoins).toBe(2);
   });
 
   for (const succeeds of [true, false]) {

@@ -239,7 +239,10 @@
       pause: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.pauseVideo?.(); },
       play: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.playVideo?.(); },
       rate: rate => setViewerRate(rate),
-      sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.()
+      sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.(),
+      // Host-driven rooms have no external source: the host transport is the room timeline.
+      // With a linked source, large automatic moves need that source to corroborate the room.
+      referenceTrusted: () => state?.linkedSourceActive !== true || window.watchFusionPlayout?.status?.()?.source === 'live'
     };
   }
 
@@ -325,7 +328,11 @@
       return true;
     }
     sampleDrift(rawDrift, nowMs);
-    if (startup?.ready === false && !arbiter?.owns()) { diagnostics.action = startup.reason; requestViewerPlayback(); return true; }
+    if (startup?.ready === false && !arbiter?.owns()) {
+      // PLAYING with a frozen position never proves movement: the arbiter's bounded ladder recovers it.
+      if (arbiter?.recoverStall?.(nowMs, io, startup.stalledMs)) { diagnostics.action = arbiter.snapshot().reason; return true; }
+      diagnostics.action = arbiter?.snapshot().reason === 'stall-recovery-exhausted' ? 'stall-recovery-exhausted' : startup.reason; requestViewerPlayback(); return true;
+    }
     const decision = arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
     diagnostics.action = decision.reason;
     if (decision.owned) return true;

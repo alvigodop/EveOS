@@ -328,8 +328,13 @@ test('YouTube resume waits for timeline motion and preserves a paused seek throu
       Object.assign(state.playback,{paused:false,updatedAt:Date.now(),projectedAt:Date.now()});
       syncPlayer();
       for (;t<3000;t+=250) syncPlayer();
+      const buffering = {seeks:seeks.length, ...window.watchFusionSyncDiagnostics().startup};
       playerState = 1;
+      // The first 750 ms of PLAYING without motion is ordinary warm-up, not a stall.
+      for (;t<3500;t+=250) syncPlayer();
+      const warming = {seeks:seeks.length, ...window.watchFusionSyncDiagnostics().startup};
       for (;t<7000;t+=250) syncPlayer();
+      // PLAYING for 4 s without the timeline moving: v13.1 names this a stall (bounded ladder).
       const stalled = {seeks:seeks.length, ...window.watchFusionSyncDiagnostics().startup};
       state.playoutSegment++;
       Object.assign(state.playback,{paused:true,position:32,updatedAt:Date.now(),projectedAt:Date.now()});
@@ -341,7 +346,7 @@ test('YouTube resume waits for timeline motion and preserves a paused seek throu
       playerState = 2;
       syncPlayer();
       syncPlayer();
-      return {pausedSeeks, plays, stalled, seeks};
+      return {pausedSeeks, plays, buffering, warming, stalled, seeks};
     } finally {
       Date.now = realWall;
       if (descriptor) Object.defineProperty(performance,'now',descriptor);
@@ -350,7 +355,9 @@ test('YouTube resume waits for timeline motion and preserves a paused seek throu
   });
   expect(observed.pausedSeeks).toBe(0);
   expect(observed.plays).toBe(1);
-  expect(observed.stalled).toMatchObject({seeks:0,startDelayMs:1500,reason:'viewer-warming-after-play'});
+  expect(observed.buffering).toMatchObject({seeks:0,startDelayMs:null,reason:'viewer-resume-buffering'});
+  expect(observed.warming).toMatchObject({seeks:0,startDelayMs:1500,reason:'viewer-warming-after-play'});
+  expect(observed.stalled).toMatchObject({seeks:0,startDelayMs:1500,reason:'viewer-stalled-while-playing'});
   expect(observed.seeks).toEqual([87]);
 });
 

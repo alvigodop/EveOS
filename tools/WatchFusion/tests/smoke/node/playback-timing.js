@@ -137,7 +137,7 @@ export async function runPlaybackTimingChecks(check) {
       ytPlayer: {
         getCurrentTime: () => position, getPlayerState: () => playerState,
         getPlaybackRate: () => 1, getDuration: () => 250, getVideoLoadedFraction: () => 1,
-        seekTo: value => { seeks.push(value); }, pauseVideo: () => { pauses.push(elapsed); playerState = 2; }, playVideo() {}
+        seekTo: value => { seeks.push(value); }, pauseVideo: () => { pauses.push(elapsed); playerState = 2; }, playVideo() { playerState = 1; }
       },
       window: { YT: { PlayerState: { PLAYING: 1, PAUSED: 2, BUFFERING: 3 } } },
       followsRoomPlayback: () => true, isHost: () => false, isTryCloudflare: false,
@@ -160,12 +160,17 @@ export async function runPlaybackTimingChecks(check) {
       if (elapsed === 5000) Object.assign(playback, { position: 105, updatedAt: 15000, projectedAt: 15000 });
       tickViewer();
     }
-    assert.equal(seeks.length, 0, 'a frozen clock reporting PLAYING never triggers a correction');
-    assert.equal(context.window.watchFusionSyncDiagnostics().startup.reason, 'viewer-warming-after-play');
+    // A frozen clock reporting PLAYING is never drift evidence: no seek is computed from it.
+    // Past a slow cold start (6.5 s) the arbiter's bounded stall ladder starts with a
+    // seekless pause/play kick (Nov 15 real-device traces warmed forever without it).
+    assert.equal(seeks.length, 0, 'a frozen clock reporting PLAYING never triggers a seek correction');
+    assert.equal(pauses.length, 1, 'the only action on a frozen PLAYING player is one stall kick');
+    assert.equal(context.window.watchFusionSyncDiagnostics().arbiter.stallSteps, 1);
+    assert.equal(context.window.watchFusionSyncDiagnostics().startup.reason, 'viewer-stalled-while-playing');
 
     tickViewer(true);
     assert.equal(seeks.length, 1, 'a forced transport alignment of a large lag is one rejoin');
-    assert.ok(seeks[0] > 10000 / 1000 + 100 - 1 && pauses.length === 1, 'the rejoin pauses and seeks ahead of the room');
+    assert.ok(seeks[0] > 10000 / 1000 + 100 - 1 && pauses.length === 2, 'the rejoin pauses and seeks ahead of the room');
     assert.equal(context.window.watchFusionSyncDiagnostics().arbiter.owned, true, 'the arbiter owns the player until release');
     tickViewer();
     assert.equal(seeks.length, 1, 'no other controller re-seeks a held player');

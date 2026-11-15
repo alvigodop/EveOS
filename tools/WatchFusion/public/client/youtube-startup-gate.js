@@ -3,10 +3,10 @@
   function createStartupGate() {
     let sourceKey = '', pauseKey = '', wasPaused = false, hadPlayed = false, pausedSeekTolerance = null;
     let activeSegment = '', observedAt = -1, firstPlayingAt = -1;
-    let lastPosition = null, lastProgressAt = -1, advancingSince = -1;
+    let lastPosition = null, lastProgressAt = -1, advancingSince = -1, progressProbe = null;
     let pausedPosition = null, pausedReclaimed = false, manualPause = false;
     let playingSample = null, viewerDisplaced = false, runningReclaimed = false;
-    let startDelayMs = null, pauseSeeks = 0, startupDeferrals = 0, reason = 'idle';
+    let startDelayMs = null, pauseSeeks = 0, startupDeferrals = 0, reason = 'idle', stalledMs = 0;
 
     function source(roomId, videoId, epoch) {
       const next = `${roomId || ''}:${videoId || ''}:${epoch ?? ''}`;
@@ -22,7 +22,7 @@
     }
 
     function resetProgress() {
-      lastPosition = null;
+      lastPosition = progressProbe = null;
       lastProgressAt = advancingSince = -1;
     }
 
@@ -68,7 +68,7 @@
         startDelayMs = null;
       }
       if (!playing || buffering) {
-        resetProgress();
+        resetProgress(); stalledMs = 0;
         reason = buffering ? 'viewer-resume-buffering' : 'viewer-awaiting-play';
         startupDeferrals++;
         return {ready: false, reason};
@@ -84,22 +84,46 @@
           Math.abs(drift) > 8 && Math.abs(drift - playingSample.drift) > 8 &&
           Math.abs(current - playingSample.current) > 3) viewerDisplaced = true;
       playingSample = {at:nowMs, current, drift};
-      // PLAYING can precede actual advancement. Require recent movement at the room rate.
+      // YouTube may jitter or step BACKWARD while its decoder is stopped. Mere
+      // inequality is not playback progress: it previously reset the stall clock
+      // indefinitely on TVs, leaving "warming" while the room ran away at 1 s/s.
+      // Observe short windows independently of the last *verified* progress so
+      // real playback can resume after a long frozen cold start.
       if (lastPosition === null) {
-        lastPosition = current;
-        lastProgressAt = nowMs;
-      } else if (current !== lastPosition) {
-        const elapsed = nowMs - lastProgressAt, delta = current - lastPosition;
-        if (elapsed > 0 && elapsed <= 1500 && delta > 0 && delta <= elapsed / 1000 * rate * 1.8 + .08) {
-          if (advancingSince < 0) advancingSince = lastProgressAt;
-        } else if (elapsed > 0) advancingSince = -1;
-        if (elapsed > 0) { lastPosition = current; lastProgressAt = nowMs; }
-      } else if (nowMs - lastProgressAt > 750) advancingSince = -1;
+        lastPosition = current; lastProgressAt = nowMs;
+        progressProbe = {value:current, at:nowMs};
+      } else {
+        const span = nowMs - progressProbe.at;
+        const delta = current - progressProbe.value;
+        const roomRate = Math.min(2, Math.max(.25, Number(rate) || 1));
+        const minAdvance = Math.max(.12, span / 1000 * roomRate * .30);
+        const maxAdvance = span / 1000 * roomRate * 1.8 + .08;
+        if (span > 0 && span <= 1500 && delta >= minAdvance && delta <= maxAdvance
+            && current >= lastPosition + minAdvance) {
+          if (advancingSince < 0) advancingSince = progressProbe.at;
+          lastPosition = current; lastProgressAt = nowMs;
+          progressProbe = {value:current, at:nowMs};
+        } else if (span <= 0 || span >= 1000 || delta < -.18 || delta > maxAdvance) {
+          // Re-baseline noisy/jumped samples without blessing them as movement.
+          // Crucially, never refresh lastProgressAt here.
+          progressProbe = {value:current, at:nowMs};
+          if (Math.abs(current - lastPosition) > 3) {
+            // A real seek/discontinuity establishes a new position; small
+            // backward/forward API jitter must never replenish the stall timer.
+            lastPosition = current; lastProgressAt = nowMs; advancingSince = -1;
+          }
+        }
+        if (nowMs - lastProgressAt > 750) advancingSince = -1;
+      }
       const dwellMs = Math.abs(drift) > 4 ? 1100 : 2400;
       const ready = advancingSince >= 0 && nowMs - advancingSince >= dwellMs && nowMs - lastProgressAt <= 750;
       reason = ready ? 'viewer-playing-stable' : 'viewer-warming-after-play';
       if (!ready) startupDeferrals++;
-      return {ready, reason, reclaim:ready && viewerDisplaced && !runningReclaimed && Math.abs(drift) > 8};
+      // PLAYING while the reported position has not moved: evidence for the
+      // arbiter's bounded stall recovery (the gate itself never actuates).
+      stalledMs = !ready && lastProgressAt >= 0 && nowMs - lastProgressAt > 750 ? Math.round(nowMs - lastProgressAt) : 0;
+      if (stalledMs) reason = 'viewer-stalled-while-playing';
+      return {ready, reason, stalledMs, reclaim:ready && viewerDisplaced && !runningReclaimed && Math.abs(drift) > 8};
     }
 
     function seekIssued(reclaim) {
@@ -109,7 +133,7 @@
     }
 
     function snapshot() {
-      return {reason, startDelayMs, pausedRepositions:pauseSeeks, startupDeferrals};
+      return {reason, startDelayMs, pausedRepositions:pauseSeeks, startupDeferrals, stalledMs};
     }
     return {paused, running, seekIssued, snapshot};
   }

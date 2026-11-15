@@ -23,6 +23,7 @@ export function createPlayoutCoordinator() {
       const shift = next.positionMs - predicted;
       for (const entry of history.values()) for (const item of entry.readings) item.phase -= shift;
       if (reference) reference.phase -= shift;
+      for (const item of latestReport.values()) if (item.coarse !== null) item.coarse -= shift;
     }
     anchor = next;
     return segment;
@@ -39,7 +40,19 @@ export function createPlayoutCoordinator() {
     // A viewer under active correction (rate burst, scheduled hold) stays visible as
     // telemetry but can never vote for, or become, the room reference.
     const correcting = report.correcting === true;
-    latestReport.set(id, {at:receivedAt, sampledAt:report.sampledAt, buffering:report.buffering === true, output:report.outputSession, correcting});
+    // Coarse source evidence (no precise clock needed): seconds-scale agreement with the anchor.
+    const coarse = anchor?.rate > 0 && finite(report.positionMs, 0, 1e10) ? report.positionMs - position(report.sampledAt) : null;
+    const live = report.ready === true && report.playing === true && report.buffering !== true;
+    const agrees = live && coarse !== null && Math.abs(coarse) <= MAX_PHASE;
+    // PLAYING alone is not progress: a frozen timeline must not corroborate the room, even inside
+    // MAX_PHASE. Require the media position itself to advance by a quarter of the expected amount.
+    const dt = previousReport ? report.sampledAt - previousReport.sampledAt : 0;
+    const advanced = !previousReport || !Number.isFinite(previousReport.positionMs) || dt < 100
+      ? (previousReport?.advanced ?? true)
+      : report.positionMs - previousReport.positionMs >= dt * anchor.rate * .25;
+    latestReport.set(id, {at:receivedAt, sampledAt:report.sampledAt, buffering:report.buffering === true, output:report.outputSession, correcting,
+      live, coarse, positionMs:coarse !== null ? report.positionMs : null, advanced,
+      agreed:agrees && advanced ? (previousReport?.agreed || 0) + 1 : 0});
     let samples = history.get(id);
     const valid = !correcting && anchor?.rate > 0 && Number.isFinite(receivedAt) && report.ready && report.playing && !report.buffering &&
       finite(report.positionMs, 0, 1e10) && finite(report.uncertaintyMs, 0, 150);
@@ -117,6 +130,12 @@ export function createPlayoutCoordinator() {
       }
     }
 
+    // Is the room timeline independently corroborated by its audible source right now?
+    // Viewers follow the room, so their agreement is circular and never counts here.
+    const source = !authoritySample ? 'none' : now - authoritySample.at > 1700 ? 'stale' : authoritySample.buffering ? 'buffering'
+      : !authoritySample.live || anchor?.rate <= 0 ? 'not-playing' : !authoritySample.advanced ? 'frozen'
+      : !(authoritySample.agreed >= 2) ? 'off-phase' : 'live';
+
     if (!allowHoldback) holdbackMs = 0;
     if (allowHoldback && observed && observed.uncertaintyMs <= 125 && reference && !authorityBuffering && viewers.size >= 2) {
       const limits = [...viewers].map(id => {
@@ -136,7 +155,7 @@ export function createPlayoutCoordinator() {
     return {
       segment, reference:reference ? (reference.origin === 'peer-cohort' ? 'peer-cohort' : authority === 'linked' ? 'linked-tab' : 'host-player') : 'room-clock',
       phaseMs:Math.round(reference?.phase ?? 0), uncertaintyMs:reference?.uncertaintyMs ?? null,
-      holdbackMs, authorityBuffering, outputTiming:'speaker-unmeasured',
+      holdbackMs, authorityBuffering, source, sourcePhaseMs:Number.isFinite(authoritySample?.coarse) ? Math.round(authoritySample.coarse) : null, outputTiming:'speaker-unmeasured',
       // The absolute reference timeline, so a viewer never combines a new room
       // anchor with a phase that was computed against the previous one.
       anchorPositionMs:anchor ? Math.round(anchor.positionMs) : null, anchorAt:anchor?.at ?? null, rate:anchor?.rate ?? null,

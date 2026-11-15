@@ -100,4 +100,40 @@ export async function runAutomaticPlayoutChecks(check) {
       'the absolute reference timeline travels with the phase');
   });
 
+
+  await check('AUTO-06:only the audible source corroborates the room timeline; viewers never do', () => {
+    const sync = createPlayoutCoordinator(), get = room(sync);
+    sync.transport(play);
+    // Two steady viewers agreeing 45 s away are not evidence about the room (MAX_PHASE holds).
+    feed(sync,'tv',start,[-45000,-45000,-45000,-45000,-45000,-45000]);
+    feed(sync,'phone',start,[-45000,-45000,-45000,-45000,-45000,-45000]);
+    let result = get(start + 1800);
+    assert.equal(result.reference,'room-clock');
+    assert.equal(result.source,'none','viewer agreement is circular and never corroborates');
+    // A live source without a precise clock still gives seconds-scale corroboration.
+    feed(sync,'linked',start,[300,320,310,305,300,310],{uncertaintyMs:undefined});
+    result = get(start + 1800);
+    assert.equal(result.source,'live');
+    assert.equal(result.reference,'room-clock','coarse evidence never becomes a precise reference');
+    assert.equal(get(start + 4000).source,'stale');
+    feed(sync,'linked',start + 2100,[300,300,300],{buffering:true});
+    assert.equal(get(start + 2900).source,'buffering');
+    feed(sync,'linked',start + 3200,[-10000,-10000,-10000]);
+    assert.equal(get(start + 4000).source,'off-phase','a source 10 s from the room contradicts it');
+    assert.equal(get(start + 4000).sourcePhaseMs,-10000);
+  });
+  await check('AUTO-07:a PLAYING source whose media time is frozen never corroborates the room', () => {
+    const sync = createPlayoutCoordinator(), get = room(sync);
+    sync.transport(play);
+    // Report PLAYING at a fixed media position, inside MAX_PHASE of the room for the first second.
+    for (let i = 0; i < 4; i++) sync.observe('linked', {positionMs:12000, sampledAt:start + 300 * i, outputSession:'linked',
+      ready:true, playing:true}, start + 300 * i + 20);
+    let result = get(start + 950);
+    assert.equal(result.source,'frozen','PLAYING without media progress is not live evidence');
+    assert.ok(Math.abs(result.sourcePhaseMs) < 1200,'the trust window is closed while still inside MAX_PHASE');
+    // Once the media time advances again, two progressing reports restore corroboration.
+    feed(sync,'linked',start + 1200,[-900,-900,-900],{uncertaintyMs:undefined});
+    result = get(start + 2000);
+    assert.equal(result.source,'live');
+  });
 }

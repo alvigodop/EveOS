@@ -38,11 +38,29 @@ function absolute(relativePath) {
     return path.join(ROOT, normalize(relativePath).replace(/\//g, path.sep));
 }
 
+// Git-ignored files (e.g. data/runtime/ credentials written by local AudioFlix
+// runs) differ per machine; letting them into the graph made fingerprints flip
+// between a clean clone and a developer machine on every commit.
+let ignoredFileCache = null;
+function ignored(relativePath) {
+    if (!ignoredFileCache) {
+        try {
+            ignoredFileCache = new Set(childProcess.execFileSync('git',
+                ['ls-files', '-z', '--others', '--ignored', '--exclude-standard'],
+                { cwd: ROOT, encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 })
+                .split('\0').filter(Boolean).map(normalize));
+        } catch {
+            ignoredFileCache = new Set();
+        }
+    }
+    return ignoredFileCache.has(relativePath);
+}
+
 function exists(relativePath) {
     const normalized = normalize(relativePath);
     if (existenceCache.has(normalized)) return existenceCache.get(normalized);
     const filePath = absolute(normalized);
-    const result = fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+    const result = fs.existsSync(filePath) && fs.statSync(filePath).isFile() && !ignored(normalized);
     existenceCache.set(normalized, result);
     return result;
 }

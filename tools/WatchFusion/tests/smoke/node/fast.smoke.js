@@ -8,6 +8,7 @@ import { request } from '../helpers/http-client.js';
 import { runPlaybackTimingChecks } from './playback-timing.js';
 import { runPresentationTimingChecks } from './presentation-timing.js';
 import { runAutomaticPlayoutChecks } from './automatic-playout.js';
+import { runRoomLogChecks } from './room-log-trace.js';
 import { runSyncLabChecks } from './sync-lab/scenarios.js';
 import { isM3u8Response } from '../../../src/server/media-routes.js';
 
@@ -251,6 +252,7 @@ export async function runFastSmoke() {
   await runPlaybackTimingChecks(check);
   await runPresentationTimingChecks(check);
   await runAutomaticPlayoutChecks(check);
+  await runRoomLogChecks(check);
   await runSyncLabChecks(check);
 
   await check('FAST-02A:nuvio-browser-plugin-bridge-contract', () => {

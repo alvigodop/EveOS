@@ -37,7 +37,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
   // The linked source tab is the audible reference ("truth").
   const source = createFakeYouTube(clock, {...PROFILES.laptop, position: 30, playing: true});
   const devices = [];
-  let revision = 1, mirrorAnchor = null, linkedOnline = true;
+  let revision = 1, mirrorAnchor = null, linkedOnline = true, mirrorOnline = true;
   const sharedSync = {};
 
   function clientState() {
@@ -66,7 +66,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
     const truth = source.truePosition() - .02 + (rand() - .5) * sourceNoiseMs / 1000;
     const metadata = {currentTime: truth, sampledAt, rate: 1, paused: room.playback.paused, ended: false, volume: 1};
     const plan = mirror.mirrorPlan(metadata, mirrorAnchor, {now});
-    if (plan.publish) {
+    if (plan.publish && mirrorOnline) {
       mirrorAnchor = plan.anchor;
       if (!room.playback.paused && Math.abs(plan.target - currentRoomPosition()) > .001) setPlayback({position: plan.target});
     }
@@ -157,6 +157,8 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
     pause() { source.pauseVideo(); mirrorAnchor = null; setPlayback({position: source.truePosition(), paused: true}); },
     resume() { source.playVideo(); mirrorAnchor = null; setPlayback({position: source.truePosition(), paused: false}); },
     linkedSource(online) { linkedOnline = online; },
+    // Source keeps reporting, but its republishing of the room anchor stops (room timeline goes wrong).
+    linkedMirror(online) { mirrorOnline = online; if (online) mirrorAnchor = null; },
     async run(ms, everyMs = 250, onSample) {
       const end = clock.now() + ms;
       while (clock.now() < end) {

@@ -30,6 +30,11 @@
   // segment (a seek loop is worse than a stable offset); a transport intent or
   // Sync me re-arms it.
   const MAX_FAILURES = 3, GROSS_SEC = 2, GROSS_MIN_SAMPLES = 3, GROSS_SPAN_MS = 500;
+  // PLAYING-but-frozen recovery ladder (per segment), only after a freeze longer
+  // than a slow TV cold start (SYNC-04): un-pause kick, buffered rejoin, network
+  // rejoin, then stop. Beyond MAX_AUTO_SEC only a displacement observed steadily
+  // for DISPLACED_MS earns one rejoin per segment.
+  const STALL_MS = 6500, STALL_SPACING_MS = 4000, STALL_STEPS = 3, KICK_MS = 300, DISPLACED_MS = 4000;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const median = values => { const v = values.slice().sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : 0; };
 
@@ -45,6 +50,7 @@
     // IFrame API relays it by message; TV browsers update it coarsely). Track
     // when the value last changed so a held reading is projected, not trusted.
     let held = {value: null, since: 0};
+    let stall = {steps: 0, at: -Infinity}, displaced = null, displacedRejoins = 0;
     const stats = {corrections: 0, rejoins: 0, holds: 0, rateBursts: 0, seeks: 0, failures: 0, rateRejected: 0};
 
     function load() {
@@ -63,13 +69,15 @@
       cancelJob(io);
       scope = next; phase = 'observe'; samples = []; last = null; reason = why;
       locked = false; lockedAt = -1; failures = 0; cooldownUntil = 0; lastCorrection = null;
+      rearm();
     }
+    function rearm() { stall = {steps: 0, at: -Infinity}; displaced = null; displacedRejoins = 0; }
 
     // A transport change, Sync me or scrub invalidates the evidence but not the device model.
     function intent(kind, io = null) {
       cancelJob(io);
       phase = 'observe'; samples = []; last = null; locked = false; reason = 'intent-' + kind;
-      if (kind !== 'pause') { failures = 0; cooldownUntil = 0; }
+      if (kind !== 'pause') { failures = 0; cooldownUntil = 0; rearm(); }
     }
 
     function owns() { return !!job; }
@@ -164,13 +172,13 @@
       job.timer = timers.setTimeout(() => release(io, 'hold-released'), holdMs);
     }
 
-    function startRejoin(nowMs, error, io, why = 'rejoin') {
+    function startRejoin(nowMs, error, io, why = 'rejoin', network = false) {
       const lead = clamp(model.leadSec, .35, 10);
       const requested = io.target(nowMs) + lead;
       begin('rejoin', nowMs, error, io, {requested, lead, why, landedAt: -1, stableReads: 0, landed: null});
       stats.rejoins++; stats.seeks++; model.rejoins++;
       io.pause();
-      io.seek(requested, !io.buffered(requested));
+      io.seek(requested, network || !io.buffered(requested));
     }
 
     function release(io, why) {
@@ -271,7 +279,17 @@
       locked = false;
       if (failures >= MAX_FAILURES) { phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
       if (nowMs < cooldownUntil) { reason = 'correction-cooldown'; return; }
-      if (absolute > MAX_AUTO_SEC) { reason = 'displacement-needs-transport-seek'; return; }
+      if (absolute > MAX_AUTO_SEC) {
+        // A reference discontinuity resets sampling; only a steady, consistent
+        // displacement of an advancing player is trusted, once per segment.
+        // A steady offset proves nothing when the room timeline itself is wrong (log 3 stayed on room-clock).
+        if (!io.referenceTrusted?.()) { displaced = null; reason = 'displacement-unverified-reference'; return; }
+        if (!displaced || Math.sign(displaced.error) !== Math.sign(error) || Math.abs(displaced.error - error) > 1) displaced = {since: nowMs, error};
+        if (displacedRejoins >= 1 || nowMs - displaced.since < DISPLACED_MS) { reason = 'displacement-needs-transport-seek'; return; }
+        displacedRejoins++; displaced = null;
+        return startRejoin(nowMs, error, io, 'displacement', true);
+      }
+      displaced = null;
       const rate = absolute <= 2.5 ? rateFor(io, error) : null;
       if (rate !== null) return startRate(nowMs, error, io, rate);
       if (error < 0 && absolute <= 4) return startHold(nowMs, error, io);
@@ -309,6 +327,8 @@
       // drift: observe it and pick the gentlest verified strategy instead.
       // A freshly hydrated source has no evidence yet and is aligned outright.
       if ((why === 'transport' || why === 'reclaim') && Math.abs(error) <= 2.5) { reason = 'transport-hop-observe'; return false; }
+      // A scrub reclaim is automatic: beyond MAX_AUTO_SEC it waits for a corroborated room (host transport and Sync me do not).
+      if (why === 'reclaim' && Math.abs(error) > MAX_AUTO_SEC && !io.referenceTrusted?.()) { reason = 'reclaim-unverified-reference'; return false; }
       const rate = why === 'manual' && Math.abs(error) <= 2.5 ? rateFor(io, error) : null;
       if (rate !== null) startRate(nowMs, error, io, rate);
       else if (error < 0 && Math.abs(error) <= 4) startHold(nowMs, error, io);
@@ -316,14 +336,32 @@
       return true;
     }
 
+    // Called while the startup gate reports PLAYING without movement. Bounded:
+    // at most STALL_STEPS actions per segment, spaced, never while a job runs.
+    function recoverStall(nowMs, io, stalledMs) {
+      if (job || io.state() !== 1 || !(stalledMs >= STALL_MS) || nowMs - stall.at < STALL_SPACING_MS) return false;
+      if (stall.steps >= STALL_STEPS) { reason = 'stall-recovery-exhausted'; return false; }
+      const error = io.target(nowMs) - io.current();
+      // The kick never seeks; a rejoin beyond MAX_AUTO_SEC needs a corroborated target. Waiting costs no step.
+      if (stall.steps >= 1 && Math.abs(error) > MAX_AUTO_SEC && !io.referenceTrusted?.()) { reason = 'stall-unverified-reference'; return false; }
+      stall.steps++; stall.at = nowMs;
+      if (stall.steps > 1) { startRejoin(nowMs, error, io, 'stall', stall.steps > 2); return true; }
+      begin('kick', nowMs, error, io);
+      io.pause();
+      job.dueAt = nowMs + KICK_MS;
+      job.timer = timers.setTimeout(() => release(io, 'stall-kick-released'), KICK_MS);
+      reason = 'stall-kick';
+      return true;
+    }
+
     function snapshot() {
       return {phase, reason, locked, lockedForMs: locked && lockedAt >= 0 ? null : 0, failures,
         model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), leadMs: Math.round(model.leadSec * 1000),
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
-        ...stats, owned: !!job};
+        ...stats, stallSteps: stall.steps, displacedRejoins, owned: !!job};
     }
 
-    return {tick, intent, reset, owns, rejoinNow, snapshot, observePosition, correcting: () => !!job};
+    return {tick, intent, reset, owns, rejoinNow, recoverStall, snapshot, observePosition, correcting: () => !!job};
   }
 
   globalThis.WatchFusionViewerSyncArbiter = {createViewerSyncArbiter, MODEL_KEY};

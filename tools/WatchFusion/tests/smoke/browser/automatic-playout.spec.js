@@ -242,9 +242,9 @@ test('Sync me on a paused lagging TV does not request new media or bless the old
   expect(result.arbiter.rejoins).toBe(1);
 });
 
-test('a local viewer scrub returns to the paused and playing room positions', async ({ page }) => {
+async function scrubRoom(page, linked) {
   await page.goto('/');
-  const result = await page.evaluate(() => {
+  return page.evaluate(linked => {
     const wall = Date.now(), dateNow = Date.now;
     const perfNow = Object.getOwnPropertyDescriptor(performance,'now');
     let now = 0, current = 30, playerState = 2, reloads = 0;
@@ -254,7 +254,7 @@ test('a local viewer scrub returns to the paused and playing room positions', as
     try {
       roomId = 'reclaim-test'; session = {memberId:'tv'};
       state = {hostId:'host',source:{videoId:'M7lc1UVf-VE'},presentationEpoch:1,playoutSegment:1,
-        playback:{position:30,paused:true,rate:1,updatedAt:wall,projectedAt:wall}};
+        linkedSourceActive:linked, playback:{position:30,paused:true,rate:1,updatedAt:wall,projectedAt:wall}};
       ytPlayerReady = playerPrimed = true;
       ytPlayer = {
         getCurrentTime:()=>current, getPlayerState:()=>playerState, getDuration:()=>300,
@@ -281,11 +281,24 @@ test('a local viewer scrub returns to the paused and playing room positions', as
       if (perfNow) Object.defineProperty(performance,'now',perfNow);
       else delete performance.now;
     }
-  });
+  }, linked);
+}
+
+test('a local viewer scrub returns to the paused and playing room positions', async ({ page }) => {
+  // Host-driven room: no linked source, so the host transport is the trusted room timeline.
+  const result = await scrubRoom(page, false);
   expect(result.paused).toEqual([30]);
   expect(result.playing).toHaveLength(1);
   expect(result.playing[0]).toBeGreaterThan(30);
   expect(result.playing[0]).toBeLessThan(36);
+  expect(result.reloads).toBe(0);
+});
+
+test('a linked-source room never reclaims a 40 s scrub on room timing its source has not corroborated', async ({ page }) => {
+  // The linked source reports nothing here, so source trust is absent: no >30 s automatic move.
+  const result = await scrubRoom(page, true);
+  expect(result.paused).toEqual([30]);
+  expect(result.playing).toHaveLength(0);
   expect(result.reloads).toBe(0);
 });
 

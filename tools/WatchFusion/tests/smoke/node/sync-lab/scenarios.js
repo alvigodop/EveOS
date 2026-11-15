@@ -2,6 +2,8 @@
 // real server coordinator + physically plausible players, in virtual time.
 import { createRoomLab, summarize } from './room-lab.js';
 import { PROFILES } from './fake-youtube.js';
+import { RECOVERY_SCENARIOS } from './scenarios-recovery.js';
+import { TRUST_SCENARIOS } from './scenarios-trust.js';
 
 const correctionsOf = device => device.diagnostics()?.arbiter?.corrections ?? device.player.stats.seeks;
 
@@ -153,7 +155,9 @@ export const SCENARIOS = {
     const tv = settled(r.tv, r.at(58), r.at(68));
     r.lab.close();
     return {ok: tv.ok && r.tv.player.stats.seeks - seeks <= 2, detail: {tv: tv.summary, seeks: r.tv.player.stats.seeks - seeks}};
-  }
+  },
+  ...RECOVERY_SCENARIOS,
+  ...TRUST_SCENARIOS
 };
 
 export async function runSyncLabChecks(check) {

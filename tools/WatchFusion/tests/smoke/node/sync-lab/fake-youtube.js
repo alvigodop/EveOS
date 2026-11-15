@@ -11,10 +11,15 @@ export function createFakeYouTube(clock, options = {}) {
   const stats = {seeks: 0, networkSeeks: 0, pausedSeeks: 0, rateRequests: [], loads: 0, plays: 0, pauses: 0,
     bufferingMs: 0, frozenMs: 0, landings: []};
   let stalledUntil = 0;
+  // A wedged decoder reports PLAYING while its timeline does not move (seen on
+  // real devices after source pause/seek/play). It clears on pause, on seek, or never.
+  let wedged = null;
   function advance() {
     const now = clock.now(), elapsed = now - last;
+    if (wedged && now >= wedged.until) wedged = null;
     if (elapsed > 0) {
-      if (mode === 'playing' && now > stalledUntil) position += elapsed / 1000 * actualRate;
+      if (mode === 'playing' && wedged) stats.frozenMs += elapsed;
+      else if (mode === 'playing' && now > stalledUntil) position += elapsed / 1000 * actualRate;
       else if (mode === 'buffering') stats.bufferingMs += elapsed;
       if (wantPlay && mode !== 'playing') stats.frozenMs += elapsed;
       if (mode === 'playing' && now <= stalledUntil) stats.frozenMs += elapsed;
@@ -48,6 +53,7 @@ export function createFakeYouTube(clock, options = {}) {
     },
     seekTo(target, allowSeekAhead) {
       advance();
+      if (wedged && wedged.clears !== 'never') wedged = null;
       stats.seeks++;
       const buffered = target >= position - 1 && target <= position + o.bufferAheadSec;
       const network = !buffered;
@@ -67,10 +73,13 @@ export function createFakeYouTube(clock, options = {}) {
     },
     pauseVideo() {
       advance(); stats.pauses++; wantPlay = false;
+      if (wedged?.clears === 'pause') wedged = null;
       if (mode !== 'buffering') { if (timer) clock.clearTimeout(timer); timer = null; mode = 'paused'; }
     },
     loadVideoById({startSeconds = 0} = {}) { stats.loads++; player.seekTo(startSeconds, true); wantPlay = true; },
     cueVideoById() { stats.loads++; },
+    jump(sec) { advance(); position = Math.max(0, position + sec); },
+    wedge(clears = 'pause', ms = Infinity) { advance(); wedged = {clears, until: clock.now() + ms}; },
     stall(ms) { advance(); stalledUntil = clock.now() + ms; mode = 'buffering'; schedule(ms, () => { mode = wantPlay ? 'playing' : 'paused'; }); },
     getVideoData: () => ({video_id: o.videoId || 'M7lc1UVf-VE'}),
     getVolume: () => 100, isMuted: () => false, setVolume() {}, mute() {}, unMute() {}

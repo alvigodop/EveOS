@@ -58,7 +58,7 @@
     prune();
     const recent = entries.slice(-15).map(item => {
       const peers = item.peers.map(p => `${p.device}: ${p.targetErrorMs === null ? 'room ' + (p.rawOffsetMs ?? '?') : 'target ' + p.targetErrorMs}ms · startup ${p.startupWaitMs ?? '?'}ms · ${p.corrections ?? '-'} seeks${p.signals.length ? ' [' + p.signals.join(',') + ']' : ''}`).join(' / ');
-      return `${item.at.slice(11,19)} ${item.ref || 'room-clock'} | ${peers}`;
+      return `${item.at.slice(11,19)} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''} | ${peers}`;
     }).join('\n');
     const transitions = events.slice(-10).map(e => `${e.at.slice(11,19)} ! ${e.kind}${e.reason?' · '+e.reason:''}`).join('\n');
     const display = [recent,transitions].filter(Boolean).join('\n');
@@ -71,9 +71,12 @@
     const phaseMs = finite(coordination?.phaseMs);
     const row = {at:new Date().toISOString(), ref, referencePhaseMs:phaseMs,
       uncertaintyMs:finite(coordination?.uncertaintyMs), sourceBuffering:!!coordination?.authorityBuffering,
+      source:coordination?.source || null, sourcePhaseMs:finite(coordination?.sourcePhaseMs),
       peers:rows};
     const key = JSON.stringify([ref,phaseMs,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.seekHealth?.recoveryAttempts,p.signals])]);
-    const changed = key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref);
+    // Source-trust transitions (live/stale/off-phase/...) are acceptance evidence: record them at once.
+    const changed = key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
+      row.source !== (entries.at(-1)?.source ?? null);
     if (!changed && now - lastAt < 4500) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
