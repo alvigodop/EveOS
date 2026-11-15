@@ -14,11 +14,11 @@
     // An explicit Sync me becomes a temporary, source-scoped playout proof.
     // Do not re-seek a *stable* offset until the phase actually changes.
     let explicitProof = null, proofWindow = [];
-    const MAX_MANUAL_PHASE_SEC = 2;
+    const MAX_MANUAL_PHASE_SEC = .35;
     const FINE_MIN = .7, FINE_MAX = 1.5, FINE_GAP_MS = 15000;
     function reset(nextScope = '', preserveManualSync = false) {
       if (explicitProof && !preserveManualSync) explicitProof = null;
-      else if (explicitProof) { explicitProof.baseline = null; explicitProof.at = -1; }
+      else if (explicitProof) explicitProof.baseline = null;
       proofWindow = [];
       scope = nextScope; pending = previous = null; cooldownUntil = 0;
       advancingSince = -1; failures = overshoots = rejected = corrections = 0;
@@ -66,7 +66,6 @@
       previous = {at:nowMs, current, target};
       if (explicitProof && !progressing && elapsed > 750) proofWindow = [];
       if (explicitProof && progressing && !pending) {
-        if (explicitProof.at < 0) explicitProof.at = nowMs;
         proofWindow.push({at:nowMs, drift});
         proofWindow = proofWindow.filter(item => nowMs - item.at < 4000).slice(-18);
         if (proofWindow.length >= 4 && nowMs - proofWindow[0].at >= 800) {
@@ -182,16 +181,18 @@
       if (residual <= 0 || failedLandingSec < 1.5) return target;
       return target + Math.min(2.5, failedLandingSec * .85);
     }
+    function manualStable(nowMs, drift) {
+      return explicitProof && explicitProof.baseline !== null && Math.abs(drift) <= MAX_MANUAL_PHASE_SEC &&
+        proofWindow.length >= 3 && nowMs - proofWindow.at(-1).at < 750 &&
+        Math.abs(drift - explicitProof.baseline) < .30;
+    }
     function permit({scope:next, nowMs, current, target, action}) {
       if (next !== scope) reset(next);
       if (![nowMs, current, target].every(Number.isFinite) || Math.abs(target - current) > 1800) {
         rejected++; reason = 'implausible-player-position'; return false;
       }
       const drift = target - current;
-      if (explicitProof && Math.abs(drift) <= MAX_MANUAL_PHASE_SEC &&
-          (explicitProof.at < 0 || nowMs - explicitProof.at < 3500 ||
-           (explicitProof.baseline !== null && proofWindow.length >= 3 &&
-            nowMs - proofWindow.at(-1).at < 750 && Math.abs(drift - explicitProof.baseline) < .30))) {
+      if (manualStable(nowMs, drift)) {
         rejected++; reason = 'verified-manual-sync-phase-hold'; return false;
       }
       const recovering = action === 'hard-seek' && credibleLargeLag(nowMs, drift);
@@ -229,13 +230,15 @@
     }
     function record({scope:next, nowMs, current, target, action, requested}) {
       if (next !== scope) reset(next);
-      if (action === 'manual-sync' || action === 'transport-seek') {
-        explicitProof = action === 'manual-sync' ? {at:-1,baseline:null} : null;
+      if (['manual-sync','transport-seek','viewer-reclaim'].includes(action)) {
+        explicitProof = action === 'manual-sync' ? {baseline:null} : null;
         proofWindow = [];
         pending = null; cooldownUntil = 0; failures = 0; largeLagSamples = []; failedLandingSec = 0;
         phaseAt = nowMs; phaseBias = null; phaseWindow = []; referenceHoldUntil = 0;
         fineCount = 0; lastFineAt = -Infinity; landingResidualSec = 0;
-        reason = action === 'manual-sync' ? 'explicit-sync' : 'transport-alignment'; return;
+        reason = action === 'manual-sync' ? 'explicit-sync'
+          : action === 'viewer-reclaim' ? 'viewer-room-position-reclaim' : 'transport-alignment';
+        return;
       }
       const recovery = action === 'hard-seek' && credibleLargeLag(nowMs, target - current);
       if (recovery) {
@@ -262,7 +265,7 @@
         referenceHoldMs:Math.max(0,Math.round(referenceHoldUntil-nowMs)),
         cooldownRemainingMs:Math.max(0, Math.round(cooldownUntil - nowMs))};
     }
-    return {reset, observe, permit, record, snapshot, canRetry, seekTarget};
+    return {reset, observe, permit, record, snapshot, canRetry, seekTarget, manualStable};
   }
   globalThis.WatchFusionSeekHealth = {createSeekHealth};
   globalThis.watchFusionSeekHealth = createSeekHealth();

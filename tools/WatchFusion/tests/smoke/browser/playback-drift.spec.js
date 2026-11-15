@@ -24,6 +24,8 @@ function configureViewer(page, { current, target = 100, paused = false, rate = 1
       getPlayerState: () => paused && resumed ? 2 : 1,
       getVideoData: () => ({ video_id: 'M7lc1UVf-VE' }),
       getCurrentTime: () => current,
+      getDuration: () => 300,
+      getVideoLoadedFraction: () => 1,
       getPlaybackRate: () => currentRate,
       setPlaybackRate: value => { calls.rates.push(value); currentRate = value; },
       seekTo: value => { calls.seek.push(value); current = value; },
@@ -165,7 +167,7 @@ test.describe('Adaptive playback drift regression', () => {
     expect(calls.seek).toEqual([]);
     expect(calls.rates).not.toContain(1.25);
     expect(calls.diagnostics.stable).toBe(true);
-    expect(calls.diagnostics.action).toBe('steady');
+    expect(calls.diagnostics.action).toBe('near-synchronized');
   });
 
   test('stable fractional sensor drift preserves the host rate without seeking', async ({ page }) => {
@@ -176,7 +178,7 @@ test.describe('Adaptive playback drift regression', () => {
     expect(calls.rates).toEqual([]);
     expect(calls.diagnostics.stable).toBe(true);
     expect(calls.diagnostics.filteredDriftSec).toBeGreaterThan(0.15);
-    expect(calls.diagnostics.action).toBe('steady');
+    expect(calls.diagnostics.action).toBe('near-synchronized');
   });
 
   test('a steady 600 ms post-resume phase does not trigger a corrective seek', async ({ page }) => {
@@ -186,18 +188,18 @@ test.describe('Adaptive playback drift regression', () => {
     expect(calls.rates).toEqual([]);
     expect(calls.diagnostics.seekGuard.phaseBiasMs).toBeCloseTo(600, -1);
     expect(calls.diagnostics.seekGuard.attempts).toBe(0);
-    expect(calls.diagnostics.seekGuard.reason).toBe('stable-post-resume-phase');
+    expect(calls.diagnostics.action).toBe('rate-unavailable-keep-playing');
   });
 
   test('persistent lag growth can trigger one guarded correction after resume', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:46, lagPerTick:.03});
+    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:90, lagPerTick:.03});
     expect(calls.seek).toHaveLength(1);
     expect(calls.diagnostics.seekGuard.attempts).toBe(1);
   });
 
   for (const succeeds of [true, false]) {
-    test(`a 1190 ms TV residual gets two spaced attempts and ${succeeds ? 'converges' : 'backs off'}`, async ({ page }) => {
+    test(`a 1190 ms fixed-rate TV gets one buffered attempt and ${succeeds ? 'converges' : 'backs off'}`, async ({ page }) => {
       await page.goto('/');
       const result = await page.evaluate(succeeds => {
         const wall = Date.now();
@@ -221,10 +223,10 @@ test.describe('Adaptive playback drift regression', () => {
             getDuration: () => 300, getVolume: () => 100, getPlaybackRate: () => 1,
             getVideoLoadedFraction: () => 1, playVideo(){},
             loadVideoById(){reloads++;},
-            seekTo(position) {
+            seekTo(position, network) {
               const lead = position - (30 + t / 1000);
-              seeks.push({t,lead});
-              drift = .85 - (succeeds ? lead : 0);
+              seeks.push({t,lead,network});
+              if (succeeds) drift = .15;
               bufferingUntil = t + 500;
             }
           };
@@ -237,14 +239,13 @@ test.describe('Adaptive playback drift regression', () => {
         }
       }, succeeds);
       expect(result.reloads).toBe(0);
-      expect(result.seeks).toHaveLength(2);
-      expect(result.seeks[0].t).toBeGreaterThanOrEqual(5000);
+      expect(result.seeks).toHaveLength(1);
+      expect(result.seeks[0].t).toBeGreaterThanOrEqual(5200);
       expect(result.seeks[0].lead).toBeCloseTo(0, 3);
-      expect(result.seeks[1].t - result.seeks[0].t).toBeGreaterThanOrEqual(15000);
-      expect(result.seeks[1].lead).toBeCloseTo(.85 * .65, 3);
-      expect(result.health.fineAttempts).toBe(2);
-      if (succeeds) expect(result.drift).toBeLessThan(.35);
-      else expect(result.health.reason).toMatch(/backoff|budget-used/);
+      expect(result.seeks[0].network).toBe(false);
+      expect(result.health.fineAttempts).toBe(1);
+      if (succeeds) expect(result.drift).toBeLessThan(.20);
+      else expect(result.drift).toBeCloseTo(1.19);
     });
   }
 

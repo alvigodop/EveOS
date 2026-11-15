@@ -159,12 +159,11 @@ test('linked volume reaches the source before release and follows later source c
     return document.getElementById('livePairLink').value;
   });
   const source = await context.newPage(), origin = new URL(pairing).origin;
-  await source.route(url => url.pathname === '/volume-fixture.html', route => route.fulfill({
-    contentType:'text/html', body:'<!doctype html><video></video><script src="/live-peer.js"></script>'
-  }));
-  await source.goto(origin + '/volume-fixture.html');
+  await source.goto(origin + '/api/health');
+  await source.addScriptTag({url:origin + '/live-peer.js'});
   await source.evaluate(link => {
-    const video = document.querySelector('video');
+    const video = document.createElement('video');
+    document.body.replaceChildren(video);
     Object.defineProperty(video,'readyState',{value:4});
     video.volume = .62;
     window.volumeCommands = [];

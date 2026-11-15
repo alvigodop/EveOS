@@ -92,3 +92,13 @@
   #watchfusion-overlay select.watchfusion-status { display: block; }
   #watchfusion-overlay .watchfusion-brand-mark { width: 22px; height: 22px; flex-basis: 22px; }
 }
+
+/* v11: stopped-workspace normal flow, and an optically centered small header symbol. */
+@media (max-width: 800px), (max-height: 720px) {
+  #watchfusion-overlay .watchfusion-frame[hidden] + .watchfusion-idle { display: flex; flex-direction: column; align-items: stretch; overflow-y: auto; gap: 8px; }
+  #watchfusion-overlay .watchfusion-idle-copy, #watchfusion-overlay .watchfusion-offline-browser,
+  #watchfusion-overlay .watchfusion-components, #watchfusion-overlay .watchfusion-idle-actions { flex: 0 0 auto; min-width: 0; }
+  #watchfusion-overlay .watchfusion-idle-actions { position: static; inset: auto; margin-top: 4px; flex-wrap: wrap; justify-content: flex-start; }
+  #watchfusion-overlay .watchfusion-idle-actions button { min-width: 0; }
+  #watchfusion-overlay .watchfusion-brand-mark { display: grid; place-items: center; box-sizing: border-box; padding: 0; font-size: 15px; line-height: 1; text-align: center; }
+}

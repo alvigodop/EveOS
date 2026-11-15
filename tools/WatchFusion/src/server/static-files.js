@@ -93,6 +93,7 @@ export async function sendFile(req, res) {
       'client/sync-center.js',
       'client/sync-seek-health.js',
       'client/youtube-startup-gate.js',
+      'client/gentle-catchup.js',
       'playback-sync.js',
       'client/acoustic-timing.js',
       'client/presentation-sync.js',
