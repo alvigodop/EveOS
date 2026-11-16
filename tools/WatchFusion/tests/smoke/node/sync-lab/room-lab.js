@@ -15,7 +15,7 @@ export function viewerScripts() {
   const bundle = fs.readFileSync(path.join(ROOT, 'src/server/static-files.js'), 'utf8');
   const listed = [...bundle.matchAll(/'((?:client\/)?[a-z0-9-]+\.js)'/g)].map(m => m[1]);
   const wanted = new Set(['client/linked-playback-sync.js', 'client/sync-seek-health.js', 'client/youtube-startup-gate.js',
-    'client/gentle-catchup.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/presentation-sync.js', 'client/room-playout.js']);
+    'client/gentle-catchup.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/presentation-sync.js', 'client/room-playout.js']);
   return listed.filter(name => wanted.has(name));
 }
 

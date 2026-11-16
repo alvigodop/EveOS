@@ -11,6 +11,7 @@ import { runAutomaticPlayoutChecks } from './automatic-playout.js';
 import { runRoomLogChecks } from './room-log-trace.js';
 import { runSyncLabChecks } from './sync-lab/scenarios.js';
 import { runV13105PolicyChecks } from './v13105-policy.js';
+import { runV13107Checks } from './v13107-falsifiers.js';
 import { isM3u8Response } from '../../../src/server/media-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -256,6 +257,7 @@ export async function runFastSmoke() {
   await runRoomLogChecks(check);
   await runSyncLabChecks(check);
   await runV13105PolicyChecks(check);
+  await runV13107Checks(check);
 
   await check('FAST-02A:nuvio-browser-plugin-bridge-contract', () => {
     const build = fs.readFileSync(path.join(PROJECT_ROOT, 'scripts', 'BUILD-NUVIO.bat'), 'utf8');

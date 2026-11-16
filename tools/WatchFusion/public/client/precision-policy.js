@@ -41,7 +41,7 @@
     if (state === 'unmeasured') return 'Timing unavailable';
     if (state === 'locked') return 'Locked';
     if (state === 'refining') return 'Refining';
-    if (/^(?:rate-converging|rate-started|rejoin-started|host-peer-rejoin|stall-kick-started|hold-started|host-zero-centering|decoder-reload-once)$/.test(reason || '')) return 'Correcting';
+    if (/^(?:rate-converging|rate-started|rejoin-started|host-peer-rejoin|stall-kick-started|hold-started|host-zero-centering|decoder-reload-once|decoder-recovery|zero-converging)$/.test(reason || '')) return 'Correcting';
     return 'Recovery needed';
   }
   globalThis.WatchFusionPrecisionPolicy = Object.freeze({

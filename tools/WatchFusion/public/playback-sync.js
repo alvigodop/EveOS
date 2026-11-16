@@ -302,9 +302,15 @@
       diagnostics.action = decision.reason;
       if (decision.owned) { setStatus('Catching up…'); return true; }
     }
-    if (!arbiter?.owns() && !window.watchFusionHostZeroCenter?.isApplying?.()) setViewerRate(baseRate);
+    if (!arbiter?.owns() && !window.watchFusionHostZeroCenter?.isApplying?.() && !window.WatchFusionZeroConverge?.isApplying?.()) setViewerRate(baseRate);
     const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
+    // v13.10.7: a wedged decoder (frozen while PLAYING after the ladder, or stuck BUFFERING) gets the bounded terminal ladder.
+    const decoderRescue=bufferingNow=>!force&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted:!bufferingNow,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,
+      trusted:state?.linkedSourceActive!==true||window.watchFusionPlayout?.status?.()?.source==='live',sourceBuffering:!!window.watchFusionPlayout?.sourceBuffering?.(),
+      reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target+.5});replayLoads++;arbiter?.intent('pause',io);awaitSeekRecovery(nowMs);},
+      rebuild:()=>{window.watchFusionLinkedTab?.suppressPlaybackEcho?.();window.WatchFusionDecoderRescue.rebuildPlayer(state.source.videoId);arbiter?.intent('pause',io);replayLoads++;viewerScope='';}});
     if (!force && buffering) {
+      if (decoderRescue(true)) { diagnostics.action='decoder-recovery'; setStatus('TV decoder recovery · restarting this player once…'); return true; }
       if (!viewerWasBuffering) resetDriftSensor('buffering');
       arbiter?.tick(scope, nowMs, io);
       viewerWasBuffering = true;
@@ -332,13 +338,7 @@
       // PLAYING with a frozen position never proves movement: the arbiter's bounded ladder recovers it.
       if (arbiter?.recoverStall?.(nowMs, io, startup.stalledMs)) { diagnostics.action = arbiter.snapshot().reason; return true; }
       const exhausted=arbiter?.snapshot().reason === 'stall-recovery-exhausted';
-      if(exhausted && window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted,playing:playerState===1,buffering,
-        trusted:state?.linkedSourceActive!==true || window.watchFusionPlayout?.status?.()?.source==='live',
-        sourceBuffering:!!window.watchFusionPlayout?.sourceBuffering?.(),drift:rawDrift,
-        reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');
-          window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target});
-          replayLoads++;arbiter.intent('pause',io);awaitSeekRecovery(nowMs);
-        }})){diagnostics.action='decoder-reload-once';setStatus('TV decoder recovery · restarting once…');return true;}
+      if(exhausted && decoderRescue(false)){diagnostics.action='decoder-recovery';setStatus('TV decoder recovery · restarting this player once…');return true;}
       diagnostics.action=exhausted?'stall-recovery-exhausted':startup.reason;requestViewerPlayback();return true;
     }
     if (isHost() && state?.linkedSourceActive && arbiter && window.WatchFusionHostPeerRecovery?.consider?.({
@@ -347,7 +347,7 @@
         (p.reference==='room-clock'||p.reference==='peer-cohort'&&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125)&&
         Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs
     })) {const accepted=arbiter.rejoinNow(nowMs,io,'manual');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}
-    const decision = window.watchFusionHostZeroCenter?.isApplying?.() ? {owned:true,reason:'host-zero-centering'} : arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
+    const decision = window.watchFusionHostZeroCenter?.isApplying?.() ? {owned:true,reason:'host-zero-centering'} : window.WatchFusionZeroConverge?.isApplying?.() ? {owned:true,reason:'zero-converging'} : arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
     diagnostics.action = decision.reason;
     if (decision.owned) { setStatus('Catching up…'); return true; }
     if (Math.abs(rawDrift) > .15 && diagnostics.stable) setStatus('Out of sync · awaiting safe correction');

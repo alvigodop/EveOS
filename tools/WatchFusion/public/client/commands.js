@@ -252,7 +252,7 @@ function hostPlaybackEventAllowed(playerState) {
 }
 function onYouTubeStateChange(event) {
   const linked = window.watchFusionLinkedTab;
-  if (linked?.active?.() && isHost()) {
+  if (linked?.active?.() && (!roomId || isHost())) { // v13.10.7: solo embedded controls drive the source too
     window.watchFusionYoutubeStability?.observe?.(event.data);
     const previewGuard=window.WatchFusionPlaylistContinuity?.guardPreviewEvent?.(event.data,linked.metadata?.(),ytPlayer?.getVideoData?.()?.video_id,state?.source?.videoId);
     if (linked.applying?.() || primingPlayer || previewGuard) return;
@@ -300,13 +300,13 @@ function onYouTubeStateChange(event) {
   }
 }
 function onYouTubeRateChange() {
-  if(window.watchFusionHostZeroCenter?.isApplying?.())return;
-  if(window.watchFusionLinkedTab?.active?.()&&isHost()&&!window.watchFusionLinkedTab?.applying?.()){window.watchFusionLinkedTab.control('rate',ytPlayer?.getPlaybackRate?.()||1);return;}
+  if(window.watchFusionHostZeroCenter?.isApplying?.()||window.WatchFusionZeroConverge?.isApplying?.()||window.WatchFusionSoloLinkSync?.isApplying?.())return;
+  if(window.watchFusionLinkedTab?.active?.()&&(!roomId||isHost())&&!window.watchFusionLinkedTab?.applying?.()){window.watchFusionLinkedTab.control('rate',ytPlayer?.getPlaybackRate?.()||1);return;}
   if (!state || applyingRemote || primingPlayer || followsRoomPlayback()) return;
   command('rate', { rate: ytPlayer?.getPlaybackRate?.() || 1 });
 }
 function onYouTubeVolumeChange(){
-  if(window.watchFusionLinkedTab?.active?.()&&isHost()&&!window.watchFusionLinkedTab?.applying?.()){
+  if(window.watchFusionLinkedTab?.active?.()&&(!roomId||isHost())&&!window.watchFusionLinkedTab?.applying?.()){
     // Browser autoplay/preview muting is not an explicit source-volume command.
     if(ytPlayer?.isMuted?.())return;
     window.watchFusionLinkedTab.control('volume',(Number(ytPlayer?.getVolume?.())||0)/100);return;
@@ -413,7 +413,7 @@ function sampleLinkedYoutubePosition(forwardSeek = true){
   if(playerState===YT.PlayerState.BUFFERING)return;
   const position=Number(ytPlayer.getCurrentTime?.())||0,now=performance.now(),rate=Number(ytPlayer.getPlaybackRate?.())||1;
   const jumped=window.WatchFusionLinkedPlaybackSync?.positionJumped?.(position,linkedYoutubePositionSample,now)===true;
-  if(forwardSeek&&jumped&&isHost())linked.control('seek',position);
+  if(forwardSeek&&jumped&&(!roomId||isHost())&&!window.WatchFusionSoloLinkSync?.isApplying?.())linked.control('seek',position);
   linkedYoutubePositionSample={position,at:now,playing:playerState===YT.PlayerState.PLAYING,rate};
 }
 setInterval(()=>{observeYouTubeAudio();sampleLinkedYoutubePosition();},250);
@@ -423,12 +423,12 @@ function followAttachedYouTube(metadata = {}, options = {}) {
   const plan=window.WatchFusionLinkedPlaybackSync?.youtubePlan(metadata,playerState,current,options);
   if(!plan)return false;
   const rate=Math.min(2,Math.max(.25,Number(metadata.rate)||1)),volume=metadata.volume;
-  const rateChanged=!window.watchFusionHostZeroCenter?.isApplying?.() && Math.abs((Number(ytPlayer.getPlaybackRate?.())||1)-rate)>.01;
+  const rateChanged=!window.watchFusionHostZeroCenter?.isApplying?.() && !window.WatchFusionZeroConverge?.isApplying?.() && !window.WatchFusionSoloLinkSync?.isApplying?.() && Math.abs((Number(ytPlayer.getPlaybackRate?.())||1)-rate)>.01;
   const volumeChanged=Number.isFinite(volume)&&Math.abs((Number(ytPlayer.getVolume?.())||0)-Math.max(0,Math.min(1,volume))*100)>.5;
   if(!plan.seek&&!plan.pause&&!plan.play&&!rateChanged&&!volumeChanged)return true;
   window.watchFusionLinkedTab?.setApplying?.(true);applyingRemote=true;
   try{
-    if(plan.seek){ytPlayer.seekTo?.(plan.target,true);linkedYoutubePositionSample={position:plan.target,at:performance.now(),playing:metadata.paused!==true,rate};}
+    if(plan.seek){window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.seekTo?.(plan.target,true);linkedYoutubePositionSample={position:plan.target,at:performance.now(),playing:metadata.paused!==true,rate};}
     if(rateChanged)ytPlayer.setPlaybackRate?.(rate);
     if(volumeChanged)ytPlayer.setVolume?.(Math.max(0,Math.min(1,volume))*100);
     if(plan.pause)ytPlayer.pauseVideo?.();else if(plan.play)ytPlayer.playVideo?.();

@@ -25,14 +25,14 @@
   // v13.10.5 policy: <=50 ms Locked, 50-100 ms Refining (soft rate nudges only), >100 ms must act.
   // Do not confuse these thresholds with transport, buffering or source-precision limits.
   const MONITOR_SEC = .05, ACTION_SEC = .10, MAX_AUTO_SEC = 30, EPS_SEC = .0005; // EPS: 100.0 ms is still 100
-  const ZERO_SERVO_SEC = .05, ZERO_SERVO_COOLDOWN_MS = 4800;
+  const ZERO_SERVO_SEC = .05, ZERO_SERVO_COOLDOWN_MS = 2400; // v13.10.7: act on >100 ms sooner
   const MIN_FINE_ACTUATION_SEC = .45;
   // v13.8: >150 ms is out-of-sync. A fixed-rate TV gets one guarded rejoin
   // only after sustained stable evidence and enough precision; never chase jitter.
-  const PLATEAU_MIN_SEC = .10, PLATEAU_DWELL_MS = 8000, PLATEAU_QUIET_STALL_MS = 15000;
+  const PLATEAU_MIN_SEC = .10, PLATEAU_DWELL_MS = 5000, PLATEAU_QUIET_STALL_MS = 15000;
   const WINDOW_MS = 2200, MIN_SAMPLES = 6, MIN_SPAN_MS = 1400, MAX_SPREAD_SEC = .35;
   const SETTLE_MS = 1000, LANDING_TIMEOUT_MS = 12000, RATE_PROBE_MS = 1600;
-  const BACKOFF_MS = [6000, 12000, 24000, 45000];
+  const BACKOFF_MS = [3000, 6000, 12000, 24000];
   // Consecutive failed corrections before automatic correction stops for this
   // segment (a seek loop is worse than a stable offset); a transport intent or
   // Sync me re-arms it.

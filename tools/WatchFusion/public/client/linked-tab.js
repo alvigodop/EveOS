@@ -366,6 +366,7 @@
       window.watchFusionRoomSyncLog?.note?.('source-seek-confirmed',{positionMs:Math.round(sample.currentTime*1000),ackLatencyMs:Math.round(performance.now()-pendingSeek.at)});
     }
     renderControls(display);
+    if(sample.tabMuted===false&&sample.paused===false)status('Linked tab is still playing sound · WatchFusion asked the extension to mute it. If you hear two copies, reload EveOS Bridge in chrome://extensions.');
     const pageUrl=String(lastMetadata.pageUrl||'');
     if(pageUrl&&pageUrl!==loadedPageUrl){void followUrl(pageUrl);return;}
     // Do not optimistically seek the host preview ahead of unacknowledged source.

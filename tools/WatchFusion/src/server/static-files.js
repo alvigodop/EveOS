@@ -91,14 +91,18 @@ export async function sendFile(req, res) {
       'client/live-source.js',
       'client/playlist-continuity.js',
       'client/linked-tab.js',
+      'client/solo-link-sync.js',
       'client/watchfusion-host-input-fix.js',
       'client/sync-center.js',
       'client/youtube-startup-gate.js',
       'client/viewer-sync-arbiter.js',
       'playback-sync.js',
+      'client/tv-decoder-rescue.js',
       'client/acoustic-timing.js',
       'client/presentation-sync.js',
       'client/room-playout.js',
+      'client/zero-converge.js',
+      'client/room-audio-unlock.js',
       'client/sync-room-log.js'
     ];
     try {

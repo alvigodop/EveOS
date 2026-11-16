@@ -1,0 +1,51 @@
+/* v13.10.7: Terminal recovery for a wedged TV decoder (replaces the v13.10 one-shot rescue).
+ * Drift's trace: the TV exhausted its 3-step stall ladder, then sat in BUFFERING for ~60 s and fell
+ * 86 s behind while laptop and phone stayed Locked. Only a manual page reload fixed it. The old rescue
+ * never fired: it required PLAYING (not BUFFERING) and its dwell restarted every time the linked source
+ * status blinked to "frozen" for one report.
+ * Ladder, per video segment, only on this device, never moving the room or the other members:
+ *   1. one decoder reload at the live room position (loadVideoById)
+ *   2. if still wedged, one rebuild of the YouTube player (what the manual reload did)
+ * Then it stops and says so. Never runs while the room reference itself is frozen or buffering.
+ */
+(() => {
+  'use strict';
+  if (typeof window === 'undefined') return;
+  const STALL_DWELL_MS = 6000, BUFFER_DWELL_MS = 9000, MIN_DRIFT_SEC = 2.5, RETRY_AFTER_MS = 15000;
+  const TRUST_GRACE_MS = 6000, MAX_REBUILDS_PER_10_MIN = 2;
+  let scope = '', since = 0, steps = 0, lastStepAt = -Infinity, outcome = 'idle', liveSeenAt = -Infinity;
+  const rebuilds = [];
+  function consider(input = {}) {
+    if (input.scope !== scope) { scope = input.scope; since = 0; steps = 0; lastStepAt = -Infinity; liveSeenAt = -Infinity; outcome = 'scope-change'; }
+    const nowMs = Number(input.nowMs);
+    if (input.trusted) liveSeenAt = nowMs;
+    const wedged = input.buffering ? true : !!(input.exhausted && input.playing);
+    if (!scope || !wedged || document.hidden || !Number.isFinite(nowMs)) { since = 0; return false; }
+    // A one-report "frozen" blink of the linked source is not a frozen room.
+    if (input.sourceBuffering || nowMs - liveSeenAt > TRUST_GRACE_MS) { since = 0; outcome = 'room-reference-not-live'; return false; }
+    if (!(Math.abs(Number(input.drift)) >= MIN_DRIFT_SEC)) { since = 0; outcome = 'within-buffer-guard'; return false; }
+    if (!since) { since = nowMs; outcome = 'confirming-wedged-decoder'; return false; }
+    if (nowMs - since < (input.buffering ? BUFFER_DWELL_MS : STALL_DWELL_MS)) return false;
+    if (steps >= 2) { outcome = 'terminal-recovery-spent'; return false; }
+    if (steps === 1 && nowMs - lastStepAt < RETRY_AFTER_MS) { outcome = 'verifying-decoder-reload'; return false; }
+    const recent = rebuilds.filter(t => nowMs - t < 600000);
+    const rebuild = steps === 1 && recent.length < MAX_REBUILDS_PER_10_MIN && typeof input.rebuild === 'function';
+    if (steps === 1 && !rebuild) { steps = 2; outcome = 'rebuild-budget-spent'; return false; }
+    steps++; lastStepAt = nowMs; since = 0;
+    try {
+      if (rebuild) { rebuilds.push(nowMs); input.rebuild(); outcome = 'player-rebuilt-once'; }
+      else { input.reload(); outcome = 'one-decoder-reload'; }
+      window.watchFusionRoomSyncLog?.note?.('tv-decoder-' + (rebuild ? 'rebuild' : 'reload'), {positionMs: Math.round(Number(input.drift) * 1000)});
+      return true;
+    } catch { outcome = 'recovery-failed'; return false; }
+  }
+  // The same thing a manual URL reload does for the player, without leaving the room.
+  function rebuildPlayer(videoId) {
+    if (!videoId || typeof ensurePlayer !== 'function') throw Error('rebuild unavailable');
+    try { ytPlayer?.destroy?.(); } catch {}
+    ytPlayer = null; ytPlayerReady = false; playerPrimed = false; playerInitializing = false;
+    ensurePlayer(videoId);
+  }
+  window.WatchFusionDecoderRescue = {version: 'v13.10.7', consider, rebuildPlayer,
+    diagnostics: () => ({scope, attempted: steps > 0, steps, outcome})};
+})();

@@ -7,6 +7,22 @@ importScripts('live-peer.js');
 let sourceTab = null, controlFrameId = 0, statePeer = null;
 let lastRefresh = 0, lastCombinedSample = null, publisherReady = false, stopping = false;
 let clockSamples = [];
+// v13.10.7: tab-level mute keeps the source's own volume/telemetry intact while WatchFusion is the only speaker.
+// The old worker swallowed mute failures, so a still-audible source tab went unnoticed. Verify and re-assert.
+let lastMuteAttemptAt=0, muteVerified=null;
+async function ensureSourceTabMuted(tabId,force=false){
+  if(!Number.isInteger(tabId)||sourceTab!==tabId||stopping)return false;
+  const now=Date.now();
+  if(!force&&now-lastMuteAttemptAt<4000)return muteVerified===true;
+  lastMuteAttemptAt=now;
+  try{
+    const before=await chrome.tabs.get(tabId);
+    if(before?.mutedInfo?.muted!==true)await chrome.tabs.update(tabId,{muted:true});
+    const after=await chrome.tabs.get(tabId);
+    muteVerified=after?.mutedInfo?.muted===true;
+  }catch(error){muteVerified=false;console.warn('WatchFusion: source tab mute failed:',String(error?.message||error));}
+  return muteVerified===true;
+}
 const frameSamples = new Map();
 
 function pairing(value) {
@@ -126,6 +142,7 @@ async function restorePublisherIfNeeded() {
   sourceTab=saved.sourceTab;
   try {
     const tab=await chrome.tabs.get(sourceTab);
+    await ensureSourceTabMuted(sourceTab,true);
     await inject(sourceTab);
     lastCombinedSample={metadata:{pageUrl:String(tab.url||'')}};
     connectStatePublisher(saved.sourceLinkConfig);
@@ -141,7 +158,7 @@ async function stop() {
     const tabId=sourceTab??saved.sourceTab;
     publisherReady=false;statePeer?.stop();statePeer=null;
     await restoreSourceTab(tabId,saved.sourceTabWasMuted);
-    sourceTab=null;frameSamples.clear();controlFrameId=0;lastCombinedSample=null;
+    sourceTab=null;muteVerified=null;lastMuteAttemptAt=0;frameSamples.clear();controlFrameId=0;lastCombinedSample=null;
     await chrome.storage.session.remove(['sourceTab','sourceTabWasMuted','sourceLinkConfig']);
     return {ok:true};
   }finally{stopping=false;}
@@ -156,7 +173,7 @@ async function startCurrentTab(value,options={}) {
   try{
     const tab=await chrome.tabs.get(tabId);sourceTab=tabId;
     await chrome.storage.session.set({sourceTab,sourceTabWasMuted:!!tab?.mutedInfo?.muted,sourceLinkConfig:config});
-    await chrome.tabs.update(tabId,{muted:true}).catch(()=>{});
+    await ensureSourceTabMuted(tabId,true);
     await inject(tabId);
     const initial=await waitForInitialSample();
     if(initial?.metadata)lastCombinedSample=initial;
@@ -192,7 +209,8 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
       const sample=combinedSample(sender.frameId||0,message,sender.tab?.url||'');
       if(!statePeer)await restorePublisherIfNeeded();
       if(!publisherReady)return {ok:true,pending:true};
-      sendSourceSample(sample.metadata,sender.tab?.mutedInfo?.muted);return {ok:true};
+      const muted=sender.tab?.mutedInfo?.muted;if(muted===false)void ensureSourceTabMuted(tabId);
+      sendSourceSample(sample.metadata,muted);return {ok:true};
     }
     return {error:'No selected media tab.'};
   })().then(reply,error=>reply({error:error.message,code:error.code}));
@@ -202,5 +220,6 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 chrome.tabs.onRemoved.addListener(async tabId=>{const saved=await chrome.storage.session.get('sourceTab');if(tabId===saved.sourceTab)await stop();});
 chrome.tabs.onUpdated.addListener(async(tabId,info)=>{
   const saved=await chrome.storage.session.get('sourceTab');if(tabId!==saved.sourceTab)return;
-  if(info.status==='complete'){try{await inject(tabId);}catch{await stop();}}
+  if(info.mutedInfo?.muted===false)void ensureSourceTabMuted(tabId);
+  if(info.status==='complete'){try{await inject(tabId);await ensureSourceTabMuted(tabId);}catch{await stop();}}
 });

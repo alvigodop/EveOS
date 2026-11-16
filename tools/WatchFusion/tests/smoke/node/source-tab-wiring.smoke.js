@@ -155,7 +155,7 @@ export async function runSourceTabSmokes() {
 
   await record('ST-15:linked-youtube-poll-detects-host-seeks-without-buffering-event', async () => {
     assert.match(commands, /positionJumped\?\.\(position,linkedYoutubePositionSample,now\)/);
-    assert.match(commands, /if\(forwardSeek&&jumped&&isHost\(\)\)linked\.control\('seek',position\)/);
+    assert.match(commands, /if\(forwardSeek&&jumped&&\(!roomId\|\|isHost\(\)\)&&!window\.WatchFusionSoloLinkSync\?\.isApplying\?\.\(\)\)linked\.control\('seek',position\)/); // v13.10.7: solo seeks route too
   })();
 
   await record('ST-16:linked-controls-stay-compact-over-the-normal-player', async () => {
