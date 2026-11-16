@@ -238,7 +238,7 @@
       play: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.playVideo?.(); },
       rate: rate => setViewerRate(rate),
       sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.(),
-      referenceUncertaintyMs: () => window.watchFusionPlayout?.status?.()?.uncertaintyMs ?? null,
+      referenceUncertaintyMs: () => { const c=window.watchFusionPlayout?.status?.();const p=isHost()?window.watchFusionPresentation?.peerCandidate?.():null;const offset=(Number(ytPlayer?.getCurrentTime?.())-Number(window.watchFusionYouTubeTarget?.(estimatedServerNow(),ytPlayer?.getDuration?.())))*1000;return window.WatchFusionPrecisionPolicy?.trustedHostReference?.(c,p,offset)?.precisionMs??c?.uncertaintyMs??null; },
       // Host-driven rooms have no external source: the host transport is the room timeline.
       // With a linked source, large automatic moves need that source to corroborate the room.
       referenceTrusted: () => state?.linkedSourceActive !== true || window.watchFusionPlayout?.status?.()?.source === 'live'
@@ -302,7 +302,7 @@
       diagnostics.action = decision.reason;
       if (decision.owned) { setStatus('Catching up…'); return true; }
     }
-    if (!arbiter?.owns()) setViewerRate(baseRate);
+    if (!arbiter?.owns() && !window.watchFusionHostZeroCenter?.isApplying?.()) setViewerRate(baseRate);
     const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
     if (!force && buffering) {
       if (!viewerWasBuffering) resetDriftSensor('buffering');
@@ -337,7 +337,7 @@
         sourceBuffering:!!window.watchFusionPlayout?.sourceBuffering?.(),drift:rawDrift,
         reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');
           window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target});
-          replayLoads++;arbiter.intent('transport',io);awaitSeekRecovery(nowMs);
+          replayLoads++;arbiter.intent('pause',io);awaitSeekRecovery(nowMs);
         }})){diagnostics.action='decoder-reload-once';setStatus('TV decoder recovery · restarting once…');return true;}
       diagnostics.action=exhausted?'stall-recovery-exhausted':startup.reason;requestViewerPlayback();return true;
     }
@@ -347,7 +347,7 @@
         (p.reference==='room-clock'||p.reference==='peer-cohort'&&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125)&&
         Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs
     })) {const accepted=arbiter.rejoinNow(nowMs,io,'manual');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}
-    const decision = arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
+    const decision = window.watchFusionHostZeroCenter?.isApplying?.() ? {owned:true,reason:'host-zero-centering'} : arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
     diagnostics.action = decision.reason;
     if (decision.owned) { setStatus('Catching up…'); return true; }
     if (Math.abs(rawDrift) > .15 && diagnostics.stable) setStatus('Out of sync · awaiting safe correction');

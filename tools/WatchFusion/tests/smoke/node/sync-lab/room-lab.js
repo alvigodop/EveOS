@@ -54,7 +54,8 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
   function setPlayback(next) { room.playback = {...room.playback, ...next, updatedAt: clock.now()}; broadcast(); }
 
   // Linked-tab publisher: real mirrorPlan decides when the room anchor is republished.
-  const mirrorCtx = vm.createContext({performance: clock.performance, Date: clock.Date});
+  const mirrorCtx = {performance: clock.performance, Date: clock.Date}; mirrorCtx.window = mirrorCtx.globalThis = mirrorCtx;
+  vm.createContext(mirrorCtx);
   vm.runInContext(read('client/linked-playback-sync.js'), mirrorCtx);
   const mirror = mirrorCtx.WatchFusionLinkedPlaybackSync;
   clock.setInterval(() => {

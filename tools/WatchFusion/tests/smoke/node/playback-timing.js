@@ -11,7 +11,7 @@ const readClient = name => fs.readFileSync(path.join(CLIENT, name), 'utf8');
 
 export async function runPlaybackTimingChecks(check) {
   const linkedPlayback = readClient('linked-playback-sync.js');
-  const timingContext = vm.createContext({});
+  const timingContext = {}; timingContext.window = timingContext; vm.createContext(timingContext);
   vm.runInContext(linkedPlayback, timingContext);
   const sync = timingContext.WatchFusionLinkedPlaybackSync;
   await check('TIMING-20:linked sample clock domains and expiry', () => {

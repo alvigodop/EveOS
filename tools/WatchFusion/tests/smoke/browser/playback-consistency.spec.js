@@ -404,7 +404,10 @@ test('linked toolbar play and pause reach the source exactly once', async ({ pag
           sampledAt:Date.now(), paused, currentTime:10, duration:100, rate:1, volume:.37});
       }
       stop() {}
-      control(action) { window.sourceActions.push(action); }
+      // v13.10.3 delivers only over an open, acknowledged peer; the stub models that.
+      get socket() { return {readyState:1}; }
+      get viewerId() { return 'fixture-viewer'; }
+      control(action) { window.sourceActions.push(action); return true; }
     };
     window.watchFusionMediaResolver.resolveAndLoad = async () => true;
     await watchFusionLinkedTab.start();

@@ -50,7 +50,8 @@ export const RECOVERY_SCENARIOS = {
     const detail = {seeks: r.tv.player.stats.seeks - seeks, lateSeeks: r.tv.player.stats.seeks - mid, stall: arbiterOf(r.tv).stallSteps,
       reason: r.tv.diagnostics()?.action, loads: r.tv.player.stats.loads, laptop: settled(r.laptop, r.at(100), r.at(130)).summary};
     r.lab.close();
-    return {ok: detail.stall === 3 && detail.seeks <= 2 && detail.lateSeeks === 0 && detail.loads === 0 && detail.laptop.p95AbsMs <= 200, detail};
+    // v13.10.3 adds exactly one decoder reload after the exhausted ladder; it must not restart the ladder.
+    return {ok: detail.stall === 3 && detail.loads <= 1 && detail.seeks <= 2 + detail.loads && detail.lateSeeks === 0 && detail.laptop.p95AbsMs <= 200, detail};
   },
   async 'SYNC-16:a 40 s freeze that ignores pause and seek still ends in a recovered lock'() {
     const r = await pair();
@@ -61,7 +62,8 @@ export const RECOVERY_SCENARIOS = {
     const a = arbiterOf(r.tv);
     const detail = {tv: tv.summary, stall: a.stallSteps, displaced: a.displacedRejoins, rejoins: a.rejoins, loads: r.tv.player.stats.loads};
     r.lab.close();
-    return {ok: tv.ok && detail.loads === 0, detail};
+    // One decoder reload (v13.10.3) is allowed; a reload loop or a restarted ladder is not.
+    return {ok: tv.ok && detail.loads <= 1, detail};
   },
   async 'SYNC-18:a second 45 s timeline jump in one segment (reclaim spent) is recovered once, not left forever'() {
     const r = await pair();

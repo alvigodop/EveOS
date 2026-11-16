@@ -47,13 +47,11 @@
   function classifyPeer(peer) {
     if (!peer.ready) return 'Loading';
     if (peer.buffering) return 'Buffering';
-    if (peer.correcting === true || peer.recentCorrection === 'rate-correction') return 'Catching up';
+    if (peer.correcting === true || peer.recentCorrection === 'rate-correction') return 'Correcting';
     if (!peer.playing) return 'Paused';
     const errorMs = Number.isFinite(peer.positionMs) && Number.isFinite(peer.targetPositionMs)
       ? Math.abs(peer.positionMs - peer.targetPositionMs) : null;
-    if (errorMs !== null && errorMs > 150) return 'Out of sync';
-    if (errorMs !== null && errorMs > 50) return 'Monitoring';
-    return 'Playing';
+    return window.WatchFusionPrecisionPolicy?.label?.({ready:peer.ready,buffering:peer.buffering,playing:peer.playing,correcting:peer.correcting,errorMs,reason:peer.recentCorrection||peer.hostRecovery?.outcome}) || (errorMs>100?'Recovery needed':errorMs>50?'Refining':'Locked');
   }
 
   function renderPeers(list, peers, members) {
@@ -71,6 +69,7 @@
         ['Timing reference', peer.timingReference ?? null],
         ['Host correction', peer.hostCorrection ?? null],
         ['Host recovery gate', peer.hostRecovery?.outcome ?? (peer.member===state?.hostId && isHost() ? window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome : null)],
+        ['Precision action', peer.recentCorrection ?? null],
         ['Peer witnesses', peer.hostRecovery?.peerCount ? String(peer.hostRecovery.peerCount) : null],
         ['Video frame', peer.videoFrameOffsetMs == null ? null : signed(peer.videoFrameOffsetMs)],
         ['Corrections', peer.corrections == null ? null : String(peer.corrections)]
@@ -82,7 +81,7 @@
     list.replaceChildren(...cards.map(({name, status, metrics}) => {
       const row = element('li', 'sync-peer-card');
       const heading = element('div', 'sync-peer-head');
-      const stateClass = status === 'Catching up' || status === 'Out of sync' || status === 'Buffering' ? ' is-buffering' : status === 'Paused' ? ' is-idle' : '';
+      const stateClass = status === 'Correcting' || status === 'Recovery needed' || status === 'Buffering' ? ' is-buffering' : status === 'Paused' ? ' is-idle' : '';
       heading.append(element('strong', 'sync-peer-name', name), element('span', 'sync-peer-state' + stateClass, status));
       const figures = element('div', 'sync-peer-metrics');
       for (const [label, value] of metrics) {

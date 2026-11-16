@@ -316,7 +316,8 @@ test('gentle catch-up nudges the supported speed for sustained lag without a see
     Date.now = () => wall + now;
     Object.defineProperty(performance,'now',{configurable:true,value:() => now});
     try {
-      return [.10,.225,1.1].map((lag,index) => {
+      // v13.10.5: <=50 ms is Locked (no nudge); 50-100 ms is Refining and may nudge gently.
+      return [.045,.225,1.1].map((lag,index) => {
         let position=30-lag, rate=1;
         const rates=[], seeks=[];
         roomId='gentle-'+index; session={memberId:'viewer'}; now=0;
@@ -333,6 +334,8 @@ test('gentle catch-up nudges the supported speed for sustained lag without a see
           if(tick)position+=.25*rate;
           syncPlayer();
         }
+        // A refining nudge (<=600 ms) may be mid-burst at the cut: it must release to 1x by itself.
+        for (let extra=0;rate!==1&&extra<10;extra++){now+=250;position+=.25*rate;syncPlayer();}
         return {rates,seeks,drift:30+now/1000-position,finalRate:rate};
       });
     } finally {
@@ -343,7 +346,9 @@ test('gentle catch-up nudges the supported speed for sustained lag without a see
   });
   expect(results[0].rates).toEqual([]);
   for(const item of results.slice(1)){
-    expect(item.rates).toEqual([1.25,1]);
+    // v13.10.5 keeps refining toward 0 ms: the first burst, then only further gentle 1.25x/1x nudges.
+    expect(item.rates.slice(0,2)).toEqual([1.25,1]);
+    expect(item.rates.every(rate=>rate===1.25||rate===1)).toBe(true);
     expect(Math.abs(item.drift)).toBeLessThan(.20);
     expect(item.finalRate).toBe(1);
   }

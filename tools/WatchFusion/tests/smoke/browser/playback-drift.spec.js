@@ -245,7 +245,7 @@ test.describe('Adaptive playback drift regression', () => {
             seekTo(position, network) {
               const lead = position - (30 + t / 1000);
               seeks.push({t,lead,network});
-              if (succeeds) drift = .15;
+              if (succeeds) drift = .08; // landed inside the v13.10.5 100 ms action edge
               bufferingUntil = t + 500;
             }
           };

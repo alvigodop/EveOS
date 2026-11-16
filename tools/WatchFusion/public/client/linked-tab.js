@@ -101,6 +101,7 @@
     $('liveStop').hidden=false;$('linkTabBtn').textContent='Unlink playing tab';$('linkTabBtn').setAttribute('aria-pressed','true');
   }
   function restoreUi(){
+    window.WatchFusionPlaylistContinuity?.reset?.();
     document.querySelector('.watch-shell')?.classList.remove('linked-tab-active');
     $('linkTabBtn').textContent='Link a playing tab';$('linkTabBtn').setAttribute('aria-pressed','false');
     if(state?.source?.kind!=='live')$('liveControls').hidden=true;
@@ -113,6 +114,7 @@
       action = transport.paused !== false ? 'play' : 'pause';
       value = window.WatchFusionLinkedPlaybackSync.projectedPosition(transport);
     }
+    if(action==='pause')window.WatchFusionPlaylistContinuity?.manualPause?.();
     const numeric = ['prev','next'].includes(action) ? 0 : Number(value);
     if (!Number.isFinite(numeric)) return false;
     if (action === 'volume' && (pendingControls.get('volume')?.value ?? lastMetadata.volume) === numeric) return true;
@@ -341,6 +343,7 @@
     lastSampleAt = Number(metadata.sampledAt);
     lastSampleUrl = metadata.pageUrl;lastLinkedSampleAt=now;
     const previous=lastMetadata;
+    window.WatchFusionPlaylistContinuity?.onTransition?.(previous,sample,{eligible:!!(roomProof()&&isHost())});
     if (previous.pageUrl && previous.pageUrl !== sample.pageUrl) {
       window.watchFusionRoomSyncLog?.note?.('source-track-transition',{sequence:++trackTransitions,sourceAgeMs:Math.round(now-Number(sample.sampledAt))});
       clearVolumeDraft(); pendingControls.delete('volume');
@@ -355,6 +358,7 @@
       window.watchFusionRoomSyncLog?.note?.('source-volume',{volumePct:Math.round(sample.volume*100)});
     const pendingSeek = pendingControls.get('seek');
     const display = applyPendingControls(lastMetadata,sample);
+    window.WatchFusionPlaylistContinuity?.observe?.(sample,{eligible:!!(roomProof()&&isHost()),connected:peerReady(),pending:pendingControls.has('play'),send:()=>control('play',Number(sample.currentTime)||0)});
     const seekConfirmed = pendingSeek && !pendingControls.has('seek') &&
       Number(sample.sampledAt) >= pendingSeek.sampledAt && pendingSatisfied('seek',pendingSeek,sample);
     if (seekConfirmed) {

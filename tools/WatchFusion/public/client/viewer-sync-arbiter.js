@@ -22,14 +22,14 @@
 (() => {
   'use strict';
   const MODEL_KEY = 'watchfusion.viewerSyncModel.v1';
-  // Fine timing policy: monitor above 50 ms, evaluate sustained correction above 125 ms.
+  // v13.10.5 policy: <=50 ms Locked, 50-100 ms Refining (soft rate nudges only), >100 ms must act.
   // Do not confuse these thresholds with transport, buffering or source-precision limits.
-  const MONITOR_SEC = .05, ACTION_SEC = .125, MAX_AUTO_SEC = 30;
-  const ZERO_SERVO_SEC = .055, ZERO_SERVO_COOLDOWN_MS = 6000;
+  const MONITOR_SEC = .05, ACTION_SEC = .10, MAX_AUTO_SEC = 30, EPS_SEC = .0005; // EPS: 100.0 ms is still 100
+  const ZERO_SERVO_SEC = .05, ZERO_SERVO_COOLDOWN_MS = 4800;
   const MIN_FINE_ACTUATION_SEC = .45;
   // v13.8: >150 ms is out-of-sync. A fixed-rate TV gets one guarded rejoin
   // only after sustained stable evidence and enough precision; never chase jitter.
-  const PLATEAU_MIN_SEC = .15, PLATEAU_DWELL_MS = 8000, PLATEAU_QUIET_STALL_MS = 15000;
+  const PLATEAU_MIN_SEC = .10, PLATEAU_DWELL_MS = 8000, PLATEAU_QUIET_STALL_MS = 15000;
   const WINDOW_MS = 2200, MIN_SAMPLES = 6, MIN_SPAN_MS = 1400, MAX_SPREAD_SEC = .35;
   const SETTLE_MS = 1000, LANDING_TIMEOUT_MS = 12000, RATE_PROBE_MS = 1600;
   const BACKOFF_MS = [6000, 12000, 24000, 45000];
@@ -285,7 +285,7 @@
         // v13.7: a freeze after landing says nothing about the correction: no learning, no backoff.
         const voided = lastStallSeenAt >= (lastCorrection?.releasedAt ?? Infinity);
         if (voided) reason = 'correction-voided-by-decoder-stall'; else learn(error);
-        if (Math.abs(error) <= ACTION_SEC) { failures = 0; }
+        if (Math.abs(error) <= ACTION_SEC + EPS_SEC) { failures = 0; }
         else if (!voided && lastCorrection?.kind !== 'unscheduled' && Math.abs(error) > Math.abs(before) * .7) {
           failures++; stats.failures++;
           cooldownUntil = nowMs + BACKOFF_MS[Math.min(BACKOFF_MS.length - 1, failures - 1)];
@@ -293,27 +293,30 @@
           return;
         }
       }
-      if (absolute <= MONITOR_SEC) {
+      if (absolute <= MONITOR_SEC + EPS_SEC) {
         if (!locked) lockedAt = nowMs;
         if (firstFineLockAt < 0) firstFineLockAt = nowMs;
         locked = true; reason = 'locked'; return;
       }
-      if (absolute <= ACTION_SEC) {
-        // Only use previously proven rate control for small residuals; no speculative seeks.
+      if (absolute <= ACTION_SEC + EPS_SEC) {
+        // Refining: soft rate nudges toward 0 ms when the error exceeds reference noise; never a seek.
         const precision = Number(io.referenceUncertaintyMs?.());
-        if (absolute >= ZERO_SERVO_SEC && model.rateHonored === true && io.referenceTrusted?.() === true
-            && precision >= 0 && precision <= absolute * 500 && nowMs - lastZeroServoAt >= ZERO_SERVO_COOLDOWN_MS) {
+        if (absolute >= ZERO_SERVO_SEC && model.rateHonored !== false && io.referenceTrusted?.() === true
+            && precision >= 0 && precision < absolute * 1000 && nowMs - lastZeroServoAt >= ZERO_SERVO_COOLDOWN_MS) {
           const gentleRate = rateFor(io, error);
           if (gentleRate !== null) { lastZeroServoAt = nowMs; startRate(nowMs, error, io, gentleRate); return; }
         }
-        reason = 'fine-drift-monitoring'; return;
+        reason = 'fine-drift-refining'; return;
       }
       locked = false;
       // A 125 ms error is not an actionable measurement if the active room
       // reference itself has greater uncertainty. Never turn noise into seeks.
       const uncertaintyMs = Number(io.referenceUncertaintyMs?.());
       if (uncertaintyMs > 0 && Number.isFinite(uncertaintyMs)
-          && absolute * 1000 <= Math.max(125, uncertaintyMs * 1.2)) {
+          && absolute * 1000 <= Math.max(100, uncertaintyMs * 1.2)) {
+        // >100 ms must act: a soft rate nudge only (never a seek on a noisy reference).
+        const soft = nowMs - lastZeroServoAt >= ZERO_SERVO_COOLDOWN_MS ? rateFor(io, error) : null;
+        if (soft !== null) { lastZeroServoAt = nowMs; return startRate(nowMs, error, io, soft); }
         reason = 'fine-drift-below-reference-precision'; return;
       }
       if (failures >= MAX_FAILURES) { phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
@@ -338,7 +341,7 @@
       // a 130 ms offset can create far more drift than it corrects. Keep
       // monitoring until a meaningful, safely actionable displacement exists.
       if (absolute < MIN_FINE_ACTUATION_SEC) {
-        if (absolute <= PLATEAU_MIN_SEC || plateauSpent || !io.referenceTrusted?.() || (uncertaintyMs > 0 && absolute * 1000 - uncertaintyMs <= 50)) { plateau = null; reason = 'fine-drift-awaiting-capability'; return; }
+        if (absolute <= PLATEAU_MIN_SEC + EPS_SEC || plateauSpent || !io.referenceTrusted?.() || (uncertaintyMs > 0 && absolute * 1000 - uncertaintyMs <= 50)) { plateau = null; reason = 'fine-drift-awaiting-capability'; return; }
         if (!plateau || Math.sign(plateau.error) !== Math.sign(error) || Math.abs(plateau.error - error) > .08) plateau = {since: nowMs, error};
         if (nowMs - plateau.since < PLATEAU_DWELL_MS || nowMs - lastStallSeenAt < PLATEAU_QUIET_STALL_MS) { reason = 'fine-drift-awaiting-capability'; return; }
         plateau = null; plateauSpent = true;
@@ -376,7 +379,7 @@
     function rejoinNow(nowMs, io, why = 'manual') {
       intent(why, io);
       const error = io.target(nowMs) - projected(nowMs, io.current(), io.baseRate);
-      if (Math.abs(error) <= ACTION_SEC && io.state() === 1) { reason = 'already-aligned'; return false; }
+      if (Math.abs(error) <= ACTION_SEC + EPS_SEC && io.state() === 1) { reason = 'already-aligned'; return false; }
       // A small transport hop (e.g. a republished source anchor) is ordinary
       // drift: observe it and pick the gentlest verified strategy instead.
       // A freshly hydrated source has no evidence yet and is aligned outright.
@@ -420,7 +423,7 @@
       return {phase, reason, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
         model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), leadMs: Math.round(model.leadSec * 1000),
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
-        ...stats, tolerancesMs: {monitor: 50, action: 125, outOfSync: 150},
+        ...stats, tolerancesMs: {monitor: 50, action: 100, outOfSync: 100},
         firstFineLockMs: firstFineLockAt >= 0 && acquiredAt >= 0 ? firstFineLockAt - acquiredAt : null,
         stallSteps: stall.steps, displacedRejoins, owned: !!job};
     }

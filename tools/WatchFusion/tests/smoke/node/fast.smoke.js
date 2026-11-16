@@ -10,6 +10,7 @@ import { runPresentationTimingChecks } from './presentation-timing.js';
 import { runAutomaticPlayoutChecks } from './automatic-playout.js';
 import { runRoomLogChecks } from './room-log-trace.js';
 import { runSyncLabChecks } from './sync-lab/scenarios.js';
+import { runV13105PolicyChecks } from './v13105-policy.js';
 import { isM3u8Response } from '../../../src/server/media-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -229,7 +230,7 @@ export async function runFastSmoke() {
   });
 
   await check('FAST-02D:linked-youtube-sync-does-not-seek-loop', () => {
-    const context={Date,performance:{now:()=>5000}};context.globalThis=context;
+    const context={Date,performance:{now:()=>5000}};context.globalThis=context.window=context;
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(path.join(PROJECT_ROOT,'public','client','linked-playback-sync.js'),'utf8'),context);
     const sync=context.WatchFusionLinkedPlaybackSync,now=10000;
@@ -254,6 +255,7 @@ export async function runFastSmoke() {
   await runAutomaticPlayoutChecks(check);
   await runRoomLogChecks(check);
   await runSyncLabChecks(check);
+  await runV13105PolicyChecks(check);
 
   await check('FAST-02A:nuvio-browser-plugin-bridge-contract', () => {
     const build = fs.readFileSync(path.join(PROJECT_ROOT, 'scripts', 'BUILD-NUVIO.bat'), 'utf8');

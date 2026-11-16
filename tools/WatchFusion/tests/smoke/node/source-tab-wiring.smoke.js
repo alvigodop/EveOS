@@ -136,12 +136,12 @@ export async function runSourceTabSmokes() {
     assert.match(linkedTab, /if\(!plan\?\.publish\)return false/);
     assert.match(linkedTab, /mirrorInFlight=true/);
     assert.match(linkedTab, /queuedMirror=\{metadata:\{\.\.\.metadata\},force:/);
-    assert.match(linkedTab, /if\(ok&&link===activeLink&&loadedPageUrl===activePage\)lastMirrorAnchor=plan\.anchor/);
+    assert.match(linkedTab, /if\(ok&&link===activeLink&&loadedPageUrl===activePage\)\{?lastMirrorAnchor=plan\.anchor/); // v13.10.3 adds a mirror-applied note in the same guarded block
     assert.doesNotMatch(linkedTab, /MIRROR_INTERVAL_MS/);
     assert.match(linkedPlayback, /function mediaPlan/);
     assert.match(linkedPlayback, /function mirrorPlan/);
     assert.match(linkedPlayback, /function transportTiming/);
-    assert.match(linkedTab, /diagnostics:\(\)=>\(\{transport:lastTransportTiming\}\)/);
+    assert.match(linkedTab, /diagnostics:\(\)=>\(\{transport:lastTransportTiming[,}]/); // v13.10.3 adds peer-readiness fields
     assert.match(worker, /publisherReceivedAt:Date\.now\(\)/);
     assert.match(worker, /publisherSentAt:now/);
     assert.match(worker, /serverSampledAt:sample.sampledAt \+ offsets/);

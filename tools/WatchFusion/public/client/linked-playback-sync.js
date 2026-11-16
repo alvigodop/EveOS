@@ -241,11 +241,11 @@
  */
 (() => {
   'use strict';
-  if (window.watchFusionHostZeroCenter?.version === 'v13.9') return;
-  const PERIOD_MS = 250, WINDOW_MS = 2000, REARM_MS = 9000;
-  const MIN_ERROR_SEC = .055, MAX_ERROR_SEC = .35;
+  if (typeof window === 'undefined' || typeof document === 'undefined' || window.watchFusionHostZeroCenter?.version === 'v13.9') return; // host-page only
+  const PERIOD_MS = 250, WINDOW_MS = 2000, REARM_MS = 5000;
+  const MIN_ERROR_SEC = .05, MAX_ERROR_SEC = .45;
   let scope = '', samples = [], pulse = null, suppressUntil = 0;
-  let cooldownUntil = 0, disabled = false, previousPulse = null;
+  let cooldownUntil = 0, disabled = false, previousPulse = null, failedPulseAt=-Infinity, failCount=0;
   let outcome = 'idle', attempts = 0, lastErrorMs = null;
   const now = () => performance.now();
   const readRate = () => Number(ytPlayer?.getPlaybackRate?.());
@@ -269,18 +269,18 @@
   }
   function reset(next, reason) {
     release('interrupted');
-    if (scope !== next) { disabled = false; attempts = 0; previousPulse = null; cooldownUntil = 0; }
+    if (scope !== next) { disabled = false; failCount = 0; attempts = 0; previousPulse = null; cooldownUntil = 0; }
     scope = next; samples = []; lastErrorMs = null; outcome = reason;
   }
   function validSample() {
     if (document.hidden || !roomId || !isHost() || !ytPlayerReady ||
-        playerInitializing || primingPlayer || applyingRemote || !state?.source?.videoId ||
+        playerInitializing || primingPlayer || applyingRemote || window.watchFusionViewerArbiter?.owns?.() || !state?.source?.videoId ||
         state.playback?.paused || state.playback?.ended || !canControl()) return false;
     if (ytPlayer.getPlayerState?.() !== 1 ||
         ytPlayer.getVideoData?.()?.video_id !== state.source.videoId) return false;
     const coordination = window.watchFusionPlayout?.status?.();
-    if (!coordination || coordination.authorityBuffering ||
-        !['peer-cohort','linked-source'].includes(coordination.reference) ||
+    if (!coordination || coordination.authorityBuffering || coordination.source!=='live' ||
+        !['peer-cohort','linked-source','room-clock'].includes(coordination.reference) ||
         !Number.isFinite(coordination.uncertaintyMs)) return false;
     return true;
   }
@@ -298,11 +298,11 @@
     if (pulse) {
       if (at >= pulse.dueAt) release('pulse-finished');
       else if (at - pulse.startedAt > 400 && Math.abs(readRate()-pulse.rate) > .015) {
-        disabled = true; release('rate-not-accepted');
+        disabled = true;failedPulseAt=at;failCount++;release('rate-not-accepted');
       }
       return;
     }
-    if (disabled || at < cooldownUntil || at < suppressUntil) return;
+    if(disabled&&failCount<3&&at-failedPulseAt>30000){disabled=false;previousPulse=null;}if(disabled||at<cooldownUntil||at<suppressUntil)return;
     const coordination = window.watchFusionPlayout.status();
     const position = Number(ytPlayer.getCurrentTime?.());
     const target = Number(window.watchFusionYouTubeTarget?.(estimatedServerNow(),ytPlayer.getDuration?.()));
@@ -313,8 +313,8 @@
     if (Math.abs(error) < MIN_ERROR_SEC || Math.abs(error) > MAX_ERROR_SEC) {
       samples = []; outcome = 'within-deadband-or-needs-ordinary-sync'; return;
     }
-    const uncertainty = Number(coordination.uncertaintyMs);
-    if (uncertainty > 45 || Math.abs(error)*1000 < uncertainty*1.35) {
+    const confidence=window.WatchFusionPrecisionPolicy?.trustedHostReference?.(coordination,window.watchFusionPresentation?.peerCandidate?.(),-error*1000);
+    if (!confidence || Math.abs(error)*1000 < Math.max(45,confidence.precisionMs*1.1)) {
       samples = []; outcome = 'below-reference-precision'; return;
     }
     samples.push({at, error, position, target});
@@ -327,7 +327,7 @@
         values.some(x=>Math.sign(x)!==Math.sign(error))) { outcome='unstable-host-phase'; return; }
     if (previousPulse && at - previousPulse.at > 1500) {
       if (Math.abs(error) >= Math.abs(previousPulse.before)-.012) {
-        disabled = true; outcome='rate-not-effective'; return;
+        disabled = true;failedPulseAt=at;failCount++;outcome='rate-not-effective'; return;
       }
       previousPulse = null;
     }
@@ -346,7 +346,7 @@
     try {
       ytPlayer.setPlaybackRate(selected);
       pulse.timer=setTimeout(()=>release('pulse-finished'),duration);
-    } catch { disabled=true; release('rate-change-failed'); }
+    } catch { disabled=true;failedPulseAt=at;failCount++;release('rate-change-failed'); }
   }
   document.addEventListener('visibilitychange',()=>{if(document.hidden)reset('', 'page-hidden');});
   setInterval(()=>{try{tick();}catch{reset('', 'servo-error');}},PERIOD_MS);
@@ -391,8 +391,8 @@
     peerSpreadMs=Number.isFinite(p?.spreadMs)?Math.round(p.spreadMs):null;
     hostErrorMs=Number.isFinite(host)?Math.round(host):null;peerErrorMs=Number.isFinite(p?.offsetMs)?Math.round(p.offsetMs):null;
     gapMs=Number.isFinite(gap)?Math.round(gap):null;
-    if(stage==='settled'||stage==='exhausted')return false;
-    const healthy=!!(input.active&&input.trusted&&p&&p.ageMs>=0&&p.ageMs<=1500&&(!input.reference||!p.reference||input.reference===p.reference)&&Math.abs(p.offsetMs)<=70&&Number.isFinite(host)&&Number.isFinite(gap));
+    if(stage==='exhausted')return false;
+    const healthy=!!(input.active&&input.trusted&&p&&p.ageMs>=0&&p.ageMs<=1500&&(!input.reference||!p.reference||input.reference===p.reference)&&Math.abs(p.offsetMs)<=70&&Number.isFinite(host)&&Number.isFinite(gap));if(stage==='settled'){if(!healthy||Math.abs(host)<=100||Math.abs(gap)<=100)return false;stage=attempts>=MAX_ATTEMPTS?'exhausted':'observe';outcome=stage==='exhausted'?'host-rejoin-budget-used':'host-drift-returned';samples=[];lastStamp=-Infinity;note('host-rejoin-drift-returned',fields());if(stage==='exhausted')return false;}
     if(stage==='actuating'){
       // Verify only after the exclusive arbiter releases the landing; never diagnose during the seek.
       if(!healthy)return false;
@@ -401,11 +401,11 @@
     }
     if(stage==='verifying'){
       if(!healthy){nearSince=-1;return false;}
-      const close=Math.abs(host)<=120&&Math.abs(gap)<=140;
+      const close=Math.abs(host)<=100&&Math.abs(gap)<=110; // policy edge; the zero-center servo refines below 50
       if(close){if(nearSince<0)nearSince=at;}else nearSince=-1;
       if(close&&at-nearSince>=SETTLE_MS){stage='settled';outcome='host-rejoin-settled';note('host-rejoin-settled',{...fields(),dwellMs:Math.round(at-nearSince)});return false;}
       if(at-verifyAt<VERIFY_MS)return false;
-      if(!close&&Math.abs(host)>=180&&Math.abs(gap)>=180){failedAt=at;stage=attempts<MAX_ATTEMPTS?'retry-wait':'exhausted';outcome=stage==='retry-wait'?'host-rejoin-incomplete':'host-rejoin-budget-used';
+      if(!close&&Math.abs(host)>=110&&Math.abs(gap)>=110){failedAt=at;stage=attempts<MAX_ATTEMPTS?'retry-wait':'exhausted';outcome=stage==='retry-wait'?'host-rejoin-incomplete':'host-rejoin-budget-used';
         note('host-rejoin-incomplete',fields());if(stage==='exhausted')note('host-rejoin-budget-exhausted',fields());else note('host-rejoin-retry-armed',{...fields(),reason:'landing-not-held'});
         samples=[];lastStamp=-Infinity;return false;}
       verifyAt=at;return false; // uncertain landing: require another sustained window
@@ -418,7 +418,7 @@
     if(!Number.isFinite(host)||!Number.isFinite(gap))return gate('invalid-player-phase',at);
     if(p.ageMs>1500||p.ageMs<0)return gate('peer-report-stale',at);
     if(Math.abs(p.offsetMs)>70)return gate('peer-outside-lock-band',at);
-    if(Math.abs(host)<200||Math.abs(gap)<180)return gate('host-within-guard-band',at);
+    const servo=!window.watchFusionHostZeroCenter?.diagnostics?.()?.disabled;if(Math.abs(host)<(servo?160:110)||Math.abs(gap)<(servo?140:100))return gate('host-within-guard-band',at);
     if(Math.abs(host)>650)return gate('host-offset-too-large',at);
     if(!(p.sampledAt>lastStamp))return false;lastStamp=p.sampledAt;
     if(samples.length&&(at-samples.at(-1).at>2000||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference))samples=[];
