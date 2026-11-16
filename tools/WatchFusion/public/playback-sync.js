@@ -240,6 +240,7 @@
       play: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.playVideo?.(); },
       rate: rate => setViewerRate(rate),
       sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.(),
+      referenceUncertaintyMs: () => window.watchFusionPlayout?.status?.()?.uncertaintyMs ?? null,
       // Host-driven rooms have no external source: the host transport is the room timeline.
       // With a linked source, large automatic moves need that source to corroborate the room.
       referenceTrusted: () => state?.linkedSourceActive !== true || window.watchFusionPlayout?.status?.()?.source === 'live'

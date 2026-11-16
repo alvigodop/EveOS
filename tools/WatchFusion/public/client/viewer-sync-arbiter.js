@@ -22,7 +22,10 @@
 (() => {
   'use strict';
   const MODEL_KEY = 'watchfusion.viewerSyncModel.v1';
-  const LOCK_SEC = .15, UNLOCK_SEC = .25, MAX_AUTO_SEC = 30;
+  // Fine timing policy: monitor above 50 ms, evaluate sustained correction above 125 ms.
+  // Do not confuse these thresholds with transport, buffering or source-precision limits.
+  const MONITOR_SEC = .05, ACTION_SEC = .125, MAX_AUTO_SEC = 30;
+  const MIN_FINE_ACTUATION_SEC = .45;
   const WINDOW_MS = 2200, MIN_SAMPLES = 6, MIN_SPAN_MS = 1400, MAX_SPREAD_SEC = .35;
   const SETTLE_MS = 1000, LANDING_TIMEOUT_MS = 12000, RATE_PROBE_MS = 1600;
   const BACKOFF_MS = [6000, 12000, 24000, 45000];
@@ -46,6 +49,7 @@
     let model = load();
     let scope = '', phase = 'observe', samples = [], last = null, reason = 'idle', job = null;
     let lockedAt = -1, locked = false, failures = 0, cooldownUntil = 0, lastCorrection = null;
+    let acquiredAt = -1, firstFineLockAt = -1, lastTickAt = -1;
     // getCurrentTime() is a cached, sample-and-hold value on many players (the
     // IFrame API relays it by message; TV browsers update it coarsely). Track
     // when the value last changed so a held reading is projected, not trusted.
@@ -69,6 +73,7 @@
       cancelJob(io);
       scope = next; phase = 'observe'; samples = []; last = null; reason = why;
       locked = false; lockedAt = -1; failures = 0; cooldownUntil = 0; lastCorrection = null;
+      acquiredAt = firstFineLockAt = lastTickAt = -1;
       rearm();
     }
     function rearm() { stall = {steps: 0, at: -Infinity}; displaced = null; displacedRejoins = 0; }
@@ -120,7 +125,9 @@
       if (progress < span * baseRate * .5) { reason = 'playing-without-progress'; return null; }
       const values = samples.map(item => item.drift);
       const spread = Math.max(...values) - Math.min(...values);
-      if (spread > MAX_SPREAD_SEC) { reason = 'unstable-phase'; return null; }
+      // Subsecond fine corrections require a tighter phase distribution than gross recovery.
+      const spreadLimit = Math.abs(median(values)) <= .45 ? .12 : MAX_SPREAD_SEC;
+      if (spread > spreadLimit) { reason = 'unstable-phase'; return null; }
       return median(values);
     }
 
@@ -264,7 +271,7 @@
         const before = lastCorrection?.before ?? error;
         learn(error);
         phase = 'observe';
-        if (Math.abs(error) <= LOCK_SEC) { failures = 0; }
+        if (Math.abs(error) <= ACTION_SEC) { failures = 0; }
         else if (lastCorrection?.kind !== 'unscheduled' && Math.abs(error) > Math.abs(before) * .7) {
           failures++; stats.failures++;
           cooldownUntil = nowMs + BACKOFF_MS[Math.min(BACKOFF_MS.length - 1, failures - 1)];
@@ -272,11 +279,22 @@
           return;
         }
       }
-      if (absolute <= (locked ? UNLOCK_SEC : LOCK_SEC)) {
+      if (absolute <= MONITOR_SEC) {
         if (!locked) lockedAt = nowMs;
+        if (firstFineLockAt < 0) firstFineLockAt = nowMs;
         locked = true; reason = 'locked'; return;
       }
+      if (absolute <= ACTION_SEC) {
+        reason = 'fine-drift-monitoring'; return;
+      }
       locked = false;
+      // A 125 ms error is not an actionable measurement if the active room
+      // reference itself has greater uncertainty. Never turn noise into seeks.
+      const uncertaintyMs = Number(io.referenceUncertaintyMs?.());
+      if (uncertaintyMs > 0 && Number.isFinite(uncertaintyMs)
+          && absolute * 1000 <= Math.max(125, uncertaintyMs * 1.2)) {
+        reason = 'fine-drift-below-reference-precision'; return;
+      }
       if (failures >= MAX_FAILURES) { phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
       if (nowMs < cooldownUntil) { reason = 'correction-cooldown'; return; }
       if (absolute > MAX_AUTO_SEC) {
@@ -290,8 +308,15 @@
         return startRejoin(nowMs, error, io, 'displacement', true);
       }
       displaced = null;
+      if (absolute < MIN_FINE_ACTUATION_SEC && !io.referenceTrusted?.()) {
+        reason = 'fine-drift-unverified-source'; return;
+      }
       const rate = absolute <= 2.5 ? rateFor(io, error) : null;
       if (rate !== null) return startRate(nowMs, error, io, rate);
+      // Some YouTube TVs offer only 1x. Seeking or a zero-time pause/play for
+      // a 130 ms offset can create far more drift than it corrects. Keep
+      // monitoring until a meaningful, safely actionable displacement exists.
+      if (absolute < MIN_FINE_ACTUATION_SEC) { reason = 'fine-drift-awaiting-capability'; return; }
       if (error < 0 && absolute <= 4) return startHold(nowMs, error, io);
       return startRejoin(nowMs, error, io);
     }
@@ -299,6 +324,8 @@
     // io: {now, target(nowMs), current, state, baseRate, availableRates, buffered, seek, pause, play, rate}
     function tick(next, nowMs, io) {
       if (next !== scope) reset(next, 'scope-change', io);
+      if (acquiredAt < 0) acquiredAt = nowMs;
+      lastTickAt = nowMs;
       // Timers give precision; the tick is the backstop when timers are throttled.
       if (job?.dueAt !== undefined && nowMs >= job.dueAt) {
         if (job.kind === 'rate') endRate(io); else release(io, job.kind + '-released');
@@ -322,7 +349,7 @@
     function rejoinNow(nowMs, io, why = 'manual') {
       intent(why, io);
       const error = io.target(nowMs) - projected(nowMs, io.current(), io.baseRate);
-      if (Math.abs(error) <= LOCK_SEC && io.state() === 1) { reason = 'already-aligned'; return false; }
+      if (Math.abs(error) <= ACTION_SEC && io.state() === 1) { reason = 'already-aligned'; return false; }
       // A small transport hop (e.g. a republished source anchor) is ordinary
       // drift: observe it and pick the gentlest verified strategy instead.
       // A freshly hydrated source has no evidence yet and is aligned outright.
@@ -355,10 +382,12 @@
     }
 
     function snapshot() {
-      return {phase, reason, locked, lockedForMs: locked && lockedAt >= 0 ? null : 0, failures,
+      return {phase, reason, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
         model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), leadMs: Math.round(model.leadSec * 1000),
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
-        ...stats, stallSteps: stall.steps, displacedRejoins, owned: !!job};
+        ...stats, tolerancesMs: {monitor: 50, action: 125},
+        firstFineLockMs: firstFineLockAt >= 0 && acquiredAt >= 0 ? firstFineLockAt - acquiredAt : null,
+        stallSteps: stall.steps, displacedRejoins, owned: !!job};
     }
 
     return {tick, intent, reset, owns, rejoinNow, recoverStall, snapshot, observePosition, correcting: () => !!job};
