@@ -73,6 +73,59 @@ export const RECOVERY_SCENARIOS = {
     r.lab.close();
     return {ok: laptop.ok && detail.displaced === 1 && detail.loads === 0 && detail.seeks <= 4, detail};
   },
+  async 'SYNC-22:a TV that refreezes after its first two corrective seeks still locks, bounded and fast'() {
+    const r = await pair();
+    await r.lab.run(40000);
+    const seeks = r.tv.player.stats.seeks, from = r.lab.clock.now();
+    r.tv.player.wedge('seek'); r.tv.player.freezeAfterNextSeeks(2, 7000);
+    let lockedAt = -1;
+    for (let t = 0; t < 90000 && lockedAt < 0; t += 1000) {
+      await r.lab.run(1000);
+      const s = summarize(r.tv, r.lab.clock.now() - 5000, r.lab.clock.now());
+      if (t >= 5000 && s.p95AbsMs <= 200) lockedAt = r.lab.clock.now() - 5000;
+    }
+    const detail = {lockAfterMs: lockedAt < 0 ? null : Math.round(lockedAt - from), seeks: r.tv.player.stats.seeks - seeks,
+      stall: arbiterOf(r.tv).stallSteps, loads: r.tv.player.stats.loads};
+    r.lab.close();
+    return {ok: lockedAt >= 0 && detail.lockAfterMs <= 30000 && detail.seeks <= 4 && detail.loads === 0, detail};
+  },
+  async 'SYNC-23:a decoder freeze during the first speed probe never brands a rate-capable TV as 1x-only'() {
+    const lab = await createRoomLab(), t0 = lab.clock.now();
+    lab.addViewer('laptop', PROFILES.laptop);
+    const tv = lab.addViewer('tv', PROFILES.variableTv, {offsetSec: 1.2});
+    const setRate = tv.player.setPlaybackRate.bind(tv.player);
+    let froze = false;
+    tv.player.setPlaybackRate = rate => { if (rate !== 1 && !froze) { froze = true; tv.player.wedge('never', 1500); } setRate(rate); };
+    await lab.run(90000);
+    const s = summarize(tv, t0 + 45000, t0 + 90000), model = tv.diagnostics().arbiter.model;
+    const detail = {tv: s, froze, rateHonored: model.rateHonored, seeks: tv.player.stats.seeks, loads: tv.player.stats.loads};
+    lab.close();
+    return {ok: froze && model.rateHonored !== false && s.p95AbsMs <= 200 && detail.loads === 0, detail};
+  },
+  async 'SYNC-24:log 2 replay, a TV paused 8.8 s behind resumes warm and locks soon after play'() {
+    const lab = await createRoomLab(), t0 = lab.clock.now();
+    lab.addViewer('laptop', PROFILES.laptop);
+    // A frozen TV decoder holds little buffer ahead of its stuck position.
+    const r = {lab, t0, tv: lab.addViewer('tv', {...PROFILES.fixedTv, bufferAheadSec: 4}, {offsetSec: 1.2})};
+    await r.lab.run(40000);
+    r.tv.player.seekTo(r.tv.player.getCurrentTime() - 8.8); // the TV is 8.8 s behind as the room pauses
+    r.lab.pause();
+    r.tv.player.freezeAfterNextSeeks(1, 7000);               // its next seek lands, then the decoder freezes
+    await r.lab.run(20000);
+    const pausedError = Math.round((r.tv.player.getCurrentTime() - r.lab.source.truePosition()) * 1000);
+    const resumeAt = r.lab.clock.now(), seeks = r.tv.player.stats.seeks;
+    r.lab.resume();
+    let lockedAt = -1;
+    for (let t = 0; t < 60000 && lockedAt < 0; t += 500) {
+      await r.lab.run(500);
+      const s = summarize(r.tv, r.lab.clock.now() - 5000, r.lab.clock.now());
+      if (t >= 5000 && s.p95AbsMs <= 200) lockedAt = r.lab.clock.now() - 5000;
+    }
+    const detail = {pausedErrorMs: pausedError, lockAfterResumeMs: lockedAt < 0 ? null : Math.round(lockedAt - resumeAt),
+      seeksAfterResume: r.tv.player.stats.seeks - seeks, loads: r.tv.player.stats.loads, gate: r.tv.diagnostics()?.startup?.reason};
+    r.lab.close();
+    return {ok: lockedAt >= 0 && detail.lockAfterResumeMs <= 8000 && Math.abs(pausedError) <= 2000 && detail.loads === 0, detail};
+  },
   async 'SYNC-17:once locked, three minutes of ordinary playback need no correction'() {
     const r = await pair();
     await r.lab.run(60000);

@@ -170,7 +170,9 @@ test('a buffered TV pause aligns once and an ineffective correction stays bounde
       t = 500;
       state.playoutSegment++;
       state.playback = {...state.playback, paused:false, updatedAt:wall+t, projectedAt:wall+t};
-      for (; t <= 20000; t += 250) {
+      // v13.7: a fixed-rate TV parked at -260 ms gets one plateau rejoin after an 8 s steady
+      // dwell (Nov 15 log 2); the window must outlast that dwell plus its verification.
+      for (; t <= 40000; t += 250) {
         current = 30 + (t - 500) / 1000 - .26;
         syncPlayer();
       }
@@ -193,6 +195,8 @@ test('a buffered TV pause aligns once and an ineffective correction stays bounde
   // gets a bounded number of attempts with backoff, never a seek loop.
   expect(observed.afterStable).toBeLessThanOrEqual(4);
   expect(observed.stable.failures).toBeGreaterThanOrEqual(1);
+  // One plateau attempt per segment, never a fine-correction loop (v13.7).
+  expect(observed.stable.rejoins).toBe(1);
   expect(observed.hostSeekApplied).toBe(true);
 });
 

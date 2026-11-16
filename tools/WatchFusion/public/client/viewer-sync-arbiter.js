@@ -26,6 +26,9 @@
   // Do not confuse these thresholds with transport, buffering or source-precision limits.
   const MONITOR_SEC = .05, ACTION_SEC = .125, MAX_AUTO_SEC = 30;
   const MIN_FINE_ACTUATION_SEC = .45;
+  // v13.8: >150 ms is out-of-sync. A fixed-rate TV gets one guarded rejoin
+  // only after sustained stable evidence and enough precision; never chase jitter.
+  const PLATEAU_MIN_SEC = .15, PLATEAU_DWELL_MS = 8000, PLATEAU_QUIET_STALL_MS = 15000;
   const WINDOW_MS = 2200, MIN_SAMPLES = 6, MIN_SPAN_MS = 1400, MAX_SPREAD_SEC = .35;
   const SETTLE_MS = 1000, LANDING_TIMEOUT_MS = 12000, RATE_PROBE_MS = 1600;
   const BACKOFF_MS = [6000, 12000, 24000, 45000];
@@ -38,6 +41,8 @@
   // rejoin, then stop. Beyond MAX_AUTO_SEC only a displacement observed steadily
   // for DISPLACED_MS earns one rejoin per segment.
   const STALL_MS = 6500, STALL_SPACING_MS = 4000, STALL_STEPS = 3, KICK_MS = 300, DISPLACED_MS = 4000;
+  // Cold-start grace stays; only corroborated follow-up steps may advance faster.
+  const RETRY_STALL_MS = 2750, RETRY_SPACING_MS = 2750, REJOIN_RECENCY_MS = 30000;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const median = values => { const v = values.slice().sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : 0; };
 
@@ -55,10 +60,17 @@
     // when the value last changed so a held reading is projected, not trusted.
     let held = {value: null, since: 0};
     let stall = {steps: 0, at: -Infinity}, displaced = null, displacedRejoins = 0;
+    let lastAutomaticRejoinReleaseAt = -Infinity, lastStallSeenAt = -Infinity;
+    let plateau = null, plateauSpent = false;
     const stats = {corrections: 0, rejoins: 0, holds: 0, rateBursts: 0, seeks: 0, failures: 0, rateRejected: 0};
 
     function load() {
-      try { return {...defaultModel(), ...(JSON.parse(store?.get?.(MODEL_KEY) || 'null') || {})}; } catch { return defaultModel(); }
+      try {
+        const m = {...defaultModel(), ...(JSON.parse(store?.get?.(MODEL_KEY) || 'null') || {})};
+        // v13.7: a pre-v13.7 rejection may come from one probe taken during a decoder freeze. Re-probe once.
+        if (m.rateHonored === false && !(m.rateRejections >= 2)) m.rateHonored = null;
+        return m;
+      } catch { return defaultModel(); }
     }
     function save() { try { store?.set?.(MODEL_KEY, JSON.stringify(model)); } catch {} }
 
@@ -76,7 +88,10 @@
       acquiredAt = firstFineLockAt = lastTickAt = -1;
       rearm();
     }
-    function rearm() { stall = {steps: 0, at: -Infinity}; displaced = null; displacedRejoins = 0; }
+    function rearm() {
+      stall = {steps: 0, at: -Infinity}; displaced = null; displacedRejoins = 0; plateau = null; plateauSpent = false;
+      lastAutomaticRejoinReleaseAt = lastStallSeenAt = -Infinity;
+    }
 
     // A transport change, Sync me or scrub invalidates the evidence but not the device model.
     function intent(kind, io = null) {
@@ -190,11 +205,13 @@
 
     function release(io, why) {
       if (!job) return;
+      const automaticRejoin = job.kind === 'rejoin' && job.why !== 'manual';
       io.play();
       const scheduled = why === 'rejoin-released' || why === 'hold-released';
       const kind = scheduled ? job.kind : 'unscheduled';
       finish(io.now(), why);
       lastCorrection = {...lastCorrection, kind, releasedAt: io.now()};
+      if (automaticRejoin) lastAutomaticRejoinReleaseAt = io.now();
     }
 
     // Wait for a paused seek to land, then schedule the release on the room clock.
@@ -239,14 +256,20 @@
       if (!job.verified && nowMs - probe.nowMs >= RATE_PROBE_MS) {
         const measured = (io.current() - probe.current) / ((nowMs - probe.nowMs) / 1000);
         job.verified = true;
+        // v13.7: a probe across a frozen or jumping decoder measures the freeze, not the rate.
+        if (lastStallSeenAt >= probe.nowMs || measured < .5 * Math.min(job.rate, io.baseRate) || measured > 1.6 * Math.max(job.rate, io.baseRate)) {
+          cancelJob(io); phase = 'observe'; samples = []; reason = 'rate-probe-inconclusive'; return;
+        }
         const honored = Math.abs(measured - job.rate) < Math.abs(measured - io.baseRate);
         if (!honored) {
-          // The player accepted the rate but decodes at 1x (common on TVs).
-          model.rateHonored = false; save(); stats.rateRejected++;
+          // The player accepted the rate but decodes at 1x (common on TVs). Two conclusive probes decide it.
+          model.rateRejections = (model.rateRejections || 0) + 1;
+          if (model.rateRejections >= 2) model.rateHonored = false;
+          save(); stats.rateRejected++;
           cancelJob(io); phase = 'observe'; samples = []; reason = 'rate-not-honored-switch-to-rejoin';
           return;
         }
-        model.rateHonored = true; save();
+        model.rateHonored = true; model.rateRejections = 0; save();
       }
       reason = 'rate-converging';
     }
@@ -269,10 +292,12 @@
       const absolute = Math.abs(error);
       if (phase === 'verify') {
         const before = lastCorrection?.before ?? error;
-        learn(error);
         phase = 'observe';
+        // v13.7: a freeze after landing says nothing about the correction: no learning, no backoff.
+        const voided = lastStallSeenAt >= (lastCorrection?.releasedAt ?? Infinity);
+        if (voided) reason = 'correction-voided-by-decoder-stall'; else learn(error);
         if (Math.abs(error) <= ACTION_SEC) { failures = 0; }
-        else if (lastCorrection?.kind !== 'unscheduled' && Math.abs(error) > Math.abs(before) * .7) {
+        else if (!voided && lastCorrection?.kind !== 'unscheduled' && Math.abs(error) > Math.abs(before) * .7) {
           failures++; stats.failures++;
           cooldownUntil = nowMs + BACKOFF_MS[Math.min(BACKOFF_MS.length - 1, failures - 1)];
           reason = 'correction-did-not-improve-backoff';
@@ -316,7 +341,13 @@
       // Some YouTube TVs offer only 1x. Seeking or a zero-time pause/play for
       // a 130 ms offset can create far more drift than it corrects. Keep
       // monitoring until a meaningful, safely actionable displacement exists.
-      if (absolute < MIN_FINE_ACTUATION_SEC) { reason = 'fine-drift-awaiting-capability'; return; }
+      if (absolute < MIN_FINE_ACTUATION_SEC) {
+        if (absolute <= PLATEAU_MIN_SEC || plateauSpent || !io.referenceTrusted?.() || (uncertaintyMs > 0 && absolute * 1000 - uncertaintyMs <= 50)) { plateau = null; reason = 'fine-drift-awaiting-capability'; return; }
+        if (!plateau || Math.sign(plateau.error) !== Math.sign(error) || Math.abs(plateau.error - error) > .08) plateau = {since: nowMs, error};
+        if (nowMs - plateau.since < PLATEAU_DWELL_MS || nowMs - lastStallSeenAt < PLATEAU_QUIET_STALL_MS) { reason = 'fine-drift-awaiting-capability'; return; }
+        plateau = null; plateauSpent = true;
+        return startRejoin(nowMs, error, io, 'plateau');
+      }
       if (error < 0 && absolute <= 4) return startHold(nowMs, error, io);
       return startRejoin(nowMs, error, io);
     }
@@ -366,7 +397,15 @@
     // Called while the startup gate reports PLAYING without movement. Bounded:
     // at most STALL_STEPS actions per segment, spaced, never while a job runs.
     function recoverStall(nowMs, io, stalledMs) {
-      if (job || io.state() !== 1 || !(stalledMs >= STALL_MS) || nowMs - stall.at < STALL_SPACING_MS) return false;
+      if (stalledMs > 0) lastStallSeenAt = nowMs;
+      const corroborated = io.referenceTrusted?.() === true;
+      const recentRejoin = nowMs >= lastAutomaticRejoinReleaseAt
+        && nowMs - lastAutomaticRejoinReleaseAt <= REJOIN_RECENCY_MS;
+      const retry = corroborated && (stall.steps > 0 || recentRejoin);
+      const requiredStallMs = retry ? RETRY_STALL_MS : STALL_MS;
+      const requiredSpacingMs = retry ? RETRY_SPACING_MS : STALL_SPACING_MS;
+      if (job || io.state() !== 1 || !(stalledMs >= requiredStallMs)
+          || nowMs - stall.at < requiredSpacingMs) return false;
       if (stall.steps >= STALL_STEPS) { reason = 'stall-recovery-exhausted'; return false; }
       const error = io.target(nowMs) - io.current();
       // The kick never seeks; a rejoin beyond MAX_AUTO_SEC needs a corroborated target. Waiting costs no step.
@@ -385,7 +424,7 @@
       return {phase, reason, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
         model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), leadMs: Math.round(model.leadSec * 1000),
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
-        ...stats, tolerancesMs: {monitor: 50, action: 125},
+        ...stats, tolerancesMs: {monitor: 50, action: 125, outOfSync: 150},
         firstFineLockMs: firstFineLockAt >= 0 && acquiredAt >= 0 ? firstFineLockAt - acquiredAt : null,
         stallSteps: stall.steps, displacedRejoins, owned: !!job};
     }

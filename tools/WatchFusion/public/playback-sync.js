@@ -286,7 +286,7 @@
       viewerSawEnded = !!state.playback.ended;
       const bufferedEnd = duration * (Number(ytPlayer.getVideoLoadedFraction?.()) || 0);
       const warmPause = !state.playback.ended && target > current && bufferedEnd >= target + .25;
-      const pause = window.watchFusionYouTubeStartup?.paused({...transport, position:target, current, buffering:buffering || playerState === 1, force:force && !bufferedOnly, alignBuffered:warmPause, explicitSync});
+      const pause = window.watchFusionYouTubeStartup?.paused({...transport, position:target, current, buffering:buffering || playerState === 1, force:force && !bufferedOnly, alignBuffered:warmPause, explicitSync, nowMs});
       try {
         if (pause?.seek) { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); awaitSeekRecovery(nowMs); ytPlayer.seekTo?.(target, pause.allowNetwork); }
         if (!playerEnded && playerState !== (window.YT?.PlayerState?.PAUSED ?? 2)
@@ -302,7 +302,7 @@
     if (arbiter?.owns() && !force) {
       const decision = arbiter.tick(scope, nowMs, io);
       diagnostics.action = decision.reason;
-      if (decision.owned) return true;
+      if (decision.owned) { setStatus('Catching up…'); return true; }
     }
     if (!arbiter?.owns()) setViewerRate(baseRate);
     const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
@@ -326,6 +326,7 @@
       transportSeekPending = false;
       window.watchFusionYouTubeStartup?.seekIssued?.(!!startup?.reclaim);
       diagnostics.action = arbiter?.snapshot().reason || 'transport-seek';
+      if (arbiter?.owns()) setStatus('Catching up…');
       return true;
     }
     sampleDrift(rawDrift, nowMs);
@@ -336,8 +337,9 @@
     }
     const decision = arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
     diagnostics.action = decision.reason;
-    if (decision.owned) return true;
-    markStable();
+    if (decision.owned) { setStatus('Catching up…'); return true; }
+    if (Math.abs(rawDrift) > .15 && diagnostics.stable) setStatus('Out of sync · awaiting safe correction');
+    else markStable();
     diagnostics.action = decision.reason;
     requestViewerPlayback();
     return true;

@@ -208,12 +208,13 @@ test.describe('Adaptive playback drift regression', () => {
 
   test('a decoder that freezes after its lag correction gets the bounded stall ladder, not a seek loop', async ({ page }) => {
     await page.goto('/');
-    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:90, lagPerTick:.03});
-    // One lag rejoin, then the v13.1 ladder: a seekless kick, then exactly one stall rejoin.
-    expect(calls.seek).toHaveLength(2);
-    expect(calls.seek[1]).toBeGreaterThan(calls.seek[0] + 10);
-    expect(calls.diagnostics.arbiter.stallSteps).toBe(2);
-    expect(calls.diagnostics.arbiter.rejoins).toBe(2);
+    // 140 samples outlast the ladder on v13.5-v13.7; 300 samples show the same three seeks.
+    const calls = await configureViewer(page, {current:99.55, advancing:true, resumed:true, samples:140, lagPerTick:.03});
+    expect(calls.seek).toHaveLength(3);
+    expect(calls.seek[1]).toBeGreaterThan(calls.seek[0] + 5);
+    expect(calls.diagnostics.arbiter.stallSteps).toBe(3);
+    expect(calls.diagnostics.arbiter.rejoins).toBe(3);
+    expect(calls.diagnostics.arbiter.reason).toBe('stall-recovery-exhausted');
   });
 
   for (const succeeds of [true, false]) {

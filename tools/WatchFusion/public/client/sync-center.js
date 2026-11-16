@@ -43,12 +43,25 @@
     return node;
   }
 
+  // v13.8: status reflects actual drift and actuation, not merely PLAYING.
+  function classifyPeer(peer) {
+    if (!peer.ready) return 'Loading';
+    if (peer.buffering) return 'Buffering';
+    if (peer.correcting === true || peer.recentCorrection === 'rate-correction') return 'Catching up';
+    if (!peer.playing) return 'Paused';
+    const errorMs = Number.isFinite(peer.positionMs) && Number.isFinite(peer.targetPositionMs)
+      ? Math.abs(peer.positionMs - peer.targetPositionMs) : null;
+    if (errorMs !== null && errorMs > 150) return 'Out of sync';
+    if (errorMs !== null && errorMs > 50) return 'Monitoring';
+    return 'Playing';
+  }
+
   function renderPeers(list, peers, members) {
     const names = new Map(members.map(({id, name}) => [id, name]));
     const signed = value => (value > 0 ? '+' : '') + Math.round(value) + ' ms';
     const cards = [...peers].sort((a, b) => a.member.localeCompare(b.member)).map(peer => ({
       name: names.get(peer.member) || 'Viewer',
-      status: !peer.ready ? 'Loading' : peer.buffering ? 'Buffering' : peer.playing ? 'Playing' : 'Paused',
+      status: classifyPeer(peer),
       metrics: [
         ['Target error', peer.ready && Number.isFinite(peer.targetPositionMs) ? signed(peer.positionMs - peer.targetPositionMs) : null],
         ['Room offset', peer.ready ? signed(peer.positionMs - peer.roomPositionMs) : null],
@@ -65,7 +78,7 @@
     list.replaceChildren(...cards.map(({name, status, metrics}) => {
       const row = element('li', 'sync-peer-card');
       const heading = element('div', 'sync-peer-head');
-      const stateClass = status === 'Playing' ? '' : status === 'Buffering' ? ' is-buffering' : ' is-idle';
+      const stateClass = status === 'Catching up' || status === 'Out of sync' || status === 'Buffering' ? ' is-buffering' : status === 'Paused' ? ' is-idle' : '';
       heading.append(element('strong', 'sync-peer-name', name), element('span', 'sync-peer-state' + stateClass, status));
       const figures = element('div', 'sync-peer-metrics');
       for (const [label, value] of metrics) {
@@ -82,5 +95,5 @@
   more?.addEventListener('toggle', () => {
     if (!more.open && diagnostics) diagnostics.open = false;
   });
-  window.watchFusionSyncCenter = {setVisible, renderOffset, bindOffset, renderPeers};
+  window.watchFusionSyncCenter = {setVisible, renderOffset, bindOffset, renderPeers, classifyPeer};
 })();

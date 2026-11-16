@@ -13,7 +13,7 @@ export function createFakeYouTube(clock, options = {}) {
   let stalledUntil = 0;
   // A wedged decoder reports PLAYING while its timeline does not move (seen on
   // real devices after source pause/seek/play). It clears on pause, on seek, or never.
-  let wedged = null;
+  let wedged = null, postSeekFreeze = {count: 0, ms: 0};
   function advance() {
     const now = clock.now(), elapsed = now - last;
     if (wedged && now >= wedged.until) wedged = null;
@@ -66,6 +66,8 @@ export function createFakeYouTube(clock, options = {}) {
       const latency = (network ? Math.max(o.networkSeekLatencyMs, o.seekLatencyMs) : o.seekLatencyMs) + jitter;
       mode = 'buffering';
       schedule(latency, () => { if (wantPlay) startPlayback(); else mode = 'paused'; });
+      // Physical TV (Nov 15 logs): a seek lands, PLAYING resumes, then the decoder silently freezes again.
+      if (postSeekFreeze.count > 0) { postSeekFreeze.count--; wedged = {clears: 'never', until: clock.now() + latency + postSeekFreeze.ms}; }
     },
     playVideo() {
       advance(); stats.plays++; wantPlay = true;
@@ -80,6 +82,7 @@ export function createFakeYouTube(clock, options = {}) {
     cueVideoById() { stats.loads++; },
     jump(sec) { advance(); position = Math.max(0, position + sec); },
     wedge(clears = 'pause', ms = Infinity) { advance(); wedged = {clears, until: clock.now() + ms}; },
+    freezeAfterNextSeeks(count, ms) { postSeekFreeze = {count, ms}; },
     stall(ms) { advance(); stalledUntil = clock.now() + ms; mode = 'buffering'; schedule(ms, () => { mode = wantPlay ? 'playing' : 'paused'; }); },
     getVideoData: () => ({video_id: o.videoId || 'M7lc1UVf-VE'}),
     getVolume: () => 100, isMuted: () => false, setVolume() {}, mute() {}, unMute() {}

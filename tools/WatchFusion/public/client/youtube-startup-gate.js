@@ -5,6 +5,7 @@
     let activeSegment = '', observedAt = -1, firstPlayingAt = -1;
     let lastPosition = null, lastProgressAt = -1, advancingSince = -1, progressProbe = null;
     let pausedPosition = null, pausedReclaimed = false, manualPause = false;
+    let pausedSince = -1, pausedPrefetched = false;
     let playingSample = null, viewerDisplaced = false, runningReclaimed = false;
     let startDelayMs = null, pauseSeeks = 0, startupDeferrals = 0, reason = 'idle', stalledMs = 0;
 
@@ -26,13 +27,14 @@
       lastProgressAt = advancingSince = -1;
     }
 
-    function paused({roomId, videoId, epoch, segment, position, current, buffering, force, alignBuffered, explicitSync}) {
+    function paused({roomId, videoId, epoch, segment, position, current, buffering, force, alignBuffered, explicitSync, nowMs}) {
       source(roomId, videoId, epoch);
       const key = String(segment ?? position);
       if (key !== pauseKey || !wasPaused) {
         const coldJoin = !hadPlayed && !pauseKey && !buffering;
         pausedSeekTolerance = wasPaused && !!pauseKey ? .15 : coldJoin ? 1.5 : alignBuffered && hadPlayed ? 2 : null;
         pauseKey = key; pausedPosition = null; pausedReclaimed = manualPause = false;
+        pausedSince = Number.isFinite(nowMs) ? nowMs : -1; pausedPrefetched = false;
       }
       wasPaused = true;
       if (force) {
@@ -44,14 +46,21 @@
       }
       const drift = Math.abs(position - current);
       const reclaim = !pausedReclaimed && pausedPosition !== null && Math.abs(current - pausedPosition) > 3 && drift > 3;
-      const seek = reclaim || (pausedSeekTolerance !== null && (pausedSeekTolerance !== 2 || alignBuffered)
+      // v13.7: a viewer left >2 s off its paused room has no useful buffer to preserve:
+      // its resume would be a network seek into a cold decoder (Nov 15 log 2: TV paused
+      // 8.8 s behind for 20 s, then froze 14 s on resume). After a settled 1.5 s pause,
+      // fetch the paused position once so the resume starts warm.
+      const prefetch = !pausedPrefetched && pausedSince >= 0 && Number.isFinite(nowMs)
+        && nowMs - pausedSince >= 1500 && drift > 2;
+      const seek = reclaim || prefetch || (pausedSeekTolerance !== null && (pausedSeekTolerance !== 2 || alignBuffered)
         && drift > pausedSeekTolerance);
+      if (seek) pausedPrefetched = true;
       const manual = manualPause;
       pausedSeekTolerance = null; manualPause = false;
       pausedPosition = current; pausedReclaimed ||= reclaim;
       if (seek) pauseSeeks++;
-      reason = reclaim ? 'viewer-room-position-reclaim' : seek ? 'paused-position-change' : 'paused-buffer-preserved';
-      return {seek, manual, reclaim, allowNetwork: !alignBuffered && (!manual || drift >= 1.5)};
+      reason = reclaim ? 'viewer-room-position-reclaim' : prefetch && !manual ? 'paused-prefetch-align' : seek ? 'paused-position-change' : 'paused-buffer-preserved';
+      return {seek, manual, reclaim, allowNetwork: prefetch || (!alignBuffered && (!manual || drift >= 1.5))};
     }
 
     function running({roomId, videoId, epoch, segment, nowMs, current, playing, buffering, drift = 0, rate = 1}) {
