@@ -356,3 +356,84 @@
       (Math.abs(current-base)<.015 || Math.abs(current-(pulse?.rate ?? base))<.015);
   }, diagnostics:zero};
 })();
+
+/* v13.10: one last decoder reload after the bounded stall ladder, never a seek loop. */
+(() => {
+  let scope='', since=0, attempted=false, outcome='idle';
+  function consider(input){
+    if(input.scope!==scope){scope=input.scope;since=0;attempted=false;outcome='scope-change';}
+    if(attempted)return false;
+    if(!input.exhausted || !input.playing || input.buffering || !input.trusted ||
+       input.sourceBuffering || document.hidden || Math.abs(input.drift)<3){since=0;return false;}
+    if(!since){since=input.nowMs;outcome='waiting-for-stable-exhaustion';return false;}
+    if(input.nowMs-since<6000)return false;
+    attempted=true;
+    try{input.reload();outcome='one-decoder-reload';return true;}
+    catch{outcome='reload-failed';return false;}
+  }
+  window.WatchFusionDecoderRescue={consider,diagnostics:()=>({scope,attempted,outcome})};
+})();
+/* v13.10.3: verify host landings after release; at most one evidence-gated retry. */
+(() => {
+  const MAX_ATTEMPTS=2,VERIFY_MS=7500,SETTLE_MS=3500,RETRY_WAIT_MS=12000;
+  let scope='',samples=[],lastStamp=-Infinity,stage='observe',outcome='idle',attempts=0,echoUntil=0;
+  let peerCount=0,peerSpreadMs=null,hostErrorMs=null,peerErrorMs=null,gapMs=null,reference=null;
+  let lastReason='',lastReasonAt=-Infinity,triggeredAt=null,verifyAt=-1,nearSince=-1,failedAt=-1;
+  const note=(kind,detail)=>window.watchFusionRoomSyncLog?.note?.(kind,detail); const fields=()=>({reference,hostErrorMs,peerErrorMs,gapMs,peerCount,peerSpreadMs,attempts});
+  function gate(why,nowMs){samples=[];outcome=why;
+    if(nowMs-lastReasonAt>=(why!==lastReason?2500:10000)){lastReason=why;lastReasonAt=nowMs;note('host-rejoin-gated',{reason:why,...fields()});}
+    return false;}
+  function consider(input={}) {
+    const at=Number(input.nowMs),p=input.peer,host=Number(input.hostOffsetMs),gap=host-Number(p?.offsetMs);
+    if(input.scope!==scope){scope=input.scope;samples=[];lastStamp=-Infinity;stage='observe';outcome='new-segment';attempts=0;
+      echoUntil=0;triggeredAt=null;verifyAt=nearSince=failedAt=-1;lastReason='';peerCount=0;}
+    reference=input.reference??p?.reference??'room-clock';peerCount=p?.count??0;
+    peerSpreadMs=Number.isFinite(p?.spreadMs)?Math.round(p.spreadMs):null;
+    hostErrorMs=Number.isFinite(host)?Math.round(host):null;peerErrorMs=Number.isFinite(p?.offsetMs)?Math.round(p.offsetMs):null;
+    gapMs=Number.isFinite(gap)?Math.round(gap):null;
+    if(stage==='settled'||stage==='exhausted')return false;
+    const healthy=!!(input.active&&input.trusted&&p&&p.ageMs>=0&&p.ageMs<=1500&&(!input.reference||!p.reference||input.reference===p.reference)&&Math.abs(p.offsetMs)<=70&&Number.isFinite(host)&&Number.isFinite(gap));
+    if(stage==='actuating'){
+      // Verify only after the exclusive arbiter releases the landing; never diagnose during the seek.
+      if(!healthy)return false;
+      stage='verifying';verifyAt=at;nearSince=-1;outcome='host-rejoin-verifying';
+      note('host-rejoin-verifying',fields());return false;
+    }
+    if(stage==='verifying'){
+      if(!healthy){nearSince=-1;return false;}
+      const close=Math.abs(host)<=120&&Math.abs(gap)<=140;
+      if(close){if(nearSince<0)nearSince=at;}else nearSince=-1;
+      if(close&&at-nearSince>=SETTLE_MS){stage='settled';outcome='host-rejoin-settled';note('host-rejoin-settled',{...fields(),dwellMs:Math.round(at-nearSince)});return false;}
+      if(at-verifyAt<VERIFY_MS)return false;
+      if(!close&&Math.abs(host)>=180&&Math.abs(gap)>=180){failedAt=at;stage=attempts<MAX_ATTEMPTS?'retry-wait':'exhausted';outcome=stage==='retry-wait'?'host-rejoin-incomplete':'host-rejoin-budget-used';
+        note('host-rejoin-incomplete',fields());if(stage==='exhausted')note('host-rejoin-budget-exhausted',fields());else note('host-rejoin-retry-armed',{...fields(),reason:'landing-not-held'});
+        samples=[];lastStamp=-Infinity;return false;}
+      verifyAt=at;return false; // uncertain landing: require another sustained window
+    }
+    if(stage==='retry-wait'&&at-failedAt<RETRY_WAIT_MS)return false;
+    if(!input.scope||!input.active)return gate('host-not-ready',at);
+    if(!input.trusted)return gate('source-not-trusted',at);
+    if(!p)return gate('no-healthy-peer-witness',at);
+    if(input.reference&&p.reference&&input.reference!==p.reference)return gate('reference-mismatch',at);
+    if(!Number.isFinite(host)||!Number.isFinite(gap))return gate('invalid-player-phase',at);
+    if(p.ageMs>1500||p.ageMs<0)return gate('peer-report-stale',at);
+    if(Math.abs(p.offsetMs)>70)return gate('peer-outside-lock-band',at);
+    if(Math.abs(host)<200||Math.abs(gap)<180)return gate('host-within-guard-band',at);
+    if(Math.abs(host)>650)return gate('host-offset-too-large',at);
+    if(!(p.sampledAt>lastStamp))return false;lastStamp=p.sampledAt;
+    if(samples.length&&(at-samples.at(-1).at>2000||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference))samples=[];
+    samples.push({at,host,peer:p.offsetMs,gap,reference});samples=samples.filter(x=>at-x.at<=11000);
+    if(samples.length<7||at-samples[0].at<6500){outcome='corroborating-host-drift';return false;}
+    const spread=key=>Math.max(...samples.map(x=>x[key]))-Math.min(...samples.map(x=>x[key]));
+    if(spread('host')>75||spread('peer')>45||spread('gap')>80)return gate('unstable-peer-or-host',at);
+    attempts++;triggeredAt=Date.now();echoUntil=performance.now()+3500;stage='actuating';outcome='host-peer-rejoin';
+    note('host-rejoin-triggered',{...fields(),dwellMs:Math.round(at-samples[0].at)});return true;
+  }
+  function accept(ok){if(stage!=='actuating')return;
+    if(!ok){stage='exhausted';outcome='host-rejoin-not-started';}note(ok?'host-rejoin-accepted':'host-rejoin-rejected',fields());}
+  function suppressEcho(){if(!attempts||!echoUntil)return false;const at=performance.now();
+    if(window.watchFusionViewerArbiter?.correcting?.()){echoUntil=at+900;return true;}return at<echoUntil;}
+  function diagnostics(){return {outcome,stage,attempts,witnesses:samples.length,reference,peerCount,peerSpreadMs,
+    hostErrorMs,peerErrorMs,gapMs,dwellMs:samples.length?Math.round(samples.at(-1).at-samples[0].at):0,verifyMs:verifyAt>=0?Math.max(0,Math.round(performance.now()-verifyAt)):null,triggeredAt};}
+  window.WatchFusionHostPeerRecovery={consider,accept,suppressEcho,diagnostics};
+})();

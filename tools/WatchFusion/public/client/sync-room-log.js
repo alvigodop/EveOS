@@ -6,13 +6,28 @@
   const copy = document.getElementById('syncRoomLogCopy');
   const clear = document.getElementById('syncRoomLogClear');
   const count = document.getElementById('syncRoomLogCount');
-  const MAX_ENTRIES = 90, MAX_AGE = 180000;
+  const MAX_ENTRIES = 240, MAX_AGE = 600000;
   let entries = [], events = [], roomScope = '', lastPeers = new Map(), lastKey = '', lastAt = 0, requestAt = -Infinity;
-  let lastRendered = '';
+  let lastRendered = '', lastSegmentKey = '', segmentSequence = 0;
   const finite = value => typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
   const memberName = id => (state?.members || []).find(m => m.id === id)?.name || 'Viewer';
-  const currentScope = () => roomId && session && state?.presentationEpoch != null
-    ? [roomId, session.memberId, state.presentationEpoch].join(':') : '';
+  // Keep one trace across consecutive songs within the same room; no room IDs exported.
+  const currentScope = () => roomId && session ? [roomId,session.memberId].join(':') : '';
+  function recover(peer) {
+    const d=peer.hostRecovery;if(!d)return null;
+    const reasons=/^[a-z-]{1,42}$/;
+    return {outcome:reasons.test(d.outcome)?d.outcome:null,stage:reasons.test(d.stage)?d.stage:null,
+      reference:reasons.test(d.reference)?d.reference:null,attempts:finite(d.attempts),witnesses:finite(d.witnesses),peerCount:finite(d.peerCount),
+      peerSpreadMs:finite(d.peerSpreadMs),hostErrorMs:finite(d.hostErrorMs),peerErrorMs:finite(d.peerErrorMs),
+      gapMs:finite(d.gapMs),dwellMs:finite(d.dwellMs),verifyMs:finite(d.verifyMs)};
+  }
+  function recordSegment() {
+    const key=state?.presentationEpoch!=null&&state?.playoutSegment!=null
+      ? String(state.presentationEpoch)+':'+String(state.playoutSegment) : '';
+    if(!key||key===lastSegmentKey)return;
+    if(lastSegmentKey)events.push({at:new Date().toISOString(),kind:'playback-segment-transition',sequence:segmentSequence+1});
+    lastSegmentKey=key;segmentSequence++;prune();
+  }
   function strip(peer, now) {
     const rawPhase = finite(peer.positionMs - peer.roomPositionMs);
     const targetError = Number.isFinite(peer.targetPositionMs) ? finite(peer.positionMs - peer.targetPositionMs) : null;
@@ -47,7 +62,7 @@
       reportAgeMs:finite(now - peer.sampledAt), playerOffsetMs:rawPhase,
       rawOffsetMs:rawPhase, targetErrorMs:targetError, adjustmentMs:finite(peer.adjustmentMs),
       rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
-      corrections, action:peer.recentCorrection || null,
+      corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover({hostRecovery:window.WatchFusionHostPeerRecovery?.diagnostics?.()}) : null),
       filteredDriftMs:finite(peer.filteredDriftMs),
       seekHealth:peer.seekHealth || null,
       signals};
@@ -58,25 +73,26 @@
     prune();
     const recent = entries.slice(-15).map(item => {
       const peers = item.peers.map(p => `${p.device}: ${p.targetErrorMs === null ? 'room ' + (p.rawOffsetMs ?? '?') : 'target ' + p.targetErrorMs}ms · startup ${p.startupWaitMs ?? '?'}ms · ${p.corrections ?? '-'} seeks${p.signals.length ? ' [' + p.signals.join(',') + ']' : ''}`).join(' / ');
-      return `${item.at.slice(11,19)} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''} | ${peers}`;
+      return `${item.at.slice(11,19)} #${item.segmentSequence||'?'} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''} | ${peers}`;
     }).join('\n');
-    const transitions = events.slice(-10).map(e => `${e.at.slice(11,19)} ! ${e.kind}${e.reason?' · '+e.reason:''}`).join('\n');
+    const transitions = events.slice(-10).map(e => `${e.at.slice(11,19)} #${e.segmentSequence||'?'} ! ${e.kind}${e.reason?' · '+e.reason:''}`).join('\n');
     const display = [recent,transitions].filter(Boolean).join('\n');
     if (display !== lastRendered) {area.value = display || 'Gathering room timing…'; lastRendered = display;}
     if (count) count.textContent = entries.length + ' snapshots · ' + events.length + ' transitions';
   }
   function emit(now, peers, coordination) {
+    recordSegment();
     const rows = peers.map(p => strip(p, now)).sort((a,b) => a.device.localeCompare(b.device));
     const ref = coordination?.reference || window.watchFusionPlayout?.status?.()?.reference || 'room-clock';
     const phaseMs = finite(coordination?.phaseMs);
-    const row = {at:new Date().toISOString(), ref, referencePhaseMs:phaseMs,
+    const row = {at:new Date().toISOString(), segmentSequence, ref, referencePhaseMs:phaseMs,
       uncertaintyMs:finite(coordination?.uncertaintyMs), sourceBuffering:!!coordination?.authorityBuffering,
       source:coordination?.source || null, sourcePhaseMs:finite(coordination?.sourcePhaseMs),
       peers:rows};
     const key = JSON.stringify([ref,phaseMs,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.seekHealth?.recoveryAttempts,p.signals])]);
     // Source-trust transitions (live/stale/off-phase/...) are acceptance evidence: record them at once.
     const changed = key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
-      row.source !== (entries.at(-1)?.source ?? null);
+      row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence;
     if (!changed && now - lastAt < 4500) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
@@ -88,7 +104,7 @@
     roomScope = scope;
     entries = []; events = [];
     lastPeers.clear();
-    lastKey = lastRendered = '';
+    lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;
     lastAt = 0;
     requestAt = -Infinity;
     area.value = '';
@@ -99,14 +115,15 @@
   }
   function note(kind, detail={}) {
     refreshScope();
-    if(!roomScope || !/^(?:source-(?:play|pause|volume)|embedded-control|mirror-request|room-transition)$/.test(kind)) return;
+    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted))$/.test(kind)) return;
+    recordSegment();
     const fields={};
-    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','volumePct','rate','segment']) {
+    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts']) {
       const v=detail[key];
       if(typeof v==='boolean' || typeof v==='number' && Number.isFinite(v) && Math.abs(v)<1e9 ||
           typeof v==='string' && /^[a-z-]{1,35}$/.test(v)) fields[key]=v;
     }
-    events.push({at:new Date().toISOString(),kind,...fields});prune();render();
+    events.push({at:new Date().toISOString(),kind,segmentSequence,...fields});prune();render();
   }
   function wantsSample() {
     refreshScope();
@@ -123,8 +140,8 @@
   function exported() {
     refreshScope();
     prune();
-    return JSON.stringify({format:'WatchFusion room sync trace v2', generatedAt:new Date().toISOString(),
-      disclosure:'Player timing only; microphone/speaker output not measured',
+    return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
+      disclosure:'Player timing, local controller gates and redacted transitions only; no audio, URLs, titles, tokens or microphone measurements',
       snapshots:entries,events},null,2);
   }
   async function copyLog() {

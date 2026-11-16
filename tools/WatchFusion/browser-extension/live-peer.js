@@ -7,7 +7,7 @@
       this.connect();
       this.heartbeat = setInterval(() => this.ping(), options.onClock ? 3500 : 15000);
     }
-    send(data) { if (this.socket?.readyState === 1) this.socket.send(JSON.stringify(data)); }
+    send(data) { if (this.socket?.readyState !== 1) return false; try { this.socket.send(JSON.stringify(data)); return true; } catch { return false; } }
     ping() { this.send({ type:'ping', ...(this.options.onClock ? {sentAt:Date.now()} : {}) }); }
     connect() {
       if (this.closed) return;
@@ -160,7 +160,7 @@
     }
     syncAudio(sample) { this.send({ type: 'sync-sample', sample }); }
     metadata(value) { this.send({ type: 'metadata', metadata: value }); }
-    control(action, value) { this.send({ type: 'control', action, value }); }
+    control(action, value) { return this.send({ type: 'control', action, value }); }
     drop(id) { const peer = this.peers.get(id); if (peer) { clearTimeout(peer.deadline); peer.close(); this.peers.delete(id); } }
     clearPeers() { for (const id of this.peers.keys()) this.drop(id); }
     stop() { this.closed = true; clearTimeout(this.retryTimer); clearInterval(this.heartbeat); this.socket?.close(); this.clearPeers(); }

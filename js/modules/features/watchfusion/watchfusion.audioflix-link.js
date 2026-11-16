@@ -18,7 +18,7 @@
         if (peerLoader) return peerLoader;
         peerLoader = new Promise((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = new URL('tools/WatchFusion/browser-extension/live-peer.js?v=42191e58c668', document.baseURI).href;
+            script.src = new URL('tools/WatchFusion/browser-extension/live-peer.js?v=6ef13d2bf267', document.baseURI).href;
             script.onload = resolve;
             script.onerror = () => { peerLoader = null; script.remove(); reject(new Error('Could not load the media link. Reload EveOS.')); };
             document.head.appendChild(script);

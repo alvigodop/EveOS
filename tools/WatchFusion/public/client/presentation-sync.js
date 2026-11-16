@@ -7,6 +7,7 @@
   const Audio = window.AudioContext || window.webkitAudioContext;
   const canRecord = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia && !!Audio && !!window.AudioWorkletNode;
   let key = '', peers = [], proposal = null, applied = null, capture = null, result = null;
+  let peerBatch = [], peerBatchAt = 0, peerCoordination = null;
   let reference = null, receiver = null, requestPending = false, outputSession = makeClientId(), consumedProposal = null;
   let videoFrame = null, frameOwner = null, frameCallback = null, statusMessage = '';
   let panelReady = false;
@@ -27,7 +28,7 @@
     capture?.abort();
     stopTrackingFrames();
     capture = reference = receiver = result = proposal = applied = null;
-    peers = [];
+    peers = []; peerBatch = []; peerBatchAt = 0; peerCoordination = null;
     panelReady = false;
     consumedProposal = null;
     statusMessage = '';
@@ -54,6 +55,7 @@
     const roomPositionMs = base * 1000 + (running ? Math.max(0, at - anchor) * (Number(playback.rate) || 1) : 0);
     const diagnostics = direct ? {correctiveSeeks:mediaSyncSeeks, action:mediaSyncAction} : window.watchFusionSyncDiagnostics?.();
     const hostServo = !direct && isHost() ? window.watchFusionHostZeroCenter?.diagnostics?.() : null;
+    const syncReference = window.watchFusionPlayout?.status?.();
     const following = followsRoomPlayback();
     const target = !(following || isHost()) ? null : direct ? window.mediaPlayback?.target?.(at, media.duration) : window.watchFusionYouTubeTarget?.(at, media.getDuration?.());
     const adjustmentMs = running && following ? window.watchFusionPresentation?.adjustmentMs?.() ?? diagnostics?.deviceDelayMs ?? 0 : 0;
@@ -70,7 +72,9 @@
       outputSession, follows: !isHost() && following, adjustmentMs, correcting: (!direct && window.watchFusionViewerArbiter?.correcting?.() === true) || hostServo?.active === true,
       videoFrameOffsetMs: direct && videoFrame && performance.now() - videoFrame.at < 500 ? videoFrame.offset : null,
       rttMs: window.watchPartyClock.rttMs(), offsetMs: window.watchPartyClock.offsetMs(),
-      corrections: hostServo?.attempts ?? diagnostics?.correctiveSeeks ?? null, recentCorrection: hostServo?.active ? 'rate-correction' : diagnostics?.action ?? null, sourceAgeMs,
+      corrections: isHost() ? (hostServo?.attempts??0)+(window.WatchFusionHostPeerRecovery?.diagnostics?.()?.attempts??0) : diagnostics?.correctiveSeeks ?? null, recentCorrection: hostServo?.active ? 'rate-correction' : diagnostics?.action ?? null, sourceAgeMs,
+      timingReference: syncReference?.reference === 'peer-cohort' && Number.isFinite(syncReference.uncertaintyMs) ? 'Shared cohort ±'+Math.round(syncReference.uncertaintyMs)+' ms' : 'Room clock (limited)',
+      hostCorrection: window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome === 'host-peer-rejoin' ? 'Peers corroborated · host rejoin' : hostServo?.outcome ?? null, hostRecovery: isHost() ? window.WatchFusionHostPeerRecovery?.diagnostics?.() ?? null : null,
       startupWaitMs: !direct && Number.isFinite(diagnostics?.startup?.startDelayMs) ? diagnostics.startup.startDelayMs : null,
       filteredDriftMs: Number.isFinite(diagnostics?.filteredDriftSec) ? Math.round(diagnostics.filteredDriftSec * 1000) : null,
       seekHealth: diagnostics?.seekGuard ? {reason:diagnostics.seekGuard.reason, attempts:diagnostics.seekGuard.attempts,
@@ -81,6 +85,14 @@
     };
   }
 
+  function peerCandidate() {
+    if(!isHost()||!state?.linkedSourceActive||Date.now()-peerBatchAt>1600)return null;
+    const now=estimatedServerNow(),ref=peerCoordination?.reference||'room-clock',cohort=ref==='peer-cohort',uncertainty=Number(peerCoordination?.uncertaintyMs);if(!['room-clock','peer-cohort'].includes(ref)||(cohort&&(!Number.isFinite(uncertainty)||uncertainty>125)))return null;
+    const members=peerBatch.filter(p=>p.member!==session?.publicId&&p.follows&&p.ready&&p.playing&&!p.buffering);if(!members.length||(cohort&&members.length<2))return null;
+    const points=members.map(p=>({p,offset:p.positionMs-(cohort?p.targetPositionMs:p.roomPositionMs)}));if(points.some(({p,offset})=>!Number.isFinite(offset)||Math.abs(offset)>70||!Number.isFinite(p.sampledAt)||Math.abs(now-p.sampledAt)>=1500||!Number.isFinite(p.rttMs)||p.rttMs>=90))return null;
+    const offsets=points.map(v=>v.offset),spread=Math.max(...offsets)-Math.min(...offsets);if(spread>(cohort?110:45))return null;
+    return {offsetMs:offsets.reduce((a,b)=>a+b,0)/offsets.length,sampledAt:Math.min(...members.map(p=>p.sampledAt)),ageMs:Math.max(...members.map(p=>Math.abs(now-p.sampledAt))),reference:ref,count:members.length,spreadMs:spread};
+  }
   function sourceSampleAge() {
     if (!window.watchFusionLinkedTab?.publishing?.()) return null;
     const at = window.watchFusionLinkedTab.metadata()?.sampledAt;
@@ -193,6 +205,7 @@
       window.watchPartyClock.update(data.serverTime, sentAt, Date.now(), data.serverReceivedAt);
       onTiming?.(data.coordination, roomKey, sentAt);
       if (trace && data.peers) window.watchFusionRoomSyncLog?.observe(data.peers, data.coordination);
+      if (data.peers) { peerBatch = data.peers; peerBatchAt = Date.now(); peerCoordination = data.coordination; }
       if (!panel.open || !data.peers) return;
       panelReady = true;
       if (result && !capture && !data.peers.some(item => item.member === receiver?.member)) result = null;
@@ -413,7 +426,7 @@
 
   window.watchFusionPresentation = {
     render: updatePanel,
-    exchange: report,
+    exchange: report, peerCandidate,
     open: () => panel.open,
     useManualTiming: () => { if (applied) { applied = null; setStatus('Advanced device timing active.'); updatePanel(); } },
     active: activeAdjustment,

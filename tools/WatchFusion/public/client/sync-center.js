@@ -68,6 +68,10 @@
         ['Timing adjustment', peer.ready && Math.abs(peer.adjustmentMs || 0) >= 1 ? signed(peer.adjustmentMs) : null],
         ['Round trip', peer.rttMs == null ? null : Math.round(peer.rttMs) + ' ms'],
         ['Source sample age', peer.sourceAgeMs == null ? null : Math.round(peer.sourceAgeMs) + ' ms'],
+        ['Timing reference', peer.timingReference ?? null],
+        ['Host correction', peer.hostCorrection ?? null],
+        ['Host recovery gate', peer.hostRecovery?.outcome ?? (peer.member===state?.hostId && isHost() ? window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome : null)],
+        ['Peer witnesses', peer.hostRecovery?.peerCount ? String(peer.hostRecovery.peerCount) : null],
         ['Video frame', peer.videoFrameOffsetMs == null ? null : signed(peer.videoFrameOffsetMs)],
         ['Corrections', peer.corrections == null ? null : String(peer.corrections)]
       ].filter(([, value]) => value !== null)
