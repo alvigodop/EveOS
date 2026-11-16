@@ -47,7 +47,7 @@
   function classifyPeer(peer) {
     if (!peer.ready) return 'Loading';
     if (peer.buffering) return 'Buffering';
-    if (peer.correcting === true || peer.recentCorrection === 'rate-correction') return 'Correcting';
+    if (peer.correcting === true) return 'Correcting';
     if (!peer.playing) return 'Paused';
     const errorMs = Number.isFinite(peer.positionMs) && Number.isFinite(peer.targetPositionMs)
       ? Math.abs(peer.positionMs - peer.targetPositionMs) : null;

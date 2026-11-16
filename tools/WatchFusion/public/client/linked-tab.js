@@ -114,7 +114,7 @@
       action = transport.paused !== false ? 'play' : 'pause';
       value = window.WatchFusionLinkedPlaybackSync.projectedPosition(transport);
     }
-    if(action==='pause')window.WatchFusionPlaylistContinuity?.manualPause?.();
+    if(action==='pause')window.WatchFusionPlaylistContinuity?.manualPause?.(undefined,true);
     const numeric = ['prev','next'].includes(action) ? 0 : Number(value);
     if (!Number.isFinite(numeric)) return false;
     if (action === 'volume' && (pendingControls.get('volume')?.value ?? lastMetadata.volume) === numeric) return true;

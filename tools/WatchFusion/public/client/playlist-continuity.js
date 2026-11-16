@@ -11,13 +11,13 @@
   const STABLE_MS = 6000, TRANSITION_MS = 6000, PREVIEW_MS = 4500, SOURCE_PAUSE_MS = 2500;
   let lastUrl = '', lastPlayingAt = -Infinity, lastPauseAt = -Infinity, pendingPause = null;
   let plan = null, outcome = 'idle', totalAttempts = 0, lastTransitionAt = -Infinity;
-  let previewId = '', previewLoadedAt = -Infinity;
+  let previewId = '', previewLoadedAt = -Infinity, previewPauseGuarded = false;
   const clock = () => Date.now();
   const note = (kind, detail = {}) => globalThis.watchFusionRoomSyncLog?.note?.(kind, detail);
   const inTransition = now => now - Math.max(lastTransitionAt, previewLoadedAt) < TRANSITION_MS;
-  function manualPause(now = clock()) {
-    // An echo of a transition (preview load) must not cancel the armed resume.
-    if (plan && inTransition(now)) { outcome = 'pause-deferred'; note('playlist-pause-deferred'); return false; }
+  function manualPause(now = clock(), explicit = false) {
+    // Only a classified preview echo may defer a pause. Explicit room commands win.
+    if (!explicit && plan && inTransition(now)) { plan.previewEchoAt = now; outcome = 'pause-deferred'; note('playlist-pause-deferred'); return false; }
     lastPauseAt = now; pendingPause = null; plan = null; outcome = 'explicit-pause-preserved';
     note('playlist-pause-preserved');
     return true;
@@ -32,7 +32,7 @@
     note('playlist-transition', {reason:outcome});
     if (!wasPlaying || !eligible) return false;
     // Armed even when the new video already plays: a late preview echo can still pause it.
-    plan = {url:nextUrl,at:now,lastAttemptAt:-Infinity,attempts:0};
+    plan = {url:nextUrl,at:now,lastAttemptAt:-Infinity,attempts:0,hadPlayed:false,previewEchoAt:-Infinity};
     return true;
   }
   function observe(sample, {eligible = false, connected = false, pending = false,
@@ -43,8 +43,16 @@
     lastUrl = url;
     if (sample?.paused === false && !sample?.ended) {
       lastPlayingAt = now; pendingPause = null;
+      if (plan && plan.url === url) { plan.hadPlayed = true; plan.previewEchoAt = -Infinity; }
       if (plan && now - plan.at >= STABLE_MS) { note('playlist-resume-confirmed', {attempts:plan.attempts}); plan = null; }
       outcome = plan ? 'playing-verifying' : 'playing'; return false;
+    }
+    // A new source-tab Pause after the new video was observed PLAYING is a user
+    // decision unless we know an actual preview echo caused it. Never auto-Play it.
+    if (plan && plan.hadPlayed && sample?.paused === true && !sample?.ended &&
+        plan.previewEchoAt === -Infinity) {
+      lastPauseAt = now; plan = null; pendingPause = null; outcome = 'source-pause-preserved';
+      note('playlist-pause-preserved'); return false;
     }
     if (sample?.paused === true && !sample?.ended && !plan && !inTransition(now)) {
       // A pause made in the source tab itself: deliberate once it persists on this video.
@@ -67,19 +75,17 @@
     try { return send() === true; } catch { return false; }
   }
   function guardPreviewEvent(playerState, metadata, playerId, sourceId, now = clock()) {
-    if (playerId && playerId !== previewId) { previewId = String(playerId); previewLoadedAt = now; }
+    if (playerId && playerId !== previewId) { previewId = String(playerId); previewLoadedAt = now; previewPauseGuarded = false; }
     // A preview re-cue/prime/load is not a deliberate click on the linked source.
-    const guarded = playerState === 2 && !!sourceId && (
-      (!!playerId && playerId !== sourceId) ||
-      ((now - lastTransitionAt < PREVIEW_MS || now - previewLoadedAt < PREVIEW_MS) && (plan !== null || metadata?.paused === false))
-    );
-    if (guarded) note('playlist-preview-guarded');
+    const guarded = !previewPauseGuarded && playerState === 2 && !!sourceId &&
+      now - previewLoadedAt < PREVIEW_MS && (plan !== null || metadata?.paused === false);
+    if (guarded) { previewPauseGuarded = true; note('playlist-preview-guarded'); }
     return guarded;
   }
   function reset() {
     lastUrl = ''; lastPlayingAt = lastPauseAt = lastTransitionAt = previewLoadedAt = -Infinity;
-    plan = null; pendingPause = null; previewId = ''; outcome = 'idle';
+    plan = null; pendingPause = null; previewId = ''; previewPauseGuarded = false; outcome = 'idle';
   }
   const diagnostics = () => ({outcome, attempts:plan?.attempts ?? 0, totalAttempts, active:!!plan});
-  globalThis.WatchFusionPlaylistContinuity = {onTransition,observe,manualPause,guardPreviewEvent,reset,diagnostics,version:'v13.10.5'};
+  globalThis.WatchFusionPlaylistContinuity = {onTransition,observe,manualPause,guardPreviewEvent,reset,diagnostics,version:'v13.10.6'};
 })();

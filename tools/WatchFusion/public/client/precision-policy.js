@@ -10,7 +10,7 @@
         !finite(peer.ageMs) || peer.ageMs > 1500 || peer.ageMs < 0 || peer.spreadMs > 110 ||
         Math.abs(peer.offsetMs) > 70 || !finite(localOffsetMs)) return null;
     const gapMs = localOffsetMs - peer.offsetMs;
-    const confidenceMs = Math.max(45, peer.spreadMs / 2 + 20); // never claim better than the measured peer spread allows
+    const confidenceMs = Math.max(45, peer.spreadMs / 2 + 20); // peer agreement is not absolute clock precision
     return { gapMs, confidenceMs, independent: Math.abs(gapMs) > confidenceMs,
       peerCount:peer.count, peerSpreadMs:peer.spreadMs };
   }
@@ -19,8 +19,8 @@
         !finite(coordination.uncertaintyMs) || coordination.uncertaintyMs > 125) return null;
     if (!['peer-cohort','room-clock','linked-source'].includes(coordination.reference)) return null;
     const peers = witness(peer, hostOffsetMs);
-    if (peers && peers.independent) return {
-      kind:'peer-corroborated', precisionMs:Math.min(coordination.uncertaintyMs, peers.confidenceMs), peers
+    if (peers && Math.abs(peers.gapMs) > Math.max(peers.confidenceMs, coordination.uncertaintyMs * 1.35)) return {
+      kind:'peer-corroborated', precisionMs:coordination.uncertaintyMs, peers
     };
     if (coordination.uncertaintyMs <= 45 && coordination.reference !== 'room-clock') return {
       kind:'source-verified',precisionMs:coordination.uncertaintyMs,peers:null
@@ -35,17 +35,17 @@
   function label({ready,buffering,playing,correcting,errorMs,reason}={}) {
     if (!ready) return 'Loading';
     if (buffering) return 'Buffering';
-    if (!playing) return 'Paused';
     if (correcting) return 'Correcting';
+    if (!playing) return 'Paused';
     const state = zone(errorMs);
     if (state === 'unmeasured') return 'Timing unavailable';
     if (state === 'locked') return 'Locked';
     if (state === 'refining') return 'Refining';
-    if (/^(?:rate-converging|rate-started|rejoin-started|host-peer-rejoin|host-rejoin-verifying|corroborating-host-drift|correction-cooldown|stall-kick-started|hold-started|host-zero-centering|decoder-reload-once|fine-drift-awaiting-capability)$/.test(reason || '')) return 'Correcting';
+    if (/^(?:rate-converging|rate-started|rejoin-started|host-peer-rejoin|stall-kick-started|hold-started|host-zero-centering|decoder-reload-once)$/.test(reason || '')) return 'Correcting';
     return 'Recovery needed';
   }
   globalThis.WatchFusionPrecisionPolicy = Object.freeze({
-    version:'v13.10.5', LOCK_MS, ACTION_MS, HARD_REJOIN_MS,
+    version:'v13.10.6', LOCK_MS, ACTION_MS, HARD_REJOIN_MS,
     witness, trustedHostReference, zone, label
   });
 })();

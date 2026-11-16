@@ -254,7 +254,8 @@ function onYouTubeStateChange(event) {
   const linked = window.watchFusionLinkedTab;
   if (linked?.active?.() && isHost()) {
     window.watchFusionYoutubeStability?.observe?.(event.data);
-    if (linked.applying?.() || primingPlayer || window.WatchFusionPlaylistContinuity?.guardPreviewEvent?.(event.data,linked.metadata?.(),ytPlayer?.getVideoData?.()?.video_id,state?.source?.videoId)) return;
+    const previewGuard=window.WatchFusionPlaylistContinuity?.guardPreviewEvent?.(event.data,linked.metadata?.(),ytPlayer?.getVideoData?.()?.video_id,state?.source?.videoId);
+    if (linked.applying?.() || primingPlayer || previewGuard) return;
     const paused = event.data === YT.PlayerState.PAUSED;
     const position = Number(ytPlayer?.getCurrentTime?.()) || 0;
     if (paused || event.data === YT.PlayerState.PLAYING) {

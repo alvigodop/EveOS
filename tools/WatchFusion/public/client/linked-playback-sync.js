@@ -302,7 +302,7 @@
       }
       return;
     }
-    if(disabled&&failCount<3&&at-failedPulseAt>30000){disabled=false;previousPulse=null;}if(disabled||at<cooldownUntil||at<suppressUntil)return;
+    if(disabled||at<cooldownUntil||at<suppressUntil)return; // rejected rates stay disabled until the next segment
     const coordination = window.watchFusionPlayout.status();
     const position = Number(ytPlayer.getCurrentTime?.());
     const target = Number(window.watchFusionYouTubeTarget?.(estimatedServerNow(),ytPlayer.getDuration?.()));
@@ -405,7 +405,7 @@
       if(close){if(nearSince<0)nearSince=at;}else nearSince=-1;
       if(close&&at-nearSince>=SETTLE_MS){stage='settled';outcome='host-rejoin-settled';note('host-rejoin-settled',{...fields(),dwellMs:Math.round(at-nearSince)});return false;}
       if(at-verifyAt<VERIFY_MS)return false;
-      if(!close&&Math.abs(host)>=110&&Math.abs(gap)>=110){failedAt=at;stage=attempts<MAX_ATTEMPTS?'retry-wait':'exhausted';outcome=stage==='retry-wait'?'host-rejoin-incomplete':'host-rejoin-budget-used';
+      if(!close&&Math.abs(host)>=Math.max(110,((u=>Number.isFinite(u)?u:125)(window.watchFusionPlayout?.status?.()?.uncertaintyMs))*1.5)&&Math.abs(gap)>=Math.max(110,((u=>Number.isFinite(u)?u:125)(window.watchFusionPlayout?.status?.()?.uncertaintyMs))*1.5)){failedAt=at;stage=attempts<MAX_ATTEMPTS?'retry-wait':'exhausted';outcome=stage==='retry-wait'?'host-rejoin-incomplete':'host-rejoin-budget-used';
         note('host-rejoin-incomplete',fields());if(stage==='exhausted')note('host-rejoin-budget-exhausted',fields());else note('host-rejoin-retry-armed',{...fields(),reason:'landing-not-held'});
         samples=[];lastStamp=-Infinity;return false;}
       verifyAt=at;return false; // uncertain landing: require another sustained window
@@ -418,7 +418,7 @@
     if(!Number.isFinite(host)||!Number.isFinite(gap))return gate('invalid-player-phase',at);
     if(p.ageMs>1500||p.ageMs<0)return gate('peer-report-stale',at);
     if(Math.abs(p.offsetMs)>70)return gate('peer-outside-lock-band',at);
-    const servo=!window.watchFusionHostZeroCenter?.diagnostics?.()?.disabled;if(Math.abs(host)<(servo?160:110)||Math.abs(gap)<(servo?140:100))return gate('host-within-guard-band',at);
+    const servo=!window.watchFusionHostZeroCenter?.diagnostics?.()?.disabled;const rawNoise=window.watchFusionPlayout?.status?.()?.uncertaintyMs;const noise=Number.isFinite(rawNoise)?rawNoise:125;if(Math.abs(host)<Math.max(servo?160:110,noise*1.35)||Math.abs(gap)<Math.max(servo?140:100,noise*1.35))return gate('host-within-guard-band',at);
     if(Math.abs(host)>650)return gate('host-offset-too-large',at);
     if(!(p.sampledAt>lastStamp))return false;lastStamp=p.sampledAt;
     if(samples.length&&(at-samples.at(-1).at>2000||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference))samples=[];
