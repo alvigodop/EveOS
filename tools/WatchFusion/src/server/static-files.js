@@ -90,6 +90,7 @@ export async function sendFile(req, res) {
       'client/bootstrap.js',
       'client/live-source.js',
       'client/playlist-continuity.js',
+      'client/linked-mirror-guard.js',
       'client/linked-tab.js',
       'client/solo-link-sync.js',
       'client/watchfusion-host-input-fix.js',

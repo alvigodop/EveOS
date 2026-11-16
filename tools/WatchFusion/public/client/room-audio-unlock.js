@@ -8,7 +8,7 @@
   'use strict';
   if (typeof window === 'undefined' || window.WatchFusionRoomAudioUnlock) return;
   const ID = 'watchfusionEnableRoomAudio', VERIFY_MS = 900, START_GRACE_MS = 1500;
-  let scope = '', probe = null, tried = false, playingSince = 0, reason = 'idle';
+  let scope = '', player = null, probe = null, tried = false, playingSince = 0, reason = 'idle';
   function button() {
     let node = document.getElementById(ID);
     if (node) return node;
@@ -26,7 +26,9 @@
     const audio = typeof authoritativeRoomAudio === 'function' ? authoritativeRoomAudio() : null;
     const ui = button();
     const next = roomId && audio && state?.source?.videoId && !isHost() ? [roomId, state.source.videoId, state.presentationEpoch].join(':') : '';
-    if (next !== scope) { scope = next; probe = null; tried = false; playingSince = 0; }
+    // v13.10.8: a decoder rebuild or reload makes a new player that starts at its own default audio
+    // (Drift's TV lost the room volume after a reload). A new player instance gets its own attempt.
+    if (next !== scope || ytPlayer !== player) { scope = next; player = ytPlayer; probe = null; tried = false; playingSince = 0; }
     const at = performance.now();
     if (probe) { // while probing, applyRoomAudioState() keeps the room volume because autoplayWasBlocked is lowered
       if (ui) ui.hidden = true;
@@ -50,5 +52,5 @@
     try { ytPlayer.setVolume?.(audio.volume); ytPlayer.unMute?.(); reason = 'trying-room-audio'; } catch { probe = null; autoplayWasBlocked = true; reason = 'unmute-failed'; }
   }
   setInterval(() => { try { tick(); } catch { reason = 'room-audio-error'; } }, 400);
-  window.WatchFusionRoomAudioUnlock = {version: 'v13.10.7', diagnostics: () => ({reason, tried, probing: !!probe})};
+  window.WatchFusionRoomAudioUnlock = {version: 'v13.10.8', diagnostics: () => ({reason, tried, probing: !!probe})};
 })();
