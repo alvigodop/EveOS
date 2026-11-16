@@ -25,6 +25,7 @@
   // Fine timing policy: monitor above 50 ms, evaluate sustained correction above 125 ms.
   // Do not confuse these thresholds with transport, buffering or source-precision limits.
   const MONITOR_SEC = .05, ACTION_SEC = .125, MAX_AUTO_SEC = 30;
+  const ZERO_SERVO_SEC = .055, ZERO_SERVO_COOLDOWN_MS = 6000;
   const MIN_FINE_ACTUATION_SEC = .45;
   // v13.8: >150 ms is out-of-sync. A fixed-rate TV gets one guarded rejoin
   // only after sustained stable evidence and enough precision; never chase jitter.
@@ -45,11 +46,9 @@
   const RETRY_STALL_MS = 2750, RETRY_SPACING_MS = 2750, REJOIN_RECENCY_MS = 30000;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const median = values => { const v = values.slice().sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : 0; };
-
   function defaultModel() {
     return {releaseLatencySec: .25, leadSec: 1.5, landingErrorSec: 0, landingSec: .5, rateHonored: null, rateGain: 1, rejoins: 0};
   }
-
   function createViewerSyncArbiter({store = null, timers = globalThis} = {}) {
     let model = load();
     let scope = '', phase = 'observe', samples = [], last = null, reason = 'idle', job = null;
@@ -61,9 +60,8 @@
     let held = {value: null, since: 0};
     let stall = {steps: 0, at: -Infinity}, displaced = null, displacedRejoins = 0;
     let lastAutomaticRejoinReleaseAt = -Infinity, lastStallSeenAt = -Infinity;
-    let plateau = null, plateauSpent = false;
+    let plateau = null, plateauSpent = false, lastZeroServoAt = -Infinity;
     const stats = {corrections: 0, rejoins: 0, holds: 0, rateBursts: 0, seeks: 0, failures: 0, rateRejected: 0};
-
     function load() {
       try {
         const m = {...defaultModel(), ...(JSON.parse(store?.get?.(MODEL_KEY) || 'null') || {})};
@@ -80,28 +78,24 @@
       job = null;
       if (restoreRate && wasRate && io) io.rate(io.baseRate);
     }
-
     function reset(next = '', why = 'scope-change', io = null) {
       cancelJob(io);
       scope = next; phase = 'observe'; samples = []; last = null; reason = why;
       locked = false; lockedAt = -1; failures = 0; cooldownUntil = 0; lastCorrection = null;
-      acquiredAt = firstFineLockAt = lastTickAt = -1;
+      acquiredAt = firstFineLockAt = lastTickAt = -1; lastZeroServoAt = -Infinity;
       rearm();
     }
     function rearm() {
       stall = {steps: 0, at: -Infinity}; displaced = null; displacedRejoins = 0; plateau = null; plateauSpent = false;
       lastAutomaticRejoinReleaseAt = lastStallSeenAt = -Infinity;
     }
-
     // A transport change, Sync me or scrub invalidates the evidence but not the device model.
     function intent(kind, io = null) {
       cancelJob(io);
       phase = 'observe'; samples = []; last = null; locked = false; reason = 'intent-' + kind;
       if (kind !== 'pause') { failures = 0; cooldownUntil = 0; rearm(); }
     }
-
     function owns() { return !!job; }
-
     function observePosition(nowMs, value) {
       if (!Number.isFinite(value)) return;
       if (value !== held.value) held = {value, since: nowMs};
@@ -111,7 +105,6 @@
       const age = (nowMs - held.since) / 1000;
       return age > 0 && age < 1.2 ? value + age * baseRate : value;
     }
-
     function sample(nowMs, current, target, baseRate) {
       const drift = target - current;
       let note = 'observing';
@@ -145,7 +138,6 @@
       if (spread > spreadLimit) { reason = 'unstable-phase'; return null; }
       return median(values);
     }
-
     function rateFor(io, error) {
       if (model.rateHonored === false) return null;
       const rates = io.availableRates();
@@ -154,7 +146,6 @@
         : rates.filter(r => r < io.baseRate * .99 && r >= io.baseRate * .74);
       return wanted.sort((a, b) => Math.abs(a - io.baseRate) - Math.abs(b - io.baseRate))[0] ?? null;
     }
-
     function begin(kind, nowMs, error, io, extra = {}) {
       stats.corrections++;
       lastCorrection = {kind, before: error, at: nowMs};
@@ -162,16 +153,14 @@
       job = {kind, startedAt: nowMs, before: error, ...extra};
       reason = kind + '-started';
     }
-
     function finish(nowMs, why) {
       if (job?.timer) timers.clearTimeout(job.timer);
       job = null; phase = 'verify'; samples = []; last = null; reason = why;
       cooldownUntil = Math.max(cooldownUntil, nowMs + SETTLE_MS);
     }
-
     function startRate(nowMs, error, io, rate) {
       const effective = Math.abs(rate - io.baseRate) * clamp(model.rateGain, .5, 1.5);
-      const durationMs = clamp(Math.abs(error) / effective * 1000, 300, 12000);
+      const durationMs = clamp(Math.abs(error) / effective * 1000, Math.abs(error) <= ACTION_SEC ? 120 : 300, Math.abs(error) <= ACTION_SEC ? 600 : 12000);
       begin('rate', nowMs, error, io, {rate, durationMs, probe: {nowMs, current: io.current()}});
       stats.rateBursts++;
       io.rate(rate);
@@ -310,6 +299,13 @@
         locked = true; reason = 'locked'; return;
       }
       if (absolute <= ACTION_SEC) {
+        // Only use previously proven rate control for small residuals; no speculative seeks.
+        const precision = Number(io.referenceUncertaintyMs?.());
+        if (absolute >= ZERO_SERVO_SEC && model.rateHonored === true && io.referenceTrusted?.() === true
+            && precision >= 0 && precision <= absolute * 500 && nowMs - lastZeroServoAt >= ZERO_SERVO_COOLDOWN_MS) {
+          const gentleRate = rateFor(io, error);
+          if (gentleRate !== null) { lastZeroServoAt = nowMs; startRate(nowMs, error, io, gentleRate); return; }
+        }
         reason = 'fine-drift-monitoring'; return;
       }
       locked = false;

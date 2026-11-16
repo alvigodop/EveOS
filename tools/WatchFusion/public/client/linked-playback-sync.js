@@ -234,3 +234,125 @@
 
   root.WatchFusionLinkedPlaybackSync={projectedPosition,youtubePlan,mediaPlan,mirrorPlan,positionJumped,transportTiming,relaySample,createDriftSensor,createMediaConvergence,createAutoRoomGovernor};
 })(globalThis);
+
+/* Host zero-center servo. Read-only until the shared reference is precise.
+ * Host commands and the linked source remain authoritative; these bounded local
+ * rate pulses must NEVER echo into the room or the attached source tab.
+ */
+(() => {
+  'use strict';
+  if (window.watchFusionHostZeroCenter?.version === 'v13.9') return;
+  const PERIOD_MS = 250, WINDOW_MS = 2000, REARM_MS = 9000;
+  const MIN_ERROR_SEC = .055, MAX_ERROR_SEC = .35;
+  let scope = '', samples = [], pulse = null, suppressUntil = 0;
+  let cooldownUntil = 0, disabled = false, previousPulse = null;
+  let outcome = 'idle', attempts = 0, lastErrorMs = null;
+  const now = () => performance.now();
+  const readRate = () => Number(ytPlayer?.getPlaybackRate?.());
+  const canControl = () => typeof ytPlayer?.setPlaybackRate === 'function';
+  const zero = () => ({scope, errorMs:lastErrorMs, outcome, attempts,
+    active:!!pulse, disabled, suppressed:now() < suppressUntil});
+
+  function release(reason = 'pulse-finished') {
+    const prior = pulse;
+    if (!prior) return;
+    pulse = null;
+    clearTimeout(prior.timer);
+    suppressUntil = now() + 650;
+    try {
+      // Do not overwrite a human's intervening rate selection.
+      if (Math.abs(readRate() - prior.rate) < .015) ytPlayer.setPlaybackRate(prior.base);
+    } catch {}
+    previousPulse = {at:now(), before:prior.error};
+    cooldownUntil = now() + REARM_MS;
+    samples = []; outcome = reason;
+  }
+  function reset(next, reason) {
+    release('interrupted');
+    if (scope !== next) { disabled = false; attempts = 0; previousPulse = null; cooldownUntil = 0; }
+    scope = next; samples = []; lastErrorMs = null; outcome = reason;
+  }
+  function validSample() {
+    if (document.hidden || !roomId || !isHost() || !ytPlayerReady ||
+        playerInitializing || primingPlayer || applyingRemote || !state?.source?.videoId ||
+        state.playback?.paused || state.playback?.ended || !canControl()) return false;
+    if (ytPlayer.getPlayerState?.() !== 1 ||
+        ytPlayer.getVideoData?.()?.video_id !== state.source.videoId) return false;
+    const coordination = window.watchFusionPlayout?.status?.();
+    if (!coordination || coordination.authorityBuffering ||
+        !['peer-cohort','linked-source'].includes(coordination.reference) ||
+        !Number.isFinite(coordination.uncertaintyMs)) return false;
+    return true;
+  }
+  function tick() {
+    const p = state?.playback;
+    const next = roomId && p && state?.source?.videoId && isHost()
+      ? [roomId, state.source.videoId, state.presentationEpoch, state.playoutSegment].join(':') : '';
+    if (next !== scope) reset(next,'source-changed');
+    if (!validSample()) {
+      if (pulse) release('source-not-ready');
+      samples = []; outcome = 'awaiting-trusted-reference'; return;
+    }
+    const at = now();
+    const base = Math.min(2,Math.max(.25,Number(p.rate)||1));
+    if (pulse) {
+      if (at >= pulse.dueAt) release('pulse-finished');
+      else if (at - pulse.startedAt > 400 && Math.abs(readRate()-pulse.rate) > .015) {
+        disabled = true; release('rate-not-accepted');
+      }
+      return;
+    }
+    if (disabled || at < cooldownUntil || at < suppressUntil) return;
+    const coordination = window.watchFusionPlayout.status();
+    const position = Number(ytPlayer.getCurrentTime?.());
+    const target = Number(window.watchFusionYouTubeTarget?.(estimatedServerNow(),ytPlayer.getDuration?.()));
+    if (!Number.isFinite(target) || !Number.isFinite(position) ||
+        Math.abs(readRate()-base) > .015) { samples = []; return; }
+    const error = target - position;
+    lastErrorMs = Math.round(error*1000);
+    if (Math.abs(error) < MIN_ERROR_SEC || Math.abs(error) > MAX_ERROR_SEC) {
+      samples = []; outcome = 'within-deadband-or-needs-ordinary-sync'; return;
+    }
+    const uncertainty = Number(coordination.uncertaintyMs);
+    if (uncertainty > 45 || Math.abs(error)*1000 < uncertainty*1.35) {
+      samples = []; outcome = 'below-reference-precision'; return;
+    }
+    samples.push({at, error, position, target});
+    samples = samples.filter(x => at - x.at <= WINDOW_MS);
+    if (samples.length < 5 || at - samples[0].at < 1000) return;
+    const span = (at-samples[0].at)/1000;
+    const progress = position-samples[0].position;
+    const values = samples.map(x=>x.error);
+    if (progress < .6*base*span || Math.max(...values)-Math.min(...values) > .045 ||
+        values.some(x=>Math.sign(x)!==Math.sign(error))) { outcome='unstable-host-phase'; return; }
+    if (previousPulse && at - previousPulse.at > 1500) {
+      if (Math.abs(error) >= Math.abs(previousPulse.before)-.012) {
+        disabled = true; outcome='rate-not-effective'; return;
+      }
+      previousPulse = null;
+    }
+    const available = ytPlayer.getAvailablePlaybackRates?.();
+    if (!Array.isArray(available)) { outcome='rate-unavailable'; return; }
+    const rates = available.filter(x=>Number.isFinite(x) && Math.sign(x-base)===Math.sign(error)
+      && Math.abs(x-base)>.02 && Math.abs(x-base)<=.3)
+      .sort((a,b)=>Math.abs(a-base)-Math.abs(b-base));
+    const selected = rates[0];
+    if (!selected) { outcome='fixed-rate-monitoring'; return; }
+    const duration = Math.min(650,Math.max(130,Math.abs(error)*.65/Math.abs(selected-base)*1000));
+    if (duration/1000*Math.abs(selected-base) > Math.abs(error)*.95) return;
+    pulse = {rate:selected,base,error,startedAt:at,dueAt:at+duration,timer:null};
+    suppressUntil = at + duration + 850;
+    samples = []; attempts++; outcome='host-zero-centering';
+    try {
+      ytPlayer.setPlaybackRate(selected);
+      pulse.timer=setTimeout(()=>release('pulse-finished'),duration);
+    } catch { disabled=true; release('rate-change-failed'); }
+  }
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)reset('', 'page-hidden');});
+  setInterval(()=>{try{tick();}catch{reset('', 'servo-error');}},PERIOD_MS);
+  window.watchFusionHostZeroCenter = {version:'v13.9', isApplying:()=>{
+    const current=readRate(), base=Number(state?.playback?.rate)||1;
+    return (!!pulse || now()<suppressUntil) && Number.isFinite(current) &&
+      (Math.abs(current-base)<.015 || Math.abs(current-(pulse?.rate ?? base))<.015);
+  }, diagnostics:zero};
+})();

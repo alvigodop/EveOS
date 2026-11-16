@@ -6,7 +6,7 @@
   let lastTransportTiming=null, lastSampleAt=0, lastSampleUrl="", playbackEchoUntil=0;
   const pendingControls=new Map();
   const VOLUME_ECHO_TTL_MS = 3000;
-  let queuedVolume = null, volumeTimer = null;
+  let queuedVolume = null, volumeTimer = null, confirmedVolume = null, zeroVolumeSince = 0;
 
 
   function active(){return !!link;}
@@ -43,7 +43,7 @@
     if(document.activeElement!==$('liveSeek')){$('liveSeek').max=metadata.duration||0;$('liveSeek').value=metadata.currentTime||0;}
     if(document.activeElement!==$('liveRate'))$('liveRate').value=String(metadata.rate||1);
     const volume = $('liveVolume');
-    volume.value = queuedVolume ?? metadata.volume ?? ((state?.playback?.volume ?? playerAudioPrefs.volume ?? 100) / 100);
+    if (document.activeElement !== volume) volume.value = queuedVolume ?? pendingControls.get('volume')?.value ?? metadata.volume ?? confirmedVolume ?? ((state?.playback?.volume ?? playerAudioPrefs.volume ?? 100) / 100);
     for(const button of controls.querySelectorAll('[data-live-action]'))button.disabled=!canControl();
     for(const id of ['liveSeek','liveRate','liveVolume'])$(id).disabled=!canControl();
     $('liveStop').hidden=false;$('linkTabBtn').textContent='Unlink playing tab';$('linkTabBtn').setAttribute('aria-pressed','true');
@@ -73,7 +73,8 @@
       action==='rate' ? {action,rate:Math.round(numeric*100)/100} : {action,positionMs:Math.round(numeric*1000)});
     peer.control(action,numeric);
     if (action === 'seek') { status('Seeking linked source · awaiting confirmation…'); renderControls(); }
-    if (action === 'play' || action === 'pause') renderControls();
+    if (action === 'play' || action === 'pause') { status('Waiting for linked source ' + action + ' confirmation…'); renderControls(); }
+    if (action === 'volume') renderControls();
     return true;
   }
   function queueVolume(value, commit = false) {
@@ -132,7 +133,17 @@
     peer.control('seek',pending.value);
     window.watchFusionRoomSyncLog?.note?.('source-seek-retry',{positionMs:Math.round(pending.value*1000)});
   }
-  setInterval(() => { retryVolumeControl(); retrySeekControl(); }, 260);
+  // Explicit play and pause commands are idempotent: retry at most once.
+  function retryTransportControl() {
+    if (!active() || !peer || !canControl() || document.hidden) return;
+    for (const action of ['play','pause']) {
+      const p = pendingControls.get(action);
+      if (!p || p.retries >= 1 || performance.now() - p.at < 1000) continue;
+      p.retries++; p.lastSent = performance.now(); peer.control(action,p.value);
+      window.watchFusionRoomSyncLog?.note?.('source-transport-retry',{action});
+    }
+  }
+  setInterval(() => { retryVolumeControl(); retrySeekControl(); retryTransportControl(); }, 260);
   function pendingSatisfied(action,pending,metadata){
     if(action==='seek') {
       const rate = metadata.paused === true ? 0 : Math.min(2, Math.max(.25, Number(metadata.rate) || 1));
@@ -156,6 +167,10 @@
           status('Source seek unconfirmed · use Reconnect if playback is still behind.');
           window.watchFusionRoomSyncLog?.note?.('source-seek-unconfirmed',{positionMs:Math.round(pending.value*1000)});
         }
+        if (expired && (action === 'play' || action === 'pause')) {
+          status('Source ' + action + ' unconfirmed · use Reconnect.');
+          window.watchFusionRoomSyncLog?.note?.('source-transport-unconfirmed',{action});
+        }
         pendingControls.delete(action);
         continue;
       }
@@ -169,7 +184,8 @@
     return next;
   }
   function followLocal(metadata,force=false){
-    if(!state?.source || roomProof())return;
+    // In a linked-source room, the host preview follows the confirmed source too.
+    if(!state?.source || (roomProof() && !isHost()))return;
     applying=true;
     try{
       if(state.source.kind==='media')window.mediaPlayback?.followAttached?.(metadata,{force});
@@ -180,7 +196,7 @@
     if(!active()||!loadedPageUrl)return;
     // Do not republish an old source position while its explicit seek is unconfirmed.
     if (pendingControls.has('seek')) return false;
-    const sourceVolume = metadata.volume;
+    const sourceVolume = metadata.muted === true ? 0 : metadata.volume;
     const audio = Number.isFinite(sourceVolume) ? {volume:Math.round(sourceVolume * 100),muted:sourceVolume === 0} : {};
     if (roomId && mirrorInFlight) {
       queuedMirror={metadata:{...metadata},force:queuedMirror?.force===true||force};
@@ -247,6 +263,20 @@
     const queued=pendingUrl;pendingUrl='';
     if(queued&&queued!==loadedPageUrl)void followUrl(queued);
   }
+  function reconcileSourceVolume(sample, previous, now) {
+    const incoming = sample.volume;
+    if (incoming == null || !Number.isFinite(incoming) || incoming < 0 || incoming > 1) return confirmedVolume ?? previous.volume;
+    if (incoming > 0 || pendingControls.get('volume')?.value === 0) {
+      zeroVolumeSince = 0; confirmedVolume = incoming; return incoming;
+    }
+    // Muting can report effective 0 while the YouTube slider retains its level.
+    if (sample.muted === true && confirmedVolume > 0) return confirmedVolume;
+    if (confirmedVolume > 0 && (!zeroVolumeSince || now - zeroVolumeSince < 750)) {
+      if (!zeroVolumeSince) zeroVolumeSince = now;
+      return confirmedVolume; // one stale/ambiguous zero must not collapse the slider
+    }
+    confirmedVolume = 0; zeroVolumeSince = 0; return 0;
+  }
   function onMetadata(metadata={}){
     const now = Date.now(), sync = window.WatchFusionLinkedPlaybackSync;
     lastTransportTiming=sync?.transportTiming?.(metadata,now)||null;
@@ -258,10 +288,10 @@
     lastSampleUrl = metadata.pageUrl;
     const previous=lastMetadata;
     if (previous.pageUrl && previous.pageUrl !== sample.pageUrl) {
-      clearVolumeDraft();
-      pendingControls.delete('volume');
+      clearVolumeDraft(); pendingControls.delete('volume');
+      confirmedVolume = null; zeroVolumeSince = 0;
     }
-    lastMetadata = { ...lastMetadata, ...sample, volume:Number.isFinite(sample.volume) ? Math.max(0,Math.min(1,sample.volume)) : previous.volume };
+    lastMetadata = { ...lastMetadata, ...sample, volume:reconcileSourceVolume(sample, previous, now) };
     if(previous.pageUrl===sample.pageUrl && previous.paused!==undefined && previous.paused!==sample.paused)
       window.watchFusionRoomSyncLog?.note?.(sample.paused?'source-pause':'source-play',
         {positionMs:Math.round((Number(sample.currentTime)||0)*1000),sampleAgeMs:Math.round(now-Number(sample.sampledAt))});
@@ -279,7 +309,9 @@
     renderControls(display);
     const pageUrl=String(lastMetadata.pageUrl||'');
     if(pageUrl&&pageUrl!==loadedPageUrl){void followUrl(pageUrl);return;}
-    followLocal(display);scheduleMirror(lastMetadata,!!seekConfirmed);
+    // Do not optimistically seek the host preview ahead of unacknowledged source.
+    if (!pendingControls.has('seek')) followLocal(display,!!seekConfirmed);
+    scheduleMirror(lastMetadata,!!seekConfirmed);
   }
   function connectPeer(){
     peer?.stop();if(!link)return;lastSampleAt=0;lastSampleUrl="";
@@ -300,7 +332,7 @@
       await post(`/api/live/${created.id}/stop`,created).catch(()=>{});
       setStatus(error.message);return false;
     }
-    link=created;loadedPageUrl='';resolvingUrl='';pendingUrl='';lastMetadata={};lastMirrorAnchor=null;queuedMirror=null;pendingControls.clear();resolveRevision++;
+    link=created;loadedPageUrl='';resolvingUrl='';pendingUrl='';lastMetadata={};lastMirrorAnchor=null;queuedMirror=null;pendingControls.clear();confirmedVolume=null;zeroVolumeSince=0;resolveRevision++;
     const pairing=new URL(location.origin);pairing.hash=`live=${created.id}.${created.publisherToken}`;
     $('livePairLink').value=pairing.href;$('livePairHelp').hidden=false;$('findMediaPanel').hidden=false;renderControls({});
     status('Pair the source tab. WatchFusion will resolve its URL and keep only playback state attached.');connectPeer();
@@ -308,15 +340,15 @@
   async function stop(options={}){
     if(!link)return true;
     clearVolumeDraft();
-    const old=link;link=null;resolveRevision++;resolvingUrl='';pendingUrl='';loadedPageUrl='';lastMirrorAnchor=null;queuedMirror=null;pendingControls.clear();
+    const old=link;link=null;resolveRevision++;resolvingUrl='';pendingUrl='';loadedPageUrl='';lastMirrorAnchor=null;queuedMirror=null;pendingControls.clear();confirmedVolume=null;zeroVolumeSince=0;
     peer?.stop();peer=null;const stopped=await post(`/api/live/${old.id}/stop`,old).catch(()=>null);
     if(stopped?.state&&stopped.state.roomId===roomId&&applyIncomingRoomState(stopped.state))render();
     $('livePairHelp').hidden=true;restoreUi();if(!options.quiet)setStatus('Source tab unlinked · the page was restored to normal.');return true;
   }
-  function reconnect(){if(!link)return start();pendingControls.delete('seek');lastMirrorAnchor=null;connectPeer();status('Reconnecting source · refreshing playbar state…');return true;}
+  function reconnect(){if(!link)return start();pendingControls.clear();confirmedVolume=null;zeroVolumeSince=0;lastMirrorAnchor=null;connectPeer();status('Reconnecting source · refreshing controls…');return true;}
   $('linkTabBtn').onclick=()=>{void(active()?stop():start());};
   window.watchFusionLinkedTab={active,promoteToRoom,publishing:()=>!!(roomProof()&&state?.linkedSourceActive),applying:()=>applying || performance.now()<playbackEchoUntil,setApplying,suppressPlaybackEcho,control,queueVolume,start,stop,reconnect,render:renderControls,
     metadata:()=>lastMetadata,pendingControl:action=>active() &&
-      performance.now() - (pendingControls.get(action)?.at ?? -Infinity) <= (action === 'volume' ? VOLUME_ECHO_TTL_MS : CONTROL_ECHO_TTL_MS),
+      performance.now() - (pendingControls.get(action)?.at ?? -Infinity) <= (action === 'volume' ? VOLUME_ECHO_TTL_MS : action === 'seek' ? SEEK_ACK_TTL_MS : CONTROL_ECHO_TTL_MS),
     diagnostics:()=>({transport:lastTransportTiming})};
 })();

@@ -301,6 +301,7 @@ function onYouTubeStateChange(event) {
 }
 
 function onYouTubeRateChange() {
+  if(window.watchFusionHostZeroCenter?.isApplying?.())return;
   if(window.watchFusionLinkedTab?.active?.()&&isHost()&&!window.watchFusionLinkedTab?.applying?.()){window.watchFusionLinkedTab.control('rate',ytPlayer?.getPlaybackRate?.()||1);return;}
   if (!state || applyingRemote || primingPlayer || followsRoomPlayback()) return;
   command('rate', { rate: ytPlayer?.getPlaybackRate?.() || 1 });
@@ -423,7 +424,7 @@ function followAttachedYouTube(metadata = {}, options = {}) {
   const plan=window.WatchFusionLinkedPlaybackSync?.youtubePlan(metadata,playerState,current,options);
   if(!plan)return false;
   const rate=Math.min(2,Math.max(.25,Number(metadata.rate)||1)),volume=metadata.volume;
-  const rateChanged=Math.abs((Number(ytPlayer.getPlaybackRate?.())||1)-rate)>.01;
+  const rateChanged=!window.watchFusionHostZeroCenter?.isApplying?.() && Math.abs((Number(ytPlayer.getPlaybackRate?.())||1)-rate)>.01;
   const volumeChanged=Number.isFinite(volume)&&Math.abs((Number(ytPlayer.getVolume?.())||0)-Math.max(0,Math.min(1,volume))*100)>.5;
   if(!plan.seek&&!plan.pause&&!plan.play&&!rateChanged&&!volumeChanged)return true;
   window.watchFusionLinkedTab?.setApplying?.(true);applyingRemote=true;

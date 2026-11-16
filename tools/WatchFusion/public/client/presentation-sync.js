@@ -53,8 +53,9 @@
     const positionMs = position * 1000;
     const roomPositionMs = base * 1000 + (running ? Math.max(0, at - anchor) * (Number(playback.rate) || 1) : 0);
     const diagnostics = direct ? {correctiveSeeks:mediaSyncSeeks, action:mediaSyncAction} : window.watchFusionSyncDiagnostics?.();
+    const hostServo = !direct && isHost() ? window.watchFusionHostZeroCenter?.diagnostics?.() : null;
     const following = followsRoomPlayback();
-    const target = !following ? null : direct ? window.mediaPlayback?.target?.(at, media.duration) : window.watchFusionYouTubeTarget?.(at, media.getDuration?.());
+    const target = !(following || isHost()) ? null : direct ? window.mediaPlayback?.target?.(at, media.duration) : window.watchFusionYouTubeTarget?.(at, media.getDuration?.());
     const adjustmentMs = running && following ? window.watchFusionPresentation?.adjustmentMs?.() ?? diagnostics?.deviceDelayMs ?? 0 : 0;
     const sourceAgeMs = sourceSampleAge();
     const volume = direct ? media.volume : (media.getVolume?.() ?? 100) / 100;
@@ -66,10 +67,10 @@
       buffering: direct ? media.seeking || media.readyState < 3 : ytState === 3,
       ready: direct ? !!mediaPlayerReady : !!ytPlayerReady && !playerInitializing && !primingPlayer,
       audible: volume > .01 && (direct ? !media.muted : media.isMuted?.() === false),
-      outputSession, follows: !isHost() && following, adjustmentMs, correcting: !direct && window.watchFusionViewerArbiter?.correcting?.() === true,
+      outputSession, follows: !isHost() && following, adjustmentMs, correcting: (!direct && window.watchFusionViewerArbiter?.correcting?.() === true) || hostServo?.active === true,
       videoFrameOffsetMs: direct && videoFrame && performance.now() - videoFrame.at < 500 ? videoFrame.offset : null,
       rttMs: window.watchPartyClock.rttMs(), offsetMs: window.watchPartyClock.offsetMs(),
-      corrections: diagnostics?.correctiveSeeks ?? null, recentCorrection: diagnostics?.action ?? null, sourceAgeMs,
+      corrections: hostServo?.attempts ?? diagnostics?.correctiveSeeks ?? null, recentCorrection: hostServo?.active ? 'rate-correction' : diagnostics?.action ?? null, sourceAgeMs,
       startupWaitMs: !direct && Number.isFinite(diagnostics?.startup?.startDelayMs) ? diagnostics.startup.startDelayMs : null,
       filteredDriftMs: Number.isFinite(diagnostics?.filteredDriftSec) ? Math.round(diagnostics.filteredDriftSec * 1000) : null,
       seekHealth: diagnostics?.seekGuard ? {reason:diagnostics.seekGuard.reason, attempts:diagnostics.seekGuard.attempts,
