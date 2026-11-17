@@ -46,22 +46,19 @@
   const RETRY_STALL_MS = 2750, RETRY_SPACING_MS = 2750, REJOIN_RECENCY_MS = 30000;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const median = values => { const v = values.slice().sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : 0; };
-  function defaultModel() {
-    return {releaseLatencySec: .25, leadSec: 1.5, landingErrorSec: 0, landingSec: .5, rateHonored: null, rateGain: 1, rejoins: 0};
-  }
+  function defaultModel() { return {releaseLatencySec: .25, leadSec: 1.5, landingErrorSec: 0, landingSec: .5, rateHonored: null, rateGain: 1, rejoins: 0}; }
   function createViewerSyncArbiter({store = null, timers = globalThis} = {}) {
     let model = load();
     let scope = '', phase = 'observe', samples = [], last = null, reason = 'idle', job = null;
     let lockedAt = -1, locked = false, failures = 0, cooldownUntil = 0, lastCorrection = null;
     let acquiredAt = -1, firstFineLockAt = -1, lastTickAt = -1;
-    // getCurrentTime() is a cached, sample-and-hold value on many players (the
-    // IFrame API relays it by message; TV browsers update it coarsely). Track
-    // when the value last changed so a held reading is projected, not trusted.
+    // getCurrentTime() is cached/sample-and-hold (IFrame messages; coarse TV updates).
+    // Track when the value last changed so held readings are projected, not trusted.
     let held = {value: null, since: 0};
     let stall = {steps: 0, at: -Infinity}, displaced = null, displacedRejoins = 0;
     let lastAutomaticRejoinReleaseAt = -Infinity, lastStallSeenAt = -Infinity;
     let plateau = null, plateauSpent = false, lastZeroServoAt = -Infinity;
-    const stats = {corrections: 0, rejoins: 0, holds: 0, rateBursts: 0, seeks: 0, failures: 0, rateRejected: 0};
+    const stats = {corrections: 0, rejoins: 0, holds: 0, rateBursts: 0, seeks: 0, failures: 0, rateRejected: 0}; const hostGuard = globalThis.WatchFusionHostSeekPolicy?.create?.() ?? null;
     function load() {
       try {
         const m = {...defaultModel(), ...(JSON.parse(store?.get?.(MODEL_KEY) || 'null') || {})};
@@ -83,7 +80,7 @@
       scope = next; phase = 'observe'; samples = []; last = null; reason = why;
       locked = false; lockedAt = -1; failures = 0; cooldownUntil = 0; lastCorrection = null;
       acquiredAt = firstFineLockAt = lastTickAt = -1; lastZeroServoAt = -Infinity;
-      rearm();
+      rearm(); hostGuard?.reset();
     }
     function rearm() {
       stall = {steps: 0, at: -Infinity}; displaced = null; displacedRejoins = 0; plateau = null; plateauSpent = false;
@@ -184,9 +181,9 @@
     }
 
     function startRejoin(nowMs, error, io, why = 'rejoin', network = false) {
-      const lead = clamp(model.leadSec, .35, 10);
+      const lead = clamp(model.leadSec, .35, io.hostLinked ? 2.5 : 10); // cap host-only learned lead; preserve stored model and TV
       const requested = io.target(nowMs) + lead;
-      begin('rejoin', nowMs, error, io, {requested, lead, why, landedAt: -1, stableReads: 0, landed: null});
+      begin('rejoin', nowMs, error, io, {requested, lead, why, hostLinked: !!io.hostLinked, landedAt: -1, stableReads: 0, landed: null});
       stats.rejoins++; stats.seeks++; model.rejoins++;
       io.pause();
       io.seek(requested, network || !io.buffered(requested));
@@ -207,7 +204,7 @@
     function superviseRejoin(nowMs, io) {
       const state = io.state();
       if (nowMs - job.startedAt > LANDING_TIMEOUT_MS) {
-        failures++; stats.failures++;
+        hostGuard?.timeout(job); failures++; stats.failures++;
         release(io, 'landing-timeout-released');
         cooldownUntil = nowMs + BACKOFF_MS[Math.min(BACKOFF_MS.length - 1, failures - 1)];
         return;
@@ -216,9 +213,11 @@
       if (state === 1) io.pause();
       const position = io.current();
       if (job.landed !== null && Math.abs(position - job.landed) < .02) job.stableReads++;
-      else { job.landed = position; job.stableReads = 0; }
+      else { job.landed = position; job.stableReads = 0; job.landedAt = -1; }
       if (job.stableReads < 1 || job.dueAt !== undefined) return;
       const landed = job.landed, landingError = job.requested - landed;
+      const trust = hostGuard?.landing(job, nowMs, landingError) ?? (job.hostLinked ? 'reject' : 'pass');
+      if (trust !== 'pass') { if (trust === 'wait') reason = 'rejoin-awaiting-credible-landing'; else { failures++; stats.failures++; release(io, 'rejoin-landing-unverified'); } return; }
       // Keep the worst recent keyframe snap and landing time: the lead must cover
       // the snap, the room time that passes while landing, and the release latency.
       model.landingErrorSec = clamp(Math.max(model.landingErrorSec * .97, landingError), 0, 6);
@@ -336,7 +335,7 @@
         reason = 'fine-drift-unverified-source'; return;
       }
       const rate = absolute <= 2.5 ? rateFor(io, error) : null;
-      if (rate !== null) return startRate(nowMs, error, io, rate);
+      if (rate !== null) return startRate(nowMs, error, io, rate); if (io.hostLinked && (!hostGuard || hostGuard.blocked || absolute < .70)) { reason = hostGuard?.blocked || !hostGuard ? 'host-auto-seek-guarded' : 'host-subsecond-preserved'; return; }
       // Some YouTube TVs offer only 1x. Seeking or a zero-time pause/play for
       // a 130 ms offset can create far more drift than it corrects. Keep
       // monitoring until a meaningful, safely actionable displacement exists.
@@ -377,6 +376,7 @@
 
     // Sync me / transport rejoin while the room is playing: same landing-aware path.
     function rejoinNow(nowMs, io, why = 'manual') {
+      if (io.hostLinked && (hostGuard?.blockRejoin(why, io, nowMs) ?? why !== 'manual')) { reason = 'host-auto-seek-guarded'; return false; }
       intent(why, io);
       const error = io.target(nowMs) - projected(nowMs, io.current(), io.baseRate);
       if (Math.abs(error) <= ACTION_SEC + EPS_SEC && io.state() === 1) { reason = 'already-aligned'; return false; }
@@ -386,7 +386,7 @@
       if ((why === 'transport' || why === 'reclaim') && Math.abs(error) <= 2.5) { reason = 'transport-hop-observe'; return false; }
       // A scrub reclaim is automatic: beyond MAX_AUTO_SEC it waits for a corroborated room (host transport and Sync me do not).
       if (why === 'reclaim' && Math.abs(error) > MAX_AUTO_SEC && !io.referenceTrusted?.()) { reason = 'reclaim-unverified-reference'; return false; }
-      const rate = why === 'manual' && Math.abs(error) <= 2.5 ? rateFor(io, error) : null;
+      const rate = ['manual', 'host-source', 'host-peer'].includes(why) && Math.abs(error) <= 2.5 ? rateFor(io, error) : null;
       if (rate !== null) startRate(nowMs, error, io, rate);
       else if (error < 0 && Math.abs(error) <= 4) startHold(nowMs, error, io);
       else startRejoin(nowMs, error, io, why);
@@ -425,7 +425,7 @@
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
         ...stats, tolerancesMs: {monitor: 50, action: 100, outOfSync: 100},
         firstFineLockMs: firstFineLockAt >= 0 && acquiredAt >= 0 ? firstFineLockAt - acquiredAt : null,
-        stallSteps: stall.steps, displacedRejoins, owned: !!job};
+        stallSteps: stall.steps, displacedRejoins, hostSeekGuard: hostGuard?.blocked || null, owned: !!job};
     }
 
     return {tick, intent, reset, owns, rejoinNow, recoverStall, snapshot, observePosition, correcting: () => !!job};

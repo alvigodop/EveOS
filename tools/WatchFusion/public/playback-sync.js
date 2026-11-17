@@ -223,7 +223,7 @@
   // The only actuator handed to the arbiter: every automatic seek/rate/pause/play passes here.
   function arbiterIo(baseRate, duration) {
     return {
-      baseRate, now: () => performance.now(),
+      baseRate, hostLinked: isHost() && state?.linkedSourceActive === true, now: () => performance.now(),
       target: () => youtubeTarget(estimatedServerNow(), duration),
       current: () => Number(ytPlayer.getCurrentTime?.()), state: () => ytPlayer.getPlayerState?.(),
       availableRates: () => ytPlayer.getAvailablePlaybackRates?.(),
@@ -345,8 +345,8 @@
       reference:window.watchFusionPlayout?.status?.()?.reference,trusted:(()=>{const p=window.watchFusionPlayout?.status?.();return p?.source==='live'&&!p.authorityBuffering&&
         (p.reference==='room-clock'||p.reference==='peer-cohort'&&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125)&&
         Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs
-    })) {const accepted=arbiter.rejoinNow(nowMs,io,'manual');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}
-    if(isHost()&&state?.linkedSourceActive&&arbiter&&window.WatchFusionHostSourceConverge?.consider?.({scope:[roomId,state.source.videoId,state.presentationEpoch].join(':'),segment:state.playoutSegment,nowMs,errorMs:rawDrift*1000,coordination:window.watchFusionPlayout?.status?.(),sourceAgeMs:Date.now()-Number(window.watchFusionLinkedTab?.metadata?.()?.sampledAt),publisher:!!window.watchFusionLinkedTab?.publishing?.(),sameVideo:ytPlayer?.getVideoData?.()?.video_id===state?.source?.videoId,peerPresent:!!window.watchFusionPresentation?.peerCandidate?.(),contradiction:window.WatchFusionMirrorConvergenceGate?.contradicted?.(),active:!force&&!buffering&&!roomPaused&&playerState===1&&!arbiter.owns()&&!window.watchFusionHostZeroCenter?.isApplying?.()&&!window.WatchFusionZeroConverge?.isApplying?.()&&!startup?.stalledMs})){const accepted=arbiter.rejoinNow(nowMs,io,'manual');window.WatchFusionHostSourceConverge.accept(accepted,nowMs);if(accepted){diagnostics.action='host-source-rejoin';return true;}}
+    })) {const accepted=arbiter.rejoinNow(nowMs,io,'host-peer');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}
+    if(isHost()&&state?.linkedSourceActive&&arbiter&&window.WatchFusionHostSourceConverge?.consider?.({scope:[roomId,state.source.videoId,state.presentationEpoch].join(':'),segment:state.playoutSegment,nowMs,errorMs:rawDrift*1000,coordination:window.watchFusionPlayout?.status?.(),sourceAgeMs:Date.now()-Number(window.watchFusionLinkedTab?.metadata?.()?.sampledAt),publisher:!!window.watchFusionLinkedTab?.publishing?.(),sameVideo:ytPlayer?.getVideoData?.()?.video_id===state?.source?.videoId,peerPresent:!!window.watchFusionPresentation?.peerCandidate?.(),contradiction:window.WatchFusionMirrorConvergenceGate?.contradicted?.(),active:!force&&!buffering&&!roomPaused&&playerState===1&&!arbiter.owns()&&!window.watchFusionHostZeroCenter?.isApplying?.()&&!window.WatchFusionZeroConverge?.isApplying?.()&&!startup?.stalledMs})){const accepted=arbiter.rejoinNow(nowMs,io,'host-source');window.WatchFusionHostSourceConverge.accept(accepted,nowMs);if(accepted){diagnostics.action='host-source-rejoin';return true;}}
     const decision = window.watchFusionHostZeroCenter?.isApplying?.() ? {owned:true,reason:'host-zero-centering'} : window.WatchFusionZeroConverge?.isApplying?.() ? {owned:true,reason:'zero-converging'} : arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
     diagnostics.action = decision.reason;
     if (decision.owned) { setStatus('Catching up…'); return true; }

@@ -100,6 +100,7 @@ export async function sendFile(req, res) {
       'client/rejoin-probe.js',
       'client/host-source-converge.js',
       'client/target-projection-guard.js',
+      'client/host-seek-policy.js',
       'client/viewer-sync-arbiter.js',
       'playback-sync.js',
       'client/tv-decoder-rescue.js',
