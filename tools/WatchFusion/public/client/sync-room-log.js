@@ -7,6 +7,10 @@
   const clear = document.getElementById('syncRoomLogClear');
   const count = document.getElementById('syncRoomLogCount');
   const MAX_ENTRIES = 240, MAX_AGE = 600000;
+  // v13.10.8g: a correction opens a short, capped burst of denser snapshots (500 ms, 6 s) so a landing and its
+  // rebound are visible; local ring only, nothing is uploaded. Normal cadence stays 4.5 s.
+  const BURST = /^(?:host-source-(?:rejoin-accepted|landing-incomplete|backoff|settled)|host-rejoin-accepted|rejoin-landing|zero-converge-pulse)$/;
+  let burstUntil = -Infinity;
   let entries = [], events = [], roomScope = '', lastPeers = new Map(), lastKey = '', lastAt = 0, requestAt = -Infinity;
   let lastRendered = '', lastSegmentKey = '', segmentSequence = 0;
   const finite = value => typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
@@ -26,7 +30,8 @@
     if(!d||typeof d!=='object')return null;
     const reasons=/^[a-z-]{1,42}$/;
     return {outcome:reasons.test(d.outcome)?d.outcome:null,stage:reasons.test(d.stage)?d.stage:null,attempts:finite(d.attempts),
-      witnesses:finite(d.witnesses),errorMs:finite(d.errorMs),verifyMs:finite(d.verifyMs)};
+      witnesses:finite(d.witnesses),errorMs:finite(d.errorMs),verifyMs:finite(d.verifyMs),
+      beforeMs:finite(d.beforeMs),residualMs:finite(d.residualMs),progressMs:finite(d.progressMs),contradictedMs:finite(d.contradictedMs)};
   }
   function sensor(d) {
     if(!d||typeof d!=='object')return null;
@@ -136,7 +141,7 @@
     const changed = key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
       row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence ||
       row.groupPhase !== entries.at(-1)?.groupPhase || row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting;
-    if (!changed && now - lastAt < 4500) return;
+    if (!changed && now - lastAt < (performance.now() < burstUntil ? 500 : 4500)) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
     render();
@@ -158,14 +163,15 @@
   }
   function note(kind, detail={}) {
     refreshScope();
-    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete)|mirror-drift-observing)$/.test(kind)) return;
+    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing)$/.test(kind)) return;
     recordSegment();
     const fields={};
-    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs']) {
+    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','durationMs']) {
       const v=detail[key];
       if(typeof v==='boolean' || typeof v==='number' && Number.isFinite(v) && Math.abs(v)<1e9 ||
           typeof v==='string' && /^[a-z-]{1,35}$/.test(v)) fields[key]=v;
     }
+    if (BURST.test(kind)) burstUntil = performance.now() + 6000;
     events.push({at:new Date().toISOString(),kind,segmentSequence,...fields});prune();render();
   }
   function wantsSample() {

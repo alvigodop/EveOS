@@ -97,6 +97,7 @@ export async function sendFile(req, res) {
       'client/watchfusion-host-input-fix.js',
       'client/sync-center.js',
       'client/youtube-startup-gate.js',
+      'client/rejoin-probe.js',
       'client/host-source-converge.js',
       'client/target-projection-guard.js',
       'client/viewer-sync-arbiter.js',

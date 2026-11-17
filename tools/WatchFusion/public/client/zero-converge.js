@@ -76,7 +76,7 @@
     try { ytPlayer.setPlaybackRate(rate); } catch { strikes = MAX_STRIKES; reason = 'rate-change-failed'; return; }
     pulse = {rate, base, at, timer: setTimeout(() => release('pulse-complete'), durationMs)};
     pending = {before: m}; samples = []; pulses++; lastAt = at; reason = 'converging-to-zero';
-    if (at - notedAt > 15000) { notedAt = at; window.watchFusionRoomSyncLog?.note?.('zero-converge-pulse', {positionMs: Math.round(m)}); }
+    if (at - notedAt > 15000) { notedAt = at; window.watchFusionRoomSyncLog?.note?.('zero-converge-pulse', {errorMs: Math.round(m), rate, durationMs}); } // v13.10.8g: m is the error, never a position
   }
   setInterval(() => { try { tick(); } catch { reset('', 'converge-error'); } }, PERIOD_MS);
   document.addEventListener('visibilitychange', () => { if (document.hidden) reset('', 'page-hidden'); });

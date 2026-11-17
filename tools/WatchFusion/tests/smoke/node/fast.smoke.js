@@ -15,6 +15,7 @@ import { runV13107Checks } from './v13107-falsifiers.js';
 import { runV13108Checks } from './v13108-falsifiers.js';
 import { runV13108eChecks } from './v13108e-falsifiers.js';
 import { runV13108fChecks } from './v13108f-falsifiers.js';
+import { runV13108gChecks } from './v13108g-falsifiers.js';
 import { isM3u8Response } from '../../../src/server/media-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -264,6 +265,7 @@ export async function runFastSmoke() {
   await runV13108Checks(check);
   await runV13108eChecks(check);
   await runV13108fChecks(check);
+  await runV13108gChecks(check);
 
   await check('FAST-02A:nuvio-browser-plugin-bridge-contract', () => {
     const build = fs.readFileSync(path.join(PROJECT_ROOT, 'scripts', 'BUILD-NUVIO.bat'), 'utf8');

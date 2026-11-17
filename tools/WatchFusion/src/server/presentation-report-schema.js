@@ -14,7 +14,8 @@ const CLOCK_STATES = new Set(['bounded', 'coarse', 'thin', 'unstable', 'stale', 
 function linkedSource(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return {outcome: word(value.outcome), stage: word(value.stage), attempts: count(value.attempts),
-    witnesses: count(value.witnesses), errorMs: ms(value.errorMs), segment: count(value.segment), verifyMs: int(value.verifyMs, 0, 600000)};
+    witnesses: count(value.witnesses), errorMs: ms(value.errorMs), segment: count(value.segment), verifyMs: int(value.verifyMs, 0, 600000),
+    beforeMs: ms(value.beforeMs), residualMs: ms(value.residualMs), progressMs: ms(value.progressMs), contradictedMs: ms(value.contradictedMs)};
 }
 
 export function sanitizeHostRecovery(value) {

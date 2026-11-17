@@ -4,7 +4,11 @@
   'use strict';
   if (typeof window === 'undefined' || window.WatchFusionMirrorConvergenceGate) return;
   const CONFIRM_MS = 900, MAX_GAP_MS = 2600, MAX_SPREAD_SEC = .32, COOLDOWN_MS = 3500;
-  let candidate = null, lastPublishedAt = -Infinity, held = 0, published = 0, lastNote = -Infinity;
+  // v13.10.8g: a held large-drift candidate is the source tab disagreeing with the room by >0.75 s. The coordinator can
+  // still report the source live and in phase; that is contradictory evidence, so host-source recovery waits on it.
+  const CONTRADICTION_MS = 4000, LARGE_SEC = .75;
+  let candidate = null, lastPublishedAt = -Infinity, held = 0, published = 0, lastNote = -Infinity, heldSinceNote = 0;
+  let contradiction = null;
   const clock = () => performance.now();
   function defer(plan, metadata = {}, page = '') {
     if (!plan?.publish || plan.reason !== 'drift' || metadata.paused || metadata.ended) {
@@ -22,12 +26,24 @@
     if (!same) candidate = {page, sign, firstAt: sampleAt, lastAt: sampleAt, drift, current};
     else { candidate.lastAt = sampleAt; candidate.current = current; candidate.drift = drift; }
     if (!same || sampleAt - candidate.firstAt < CONFIRM_MS || now - lastPublishedAt < COOLDOWN_MS) {
-      held++;
-      if (now - lastNote > 15000) { lastNote = now; window.watchFusionRoomSyncLog?.note?.('mirror-drift-observing', {driftMs: Math.round(drift * 1000)}); }
+      held++; heldSinceNote++;
+      if (Math.abs(drift) > LARGE_SEC) contradiction = {driftMs: Math.round(drift * 1000), at: now, confirmed: same && sampleAt - candidate.firstAt >= CONFIRM_MS};
+      if (now - lastNote > 15000) {
+        lastNote = now;
+        // Sample age (local clock, same domain as the anchor) and how often this happened: is it a held source sample?
+        window.watchFusionRoomSyncLog?.note?.('mirror-drift-observing', {driftMs: Math.round(drift * 1000),
+          sampleAgeMs: Math.round(Date.now() - sampleAt), step: heldSinceNote, reason: same ? 'repeated-sample' : 'isolated-sample'});
+        heldSinceNote = 0;
+      }
       return true;
     }
     published++; lastPublishedAt = now; candidate = null; return false;
   }
-  function reset() {candidate = null; lastPublishedAt = -Infinity;}
-  window.WatchFusionMirrorConvergenceGate = {defer, reset, diagnostics: () => ({held,published})};
+  function reset() {candidate = null; lastPublishedAt = -Infinity; contradiction = null;}
+  // A drift publish (the room re-anchored to the source) resolves it; so does CONTRADICTION_MS without another one.
+  function contradicted(now = clock()) {
+    if (!contradiction || now - contradiction.at > CONTRADICTION_MS || contradiction.at <= lastPublishedAt) return null;
+    return {driftMs: contradiction.driftMs, ageMs: Math.round(now - contradiction.at)};
+  }
+  window.WatchFusionMirrorConvergenceGate = {defer, reset, contradicted, diagnostics: () => ({held,published,contradiction:contradicted()})};
 })();
