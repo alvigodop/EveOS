@@ -72,8 +72,8 @@
       outputSession, follows: !isHost() && following, adjustmentMs, correcting: (!direct && window.watchFusionViewerArbiter?.correcting?.() === true) || hostServo?.active === true,
       videoFrameOffsetMs: direct && videoFrame && performance.now() - videoFrame.at < 500 ? videoFrame.offset : null,
       rttMs: window.watchPartyClock.rttMs(), offsetMs: window.watchPartyClock.offsetMs(),
-      corrections: isHost() ? (hostServo?.attempts??0)+(window.WatchFusionHostPeerRecovery?.diagnostics?.()?.attempts??0)+(window.WatchFusionHostSourceConverge?.diagnostics?.()?.attempts??0) : diagnostics?.correctiveSeeks ?? null, recentCorrection: hostServo?.active ? 'rate-correction' : diagnostics?.action ?? null, sourceAgeMs,
-      timingReference: syncReference?.reference === 'peer-cohort' && Number.isFinite(syncReference.uncertaintyMs) ? 'Shared cohort ±'+Math.round(syncReference.uncertaintyMs)+' ms' : 'Room clock (limited)',
+      corrections: isHost() ? Math.max(diagnostics?.arbiter?.corrections??0,diagnostics?.correctiveSeeks??0)+(hostServo?.attempts??0) : diagnostics?.correctiveSeeks ?? null, recentCorrection: hostServo?.active ? 'rate-correction' : diagnostics?.action ?? null, sourceAgeMs,
+      timingReference: syncReference?.reference === 'peer-cohort' && Number.isFinite(syncReference.uncertaintyMs) ? 'Shared cohort ±'+Math.round(syncReference.uncertaintyMs)+' ms' : syncReference?.reference === 'linked-tab' ? 'Linked tab (estimated clock)' : 'Room clock (limited)',
       hostCorrection: window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome === 'host-peer-rejoin' ? 'Peers corroborated · host rejoin' : hostServo?.outcome ?? null, hostRecovery: isHost() ? {...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null} : null, sensor: window.WatchFusionSensorProvenance?.describe?.({direct, media, now:performance.now(), clock:window.watchPartyClock.offsetBound?.(), source:isHost()&&window.watchFusionLinkedTab?.publishing?.()?window.watchFusionLinkedTab.metadata?.():null}) ?? null,
       startupWaitMs: !direct && Number.isFinite(diagnostics?.startup?.startDelayMs) ? diagnostics.startup.startDelayMs : null,
       filteredDriftMs: Number.isFinite(diagnostics?.filteredDriftSec) ? Math.round(diagnostics.filteredDriftSec * 1000) : null,
@@ -205,7 +205,7 @@
       window.watchPartyClock.update(data.serverTime, sentAt, Date.now(), data.serverReceivedAt);
       onTiming?.(data.coordination, roomKey, sentAt);
       if (trace && data.peers) window.watchFusionRoomSyncLog?.observe(data.peers, data.coordination, data.roster);
-      if (data.peers) { peerBatch = data.peers; peerBatchAt = Date.now(); peerCoordination = data.coordination; }
+      if (data.peers) { peerBatch = data.peers; peerBatchAt = Date.now(); peerCoordination = data.coordination; if (statusMessage === 'Timing reports briefly unavailable.') statusMessage = ''; }
       if (!panel.open || !data.peers) return;
       panelReady = true;
       if (result && !capture && !data.peers.some(item => item.member === receiver?.member)) result = null;
@@ -215,7 +215,7 @@
       peers = data.peers;
       updatePanel();
     } catch (error) {
-      if (active === key && panel.open && !capture) setStatus(error.message);
+      if (active === key && panel.open && !capture && !controller.signal.aborted && error?.name !== 'AbortError') setStatus(/Restart WatchFusion/.test(error?.message || '') ? error.message : 'Timing reports briefly unavailable.');
     } finally {
       clearTimeout(timeout);
       requestPending = false;

@@ -40,9 +40,11 @@
     const state = zone(errorMs);
     if (state === 'unmeasured') return 'Timing unavailable';
     if (state === 'locked') return 'Locked';
-    if (state === 'refining') return 'Refining';
+    if (state === 'refining') return 'Playing · offset reported';
     if (/^(?:rate-converging|rate-started|rejoin-started|host-peer-rejoin|stall-kick-started|hold-started|host-zero-centering|decoder-reload-once|decoder-recovery|zero-converging)$/.test(reason || '')) return 'Correcting';
-    return 'Recovery needed';
+    if (/^(?:stall-recovery-exhausted|auto-correction-suspended|viewer-stalled-while-playing)$/.test(reason || '')) return 'Recovery stalled';
+    if (/^(?:host-auto-seek-guarded|host-subsecond-preserved)$/.test(reason || '')) return 'Playing · seek guarded';
+    return 'Playing · offset reported';
   }
   globalThis.WatchFusionPrecisionPolicy = Object.freeze({
     version:'v13.10.6', LOCK_MS, ACTION_MS, HARD_REJOIN_MS,
