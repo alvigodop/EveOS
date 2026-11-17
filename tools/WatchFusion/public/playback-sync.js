@@ -129,8 +129,8 @@
     return Math.max(0, anchorPosition + Math.max(0, at - anchorServerTime) / 1000 * anchorRate);
   }
   function youtubeTarget(at, duration) {
-    const position = projectAnchor(at), delay = anchorRate && hasDeviceTiming() ? (window.watchFusionPresentation?.adjustmentMs?.() ?? deviceDelayMs) * anchorRate / 1000 : 0;
-    return Math.max(0, Math.min(duration > 0 ? duration : Infinity, (window.watchFusionPlayout?.position(position, 'youtube') ?? position) - delay));
+    const position = projectAnchor(at), delay = anchorRate && hasDeviceTiming() ? (window.watchFusionPresentation?.adjustmentMs?.() ?? deviceDelayMs) * anchorRate / 1000 : 0, calculated = Math.max(0, Math.min(duration > 0 ? duration : Infinity, (window.watchFusionPlayout?.position(position, 'youtube') ?? position) - delay));
+    return window.WatchFusionTargetProjectionGuard?.target?.({calculated, at, delay, player:ytPlayer, playback:state?.playback, source:state?.source, serverTime:state?.serverTime, coordination:window.watchFusionPlayout?.status?.()}) ?? calculated;
   }
   function resetSeekRecovery() {
     awaitingSeekRecovery = false;

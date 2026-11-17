@@ -137,7 +137,8 @@ export async function runV13107Checks(check) {
     const src = read('browser-extension/worker.js');
     assert.ok(!/chrome\.tabs\.update\(tabId,\{muted:true\}\)\.catch\(\(\)=>\{\}\)/.test(src), 'mute failures are no longer swallowed');
     assert.match(src, /muteVerified=after\?\.mutedInfo\?\.muted===true/, 'mute is read back after the update');
-    assert.match(src, /if\(muted===false\)void ensureSourceTabMuted\(tabId\)/, 'an audible source sample re-asserts the mute');
+    assert.match(src, /const muted=await ensureSourceTabMuted\(tabId,sender\.tab\?\.mutedInfo\?\.muted===false\)/, 'an audible source sample awaits a verified mute recheck');
+    assert.match(src, /sendSourceSample\(sample\.metadata,muted\)/, 'source telemetry carries verified mute, not a stale sender flag');
     assert.match(src, /chrome\.tabs\.update\(tabId,\{muted:previousMuted\}\)/, 'unlink restores the original mute state');
   });
   await check('V13107-09:new-modules-are-in-the-served-bundle-in-order', () => {

@@ -142,7 +142,7 @@ async function restorePublisherIfNeeded() {
   sourceTab=saved.sourceTab;
   try {
     const tab=await chrome.tabs.get(sourceTab);
-    await ensureSourceTabMuted(sourceTab,true);
+    if(!(await ensureSourceTabMuted(sourceTab,true)))throw new Error('Source tab mute could not be verified during restore.');
     await inject(sourceTab);
     lastCombinedSample={metadata:{pageUrl:String(tab.url||'')}};
     connectStatePublisher(saved.sourceLinkConfig);
@@ -173,7 +173,7 @@ async function startCurrentTab(value,options={}) {
   try{
     const tab=await chrome.tabs.get(tabId);sourceTab=tabId;
     await chrome.storage.session.set({sourceTab,sourceTabWasMuted:!!tab?.mutedInfo?.muted,sourceLinkConfig:config});
-    await ensureSourceTabMuted(tabId,true);
+    if(!(await ensureSourceTabMuted(tabId,true)))throw new Error('Source tab mute failed; pairing refused. Check EveOS Bridge tab permissions.');
     await inject(tabId);
     const initial=await waitForInitialSample();
     if(initial?.metadata)lastCombinedSample=initial;
@@ -209,7 +209,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
       const sample=combinedSample(sender.frameId||0,message,sender.tab?.url||'');
       if(!statePeer)await restorePublisherIfNeeded();
       if(!publisherReady)return {ok:true,pending:true};
-      const muted=sender.tab?.mutedInfo?.muted;if(muted===false)void ensureSourceTabMuted(tabId);
+      const muted=await ensureSourceTabMuted(tabId,sender.tab?.mutedInfo?.muted===false);
       sendSourceSample(sample.metadata,muted);return {ok:true};
     }
     return {error:'No selected media tab.'};
@@ -220,6 +220,6 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
 chrome.tabs.onRemoved.addListener(async tabId=>{const saved=await chrome.storage.session.get('sourceTab');if(tabId===saved.sourceTab)await stop();});
 chrome.tabs.onUpdated.addListener(async(tabId,info)=>{
   const saved=await chrome.storage.session.get('sourceTab');if(tabId!==saved.sourceTab)return;
-  if(info.mutedInfo?.muted===false)void ensureSourceTabMuted(tabId);
-  if(info.status==='complete'){try{await inject(tabId);await ensureSourceTabMuted(tabId);}catch{await stop();}}
+  if(info.mutedInfo?.muted===false)void ensureSourceTabMuted(tabId,true);
+  if(info.status==='complete'){try{await inject(tabId);if(!(await ensureSourceTabMuted(tabId,true)))throw new Error('Mute failed after navigation');}catch{await stop();}}
 });
