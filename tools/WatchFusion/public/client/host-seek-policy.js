@@ -10,7 +10,8 @@
       if (job?.hostLinked && job.why !== 'manual') blocked = 'landing-timeout';
     }
     function landing(job, nowMs, landingError) {
-      if (!job.hostLinked || Math.abs(landingError) <= SAFE_LANDING_SEC) {
+      const tolerance = job.hostLinked && job.why === 'host-peer' ? .35 : SAFE_LANDING_SEC;
+      if (!job.hostLinked || Math.abs(landingError) <= tolerance) {
         job.landedAt = -1; return 'pass';
       }
       if (!Number.isFinite(job.landedAt) || job.landedAt < 0) job.landedAt = nowMs;
@@ -21,7 +22,8 @@
       if (why === 'manual') { blocked = ''; return false; }
       if (!io.hostLinked || !['host-source', 'host-peer'].includes(why)) return false;
       const error = Number(io.target(nowMs)) - Number(io.current());
-      return !!blocked || !Number.isFinite(error) || Math.abs(error) < MIN_HOST_REJOIN_SEC;
+      const min = why === 'host-peer' ? .17 : MIN_HOST_REJOIN_SEC;
+      return !!blocked || !Number.isFinite(error) || Math.abs(error) < min;
     }
     return { timeout, landing, blockRejoin, reset: () => { blocked = ''; },
       get blocked() { return blocked; } };

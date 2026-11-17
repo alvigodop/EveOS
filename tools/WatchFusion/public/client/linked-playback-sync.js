@@ -376,12 +376,12 @@
 })();
 /* v13.10.3: verify host landings after release; at most one evidence-gated retry. */
 (() => {
-  const MAX_ATTEMPTS=2,VERIFY_MS=7500,SETTLE_MS=3500,RETRY_WAIT_MS=12000;
+  const MAX_ATTEMPTS=1,VERIFY_MS=7500,SETTLE_MS=3500,RETRY_WAIT_MS=12000;
   let scope='',samples=[],lastStamp=-Infinity,stage='observe',outcome='idle',attempts=0,echoUntil=0;
   let peerCount=0,peerSpreadMs=null,hostErrorMs=null,peerErrorMs=null,gapMs=null,reference=null;
   let lastReason='',lastReasonAt=-Infinity,triggeredAt=null,verifyAt=-1,nearSince=-1,failedAt=-1;
   const note=(kind,detail)=>window.watchFusionRoomSyncLog?.note?.(kind,detail); const fields=()=>({reference,hostErrorMs,peerErrorMs,gapMs,peerCount,peerSpreadMs,attempts});
-  function gate(why,nowMs){samples=[];outcome=why;
+  function gate(why,nowMs){samples=['source-not-trusted','no-healthy-peer-witness','reference-mismatch'].includes(why)?samples.filter(x=>nowMs-x.at<=24000):[];outcome=why;
     if(nowMs-lastReasonAt>=(why!==lastReason?2500:10000)){lastReason=why;lastReasonAt=nowMs;note('host-rejoin-gated',{reason:why,...fields()});}
     return false;}
   function consider(input={}) {
@@ -419,14 +419,14 @@
     if(!Number.isFinite(host)||!Number.isFinite(gap))return gate('invalid-player-phase',at);
     if(p.ageMs>1500||p.ageMs<0)return gate('peer-report-stale',at);
     if(Math.abs(p.offsetMs)>70)return gate('peer-outside-lock-band',at);
-    const servo=!window.watchFusionHostZeroCenter?.diagnostics?.()?.disabled;const rawNoise=window.watchFusionPlayout?.status?.()?.uncertaintyMs;const noise=Number.isFinite(rawNoise)?rawNoise:125;if(Math.abs(host)<Math.max(servo?160:110,noise*1.35)||Math.abs(gap)<Math.max(servo?140:100,noise*1.35))return gate('host-within-guard-band',at);
+    const peerNoise=Number.isFinite(p.spreadMs)?Math.max(45,p.spreadMs/2+20):125;if(Math.abs(host)<155||Math.abs(gap)<Math.max(125,peerNoise*1.35))return gate('host-within-guard-band',at);
     if(Math.abs(host)>650)return gate('host-offset-too-large',at);
     if(!(p.sampledAt>lastStamp))return false;lastStamp=p.sampledAt;
-    if(samples.length&&(at-samples.at(-1).at>2000||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference))samples=[];
-    samples.push({at,host,peer:p.offsetMs,gap,reference});samples=samples.filter(x=>at-x.at<=11000);
-    if(samples.length<7||at-samples[0].at<6500){outcome='corroborating-host-drift';return false;}
+    if(samples.length&&(at-samples.at(-1).at>12500||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference))samples=[];
+    samples.push({at,host,peer:p.offsetMs,gap,reference});samples=samples.filter(x=>at-x.at<=24000);
+    if(samples.length<7||at-samples[0].at<6500||samples.filter(x=>at-x.at<=2500).length<2){outcome='corroborating-host-drift';return false;}
     const spread=key=>Math.max(...samples.map(x=>x[key]))-Math.min(...samples.map(x=>x[key]));
-    if(spread('host')>75||spread('peer')>45||spread('gap')>80)return gate('unstable-peer-or-host',at);
+    if(spread('host')>60||spread('peer')>35||spread('gap')>65)return gate('unstable-peer-or-host',at);
     attempts++;triggeredAt=Date.now();echoUntil=performance.now()+3500;stage='actuating';outcome='host-peer-rejoin';
     note('host-rejoin-triggered',{...fields(),dwellMs:Math.round(at-samples[0].at)});return true;
   }
