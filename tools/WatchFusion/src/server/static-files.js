@@ -102,6 +102,7 @@ export async function sendFile(req, res) {
       'client/viewer-sync-arbiter.js',
       'playback-sync.js',
       'client/tv-decoder-rescue.js',
+      'client/sensor-provenance.js',
       'client/acoustic-timing.js',
       'client/presentation-sync.js',
       'client/room-playout.js',

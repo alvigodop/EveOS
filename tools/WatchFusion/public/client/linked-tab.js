@@ -286,7 +286,7 @@
     try{
       const sourceKey = state?.source?.videoId || state?.source?.url || '';
       const ok=await command('mirror',{linkedSource,sourceKey,position:plan.target,paused:!!metadata.paused,ended:!!metadata.ended,
-        rate:Number(metadata.rate)||1,...audio});
+        rate:Number(metadata.rate)||1,...audio,...(plan.volumeOnly===true?{volumeOnly:true}:{})});
       mirrorGuard()?.result?.(ok,ok?200:command.lastStatus,mirrorAuthority().say);
       if(ok&&link===activeLink&&loadedPageUrl===activePage){lastMirrorAnchor=plan.anchor;window.watchFusionRoomSyncLog?.note?.('mirror-applied',{reason:plan.reason,roundTripMs:Math.round(performance.now()-mirrorStartedAt)});}
       return ok;

@@ -19,7 +19,34 @@
     return {outcome:reasons.test(d.outcome)?d.outcome:null,stage:reasons.test(d.stage)?d.stage:null,
       reference:reasons.test(d.reference)?d.reference:null,attempts:finite(d.attempts),witnesses:finite(d.witnesses),peerCount:finite(d.peerCount),
       peerSpreadMs:finite(d.peerSpreadMs),hostErrorMs:finite(d.hostErrorMs),peerErrorMs:finite(d.peerErrorMs),
-      gapMs:finite(d.gapMs),dwellMs:finite(d.dwellMs),verifyMs:finite(d.verifyMs)};
+      gapMs:finite(d.gapMs),dwellMs:finite(d.dwellMs),verifyMs:finite(d.verifyMs),linkedSource:linked(d.linkedSource)};
+  }
+  // v13.10.8e: the source-led host controller (host-source-converge.js) was dropped at every hop before this.
+  function linked(d) {
+    if(!d||typeof d!=='object')return null;
+    const reasons=/^[a-z-]{1,42}$/;
+    return {outcome:reasons.test(d.outcome)?d.outcome:null,stage:reasons.test(d.stage)?d.stage:null,attempts:finite(d.attempts),
+      witnesses:finite(d.witnesses),errorMs:finite(d.errorMs),verifyMs:finite(d.verifyMs)};
+  }
+  function sensor(d) {
+    if(!d||typeof d!=='object')return null;
+    return {domain:/^[a-z-]{1,20}$/.test(d.domain)?d.domain:null,heldMs:finite(d.heldMs),cadenceMs:finite(d.cadenceMs),
+      clockUncertaintyMs:finite(d.clockUncertaintyMs),audibleOutput:/^[a-z-]{1,12}$/.test(d.audibleOutput)?d.audibleOutput:'unknown'};
+  }
+  const localRecovery = () => ({hostRecovery:{...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),
+    linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null}});
+  // Player-vs-player only from two or more fresh, playing, trusted rows. A shared room-clock offset is not audible
+  // desync, and no row here is speaker time: the attached source tab is muted and the room clock is silent.
+  function group(rows) {
+    const usable=rows.filter(p=>p.playing&&!p.buffering&&p.targetErrorMs!==null&&p.reportAgeMs!==null&&p.reportAgeMs<=2700&&
+      !p.signals.includes('UNTRUSTED_PLAYER_OFFSET')&&p.sensor?.audibleOutput!=='none');
+    if(usable.length<2)return {playerCount:usable.length,groupSpreadMs:null,commonModeMs:null,groupUncertaintyMs:null,
+      groupPhase:'unmeasured-'+(usable.length?'single-player':'no-player')};
+    const errors=usable.map(p=>p.targetErrorMs).sort((a,b)=>a-b),clocks=usable.map(p=>p.sensor?.clockUncertaintyMs);
+    const spread=errors.at(-1)-errors[0],middle=errors[Math.floor(errors.length/2)];
+    const uncertainty=clocks.every(Number.isFinite)?clocks.sort((a,b)=>b-a).slice(0,2).reduce((a,b)=>a+b,0):null;
+    return {playerCount:usable.length,groupSpreadMs:spread,commonModeMs:middle,groupUncertaintyMs:uncertainty,
+      groupPhase:spread<=Math.max(40,uncertainty??0)?(Math.abs(middle)>=80?'common-mode-offset':'aligned'):'players-disagree'};
   }
   function recordSegment() {
     const key=state?.presentationEpoch!=null&&state?.playoutSegment!=null
@@ -39,6 +66,7 @@
     if (!peer.ready || (phase !== null && Math.abs(phase) > 10000)) signals.push('UNTRUSTED_PLAYER_OFFSET');
     if (now - peer.sampledAt > 2700) signals.push('STALE_PLAYER_REPORT');
     if (peer.buffering) signals.push('BUFFERING');
+    if (peer.playing && !peer.buffering && peer.sensor?.heldMs > 300) signals.push('POSITION_HELD');
     const expectedRate = Number(state?.playback?.rate);
     if (peer.playing && expectedRate > 0 && Number(peer.rate) > 0 &&
         Math.abs(peer.rate - expectedRate) > .06) signals.push('PLAYBACK_RATE_MISMATCH');
@@ -62,7 +90,8 @@
       reportAgeMs:finite(now - peer.sampledAt), playerOffsetMs:rawPhase,
       rawOffsetMs:rawPhase, targetErrorMs:targetError, adjustmentMs:finite(peer.adjustmentMs),
       rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
-      corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover({hostRecovery:window.WatchFusionHostPeerRecovery?.diagnostics?.()}) : null),
+      corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
+      audible:typeof peer.audible==='boolean'?peer.audible:null, sensor:sensor(peer.sensor),
       filteredDriftMs:finite(peer.filteredDriftMs),
       seekHealth:peer.seekHealth || null,
       signals};
@@ -73,26 +102,31 @@
     prune();
     const recent = entries.slice(-15).map(item => {
       const peers = item.peers.map(p => `${p.device}: ${p.targetErrorMs === null ? 'room ' + (p.rawOffsetMs ?? '?') : 'target ' + p.targetErrorMs}ms · startup ${p.startupWaitMs ?? '?'}ms · ${p.corrections ?? '-'} seeks${p.signals.length ? ' [' + p.signals.join(',') + ']' : ''}`).join(' / ');
-      return `${item.at.slice(11,19)} #${item.segmentSequence||'?'} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''} | ${peers}`;
+      return `${item.at.slice(11,19)} #${item.segmentSequence||'?'} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''}${item.groupPhase ? ' · ' + item.groupPhase : ''} | ${peers}`;
     }).join('\n');
     const transitions = events.slice(-10).map(e => `${e.at.slice(11,19)} #${e.segmentSequence||'?'} ! ${e.kind}${e.reason?' · '+e.reason:''}`).join('\n');
     const display = [recent,transitions].filter(Boolean).join('\n');
     if (display !== lastRendered) {area.value = display || 'Gathering room timing…'; lastRendered = display;}
     if (count) count.textContent = entries.length + ' snapshots · ' + events.length + ' transitions';
   }
-  function emit(now, peers, coordination) {
+  function emit(now, peers, coordination, roster) {
     recordSegment();
     const rows = peers.map(p => strip(p, now)).sort((a,b) => a.device.localeCompare(b.device));
+    const relative = group(rows), members = finite(roster?.members), reporting = finite(roster?.reporting);
+    const rejections = roster?.rejections && typeof roster.rejections === 'object' ? Object.fromEntries(Object.entries(roster.rejections)
+      .filter(([k,v]) => /^[a-z-]{1,20}$/.test(k) && Number.isFinite(v)).slice(0,8).map(([k,v]) => [k,Math.round(v)])) : null;
     const ref = coordination?.reference || window.watchFusionPlayout?.status?.()?.reference || 'room-clock';
     const phaseMs = finite(coordination?.phaseMs);
     const row = {at:new Date().toISOString(), segmentSequence, ref, referencePhaseMs:phaseMs,
       uncertaintyMs:finite(coordination?.uncertaintyMs), sourceBuffering:!!coordination?.authorityBuffering,
       source:coordination?.source || null, sourcePhaseMs:finite(coordination?.sourcePhaseMs),
+      ...relative, speakerPhase:'not-measured', roster:members===null?null:{members,reporting,rejections},
       peers:rows};
-    const key = JSON.stringify([ref,phaseMs,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.seekHealth?.recoveryAttempts,p.signals])]);
+    const key = JSON.stringify([ref,phaseMs,relative.groupPhase,members,reporting,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.seekHealth?.recoveryAttempts,p.signals])]);
     // Source-trust transitions (live/stale/off-phase/...) are acceptance evidence: record them at once.
     const changed = key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
-      row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence;
+      row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence ||
+      row.groupPhase !== entries.at(-1)?.groupPhase || row.roster?.reporting !== entries.at(-1)?.roster?.reporting;
     if (!changed && now - lastAt < 4500) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
@@ -115,10 +149,10 @@
   }
   function note(kind, detail={}) {
     refreshScope();
-    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed))$/.test(kind)) return;
+    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete)|mirror-drift-observing)$/.test(kind)) return;
     recordSegment();
     const fields={};
-    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step']) {
+    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs']) {
       const v=detail[key];
       if(typeof v==='boolean' || typeof v==='number' && Number.isFinite(v) && Math.abs(v)<1e9 ||
           typeof v==='string' && /^[a-z-]{1,35}$/.test(v)) fields[key]=v;
@@ -130,18 +164,18 @@
     const now = performance.now();
     return !!roomScope && now - requestAt >= 2300;
   }
-  function observe(peers, coordination) {
+  function observe(peers, coordination, roster) {
     refreshScope();
     if (!roomScope) return;
     requestAt = performance.now();
-    if (peers.length) emit(estimatedServerNow(), peers, coordination);
+    if (peers.length) emit(estimatedServerNow(), peers, coordination, roster);
     else render();
   }
   function exported() {
     refreshScope();
     prune();
     return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
-      disclosure:'Player timing, local controller gates and redacted transitions only; no audio, URLs, titles, tokens or microphone measurements',
+      disclosure:'Player timing, local controller gates and redacted transitions only; no audio, URLs, titles, tokens or microphone measurements. Target error is player position against the room clock, which the muted source tab drives; speaker output phase is not measured',
       snapshots:entries,events},null,2);
   }
   async function copyLog() {

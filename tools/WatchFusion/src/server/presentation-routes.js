@@ -1,5 +1,6 @@
 import { json, readBody } from './http-utils.js';
 import { createPlayoutCoordinator } from './playout-coordinator.js';
+import { noteRejection, roster, sanitizeHostRecovery, sanitizeSensor } from './presentation-report-schema.js';
 
 const reportsByRoom = new WeakMap();
 const reportLifetime = 5000;
@@ -39,9 +40,10 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
   if (req.method !== 'POST') return json(res, 405, { error: 'Use POST for presentation timing.' });
   let body;
   try { body = await readBody(req, { maxBytes: 2048 }); }
-  catch (error) { return json(res, error.code === 'PAYLOAD_TOO_LARGE' ? 413 : 400, { error: 'Invalid presentation request.' }); }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) return json(res, 400, { error: 'Invalid presentation request.' });
+  catch (error) { noteRejection(entry, error.code === 'PAYLOAD_TOO_LARGE' ? 'payload' : 'invalid-body'); return json(res, error.code === 'PAYLOAD_TOO_LARGE' ? 413 : 400, { error: 'Invalid presentation request.' }); }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) { noteRejection(entry, 'invalid-body'); return json(res, 400, { error: 'Invalid presentation request.' }); }
   if (presentationScope(room) !== entry || body.epoch !== entry.epoch || !room.members.has(member.id)) {
+    noteRejection(entry, 'epoch-changed');
     return json(res, 409, { error: 'Room timing changed.' });
   }
   const time = Date.now();
@@ -52,6 +54,8 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
     const report = body.report;
     if (!shortId(report.outputSession) || report.mode !== current.mode || !finite(report.sampledAt, at - 1800, at + 150) ||
         !finite(report.rate, .25, 2.05) || !finite(report.positionMs, 0, 1e10) || !finite(report.roomPositionMs, 0, 1e10)) {
+      // v13.10.8e: a device whose clock estimate is skewed used to vanish from the trace without a reason.
+      noteRejection(entry, finite(report.sampledAt, 0, 1e15) && !finite(report.sampledAt, at - 1800, at + 150) ? 'clock-skew' : 'invalid-report');
       return json(res, 400, { error: 'Stale or invalid playback timing.' });
     }
     const prior = entry.reports.get(member.id);
@@ -80,7 +84,10 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
         ready: report.ready === true, playing: report.playing === true, buffering: report.buffering === true,
         bufferedUntilMs: metric(report.bufferedUntilMs, 0, 1e10),
         recentCorrection: typeof report.recentCorrection === 'string' && /^[a-z-]{1,32}$/.test(report.recentCorrection) ? report.recentCorrection : null,
-        audible: report.audible === true, follows: report.follows === true, correcting: report.correcting === true
+        audible: report.audible === true, follows: report.follows === true, correcting: report.correcting === true,
+        // v13.10.8e: host recovery (legacy peer path and source-led path) and sensor provenance survive, bounded.
+        hostRecovery: member.id === room.hostId ? sanitizeHostRecovery(report.hostRecovery) : null,
+        sensor: sanitizeSensor(report.sensor)
       });
       // Off-rate playback is active correction, not a reason to drop the device:
       // it remains observed as telemetry while excluded from reference selection.
@@ -113,7 +120,7 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
     allowHoldback:entry.current.mode === 'direct' && entry.linkedOutput?.muted === true && time - entry.linkedOutput.at < 1800});
   return json(res, 200, {
     serverReceivedAt: at, serverTime: Date.now(), coordination,
-    ...((body.diagnostics === true || body.trace === true) ? {peers:[...entry.reports.values()]} : {}),
+    ...((body.diagnostics === true || body.trace === true) ? {peers:[...entry.reports.values()], roster:roster(entry, room, time)} : {}),
     ...(body.diagnostics === true ? {proposal:entry.proposals.get(member.id) || null} : {})
   });
 }

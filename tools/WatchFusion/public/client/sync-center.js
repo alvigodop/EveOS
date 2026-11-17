@@ -61,7 +61,8 @@
       name: names.get(peer.member) || 'Viewer',
       status: classifyPeer(peer),
       metrics: [
-        ['Target error', peer.ready && Number.isFinite(peer.targetPositionMs) ? signed(peer.positionMs - peer.targetPositionMs) : null],
+        // v13.10.8e: a signed player-vs-room number, not audible desync. The room clock is the muted source tab.
+        ['Player vs room', peer.ready && Number.isFinite(peer.targetPositionMs) ? signed(peer.positionMs - peer.targetPositionMs) : null],
         ['Room offset', peer.ready ? signed(peer.positionMs - peer.roomPositionMs) : null],
         ['Timing adjustment', peer.ready && Math.abs(peer.adjustmentMs || 0) >= 1 ? signed(peer.adjustmentMs) : null],
         ['Round trip', peer.rttMs == null ? null : Math.round(peer.rttMs) + ' ms'],
@@ -72,7 +73,10 @@
         ['Precision action', peer.recentCorrection ?? null],
         ['Peer witnesses', peer.hostRecovery?.peerCount ? String(peer.hostRecovery.peerCount) : null],
         ['Video frame', peer.videoFrameOffsetMs == null ? null : signed(peer.videoFrameOffsetMs)],
-        ['Corrections', peer.corrections == null ? null : String(peer.corrections)]
+        ['Corrections', peer.corrections == null ? null : String(peer.corrections)],
+        ['Position read held', Number.isFinite(peer.sensor?.heldMs) && peer.sensor.heldMs > 0 ? Math.round(peer.sensor.heldMs) + ' ms' : null],
+        ['Audible output', peer.sensor?.audibleOutput && peer.sensor.audibleOutput !== 'unknown' ? peer.sensor.audibleOutput : null],
+        ['Speaker phase', peer.ready ? 'Not measured' : null]
       ].filter(([, value]) => value !== null)
     }));
     const nextCards = JSON.stringify(cards);

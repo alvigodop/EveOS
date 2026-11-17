@@ -106,9 +106,8 @@
       lastMirrorSampleAt = Number(metadata.sampledAt) || now;
       return{publish:true,reason:options.force===true?'force':'initial',target,drift:0,anchor:nextAnchor};
     }
-    const stateChanged=paused!==(anchor.paused===true)||ended!==(anchor.ended===true)
-      ||Math.abs(rate-(Number(anchor.rate)||1))>.01
-      ||normalizedVolume!==null&&(anchor.volume==null||Math.abs(normalizedVolume-anchor.volume)>.02);
+    const transportChanged=paused!==(anchor.paused===true)||ended!==(anchor.ended===true)||Math.abs(rate-(Number(anchor.rate)||1))>.01;
+    const stateChanged=transportChanged||normalizedVolume!==null&&(anchor.volume==null||Math.abs(normalizedVolume-anchor.volume)>.02);
     const elapsed=Math.max(0,now-anchor.sampledAt)/1000;
     const expected=anchor.position+(anchor.paused||anchor.ended?0:elapsed*(Number(anchor.rate)||1));
     const drift=target-expected;
@@ -118,6 +117,8 @@
     lastMirrorSampleAt = Math.max(lastMirrorSampleAt, sampleAt);
     const sample = freshPosition && !immediate && !paused && !ended && sourceDrift.sample(drift, sampleAt);
     const sustained = sample && sample.stable && Math.abs(sample.median) >= .12;
+    if (stateChanged && !transportChanged && Math.abs(drift) <= MIRROR_DRIFT_SEC) return {publish:true, reason:'volume', volumeOnly:true, // v13.10.8e: audio, not transport
+      target:expected, drift, anchor:{...anchor, position:expected, sampledAt:now, volume:normalizedVolume}};
     if (immediate || sustained) {
       sourceDrift.reset();
       if (sustained) nextAnchor.position = expected + sample.median;

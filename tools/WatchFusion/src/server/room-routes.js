@@ -168,14 +168,19 @@ async function commandRoute(req, res, room, roomId, member) {
     const sampledPosition = Math.max(0, Number(body.position) || 0);
     const rate = Math.min(2, Math.max(0.25, Number(body.rate) || 1));
     const paused = !!body.paused || !!body.ended;
-    room.playback.position = paused ? sampledPosition : sampledPosition + sampleAgeSeconds * rate;
-    room.playback.paused = paused;
-    room.playback.ended = !!body.ended;
-    room.playback.rate = rate;
+    // v13.10.8e: a volume-only mirror that agrees with the room transport changes audio, never the timeline anchor.
+    const audioOnly = body.volumeOnly === true && paused === !!room.playback.paused && !!body.ended === !!room.playback.ended
+      && Math.abs(rate - (Number(room.playback.rate) || 1)) <= .01;
+    if (!audioOnly) {
+      room.playback.position = paused ? sampledPosition : sampledPosition + sampleAgeSeconds * rate;
+      room.playback.paused = paused;
+      room.playback.ended = !!body.ended;
+      room.playback.rate = rate;
+      room.playback.updatedAt = receivedAt;
+    }
     const volume = Number(body.volume);
     if (Number.isFinite(volume)) room.playback.volume = Math.min(100, Math.max(0, volume));
     if (body.muted != null) room.playback.muted = !!body.muted;
-    room.playback.updatedAt = receivedAt;
   } else if (type === 'play') {
     const replayingEnded = !!room.playback.ended;
     const sampledPosition = Math.max(0, Number(body.position) || 0);

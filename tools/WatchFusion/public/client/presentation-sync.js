@@ -74,7 +74,7 @@
       rttMs: window.watchPartyClock.rttMs(), offsetMs: window.watchPartyClock.offsetMs(),
       corrections: isHost() ? (hostServo?.attempts??0)+(window.WatchFusionHostPeerRecovery?.diagnostics?.()?.attempts??0)+(window.WatchFusionHostSourceConverge?.diagnostics?.()?.attempts??0) : diagnostics?.correctiveSeeks ?? null, recentCorrection: hostServo?.active ? 'rate-correction' : diagnostics?.action ?? null, sourceAgeMs,
       timingReference: syncReference?.reference === 'peer-cohort' && Number.isFinite(syncReference.uncertaintyMs) ? 'Shared cohort ±'+Math.round(syncReference.uncertaintyMs)+' ms' : 'Room clock (limited)',
-      hostCorrection: window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome === 'host-peer-rejoin' ? 'Peers corroborated · host rejoin' : hostServo?.outcome ?? null, hostRecovery: isHost() ? {...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null} : null,
+      hostCorrection: window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome === 'host-peer-rejoin' ? 'Peers corroborated · host rejoin' : hostServo?.outcome ?? null, hostRecovery: isHost() ? {...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null} : null, sensor: window.WatchFusionSensorProvenance?.describe?.({direct, media, now:performance.now(), rttMs:window.watchPartyClock.rttMs(), source:isHost()&&window.watchFusionLinkedTab?.publishing?.()?window.watchFusionLinkedTab.metadata?.():null}) ?? null,
       startupWaitMs: !direct && Number.isFinite(diagnostics?.startup?.startDelayMs) ? diagnostics.startup.startDelayMs : null,
       filteredDriftMs: Number.isFinite(diagnostics?.filteredDriftSec) ? Math.round(diagnostics.filteredDriftSec * 1000) : null,
       seekHealth: diagnostics?.seekGuard ? {reason:diagnostics.seekGuard.reason, attempts:diagnostics.seekGuard.attempts,
@@ -204,7 +204,7 @@
       if (active !== key || controller.signal.aborted) return;
       window.watchPartyClock.update(data.serverTime, sentAt, Date.now(), data.serverReceivedAt);
       onTiming?.(data.coordination, roomKey, sentAt);
-      if (trace && data.peers) window.watchFusionRoomSyncLog?.observe(data.peers, data.coordination);
+      if (trace && data.peers) window.watchFusionRoomSyncLog?.observe(data.peers, data.coordination, data.roster);
       if (data.peers) { peerBatch = data.peers; peerBatchAt = Date.now(); peerCoordination = data.coordination; }
       if (!panel.open || !data.peers) return;
       panelReady = true;
