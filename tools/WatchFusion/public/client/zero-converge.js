@@ -37,6 +37,12 @@
     const c = window.watchFusionPlayout?.status?.();
     if (state.linkedSourceActive === true && (!c || c.source !== 'live' || c.authorityBuffering)) return 'reference-not-live';
     if (c && Number.isFinite(c.uncertaintyMs) && c.uncertaintyMs > MAX_REF_UNCERTAINTY_MS) return 'reference-too-uncertain';
+    // Only the linked-source laptop host: do not disturb an established lock or use a rejected rate capability.
+    if (typeof isHost === 'function' && isHost() && state.linkedSourceActive === true) {
+      const a = window.watchFusionViewerArbiter?.snapshot?.();
+      if (a?.model?.rateHonored === false) return 'host-rate-rejected';
+      if (a?.locked && a.lockedForMs >= 1800) return 'host-lock-preserved';
+    }
     return '';
   }
   function tick() {
@@ -49,7 +55,11 @@
       return;
     }
     const blocked = eligible();
-    if (blocked) { samples = []; reason = blocked; return; }
+    if (blocked) {
+      if (blocked.startsWith('host-') && blocked !== reason)
+        window.watchFusionRoomSyncLog?.note?.('host-zero-pulse-gated', {reason:blocked});
+      samples = []; reason = blocked; return;
+    }
     const base = Math.min(2, Math.max(.25, Number(p.rate) || 1));
     if (Math.abs(readRate() - base) > .015) { samples = []; reason = 'manual-or-foreign-rate'; return; }
     const position = Number(ytPlayer.getCurrentTime?.());
