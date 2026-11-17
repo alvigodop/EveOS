@@ -209,7 +209,7 @@ function updateServerClock(serverTime, sentAt, receivedAt, receivedByServer) {
   serverClockRttMs = sorted[0].rtt;
   const lowLatency = sorted.filter(sample => sample.rtt <= serverClockRttMs + Math.max(8, serverClockRttMs / 4)).slice(0, 5);
   serverClockOffsetMs = medianNumber(lowLatency.map(sample => sample.offset));
-  serverClockReference = { local: localNow, mono: monoNow };
+  serverClockReference = { local: localNow, mono: monoNow, boundMs: Math.max(...lowLatency.map(s => s.rtt)) / 2, spreadMs: Math.max(...lowLatency.map(s => s.offset)) - Math.min(...lowLatency.map(s => s.offset)), newestAt: Math.max(...lowLatency.map(s => s.at)), samples: lowLatency.length, precise: lowLatency.every(s => s.precise) };
 }
 function estimatedServerNow() {
   const reference = serverClockReference;
@@ -219,7 +219,7 @@ window.watchPartyClock = {
   offsetMs: () => serverClockOffsetMs,
   rttMs: () => Number.isFinite(serverClockRttMs) ? serverClockRttMs : null,
   precise: () => serverClockSamples.some(sample => sample.precise && Date.now() - sample.at < 15000),
-  sampleCount: () => serverClockSamples.length,
+  sampleCount: () => serverClockSamples.length, offsetBound: () => Number.isFinite(serverClockReference?.boundMs) ? { boundMs: serverClockReference.boundMs, spreadMs: serverClockReference.spreadMs, ageMs: Date.now() - serverClockReference.newestAt, samples: serverClockReference.samples, precise: serverClockReference.precise } : null,
   now: estimatedServerNow,
   serverAt: localTime => serverClockReference
     && Math.abs(Date.now() - serverClockReference.local - (performance.now() - serverClockReference.mono)) <= 100

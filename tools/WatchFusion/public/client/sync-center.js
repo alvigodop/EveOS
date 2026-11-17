@@ -75,7 +75,8 @@
         ['Video frame', peer.videoFrameOffsetMs == null ? null : signed(peer.videoFrameOffsetMs)],
         ['Corrections', peer.corrections == null ? null : String(peer.corrections)],
         ['Position read held', Number.isFinite(peer.sensor?.heldMs) && peer.sensor.heldMs > 0 ? Math.round(peer.sensor.heldMs) + ' ms' : null],
-        ['Audible output', peer.sensor?.audibleOutput && peer.sensor.audibleOutput !== 'unknown' ? peer.sensor.audibleOutput : null],
+        ['Audible output', ({player: 'This player', 'source-tab': 'Source tab, not this player', both: 'Player and source tab (double audio)', none: 'Muted'})[peer.sensor?.audibleOutput] ?? null],
+        ['Clock bound', peer.sensor?.clockState === 'bounded' && Number.isFinite(peer.sensor.clockBoundMs) ? 'within ±' + peer.sensor.clockBoundMs + ' ms (estimated)' : peer.sensor?.clockState && peer.sensor.clockState !== 'unknown' ? 'Unbounded (' + peer.sensor.clockState + ')' : null],
         ['Speaker phase', peer.ready ? 'Not measured' : null]
       ].filter(([, value]) => value !== null)
     }));

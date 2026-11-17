@@ -9,6 +9,7 @@ const count = value => int(value, 0, 100000);
 // Which clock the player position was read against; a speaker is never one of them.
 export const SENSOR_DOMAINS = new Set(['player-timeline', 'media-element', 'video-frame']);
 export const AUDIBLE_OUTPUTS = new Set(['player', 'source-tab', 'both', 'none', 'unknown']);
+const CLOCK_STATES = new Set(['bounded', 'coarse', 'thin', 'unstable', 'stale', 'unknown']);
 
 function linkedSource(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -29,7 +30,7 @@ export function sanitizeSensor(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   return {domain: SENSOR_DOMAINS.has(value.domain) ? value.domain : null,
     heldMs: int(value.heldMs, 0, 10000), cadenceMs: int(value.cadenceMs, 0, 10000),
-    clockUncertaintyMs: int(value.clockUncertaintyMs, 0, 10000),
+    clockBoundMs: int(value.clockBoundMs, 0, 10000), clockState: CLOCK_STATES.has(value.clockState) ? value.clockState : 'unknown',
     audibleOutput: AUDIBLE_OUTPUTS.has(value.audibleOutput) ? value.audibleOutput : 'unknown'};
 }
 

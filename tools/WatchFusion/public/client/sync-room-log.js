@@ -31,22 +31,31 @@
   function sensor(d) {
     if(!d||typeof d!=='object')return null;
     return {domain:/^[a-z-]{1,20}$/.test(d.domain)?d.domain:null,heldMs:finite(d.heldMs),cadenceMs:finite(d.cadenceMs),
-      clockUncertaintyMs:finite(d.clockUncertaintyMs),audibleOutput:/^[a-z-]{1,12}$/.test(d.audibleOutput)?d.audibleOutput:'unknown'};
+      clockBoundMs:finite(d.clockBoundMs),clockState:/^[a-z]{1,10}$/.test(d.clockState)?d.clockState:'unknown',audibleOutput:/^[a-z-]{1,12}$/.test(d.audibleOutput)?d.audibleOutput:'unknown'};
   }
   const localRecovery = () => ({hostRecovery:{...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),
     linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null}});
-  // Player-vs-player only from two or more fresh, playing, trusted rows. A shared room-clock offset is not audible
-  // desync, and no row here is speaker time: the attached source tab is muted and the room clock is silent.
+  // Player-vs-player only from two or more fresh, playing, trusted rows whose own player is audible. A muted room
+  // player still has a valid timeline, but when the laptop's sound comes from the source tab that timeline is not
+  // what anyone hears, so it is never a witness here. groupPhase is player-timeline agreement, never speaker sync.
+  // The bound is the two widest clock bounds; a stale, thin, coarse or unstable clock leaves it unbounded.
+  function outputIdentity(fresh) {
+    const outs=fresh.map(p=>p.sensor?.audibleOutput||'unknown');
+    return !outs.length?null:outs.includes('both')?'double-audio':outs.includes('source-tab')?'source-tab-audible':
+      outs.includes('unknown')?'unknown':outs.every(o=>o==='none')?'none-audible':'room-players';
+  }
   function group(rows) {
-    const usable=rows.filter(p=>p.playing&&!p.buffering&&p.targetErrorMs!==null&&p.reportAgeMs!==null&&p.reportAgeMs<=2700&&
-      !p.signals.includes('UNTRUSTED_PLAYER_OFFSET')&&p.sensor?.audibleOutput!=='none');
+    const fresh=rows.filter(p=>p.playing&&!p.buffering&&p.targetErrorMs!==null&&p.reportAgeMs!==null&&p.reportAgeMs<=2700&&
+      !p.signals.includes('UNTRUSTED_PLAYER_OFFSET'));
+    const usable=fresh.filter(p=>['player','both'].includes(p.sensor?.audibleOutput)),outputs=outputIdentity(fresh);
     if(usable.length<2)return {playerCount:usable.length,groupSpreadMs:null,commonModeMs:null,groupUncertaintyMs:null,
-      groupPhase:'unmeasured-'+(usable.length?'single-player':'no-player')};
-    const errors=usable.map(p=>p.targetErrorMs).sort((a,b)=>a-b),clocks=usable.map(p=>p.sensor?.clockUncertaintyMs);
+      groupPhase:'unmeasured-'+(usable.length?'single-player':'no-player'),outputs};
+    const errors=usable.map(p=>p.targetErrorMs).sort((a,b)=>a-b),clocks=usable.map(p=>p.sensor?.clockState==='bounded'?p.sensor.clockBoundMs:NaN);
     const spread=errors.at(-1)-errors[0],middle=errors[Math.floor(errors.length/2)];
     const uncertainty=clocks.every(Number.isFinite)?clocks.sort((a,b)=>b-a).slice(0,2).reduce((a,b)=>a+b,0):null;
-    return {playerCount:usable.length,groupSpreadMs:spread,commonModeMs:middle,groupUncertaintyMs:uncertainty,
-      groupPhase:spread<=Math.max(40,uncertainty??0)?(Math.abs(middle)>=80?'common-mode-offset':'aligned'):'players-disagree'};
+    const phase=uncertainty===null?'unmeasured-clock':
+      spread<=Math.max(40,uncertainty)?(Math.abs(middle)>=80?'common-mode-offset':'aligned'):'players-disagree';
+    return {playerCount:usable.length,groupSpreadMs:spread,commonModeMs:middle,groupUncertaintyMs:uncertainty,groupPhase:phase,outputs};
   }
   function recordSegment() {
     const key=state?.presentationEpoch!=null&&state?.playoutSegment!=null
@@ -126,7 +135,7 @@
     // Source-trust transitions (live/stale/off-phase/...) are acceptance evidence: record them at once.
     const changed = key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
       row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence ||
-      row.groupPhase !== entries.at(-1)?.groupPhase || row.roster?.reporting !== entries.at(-1)?.roster?.reporting;
+      row.groupPhase !== entries.at(-1)?.groupPhase || row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting;
     if (!changed && now - lastAt < 4500) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
@@ -175,7 +184,7 @@
     refreshScope();
     prune();
     return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
-      disclosure:'Player timing, local controller gates and redacted transitions only; no audio, URLs, titles, tokens or microphone measurements. Target error is player position against the room clock, which the muted source tab drives; speaker output phase is not measured',
+      disclosure:'Player timing, local controller gates and redacted transitions only; no audio, URLs, titles, tokens or microphone measurements. Target error is player position against the room clock, which the muted source tab drives; speaker output phase is not measured. Group phase compares only players that are themselves audible; a clock bound is ±max(round trip)/2 with unknown asymmetry inside it, never a measured accuracy',
       snapshots:entries,events},null,2);
   }
   async function copyLog() {

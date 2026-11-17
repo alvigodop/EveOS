@@ -26,9 +26,21 @@
     if (playerAudible === null || !sourceKnown) return 'unknown';
     return playerAudible && sourceAudible ? 'both' : playerAudible ? 'player' : sourceAudible ? 'source-tab' : 'none';
   }
-  // input: {direct, media, now, rttMs, source}: source is the linked tab's metadata when this device publishes one.
+  // Clock: every exchange brackets the true server offset within ±rtt/2 whatever the path asymmetry, so the median of
+  // the exchanges used is within ±max(rtt used)/2, plus oscillator drift since the newest one. That is a bound, not a
+  // measured accuracy: the asymmetry inside it stays unknown. Minimum RTT/2 under-states it and is never reported.
+  // Offsets further apart than the bound allows mean the clock moved or reset: 'unstable'. Diagnostic only.
+  function clockBound(c) {
+    if (!c || !Number.isFinite(c.boundMs) || !Number.isFinite(c.ageMs)) return {clockBoundMs: null, clockState: 'unknown'};
+    const clockBoundMs = Math.ceil(c.boundMs + Math.max(0, c.ageMs) * 1e-4) + 1;
+    const clockState = c.ageMs > 15000 ? 'stale' : !c.precise ? 'coarse' : !(c.samples >= 3) ? 'thin'
+      : !(c.spreadMs <= 2 * c.boundMs + 2) ? 'unstable' : 'bounded';
+    return {clockBoundMs, clockState};
+  }
+  // input: {direct, media, now, clock, source}: clock is watchPartyClock.offsetBound(); source is the linked tab's
+  // metadata when this device publishes one.
   function describe(input = {}) {
-    const {direct = false, media = null, now = performance.now(), rttMs = null, source = null} = input;
+    const {direct = false, media = null, now = performance.now(), clock = null, source = null} = input;
     let playerAudible = null;
     try {
       const volume = direct ? Number(media?.volume) : Number(media?.getVolume?.()) / 100;
@@ -40,7 +52,7 @@
       domain: direct ? 'media-element' : 'player-timeline',
       heldMs: tracked ? Math.max(0, Math.round(now - held.since)) : null,
       cadenceMs: tracked ? cadence() : null,
-      clockUncertaintyMs: Number.isFinite(rttMs) ? Math.round(rttMs / 2) : null,
+      ...clockBound(clock),
       audibleOutput: audibleOutput({playerAudible, source})
     };
   }
@@ -54,5 +66,5 @@
       track(yt, performance.now(), Number(yt?.getCurrentTime?.()), yt?.getPlayerState?.() === 1);
     } catch {}
   }, POLL_MS);
-  root.WatchFusionSensorProvenance = {describe, track, audibleOutput, cadence};
+  root.WatchFusionSensorProvenance = {describe, track, audibleOutput, cadence, clockBound};
 })();

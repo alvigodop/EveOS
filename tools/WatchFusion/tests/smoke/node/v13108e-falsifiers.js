@@ -56,7 +56,7 @@ function roomLog(hostDiag = {}) {
 }
 const peer = (member, at, targetError, extra = {}) => ({member, sampledAt: at - 10, positionMs: 60000 + targetError, roomPositionMs: 60000,
   targetPositionMs: 60000, ready: true, playing: true, buffering: false, rttMs: 10, rate: 1, audible: true,
-  sensor: {domain: 'player-timeline', heldMs: 0, clockUncertaintyMs: 5, audibleOutput: 'player'}, ...extra});
+  sensor: {domain: 'player-timeline', heldMs: 0, clockBoundMs: 5, clockState: 'bounded', audibleOutput: 'player'}, ...extra});
 
 export async function runV13108eChecks(check) {
   await check('V13108E-01:presentation-route-keeps-bounded-host-recovery-and-sensor-and-drops-it-for-viewers', async () => {
@@ -64,7 +64,7 @@ export async function runV13108eChecks(check) {
     const hostRecovery = {outcome: 'source-not-trusted', stage: 'observe', reference: 'linked-tab', attempts: 0, peerCount: 0, hostErrorMs: -130,
       url: 'https://youtube.com/watch?v=x', linkedSource: {outcome: 'solo-source-verifying', stage: 'verifying', attempts: 1, witnesses: 8,
       errorMs: -341, verifyMs: 900, acceptedAt: 1234.5, token: 'secret-token', note: 'Free Text!'}};
-    const sensor = {domain: 'player-timeline', heldMs: 40, cadenceMs: 250, clockUncertaintyMs: 5, audibleOutput: 'player', raw: [1, 2]};
+    const sensor = {domain: 'player-timeline', heldMs: 40, cadenceMs: 250, clockBoundMs: 5, clockState: 'bounded', audibleOutput: 'player', raw: [1, 2]};
     assert.equal((await r.post(r.host, {hostRecovery, sensor})).status, 200);
     assert.equal((await r.post(r.tv, {hostRecovery, sensor: {domain: 'speaker', audibleOutput: 'microphone', heldMs: -5}})).status, 200);
     const peers = (await r.peek(r.tv)).body.peers;
@@ -170,9 +170,9 @@ export async function runV13108eChecks(check) {
     ctx.globalThis = ctx; vm.runInNewContext(read('public/client/sensor-provenance.js'), ctx);
     const s = ctx.WatchFusionSensorProvenance, player = {getVolume: () => 60, isMuted: () => false};
     for (let t = 0; t <= 2000; t += 50) s.track(player, t, Math.floor(t / 250) * .25, true);
-    const d = s.describe({media: player, now: 2120, rttMs: 10, source: {tabMuted: true, paused: false, volume: .4}});
+    const d = s.describe({media: player, now: 2120, clock: {boundMs: 5, spreadMs: 2, ageMs: 1000, samples: 5, precise: true}, source: {tabMuted: true, paused: false, volume: .4}});
     assert.equal(d.domain, 'player-timeline'); assert.equal(d.cadenceMs, 250); assert.equal(d.heldMs, 120);
-    assert.equal(d.clockUncertaintyMs, 5); assert.equal(d.audibleOutput, 'player');
+    assert.equal(d.clockBoundMs, 7); assert.equal(d.clockState, 'bounded'); assert.equal(d.audibleOutput, 'player');
     assert.equal(s.audibleOutput({playerAudible: true, source: {tabMuted: false, paused: false, volume: .4}}), 'both');
     assert.equal(s.audibleOutput({playerAudible: false, source: {tabMuted: false, paused: false, volume: .4}}), 'source-tab');
     assert.equal(s.audibleOutput({playerAudible: true, source: {paused: false}}), 'unknown', 'unknown tab mute is not a claim');
@@ -192,7 +192,7 @@ export async function runV13108eChecks(check) {
     assert.doesNotMatch(JSON.stringify(body.roster), /acct|device-for|TV/);
     const big = {hostRecovery: {outcome: 'source-not-trusted', stage: 'observe', reference: 'linked-tab', attempts: 0, witnesses: 0, peerCount: 0,
       hostErrorMs: -130.12, dwellMs: 0, linkedSource: {outcome: 'solo-source-landing-incomplete', stage: 'retry-wait', attempts: 1, witnesses: 8, errorMs: -937, segment: 6, verifyMs: 12345}},
-      sensor: {domain: 'player-timeline', heldMs: 12, cadenceMs: 250, clockUncertaintyMs: 5, audibleOutput: 'player'}, timingReference: 'Shared cohort ±125 ms',
+      sensor: {domain: 'player-timeline', heldMs: 12, cadenceMs: 250, clockBoundMs: 5, clockState: 'bounded', audibleOutput: 'player'}, timingReference: 'Shared cohort ±125 ms',
       recentCorrection: 'fine-drift-awaiting-capability', seekHealth: {reason: 'seek-awaiting-proof', attempts: 3, failures: 0, overshoots: 0, cooldownRemainingMs: 0, recoveryAttempts: 1, lastRecoveryBiasMs: 1955}};
     assert.equal((await r.post(r.host, big)).status, 200, 'a full host diagnostic still fits the 2048-byte route cap');
   });
