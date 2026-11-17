@@ -270,6 +270,7 @@
     const plan=window.WatchFusionLinkedPlaybackSync?.mirrorPlan?.(metadata,lastMirrorAnchor,{force});
     if(!plan?.publish)return false;
     if(roomId&&!force&&mirrorGuard()?.stalledRepeat?.(plan,metadata,loadedPageUrl))return false;
+    if(roomId&&!force&&window.WatchFusionMirrorConvergenceGate?.defer?.(plan,metadata,loadedPageUrl))return false;
     window.watchFusionRoomSyncLog?.note?.('mirror-request',{
       reason:plan.reason,paused:!!metadata.paused,positionMs:Math.round(plan.target*1000)});
     if(!roomId){

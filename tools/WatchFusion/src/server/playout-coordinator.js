@@ -9,11 +9,11 @@ export function createPlayoutCoordinator() {
   let segment = 0, anchor = null, reference = null, holdbackMs = 0;
   const history = new Map(), latestReport = new Map();
 
-  function transport(playback, discontinuity = false) {
+  function transport(playback, discontinuity = false, softMirror = false) {
     const rate = playback.paused || playback.ended ? 0 : playback.rate;
     const next = {rate, at:playback.updatedAt, positionMs:playback.position * 1000};
     const predicted = anchor && anchor.positionMs + (next.at - anchor.at) * anchor.rate;
-    if (discontinuity || !anchor || anchor.rate !== rate || Math.abs(next.positionMs - predicted) > 500) {
+    if (discontinuity || !anchor || anchor.rate !== rate || Math.abs(next.positionMs - predicted) > (softMirror && rate > 0 ? 1500 : 500)) {
       segment++;
       history.clear();
       latestReport.clear();

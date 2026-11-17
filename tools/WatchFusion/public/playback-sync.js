@@ -4,8 +4,7 @@
   const HARD_DRIFT_SEC = 1.5;
   const SEEK_COOLDOWN_MS = 2500;
   const TICK_MS = 250;
-  const SENSOR_WINDOW = 7;
-  const SENSOR_MIN_SAMPLES = 5;
+  const SENSOR_WINDOW = 7; const SENSOR_MIN_SAMPLES = 5;
   const SENSOR_MIN_AGE_MS = 900;
   const SENSOR_MAX_SPREAD_SEC = 0.22;
   const DEVICE_TIMING_KEY = 'watchfusion.youtubePlaybackDelayMs';
@@ -347,6 +346,7 @@
         (p.reference==='room-clock'||p.reference==='peer-cohort'&&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125)&&
         Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs
     })) {const accepted=arbiter.rejoinNow(nowMs,io,'manual');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}
+    if(isHost()&&state?.linkedSourceActive&&arbiter&&window.WatchFusionHostSourceConverge?.consider?.({scope:[roomId,state.source.videoId,state.presentationEpoch].join(':'),segment:state.playoutSegment,nowMs,errorMs:rawDrift*1000,coordination:window.watchFusionPlayout?.status?.(),sourceAgeMs:Date.now()-Number(window.watchFusionLinkedTab?.metadata?.()?.sampledAt),publisher:!!window.watchFusionLinkedTab?.publishing?.(),sameVideo:ytPlayer?.getVideoData?.()?.video_id===state?.source?.videoId,peerPresent:!!window.watchFusionPresentation?.peerCandidate?.(),active:!force&&!buffering&&!roomPaused&&playerState===1&&!arbiter.owns()&&!window.watchFusionHostZeroCenter?.isApplying?.()&&!window.WatchFusionZeroConverge?.isApplying?.()&&!startup?.stalledMs})){const accepted=arbiter.rejoinNow(nowMs,io,'manual');window.WatchFusionHostSourceConverge.accept(accepted,nowMs);if(accepted){diagnostics.action='host-source-rejoin';return true;}}
     const decision = window.watchFusionHostZeroCenter?.isApplying?.() ? {owned:true,reason:'host-zero-centering'} : window.WatchFusionZeroConverge?.isApplying?.() ? {owned:true,reason:'zero-converging'} : arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
     diagnostics.action = decision.reason;
     if (decision.owned) { setStatus('Catching up…'); return true; }

@@ -219,6 +219,7 @@ async function commandRoute(req, res, room, roomId, member) {
   } else return json(res, 400, { error: 'unknown command' });
 
   if (type === 'seek') presentationScope(room).playout.transport(room.playback, true);
+  if (type === 'mirror') presentationScope(room).playout.transport(room.playback, false, true);
   room.lastActivity = now();
   broadcastState(room);
   return json(res, 200, { ok: true, state: publicState(room) });
