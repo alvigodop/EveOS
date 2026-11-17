@@ -110,6 +110,7 @@ export async function sendFile(req, res) {
       'client/room-playout.js',
       'client/zero-converge.js',
       'client/room-audio-unlock.js',
+      'client/freeze-telemetry.js',
       'client/sync-room-log.js'
     ];
     try {

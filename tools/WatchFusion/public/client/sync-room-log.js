@@ -6,11 +6,11 @@
   const copy = document.getElementById('syncRoomLogCopy');
   const clear = document.getElementById('syncRoomLogClear');
   const count = document.getElementById('syncRoomLogCount');
-  const MAX_ENTRIES = 240, MAX_AGE = 600000;
+  const MAX_ENTRIES = 420, MAX_AGE = 600000;
   // v13.10.8g: a correction opens a short, capped burst of denser snapshots (500 ms, 6 s) so a landing and its
   // rebound are visible; local ring only, nothing is uploaded. Normal cadence stays 4.5 s.
   const BURST = /^(?:host-source-(?:rejoin-accepted|landing-incomplete|backoff|settled)|host-rejoin-accepted|rejoin-landing|zero-converge-pulse)$/;
-  let burstUntil = -Infinity;
+  let burstUntil = -Infinity, lastHealthKey = '', lastHealthCritical = false;
   let entries = [], events = [], roomScope = '', lastPeers = new Map(), lastKey = '', lastAt = 0, requestAt = -Infinity;
   let lastRendered = '', lastSegmentKey = '', segmentSequence = 0;
   const finite = value => typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
@@ -69,7 +69,7 @@
     if(lastSegmentKey)events.push({at:new Date().toISOString(),kind:'playback-segment-transition',sequence:segmentSequence+1});
     lastSegmentKey=key;segmentSequence++;prune();
   }
-  function strip(peer, now) {
+  function strip(peer, now, coordination) {
     const rawPhase = finite(peer.positionMs - peer.roomPositionMs);
     const targetError = Number.isFinite(peer.targetPositionMs) ? finite(peer.positionMs - peer.targetPositionMs) : null;
     const phase = targetError ?? rawPhase;
@@ -108,6 +108,8 @@
       audible:typeof peer.audible==='boolean'?peer.audible:null, sensor:sensor(peer.sensor),
       filteredDriftMs:finite(peer.filteredDriftMs),
       seekHealth:peer.seekHealth || null,
+      freeze: (peer.member === session?.publicId || (!session?.publicId && peer.member === state?.hostId && typeof isHost === 'function' && isHost()))
+        ? window.WatchFusionFreezeTelemetry?.capture?.(peer, coordination) ?? null : null,
       signals};
   }
   function render() {
@@ -116,7 +118,8 @@
     prune();
     const recent = entries.slice(-15).map(item => {
       const peers = item.peers.map(p => `${p.device}: ${p.targetErrorMs === null ? 'room ' + (p.rawOffsetMs ?? '?') : 'target ' + p.targetErrorMs}ms · startup ${p.startupWaitMs ?? '?'}ms · ${p.corrections ?? '-'} seeks${p.signals.length ? ' [' + p.signals.join(',') + ']' : ''}`).join(' / ');
-      return `${item.at.slice(11,19)} #${item.segmentSequence||'?'} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''}${item.groupPhase ? ' · ' + item.groupPhase : ''} | ${peers}`;
+      const h=item.peers.find(p=>p.freeze)?.freeze;
+      return `${item.at.slice(11,19)} #${item.segmentSequence||'?'} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''}${item.groupPhase ? ' · ' + item.groupPhase : ''} | ${peers}${h ? ' · host:'+h.state+(h.guard ? ' ('+h.guard+')' : '') : ''}`;
     }).join('\n');
     const transitions = events.slice(-10).map(e => `${e.at.slice(11,19)} #${e.segmentSequence||'?'} ! ${e.kind}${e.reason?' · '+e.reason:''}`).join('\n');
     const display = [recent,transitions].filter(Boolean).join('\n');
@@ -125,7 +128,7 @@
   }
   function emit(now, peers, coordination, roster) {
     recordSegment();
-    const rows = peers.map(p => strip(p, now)).sort((a,b) => a.device.localeCompare(b.device));
+    const rows = peers.map(p => strip(p, now, coordination)).sort((a,b) => a.device.localeCompare(b.device));
     const relative = group(rows), members = finite(roster?.members), reporting = finite(roster?.reporting);
     const rejections = roster?.rejections && typeof roster.rejections === 'object' ? Object.fromEntries(Object.entries(roster.rejections)
       .filter(([k,v]) => /^[a-z-]{1,20}$/.test(k) && Number.isFinite(v)).slice(0,8).map(([k,v]) => [k,Math.round(v)])) : null;
@@ -138,12 +141,16 @@
       peers:rows};
     const key = JSON.stringify([ref,phaseMs,relative.groupPhase,members,reporting,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.seekHealth?.recoveryAttempts,p.signals])]);
     // Source-trust transitions (live/stale/off-phase/...) are acceptance evidence: record them at once.
-    const changed = key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
+    const changed = rows.some(p=>p.freeze?.transition) || key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
       row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence ||
       row.groupPhase !== entries.at(-1)?.groupPhase || row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting;
-    if (!changed && now - lastAt < (performance.now() < burstUntil ? 500 : 4500)) return;
+    if (!changed && now - lastAt < (performance.now() < burstUntil ? 500 : lastHealthCritical ? 1100 : 4500)) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
+    const local=rows.find(p=>p.freeze), health=local?.freeze;
+    const healthKey=health ? [health.state,health.guard,health.owner].join(':') : '';
+    if (healthKey && healthKey !== lastHealthKey) note('sync-health-state', {reason:health.state, guard:health.guard || 'none', owner:health.owner, playerErrorMs:health.playerErrorMs, heldMs:health.heldMs});
+    lastHealthKey=healthKey; lastHealthCritical=!!health && ['buffering','arbiter-owned','reported-position-held','host-seek-blocked','source-evidence-unverified','rate-capability-unavailable'].includes(health.state);
     render();
   }
   function refreshScope() {
@@ -152,7 +159,8 @@
     roomScope = scope;
     entries = []; events = [];
     lastPeers.clear();
-    lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;
+    lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;lastHealthKey='';lastHealthCritical=false;
+    window.WatchFusionFreezeTelemetry?.reset?.();
     lastAt = 0;
     requestAt = -Infinity;
     area.value = '';
@@ -163,10 +171,10 @@
   }
   function note(kind, detail={}) {
     refreshScope();
-    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing)$/.test(kind)) return;
+    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing|sync-health-state)$/.test(kind)) return;
     recordSegment();
     const fields={};
-    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','durationMs']) {
+    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','durationMs','playerErrorMs','heldMs','owner','guard']) {
       const v=detail[key];
       if(typeof v==='boolean' || typeof v==='number' && Number.isFinite(v) && Math.abs(v)<1e9 ||
           typeof v==='string' && /^[a-z-]{1,35}$/.test(v)) fields[key]=v;
@@ -177,7 +185,7 @@
   function wantsSample() {
     refreshScope();
     const now = performance.now();
-    return !!roomScope && now - requestAt >= 2300;
+    return !!roomScope && now - requestAt >= (performance.now() < burstUntil ? 650 : lastHealthCritical ? 1000 : 2300);
   }
   function observe(peers, coordination, roster) {
     refreshScope();
@@ -191,7 +199,7 @@
     prune();
     return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
       disclosure:'Player timing, local controller gates and redacted transitions only; no audio, URLs, titles, tokens or microphone measurements. Target error is player position against the room clock, which the muted source tab drives; speaker output phase is not measured. Group phase compares only players that are themselves audible; a clock bound is ±max(round trip)/2 with unknown asymmetry inside it, never a measured accuracy',
-      snapshots:entries,events},null,2);
+      diagnosticsVersion:'v13.10.8i',snapshots:entries,events},null,2);
   }
   async function copyLog() {
     const content = exported();

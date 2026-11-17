@@ -401,7 +401,7 @@
       const recentRejoin = nowMs >= lastAutomaticRejoinReleaseAt
         && nowMs - lastAutomaticRejoinReleaseAt <= REJOIN_RECENCY_MS;
       const retry = corroborated && (stall.steps > 0 || recentRejoin);
-      const requiredStallMs = retry ? RETRY_STALL_MS : STALL_MS;
+      const requiredStallMs = io.hostLinked && corroborated && !io.sourceBuffering?.() && stall.steps===0 ? 4500 : retry ? RETRY_STALL_MS : STALL_MS;
       const requiredSpacingMs = retry ? RETRY_SPACING_MS : STALL_SPACING_MS;
       if (job || io.state() !== 1 || !(stalledMs >= requiredStallMs)
           || nowMs - stall.at < requiredSpacingMs) return false;
