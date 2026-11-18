@@ -46,7 +46,7 @@
   const RETRY_STALL_MS = 2750, RETRY_SPACING_MS = 2750, REJOIN_RECENCY_MS = 30000;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const median = values => { const v = values.slice().sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : 0; };
-  function defaultModel() { return {releaseLatencySec: .25, leadSec: 1.5, landingErrorSec: 0, landingSec: .5, rateHonored: null, rateGain: 1, rejoins: 0}; }
+  function defaultModel() { return {releaseLatencySec: .25, hostReleaseLatencySec: null, leadSec: 1.5, landingErrorSec: 0, landingSec: .5, rateHonored: null, rateGain: 1, rejoins: 0}; }
   function createViewerSyncArbiter({store = null, timers = globalThis} = {}) {
     let model = load();
     let scope = '', phase = 'observe', samples = [], last = null, reason = 'idle', job = null;
@@ -68,7 +68,6 @@
       } catch { return defaultModel(); }
     }
     function save() { try { store?.set?.(MODEL_KEY, JSON.stringify(model)); } catch {} }
-
     function cancelJob(io, restoreRate = true) {
       if (job?.timer) timers.clearTimeout(job.timer);
       const wasRate = job?.kind === 'rate';
@@ -169,17 +168,16 @@
       io.rate(io.baseRate);
       finish(io.now(), 'rate-burst-complete');
     }
-
     function startHold(nowMs, error, io) {
       // Device ahead: freeze for the lead, release early by the learned start latency.
-      const holdMs = Math.max(0, (-error / io.baseRate - model.releaseLatencySec) * 1000);
-      begin('hold', nowMs, error, io);
+      const releaseLatency = hostGuard?.releaseLatency(io,model) ?? model.releaseLatencySec;
+      const holdMs = Math.max(0, (-error / io.baseRate - releaseLatency) * 1000);
+      begin('hold', nowMs, error, io, {hostLinked:!!io.hostLinked});
       stats.holds++;
       io.pause();
       job.dueAt = nowMs + holdMs;
       job.timer = timers.setTimeout(() => release(io, 'hold-released'), holdMs);
     }
-
     function startRejoin(nowMs, error, io, why = 'rejoin', network = false) {
       const lead = clamp(model.leadSec, .35, io.hostLinked ? 2.5 : 10); // cap host-only learned lead; preserve stored model and TV
       const requested = io.target(nowMs) + lead;
@@ -188,18 +186,18 @@
       io.pause();
       io.seek(requested, network || !io.buffered(requested));
     }
-
     function release(io, why) {
       if (!job) return;
       const automaticRejoin = job.kind === 'rejoin' && job.why !== 'manual';
+      const hostLanding = job.hostLinked && (why === 'rejoin-released' || why === 'hold-released')
+        ? {hostLinked:true, releaseVerified:true, releaseLeadSec:io.current()-io.target(io.now()), baseRate:io.baseRate} : {};
       io.play();
       const scheduled = why === 'rejoin-released' || why === 'hold-released';
       const kind = scheduled ? job.kind : 'unscheduled';
       finish(io.now(), why);
-      lastCorrection = {...lastCorrection, kind, releasedAt: io.now()};
+      lastCorrection = {...lastCorrection, kind, releasedAt: io.now(), ...hostLanding};
       if (automaticRejoin) lastAutomaticRejoinReleaseAt = io.now();
     }
-
     // Wait for a paused seek to land, then schedule the release on the room clock.
     function superviseRejoin(nowMs, io) {
       const state = io.state();
@@ -222,8 +220,9 @@
       // the snap, the room time that passes while landing, and the release latency.
       model.landingErrorSec = clamp(Math.max(model.landingErrorSec * .97, landingError), 0, 6);
       model.landingSec = clamp(Math.max(model.landingSec * .9, (nowMs - job.startedAt) / 1000), .1, 8);
-      const needed = () => model.landingErrorSec + model.landingSec * io.baseRate + model.releaseLatencySec * io.baseRate + .3;
-      const waitMs = ((landed - io.target(nowMs)) / io.baseRate - model.releaseLatencySec) * 1000;
+      const releaseLatency = hostGuard?.releaseLatency(io,model) ?? model.releaseLatencySec;
+      const needed = () => model.landingErrorSec + model.landingSec * io.baseRate + releaseLatency * io.baseRate + .3;
+      const waitMs = ((landed - io.target(nowMs)) / io.baseRate - releaseLatency) * 1000;
       if (waitMs < 60) {
         // Landed behind the room: the lead was too short for this player's keyframes.
         model.leadSec = clamp(Math.max(model.leadSec + .5, needed()), .35, 10);
@@ -237,7 +236,6 @@
       job.dueAt = nowMs + waitMs;
       job.timer = timers.setTimeout(() => release(io, 'rejoin-released'), waitMs);
     }
-
     function superviseRate(nowMs, io) {
       if (io.state() !== 1) { cancelJob(io); phase = 'observe'; samples = []; reason = 'rate-burst-interrupted'; return; }
       const probe = job.probe;
@@ -261,12 +259,15 @@
       }
       reason = 'rate-converging';
     }
-
     // Learn from the residual after a correction: it measures this device's
     // release latency (rejoin/hold) or the rate effectiveness (rate).
     function learn(residual) {
       const c = lastCorrection;
       if (!c) return;
+      if ((c.kind === 'rejoin' || c.kind === 'hold') && c.hostLinked) {
+        if (hostGuard?.learnRelease(residual,c,model)) save();
+        return; // never teach the legacy/TV decoder model from a linked-host correction
+      }
       if ((c.kind === 'rejoin' || c.kind === 'hold') && Math.abs(residual) < 1.2) {
         model.releaseLatencySec = clamp(model.releaseLatencySec + residual * .8, 0, 2);
       } else if (c.kind === 'rate' && Math.abs(c.before) > .05) {
@@ -275,7 +276,6 @@
       }
       save();
     }
-
     function decide(nowMs, error, io) {
       const absolute = Math.abs(error);
       if (phase === 'verify') {
@@ -318,7 +318,7 @@
         if (soft !== null) { lastZeroServoAt = nowMs; return startRate(nowMs, error, io, soft); }
         reason = 'fine-drift-below-reference-precision'; return;
       }
-      if (failures >= MAX_FAILURES) { phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
+      if (failures >= MAX_FAILURES) { if(hostGuard?.fineHold(error,io,model)) return startHold(nowMs,error,io); phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
       if (nowMs < cooldownUntil) { reason = 'correction-cooldown'; return; }
       if (absolute > MAX_AUTO_SEC) {
         // A reference discontinuity resets sampling; only a steady, consistent
@@ -335,7 +335,9 @@
         reason = 'fine-drift-unverified-source'; return;
       }
       const rate = absolute <= 2.5 ? rateFor(io, error) : null;
-      if (rate !== null) return startRate(nowMs, error, io, rate); if (io.hostLinked && (!hostGuard || hostGuard.blocked || absolute < .70)) { reason = hostGuard?.blocked || !hostGuard ? 'host-auto-seek-guarded' : 'host-subsecond-preserved'; return; }
+      if (rate !== null) return startRate(nowMs, error, io, rate);
+      if (hostGuard?.fineHold(error,io,model)) return startHold(nowMs,error,io);
+      if (io.hostLinked && (!hostGuard || hostGuard.blocked || absolute < .70)) { reason = hostGuard?.blocked || !hostGuard ? 'host-auto-seek-guarded' : 'host-subsecond-preserved'; return; }
       // Some YouTube TVs offer only 1x. Seeking or a zero-time pause/play for
       // a 130 ms offset can create far more drift than it corrects. Keep
       // monitoring until a meaningful, safely actionable displacement exists.
@@ -349,7 +351,6 @@
       if (error < 0 && absolute <= 4) return startHold(nowMs, error, io);
       return startRejoin(nowMs, error, io);
     }
-
     // io: {now, target(nowMs), current, state, baseRate, availableRates, buffered, seek, pause, play, rate}
     function tick(next, nowMs, io) {
       if (next !== scope) reset(next, 'scope-change', io);
@@ -421,7 +422,7 @@
 
     function snapshot() {
       return {phase, reason, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
-        model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), leadMs: Math.round(model.leadSec * 1000),
+        model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), effectiveHostReleaseLatencyMs: Math.round((hostGuard?.releaseLatency({hostLinked:true},model) ?? model.releaseLatencySec)*1000), leadMs: Math.round(model.leadSec * 1000),
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
         ...stats, tolerancesMs: {monitor: 50, action: 100, outOfSync: 100},
         firstFineLockMs: firstFineLockAt >= 0 && acquiredAt >= 0 ? firstFineLockAt - acquiredAt : null,

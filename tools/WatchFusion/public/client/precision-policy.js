@@ -17,8 +17,10 @@
   function trustedHostReference(coordination, peer, hostOffsetMs) {
     if (!coordination || coordination.authorityBuffering || coordination.source !== 'live' ||
         !finite(coordination.uncertaintyMs) || coordination.uncertaintyMs > 125) return null;
-    if (!['peer-cohort','room-clock','linked-source'].includes(coordination.reference)) return null;
+    if (!['peer-cohort','room-clock','linked-source','linked-tab'].includes(coordination.reference)) return null;
     const peers = witness(peer, hostOffsetMs);
+    // A linked-tab reference is valid only with independently healthy peers and a live, in-phase source.
+    if (coordination.reference === 'linked-tab' && (!peers || !finite(coordination.sourcePhaseMs) || Math.abs(coordination.sourcePhaseMs) > 70)) return null;
     if (peers && Math.abs(peers.gapMs) > Math.max(peers.confidenceMs, coordination.uncertaintyMs * 1.35)) return {
       kind:'peer-corroborated', precisionMs:coordination.uncertaintyMs, peers
     };

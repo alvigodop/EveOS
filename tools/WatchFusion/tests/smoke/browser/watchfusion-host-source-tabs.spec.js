@@ -178,7 +178,8 @@ test('linked volume reaches the source before release and follows later source c
         runtimeListeners.forEach(listener => listener({type:'source-control',action,value}));
       }
     });
-    Object.defineProperty(window.chrome,'runtime',{configurable:true,value:{
+    const runtimeHost = window.chrome && typeof window.chrome === 'object' ? window.chrome : (window.chrome = {});
+    Object.defineProperty(runtimeHost,'runtime',{configurable:true,value:{
       id:'volume-fixture',sendMessage(message){if(message.type==='sample')publisher.metadata(message.metadata);},
       onMessage:{addListener(listener){runtimeListeners.add(listener);},removeListener(listener){runtimeListeners.delete(listener);}}
     }});

@@ -157,16 +157,13 @@
     };
     return diagnostics;
   }
-
   function connectedStatus() {
     return isTryCloudflare ? 'Connected (remote sync)' : 'Connected';
   }
-
   function markStable() {
     if (($('syncStatus')?.textContent || '') !== connectedStatus()) setStatus(connectedStatus());
     diagnostics.action = 'steady';
   }
-
   function setViewerRate(rate) {
     const available = ytPlayer.getAvailablePlaybackRates?.();
     if (available?.length && !available.includes(rate)) return;
@@ -240,7 +237,10 @@
       referenceUncertaintyMs: () => { const c=window.watchFusionPlayout?.status?.();const p=isHost()?window.watchFusionPresentation?.peerCandidate?.():null;const offset=(Number(ytPlayer?.getCurrentTime?.())-Number(window.watchFusionYouTubeTarget?.(estimatedServerNow(),ytPlayer?.getDuration?.())))*1000;return window.WatchFusionPrecisionPolicy?.trustedHostReference?.(c,p,offset)?.precisionMs??c?.uncertaintyMs??null; },
       // Host-driven rooms have no external source: the host transport is the room timeline.
       // With a linked source, large automatic moves need that source to corroborate the room.
-      referenceTrusted: () => state?.linkedSourceActive !== true || window.watchFusionPlayout?.status?.()?.source === 'live'
+      referenceTrusted: () => state?.linkedSourceActive !== true || window.watchFusionPlayout?.status?.()?.source === 'live',
+      // Source-aware host hold: only a live, fresh, in-phase linked source with
+      // no held mirror contradiction may authorize a small, non-seek correction.
+      hostFineHoldTrusted: () => { const c=window.watchFusionPlayout?.status?.(), m=window.watchFusionLinkedTab?.metadata?.(); return !!(isHost() && state?.linkedSourceActive === true && c?.reference === 'linked-tab' && c.source === 'live' && !c.authorityBuffering && Number.isFinite(c.uncertaintyMs) && c.uncertaintyMs <= 75 && Number.isFinite(c.sourcePhaseMs) && Math.abs(c.sourcePhaseMs) <= 35 && Number.isFinite(m?.sampledAt) && Date.now()-m.sampledAt >= 0 && Date.now()-m.sampledAt <= 750 && !window.WatchFusionMirrorConvergenceGate?.contradicted?.()); }
     };
   }
 
@@ -343,7 +343,7 @@
     if (isHost() && state?.linkedSourceActive && arbiter && window.WatchFusionHostPeerRecovery?.consider?.({
       scope,nowMs,hostOffsetMs:(current-target)*1000,peer:window.watchFusionPresentation?.peerCandidate?.(),
       reference:window.watchFusionPlayout?.status?.()?.reference,trusted:(()=>{const p=window.watchFusionPlayout?.status?.();return p?.source==='live'&&!p.authorityBuffering&&
-        (p.reference==='room-clock'||p.reference==='peer-cohort'&&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125)&&
+        (p.reference==='room-clock'||(p.reference==='peer-cohort'||p.reference==='linked-tab') &&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125 &&(p.reference!=='linked-tab'||Number.isFinite(p.sourcePhaseMs)&&Math.abs(p.sourcePhaseMs)<=70))&&
         Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs
     })) {const accepted=arbiter.rejoinNow(nowMs,io,'host-peer');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}
     if(isHost()&&state?.linkedSourceActive&&arbiter&&window.WatchFusionHostSourceConverge?.consider?.({scope:[roomId,state.source.videoId,state.presentationEpoch].join(':'),segment:state.playoutSegment,nowMs,errorMs:rawDrift*1000,coordination:window.watchFusionPlayout?.status?.(),sourceAgeMs:Date.now()-Number(window.watchFusionLinkedTab?.metadata?.()?.sampledAt),publisher:!!window.watchFusionLinkedTab?.publishing?.(),sameVideo:ytPlayer?.getVideoData?.()?.video_id===state?.source?.videoId,peerPresent:!!window.watchFusionPresentation?.peerCandidate?.(),contradiction:window.WatchFusionMirrorConvergenceGate?.contradicted?.(),active:!force&&!buffering&&!roomPaused&&playerState===1&&!arbiter.owns()&&!window.watchFusionHostZeroCenter?.isApplying?.()&&!window.WatchFusionZeroConverge?.isApplying?.()&&!startup?.stalledMs})){const accepted=arbiter.rejoinNow(nowMs,io,'host-source');window.WatchFusionHostSourceConverge.accept(accepted,nowMs);if(accepted){diagnostics.action='host-source-rejoin';return true;}}

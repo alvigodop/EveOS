@@ -27,8 +27,9 @@
             const at = io.now(), landed = Number(io.current()), target = io.target(at);
             const model = root.watchFusionViewerArbiter?.snapshot?.()?.model;
             const releaseLeadMs = ms(landed - target);
+            const latencyMs = io.hostLinked ? model?.effectiveHostReleaseLatencyMs : model?.releaseLatencyMs;
             last = {at, seq: ++count, leadMs: open.leadMs, landedShortMs: ms(open.requested - landed), releaseLeadMs,
-              releaseErrMs: Number.isFinite(model?.releaseLatencyMs) && releaseLeadMs !== null ? Math.round(releaseLeadMs - model.releaseLatencyMs * io.baseRate) : null,
+              releaseErrMs: Number.isFinite(latencyMs) && releaseLeadMs !== null ? Math.round(releaseLeadMs - latencyMs * io.baseRate) : null,
               holdMs: Math.round(at - open.at), residualMs: null, startLatencyMs: null};
             root.watchFusionRoomSyncLog?.note?.('rejoin-landing', {leadMs: last.leadMs, landedShortMs: last.landedShortMs,
               releaseLeadMs, releaseErrMs: last.releaseErrMs, holdMs: last.holdMs});

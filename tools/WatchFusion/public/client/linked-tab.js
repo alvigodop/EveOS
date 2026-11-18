@@ -7,6 +7,10 @@
   const pendingControls=new Map();
   const VOLUME_ECHO_TTL_MS = 3000;
   let queuedVolume = null, volumeTimer = null, confirmedVolume = null, zeroVolumeSince = 0, trackTransitions = 0;
+  // Focus stays after mouse-up: protect only the active pointer drag, not future source updates.
+  let volumePointerHeld = false;
+  $('liveVolume')?.addEventListener('pointerdown',()=>{volumePointerHeld=true;});
+  for(const kind of ['pointerup','pointercancel','blur'])window.addEventListener(kind,()=>{volumePointerHeld=false;});
   // A peer object is not proof that its socket is open or its join was acknowledged.
   let peerCreatedAt = 0, lastLinkedSampleAt = 0, recoveryWindowAt = 0;
   let recoveryCount = 0, lastRecoveryAt = -Infinity;
@@ -95,7 +99,7 @@
     if(document.activeElement!==$('liveSeek')){$('liveSeek').max=metadata.duration||0;$('liveSeek').value=metadata.currentTime||0;}
     if(document.activeElement!==$('liveRate'))$('liveRate').value=String(metadata.rate||1);
     const volume = $('liveVolume');
-    if (document.activeElement !== volume) volume.value = queuedVolume ?? pendingControls.get('volume')?.value ?? metadata.volume ?? confirmedVolume ?? ((state?.playback?.volume ?? playerAudioPrefs.volume ?? 100) / 100);
+    if (!volumePointerHeld) volume.value = queuedVolume ?? pendingControls.get('volume')?.value ?? metadata.volume ?? confirmedVolume ?? ((state?.playback?.volume ?? playerAudioPrefs.volume ?? 100) / 100);
     for(const button of controls.querySelectorAll('[data-live-action]'))button.disabled=!canControl();
     for(const id of ['liveSeek','liveRate','liveVolume'])$(id).disabled=!canControl();
     $('liveStop').hidden=false;$('linkTabBtn').textContent='Unlink playing tab';$('linkTabBtn').setAttribute('aria-pressed','true');
@@ -239,6 +243,9 @@
   }
   function followLocal(metadata,force=false){
     if(!state?.source || (roomProof() && !isHost()))return;
+    // A linked room mirrors source state into the room; its viewer arbiter alone owns
+    // the host player. Do not also reapply source play/seek/rate each sample.
+    if(roomId && state.linkedSourceActive === true && state.source.videoId && followsRoomPlayback())return;
     // YouTube's own follow function suppresses echo only if it really modifies the player.
     // Blanket suppression on every metadata tick could swallow a genuine host Play click.
     if(state.source.videoId||state.source.kind==='youtube'){

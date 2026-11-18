@@ -103,7 +103,6 @@ function ensurePlayer(videoId) {
       });
       return;
     }
-
     if (!ytPlayerReady) return;
     const currentId = ytPlayer.getVideoData?.()?.video_id || '';
     if (currentId !== pendingVideoId) {
@@ -164,13 +163,11 @@ function primeYouTubePlayer(force = false) {
   installUserGesturePrime();
   if (!ytPlayer || !ytPlayerReady || primingPlayer) return Promise.resolve();
   if (playerPrimed && !force) return Promise.resolve();
-
   primingPlayer = true; window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
   suppressAudioPersistence = true;
   const targetPosition = Number(state?.playback?.position) || 0;
   const wasApplyingRemote = applyingRemote;
   applyingRemote = true;
-
   return new Promise((resolve) => {
     let settled = false;
     let sawPlaying = false;
@@ -193,7 +190,6 @@ function primeYouTubePlayer(force = false) {
       setTimeout(() => { suppressAudioPersistence = false; }, 0);
       resolve();
     };
-
     const timeout = setTimeout(finish, 2500);
     const start = () => {
       try {
@@ -220,7 +216,6 @@ function primeYouTubePlayer(force = false) {
         finish();
       }
     };
-
     const stateNow = ytPlayer.getPlayerState?.();
     if (stateNow === YT.PlayerState.PLAYING || stateNow === YT.PlayerState.PAUSED || stateNow === YT.PlayerState.CUED) start();
     else setTimeout(start, 50);
@@ -241,7 +236,6 @@ function onYouTubeError(event) {
 function hostPlaybackEventAllowed(playerState) {
   if (!state || primingPlayer || playerInitializing || followsRoomPlayback()) return false;
   if (!applyingRemote) return true;
-
   // Programmatic playback caused by an authoritative room update should not
   // echo back as a new host command. A contradictory event is different: it
   // represents a user transition and must be accepted even during the short
@@ -250,12 +244,19 @@ function hostPlaybackEventAllowed(playerState) {
   if (playerState === YT.PlayerState.PAUSED) return !state.playback.paused;
   return false;
 }
+// Automatic room corrections are local player operations, never commands to the
+// attached source. Keep native iframe controls working outside correction jobs.
+function linkedRoomViewerCorrectionActive(){
+  return !!(roomId && state?.linkedSourceActive === true && followsRoomPlayback() &&
+    (window.watchFusionViewerArbiter?.owns?.() || window.watchFusionHostZeroCenter?.isApplying?.() ||
+     window.WatchFusionZeroConverge?.isApplying?.()));
+}
 function onYouTubeStateChange(event) {
   const linked = window.watchFusionLinkedTab;
   if (linked?.active?.() && (!roomId || isHost())) { // v13.10.7: solo embedded controls drive the source too
     window.watchFusionYoutubeStability?.observe?.(event.data);
     const previewGuard=window.WatchFusionPlaylistContinuity?.guardPreviewEvent?.(event.data,linked.metadata?.(),ytPlayer?.getVideoData?.()?.video_id,state?.source?.videoId);
-    if (linked.applying?.() || primingPlayer || previewGuard) return;
+    if (linked.applying?.() || linkedRoomViewerCorrectionActive() || primingPlayer || previewGuard) return;
     const paused = event.data === YT.PlayerState.PAUSED;
     const position = Number(ytPlayer?.getCurrentTime?.()) || 0;
     if (paused || event.data === YT.PlayerState.PLAYING) {
@@ -267,7 +268,6 @@ function onYouTubeStateChange(event) {
   }
   if (window.watchFusionYoutubeStability?.observe?.(event.data)) return;
   if (!hostPlaybackEventAllowed(event.data)) return;
-
   const position = Number(ytPlayer?.getCurrentTime?.()) || 0;
   const duration = Number(ytPlayer?.getDuration?.()) || 0;
 
@@ -300,7 +300,7 @@ function onYouTubeStateChange(event) {
   }
 }
 function onYouTubeRateChange() {
-  if(window.watchFusionHostZeroCenter?.isApplying?.()||window.WatchFusionZeroConverge?.isApplying?.()||window.WatchFusionSoloLinkSync?.isApplying?.())return;
+  if(linkedRoomViewerCorrectionActive()||window.watchFusionHostZeroCenter?.isApplying?.()||window.WatchFusionZeroConverge?.isApplying?.()||window.WatchFusionSoloLinkSync?.isApplying?.())return;
   if(window.watchFusionLinkedTab?.active?.()&&(!roomId||isHost())&&!window.watchFusionLinkedTab?.applying?.()){window.watchFusionLinkedTab.control('rate',ytPlayer?.getPlaybackRate?.()||1);return;}
   if (!state || applyingRemote || primingPlayer || followsRoomPlayback()) return;
   command('rate', { rate: ytPlayer?.getPlaybackRate?.() || 1 });
@@ -407,6 +407,7 @@ function syncPlayer(options = {}) {
 }
 let linkedYoutubePositionSample=null;
 function sampleLinkedYoutubePosition(forwardSeek = true){
+  if(linkedRoomViewerCorrectionActive()){linkedYoutubePositionSample=null;return;}
   const linked=window.watchFusionLinkedTab;
   if(!linked?.active?.()||!ytPlayer||!ytPlayerReady||linked.applying?.()||playerInitializing){if(!linked?.active?.()||linked?.applying?.())linkedYoutubePositionSample=null;return;}
   const playerState=ytPlayer.getPlayerState?.();
