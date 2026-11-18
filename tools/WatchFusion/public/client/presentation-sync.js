@@ -80,19 +80,19 @@
         lastRecoveryBiasMs:diagnostics.seekGuard.lastRecoveryBiasMs} : null
     };
   }
-  function peerCandidate() {
+  function peerCandidate(observeOnly = false) {
     if(!isHost()||!state?.linkedSourceActive||Date.now()-peerBatchAt>1600)return null;
     const now=estimatedServerNow(),ref=peerCoordination?.reference||'room-clock',cohort=ref==='peer-cohort',uncertainty=Number(peerCoordination?.uncertaintyMs);
     // A linked-tab room reference is independently witnessed by two healthy peers, not by the host itself.
     const linkedRef=ref==='linked-tab'&&peerCoordination?.source==='live'&&!peerCoordination?.authorityBuffering
-      &&Number.isFinite(uncertainty)&&uncertainty<=125&&Number.isFinite(peerCoordination?.sourcePhaseMs)
+      &&peerCoordination?.uncertaintyMs!=null&&Number.isFinite(uncertainty)&&uncertainty<=125&&Number.isFinite(peerCoordination?.sourcePhaseMs)
       &&Math.abs(peerCoordination.sourcePhaseMs)<=70&&window.watchFusionLinkedTab?.publishing?.()
       &&(sourceSampleAge()??Infinity)<=900;
     if((!['room-clock','peer-cohort'].includes(ref)&&!linkedRef)||(cohort&&(!Number.isFinite(uncertainty)||uncertainty>125)))return null;
-    const members=peerBatch.filter(p=>p.member!==session?.publicId&&p.follows&&p.ready&&p.playing&&!p.buffering);const liveSingle=members.length===1&&ref==='room-clock'&&peerCoordination?.source==='live'&&Number.isFinite(peerCoordination?.sourcePhaseMs)&&Math.abs(peerCoordination.sourcePhaseMs)<=70&&(peerCoordination.uncertaintyMs==null||(Number.isFinite(peerCoordination.uncertaintyMs)&&peerCoordination.uncertaintyMs<=125))&&window.watchFusionLinkedTab?.publishing?.()&&sourceSampleAge()!=null&&sourceSampleAge()<=900;if(!members.length||(members.length===1&&!liveSingle))return null;
-    const useTarget=cohort||(peerCoordination?.source==='live'&&(members.length>=2||liveSingle));const points=members.map(p=>({p,offset:p.positionMs-(useTarget?p.targetPositionMs:p.roomPositionMs)}));if(points.some(({p,offset})=>!Number.isFinite(offset)||Math.abs(offset)>70||!Number.isFinite(p.sampledAt)||Math.abs(now-p.sampledAt)>=1500||!Number.isFinite(p.rttMs)||p.rttMs>=90))return null;
+    const members=peerBatch.filter(p=>p.member!==session?.publicId&&p.follows&&p.ready&&p.playing&&!p.buffering);const liveSingle=members.length===1&&ref==='room-clock'&&peerCoordination?.source==='live'&&Number.isFinite(peerCoordination?.sourcePhaseMs)&&Math.abs(peerCoordination.sourcePhaseMs)<=70&&(peerCoordination.uncertaintyMs==null||(Number.isFinite(peerCoordination.uncertaintyMs)&&peerCoordination.uncertaintyMs<=125))&&window.watchFusionLinkedTab?.publishing?.()&&sourceSampleAge()!=null&&sourceSampleAge()<=900;const observedSingle=observeOnly===true&&members.length===1&&linkedRef;if(!members.length||(members.length===1&&!liveSingle&&!observedSingle))return null;
+    const useTarget=cohort||(peerCoordination?.source==='live'&&(members.length>=2||liveSingle||observedSingle));const points=members.map(p=>({p,offset:p.positionMs-(useTarget?p.targetPositionMs:p.roomPositionMs)}));if(points.some(({p,offset})=>!Number.isFinite(offset)||Math.abs(offset)>70||!Number.isFinite(p.sampledAt)||Math.abs(now-p.sampledAt)>=1500||!Number.isFinite(p.rttMs)||p.rttMs>=90))return null;
     const offsets=points.map(v=>v.offset),spread=Math.max(...offsets)-Math.min(...offsets);if(spread>(useTarget?110:45))return null;
-    return {offsetMs:offsets.reduce((a,b)=>a+b,0)/offsets.length,sampledAt:Math.min(...members.map(p=>p.sampledAt)),ageMs:Math.max(...members.map(p=>Math.abs(now-p.sampledAt))),reference:ref,count:members.length,spreadMs:spread};
+    return {offsetMs:offsets.reduce((a,b)=>a+b,0)/offsets.length,sampledAt:Math.min(...members.map(p=>p.sampledAt)),ageMs:Math.max(...members.map(p=>Math.abs(now-p.sampledAt))),reference:ref,count:members.length,spreadMs:spread,observeOnly:observedSingle};
   }
   function sourceSampleAge() {
     if (!window.watchFusionLinkedTab?.publishing?.()) return null;

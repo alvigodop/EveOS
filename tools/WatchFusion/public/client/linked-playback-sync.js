@@ -378,9 +378,9 @@
 (() => {
   const MAX_ATTEMPTS=1,VERIFY_MS=7500,SETTLE_MS=3500,RETRY_WAIT_MS=12000;
   let scope='',samples=[],lastStamp=-Infinity,stage='observe',outcome='idle',attempts=0,echoUntil=0;
-  let peerCount=0,peerSpreadMs=null,hostErrorMs=null,peerErrorMs=null,gapMs=null,reference=null;
+  let peerCount=0,observedPeerCount=0,observedPeerErrorMs=null,peerSpreadMs=null,hostErrorMs=null,peerErrorMs=null,gapMs=null,reference=null;
   let lastReason='',lastReasonAt=-Infinity,triggeredAt=null,verifyAt=-1,nearSince=-1,failedAt=-1;
-  const note=(kind,detail)=>window.watchFusionRoomSyncLog?.note?.(kind,detail); const fields=()=>({reference,hostErrorMs,peerErrorMs,gapMs,peerCount,peerSpreadMs,attempts});
+  const note=(kind,detail)=>window.watchFusionRoomSyncLog?.note?.(kind,detail); const fields=()=>({reference,hostErrorMs,peerErrorMs,gapMs,peerCount,observedPeerCount,observedPeerErrorMs,peerSpreadMs,attempts});
   function gate(why,nowMs){samples=['source-not-trusted','no-healthy-peer-witness','reference-mismatch'].includes(why)?samples.filter(x=>nowMs-x.at<=24000):[];outcome=why;
     if(nowMs-lastReasonAt>=(why!==lastReason?2500:10000)){lastReason=why;lastReasonAt=nowMs;note('host-rejoin-gated',{reason:why,...fields()});}
     return false;}
@@ -388,7 +388,7 @@
     const at=Number(input.nowMs),p=input.peer,host=Number(input.hostOffsetMs),gap=host-Number(p?.offsetMs);
     if(input.scope!==scope){scope=input.scope;samples=[];lastStamp=-Infinity;stage='observe';outcome='new-segment';attempts=0;
       echoUntil=0;triggeredAt=null;verifyAt=nearSince=failedAt=-1;lastReason='';peerCount=0;}
-    reference=input.reference??p?.reference??'room-clock';peerCount=p?.count??0;
+    reference=input.reference??p?.reference??'room-clock';peerCount=p?.count??0;observedPeerCount=input.observedPeer?.count??peerCount;observedPeerErrorMs=Number.isFinite(input.observedPeer?.offsetMs)?Math.round(input.observedPeer.offsetMs):null;
     peerSpreadMs=Number.isFinite(p?.spreadMs)?Math.round(p.spreadMs):null;
     hostErrorMs=Number.isFinite(host)?Math.round(host):null;peerErrorMs=Number.isFinite(p?.offsetMs)?Math.round(p.offsetMs):null;
     gapMs=Number.isFinite(gap)?Math.round(gap):null;
@@ -434,7 +434,7 @@
     if(!ok){stage='exhausted';outcome='host-rejoin-not-started';}note(ok?'host-rejoin-accepted':'host-rejoin-rejected',fields());}
   function suppressEcho(){if(!attempts||!echoUntil)return false;const at=performance.now();
     if(window.watchFusionViewerArbiter?.correcting?.()){echoUntil=at+900;return true;}return at<echoUntil;}
-  function diagnostics(){return {outcome,stage,attempts,witnesses:samples.length,reference,peerCount,peerSpreadMs,
+  function diagnostics(){return {outcome,stage,attempts,witnesses:samples.length,reference,peerCount,observedPeerCount,observedPeerErrorMs,peerSpreadMs,
     hostErrorMs,peerErrorMs,gapMs,dwellMs:samples.length?Math.round(samples.at(-1).at-samples[0].at):0,verifyMs:verifyAt>=0?Math.max(0,Math.round(performance.now()-verifyAt)):null,triggeredAt};}
   window.WatchFusionHostPeerRecovery={consider,accept,suppressEcho,diagnostics};
 })();

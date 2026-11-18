@@ -223,18 +223,16 @@ test.describe('WatchFusion Nuvio Native Viewport Wrapper Shell, Media Stage & He
 
     const nuvioFrameElement = await page.waitForSelector('#nuvioFrame');
     const nuvioFrame = await nuvioFrameElement.contentFrame();
+    // A visible iframe is not proof its new document has completed Nuvio initialization.
+    // Wait for actual automatic shield installation across navigations; never inject
+    // the guard from the test, fabricate readiness, or skip the click assertions.
+    await nuvioFrame.waitForFunction(
+      () => document.__watchfusionSidebarShieldInstalled === true,
+      undefined, { timeout: 10000 }
+    );
 
     const result = await nuvioFrame.evaluate(async () => {
       const doc = document;
-      await new Promise(resolve => {
-        let attempts = 0;
-        const interval = setInterval(() => {
-          if (doc.__watchfusionSidebarShieldInstalled || attempts++ > 40) {
-            clearInterval(interval);
-            resolve();
-          }
-        }, 50);
-      });
       let clickedAction = null;
       let backgroundCardActivated = false;
 

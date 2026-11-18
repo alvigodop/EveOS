@@ -35,8 +35,14 @@
       if (now - lastNote > 15000) {
         lastNote = now;
         // Sample age (local clock, same domain as the anchor) and how often this happened: is it a held source sample?
+        // Compare independent room-source phase with the mirror planner's drift,
+        // without asserting that either number measures audible speaker latency.
+        const phase=window.watchFusionPlayout?.status?.()?.sourcePhaseMs;
+        const gap=Number.isFinite(phase)?Math.round(drift*1000-phase):null;
         window.watchFusionRoomSyncLog?.note?.('mirror-drift-observing', {driftMs: Math.round(drift * 1000),
-          sampleAgeMs: Math.round(Date.now() - sampleAt), step: heldSinceNote, reason: same ? 'repeated-sample' : 'isolated-sample'});
+          sampleAgeMs: Math.round(Date.now() - sampleAt), sourcePhaseMs:Number.isFinite(phase)?Math.round(phase):null,
+          clockGapMs:gap, clockEvidence:gap!==null&&Math.abs(gap)>750?'contradictory':'unverified',
+          step: heldSinceNote, reason: same ? 'repeated-sample' : 'isolated-sample'});
         heldSinceNote = 0;
       }
       return true;

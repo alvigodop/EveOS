@@ -80,7 +80,8 @@
   function strip(peer, now, coordination) {
     const rawPhase = finite(peer.positionMs - peer.roomPositionMs);
     const targetError = Number.isFinite(peer.targetPositionMs) ? finite(peer.positionMs - peer.targetPositionMs) : null;
-    const phase = targetError ?? rawPhase;
+    const reportAge=finite(now-peer.sampledAt),live=peer.playing&&!peer.buffering&&peer.ready&&reportAge!==null&&reportAge>=0&&reportAge<=1500;
+    const phase = live ? targetError ?? rawPhase : null; // paused/stale residuals are not live sync error
     const last = lastPeers.get(peer.member);
     const corrections = finite(peer.corrections);
     const recoveries = peer.seekHealth?.recoveryAttempts ?? 0;
@@ -111,8 +112,9 @@
       signals.push('PLAYER_PHASE_JUMP');
     lastPeers.set(peer.member, {phase, corrections, recoveries, decoderSteps});
     return {device:memberName(peer.member), playing:peer.playing, buffering:peer.buffering,
-      reportAgeMs:finite(now - peer.sampledAt), playerOffsetMs:rawPhase,
-      rawOffsetMs:rawPhase, targetErrorMs:targetError, adjustmentMs:finite(peer.adjustmentMs),
+      reportAgeMs:reportAge, playerOffsetMs:live?rawPhase:null,
+       rawOffsetMs:rawPhase, targetErrorMs:live?targetError:null, adjustmentMs:finite(peer.adjustmentMs),
+       timingQuality:!peer.playing?'paused-residual':!live?'stale-or-buffering':peer.sensor?.clockState==='bounded'?'bounded-player-only':'thin-clock-estimate',
       rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
       corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
       audible:typeof peer.audible==='boolean'?peer.audible:null, sensor:sensor(peer.sensor),
@@ -184,7 +186,7 @@
     if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|host-zero-pulse-gated|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing|sync-health-state)$/.test(kind)) return;
     recordSegment();
     const fields={};
-    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','durationMs','playerErrorMs','heldMs','owner','guard']) {
+    for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','observedPeerCount','observedPeerErrorMs','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','clockGapMs','clockEvidence','durationMs','playerErrorMs','heldMs','owner','guard']) {
       const v=detail[key];
       if(typeof v==='boolean' || typeof v==='number' && Number.isFinite(v) && Math.abs(v)<1e9 ||
           typeof v==='string' && /^[a-z-]{1,35}$/.test(v)) fields[key]=v;

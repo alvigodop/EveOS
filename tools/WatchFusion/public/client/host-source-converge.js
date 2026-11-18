@@ -12,7 +12,7 @@
   const MIN_ERROR = 170, MAX_ERROR = 1100, MIN_DWELL = 3200, MIN_SAMPLES = 8;
   const MAX_SPREAD = 75, SEGMENT_SETTLE = 1500, VERIFY_MS = 8000, RETRY_MS = 12000, MAX_ATTEMPTS = 2;
   const VERIFY_MAX_MS = 16000, POST_MIN = 5, POST_SPAN = 1200, POST_SPREAD = 150, MIN_PROGRESS = 100;
-  let scope = '', segment = null, segmentAt = -Infinity, samples = [], attempts = 0;
+  let scope = '', segment = null, segmentAt = -Infinity, samples = [], attempts = 0, refusals = 0;
   let stage = 'observe', outcome = 'idle', lastSampleAt = -Infinity, verifyAt = -Infinity;
   let nearSince = -1, retryAt = 0, lastErrorMs = null, acceptedAt = null;
   let beforeMs = null, post = [], residualMs = null, progressMs = null, contradicted = null;
@@ -20,7 +20,7 @@
   const note = (kind, detail) => window.watchFusionRoomSyncLog?.note?.(kind, detail);
   const resetSamples = () => { samples = []; lastSampleAt = -Infinity; };
   function reset(key, seg, at) {
-    scope = key; segment = seg; segmentAt = at; resetSamples(); attempts = 0;
+    scope = key; segment = seg; segmentAt = at; resetSamples(); attempts = 0; refusals = 0;
     stage = 'observe'; outcome = 'new-scope'; verifyAt = -Infinity; nearSince = -1;
     retryAt = 0; lastErrorMs = null; acceptedAt = null; beforeMs = null; post = []; residualMs = null; progressMs = null; contradicted = null;
   }
@@ -93,6 +93,10 @@
     if (!Number.isFinite(input.sourceAgeMs) || input.sourceAgeMs < 0 || input.sourceAgeMs > 750) return gate('solo-source-stale');
     if (!Number.isFinite(error) || Math.abs(error) < MIN_ERROR) return gate('solo-source-within-band');
     if (Math.abs(error) > MAX_ERROR) return gate('solo-source-drift-too-large');
+    // The viewer arbiter refuses source-led host seeks below its own 700ms threshold.
+    // Never spend an attempt budget on a request the single writer cannot make.
+    if (input.policyBlocked === true || Number.isFinite(input.policyMinErrorMs) && Math.abs(error) < input.policyMinErrorMs)
+      return gate('solo-source-actuator-ineligible');
     if (at - segmentAt < SEGMENT_SETTLE) return gate('solo-source-anchor-settling');
     if (at - lastSampleAt < 180) return false;
     if (samples.length && (at - lastSampleAt > 1200 || Math.sign(error) !== Math.sign(samples.at(-1).error))) resetSamples();
@@ -107,12 +111,12 @@
   function accept(ok, at) {
     if (stage !== 'actuating') return;
     if (ok) { stage = 'verifying'; verifyAt = at; nearSince = -1; post = []; outcome = 'solo-source-verifying'; }
-    else { stage = attempts < MAX_ATTEMPTS ? 'retry-wait' : 'exhausted'; retryAt = at + RETRY_MS; outcome = 'solo-source-rejoin-refused'; }
+    else { attempts = Math.max(0, attempts - 1); refusals++; stage = refusals >= 2 ? 'exhausted' : 'retry-wait'; retryAt = at + RETRY_MS; outcome = 'solo-source-actuator-refused'; }
     resetSamples();
     note(ok ? 'host-source-rejoin-accepted' : 'host-source-rejoin-refused', {attempts});
   }
   window.WatchFusionHostSourceConverge = {
-    consider, accept, diagnostics: () => ({outcome, stage, attempts, witnesses: samples.length,
+    consider, accept, diagnostics: () => ({outcome, stage, attempts, refusals, witnesses: samples.length,
       errorMs: lastErrorMs, segment, acceptedAt, verifyMs: verifyAt >= 0 ? Math.max(0, Math.round(performance.now() - verifyAt)) : null,
       beforeMs, residualMs, progressMs, contradictedMs: contradicted})
   };

@@ -60,5 +60,5 @@
     return { timeout, landing, blockRejoin, releaseLatency, learnRelease, fineHold, reset: () => { blocked = ''; fineHolds = 0; },
       get blocked() { return blocked; } };
   }
-  globalThis.WatchFusionHostSeekPolicy = {create};
+  globalThis.WatchFusionHostSeekPolicy = {create, MIN_HOST_REJOIN_MS:Math.round(MIN_HOST_REJOIN_SEC*1000)};
 })();
