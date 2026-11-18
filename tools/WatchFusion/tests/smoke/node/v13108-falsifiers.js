@@ -23,6 +23,16 @@ function world() {
     getElementById: id => nodes.get(id) || (id === 'syncStatus' ? {parentNode: {insertBefore: n => nodes.set(n.id, n)}} : null),
     createElement: () => ({style: {}, setAttribute() {}, addEventListener(type, fn) { this.click = fn; }})};
   ctx.watchFusionRoomSyncLog = {note: (kind, detail) => notes.push([kind, detail])};
+  // Keep browser event registration observable in this VM fixture.
+  const windowListeners = new Map();
+  ctx.addEventListener = (type, fn) => {
+    if (!windowListeners.has(type)) windowListeners.set(type, []);
+    windowListeners.get(type).push(fn);
+  };
+  ctx.removeEventListener = (type, fn) => {
+    windowListeners.set(type, (windowListeners.get(type) || []).filter(item => item !== fn));
+  };
+  ctx.windowListeners = windowListeners;
   ctx.window = ctx.globalThis = ctx;
   vm.createContext(ctx);
   ctx.nodes = nodes;
@@ -109,7 +119,17 @@ export async function runV13108Checks(check) {
     assert.deepEqual(run(legacy).acts, [], 'baseline: the installed rescue never acts while the TV buffers (the observed freeze)');
     const {R, acts} = run(read('public/client/tv-decoder-rescue.js'));
     assert.deepEqual(acts, ['reload', 'rebuild'], 'candidate: one reload, then one rebuild, on the real trace');
-    for (let t = 300000; t <= 335000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:73', nowMs: t, playing: true, buffering: false, trusted: true, drift: 0});
+    // PLAYING alone is not proof of a healthy decoder. Held frames must
+    // never replenish the terminal retry budget (8p's safety contract).
+    for (let t = 245000; t <= 280000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:73', nowMs: t,
+      playing: true, buffering: false, trusted: true, sourceBuffering: false, drift: 0, position: 40});
+    assert.equal(R.diagnostics().steps, 2, 'frozen PLAYING cannot refill decoder budget');
+    // Only 30+ s of advancing player position close to a live room reference
+    // earns a fresh budget. Supply that evidence in this synthetic fixture.
+    for (let t = 300000; t <= 335000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:73', nowMs: t,
+      playing: true, buffering: false, trusted: true, sourceBuffering: false, drift: 0,
+      position: 50 + (t - 300000) / 1000});
+    assert.equal(R.diagnostics().steps, 0, 'only genuinely advancing/aligned playback heals');
     let again = 0;
     for (let t = 340000; t <= 360000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:74', nowMs: t, buffering: true, playing: false, trusted: true,
       drift: -30, reload: () => again++, rebuild: () => again++});
@@ -125,6 +145,8 @@ export async function runV13108Checks(check) {
       authoritativeRoomAudio: () => ({volume: 37, muted: false}), applyRoomAudioState() {}});
     vm.runInContext('var autoplayWasBlocked = true, userGesturePrimeUsed = false;', ctx);
     vm.runInContext(read('public/client/room-audio-unlock.js'), ctx);
+    assert.ok(ctx.windowListeners.get('pointerdown')?.length && ctx.windowListeners.get('keydown')?.length,
+      'audio recovery must retain real gesture listeners after a player rebuild');
     ctx.advance(4000);
     assert.deepEqual(unmutes, [1], 'the first player gets one room-audio attempt');
     assert.equal(ctx.ytPlayer.volume, 37);

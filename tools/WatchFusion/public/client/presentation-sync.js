@@ -72,6 +72,7 @@
       hostCorrection: window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome === 'host-peer-rejoin' ? 'Peers corroborated · host rejoin' : hostServo?.outcome ?? null, hostRecovery: isHost() ? {...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null} : null, sensor: window.WatchFusionSensorProvenance?.describe?.({direct, media, now:performance.now(), clock:window.watchPartyClock.offsetBound?.(), source:isHost()&&window.watchFusionLinkedTab?.publishing?.()?window.watchFusionLinkedTab.metadata?.():null}) ?? null,
       startupWaitMs: !direct && Number.isFinite(diagnostics?.startup?.startDelayMs) ? diagnostics.startup.startDelayMs : null,
       filteredDriftMs: Number.isFinite(diagnostics?.filteredDriftSec) ? Math.round(diagnostics.filteredDriftSec * 1000) : null,
+      decoderRecovery: !direct && !isHost() ? {outcome:window.WatchFusionDecoderRescue?.diagnostics?.()?.outcome,steps:window.WatchFusionDecoderRescue?.diagnostics?.()?.steps,healthyProgressMs:window.WatchFusionDecoderRescue?.diagnostics?.()?.healthyProgressMs,stallMs:diagnostics?.startup?.stalledMs,stallSteps:diagnostics?.arbiter?.stallSteps,arbiterReason:diagnostics?.arbiter?.reason,replayLoads:diagnostics?.replayLoads} : null,
       seekHealth: diagnostics?.seekGuard ? {reason:diagnostics.seekGuard.reason, attempts:diagnostics.seekGuard.attempts,
         failures:diagnostics.seekGuard.failures, overshoots:diagnostics.seekGuard.overshoots,
         cooldownRemainingMs:diagnostics.seekGuard.cooldownRemainingMs,
@@ -98,7 +99,6 @@
     const at = window.watchFusionLinkedTab.metadata()?.sampledAt;
     return Number.isFinite(at) ? Math.max(0, Date.now() - at) : null;
   }
-
   function linkedTiming() {
     const local = timing(), metadata = window.watchFusionLinkedTab?.metadata?.();
     const age = sourceSampleAge(), rate = Number(metadata?.rate);

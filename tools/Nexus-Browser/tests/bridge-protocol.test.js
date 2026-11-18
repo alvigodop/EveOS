@@ -10,7 +10,11 @@ const { createIncidentStore } = require('../dex/incident-store');
 const { createServerDurability } = require('../dex/server-durability');
 const { createDexStateStore } = require('../dex/state-store');
 const localTargets = require('../local-targets/manager');
-const { server, wss, HOST, configureDurability } = require('../server');
+// This is a disposable Node test process, not a live Nexus server.
+// Isolate the Nexus fixture from a shared-shell PORT=9087 (WatchFusion).
+const nexusRegistryPort = require('../runtime-config').registryPort();
+process.env.NEXUS_BROWSER_PORT = String(nexusRegistryPort);
+const { server, wss, HOST, PORT, configureDurability } = require('../server');
 
 function startTestServer() {
   return new Promise((resolve) => {
@@ -89,7 +93,9 @@ test('Nexus Browser Protocol Suite', { timeout: 15000 }, async (t) => {
     const res = await fetch(`http://${HOST}:${instance.port}/health`);
     assert.equal(res.status, 200);
     const body = await res.json();
-    assert.deepEqual(body, { ok: true, service: 'eveos-nexus-browser', port: 9088 });
+    // /health advertises the registered Nexus port, not the ephemeral test listener.
+    assert.equal(PORT, nexusRegistryPort, 'Nexus fixture follows registered service port');
+    assert.deepEqual(body, { ok: true, service: 'eveos-nexus-browser', port: nexusRegistryPort });
   });
 
   await t.test('GET / serves index.html', async () => {

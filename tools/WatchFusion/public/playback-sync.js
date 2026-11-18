@@ -24,7 +24,7 @@
   let correctiveSeeks = 0;
   let replayLoads = 0;
   let viewerSawEnded = false;
-  let replayKey = '', transportSeekPending = false, viewerPausedPosition = null, lastRateRequest = null;
+  let replayKey = '', transportSeekPending = false, viewerPausedPosition = null, lastRateRequest = null, coldJoinUntil = 0;
   let driftSamples = [];
   let diagnostics = {
     rawDriftSec: 0,
@@ -34,6 +34,8 @@
     stable: false,
     action: 'idle'
   };
+  // Fresh TV-only join: one time-limited, same-video, qualified seek for seconds-scale displacement.
+  const coldJoinReady=({until,nowMs,roomPaused,force,playerState,drift,linked,reference,matches})=>!!(until>nowMs&&!roomPaused&&!force&&playerState===1&&Math.abs(drift)>8&&matches&&(!linked||reference?.source==='live'&&reference.authorityBuffering!==true&&Number.isFinite(reference.sourcePhaseMs)&&Math.abs(reference.sourcePhaseMs)<=100));
   function normalizeDeviceDelay(value) {
     const steps = Math.round((Number(value) || 0) / DEVICE_TIMING_STEP_MS);
     return Math.max(-DEVICE_TIMING_LIMIT_MS, Math.min(DEVICE_TIMING_LIMIT_MS, steps * DEVICE_TIMING_STEP_MS));
@@ -216,7 +218,6 @@
     setStatus('Catching up…');
     return true;
   }
-
   // The only actuator handed to the arbiter: every automatic seek/rate/pause/play passes here.
   function arbiterIo(baseRate, duration) {
     return {
@@ -243,7 +244,6 @@
       hostFineHoldTrusted: () => { const c=window.watchFusionPlayout?.status?.(), m=window.watchFusionLinkedTab?.metadata?.(); return !!(isHost() && state?.linkedSourceActive === true && c?.reference === 'linked-tab' && c.source === 'live' && !c.authorityBuffering && Number.isFinite(c.uncertaintyMs) && c.uncertaintyMs <= 75 && Number.isFinite(c.sourcePhaseMs) && Math.abs(c.sourcePhaseMs) <= 35 && Number.isFinite(m?.sampledAt) && Date.now()-m.sampledAt >= 0 && Date.now()-m.sampledAt <= 750 && !window.WatchFusionMirrorConvergenceGate?.contradicted?.()); }
     };
   }
-
   function applyViewerCorrection(force = false, bufferedOnly = false, explicitSync = false) {
     if (!roomId || !state?.source?.videoId || !ytPlayer || !ytPlayerReady || !followsRoomPlayback()) return;
     if (playerInitializing || primingPlayer) return;
@@ -257,6 +257,7 @@
     const io = (raw => window.WatchFusionRejoinProbe?.wrap?.(raw) ?? raw)(arbiterIo(baseRate, duration)); // v13.10.8g: measure, never actuate
     if (scope !== viewerScope) {
       transportSeekPending = !!sameSource && !roomPaused && !ordinaryResume;
+      coldJoinUntil = !sameSource && !roomPaused && !isHost() ? performance.now() + 15000 : 0;
       viewerScope = scope;
       arbiter?.intent(roomPaused ? 'pause' : 'transport', io); arbiter?.tick(scope, performance.now(), io);
       viewerWasBuffering = false;
@@ -275,6 +276,8 @@
     const absRaw = Math.abs(rawDrift), nowMs = performance.now();
     const playerState = ytPlayer.getPlayerState?.();
     const buffering = playerState === (window.YT?.PlayerState?.BUFFERING ?? 3);
+    if (coldJoinUntil && (force || roomPaused || nowMs >= coldJoinUntil || absRaw <= 2.5)) coldJoinUntil = 0;
+    if (!transportSeekPending && coldJoinReady({until:coldJoinUntil,nowMs,roomPaused,force,playerState,drift:rawDrift,linked:state.linkedSourceActive===true,reference:window.watchFusionPlayout?.status?.(),matches:ytPlayer.getVideoData?.()?.video_id===state.source.videoId})) { transportSeekPending = true; coldJoinUntil = 0; }
     const playerEnded = playerState === (window.YT?.PlayerState?.ENDED ?? 0);
     const transport = {roomId, videoId:state.source.videoId, epoch:state.presentationEpoch, segment:state.playoutSegment};
     if (roomPaused) {
@@ -304,7 +307,7 @@
     if (!arbiter?.owns() && !window.watchFusionHostZeroCenter?.isApplying?.() && !window.WatchFusionZeroConverge?.isApplying?.()) setViewerRate(baseRate);
     const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
     // v13.10.7: a wedged decoder (frozen while PLAYING after the ladder, or stuck BUFFERING) gets the bounded terminal ladder.
-    const decoderRescue=bufferingNow=>!force&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted:!bufferingNow,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,
+    const decoderRescue=(bufferingNow,exhausted=!bufferingNow)=>!force&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,position:current,stalledMs:startup?.stalledMs ?? 0,
       trusted:state?.linkedSourceActive!==true||window.watchFusionPlayout?.status?.()?.source==='live',sourceBuffering:!!window.watchFusionPlayout?.sourceBuffering?.(),
       reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target+.5});replayLoads++;arbiter?.intent('pause',io);awaitSeekRecovery(nowMs);},
       rebuild:()=>{window.watchFusionLinkedTab?.suppressPlaybackEcho?.();window.WatchFusionDecoderRescue.rebuildPlayer(state.source.videoId);arbiter?.intent('pause',io);replayLoads++;viewerScope='';}});
@@ -340,6 +343,8 @@
       if(exhausted && decoderRescue(false)){diagnostics.action='decoder-recovery';setStatus('TV decoder recovery · restarting this player once…');return true;}
       diagnostics.action=exhausted?'stall-recovery-exhausted':startup.reason;requestViewerPlayback();return true;
     }
+    // Healthy PLAYING is observation only: it cannot invoke any reload/seek.
+    if (!force && startup?.ready === true && !arbiter?.owns()) decoderRescue(false, false);
     if (isHost() && state?.linkedSourceActive && arbiter && window.WatchFusionHostPeerRecovery?.consider?.({
       scope,nowMs,hostOffsetMs:(current-target)*1000,peer:window.watchFusionPresentation?.peerCandidate?.(),
       reference:window.watchFusionPlayout?.status?.()?.reference,trusted:(()=>{const p=window.watchFusionPlayout?.status?.();return p?.source==='live'&&!p.authorityBuffering&&
@@ -350,7 +355,7 @@
     const decision = window.watchFusionHostZeroCenter?.isApplying?.() ? {owned:true,reason:'host-zero-centering'} : window.WatchFusionZeroConverge?.isApplying?.() ? {owned:true,reason:'zero-converging'} : arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};
     diagnostics.action = decision.reason;
     if (decision.owned) { setStatus('Catching up…'); return true; }
-    if (Math.abs(rawDrift) > .15 && diagnostics.stable) setStatus('Out of sync · awaiting safe correction');
+    if (Math.abs(rawDrift) > .15 && diagnostics.stable) setStatus(arbiter?.snapshot?.()?.reason === 'output-phase-unverified' ? 'Player offset reported · speaker phase unverified' : 'Out of sync · awaiting safe correction');
     else markStable();
     diagnostics.action = decision.reason;
     requestViewerPlayback();
@@ -374,7 +379,6 @@
     playerRate: Number(ytPlayer?.getPlaybackRate?.()) || null,
     authoritativeRate: Number(state?.playback?.rate) || null
   });
-
   const originalRender = render;
   render = function watchPartyAdaptiveRender() {
     refreshAnchor(true);
@@ -382,7 +386,6 @@
     renderDeviceTiming();
     return result;
   };
-
   $('deviceTimingEarlier')?.addEventListener('click', () => stageDeviceDelay(draftDeviceDelayMs - 25));
   $('deviceTimingEarlierFine')?.addEventListener('click', () => stageDeviceDelay(draftDeviceDelayMs - 5));
   $('deviceTimingSlider')?.addEventListener('input', event => stageDeviceDelay(Number(event.target?.value || 0)));
@@ -391,7 +394,6 @@
   window.watchFusionSyncCenter?.bindOffset(stageDeviceDelay, () => draftDeviceDelayMs);
   $('deviceTimingApply')?.addEventListener('click', () => applyDeviceDelay(draftDeviceDelayMs));
   $('deviceTimingReset')?.addEventListener('click', () => applyDeviceDelay(0));
-
   function publishHostSeek() {
     if (!roomId || !ytPlayerReady || !state?.source?.videoId || followsRoomPlayback()
         || window.watchFusionLinkedTab?.active?.() || primingPlayer || playerInitializing || applyingRemote) {
@@ -415,14 +417,12 @@
       void command('seek', { position, paused: playerState === 2 }).catch(() => setStatus('Room playback is reconnecting…'));
     }
   }
-
   setInterval(() => {
     try {
       if (roomId && !followsRoomPlayback()) publishHostSeek();
       else { hostPositionSample = null; applyViewerCorrection(false); }
     } catch {}
   }, TICK_MS);
-
   // Timestamp position changes finely so held getCurrentTime() values can be projected.
   setInterval(() => {
     try {

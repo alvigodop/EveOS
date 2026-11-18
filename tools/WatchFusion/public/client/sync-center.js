@@ -55,6 +55,11 @@
     if (peer.buffering) return 'Buffering';
     if (peer.correcting === true) return 'Correcting';
     if (!peer.playing) return 'Paused';
+    // A late or thin player report cannot prove millisecond-scale lock, even
+    // though the browser/player UI still claims PLAYING.
+    const age = Number.isFinite(peer.sampledAt) ? Math.abs((typeof estimatedServerNow === 'function' ? estimatedServerNow() : Date.now()) - peer.sampledAt) : 0;
+    if (age > 1500) return 'Playing · timing report stale';
+    if (['thin','stale','unstable'].includes(peer.sensor?.clockState)) return 'Playing · timing estimate';
     const errorMs = Number.isFinite(peer.positionMs) && Number.isFinite(peer.targetPositionMs)
       ? Math.abs(peer.positionMs - peer.targetPositionMs) : null;
     return window.WatchFusionPrecisionPolicy?.label?.({ready:peer.ready,buffering:peer.buffering,playing:peer.playing,correcting:peer.correcting,errorMs,reason:peer.recentCorrection||peer.hostRecovery?.outcome}) || (errorMs===null?'Timing unavailable':errorMs>50?'Playing · offset reported':'Locked');
@@ -94,6 +99,15 @@
     const names = new Map(members.map(({id, name}) => [id, name]));
     const signed = value => (value > 0 ? '+' : '') + Math.round(value) + ' ms';
     const now = typeof estimatedServerNow === 'function' ? estimatedServerNow() : Date.now();
+    // The signed number is a PLAYER-TIMELINE observation, not speaker-output
+    // phase. Keep the number visible but label thin/stale observations as such.
+    const phaseEstimate = p => {
+      if (!p.ready || !Number.isFinite(p.positionMs) || !Number.isFinite(p.targetPositionMs)) return null;
+      if (!p.playing || p.buffering) return 'Unavailable while stopped/buffering';
+      const value = signed(p.positionMs - p.targetPositionMs);
+      const age = Number.isFinite(p.sampledAt) ? Math.abs(now - p.sampledAt) : Infinity;
+      return age > 1500 || p.sensor?.clockState !== 'bounded' ? '≈ ' + value + ' (estimate only)' : value;
+    };
     const roomOffsets = peers.filter(p => p.ready && p.playing && !p.buffering
       && Number.isFinite(p.positionMs) && Number.isFinite(p.roomPositionMs)
       && Number.isFinite(p.sampledAt) && Math.abs(now - p.sampledAt) < 2000)
@@ -105,7 +119,7 @@
       status: aligned ? 'Group aligned' : classifyPeer(peer),
       metrics: [
         // v13.10.8e: a signed player-vs-room number, not audible desync. The room clock is the muted source tab.
-        ['Player vs room', peer.ready && Number.isFinite(peer.targetPositionMs) ? signed(peer.positionMs - peer.targetPositionMs) : null],
+        ['Player vs room', phaseEstimate(peer)],
         ['Reported player spread (not audio)', index === 0 && gap !== null ? gap + ' ms' : null],
         ['Group evidence', index === 0 && aligned ? 'Advancing players within 50 ms; audio not measured' : null],
         ['Room offset', peer.ready ? signed(peer.positionMs - peer.roomPositionMs) : null],

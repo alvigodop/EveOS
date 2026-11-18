@@ -342,6 +342,7 @@
       // a 130 ms offset can create far more drift than it corrects. Keep
       // monitoring until a meaningful, safely actionable displacement exists.
       if (absolute < MIN_FINE_ACTUATION_SEC) {
+        if (!io.speakerPhaseVerified?.()) { plateau = null; reason = 'output-phase-unverified'; return; }
         if (absolute <= PLATEAU_MIN_SEC + EPS_SEC || plateauSpent || !io.referenceTrusted?.() || (uncertaintyMs > 0 && absolute * 1000 - uncertaintyMs <= 50)) { plateau = null; reason = 'fine-drift-awaiting-capability'; return; }
         if (!plateau || Math.sign(plateau.error) !== Math.sign(error) || Math.abs(plateau.error - error) > .08) plateau = {since: nowMs, error};
         if (nowMs - plateau.since < PLATEAU_DWELL_MS || nowMs - lastStallSeenAt < PLATEAU_QUIET_STALL_MS) { reason = 'fine-drift-awaiting-capability'; return; }
@@ -374,7 +375,6 @@
       if (error !== null) decide(nowMs, error, io);
       return {owned: !!job, reason, phase};
     }
-
     // Sync me / transport rejoin while the room is playing: same landing-aware path.
     function rejoinNow(nowMs, io, why = 'manual') {
       if (io.hostLinked && (hostGuard?.blockRejoin(why, io, nowMs) ?? why !== 'manual')) { reason = 'host-auto-seek-guarded'; return false; }

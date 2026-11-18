@@ -15,8 +15,12 @@
       candidate = null; return false;
     }
     const drift = Number(plan.drift), sampleAt = Number(metadata.sampledAt), current = Number(metadata.currentTime);
-    // Large real seeks, state changes and explicit sync remain immediate.
-    if (Number.isFinite(drift) && Math.abs(drift) > 2.5) { candidate = null; return false; }
+    // Keep the first large source seek immediate; an adjacent second drift-driven
+    // room re-anchor must not reset synced viewers again without fresh evidence.
+    // Explicit state and force changes bypass this drift-only gate entirely.
+    if (Number.isFinite(drift) && Math.abs(drift) > 2.5 && clock() - lastPublishedAt >= COOLDOWN_MS) {
+      candidate = null; lastPublishedAt = clock(); return false;
+    }
     if (!Number.isFinite(drift) || !Number.isFinite(sampleAt) || !Number.isFinite(current) || sampleAt <= 0) {
       candidate = null; return true;
     }

@@ -1,6 +1,6 @@
 import { json, readBody } from './http-utils.js';
 import { createPlayoutCoordinator } from './playout-coordinator.js';
-import { noteRejection, roster, sanitizeHostRecovery, sanitizeSensor } from './presentation-report-schema.js';
+import { noteRejection, roster, sanitizeHostRecovery, sanitizeSensor, sanitizeDecoderRecovery } from './presentation-report-schema.js';
 
 const reportsByRoom = new WeakMap();
 const reportLifetime = 5000;
@@ -87,7 +87,7 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
         audible: report.audible === true, follows: report.follows === true, correcting: report.correcting === true,
         // v13.10.8e: host recovery (legacy peer path and source-led path) and sensor provenance survive, bounded.
         hostRecovery: member.id === room.hostId ? sanitizeHostRecovery(report.hostRecovery) : null,
-        sensor: sanitizeSensor(report.sensor)
+        sensor: sanitizeSensor(report.sensor), decoderRecovery: sanitizeDecoderRecovery(report.decoderRecovery)
       });
       // Off-rate playback is active correction, not a reason to drop the device:
       // it remains observed as telemetry while excluded from reference selection.

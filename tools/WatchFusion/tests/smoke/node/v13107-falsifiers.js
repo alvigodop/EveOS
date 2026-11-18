@@ -22,6 +22,17 @@ function world(extra = {}) {
   ctx.document = {hidden: false, addEventListener() {},
     getElementById: id => nodes.get(id) || (id === 'syncStatus' ? {parentNode: {insertBefore: n => nodes.set(n.id, n)}} : null),
     createElement: () => ({style: {}, setAttribute() {}, addEventListener(type, fn) { this.click = fn; }})};
+  // Browser window events exist in production. Mirror them in the Node VM
+  // without dispatching synthetic gestures to force success.
+  const windowListeners = new Map();
+  ctx.addEventListener = (type, fn) => {
+    if (!windowListeners.has(type)) windowListeners.set(type, []);
+    windowListeners.get(type).push(fn);
+  };
+  ctx.removeEventListener = (type, fn) => {
+    windowListeners.set(type, (windowListeners.get(type) || []).filter(item => item !== fn));
+  };
+  ctx.windowListeners = windowListeners;
   ctx.window = ctx.globalThis = ctx;
   vm.createContext(ctx);
   ctx.nodes = nodes;
@@ -127,6 +138,8 @@ export async function runV13107Checks(check) {
         applyRoomAudioState: () => true});
       vm.runInContext('var autoplayWasBlocked=true,userGesturePrimeUsed=false;', ctx);
       vm.runInContext(read('public/client/room-audio-unlock.js'), ctx);
+      assert.ok(ctx.windowListeners.get('pointerdown')?.length && ctx.windowListeners.get('keydown')?.length,
+        'audio fallback installs real gesture listeners instead of inventing success');
       ctx.advance(6000);
       if (allowed) { assert.equal(p.muted, false); assert.equal(p.volume, 72); assert.equal(ctx.autoplayWasBlocked, false); }
       else { assert.equal(p.muted, true, 'falls back to muted playback'); assert.equal(p.state, 1, 'keeps playing');

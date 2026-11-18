@@ -106,7 +106,7 @@ function applyRoomAudioState(player = ytPlayer, forceUnmute = false) {
   if (state?.linkedSourceActive && isHost() && window.watchFusionLinkedTab?.active?.()) {
     if (window.watchFusionLinkedTab.pendingControl?.('volume')) return true;
     const key = `${roomId}:${state.presentationEpoch}:${state.source?.videoId || state.source?.url}:${audio.volume}:${targetMuted}`;
-    if (linkedAudioPlayer === player && linkedAudioKey === key) return true;
+    if (linkedAudioPlayer === player && linkedAudioKey === key && Number(player.getVolume?.())>0 && player.isMuted?.()===false) return true;
     linkedAudioPlayer = player; linkedAudioKey = key;
   } else { linkedAudioPlayer = null; linkedAudioKey = ''; }
   clearRoomAudioCandidate();
@@ -170,11 +170,11 @@ function observeYouTubeAudio() {
     const changed = Math.abs((Number(playerAudioPrefs?.volume) || 0) - volume) > 0.5 || !!playerAudioPrefs?.muted !== muted;
     if (roomId) {
       if (isHost()) {
-        if (changed) savePlayerAudioPrefs();
+        if (changed && (!state?.linkedSourceActive || (volume > 0 && !muted))) savePlayerAudioPrefs();
         const linked = state?.linkedSourceActive && window.watchFusionLinkedTab?.active?.() ? window.watchFusionLinkedTab : null;
         const expected = authoritativeRoomAudio();
         if (linked && expected && !applyingRemote && !linked.applying?.() && !linked.pendingControl?.('volume') &&
-            performance.now() >= roomAudioGuardUntil && (expected.muted !== muted || (!muted && Math.abs(expected.volume - volume) > 1))) linked.control('volume', muted ? 0 : volume / 100);
+            performance.now() >= roomAudioGuardUntil && !expected.muted && !muted && volume > 0 && Math.abs(expected.volume - volume) > 1) linked.control('volume', volume / 100);
         else if (!linked) publishRoomAudioState(volume, muted);
       }
     } else if (changed) savePlayerAudioPrefs();

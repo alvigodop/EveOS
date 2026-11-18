@@ -38,6 +38,14 @@
     return {domain:/^[a-z-]{1,20}$/.test(d.domain)?d.domain:null,heldMs:finite(d.heldMs),cadenceMs:finite(d.cadenceMs),
       clockBoundMs:finite(d.clockBoundMs),clockState:/^[a-z]{1,10}$/.test(d.clockState)?d.clockState:'unknown',audibleOutput:/^[a-z-]{1,12}$/.test(d.audibleOutput)?d.audibleOutput:'unknown'};
   }
+  // Explicit whitelist for exported peer diagnostics: no opaque JSON or free text.
+  function decoder(v) {
+    if(!v||typeof v!=='object'||Array.isArray(v))return null;
+    const word=x=>typeof x==='string'&&/^[a-z][a-z-]{0,41}$/.test(x)?x:null;
+    const count=x=>typeof x==='number'&&Number.isFinite(x)&&x>=0&&x<=600000?Math.round(x):null;
+    return {outcome:word(v.outcome),steps:count(v.steps),healthyProgressMs:count(v.healthyProgressMs),
+      stallMs:count(v.stallMs),stallSteps:count(v.stallSteps),arbiterReason:word(v.arbiterReason),replayLoads:count(v.replayLoads)};
+  }
   const localRecovery = () => ({hostRecovery:{...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),
     linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null}});
   // Player-vs-player only from two or more fresh, playing, trusted rows whose own player is audible. A muted room
@@ -76,10 +84,12 @@
     const last = lastPeers.get(peer.member);
     const corrections = finite(peer.corrections);
     const recoveries = peer.seekHealth?.recoveryAttempts ?? 0;
+    const decoderSteps = peer.decoderRecovery?.steps ?? null;
     const signals = [];
     if (!peer.ready || (phase !== null && Math.abs(phase) > 10000)) signals.push('UNTRUSTED_PLAYER_OFFSET');
     if (now - peer.sampledAt > 2700) signals.push('STALE_PLAYER_REPORT');
     if (peer.buffering) signals.push('BUFFERING');
+    if (decoderSteps != null && decoderSteps > (last?.decoderSteps ?? 0)) signals.push('DECODER_RECOVERY_STEP_' + decoderSteps);
     if (peer.playing && !peer.buffering && peer.sensor?.heldMs > 300) signals.push('POSITION_HELD');
     const expectedRate = Number(state?.playback?.rate);
     if (peer.playing && expectedRate > 0 && Number(peer.rate) > 0 &&
@@ -99,7 +109,7 @@
       signals.push('SEEK_COUNT_INCREASED_' + (corrections - last.corrections));
     if (last && last.phase !== null && phase !== null && Math.abs(phase - last.phase) > 900)
       signals.push('PLAYER_PHASE_JUMP');
-    lastPeers.set(peer.member, {phase, corrections, recoveries});
+    lastPeers.set(peer.member, {phase, corrections, recoveries, decoderSteps});
     return {device:memberName(peer.member), playing:peer.playing, buffering:peer.buffering,
       reportAgeMs:finite(now - peer.sampledAt), playerOffsetMs:rawPhase,
       rawOffsetMs:rawPhase, targetErrorMs:targetError, adjustmentMs:finite(peer.adjustmentMs),
@@ -107,7 +117,7 @@
       corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
       audible:typeof peer.audible==='boolean'?peer.audible:null, sensor:sensor(peer.sensor),
       filteredDriftMs:finite(peer.filteredDriftMs),
-      seekHealth:peer.seekHealth || null,
+      seekHealth:peer.seekHealth || null, decoderRecovery:decoder(peer.decoderRecovery),
       freeze: (peer.member === session?.publicId || (!session?.publicId && peer.member === state?.hostId && typeof isHost === 'function' && isHost()))
         ? window.WatchFusionFreezeTelemetry?.capture?.(peer, coordination) ?? null : null,
       signals};

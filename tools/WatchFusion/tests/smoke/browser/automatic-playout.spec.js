@@ -136,7 +136,7 @@ test('linked source and mixed viewers synchronize with diagnostics closed and mi
   }
 });
 
-test('a buffered TV pause aligns once and an ineffective correction stays bounded', async ({ page }) => {
+test('a buffered TV pause aligns once and an unverified 260ms plateau does not hard-seek', async ({ page }) => {
   await page.goto('/');
   const observed = await page.evaluate(() => {
     const wall = Date.now(), realDateNow = Date.now;
@@ -167,11 +167,12 @@ test('a buffered TV pause aligns once and an ineffective correction stays bounde
       syncPlayer();
       const pausedAlignment = seeks.slice();
       document.getElementById('syncBtn').click();
+      const afterManual = seeks.length;
       t = 500;
       state.playoutSegment++;
       state.playback = {...state.playback, paused:false, updatedAt:wall+t, projectedAt:wall+t};
-      // v13.7: a fixed-rate TV parked at -260 ms gets one plateau rejoin after an 8 s steady
-      // dwell (Nov 15 log 2); the window must outlast that dwell plus its verification.
+      // v13.10.8t: a fixed-rate TV parked at -260ms without measured
+      // speaker phase must NOT seek; keep sampling beyond the old dwell.
       for (; t <= 40000; t += 250) {
         current = 30 + (t - 500) / 1000 - .26;
         syncPlayer();
@@ -183,7 +184,7 @@ test('a buffered TV pause aligns once and an ineffective correction stays bounde
       syncPlayer();
       for (let i = 0; i < 10 && seeks.length === afterStable; i++) { t += 250; current += .25; syncPlayer(); }
       const hostSeekApplied = seeks.length > afterStable;
-      return {pausedAlignment, afterStable, stable, hostSeekApplied};
+      return {pausedAlignment, afterManual, afterStable, stable, hostSeekApplied};
     } finally {
       Date.now = realDateNow;
       if (perf) Object.defineProperty(performance, 'now', perf);
@@ -191,12 +192,13 @@ test('a buffered TV pause aligns once and an ineffective correction stays bounde
     }
   });
   expect(observed.pausedAlignment).toEqual([{target:30, network:false}]);
-  // A player whose corrections never land (this fixture overwrites its position)
-  // gets a bounded number of attempts with backoff, never a seek loop.
-  expect(observed.afterStable).toBeLessThanOrEqual(4);
-  expect(observed.stable.failures).toBeGreaterThanOrEqual(1);
-  // One plateau attempt per segment, never a fine-correction loop (v13.7).
-  expect(observed.stable.rejoins).toBe(1);
+  // An unverified 260ms player lag must not become a destructive
+  // pause/seek cycle. Explicit Sync me may also seek, but the plateau must not add another.
+  expect(observed.afterStable).toBe(observed.afterManual);
+  expect(observed.stable.failures).toBe(0);
+  expect(observed.stable.rejoins).toBe(0);
+  expect(observed.stable.reason).toBe('output-phase-unverified');
+  // A real later transport change is still allowed to rejoin.
   expect(observed.hostSeekApplied).toBe(true);
 });
 

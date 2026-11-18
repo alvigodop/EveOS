@@ -309,7 +309,8 @@ function onYouTubeVolumeChange(){
   if(window.watchFusionLinkedTab?.active?.()&&(!roomId||isHost())&&!window.watchFusionLinkedTab?.applying?.()){
     // Browser autoplay/preview muting is not an explicit source-volume command.
     if(ytPlayer?.isMuted?.())return;
-    window.watchFusionLinkedTab.control('volume',(Number(ytPlayer?.getVolume?.())||0)/100);return;
+    const observed=Number(ytPlayer?.getVolume?.());if(!Number.isFinite(observed)||observed<=0)return;
+    window.watchFusionLinkedTab.control('volume',observed/100);return;
   }
   observeYouTubeAudio();
 }
@@ -386,7 +387,6 @@ function syncPlayer(options = {}) {
     window.applyAdaptiveViewerSync(Boolean(options.force), false, options.explicitSync === true);
     return;
   }
-
   const target = Number(state.playback.position) || 0;
   applyingRemote = true;
   try {

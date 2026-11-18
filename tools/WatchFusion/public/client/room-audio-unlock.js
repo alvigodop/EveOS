@@ -10,7 +10,7 @@
   const ID = 'watchfusionEnableRoomAudio', VERIFY_MS = 900, START_GRACE_MS = 1500;
   const MISMATCH_DWELL_MS = 800, RECHECK_COOLDOWN_MS = 10000, VOLUME_TOLERANCE = 2;
   let scope = '', player = null, probe = null, tried = false, playingSince = 0, reason = 'idle';
-  let mismatchSince = 0, nextRecheckAt = 0, needsTap = false, audioKey = '';
+  let mismatchSince = 0, nextRecheckAt = 0, needsTap = false, audioKey = '', recheckFailures = 0;
   const safeVolume = () => { try { return Number(ytPlayer?.getVolume?.()); } catch { return NaN; } };
   const audioTelemetryAvailable = () => typeof ytPlayer?.getVolume === 'function'
     && typeof ytPlayer?.isMuted === 'function' && Number.isFinite(safeVolume());
@@ -41,10 +41,10 @@
     // (Drift's TV lost the room volume after a reload). A new player instance gets its own attempt.
     if (next !== scope || ytPlayer !== player) {
       scope = next; player = ytPlayer; probe = null; tried = false; playingSince = 0;
-      mismatchSince = 0; nextRecheckAt = 0; needsTap = false; audioKey = '';
+      mismatchSince = 0; nextRecheckAt = 0; needsTap = false; audioKey = ''; recheckFailures = 0;
     }
     const expectedKey = audio ? `${audio.volume}:${audio.muted}` : '';
-    if (expectedKey !== audioKey) { audioKey = expectedKey; mismatchSince = 0; needsTap = false; nextRecheckAt = 0; }
+    if (expectedKey !== audioKey) { audioKey = expectedKey; mismatchSince = 0; needsTap = false; nextRecheckAt = 0; recheckFailures = 0; }
     const at = performance.now();
     if (state?.playback?.paused) { probe = null; mismatchSince = 0; if (ui) ui.hidden = true; return; }
     if (probe) { // while probing, applyRoomAudioState() keeps the room volume because autoplayWasBlocked is lowered
@@ -59,8 +59,14 @@
       const ok = ytPlayer?.getPlayerState?.() === 1 && audioMatches(audio), wasStartup = probe.kind === 'startup';
       probe = null;
       if (ok) {
-        mismatchSince = 0; needsTap = false; reason = 'room-audio-allowed';
+        mismatchSince = 0; needsTap = false; recheckFailures = 0; reason = 'room-audio-allowed';
         window.watchFusionRoomSyncLog?.note?.('room-audio-unlocked', {}); return;
+      }
+      // A live decoder can lose one volume application during track reinitialization.
+      // Retry once with fresh evidence; never re-seek or loop indefinitely.
+      if (!wasStartup && ytPlayer?.getPlayerState?.() === 1 && recheckFailures++ === 0) {
+        mismatchSince = at; nextRecheckAt = at + 1200; reason = 'room-audio-retry-pending';
+        window.watchFusionRoomSyncLog?.note?.('room-audio-retry-pending', {}); return;
       }
       needsTap = true; tried = true; reason = 'browser-requires-tap';
       // The startup probe may trigger a browser play-block; keep the video playing muted.
@@ -93,7 +99,7 @@
     // A decoder reload may reuse the SAME player object, and a browser may mute mid-play.
     // The initial one-shot check does not cover either case. Reapply the host's audio
     // locally after stable mismatch, with no seek, pause, play, or room publication.
-    if (audioMatches(audio)) { mismatchSince = 0; reason = 'room-audio-applied'; return; }
+    if (audioMatches(audio)) { mismatchSince = 0; recheckFailures = 0; reason = 'room-audio-applied'; return; }
     if (!mismatchSince) mismatchSince = at;
     if (at - mismatchSince < MISMATCH_DWELL_MS || at - playingSince < START_GRACE_MS || at < nextRecheckAt) return;
     nextRecheckAt = at + RECHECK_COOLDOWN_MS; mismatchSince = 0; tried = true;
@@ -102,6 +108,21 @@
     try { if (applyRoomAudioState(ytPlayer, true) !== true) throw Error('room audio unavailable'); }
     catch { probe = null; needsTap = true; reason = 'room-audio-recheck-failed'; }
   }
+  // An ordinary real click/remote-key can unlock autoplay; Sync me must not be required.
+  function recoverOnGesture(event) {
+    if (!needsTap || !scope || !ytPlayer || event.target?.closest?.('#' + ID)) return;
+    const audio = typeof authoritativeRoomAudio === 'function' ? authoritativeRoomAudio() : null;
+    if (!audio || audio.muted || audio.volume <= 0 || state?.playback?.paused) return;
+    userGesturePrimeUsed = true; autoplayWasBlocked = false; needsTap = false;
+    try {
+      if (applyRoomAudioState(ytPlayer, true) !== true) throw Error('room audio unavailable');
+      if (ytPlayer.getPlayerState?.() !== 1) ytPlayer.playVideo?.();
+      probe = {at:performance.now(),kind:'tap'}; reason = 'room-audio-gesture-verifying';
+      window.watchFusionRoomSyncLog?.note?.('room-audio-gesture-retry', {});
+    } catch { probe = null; needsTap = true; reason = 'room-audio-gesture-failed'; }
+  }
+  window.addEventListener('pointerdown', recoverOnGesture, {capture:true,passive:true});
+  window.addEventListener('keydown', recoverOnGesture, {capture:true});
   setInterval(() => { try { tick(); } catch { reason = 'room-audio-error'; } }, 400);
   window.WatchFusionRoomAudioUnlock = {version: 'v13.10.8a', diagnostics: () => ({reason, tried, probing: !!probe, needsTap, recheckCooldownMs:Math.max(0,Math.round(nextRecheckAt-performance.now()))})};
 })();

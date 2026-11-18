@@ -46,6 +46,7 @@
     if (/^(?:rate-converging|rate-started|rejoin-started|host-peer-rejoin|stall-kick-started|hold-started|host-zero-centering|decoder-reload-once|decoder-recovery|zero-converging)$/.test(reason || '')) return 'Correcting';
     if (/^(?:stall-recovery-exhausted|auto-correction-suspended|viewer-stalled-while-playing)$/.test(reason || '')) return 'Recovery stalled';
     if (/^(?:host-auto-seek-guarded|host-subsecond-preserved)$/.test(reason || '')) return 'Playing · seek guarded';
+    if (reason === 'output-phase-unverified') return 'Playing · audio phase unverified';
     return 'Playing · offset reported';
   }
   globalThis.WatchFusionPrecisionPolicy = Object.freeze({

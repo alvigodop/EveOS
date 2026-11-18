@@ -35,6 +35,14 @@ export function sanitizeSensor(value) {
     audibleOutput: AUDIBLE_OUTPUTS.has(value.audibleOutput) ? value.audibleOutput : 'unknown'};
 }
 
+// Remote decoder diagnostics are bounded enums and integers only: never raw messages or URLs.
+export function sanitizeDecoderRecovery(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  return {outcome:word(v.outcome),steps:int(v.steps,0,2),healthyProgressMs:int(v.healthyProgressMs,0,600000),
+    stallMs:int(v.stallMs,0,600000),stallSteps:int(v.stallSteps,0,3),arbiterReason:word(v.arbiterReason),
+    replayLoads:count(v.replayLoads)};
+}
+
 // Why a member's report did not become a peer row: counts only, per room timing scope.
 export const REJECTIONS = ['payload', 'invalid-body', 'epoch-changed', 'clock-skew', 'invalid-report'];
 export function noteRejection(entry, reason) {
