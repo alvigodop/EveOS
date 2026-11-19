@@ -51,7 +51,7 @@
     let model = load();
     let scope = '', phase = 'observe', samples = [], last = null, reason = 'idle', job = null;
     let lockedAt = -1, locked = false, failures = 0, cooldownUntil = 0, lastCorrection = null;
-    let acquiredAt = -1, firstFineLockAt = -1, lastTickAt = -1;
+    let acquiredAt = -1, firstFineLockAt = -1, lastTickAt = -1, healthySince = -1, healthyRearms = 0;
     // getCurrentTime() is cached/sample-and-hold (IFrame messages; coarse TV updates).
     // Track when the value last changed so held readings are projected, not trusted.
     let held = {value: null, since: 0};
@@ -78,7 +78,7 @@
       cancelJob(io);
       scope = next; phase = 'observe'; samples = []; last = null; reason = why;
       locked = false; lockedAt = -1; failures = 0; cooldownUntil = 0; lastCorrection = null;
-      acquiredAt = firstFineLockAt = lastTickAt = -1; lastZeroServoAt = -Infinity;
+      acquiredAt = firstFineLockAt = lastTickAt = healthySince = -1; lastZeroServoAt = -Infinity; healthyRearms = 0;
       rearm(); hostGuard?.reset();
     }
     function rearm() {
@@ -88,7 +88,7 @@
     // A transport change, Sync me or scrub invalidates the evidence but not the device model.
     function intent(kind, io = null) {
       cancelJob(io);
-      phase = 'observe'; samples = []; last = null; locked = false; reason = 'intent-' + kind;
+      phase = 'observe'; samples = []; last = null; locked = false; healthySince = -1; reason = 'intent-' + kind;
       if (kind !== 'pause') { failures = 0; cooldownUntil = 0; rearm(); }
     }
     function owns() { return !!job; }
@@ -145,7 +145,7 @@
     function begin(kind, nowMs, error, io, extra = {}) {
       stats.corrections++;
       lastCorrection = {kind, before: error, at: nowMs};
-      phase = kind; samples = []; last = null; locked = false;
+      phase = kind; samples = []; last = null; locked = false; healthySince = -1;
       job = {kind, startedAt: nowMs, before: error, ...extra};
       reason = kind + '-started';
     }
@@ -292,12 +292,12 @@
           return;
         }
       }
-      if (absolute <= MONITOR_SEC + EPS_SEC) {
+      if (absolute <= MONITOR_SEC + EPS_SEC) { if (healthySince < 0) healthySince = nowMs;
         if (!locked) lockedAt = nowMs;
         if (firstFineLockAt < 0) firstFineLockAt = nowMs;
-        locked = true; reason = 'locked'; return;
+        locked = true; if (failures && nowMs - healthySince >= 15000 && io.referenceTrusted?.() === true && !io.sourceBuffering?.() && nowMs - lastStallSeenAt >= 15000) { failures = 0; cooldownUntil = Math.min(cooldownUntil, nowMs); healthyRearms++; reason = 'locked-failure-rearmed'; } else reason = 'locked'; return;
       }
-      if (absolute <= ACTION_SEC + EPS_SEC) {
+      healthySince = -1; if (absolute <= ACTION_SEC + EPS_SEC) {
         // Refining: soft rate nudges toward 0 ms when the error exceeds reference noise; never a seek.
         const precision = Number(io.referenceUncertaintyMs?.());
         if (absolute >= ZERO_SERVO_SEC && model.rateHonored !== false && io.referenceTrusted?.() === true
@@ -366,13 +366,13 @@
       if (job) return {owned: true, reason, phase};
       const state = io.state();
       // While the reference source itself buffers, the target is not trustworthy.
-      if (state === 1 && io.sourceBuffering?.()) { samples = []; last = null; reason = 'source-buffering'; return {owned: false, reason, phase}; }
-      if (state !== 1) { samples = []; last = null; reason = state === 3 ? 'buffering' : 'awaiting-playing'; return {owned: false, reason, phase}; }
+      if (state === 1 && io.sourceBuffering?.()) { healthySince = -1; samples = []; last = null; reason = 'source-buffering'; return {owned: false, reason, phase}; }
+      if (state !== 1) { healthySince = -1; samples = []; last = null; reason = state === 3 ? 'buffering' : 'awaiting-playing'; return {owned: false, reason, phase}; }
       const current = projected(nowMs, io.current(), io.baseRate), target = io.target(nowMs);
-      if (!Number.isFinite(current) || !Number.isFinite(target)) { reason = 'invalid-sample'; return {owned: false, reason, phase}; }
+      if (!Number.isFinite(current) || !Number.isFinite(target)) { healthySince = -1; reason = 'invalid-sample'; return {owned: false, reason, phase}; }
       if (phase === 'verify' && nowMs < cooldownUntil) { last = {nowMs, current, target}; return {owned: false, reason: 'settling', phase}; }
       const error = sample(nowMs, current, target, io.baseRate);
-      if (error !== null) decide(nowMs, error, io);
+      if (error !== null) decide(nowMs, error, io); else healthySince = -1;
       return {owned: !!job, reason, phase};
     }
     // Sync me / transport rejoin while the room is playing: same landing-aware path.
@@ -421,7 +421,7 @@
     }
 
     function snapshot() {
-      return {phase, reason, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
+      return {phase, reason, healthyRearms, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
         model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), effectiveHostReleaseLatencyMs: Math.round((hostGuard?.releaseLatency({hostLinked:true},model) ?? model.releaseLatencySec)*1000), leadMs: Math.round(model.leadSec * 1000),
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
         ...stats, tolerancesMs: {monitor: 50, action: 100, outOfSync: 100},

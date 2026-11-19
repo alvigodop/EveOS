@@ -13,8 +13,23 @@
   let burstUntil = -Infinity, lastHealthKey = '', lastHealthCritical = false;
   let entries = [], events = [], roomScope = '', lastPeers = new Map(), lastKey = '', lastAt = 0, requestAt = -Infinity;
   let lastRendered = '', lastSegmentKey = '', segmentSequence = 0;
+  let observedSong = 0, lastSongKey = '';
   const finite = value => typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
   const memberName = id => (state?.members || []).find(m => m.id === id)?.name || 'Viewer';
+  // Explicit opt-in title in copied diagnostics, never a URL, artwork, token, or full metadata blob.
+  const title = value => typeof value === 'string' ? value.replace(/(?:https?:\/\/|www\.)\S+/gi,'[link]').replace(/[\u0000-\u001f\u007f]/g,' ').trim().slice(0,110)||null : null;
+  const timeMs = sec => Number.isFinite(sec) && sec>=0 && sec<43200 ? Math.round(sec*1000) : null;
+  function song() {
+    const m=window.watchFusionLinkedTab?.metadata?.()||{}, linked=window.watchFusionLinkedTab?.active?.()===true;
+    const key=String(m.pageUrl||m.title||(!linked?state?.source?.videoId:'')||'')+'|'+(Number.isInteger(m.index)?m.index:'');
+    if (key!=='|' && key!==lastSongKey) {observedSong++;lastSongKey=key;}
+    const dur=timeMs(Number(m.duration)),pos=timeMs(Number(m.currentTime));
+    const idx=Number.isInteger(m.index)&&m.index>=0?m.index+1:null;
+    const total=Array.isArray(m.queue)?m.queue.length:Number(m.queueLength??m.totalTracks);
+    return {observedSong:observedSong||null,playlistIndex:idx,playlistTotal:Number.isInteger(total)&&total>0&&total<=10000?total:null,
+      title:title(m.title||state?.source?.title),durationMs:dur,elapsedMs:pos,remainingMs:dur!==null&&pos!==null?Math.max(0,dur-pos):null};
+  }
+  const clock = ms => Number.isFinite(ms)?Math.floor(ms/60000)+':'+String(Math.floor(ms/1000)%60).padStart(2,'0'):'?';
   // Keep one trace across consecutive songs within the same room; no room IDs exported.
   const currentScope = () => roomId && session ? [roomId,session.memberId].join(':') : '';
   function recover(peer) {
@@ -131,7 +146,7 @@
     const recent = entries.slice(-15).map(item => {
       const peers = item.peers.map(p => `${p.device}: ${p.targetErrorMs === null ? 'room ' + (p.rawOffsetMs ?? '?') : 'target ' + p.targetErrorMs}ms · startup ${p.startupWaitMs ?? '?'}ms · ${p.corrections ?? '-'} seeks${p.signals.length ? ' [' + p.signals.join(',') + ']' : ''}`).join(' / ');
       const h=item.peers.find(p=>p.freeze)?.freeze;
-      return `${item.at.slice(11,19)} #${item.segmentSequence||'?'} ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''}${item.groupPhase ? ' · ' + item.groupPhase : ''} | ${peers}${h ? ' · host:'+h.state+(h.guard ? ' ('+h.guard+')' : '') : ''}`;
+      return `${item.at.slice(11,19)} #${item.segmentSequence||'?'} song${item.song?.playlistIndex||item.song?.observedSong||'?'} ${item.song?.title||'title unavailable'} ${clock(item.song?.elapsedMs)}/${clock(item.song?.durationMs)} (-${clock(item.song?.remainingMs)}) ${item.ref || 'room-clock'}${item.source ? ' src:' + item.source : ''}${item.groupPhase ? ' · ' + item.groupPhase : ''} | ${peers}${h ? ' · host:'+h.state+(h.guard ? ' ('+h.guard+')' : '') : ''}`;
     }).join('\n');
     const transitions = events.slice(-10).map(e => `${e.at.slice(11,19)} #${e.segmentSequence||'?'} ! ${e.kind}${e.reason?' · '+e.reason:''}`).join('\n');
     const display = [recent,transitions].filter(Boolean).join('\n');
@@ -148,7 +163,7 @@
     const phaseMs = finite(coordination?.phaseMs);
     const row = {at:new Date().toISOString(), segmentSequence, ref, referencePhaseMs:phaseMs,
       uncertaintyMs:finite(coordination?.uncertaintyMs), sourceBuffering:!!coordination?.authorityBuffering,
-      source:coordination?.source || null, sourcePhaseMs:finite(coordination?.sourcePhaseMs),
+      source:coordination?.source || null, sourcePhaseMs:finite(coordination?.sourcePhaseMs),song:song(),
       ...relative, speakerPhase:'not-measured', roster:members===null?null:{members,reporting,rejections},
       peers:rows};
     const key = JSON.stringify([ref,phaseMs,relative.groupPhase,members,reporting,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.seekHealth?.recoveryAttempts,p.signals])]);
@@ -171,7 +186,7 @@
     roomScope = scope;
     entries = []; events = [];
     lastPeers.clear();
-    lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;lastHealthKey='';lastHealthCritical=false;
+    lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;lastHealthKey='';lastHealthCritical=false;observedSong=0;lastSongKey='';
     window.WatchFusionFreezeTelemetry?.reset?.();
     lastAt = 0;
     requestAt = -Infinity;
@@ -183,7 +198,7 @@
   }
   function note(kind, detail={}) {
     refreshScope();
-    if(!roomScope || !/^(?:source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|host-zero-pulse-gated|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing|sync-health-state)$/.test(kind)) return;
+    if(!roomScope || !/^(?:ui-intent|source-(?:play|pause|volume|track-transition|seek-confirmed|seek-unconfirmed|seek-retry|transport-unconfirmed|transport-retry|command-timeout|volume-unconfirmed)|embedded-control|mirror-(?:request|applied)|room-transition|host-rejoin-(?:gated|triggered|accepted|rejected|settled|incomplete|verifying|retry-armed|budget-exhausted|drift-returned)|playlist-(?:transition|resume-attempt|resume-confirmed|resume-blocked|resume-expired|pause-preserved|pause-deferred|preview-guarded)|solo-sync-one-rejoin|zero-converge-pulse|host-zero-pulse-gated|tv-decoder-(?:reload|rebuild|rearmed|recovered|budget-spent)|room-audio-(?:unlocked|reapplied|needs-tap)|source-stall-held|host-link-(?:lost|resumed|restore-attempt|denied|suppressed)|host-source-(?:rejoin-triggered|rejoin-accepted|rejoin-refused|settled|landing-incomplete|backoff|contradicted)|mirror-drift-observing|rejoin-landing|sync-health-state)$/.test(kind)) return;
     recordSegment();
     const fields={};
     for(const key of ['action','reason','playing','paused','positionMs','sampleAgeMs','sourceAgeMs','volumePct','rate','sequence','ackLatencyMs','roundTripMs','reference','hostErrorMs','peerErrorMs','gapMs','peerCount','observedPeerCount','observedPeerErrorMs','peerSpreadMs','dwellMs','attempts','status','backoffMs','muted','generation','step','errorMs','driftMs','beforeMs','residualMs','progressMs','leadMs','landedShortMs','releaseLeadMs','releaseErrMs','holdMs','startLatencyMs','mirrorDriftMs','sourcePhaseMs','clockGapMs','clockEvidence','durationMs','playerErrorMs','heldMs','owner','guard']) {
@@ -192,7 +207,7 @@
           typeof v==='string' && /^[a-z-]{1,35}$/.test(v)) fields[key]=v;
     }
     if (BURST.test(kind)) burstUntil = performance.now() + 6000;
-    events.push({at:new Date().toISOString(),kind,segmentSequence,...fields});prune();render();
+    events.push({at:new Date().toISOString(),kind,segmentSequence,song:song(),...fields});prune();render();
   }
   function wantsSample() {
     refreshScope();
@@ -210,7 +225,7 @@
     refreshScope();
     prune();
     return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
-      disclosure:'Player timing, local controller gates and redacted transitions only; no audio, URLs, titles, tokens or microphone measurements. Target error is player position against the room clock, which the muted source tab drives; speaker output phase is not measured. Group phase compares only players that are themselves audible; a clock bound is ±max(round trip)/2 with unknown asymmetry inside it, never a measured accuracy',
+      disclosure:'Player timing, source-supplied song titles and durations, user control intents and redacted transitions only; no audio, URLs, tokens or microphone measurements. Titles are included only when the user copies this local log. Player target error does not measure speaker-output latency; clock bounds include unknown asymmetry.',
       diagnosticsVersion:'v13.10.8i',snapshots:entries,events},null,2);
   }
   async function copyLog() {
@@ -225,7 +240,7 @@
     } catch {area.value=content;area.focus();area.select();copy.textContent='Select to copy';}
   }
   copy?.addEventListener('click', () => void copyLog());
-  clear?.addEventListener('click', () => {entries=[];events=[];lastPeers.clear();lastKey='';lastRendered='';render();});
+  clear?.addEventListener('click', () => {entries=[];events=[];lastPeers.clear();lastKey='';lastRendered='';observedSong=0;lastSongKey='';render();});
   panel.addEventListener('toggle', render);
   window.watchFusionRoomSyncLog = {export:exported, wantsSample, observe, note};
 })();

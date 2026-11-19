@@ -365,11 +365,11 @@
     const previous=lastMetadata;
     window.WatchFusionPlaylistContinuity?.onTransition?.(previous,sample,{eligible:!!(roomProof()&&isHost())});
     if (previous.pageUrl && previous.pageUrl !== sample.pageUrl) {
-      window.watchFusionRoomSyncLog?.note?.('source-track-transition',{sequence:++trackTransitions,sourceAgeMs:Math.round(now-Number(sample.sampledAt))});
+      trackTransitions++;
       clearVolumeDraft(); pendingControls.delete('volume');
       confirmedVolume = null; zeroVolumeSince = 0;
     }
-    lastMetadata = { ...lastMetadata, ...sample, volume:reconcileSourceVolume(sample, previous, now) };
+    lastMetadata = { ...lastMetadata, ...sample, volume:reconcileSourceVolume(sample, previous, now) };if(previous.pageUrl&&previous.pageUrl!==sample.pageUrl)window.watchFusionRoomSyncLog?.note?.('source-track-transition',{sequence:trackTransitions,sourceAgeMs:Math.round(now-Number(sample.sampledAt))});
     if(previous.pageUrl===sample.pageUrl && previous.paused!==undefined && previous.paused!==sample.paused)
       window.watchFusionRoomSyncLog?.note?.(sample.paused?'source-pause':'source-play',
         {positionMs:Math.round((Number(sample.currentTime)||0)*1000),sampleAgeMs:Math.round(now-Number(sample.sampledAt))});

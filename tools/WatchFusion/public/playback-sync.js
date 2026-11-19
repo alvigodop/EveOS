@@ -414,7 +414,7 @@
     hostPositionSample = {scope, position, at, rate, playing:playerState === 1};
     if (previous?.scope === scope && previous.playing === hostPositionSample.playing && previous.rate === rate
         && window.WatchFusionLinkedPlaybackSync.positionJumped(position, previous, at)) {
-      void command('seek', { position, paused: playerState === 2 }).catch(() => setStatus('Room playback is reconnecting…'));
+      window.watchFusionRoomSyncLog?.note?.('ui-intent',{action:'seek-observed',positionMs:Math.round(position*1000)});void command('seek', { position, paused: playerState === 2 }).catch(() => setStatus('Room playback is reconnecting…'));
     }
   }
   setInterval(() => {

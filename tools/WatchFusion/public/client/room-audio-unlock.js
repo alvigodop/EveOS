@@ -10,7 +10,7 @@
   const ID = 'watchfusionEnableRoomAudio', VERIFY_MS = 900, START_GRACE_MS = 1500;
   const MISMATCH_DWELL_MS = 800, RECHECK_COOLDOWN_MS = 10000, VOLUME_TOLERANCE = 2;
   let scope = '', player = null, probe = null, tried = false, playingSince = 0, reason = 'idle';
-  let mismatchSince = 0, nextRecheckAt = 0, needsTap = false, audioKey = '', recheckFailures = 0;
+  let mismatchSince = 0, nextRecheckAt = 0, needsTap = false, audioKey = '', recheckFailures = 0, lastGestureAt = -Infinity;
   const safeVolume = () => { try { return Number(ytPlayer?.getVolume?.()); } catch { return NaN; } };
   const audioTelemetryAvailable = () => typeof ytPlayer?.getVolume === 'function'
     && typeof ytPlayer?.isMuted === 'function' && Number.isFinite(safeVolume());
@@ -40,7 +40,7 @@
     // v13.10.8: a decoder rebuild or reload makes a new player that starts at its own default audio
     // (Drift's TV lost the room volume after a reload). A new player instance gets its own attempt.
     if (next !== scope || ytPlayer !== player) {
-      scope = next; player = ytPlayer; probe = null; tried = false; playingSince = 0;
+      scope = next; player = ytPlayer; probe = null; tried = false; playingSince = 0; lastGestureAt = -Infinity;
       mismatchSince = 0; nextRecheckAt = 0; needsTap = false; audioKey = ''; recheckFailures = 0;
     }
     const expectedKey = audio ? `${audio.volume}:${audio.muted}` : '';
@@ -110,7 +110,14 @@
   }
   // An ordinary real click/remote-key can unlock autoplay; Sync me must not be required.
   function recoverOnGesture(event) {
-    if (!needsTap || !scope || !ytPlayer || event.target?.closest?.('#' + ID)) return;
+    // TV remotes sometimes emit click without pointerdown. Any genuine interaction
+    // can attempt room unmute before the explicit button is shown; never synthesize
+    // a gesture or retry endlessly after browser refusal.
+    if (!scope || !ytPlayer || !ytPlayerReady || playerInitializing || primingPlayer || probe || event.repeat
+        || event.target?.closest?.('#' + ID)) return;
+    const at=performance.now(); if(at-lastGestureAt<850)return;
+    if (!needsTap && !autoplayWasBlocked) return;
+    lastGestureAt=at;
     const audio = typeof authoritativeRoomAudio === 'function' ? authoritativeRoomAudio() : null;
     if (!audio || audio.muted || audio.volume <= 0 || state?.playback?.paused) return;
     userGesturePrimeUsed = true; autoplayWasBlocked = false; needsTap = false;
@@ -118,11 +125,13 @@
       if (applyRoomAudioState(ytPlayer, true) !== true) throw Error('room audio unavailable');
       if (ytPlayer.getPlayerState?.() !== 1) ytPlayer.playVideo?.();
       probe = {at:performance.now(),kind:'tap'}; reason = 'room-audio-gesture-verifying';
-      window.watchFusionRoomSyncLog?.note?.('room-audio-gesture-retry', {});
+      window.watchFusionRoomSyncLog?.note?.('room-audio-reapplied', {reason:'member-gesture'});
     } catch { probe = null; needsTap = true; reason = 'room-audio-gesture-failed'; }
   }
   window.addEventListener('pointerdown', recoverOnGesture, {capture:true,passive:true});
   window.addEventListener('keydown', recoverOnGesture, {capture:true});
+  window.addEventListener('click', recoverOnGesture, {capture:true});
+  window.addEventListener('touchstart', recoverOnGesture, {capture:true,passive:true});
   setInterval(() => { try { tick(); } catch { reason = 'room-audio-error'; } }, 400);
-  window.WatchFusionRoomAudioUnlock = {version: 'v13.10.8a', diagnostics: () => ({reason, tried, probing: !!probe, needsTap, recheckCooldownMs:Math.max(0,Math.round(nextRecheckAt-performance.now()))})};
+  window.WatchFusionRoomAudioUnlock = {version: 'v13.10.8a', diagnostics: () => ({reason, tried, probing: !!probe, needsTap, browserGestureRequired: needsTap, recheckCooldownMs:Math.max(0,Math.round(nextRecheckAt-performance.now()))})};
 })();
