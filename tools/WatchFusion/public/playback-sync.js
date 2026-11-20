@@ -25,7 +25,7 @@
   let replayLoads = 0;
   let viewerSawEnded = false;
   let replayKey = '', transportSeekPending = false, viewerPausedPosition = null, lastRateRequest = null, coldJoinUntil = 0;
-  let driftSamples = [];
+  let trackStartRecovery = null;
   let diagnostics = {
     rawDriftSec: 0,
     filteredDriftSec: 0,
@@ -36,10 +36,17 @@
   };
   // Fresh TV-only join: one time-limited, same-video, qualified seek for seconds-scale displacement.
   const coldJoinReady=({until,nowMs,roomPaused,force,playerState,drift,linked,reference,matches})=>!!(until>nowMs&&!roomPaused&&!force&&playerState===1&&Math.abs(drift)>8&&matches&&(!linked||reference?.source==='live'&&reference.authorityBuffering!==true&&Number.isFinite(reference.sourcePhaseMs)&&Math.abs(reference.sourcePhaseMs)<=100));
-  function normalizeDeviceDelay(value) {
-    const steps = Math.round((Number(value) || 0) / DEVICE_TIMING_STEP_MS);
-    return Math.max(-DEVICE_TIMING_LIMIT_MS, Math.min(DEVICE_TIMING_LIMIT_MS, steps * DEVICE_TIMING_STEP_MS));
+  // This gate cannot actuate anything. It qualifies a one-shot transition
+  // rejoin, never a correction on an established small-offset song.
+  function trackStartRecoveryEligible({ageMs, driftSec, stable, ready, sourceLive,
+      uncertaintyMs, rateList, firstProgressMs, seekCount, contradicted}) {
+    return ageMs >= 4500 && ageMs <= 18000 && driftSec >= .20 && driftSec <= .85
+      && stable && ready && sourceLive && !contradicted && seekCount === 0
+      && uncertaintyMs !== null && Number.isFinite(uncertaintyMs) && uncertaintyMs >= 0 && uncertaintyMs <= 100
+      && Number.isFinite(firstProgressMs) && firstProgressMs >= 0 && firstProgressMs <= 1100
+      && Array.isArray(rateList) && rateList.length >= 1 && rateList.every(r => Math.abs(r-1) < .01);
   }
+  function normalizeDeviceDelay(value) { return globalThis.WatchFusionTimelineMath.normalizeDelay(value,DEVICE_TIMING_STEP_MS,DEVICE_TIMING_LIMIT_MS); }
   function hasDeviceTiming() {
     return !!roomId && !!state?.source?.videoId && followsRoomPlayback() && !isHost();
   }
@@ -81,23 +88,8 @@
     }
     renderDeviceTiming();
   }
-  function median(values) {
-    if (!values.length) return 0;
-    const sorted = values.slice().sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-  }
-  function resetDriftSensor(action = 'reset') {
-    driftSamples = [];
-    diagnostics = {
-      rawDriftSec: 0,
-      filteredDriftSec: 0,
-      spreadSec: 0,
-      sampleCount: 0,
-      stable: false,
-      action
-    };
-  }
+  const driftSensor = globalThis.WatchFusionTimelineMath.createDriftSensor({windowSize:SENSOR_WINDOW,minSamples:SENSOR_MIN_SAMPLES,minAgeMs:SENSOR_MIN_AGE_MS,maxSpreadSec:SENSOR_MAX_SPREAD_SEC,toleranceSec:SYNC_TOLERANCE_SEC});
+  function resetDriftSensor(action = 'reset') { diagnostics = driftSensor.reset(action); }
   function syncStateKey() {
     const p = state?.playback;
     if (!p) return '';
@@ -137,28 +129,7 @@
     awaitingSeekRecovery = false;
     seekCooldownUntil = 0;
   }
-  function sampleDrift(rawDrift, nowMs) {
-    driftSamples.push({ drift: rawDrift, at: nowMs });
-    if (driftSamples.length > SENSOR_WINDOW) driftSamples.shift();
-    const values = driftSamples.map(sample => sample.drift);
-    const filtered = median(values);
-    const spread = values.length ? Math.max(...values) - Math.min(...values) : 0;
-    const age = driftSamples.length > 1 ? driftSamples.at(-1).at - driftSamples[0].at : 0;
-    const sameDirection = values.every(value => Math.abs(value) <= SYNC_TOLERANCE_SEC || Math.sign(value) === Math.sign(filtered));
-    const stable = values.length >= SENSOR_MIN_SAMPLES
-      && age >= SENSOR_MIN_AGE_MS
-      && spread <= SENSOR_MAX_SPREAD_SEC
-      && sameDirection;
-    diagnostics = {
-      rawDriftSec: rawDrift,
-      filteredDriftSec: filtered,
-      spreadSec: spread,
-      sampleCount: values.length,
-      stable,
-      action: diagnostics.action
-    };
-    return diagnostics;
-  }
+  function sampleDrift(rawDrift, nowMs) { return diagnostics = driftSensor.sample(rawDrift,nowMs,diagnostics.action); }
   function connectedStatus() {
     return isTryCloudflare ? 'Connected (remote sync)' : 'Connected';
   }
@@ -234,7 +205,11 @@
       pause: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.pauseVideo?.(); },
       play: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.playVideo?.(); },
       rate: rate => setViewerRate(rate),
-      sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.(),
+      sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.(), mirrorContradicted: () => !!window.WatchFusionMirrorConvergenceGate?.contradicted?.(),
+      recentSourceRecovery: () => { const c=window.watchFusionPlayout?.status?.();
+        if(!c || c.source!=='live' || c.reference!=='linked-tab' || c.authorityBuffering || window.WatchFusionMirrorConvergenceGate?.contradicted?.())return null;
+        return c.sourceRecovery ? {...c.sourceRecovery,reference:c.reference,source:c.source,
+          uncertaintyMs:c.uncertaintyMs,authorityBuffering:c.authorityBuffering} : null; },
       referenceUncertaintyMs: () => { const c=window.watchFusionPlayout?.status?.();const p=isHost()?window.watchFusionPresentation?.peerCandidate?.():null;const offset=(Number(ytPlayer?.getCurrentTime?.())-Number(window.watchFusionYouTubeTarget?.(estimatedServerNow(),ytPlayer?.getDuration?.())))*1000;return window.WatchFusionPrecisionPolicy?.trustedHostReference?.(c,p,offset)?.precisionMs??c?.uncertaintyMs??null; },
       // Host-driven rooms have no external source: the host transport is the room timeline.
       // With a linked source, large automatic moves need that source to corroborate the room.
@@ -251,6 +226,7 @@
     const roomPaused = !!(state.playback.paused || state.playback.ended);
     const sameSource = viewerScope && scope.slice(0, scope.lastIndexOf(':')) === viewerScope.slice(0, viewerScope.lastIndexOf(':'));
     const ordinaryResume = viewerPausedPosition !== null && !roomPaused && Math.abs(Number(state.playback.position) - viewerPausedPosition) < .75;
+    if (scope !== viewerScope) trackStartRecovery = viewerScope && !sameSource && !roomPaused && !isHost() ? {scope, at:performance.now(), spent:false} : null;
     viewerPausedPosition = roomPaused ? Number(state.playback.position) : null;
     const baseRate = Math.min(2, Math.max(0.25, Number(state.playback.rate) || 1));
     const duration = Number(ytPlayer.getDuration?.()) || 0;
@@ -336,12 +312,34 @@
       return true;
     }
     sampleDrift(rawDrift, nowMs);
+    // v13.10.8x-r3: one deliberate, qualified initial landing after an actual
+    // track replacement. A fixed-rate TV may have started ~400ms late but has
+    // no legal continuous fine actuator. Do not chase that error mid-song.
+    if (trackStartRecovery && !trackStartRecovery.spent && trackStartRecovery.scope === scope
+        && !force && !roomPaused && playerState === 1 && !buffering
+        && !arbiter?.owns() && ytPlayer.getVideoData?.()?.video_id === state.source.videoId) {
+      const c = window.watchFusionPlayout?.status?.(), first = window.watchFusionYouTubeStartup?.snapshot?.()?.firstProgressDelayMs;
+      const eligible = trackStartRecoveryEligible({ageMs:nowMs - trackStartRecovery.at,
+        driftSec:diagnostics.filteredDriftSec, stable:diagnostics.stable,
+        ready:startup?.ready === true, sourceLive:c?.source === 'live' && c?.authorityBuffering !== true,
+        uncertaintyMs:c?.uncertaintyMs ?? null, rateList:ytPlayer.getAvailablePlaybackRates?.(),
+        firstProgressMs:first, seekCount:correctiveSeeks,
+        contradicted:window.WatchFusionMirrorConvergenceGate?.contradicted?.() === true});
+      if (eligible) {
+        trackStartRecovery.spent = true; // one attempt only, even on rejection
+        if (arbiter?.rejoinNow?.(nowMs,io,'track-start') === true) {
+          diagnostics.action = 'track-start-qualified-rejoin';
+          setStatus('Catching up…');
+          return true;
+        }
+      }
+    }
     if (startup?.ready === false && !arbiter?.owns()) {
       // PLAYING with a frozen position never proves movement: the arbiter's bounded ladder recovers it.
       if (arbiter?.recoverStall?.(nowMs, io, startup.stalledMs)) { diagnostics.action = arbiter.snapshot().reason; return true; }
       const exhausted=arbiter?.snapshot().reason === 'stall-recovery-exhausted';
       if(exhausted && decoderRescue(false)){diagnostics.action='decoder-recovery';setStatus('TV decoder recovery · restarting this player once…');return true;}
-      diagnostics.action=exhausted?'stall-recovery-exhausted':startup.reason;requestViewerPlayback();return true;
+      diagnostics.action=exhausted?'stall-recovery-exhausted':startup.reason;if(playerState!==1)requestViewerPlayback();return true;
     }
     // Healthy PLAYING is observation only: it cannot invoke any reload/seek.
     if (!force && startup?.ready === true && !arbiter?.owns()) decoderRescue(false, false);

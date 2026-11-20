@@ -8,7 +8,7 @@
   // still report the source live and in phase; that is contradictory evidence, so host-source recovery waits on it.
   const CONTRADICTION_MS = 4000, LARGE_SEC = .75;
   let candidate = null, lastPublishedAt = -Infinity, held = 0, published = 0, lastNote = -Infinity, heldSinceNote = 0;
-  let contradiction = null;
+  let contradiction = null, clockEvidence = null;
   const clock = () => performance.now();
   function defer(plan, metadata = {}, page = '') {
     if (!plan?.publish || plan.reason !== 'drift' || metadata.paused || metadata.ended) {
@@ -32,6 +32,8 @@
     if (!same || sampleAt - candidate.firstAt < CONFIRM_MS || now - lastPublishedAt < COOLDOWN_MS) {
       held++; heldSinceNote++;
       if (Math.abs(drift) > LARGE_SEC) contradiction = {driftMs: Math.round(drift * 1000), at: now, confirmed: same && sampleAt - candidate.firstAt >= CONFIRM_MS};
+      const phaseNow=window.watchFusionPlayout?.status?.()?.sourcePhaseMs; const gapNow=Number.isFinite(phaseNow)?Math.round(drift*1000-phaseNow):null;
+      clockEvidence={gapMs:gapNow,sourcePhaseMs:Number.isFinite(phaseNow)?Math.round(phaseNow):null,sampleAgeMs:Math.round(Date.now()-sampleAt),at:now,classification:gapNow!==null&&Math.abs(gapNow)>750?'clock-domains-disagree':'unverified'};
       if (now - lastNote > 15000) {
         lastNote = now;
         // Sample age (local clock, same domain as the anchor) and how often this happened: is it a held source sample?
@@ -49,11 +51,11 @@
     }
     published++; lastPublishedAt = now; candidate = null; return false;
   }
-  function reset() {candidate = null; lastPublishedAt = -Infinity; contradiction = null;}
+  function reset() {candidate = null; lastPublishedAt = -Infinity; contradiction = null; clockEvidence = null;}
   // A drift publish (the room re-anchored to the source) resolves it; so does CONTRADICTION_MS without another one.
   function contradicted(now = clock()) {
     if (!contradiction || now - contradiction.at > CONTRADICTION_MS || contradiction.at <= lastPublishedAt) return null;
     return {driftMs: contradiction.driftMs, ageMs: Math.round(now - contradiction.at)};
   }
-  window.WatchFusionMirrorConvergenceGate = {defer, reset, contradicted, diagnostics: () => ({held,published,contradiction:contradicted()})};
+  window.WatchFusionMirrorConvergenceGate = {defer, reset, contradicted, diagnostics: () => ({held,published,contradiction:contradicted(),clockEvidence:clockEvidence&&clock()-clockEvidence.at<=4000?clockEvidence:null})};
 })();

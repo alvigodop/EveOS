@@ -152,7 +152,7 @@ export async function runPlaybackTimingChecks(check) {
     const bundle = fs.readFileSync(path.join(CLIENT, '..', '..', 'src', 'server', 'static-files.js'), 'utf8');
     assert.match(bundle, /'client\/viewer-sync-arbiter\.js',\s*'playback-sync\.js'/, 'the arbiter loads before the viewer path');
     assert.doesNotMatch(bundle, /gentle-catchup|sync-seek-health/, 'retired controllers cannot actuate the player');
-    for (const script of ['client/linked-playback-sync.js', 'client/youtube-startup-gate.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js']) {
+    for (const script of ['client/linked-playback-sync.js', 'client/youtube-startup-gate.js', 'client/viewer-release-evidence.js', 'client/viewer-timing-math.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js']) {
       vm.runInNewContext(fs.readFileSync(path.join(CLIENT, '..', script), 'utf8'), context);
     }
     const tickViewer = context.window.applyAdaptiveViewerSync;

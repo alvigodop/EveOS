@@ -15,7 +15,7 @@ export function viewerScripts() {
   const bundle = fs.readFileSync(path.join(ROOT, 'src/server/static-files.js'), 'utf8');
   const listed = [...bundle.matchAll(/'((?:client\/)?[a-z0-9-]+\.js)'/g)].map(m => m[1]);
   const wanted = new Set(['client/linked-playback-sync.js', 'client/sync-seek-health.js', 'client/youtube-startup-gate.js',
-    'client/gentle-catchup.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/presentation-sync.js', 'client/room-playout.js']);
+    'client/gentle-catchup.js', 'client/viewer-release-evidence.js', 'client/viewer-timing-math.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/presentation-sync.js', 'client/room-playout.js']);
   return listed.filter(name => wanted.has(name));
 }
 
@@ -154,6 +154,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
 
   const lab = {
     clock, room, source, devices, addViewer, sharedSync,
+    nextTrack(videoId) { if(!/^[a-zA-Z0-9-]{5,24}$/.test(videoId))throw Error('invalid fake song');room.source={videoId};source.setTrack(videoId);for(const d of devices)d.player.setTrack(videoId);mirrorAnchor=null;setPlayback({position:0,rate:1,paused:false,ended:false}); },
     hostSeek(position) { source.seekTo(position, true); mirrorAnchor = null; setPlayback({position}); },
     pause() { source.pauseVideo(); mirrorAnchor = null; setPlayback({position: source.truePosition(), paused: true}); },
     resume() { source.playVideo(); mirrorAnchor = null; setPlayback({position: source.truePosition(), paused: false}); },

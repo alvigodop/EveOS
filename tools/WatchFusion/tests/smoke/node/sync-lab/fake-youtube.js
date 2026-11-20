@@ -35,6 +35,7 @@ export function createFakeYouTube(clock, options = {}) {
   if (o.playing && o.stuckStartMs) clock.setTimeout(() => { advance(); if (mode === 'starting') mode = 'playing'; }, o.stuckStartMs);
   const player = {
     stats, options: o,
+    setTrack(id) {advance();if(timer)clock.clearTimeout(timer);timer=null;o.videoId=id;position=0;last=clock.now();wantPlay=true;stalledUntil=0;wedged=null;requestedRate=actualRate=1;stats.loads++;startPlayback();},
     truePosition() { advance(); return position; },
     getPlayerState() { advance(); return mode === 'buffering' ? BUFFERING : mode === 'paused' ? PAUSED : PLAYING; },
     getCurrentTime() {

@@ -13,7 +13,11 @@ function context(extra = {}) {
   return vm.createContext(ctx);
 }
 function arbiterRun({errorSec, rates = [.75, 1, 1.25], uncertaintyMs = 20, trusted = true, ms = 9000}) {
-  const ctx = load('viewer-sync-arbiter.js', context({setTimeout: () => 0, clearTimeout() {}}));
+  const ctx = context({setTimeout: () => 0, clearTimeout() {}});
+  // Load the actual production dependencies, never a stub/mocked controller.
+  load('viewer-release-evidence.js', ctx);
+  load('viewer-timing-math.js', ctx);
+  load('viewer-sync-arbiter.js', ctx);
   const arbiter = ctx.WatchFusionViewerSyncArbiter.createViewerSyncArbiter({store: null,
     timers: {setTimeout: () => 0, clearTimeout() {}}});
   let position = 30 - errorSec, rate = 1;

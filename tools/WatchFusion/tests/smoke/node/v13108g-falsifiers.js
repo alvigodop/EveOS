@@ -133,6 +133,9 @@ export async function runV13108gChecks(check) {
     ctx.globalThis = ctx; ctx.window = ctx;
     ctx.setTimeout = (fn, ms) => { timers.push({at: now + ms, fn}); return timers.length; }; ctx.clearTimeout = () => {};
     ctx.localStorage = {getItem: () => null, setItem() {}};
+    // Match the app's script order in this isolated deterministic VM.
+    vm.runInNewContext(read('public/client/viewer-release-evidence.js'), ctx);
+    vm.runInNewContext(read('public/client/viewer-timing-math.js'), ctx);
     vm.runInNewContext(read('public/client/viewer-sync-arbiter.js'), ctx);
     vm.runInNewContext(read('public/client/rejoin-probe.js'), ctx);
     const A = ctx.WatchFusionViewerSyncArbiter.createViewerSyncArbiter({timers: {setTimeout: ctx.setTimeout, clearTimeout: ctx.clearTimeout}});

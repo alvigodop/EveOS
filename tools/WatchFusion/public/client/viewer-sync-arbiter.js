@@ -46,7 +46,7 @@
   const RETRY_STALL_MS = 2750, RETRY_SPACING_MS = 2750, REJOIN_RECENCY_MS = 30000;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const median = values => { const v = values.slice().sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : 0; };
-  function defaultModel() { return {releaseLatencySec: .25, hostReleaseLatencySec: null, leadSec: 1.5, landingErrorSec: 0, landingSec: .5, rateHonored: null, rateGain: 1, rejoins: 0}; }
+  function defaultModel() { return {releaseLatencySec: .25, hostReleaseLatencySec: null, leadSec: 1.5, landingErrorSec: 0, landingSec: .5, rateHonored: null, rateGain: 1, rejoins: 0, verifiedReleases: 0}; }
   function createViewerSyncArbiter({store = null, timers = globalThis} = {}) {
     let model = load();
     let scope = '', phase = 'observe', samples = [], last = null, reason = 'idle', job = null;
@@ -57,6 +57,8 @@
     let held = {value: null, since: 0};
     let stall = {steps: 0, at: -Infinity}, displaced = null, displacedRejoins = 0;
     let lastAutomaticRejoinReleaseAt = -Infinity, lastStallSeenAt = -Infinity;
+    const releaseEvidence = globalThis.WatchFusionReleaseEvidence?.createReleaseEvidence?.();
+    const sourceRecoveryGate = globalThis.WatchFusionReleaseEvidence?.createSourceRecoveryGate?.(); const fineGate = globalThis.WatchFusionReleaseEvidence?.createFixedRateFineGate?.(); const plateauGate = globalThis.WatchFusionReleaseEvidence?.createFixedRatePlateauRecoveryGate?.();
     let plateau = null, plateauSpent = false, lastZeroServoAt = -Infinity;
     const stats = {corrections: 0, rejoins: 0, holds: 0, rateBursts: 0, seeks: 0, failures: 0, rateRejected: 0}; const hostGuard = globalThis.WatchFusionHostSeekPolicy?.create?.() ?? null;
     function load() {
@@ -75,7 +77,7 @@
       if (restoreRate && wasRate && io) io.rate(io.baseRate);
     }
     function reset(next = '', why = 'scope-change', io = null) {
-      cancelJob(io);
+      cancelJob(io);releaseEvidence?.reset();sourceRecoveryGate?.cancelCandidate();fineGate?.cancelCandidate();plateauGate?.cancelCandidate();
       scope = next; phase = 'observe'; samples = []; last = null; reason = why;
       locked = false; lockedAt = -1; failures = 0; cooldownUntil = 0; lastCorrection = null;
       acquiredAt = firstFineLockAt = lastTickAt = healthySince = -1; lastZeroServoAt = -Infinity; healthyRearms = 0;
@@ -87,19 +89,15 @@
     }
     // A transport change, Sync me or scrub invalidates the evidence but not the device model.
     function intent(kind, io = null) {
-      cancelJob(io);
+      cancelJob(io);releaseEvidence?.reset();sourceRecoveryGate?.cancelCandidate();fineGate?.cancelCandidate();plateauGate?.cancelCandidate();
       phase = 'observe'; samples = []; last = null; locked = false; healthySince = -1; reason = 'intent-' + kind;
       if (kind !== 'pause') { failures = 0; cooldownUntil = 0; rearm(); }
     }
     function owns() { return !!job; }
-    function observePosition(nowMs, value) {
-      if (!Number.isFinite(value)) return;
-      if (value !== held.value) held = {value, since: nowMs};
-    }
+    function observePosition(nowMs, value) { held = globalThis.WatchFusionTimelineMath.observePosition(nowMs,value,held); }
     function projected(nowMs, value, baseRate) {
-      observePosition(nowMs, value);
-      const age = (nowMs - held.since) / 1000;
-      return age > 0 && age < 1.2 ? value + age * baseRate : value;
+      observePosition(nowMs,value);
+      return globalThis.WatchFusionTimelineMath.projectedPosition(nowMs,value,baseRate,held);
     }
     function sample(nowMs, current, target, baseRate) {
       const drift = target - current;
@@ -134,19 +132,12 @@
       if (spread > spreadLimit) { reason = 'unstable-phase'; return null; }
       return median(values);
     }
-    function rateFor(io, error) {
-      if (model.rateHonored === false) return null;
-      const rates = io.availableRates();
-      if (!Array.isArray(rates)) return null;
-      const wanted = error > 0 ? rates.filter(r => r > io.baseRate * 1.01 && r <= io.baseRate * 1.26)
-        : rates.filter(r => r < io.baseRate * .99 && r >= io.baseRate * .74);
-      return wanted.sort((a, b) => Math.abs(a - io.baseRate) - Math.abs(b - io.baseRate))[0] ?? null;
-    }
+    function rateFor(io, error) { return globalThis.WatchFusionTimelineMath.chooseRate(io,error,model.rateHonored); }
     function begin(kind, nowMs, error, io, extra = {}) {
       stats.corrections++;
       lastCorrection = {kind, before: error, at: nowMs};
       phase = kind; samples = []; last = null; locked = false; healthySince = -1;
-      job = {kind, startedAt: nowMs, before: error, ...extra};
+      job = {kind, startedAt: nowMs, before: error, ...extra}; releaseEvidence?.reset();
       reason = kind + '-started';
     }
     function finish(nowMs, why) {
@@ -195,7 +186,9 @@
       const scheduled = why === 'rejoin-released' || why === 'hold-released';
       const kind = scheduled ? job.kind : 'unscheduled';
       finish(io.now(), why);
-      lastCorrection = {...lastCorrection, kind, releasedAt: io.now(), ...hostLanding};
+      lastCorrection = {...lastCorrection, kind, releasedAt: io.now(), releaseVerified:scheduled && kind === 'rejoin', ...hostLanding};
+      if (automaticRejoin && scheduled) releaseEvidence?.start(lastCorrection.releasedAt);
+      else releaseEvidence?.reset();
       if (automaticRejoin) lastAutomaticRejoinReleaseAt = io.now();
     }
     // Wait for a paused seek to land, then schedule the release on the room clock.
@@ -261,15 +254,15 @@
     }
     // Learn from the residual after a correction: it measures this device's
     // release latency (rejoin/hold) or the rate effectiveness (rate).
-    function learn(residual) {
+    function learn(residual,io,nowMs) {
       const c = lastCorrection;
       if (!c) return;
       if ((c.kind === 'rejoin' || c.kind === 'hold') && c.hostLinked) {
         if (hostGuard?.learnRelease(residual,c,model)) save();
         return; // never teach the legacy/TV decoder model from a linked-host correction
       }
-      if ((c.kind === 'rejoin' || c.kind === 'hold') && Math.abs(residual) < 1.2) {
-        model.releaseLatencySec = clamp(model.releaseLatencySec + residual * .8, 0, 2);
+      if (c.kind === 'rejoin' && c.releaseVerified && Number.isFinite(c.releasedAt) && nowMs-c.releasedAt >= 1200 && (lastStallSeenAt < c.releasedAt || (releaseEvidence?.qualified(c,nowMs)===true)) && io.referenceTrusted?.() === true && io.referenceUncertaintyMs?.() != null && Number.isFinite(io.referenceUncertaintyMs()) && io.referenceUncertaintyMs() <= 100 && Math.abs(residual) < .6) {
+        model.releaseLatencySec = clamp(model.releaseLatencySec + clamp(residual * .35, -.06, .06), 0, 2); model.verifiedReleases = Math.min(100000,(model.verifiedReleases||0)+1); } else if (c.kind === 'hold' && c.cause !== 'source-recovery' && c.cause !== 'fine-lead' && Math.abs(residual) < 1.2) { model.releaseLatencySec = clamp(model.releaseLatencySec + residual * .8, 0, 2);
       } else if (c.kind === 'rate' && Math.abs(c.before) > .05) {
         const achieved = (c.before - residual) / c.before;
         if (achieved > .2) model.rateGain = clamp(model.rateGain * achieved, .5, 1.5);
@@ -282,8 +275,8 @@
         const before = lastCorrection?.before ?? error;
         phase = 'observe';
         // v13.7: a freeze after landing says nothing about the correction: no learning, no backoff.
-        const voided = lastStallSeenAt >= (lastCorrection?.releasedAt ?? Infinity);
-        if (voided) reason = 'correction-voided-by-decoder-stall'; else learn(error);
+        const voided = lastStallSeenAt >= (lastCorrection?.releasedAt ?? Infinity) && !(releaseEvidence?.qualified(lastCorrection||{},nowMs)===true);
+        if (voided) reason = 'correction-voided-by-decoder-stall'; else if(io.referenceTrusted?.()!==true||io.sourceBuffering?.()===true||io.mirrorContradicted?.()===true) reason='release-learning-reference-unverified'; else learn(error,io,nowMs);
         if (Math.abs(error) <= ACTION_SEC + EPS_SEC) { failures = 0; }
         else if (!voided && lastCorrection?.kind !== 'unscheduled' && Math.abs(error) > Math.abs(before) * .7) {
           failures++; stats.failures++;
@@ -338,11 +331,17 @@
       if (rate !== null) return startRate(nowMs, error, io, rate);
       if (hostGuard?.fineHold(error,io,model)) return startHold(nowMs,error,io);
       if (io.hostLinked && (!hostGuard || hostGuard.blocked || absolute < .70)) { reason = hostGuard?.blocked || !hostGuard ? 'host-auto-seek-guarded' : 'host-subsecond-preserved'; return; }
+      const sourceHold=sourceRecoveryGate?.consider({scope,nowMs,error,io}) === true;
+      const fine=sourceHold ? null : fineGate?.consider({scope,nowMs,error,io,verifiedFixed:model.rateHonored===false && model.rateRejections>=2,releaseLatencyMs:model.releaseLatencySec*1000,quietStallMs:Number.isFinite(lastStallSeenAt)?nowMs-lastStallSeenAt:1e9});
+      if (fine?.action==='learn') {const priorMs=Math.round(model.releaseLatencySec*1000);model.releaseLatencySec=clamp(model.releaseLatencySec+clamp(error*.25,-.04,.04),0,2);save();window.watchFusionRoomSyncLog?.note?.('tv-next-release-model-adjusted',{beforeMs:priorMs,afterMs:Math.round(model.releaseLatencySec*1000),errorMs:Math.round(error*1000),reason:fine.reason??'stable-fine-lag'});reason='fine-lead-model-refined-no-actuation';return;}
+      if (sourceHold || fine?.action==='hold') {
+        startHold(nowMs,error,io);if(lastCorrection)lastCorrection.cause=sourceHold?'source-recovery':'fine-lead';reason=sourceHold?'source-recovery-qualified-hold':'fine-lead-qualified-hold';return;
+      }
       // Some YouTube TVs offer only 1x. Seeking or a zero-time pause/play for
       // a 130 ms offset can create far more drift than it corrects. Keep
       // monitoring until a meaningful, safely actionable displacement exists.
       if (absolute < MIN_FINE_ACTUATION_SEC) {
-        if (!io.speakerPhaseVerified?.()) { plateau = null; reason = 'output-phase-unverified'; return; }
+        if (!io.speakerPhaseVerified?.()) { plateau = null; const p=plateauGate?.consider({scope,nowMs,error,io,quietStallMs:Number.isFinite(lastStallSeenAt)?nowMs-lastStallSeenAt:1e9,quietRejoinMs:Number.isFinite(lastAutomaticRejoinReleaseAt)?nowMs-lastAutomaticRejoinReleaseAt:1e9,leadSec:model.leadSec,verifiedFixed:model.rateHonored===false && model.rateRejections>=2}); if(p?.action==='rejoin'){startRejoin(nowMs,error,io,'bounded-phase-plateau');reason='bounded-phase-plateau-rejoin';return;} reason = 'output-phase-unverified';return; }
         if (absolute <= PLATEAU_MIN_SEC + EPS_SEC || plateauSpent || !io.referenceTrusted?.() || (uncertaintyMs > 0 && absolute * 1000 - uncertaintyMs <= 50)) { plateau = null; reason = 'fine-drift-awaiting-capability'; return; }
         if (!plateau || Math.sign(plateau.error) !== Math.sign(error) || Math.abs(plateau.error - error) > .08) plateau = {since: nowMs, error};
         if (nowMs - plateau.since < PLATEAU_DWELL_MS || nowMs - lastStallSeenAt < PLATEAU_QUIET_STALL_MS) { reason = 'fine-drift-awaiting-capability'; return; }
@@ -365,6 +364,7 @@
       else if (job?.kind === 'rate') superviseRate(nowMs, io);
       if (job) return {owned: true, reason, phase};
       const state = io.state();
+      releaseEvidence?.observe(nowMs,io);
       // While the reference source itself buffers, the target is not trustworthy.
       if (state === 1 && io.sourceBuffering?.()) { healthySince = -1; samples = []; last = null; reason = 'source-buffering'; return {owned: false, reason, phase}; }
       if (state !== 1) { healthySince = -1; samples = []; last = null; reason = state === 3 ? 'buffering' : 'awaiting-playing'; return {owned: false, reason, phase}; }
@@ -421,8 +421,8 @@
     }
 
     function snapshot() {
-      return {phase, reason, healthyRearms, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
-        model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), effectiveHostReleaseLatencyMs: Math.round((hostGuard?.releaseLatency({hostLinked:true},model) ?? model.releaseLatencySec)*1000), leadMs: Math.round(model.leadSec * 1000),
+      return {postRelease:releaseEvidence?.snapshot(lastCorrection||{},lastTickAt) ?? null,sourceRecoveryHolds:sourceRecoveryGate?.count() ?? 0,fineLead:fineGate?.snapshot()??null,phasePlateau:plateauGate?.snapshot()??null,phase, reason,timelineErrorMs:last&&lastTickAt-last.nowMs<=600?Math.round((last.target-last.current)*1000):null,timelineObservedAtMs:last?.nowMs??null, healthyRearms, locked, lockedForMs: locked && lockedAt >= 0 ? Math.max(0, lastTickAt - lockedAt) : 0, failures,
+        model: {releaseLatencyMs: Math.round(model.releaseLatencySec * 1000), effectiveHostReleaseLatencyMs: Math.round((hostGuard?.releaseLatency({hostLinked:true},model) ?? model.releaseLatencySec)*1000), verifiedReleases: model.verifiedReleases || 0, leadMs: Math.round(model.leadSec * 1000),
           landingErrorMs: Math.round(model.landingErrorSec * 1000), landingMs: Math.round(model.landingSec * 1000), rateHonored: model.rateHonored, rateGain: Math.round(model.rateGain * 100) / 100},
         ...stats, tolerancesMs: {monitor: 50, action: 100, outOfSync: 100},
         firstFineLockMs: firstFineLockAt >= 0 && acquiredAt >= 0 ? firstFineLockAt - acquiredAt : null,

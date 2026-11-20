@@ -7,6 +7,7 @@ const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.len
 
 export function createPlayoutCoordinator() {
   let segment = 0, anchor = null, reference = null, holdbackMs = 0;
+  let sourceStall = {sequence:0, buffering:false, firstAt:-1, lastAt:-1};
   const history = new Map(), latestReport = new Map();
 
   function transport(playback, discontinuity = false, softMirror = false) {
@@ -37,6 +38,13 @@ export function createPlayoutCoordinator() {
     const fresh = finite(report.sampledAt, receivedAt - 1500, receivedAt + 50);
     const previousReport = latestReport.get(id);
     if (!fresh || (previousReport && report.sampledAt <= previousReport.sampledAt)) return;
+    // Only independent linked-source buffering can establish a source-stall episode.
+    if (id === 'linked') {
+      if (report.buffering === true) {
+        if (!sourceStall.buffering) { sourceStall.sequence++; sourceStall.firstAt=receivedAt; }
+        sourceStall.lastAt=receivedAt; sourceStall.buffering=true;
+      } else sourceStall.buffering=false;
+    }
     // A viewer under active correction (rate burst, scheduled hold) stays visible as
     // telemetry but can never vote for, or become, the room reference.
     const correcting = report.correcting === true;
@@ -152,7 +160,13 @@ export function createPlayoutCoordinator() {
         if (next >= holdbackMs + 75) holdbackMs = next;
       }
     }
+    const sourceRecovery = source === 'live' && authority === 'linked'
+      && !sourceStall.buffering && sourceStall.sequence > 0
+      && sourceStall.lastAt >= sourceStall.firstAt
+      && now-sourceStall.lastAt >= 900 && now-sourceStall.lastAt <= 15000
+      ? {sequence:sourceStall.sequence, ageMs:Math.round(now-sourceStall.lastAt)} : null;
     return {
+      sourceRecovery,
       segment, reference:reference ? (reference.origin === 'peer-cohort' ? 'peer-cohort' : authority === 'linked' ? 'linked-tab' : 'host-player') : 'room-clock',
       phaseMs:Math.round(reference?.phase ?? 0), uncertaintyMs:reference?.uncertaintyMs ?? null,
       holdbackMs, authorityBuffering, source, sourcePhaseMs:Number.isFinite(authoritySample?.coarse) ? Math.round(authoritySample.coarse) : null, outputTiming:'speaker-unmeasured',

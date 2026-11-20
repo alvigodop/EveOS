@@ -105,6 +105,7 @@
     if (!peer.ready || (phase !== null && Math.abs(phase) > 10000)) signals.push('UNTRUSTED_PLAYER_OFFSET');
     if (now - peer.sampledAt > 2700) signals.push('STALE_PLAYER_REPORT');
     if (peer.buffering) signals.push('BUFFERING');
+    if (peer.audioReadiness === 'needs-gesture') signals.push('AUDIO_GESTURE_REQUIRED');
     if (decoderSteps != null && decoderSteps > (last?.decoderSteps ?? 0)) signals.push('DECODER_RECOVERY_STEP_' + decoderSteps);
     if (peer.playing && !peer.buffering && peer.sensor?.heldMs > 300) signals.push('POSITION_HELD');
     const expectedRate = Number(state?.playback?.rate);
@@ -131,6 +132,7 @@
        rawOffsetMs:rawPhase, targetErrorMs:live?targetError:null, adjustmentMs:finite(peer.adjustmentMs),
        timingQuality:!peer.playing?'paused-residual':!live?'stale-or-buffering':peer.sensor?.clockState==='bounded'?'bounded-player-only':'thin-clock-estimate',
       rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
+      startupPhase:/^[a-z-]{1,30}$/.test(peer.startupPhase)?peer.startupPhase:null, audioReadiness:/^[a-z-]{1,30}$/.test(peer.audioReadiness)?peer.audioReadiness:null,
       corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
       audible:typeof peer.audible==='boolean'?peer.audible:null, sensor:sensor(peer.sensor),
       filteredDriftMs:finite(peer.filteredDriftMs),
@@ -164,13 +166,14 @@
     const row = {at:new Date().toISOString(), segmentSequence, ref, referencePhaseMs:phaseMs,
       uncertaintyMs:finite(coordination?.uncertaintyMs), sourceBuffering:!!coordination?.authorityBuffering,
       source:coordination?.source || null, sourcePhaseMs:finite(coordination?.sourcePhaseMs),song:song(),
+      mirrorClock:(()=>{const c=window.WatchFusionMirrorConvergenceGate?.diagnostics?.()?.clockEvidence;return c?{gapMs:finite(c.gapMs),sourcePhaseMs:finite(c.sourcePhaseMs),sampleAgeMs:finite(c.sampleAgeMs),classification:/^[a-z-]{1,35}$/.test(c.classification)?c.classification:null}:null;})(),
       ...relative, speakerPhase:'not-measured', roster:members===null?null:{members,reporting,rejections},
       peers:rows};
-    const key = JSON.stringify([ref,phaseMs,relative.groupPhase,members,reporting,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.seekHealth?.recoveryAttempts,p.signals])]);
+    const key = JSON.stringify([ref,phaseMs,relative.groupPhase,members,reporting,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.startupPhase,p.audioReadiness,p.seekHealth?.recoveryAttempts,p.signals])]);
     // Source-trust transitions (live/stale/off-phase/...) are acceptance evidence: record them at once.
     const changed = rows.some(p=>p.freeze?.transition) || key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
       row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence ||
-      row.groupPhase !== entries.at(-1)?.groupPhase || row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting;
+      row.groupPhase !== entries.at(-1)?.groupPhase || row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting || rows.some(p=>{const q=entries.at(-1)?.peers?.find(x=>x.device===p.device);return q&&(q.startupPhase!==p.startupPhase||q.audioReadiness!==p.audioReadiness);});
     if (!changed && now - lastAt < (performance.now() < burstUntil ? 500 : lastHealthCritical ? 1100 : 4500)) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
@@ -226,7 +229,7 @@
     prune();
     return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
       disclosure:'Player timing, source-supplied song titles and durations, user control intents and redacted transitions only; no audio, URLs, tokens or microphone measurements. Titles are included only when the user copies this local log. Player target error does not measure speaker-output latency; clock bounds include unknown asymmetry.',
-      diagnosticsVersion:'v13.10.8i',snapshots:entries,events},null,2);
+      diagnosticsVersion:'v13.10.8x',snapshots:entries,events},null,2);
   }
   async function copyLog() {
     const content = exported();

@@ -420,7 +420,7 @@
     if(p.ageMs>1500||p.ageMs<0)return gate('peer-report-stale',at);
     if(Math.abs(p.offsetMs)>70)return gate('peer-outside-lock-band',at);
     const peerNoise=Number.isFinite(p.spreadMs)?Math.max(45,p.spreadMs/2+20):125;if(Math.abs(host)<155||Math.abs(gap)<Math.max(125,peerNoise*1.35))return gate('host-within-guard-band',at);
-    if(Math.abs(host)>650)return gate('host-offset-too-large',at);
+    if(Math.abs(host)>650 && (host>=0 || Math.abs(host)>820 || reference!=='linked-tab' || p.count<2 || !Number.isFinite(p.spreadMs) || p.spreadMs>55 || Math.abs(p.offsetMs)>50))return gate('host-offset-too-large',at);
     if(!(p.sampledAt>lastStamp))return false;lastStamp=p.sampledAt;
     if(samples.length&&(at-samples.at(-1).at>12500||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference))samples=[];
     samples.push({at,host,peer:p.offsetMs,gap,reference});samples=samples.filter(x=>at-x.at<=24000);

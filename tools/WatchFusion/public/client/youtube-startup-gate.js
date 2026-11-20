@@ -8,6 +8,9 @@
     let pausedSince = -1, pausedPrefetched = false;
     let playingSample = null, viewerDisplaced = false, runningReclaimed = false;
     let startDelayMs = null, pauseSeeks = 0, startupDeferrals = 0, reason = 'idle', stalledMs = 0;
+    let transitionPhase = 'source-awaiting', phaseSince = -1, segmentChanges = 0, sourceChanges = 0;
+    let firstProgressSeenAt = -1, verifiedFirstProgressDelayMs = null;
+    const phaseAt = (value, now) => { if (value !== transitionPhase) { transitionPhase = value; phaseSince = now; } };
 
     function source(roomId, videoId, epoch) {
       const next = `${roomId || ''}:${videoId || ''}:${epoch ?? ''}`;
@@ -17,8 +20,8 @@
         activeSegment = ''; observedAt = firstPlayingAt = -1;
         pausedPosition = null; pausedReclaimed = manualPause = false;
         playingSample = null; runningReclaimed = viewerDisplaced = false;
-        startDelayMs = null; pauseSeeks = startupDeferrals = 0;
-        reason = 'new-source';
+        startDelayMs = null; pauseSeeks = startupDeferrals = 0; sourceChanges++;
+        phaseAt('source-awaiting', -1); firstProgressSeenAt = -1; verifiedFirstProgressDelayMs = null; reason = 'new-source';
       }
     }
 
@@ -36,7 +39,7 @@
         pauseKey = key; pausedPosition = null; pausedReclaimed = manualPause = false;
         pausedSince = Number.isFinite(nowMs) ? nowMs : -1; pausedPrefetched = false;
       }
-      wasPaused = true;
+      wasPaused = true; phaseAt('room-paused', nowMs);
       if (force) {
         pausedSeekTolerance = .15;
         manualPause = explicitSync === true;
@@ -74,12 +77,12 @@
         firstPlayingAt = -1;
         wasPaused = false;
         playingSample = null; runningReclaimed = viewerDisplaced = false;
-        startDelayMs = null;
+        startDelayMs = null; firstProgressSeenAt = -1; verifiedFirstProgressDelayMs = null; segmentChanges++; phaseAt('awaiting-first-frame', nowMs);
       }
       if (!playing || buffering) {
         resetProgress(); stalledMs = 0;
         reason = buffering ? 'viewer-resume-buffering' : 'viewer-awaiting-play';
-        startupDeferrals++;
+        phaseAt(buffering ? 'decoder-buffering' : 'awaiting-play', nowMs); startupDeferrals++;
         return {ready: false, reason};
       }
       if (firstPlayingAt < 0) {
@@ -132,6 +135,9 @@
       // arbiter's bounded stall recovery (the gate itself never actuates).
       stalledMs = !ready && lastProgressAt >= 0 && nowMs - lastProgressAt > 750 ? Math.round(nowMs - lastProgressAt) : 0;
       if (stalledMs) reason = 'viewer-stalled-while-playing';
+      if (advancingSince >= 0 && firstProgressSeenAt < 0 && firstPlayingAt >= 0) firstProgressSeenAt = nowMs;
+      if (ready && verifiedFirstProgressDelayMs === null && firstProgressSeenAt >= 0) verifiedFirstProgressDelayMs = Math.max(0, Math.round(firstProgressSeenAt - firstPlayingAt));
+      phaseAt(stalledMs ? 'decoder-stalled' : ready ? 'decoder-confirmed' : advancingSince >= 0 ? 'decoder-advancing' : 'decoder-warming', nowMs);
       return {ready, reason, stalledMs, reclaim:ready && viewerDisplaced && !runningReclaimed && Math.abs(drift) > 8};
     }
 
@@ -142,7 +148,7 @@
     }
 
     function snapshot() {
-      return {reason, startDelayMs, pausedRepositions:pauseSeeks, startupDeferrals, stalledMs};
+      return {reason, transitionPhase, phaseSince, segmentChanges, sourceChanges, firstProgressDelayMs:verifiedFirstProgressDelayMs, startDelayMs, pausedRepositions:pauseSeeks, startupDeferrals, stalledMs};
     }
     return {paused, running, seekIssued, snapshot};
   }

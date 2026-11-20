@@ -70,6 +70,8 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
         videoFrameOffsetMs: metric(report.videoFrameOffsetMs, -2000, 2000),
         sourceAgeMs: metric(report.sourceAgeMs, 0, 10000),
         startupWaitMs: metric(report.startupWaitMs, 0, 30000),
+        startupPhase: typeof report.startupPhase === 'string' && /^(?:source-awaiting|awaiting-first-frame|awaiting-play|decoder-buffering|decoder-stalled|decoder-warming|decoder-advancing|decoder-confirmed|fine-locked|room-paused|direct-ready)$/.test(report.startupPhase) ? report.startupPhase : null,
+        audioReadiness: typeof report.audioReadiness === 'string' && /^(?:room-muted|needs-gesture|verifying|player-unmuted|autoplay-blocked|unknown)$/.test(report.audioReadiness) ? report.audioReadiness : null,
         corrections: metric(report.corrections, 0, 1e6),
         filteredDriftMs: metric(report.filteredDriftMs, -200000, 200000),
         seekHealth: report.seekHealth && typeof report.seekHealth === 'object' ? {

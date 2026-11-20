@@ -4,6 +4,7 @@ import { createRoomLab, summarize } from './room-lab.js';
 import { PROFILES } from './fake-youtube.js';
 import { RECOVERY_SCENARIOS } from './scenarios-recovery.js';
 import { TRUST_SCENARIOS } from './scenarios-trust.js';
+import { MULTISONG_SCENARIOS } from './scenarios-multisong.js';
 
 const correctionsOf = device => device.diagnostics()?.arbiter?.corrections ?? device.player.stats.seeks;
 
@@ -157,7 +158,8 @@ export const SCENARIOS = {
     return {ok: tv.ok && r.tv.player.stats.seeks - seeks <= 2, detail: {tv: tv.summary, seeks: r.tv.player.stats.seeks - seeks}};
   },
   ...RECOVERY_SCENARIOS,
-  ...TRUST_SCENARIOS
+  ...TRUST_SCENARIOS,
+  ...MULTISONG_SCENARIOS
 };
 
 export async function runSyncLabChecks(check) {

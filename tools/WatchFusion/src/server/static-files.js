@@ -101,6 +101,8 @@ export async function sendFile(req, res) {
       'client/host-source-converge.js',
       'client/target-projection-guard.js',
       'client/host-seek-policy.js',
+      'client/viewer-release-evidence.js',
+      'client/viewer-timing-math.js',
       'client/viewer-sync-arbiter.js',
       'playback-sync.js',
       'client/tv-decoder-rescue.js',
