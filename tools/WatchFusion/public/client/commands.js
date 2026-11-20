@@ -1,52 +1,24 @@
-function ensurePlayer(videoId) {
+function ensurePlayer(videoId, recoveryStart = null) {
   if (!videoId) return;
+  const recoveryRoom = Number.isFinite(recoveryStart) ? roomId : null, recoveryEpoch = state?.presentationEpoch;
   const previousPending = pendingVideoId;
   pendingVideoId = videoId;
+  showYouTubePlayer();
+  if (continueLinkedViewerTrack(videoId, previousPending)) return;
   if (previousPending && previousPending !== videoId) {
     playerPrimed = false;
     playerInitializing = false;
     autoplayWasBlocked = false;
   }
-  window.mediaPlayback?.clear?.();
-  const host = $('playerHost') || document.querySelector('.player.panel');
-  if (host) {
-    window.watchFusionYoutubeLayout?.activate?.(host);
-    if (!$('player')) {
-      const p = document.createElement('div');
-      p.id = 'player';
-      host.insertBefore(p, host.firstChild);
-    }
-    const p = $('player');
-    if (p) {
-      p.hidden = false;
-      p.style.display = 'block';
-    }
-    const nuvioFrame = $('nuvioFrame');
-    if (nuvioFrame) {
-      nuvioFrame.hidden = true;
-      nuvioFrame.style.display = 'none';
-    }
-    const nuvioToolbar = $('nuvioToolbar');
-    if (nuvioToolbar) {
-      nuvioToolbar.hidden = true;
-    }
-    const voxelVisionFrame = $('voxelVisionFrame');
-    if (voxelVisionFrame) {
-      voxelVisionFrame.hidden = true;
-      voxelVisionFrame.style.display = 'none';
-    }
-    const voxelVisionToolbar = $('voxelVisionToolbar');
-    if (voxelVisionToolbar) voxelVisionToolbar.hidden = true;
-    host.classList.remove('nuvio-active', 'voxelvision-active');
-  }
   loadYouTubeApi().then(() => {
-    if (!pendingVideoId) return;
+    if (pendingVideoId !== videoId) return;
     if (!ytPlayer) {
       ytPlayerReady = false;
       playerInitializing = true;
       ytPlayer = new YT.Player('player', {
         videoId: pendingVideoId,
         playerVars: {
+          ...(Number.isFinite(recoveryStart) ? {start:Math.max(0, Math.floor(recoveryStart))} : {}),
           autoplay: 1,
           controls: 1,
           rel: 0,
@@ -55,7 +27,8 @@ function ensurePlayer(videoId) {
           origin: window.location.origin
         },
         events: {
-          onReady: async () => {
+          onReady: async event => {
+            if (event?.target && event.target !== ytPlayer) return;
             ytPlayerReady = true;
             window.watchFusionYoutubeLayout?.refresh?.();
             try {
@@ -67,6 +40,18 @@ function ensurePlayer(videoId) {
               }
             } catch {}
             const desired = pendingVideoId;
+            if (recoveryRoom && recoveryRoom === roomId && state?.presentationEpoch === recoveryEpoch &&
+                desired === videoId && state.source?.videoId === videoId && !isHost() && followsRoomPlayback()) {
+              const recovering = ytPlayer;
+              // The constructor already loaded this track at the live position. A
+              // slow video ID on ready must not cue it again from zero.
+              try { await waitForPlayerCued(videoId); } catch { /* normal sync retries a mismatched player */ }
+              if (ytPlayer === recovering && roomId === recoveryRoom && state?.presentationEpoch === recoveryEpoch && state.source?.videoId === videoId) {
+                playerInitializing = false;
+                syncPlayer();
+              }
+              return;
+            }
             if (desired) {
               const current = ytPlayer.getVideoData?.()?.video_id || '';
               if (current !== desired) {

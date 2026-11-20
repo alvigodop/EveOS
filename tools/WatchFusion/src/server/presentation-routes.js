@@ -60,10 +60,12 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
     }
     const prior = entry.reports.get(member.id);
     if (!prior || report.sampledAt > prior.sampledAt) {
+      if (member.id === room.hostId && body.segment === segment)
+        entry.mirrorConflict = report.mirrorContradicted === true ? {segment, at:report.sampledAt} : null;
       if (prior && prior.outputSession !== report.outputSession) entry.proposals.delete(member.id);
       entry.reports.set(member.id, {
         member: member.publicId, mode: current.mode, receivedAt: at, sampledAt: report.sampledAt, outputSession: report.outputSession,
-        positionMs: report.positionMs, roomPositionMs: report.roomPositionMs, rate: report.rate,
+        playoutSegment:body.segment === segment ? segment : null, positionMs: report.positionMs, roomPositionMs: report.roomPositionMs, rate: report.rate,
         targetPositionMs: metric(report.targetPositionMs, 0, 1e10),
         rttMs: metric(report.rttMs, 0, 5000), offsetMs: metric(report.offsetMs, -1e12, 1e12),
         adjustmentMs: metric(report.adjustmentMs, -1500, 1500),
@@ -120,6 +122,7 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
     time - item.lastSeen <= 15000 && (entry.current.linked || item.id !== room.hostId)).map(item => item.id));
   const coordination = entry.playout.coordinate({now:time, authority:entry.current.linked ? 'linked' : room.hostId, viewers,
     allowHoldback:entry.current.mode === 'direct' && entry.linkedOutput?.muted === true && time - entry.linkedOutput.at < 1800});
+  coordination.mirrorContradicted = entry.mirrorConflict?.segment === segment && time - entry.mirrorConflict.at <= 1500;
   return json(res, 200, {
     serverReceivedAt: at, serverTime: Date.now(), coordination,
     ...((body.diagnostics === true || body.trace === true) ? {peers:[...entry.reports.values()], roster:roster(entry, room, time)} : {}),

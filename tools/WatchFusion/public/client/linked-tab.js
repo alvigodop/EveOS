@@ -288,14 +288,17 @@
     const linkedSource=roomProof();
     if(!linkedSource)return;
 
-    const activeLink=link, activePage=loadedPageUrl;
+    const activeLink=link, activePage=loadedPageUrl, receipt={};
     mirrorInFlight=true;const mirrorStartedAt=performance.now();
     try{
       const sourceKey = state?.source?.videoId || state?.source?.url || '';
       const ok=await command('mirror',{linkedSource,sourceKey,position:plan.target,paused:!!metadata.paused,ended:!!metadata.ended,
-        rate:Number(metadata.rate)||1,...audio,...(plan.volumeOnly===true?{volumeOnly:true}:{})});
-      mirrorGuard()?.result?.(ok,ok?200:command.lastStatus,mirrorAuthority().say);
-      if(ok&&link===activeLink&&loadedPageUrl===activePage){lastMirrorAnchor=plan.anchor;window.watchFusionRoomSyncLog?.note?.('mirror-applied',{reason:plan.reason,roundTripMs:Math.round(performance.now()-mirrorStartedAt)});}
+        rate:Number(metadata.rate)||1,...audio,...(plan.volumeOnly===true?{volumeOnly:true}:{})},receipt);
+      if(link!==activeLink||loadedPageUrl!==activePage||!receipt.status)return false;
+      mirrorGuard()?.result?.(ok,receipt.status,mirrorAuthority().say);
+      const timing={reason:plan.reason,roundTripMs:Math.round(performance.now()-mirrorStartedAt),sampleAgeMs:receipt.sampleAgeMs};
+      if(ok){lastMirrorAnchor=plan.anchor;window.watchFusionRoomSyncLog?.note?.('mirror-applied',timing);}
+      else if(receipt.status===408){if(force)lastMirrorAnchor=null;window.watchFusionRoomSyncLog?.note?.('mirror-expired',timing);}
       return ok;
     }catch{
       mirrorGuard()?.result?.(false,0);

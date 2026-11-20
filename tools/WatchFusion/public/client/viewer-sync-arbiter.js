@@ -1,23 +1,11 @@
 /* WatchFusion viewer synchronization arbiter (v13).
  *
- * The single owner of every *automatic* seek, playback-rate and hold decision
- * for one YouTube viewer. Other modules supply observations (target, player
- * state) and intents (transport change, Sync me); only this arbiter actuates.
+ * This arbiter owns automatic seeks, rates and holds for one YouTube viewer.
+ * Callers supply player observations and transport intents.
  *
- * Model: error = authoritative target - device-reported media position. It is
- * only sampled while the player is demonstrably advancing. Speaker latency is
- * not observable through the IFrame API and is never inferred here.
- *
- * Correction strategies, chosen from *verified* device capability:
- *  - rate:     open-loop burst at a supported rate whose effect was measured.
- *  - hold:     device ahead -> pause for the measured lead, then release.
- *  - rejoin:   device behind on a fixed-rate player -> pause, seek AHEAD of the
- *              room by a learned lead, wait for the landing, then release at the
- *              instant the room timeline reaches the landed frame. Keyframe
- *              snapping and slow starts are absorbed by the scheduled release
- *              instead of being chased with further seeks.
- * Release latency, keyframe landing error and rate honesty are learned per
- * device and persisted, so a TV does not re-fail on every room transition.
+ * Error is target minus advancing player position, in seconds of media time.
+ * A rejoin seeks ahead, waits for the keyframe landing and schedules release
+ * against the room clock. Device release and rate models persist across tracks.
  */
 (() => {
   'use strict';
@@ -181,13 +169,13 @@
       if (!job) return;
       const automaticRejoin = job.kind === 'rejoin' && job.why !== 'manual';
       const hostLanding = job.hostLinked && (why === 'rejoin-released' || why === 'hold-released')
-        ? {hostLinked:true, releaseVerified:true, releaseLeadSec:io.current()-io.target(io.now()), baseRate:io.baseRate} : {};
+        ? {hostLinked:true, releaseVerified:true, sourceVerified:io.hostFineHoldTrusted?.() === true, releaseLeadSec:io.current()-io.target(io.now()), baseRate:io.baseRate} : {};
       io.play();
       const scheduled = why === 'rejoin-released' || why === 'hold-released';
       const kind = scheduled ? job.kind : 'unscheduled';
       finish(io.now(), why);
       lastCorrection = {...lastCorrection, kind, releasedAt: io.now(), releaseVerified:scheduled && kind === 'rejoin', ...hostLanding};
-      if (automaticRejoin && scheduled) releaseEvidence?.start(lastCorrection.releasedAt);
+      if ((automaticRejoin || hostLanding.sourceVerified) && scheduled) releaseEvidence?.start(lastCorrection.releasedAt);
       else releaseEvidence?.reset();
       if (automaticRejoin) lastAutomaticRejoinReleaseAt = io.now();
     }
@@ -258,7 +246,7 @@
       const c = lastCorrection;
       if (!c) return;
       if ((c.kind === 'rejoin' || c.kind === 'hold') && c.hostLinked) {
-        if (hostGuard?.learnRelease(residual,c,model)) save();
+        if (c.sourceVerified && io.hostFineHoldTrusted?.() && releaseEvidence?.qualified(c,nowMs) && hostGuard?.learnRelease(residual,c,model)) { model.hostReleaseMeasured = true; save(); }
         return; // never teach the legacy/TV decoder model from a linked-host correction
       }
       if (c.kind === 'rejoin' && c.releaseVerified && Number.isFinite(c.releasedAt) && nowMs-c.releasedAt >= 1200 && (lastStallSeenAt < c.releasedAt || (releaseEvidence?.qualified(c,nowMs)===true)) && io.referenceTrusted?.() === true && io.referenceUncertaintyMs?.() != null && Number.isFinite(io.referenceUncertaintyMs()) && io.referenceUncertaintyMs() <= 100 && Math.abs(residual) < .6) {
@@ -269,10 +257,17 @@
       }
       save();
     }
+    function fixedRateFine(nowMs,error,io) {
+      const input = {scope,nowMs,error,io,verifiedFixed:model.rateHonored===false && model.rateRejections>=2};
+      const action = fineGate?.refine(input,model,lastStallSeenAt,save,d => window.watchFusionRoomSyncLog?.note?.('tv-next-release-model-adjusted',d));
+      if (action === 'learn') reason='fine-lead-model-refined-no-actuation';
+      return action;
+    }
     function decide(nowMs, error, io) {
       const absolute = Math.abs(error);
       if (phase === 'verify') {
         const before = lastCorrection?.before ?? error;
+        hostGuard?.verifyHold(lastCorrection,error,releaseEvidence?.qualified(lastCorrection||{},nowMs) && io.hostFineHoldTrusted?.());
         phase = 'observe';
         // v13.7: a freeze after landing says nothing about the correction: no learning, no backoff.
         const voided = lastStallSeenAt >= (lastCorrection?.releasedAt ?? Infinity) && !(releaseEvidence?.qualified(lastCorrection||{},nowMs)===true);
@@ -284,6 +279,11 @@
           reason = 'correction-did-not-improve-backoff';
           return;
         }
+      }
+      if (io.mirrorContradicted?.()) {
+        locked = false; healthySince = -1; reason = io.hostLinked ? 'host-mirror-contradicted' : 'mirror-contradicted';
+        if (!io.hostLinked && failures < MAX_FAILURES && nowMs >= cooldownUntil) fixedRateFine(nowMs,error,io);
+        return;
       }
       if (absolute <= MONITOR_SEC + EPS_SEC) { if (healthySince < 0) healthySince = nowMs;
         if (!locked) lockedAt = nowMs;
@@ -311,7 +311,7 @@
         if (soft !== null) { lastZeroServoAt = nowMs; return startRate(nowMs, error, io, soft); }
         reason = 'fine-drift-below-reference-precision'; return;
       }
-      if (failures >= MAX_FAILURES) { if(hostGuard?.fineHold(error,io,model)) return startHold(nowMs,error,io); phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
+      if (failures >= MAX_FAILURES) { phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
       if (nowMs < cooldownUntil) { reason = 'correction-cooldown'; return; }
       if (absolute > MAX_AUTO_SEC) {
         // A reference discontinuity resets sampling; only a steady, consistent
@@ -329,12 +329,12 @@
       }
       const rate = absolute <= 2.5 ? rateFor(io, error) : null;
       if (rate !== null) return startRate(nowMs, error, io, rate);
-      if (hostGuard?.fineHold(error,io,model)) return startHold(nowMs,error,io);
-      if (io.hostLinked && (!hostGuard || hostGuard.blocked || absolute < .70)) { reason = hostGuard?.blocked || !hostGuard ? 'host-auto-seek-guarded' : 'host-subsecond-preserved'; return; }
+      if (hostGuard?.fineHold(error,io,model)) { startHold(nowMs,error,io); lastCorrection.cause = 'host-fine'; return; }
+      if (io.hostLinked && (!hostGuard || hostGuard.blocked || absolute < .70)) { reason = hostGuard?.holdReason || (hostGuard?.blocked || !hostGuard ? 'host-auto-seek-guarded' : 'host-subsecond-preserved'); return; }
       const sourceHold=sourceRecoveryGate?.consider({scope,nowMs,error,io}) === true;
-      const fine=sourceHold ? null : fineGate?.consider({scope,nowMs,error,io,verifiedFixed:model.rateHonored===false && model.rateRejections>=2,releaseLatencyMs:model.releaseLatencySec*1000,quietStallMs:Number.isFinite(lastStallSeenAt)?nowMs-lastStallSeenAt:1e9});
-      if (fine?.action==='learn') {const priorMs=Math.round(model.releaseLatencySec*1000);model.releaseLatencySec=clamp(model.releaseLatencySec+clamp(error*.25,-.04,.04),0,2);save();window.watchFusionRoomSyncLog?.note?.('tv-next-release-model-adjusted',{beforeMs:priorMs,afterMs:Math.round(model.releaseLatencySec*1000),errorMs:Math.round(error*1000),reason:fine.reason??'stable-fine-lag'});reason='fine-lead-model-refined-no-actuation';return;}
-      if (sourceHold || fine?.action==='hold') {
+      const fine = !sourceHold && fixedRateFine(nowMs,error,io);
+      if (fine === 'learn') return;
+      if (sourceHold || fine === 'hold') {
         startHold(nowMs,error,io);if(lastCorrection)lastCorrection.cause=sourceHold?'source-recovery':'fine-lead';reason=sourceHold?'source-recovery-qualified-hold':'fine-lead-qualified-hold';return;
       }
       // Some YouTube TVs offer only 1x. Seeking or a zero-time pause/play for
@@ -429,7 +429,7 @@
         stallSteps: stall.steps, displacedRejoins, hostSeekGuard: hostGuard?.blocked || null, owned: !!job};
     }
 
-    return {tick, intent, reset, owns, rejoinNow, recoverStall, snapshot, observePosition, correcting: () => !!job};
+    return {tick, intent, reset, owns, rejoinNow, recoverStall, snapshot, observePosition, observeRelease:releaseEvidence?.observe, correcting: () => !!job};
   }
 
   globalThis.WatchFusionViewerSyncArbiter = {createViewerSyncArbiter, MODEL_KEY};

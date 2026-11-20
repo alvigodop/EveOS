@@ -5,6 +5,9 @@ import vm from 'node:vm';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { handleRoomRoute } from '../../../src/server/room-routes.js';
+import { getRoom } from '../../../src/server/room-store.js';
+import { handleLiveRoute } from '../../../src/server/live-streams.js';
+import { observeLinkedPlayout } from '../../../src/server/presentation-routes.js';
 
 const CLIENT = fileURLToPath(new URL('../../../public/client/', import.meta.url));
 const readClient = name => fs.readFileSync(path.join(CLIENT, name), 'utf8');
@@ -93,15 +96,18 @@ export async function runPlaybackTimingChecks(check) {
   });
 
   await check('TIMING-24:room routes preserve authority and zero-position transitions', async () => {
-    async function route(action, body, memberId = '') {
-      const url = new URL('http://fixture.invalid/api/rooms/SYNCFIXTURE/' + action);
+    async function post(pathname, body, memberId = '') {
+      const url = new URL(pathname, 'http://fixture.invalid');
       const req = Object.assign(Readable.from([Buffer.from(JSON.stringify(body))]), {
         method:'POST', headers:{'x-member-id':memberId}
       });
       const res = { writeHead(code) { this.code = code; }, end(value) { this.data = JSON.parse(value); } };
-      await handleRoomRoute(req, res, url, url.pathname.split('/').filter(Boolean));
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (parts[1] === 'live') await handleLiveRoute(req, res, parts);
+      else await handleRoomRoute(req, res, url, parts);
       return res;
     }
+    const route = (action, body, memberId) => post('/api/rooms/SYNCFIXTURE/' + action, body, memberId);
     assert.equal((await route('create', {})).code, 201);
     const host = (await route('join', {name:'Host',accountId:'fixture-host'})).data.session.memberId;
     const viewer = (await route('join', {name:'Viewer',accountId:'fixture-viewer'})).data.session.memberId;
@@ -116,6 +122,47 @@ export async function runPlaybackTimingChecks(check) {
     assert.equal((await command('rate', {rate:1.5})).data.state.playback.rate, 1.5);
     const stale = await command('mirror', {sourceKey:'previous-video', position:999});
     assert.equal(stale.code, 409, 'an in-flight sample from another video cannot change this room timeline');
+    const delayed = {position:422, rate:1, sampledServerAt:Date.now()-1557, sourceKey:'M7lc1UVf-VE'};
+    const expired = await command('mirror', delayed);
+    assert.equal(expired.code, 408, 'a delayed running position needs a current source witness');
+    const room = getRoom('SYNCFIXTURE');
+    assert.equal(room.playback.position,25,'expiration leaves the previous transport intact');
+    assert.ok(expired.data.sampleAgeMs >= 1557);
+    const fresh = await command('mirror', {...delayed, position:424, sampledServerAt:Date.now()});
+    assert.equal(fresh.code, 200, 'a fresh source update can recover the room after expiration');
+    assert.ok(Math.abs(fresh.data.state.playback.position-424)<.1);
+    const paused = await command('mirror', {...delayed, paused:true});
+    assert.equal(paused.data.state.playback.position,422,'paused positions never advance in transit');
+    const stream = (await post('/api/live', {})).data;
+    const linkedSource = {id:stream.id, token:stream.publisherToken};
+    const livePath = '/api/live/' + stream.id;
+    assert.equal((await post(livePath + '/room', {roomId:room.id, mode:'linked-tab', publisherToken:linkedSource.token}, host)).code,200);
+    try {
+      const sent = Date.now() - 1557;
+      Object.assign(room.playback, {position:410, rate:1, paused:false, updatedAt:sent-5000});
+      const mirror = {...delayed, linkedSource, sampledServerAt:sent};
+      const observe = (delta, extra={}) => observeLinkedPlayout(room, {
+        positionMs:422000+delta+15, sampledAt:sent+delta, outputSession:stream.id,
+        ready:true, playing:true, uncertaintyMs:25, ...extra
+      }, sent+delta+5);
+      observe(880);
+      observe(1300);
+      const confirmed = await command('mirror', mirror);
+      assert.equal(confirmed.code,200);
+      assert.equal(Math.round(room.playback.position*1000),422015+room.playback.updatedAt-sent,
+        'a corroborated delayed seek anchors to the advancing source at receipt');
+      const updatedAt = room.playback.updatedAt;
+      const audio = await command('mirror',{...mirror,volumeOnly:true,volume:55});
+      assert.equal(audio.code,200);
+      assert.equal(room.playback.volume,55);
+      assert.equal(room.playback.updatedAt,updatedAt,'late volume-only changes preserve transport');
+      assert.equal((await command('mirror',{...mirror, position:0})).code,408);
+      assert.equal((await command('mirror',{...mirror, sampledServerAt:Date.now()-5000})).code,408);
+      observe(1480,{buffering:true});
+      assert.equal((await command('mirror',mirror)).code,408);
+    } finally {
+      await post(livePath + '/stop', {publisherToken:linkedSource.token});
+    }
     const ping = (await route('ping', {}, viewer)).data;
     assert.ok(ping.serverReceivedAt > 0 && ping.serverTime >= ping.serverReceivedAt);
   });

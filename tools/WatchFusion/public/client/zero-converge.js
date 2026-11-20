@@ -38,6 +38,7 @@
     if (window.watchFusionPlayout?.sourceBuffering?.()) return 'source-buffering';
     const c = window.watchFusionPlayout?.status?.();
     if (state.linkedSourceActive === true && (!c || c.source !== 'live' || c.authorityBuffering)) return 'reference-not-live';
+    if (c?.mirrorContradicted || window.WatchFusionMirrorConvergenceGate?.contradicted?.()) return 'mirror-contradicted';
     if (c && Number.isFinite(c.uncertaintyMs) && c.uncertaintyMs > MAX_REF_UNCERTAINTY_MS) return 'reference-too-uncertain';
     // Only the linked-source laptop host: do not disturb an established lock or use a rejected rate capability.
     if (typeof isHost === 'function' && isHost() && state.linkedSourceActive === true) {

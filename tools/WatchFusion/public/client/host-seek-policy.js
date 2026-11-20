@@ -14,10 +14,21 @@
     return Number.isFinite(known)&&known>=0 ? clamp(known,0,.9)
       : clamp(model.releaseLatencySec,0,.35);
   }
-  function eligibleFineHold(error,io,model){
-    return io.hostLinked && error < -.10 && error >= -2.5 &&
-      io.hostFineHoldTrusted?.() === true && Number.isFinite(model.hostReleaseLatencySec) && model.hostReleaseLatencySec >= 0 &&
-      (-error/io.baseRate-releaseLatency(io,model))*1000 >= 80;
+  function sourceBlocker(target) {
+    const playout = window.watchFusionPlayout, c = playout?.status?.();
+    if (c?.mirrorContradicted || window.WatchFusionMirrorConvergenceGate?.contradicted?.()) return 'host-mirror-contradicted';
+    if (!playout?.hasSourceReference?.(c, estimatedServerNow())) return 'host-source-unverified';
+    const clock = window.watchPartyClock, rtt = clock?.rttMs?.();
+    if (!clock?.precise?.() || !Number.isFinite(rtt) || rtt < 0 || rtt > 90) return 'host-clock-unverified';
+    const link = window.watchFusionLinkedTab, m = link?.metadata?.();
+    if (!link?.publishing?.() || !m || window.parseYoutubeInput?.(m.pageUrl) !== state.source.videoId ||
+        ytPlayer.getVideoData?.()?.video_id !== state.source.videoId || m.paused || m.ended || m.buffering ||
+        !Number.isFinite(m.rate) || Math.abs(m.rate - c.rate) > .01) return 'host-source-ineligible';
+    const age = Date.now() - m.sampledAt;
+    if (!Number.isFinite(age) || age < 0 || age > 750) return 'host-source-stale';
+    const source = m.currentTime + age * m.rate / 1000;
+    if (!Number.isFinite(source) || !Number.isFinite(target) || Math.abs(source-target)*1000 > 35) return 'host-source-disagrees';
+    return null;
   }
   function learnRelease(residual,correction,model){
     if(!correction?.hostLinked||!correction.releaseVerified||
@@ -33,10 +44,35 @@
     return true;
   }
   function create() {
-    let blocked = '', fineHolds = 0;
+    let blocked = '', fineHolds = 0, holdReason = '', candidate = null, nextHoldAt = 0;
+    function verifyHold(c, error, verified) {
+      if (c?.cause !== 'host-fine') return;
+      const improved = verified && Math.abs(error) <= Math.abs(c.before) * .7;
+      if (!improved) fineHolds = 2;
+      window.watchFusionRoomSyncLog?.note?.('host-hold-result', {
+        reason:!verified ? 'unverified' : improved ? 'improved' : 'no-progress',
+        beforeMs:Math.round(c.before*1000), residualMs:Math.round(error*1000)});
+    }
     function fineHold(error,io,model){
-      if(fineHolds>=2||!eligibleFineHold(error,io,model))return false;
-      fineHolds++;return true;
+      const now = io.now();
+      holdReason = '';
+      if (!io.hostLinked || error >= -.10 || error < -2.5) { candidate = null; return false; }
+      const holdMs = (-error/io.baseRate - releaseLatency(io,model))*1000;
+      holdReason = (io.hostHoldBlocker ? io.hostHoldBlocker() : io.hostFineHoldTrusted?.() ? null : 'host-source-unverified') ||
+        (blocked ? 'host-auto-seek-guarded' : fineHolds >= 2 ? 'host-hold-budget-used'
+        : now < nextHoldAt ? 'host-hold-cooldown'
+        : !model.hostReleaseMeasured || !Number.isFinite(model.hostReleaseLatencySec) ? 'host-release-unmeasured'
+        : holdMs < 80 ? 'host-hold-too-short' : '');
+      if (holdReason) { candidate = null; return false; }
+      if (!candidate || now - candidate.last > 800 || Math.abs(error - candidate.error) > .035) {
+        candidate = {since:now, last:now, error};
+      }
+      candidate.last = now;
+      if (now - candidate.since < 1600) { holdReason = 'host-hold-observing'; return false; }
+      fineHolds++; nextHoldAt = now + 12000; candidate = null;
+      window.watchFusionRoomSyncLog?.note?.('host-hold-started', {errorMs:Math.round(error*1000),
+        holdMs:Math.round(holdMs), startLatencyMs:Math.round(model.hostReleaseLatencySec*1000), attempts:fineHolds});
+      return true;
     }
     function timeout(job) {
       if (job?.hostLinked && job.why !== 'manual') blocked = 'landing-timeout';
@@ -57,8 +93,9 @@
       const min = why === 'host-peer' ? .17 : MIN_HOST_REJOIN_SEC;
       return !!blocked || !Number.isFinite(error) || Math.abs(error) < min;
     }
-    return { timeout, landing, blockRejoin, releaseLatency, learnRelease, fineHold, reset: () => { blocked = ''; fineHolds = 0; },
+    return { timeout, landing, blockRejoin, releaseLatency, learnRelease, fineHold, verifyHold, get holdReason() { return holdReason; },
+      reset: () => { blocked = ''; fineHolds = 0; holdReason = ''; candidate = null; nextHoldAt = 0; },
       get blocked() { return blocked; } };
   }
-  globalThis.WatchFusionHostSeekPolicy = {create, MIN_HOST_REJOIN_MS:Math.round(MIN_HOST_REJOIN_SEC*1000)};
+  globalThis.WatchFusionHostSeekPolicy = {create, sourceBlocker, MIN_HOST_REJOIN_MS:Math.round(MIN_HOST_REJOIN_SEC*1000)};
 })();

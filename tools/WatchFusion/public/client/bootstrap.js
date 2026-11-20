@@ -1,5 +1,5 @@
 function currentPosition() { return mediaVideo ? (mediaVideo.currentTime || 0) : (ytPlayer?.getCurrentTime?.() || 0); }
-async function command(type, extra={}) {
+async function command(type, extra={}, receipt) {
   const activeRoom = roomId;
   const activeMember = session?.memberId;
   if (!activeRoom || !activeMember) return false;
@@ -7,14 +7,13 @@ async function command(type, extra={}) {
   const payload = {type, ...extra};
   const sampledServerAt = window.watchPartyClock?.serverAt?.(sentAt);
   if (Number.isFinite(sampledServerAt)) payload.sampledServerAt = sampledServerAt;
-  command.lastStatus = 0;
   const res = await fetch(apiUrl(`/api/rooms/${activeRoom}/command`), {
     method:'POST', headers:{'Content-Type':'application/json','x-member-id':activeMember}, body:JSON.stringify(payload)
   });
   const receivedAt = Date.now();
   const data = await res.json().catch(() => ({}));
-  command.lastStatus = res.status;
   if (roomId !== activeRoom || session?.memberId !== activeMember) return false;
+  if (receipt) Object.assign(receipt, {status:res.status, sampleAgeMs:data.sampleAgeMs});
   if(data.state?.serverTime)updateServerClock(data.state.serverTime,sentAt,receivedAt);
   if(!res.ok){setStatus(data.error||'Command rejected');return false;}
   const authorityBefore = playbackAuthorityKey(state);

@@ -2,11 +2,12 @@
 const MAX_AGE = 4500;
 const MAX_HOLDBACK = 350;
 const MAX_PHASE = 1200;
+export const TIMING_VERSION = 'v13.10.8x-r14b';
 const finite = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
 const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
 export function createPlayoutCoordinator() {
-  let segment = 0, anchor = null, reference = null, holdbackMs = 0;
+  let segment = 0, segmentAt = 0, anchor = null, reference = null, holdbackMs = 0;
   let sourceStall = {sequence:0, buffering:false, firstAt:-1, lastAt:-1};
   const history = new Map(), latestReport = new Map();
 
@@ -16,6 +17,7 @@ export function createPlayoutCoordinator() {
     const predicted = anchor && anchor.positionMs + (next.at - anchor.at) * anchor.rate;
     if (discontinuity || !anchor || anchor.rate !== rate || Math.abs(next.positionMs - predicted) > (softMirror && rate > 0 ? 1500 : 500)) {
       segment++;
+      segmentAt = next.at;
       history.clear();
       latestReport.clear();
       reference = null;
@@ -37,7 +39,7 @@ export function createPlayoutCoordinator() {
   function observe(id, report, receivedAt) {
     const fresh = finite(report.sampledAt, receivedAt - 1500, receivedAt + 50);
     const previousReport = latestReport.get(id);
-    if (!fresh || (previousReport && report.sampledAt <= previousReport.sampledAt)) return;
+    if (!fresh || report.sampledAt < segmentAt || (previousReport && report.sampledAt <= previousReport.sampledAt)) return;
     // Only independent linked-source buffering can establish a source-stall episode.
     if (id === 'linked') {
       if (report.buffering === true) {
@@ -54,19 +56,21 @@ export function createPlayoutCoordinator() {
     const agrees = live && coarse !== null && Math.abs(coarse) <= MAX_PHASE;
     // PLAYING alone is not progress: a frozen timeline must not corroborate the room, even inside
     // MAX_PHASE. Require the media position itself to advance by a quarter of the expected amount.
-    const dt = previousReport ? report.sampledAt - previousReport.sampledAt : 0;
-    const advanced = !previousReport || !Number.isFinite(previousReport.positionMs) || dt < 100
-      ? (previousReport?.advanced ?? true)
-      : report.positionMs - previousReport.positionMs >= dt * anchor.rate * .25;
+    const routeChanged = previousReport && previousReport.output !== report.outputSession;
+    const probe = !routeChanged && previousReport?.probe;
+    const dt = probe ? report.sampledAt - probe.at : 0;
+    const advanced = dt >= 100 ? report.positionMs - probe.position >= dt * anchor.rate * .25
+      : probe ? previousReport.advanced : null;
     latestReport.set(id, {at:receivedAt, sampledAt:report.sampledAt, buffering:report.buffering === true, output:report.outputSession, correcting,
-      live, coarse, positionMs:coarse !== null ? report.positionMs : null, advanced,
+      live, coarse, advanced, probe:live && coarse !== null ? (probe && dt < 100 ? probe : {at:report.sampledAt, position:report.positionMs}) : null,
       agreed:agrees && advanced ? (previousReport?.agreed || 0) + 1 : 0});
     let samples = history.get(id);
-    const valid = !correcting && anchor?.rate > 0 && Number.isFinite(receivedAt) && report.ready && report.playing && !report.buffering &&
-      finite(report.positionMs, 0, 1e10) && finite(report.uncertaintyMs, 0, 150);
-    const routeChanged = previousReport && previousReport.output !== report.outputSession;
-    if (reference?.authority === id && routeChanged) reference = null;
-    if (!valid || routeChanged) {
+    const moving = !correcting && live && advanced !== false && coarse !== null;
+    const valid = moving && finite(report.uncertaintyMs, 0, 150);
+    if (reference?.authority === id && (routeChanged || !moving)) reference = null;
+    // A relay-receipt timestamp can confirm gross progress. It cannot vote in
+    // the precise window or evict independently timestamped source samples.
+    if (routeChanged || !valid && !(id === 'linked' && moving && agrees)) {
       history.delete(id);
       samples = null;
     }
@@ -76,11 +80,27 @@ export function createPlayoutCoordinator() {
       history.set(id, samples);
     }
     const previous = samples.readings.at(-1);
+    if (previous && report.sampledAt - previous.at < 175) return;
     if (previous && report.sampledAt - previous.at > 2400) samples.readings = [];
     const phase = report.positionMs - position(report.sampledAt);
     samples.readings.push({at:report.sampledAt, phase, uncertaintyMs:report.uncertaintyMs,
       bufferedUntilMs:report.bufferedUntilMs, hasDeviceOffset: Math.abs(report.adjustmentMs || 0) >= 1});
     samples.readings = samples.readings.filter(item => report.sampledAt - item.at <= MAX_AGE).slice(-8);
+  }
+
+  // A late publisher command may describe a real scrub. Compare it to two
+  // independently timestamped linked-tab readings on this transport segment.
+  function confirmedMirrorPosition(sampledAt, sampledPosition, rate, now) {
+    const source = latestReport.get('linked'), readings = history.get('linked')?.readings;
+    if (now - sampledAt > 4000 || sampledAt < segmentAt || anchor?.rate !== rate ||
+        !source?.live || source.advanced !== true || source.correcting || !readings || readings.length < 2) return null;
+    const [first, last] = readings.slice(-2);
+    if (first.at < sampledAt || last.at > now || now - last.at > 750 ||
+        Math.max(first.uncertaintyMs, last.uncertaintyMs) > 75 || Math.abs(last.phase - first.phase) > 75) return null;
+    const roomNow = position(now);
+    const expectedPhase = sampledPosition * 1000 + (now - sampledAt) * rate - roomNow;
+    if (![first.phase, last.phase, source.coarse].every(phase => Number.isFinite(phase) && Math.abs(phase - expectedPhase) <= 125)) return null;
+    return (roomNow + last.phase) / 1000;
   }
 
   function estimate(id, now) {
@@ -124,12 +144,19 @@ export function createPlayoutCoordinator() {
     const authoritySample = latestReport.get(authority);
     const authorityBuffering = authoritySample?.buffering === true && now - authoritySample.at < 1700;
     if (reference && reference.authority !== authority) reference = null;
+    const source = !authoritySample ? 'none' : now - authoritySample.at > 1700 ? 'stale' : authoritySample.buffering ? 'buffering'
+      : !authoritySample.live || anchor?.rate <= 0 ? 'not-playing' : authoritySample.advanced === false ? 'frozen'
+      : !(authoritySample.agreed >= 2) ? 'off-phase' : 'live';
     const observed = estimate(authority, now);
     if (observed && observed.uncertaintyMs <= 125) {
       if (!reference || reference.origin === 'peer-cohort' || Math.abs(observed.phase - reference.phase) > Math.max(20, observed.uncertaintyMs)) reference = {...observed, authority};
       else reference = {...reference, at:observed.at, uncertaintyMs:observed.uncertaintyMs};
     } else if (reference && now - reference.at > MAX_AGE) reference = null;
-    if (authority === 'linked' && (!observed || observed.uncertaintyMs > 125)) {
+    // While the linked source corroborates the room, falling back to the room
+    // anchor preserves its timeline. Moving to the followers' mean here hides
+    // their common offset and makes reacquisition look like a transport jump.
+    if (authority === 'linked' && source === 'live' && reference?.origin === 'peer-cohort') reference = null;
+    if (authority === 'linked' && source !== 'live' && (!observed || observed.uncertaintyMs > 125)) {
       const cohort = peerCohort(now, viewers);
       if (cohort && (!reference || reference.origin === 'peer-cohort')) {
         // Keep one stable room target; do not oscillate with minor peer jitter.
@@ -137,12 +164,6 @@ export function createPlayoutCoordinator() {
           ? cohort : {...reference,at:cohort.at,uncertaintyMs:cohort.uncertaintyMs};
       }
     }
-
-    // Is the room timeline independently corroborated by its audible source right now?
-    // Viewers follow the room, so their agreement is circular and never counts here.
-    const source = !authoritySample ? 'none' : now - authoritySample.at > 1700 ? 'stale' : authoritySample.buffering ? 'buffering'
-      : !authoritySample.live || anchor?.rate <= 0 ? 'not-playing' : !authoritySample.advanced ? 'frozen'
-      : !(authoritySample.agreed >= 2) ? 'off-phase' : 'live';
 
     if (!allowHoldback) holdbackMs = 0;
     if (allowHoldback && observed && observed.uncertaintyMs <= 125 && reference && !authorityBuffering && viewers.size >= 2) {
@@ -166,9 +187,11 @@ export function createPlayoutCoordinator() {
       && now-sourceStall.lastAt >= 900 && now-sourceStall.lastAt <= 15000
       ? {sequence:sourceStall.sequence, ageMs:Math.round(now-sourceStall.lastAt)} : null;
     return {
-      sourceRecovery,
+      sourceRecovery, timingVersion:TIMING_VERSION,
       segment, reference:reference ? (reference.origin === 'peer-cohort' ? 'peer-cohort' : authority === 'linked' ? 'linked-tab' : 'host-player') : 'room-clock',
       phaseMs:Math.round(reference?.phase ?? 0), uncertaintyMs:reference?.uncertaintyMs ?? null,
+      sourceReferenceAt:authority === 'linked' && source === 'live' && observed && observed.uncertaintyMs <= 125
+        && Math.abs(authoritySample.coarse - observed.phase) <= Math.max(35, observed.uncertaintyMs) ? observed.at : null,
       holdbackMs, authorityBuffering, source, sourcePhaseMs:Number.isFinite(authoritySample?.coarse) ? Math.round(authoritySample.coarse) : null, outputTiming:'speaker-unmeasured',
       // The absolute reference timeline, so a viewer never combines a new room
       // anchor with a phase that was computed against the previous one.
@@ -177,5 +200,5 @@ export function createPlayoutCoordinator() {
     };
   }
 
-  return {transport, observe, coordinate, segment:() => segment};
+  return {transport, observe, coordinate, confirmedMirrorPosition, segment:() => segment};
 }

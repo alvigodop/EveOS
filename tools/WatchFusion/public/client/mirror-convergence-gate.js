@@ -29,7 +29,12 @@
       Math.abs(drift - candidate.drift) <= MAX_SPREAD_SEC && current > candidate.current + .05;
     if (!same) candidate = {page, sign, firstAt: sampleAt, lastAt: sampleAt, drift, current};
     else { candidate.lastAt = sampleAt; candidate.current = current; candidate.drift = drift; }
-    if (!same || sampleAt - candidate.firstAt < CONFIRM_MS || now - lastPublishedAt < COOLDOWN_MS) {
+    const playout = window.watchFusionPlayout, c = playout?.status?.();
+    // Repetition against the publisher's last mirror anchor is not confirmation
+    // of a room displacement when the independent source still follows the room.
+    const disagrees = playout?.hasSourceReference?.(c, estimatedServerNow()) &&
+      Math.abs(c.sourcePhaseMs) <= 35 && Math.abs(drift * 1000 - c.sourcePhaseMs) > LARGE_SEC * 1000;
+    if (!same || disagrees || sampleAt - candidate.firstAt < CONFIRM_MS || now - lastPublishedAt < COOLDOWN_MS) {
       held++; heldSinceNote++;
       if (Math.abs(drift) > LARGE_SEC) contradiction = {driftMs: Math.round(drift * 1000), at: now, confirmed: same && sampleAt - candidate.firstAt >= CONFIRM_MS};
       const phaseNow=window.watchFusionPlayout?.status?.()?.sourcePhaseMs; const gapNow=Number.isFinite(phaseNow)?Math.round(drift*1000-phaseNow):null;

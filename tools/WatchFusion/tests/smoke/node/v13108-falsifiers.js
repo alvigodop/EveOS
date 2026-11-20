@@ -160,9 +160,34 @@ export async function runV13108Checks(check) {
     const body = tab.slice(tab.indexOf('async function mirrorNow'));
     assert.ok(body.indexOf('mirrorGuard()?.gate?.(') < body.indexOf("command('mirror'"), 'gate before the request');
     assert.ok(body.indexOf('stalledRepeat') < body.indexOf("command('mirror'"), 'stall hold before the request');
-    assert.match(body, /mirrorGuard\(\)\?\.result\?\.\(ok,ok\?200:command\.lastStatus/);
+    assert.match(body, /mirrorGuard\(\)\?\.result\?\.\(ok,receipt\.status/);
     assert.match(tab, /function reconnect\(\)\{if\(!link\)return start\(\);mirrorGuard\(\)\?\.reset\?\.\(\)/);
-    assert.match(boot, /command\.lastStatus = 0;[\s\S]*const res = await fetch/, 'status is cleared before each request');
+    assert.match(boot, /if \(receipt\) Object\.assign\(receipt, \{status:res\.status/, 'the mirror uses its own response even when commands overlap');
     assert.ok(files.indexOf("'client/linked-mirror-guard.js'") > 0 && files.indexOf("'client/linked-mirror-guard.js'") < files.indexOf("'client/linked-tab.js'"));
+  });
+  await check('V13108-09:expired forced mirrors retry from current metadata after backoff', async () => {
+    const ctx = guardCtx(), positions = [];
+    Object.assign(ctx, {active:()=>true, roomId:'ROOM', link:{id:'L1'}, loadedPageUrl:'fixture',
+      state:{source:{videoId:'AAAAAAAAAAA'}}, pendingControls:new Map(), mirrorInFlight:false, queuedMirror:null,
+      lastMirrorAnchor:{position:5,sampledAt:Date.now(),rate:1}, roomProof:()=>({id:'L1'}),
+      mirrorAuthority:authority, mirrorGuard:()=>ctx.WatchFusionLinkedMirrorGuard,
+      command:async (_type, body, receipt) => {
+        positions.push(body.position);
+        Object.assign(receipt,{status:positions.length===1?408:200,sampleAgeMs:positions.length===1?1557:7});
+        return receipt.status===200;
+      }});
+    const code = read('public/client/linked-tab.js');
+    vm.runInContext(read('public/client/linked-playback-sync.js'),ctx);
+    vm.runInContext(code.slice(code.indexOf('async function mirrorNow'),code.indexOf('function scheduleMirror')),ctx);
+    const emit = (position,force) => ctx.mirrorNow({currentTime:position,sampledAt:Date.now(),pageUrl:'fixture'},force);
+    assert.equal(await emit(422,true),false);
+    assert.equal(ctx.lastMirrorAnchor,null);
+    assert.equal(await emit(423,false),false);
+    assert.equal(positions.length,1);
+    ctx.advance(3100);
+    assert.equal(await emit(425,false),true);
+    assert.ok(Math.abs(positions[1]-425)<.1,'next metadata supplies the new position');
+    assert.deepEqual(ctx.notes.filter(([kind])=>['mirror-expired','mirror-applied'].includes(kind))
+      .map(([kind,detail])=>[kind,detail.sampleAgeMs]),[['mirror-expired',1557],['mirror-applied',7]]);
   });
 }

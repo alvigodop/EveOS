@@ -24,7 +24,7 @@
     if (peers && Math.abs(peers.gapMs) > Math.max(peers.confidenceMs, coordination.uncertaintyMs * 1.35)) return {
       kind:'peer-corroborated', precisionMs:coordination.uncertaintyMs, peers
     };
-    if (coordination.uncertaintyMs <= 45 && coordination.reference !== 'room-clock') return {
+    if (coordination.uncertaintyMs <= 45 && ['linked-source','linked-tab'].includes(coordination.reference)) return {
       kind:'source-verified',precisionMs:coordination.uncertaintyMs,peers:null
     };
     return null;

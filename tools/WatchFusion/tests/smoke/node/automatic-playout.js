@@ -136,4 +136,71 @@ export async function runAutomaticPlayoutChecks(check) {
     result = get(start + 2000);
     assert.equal(result.source,'live');
   });
+
+  await check('ENTRY-01:interleaved coarse reports cannot erase precise linked-source observations', () => {
+    const sync = createPlayoutCoordinator(), get = room(sync);
+    sync.transport(play);
+    for (let i = 0; i < 30; i++) {
+      const at = start + 350*i;
+      sample(sync, 'linked', at, -2, {uncertaintyMs:i % 2 ? undefined : 12});
+      sample(sync, 'tv', at, 160);
+      sample(sync, 'phone', at, 135);
+      const c = get(at + 20);
+      assert.ok(Math.abs(c.phaseMs) < 5, 'peer agreement moved the source target by '+c.phaseMs+' ms');
+      if (i >= 6) assert.equal(c.reference, 'linked-tab');
+    }
+  });
+
+  await check('ENTRY-02:source loss permits relative fallback and reacquisition restores independent phase', () => {
+    const sync = createPlayoutCoordinator(), get = room(sync);
+    sync.transport(play);
+    for (let i = 0; i <= 48; i++) {
+      const at = start + i*350;
+      if (i < 9 || i > 33) sample(sync,'linked',at,-2);
+      sample(sync,'tv',at,160); sample(sync,'phone',at,135);
+      const c = get(at + 20);
+      if (i === 8 || i === 48) {
+        assert.equal(c.reference,'linked-tab'); assert.equal(c.phaseMs,-2); assert.equal(c.sourceReferenceAt,at);
+      }
+      if (i === 32) {
+        assert.equal(c.reference,'peer-cohort'); assert.equal(c.phaseMs,148); assert.equal(c.sourceReferenceAt,null);
+      }
+    }
+    const at = start + 18000;
+    sync.transport({...play,position:0,updatedAt:at},true);
+    sample(sync,'linked',at-10,0);
+    assert.equal(get(at).source,'none','an in-flight old segment report cannot seed the new source');
+  });
+
+  await check('ENTRY-03:frequent frozen samples cannot extend source progress or certify a lock', () => {
+    const sync = createPlayoutCoordinator(), get = room(sync);
+    sync.transport(play);
+    for (let i=0;i<=80;i++) sample(sync,'linked',start+i*50,0);
+    assert.equal(get(start+4020).reference,'linked-tab');
+    for (let i=81;i<=100;i++) sample(sync,'linked',start+i*50,4000-i*50);
+    const c=get(start+5020);
+    assert.equal(c.source,'frozen'); assert.equal(c.sourceReferenceAt,null);
+  });
+
+  await check('ENTRY-04:late mirrors require recent progressing linked observations from the same segment', () => {
+    const sync = createPlayoutCoordinator();
+    sync.transport(play);
+    const sent = start + 1000, now = sent + 1557;
+    const confirm = () => sync.confirmedMirrorPosition(sent, 13, 1, now);
+    feed(sync,'tv',sent+600,[10,10,10]);
+    assert.equal(confirm(),null,'a viewer cannot corroborate a publisher command');
+    feed(sync,'linked',sent-350,[10,10]);
+    assert.equal(confirm(),null,'old readings cannot attest to the requested position');
+    sample(sync,'linked',sent+900,10,{uncertaintyMs:95});
+    sample(sync,'linked',sent+1200,10);
+    assert.equal(confirm(),null,'both source readings need bounded clocks');
+    sample(sync,'linked',sent+1400,10);
+    assert.equal(confirm(),14.567);
+    assert.equal(sync.confirmedMirrorPosition(sent,13,1.5,now),null);
+    assert.equal(sync.confirmedMirrorPosition(sent,13,1,now+1000),null,'expired observations');
+    sample(sync,'linked',sent+1510,-100,{uncertaintyMs:undefined});
+    assert.equal(confirm(),null,'a newly frozen source invalidates earlier progress');
+    sync.transport({...play,updatedAt:now-30},true);
+    assert.equal(confirm(),null,'a delayed mirror cannot cross a seek');
+  });
 }

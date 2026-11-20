@@ -15,7 +15,7 @@
     function observe(nowMs, io) {
       const p = postRelease;
       if (!p || nowMs-p.at > 12000 || p.invalid || p.sourceFault) return;
-      if (io.sourceBuffering?.() || io.referenceTrusted?.() !== true) {
+      if (io.sourceBuffering?.() || io.referenceTrusted?.() !== true || (io.hostLinked && io.hostFineHoldTrusted?.() !== true)) {
         p.sourceFault = true;
         return;
       }
@@ -29,7 +29,10 @@
         p.invalid = true;
         return;
       }
-      if (delta >= .12) {
+      // Accumulate sub-frame polls. Rebaselining on every short tick can
+      // prevent a genuinely advancing decoder from ever proving 120 ms.
+      if (delta < .12 && dt < 1000) return;
+      if (delta >= .12 && dt <= 1000) {
         if (p.firstAt === null) p.firstAt = nowMs;
         if (p.lastAdvanceAt !== null && nowMs-p.lastAdvanceAt > 1000) p.invalid = true;
         p.lastAdvanceAt = nowMs;
@@ -39,7 +42,7 @@
     }
     function qualified(c, nowMs) {
       const p = postRelease;
-      return !!(p && c.releaseVerified && c.releasedAt === p.at && !p.invalid && !p.sourceFault
+      return !!(p && c.releaseVerified && c.releasedAt === p.at && nowMs-p.at <= 12000 && !p.invalid && !p.sourceFault
         && p.firstAt !== null && p.lastAdvanceAt !== null && p.firstAt-p.at >= 0
         && p.firstAt-p.at <= 1200 && nowMs-p.firstAt >= 1600
         && nowMs-p.lastAdvanceAt <= 550);
@@ -129,7 +132,20 @@
       }
       reason='model-only-learning';return {action:'learn'};
     }
-    return {consider,cancelCandidate,snapshot};
+    function refine(input, model, lastStallAt, save, noteChange) {
+      const {error, nowMs} = input;
+      const decision = consider({...input, releaseLatencyMs:model.releaseLatencySec*1000,quietStallMs:Math.min(1e9,nowMs-lastStallAt)});
+      if (decision?.action === 'learn') {
+        const priorMs = Math.round(model.releaseLatencySec*1000);
+        const bias = Math.min(.04, Math.max(-.04, error*.25));
+        model.releaseLatencySec = Math.min(2, Math.max(0, model.releaseLatencySec+bias));
+        save();
+        noteChange({beforeMs:priorMs,
+          afterMs:Math.round(model.releaseLatencySec*1000),errorMs:Math.round(error*1000),reason:decision.reason});
+      }
+      return decision?.action;
+    }
+    return {consider,refine,cancelCandidate,snapshot};
   }
 
   // A hard-budgeted rejoin for a *verified fixed-rate* TV after a stable

@@ -133,6 +133,8 @@ async function commandRoute(req, res, room, roomId, member) {
   const sampleAgeSeconds = sampledCommandAgeSeconds(body, receivedAt);
   const isHost = member.id === room.hostId && room.members.has(member.id);
   const type = body.type;
+  const mirrorAgeMs = type === 'mirror' && Number.isFinite(body.sampledServerAt) && body.sampledServerAt > 0
+    ? receivedAt - body.sampledServerAt : null;
   const linked = ownsLinkedSource(room, room.members.get(member.id), body.linkedSource);
   if ((body.linkedSource || (type === 'mirror' && room.linkedSourceId)) && !linked) {
     return json(res, 403, { error: 'Linked source ownership required.' });
@@ -172,7 +174,15 @@ async function commandRoute(req, res, room, roomId, member) {
     const audioOnly = body.volumeOnly === true && paused === !!room.playback.paused && !!body.ended === !!room.playback.ended
       && Math.abs(rate - (Number(room.playback.rate) || 1)) <= .01;
     if (!audioOnly) {
-      room.playback.position = paused ? sampledPosition : sampledPosition + sampleAgeSeconds * rate;
+      let position = paused ? sampledPosition : sampledPosition + sampleAgeSeconds * rate;
+      if (!paused && mirrorAgeMs !== null && (mirrorAgeMs > 1000 || mirrorAgeMs < -250)) {
+        const {playout} = presentationScope(room);
+        playout.transport(room.playback);
+        position = linked && mirrorAgeMs > 0
+          ? playout.confirmedMirrorPosition(body.sampledServerAt, sampledPosition, rate, receivedAt) : null;
+        if (position === null) return json(res, 408, {error:'Waiting for a fresh linked-source position.', sampleAgeMs:mirrorAgeMs});
+      }
+      room.playback.position = position;
       room.playback.paused = paused;
       room.playback.ended = !!body.ended;
       room.playback.rate = rate;
@@ -227,5 +237,5 @@ async function commandRoute(req, res, room, roomId, member) {
   if (type === 'mirror') presentationScope(room).playout.transport(room.playback, false, true);
   room.lastActivity = now();
   broadcastState(room);
-  return json(res, 200, { ok: true, state: publicState(room) });
+  return json(res, 200, { ok: true, state: publicState(room), ...(type === 'mirror' ? {sampleAgeMs:mirrorAgeMs} : {}) });
 }

@@ -38,6 +38,26 @@
     return lease.value;
   }
 
+  function hasSourceReference(c, now) {
+    return !!c && c.segment === state?.playoutSegment && c.reference === 'linked-tab' &&
+      c.source === 'live' && !c.authorityBuffering && Number.isFinite(c.sourceReferenceAt) &&
+      now >= c.sourceReferenceAt && now - c.sourceReferenceAt <= 1500 &&
+      Number.isFinite(c.uncertaintyMs) && c.uncertaintyMs >= 0 && c.uncertaintyMs <= 75 &&
+      Number.isFinite(c.phaseMs) && Number.isFinite(c.anchorPositionMs) && Number.isFinite(c.anchorAt) && c.rate > 0;
+  }
+
+  // Project the independently timed source to the instant of the player's
+  // reading. The follower's chosen target and its manual delay are irrelevant.
+  function sourceErrorMs(peer, c, now) {
+    if (!hasSourceReference(c, now) || c.mirrorContradicted || peer.playoutSegment !== c.segment ||
+        !peer.playing || !peer.ready || peer.buffering || peer.correcting ||
+        !Number.isFinite(peer.positionMs) || !Number.isFinite(peer.sampledAt) ||
+        now < peer.sampledAt || now - peer.sampledAt > 1500 ||
+        !['decoder-confirmed','fine-locked','direct-ready'].includes(peer.startupPhase)) return null;
+    const sourcePosition = c.anchorPositionMs + (peer.sampledAt - c.anchorAt) * c.rate + c.phaseMs;
+    return Math.round(peer.positionMs - sourcePosition);
+  }
+
   // The coordinator's anchor and phase always travel together. Using them as one
   // absolute timeline keeps the target continuous when the room anchor is
   // republished before the next coordination lease arrives (v13).
@@ -98,6 +118,7 @@
     precision:availablePrecision,
     bufferedThreshold, bufferedUntil,
     status:target,
+    hasSourceReference, sourceErrorMs,
     sourceBuffering: () => target()?.authorityBuffering === true
   };
   setInterval(() => void tick().catch(() => {}), 700);

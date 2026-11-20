@@ -52,7 +52,8 @@
       resetSamples(); if (stage === 'exhausted') return false;
     }
     if (stage === 'verifying') {
-      if (!input.active || !input.publisher || !input.sameVideo || !c || c.source !== 'live' ||
+      if (!input.active || !input.publisher || !input.sameVideo || !c || c.source !== 'live' || c.authorityBuffering ||
+          !['linked-tab','room-clock'].includes(c.reference) || input.contradiction ||
           !Number.isFinite(input.sourceAgeMs) || input.sourceAgeMs > 750 || !Number.isFinite(error)) {
         nearSince = -1; post = [];
         // Never judge (or retry) an attempt without a valid resumed playback window.
@@ -91,7 +92,8 @@
         !Number.isFinite(c.sourcePhaseMs) || Math.abs(c.sourcePhaseMs) > 35 ||
         (c.uncertaintyMs != null && (!Number.isFinite(c.uncertaintyMs) || c.uncertaintyMs > 75))) return gate('solo-source-untrusted');
     if (!Number.isFinite(input.sourceAgeMs) || input.sourceAgeMs < 0 || input.sourceAgeMs > 750) return gate('solo-source-stale');
-    if (!Number.isFinite(error) || Math.abs(error) < MIN_ERROR) return gate('solo-source-within-band');
+    if (!Number.isFinite(error) || Math.abs(error) <= 100) return gate('solo-source-within-band');
+    if (Math.abs(error) < MIN_ERROR) return gate('solo-source-below-rejoin-band');
     if (Math.abs(error) > MAX_ERROR) return gate('solo-source-drift-too-large');
     // The viewer arbiter refuses source-led host seeks below its own 700ms threshold.
     // Never spend an attempt budget on a request the single writer cannot make.

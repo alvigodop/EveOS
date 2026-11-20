@@ -136,7 +136,7 @@ export async function runSourceTabSmokes() {
     assert.match(linkedTab, /if\(!plan\?\.publish\)return false/);
     assert.match(linkedTab, /mirrorInFlight=true/);
     assert.match(linkedTab, /queuedMirror=\{metadata:\{\.\.\.metadata\},force:/);
-    assert.match(linkedTab, /if\(ok&&link===activeLink&&loadedPageUrl===activePage\)\{?lastMirrorAnchor=plan\.anchor/); // v13.10.3 adds a mirror-applied note in the same guarded block
+    assert.match(linkedTab, /if\(link!==activeLink\|\|loadedPageUrl!==activePage\|\|!receipt.status\)return false;[\s\S]*?if\(ok\)\{lastMirrorAnchor=plan\.anchor/);
     assert.doesNotMatch(linkedTab, /MIRROR_INTERVAL_MS/);
     assert.match(linkedPlayback, /function mediaPlan/);
     assert.match(linkedPlayback, /function mirrorPlan/);

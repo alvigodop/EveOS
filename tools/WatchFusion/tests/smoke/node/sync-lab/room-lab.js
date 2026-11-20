@@ -14,7 +14,7 @@ const read = rel => fs.readFileSync(path.join(ROOT, 'public', rel), 'utf8');
 export function viewerScripts() {
   const bundle = fs.readFileSync(path.join(ROOT, 'src/server/static-files.js'), 'utf8');
   const listed = [...bundle.matchAll(/'((?:client\/)?[a-z0-9-]+\.js)'/g)].map(m => m[1]);
-  const wanted = new Set(['client/linked-playback-sync.js', 'client/sync-seek-health.js', 'client/youtube-startup-gate.js',
+  const wanted = new Set(['client/linked-playback-sync.js', 'client/sync-seek-health.js', 'client/youtube-startup-gate.js', 'client/host-seek-policy.js', 'client/host-source-converge.js', 'client/sensor-provenance.js', 'client/mirror-convergence-gate.js',
     'client/gentle-catchup.js', 'client/viewer-release-evidence.js', 'client/viewer-timing-math.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/presentation-sync.js', 'client/room-playout.js']);
   return listed.filter(name => wanted.has(name));
 }
@@ -37,7 +37,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
   // The linked source tab is the audible reference ("truth").
   const source = createFakeYouTube(clock, {...PROFILES.laptop, position: 30, playing: true});
   const devices = [];
-  let revision = 1, mirrorAnchor = null, linkedOnline = true, mirrorOnline = true;
+  let revision = 1, mirrorAnchor = null, linkedOnline = true, mirrorOnline = true, lastSource = null;
   const sharedSync = {};
 
   function clientState() {
@@ -66,6 +66,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
     const sampledAt = now - 20;
     const truth = source.truePosition() - .02 + (rand() - .5) * sourceNoiseMs / 1000;
     const metadata = {currentTime: truth, sampledAt, rate: 1, paused: room.playback.paused, ended: false, volume: 1};
+    lastSource = {...metadata, pageUrl:room.source.videoId, buffering:source.getPlayerState() === 3, tabMuted:true};
     const plan = mirror.mirrorPlan(metadata, mirrorAnchor, {now});
     if (plan.publish && mirrorOnline) {
       mirrorAnchor = plan.anchor;
@@ -109,12 +110,17 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
       roomId: room.id, session: {memberId: id, publicId: `${name}-public-01`}, state: clientState(),
       ytPlayer: player, ytPlayerReady: true, playerInitializing: false, primingPlayer: false, isTryCloudflare: false,
       setStatus: text => { statusText = text; }, render: () => {}, command: async () => ({}),
-      followsRoomPlayback: () => true, isHost: () => false, estimatedServerNow: () => clock.now(),
+      followsRoomPlayback: () => true, isHost: () => id === room.hostId, estimatedServerNow: () => clock.now(),
       applyRoomAudioState: () => true, makeClientId: () => 'out-' + id.slice(0, 20), apiUrl: value => value,
-      parseYoutubeInput: () => room.source.videoId
+      parseYoutubeInput: value => value
     };
     ctx.window = ctx; ctx.globalThis = ctx;
-    ctx.watchPartyClock = {precise: () => true, rttMs: () => rttMs, offsetMs: () => 0, update() {}, now: () => clock.now()};
+    ctx.watchPartyClock = {precise: () => true, rttMs: () => rttMs, offsetMs: () => 0, update() {}, now: () => clock.now(),
+      offsetBound: () => ({boundMs:rttMs/2, spreadMs:2, ageMs:50, samples:4, precise:true})};
+    if (id === room.hostId) {
+      ctx.watchFusionLinkedTab = {publishing:() => linkedOnline, metadata:() => lastSource};
+      ctx.document.getElementById = key => key.startsWith('syncRoomLog') ? ctx.$(key) : null;
+    }
     ctx.requestViewerPlayback = function requestViewerPlayback() {
       const p = ctx.state?.playback;
       if (!p || p.paused || p.ended || player.getPlayerState() === 1 || requestViewerPlayback.timer) return;
@@ -131,6 +137,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
     });
     vm.createContext(ctx);
     for (const script of viewerScripts()) vm.runInContext(read(script), ctx, {filename: script});
+    if (id === room.hostId) vm.runInContext(read('client/sync-room-log.js'),ctx);
     const device = {
       name, memberId: id, player, ctx, latencyMs, samples: [],
       receive(snapshot) {

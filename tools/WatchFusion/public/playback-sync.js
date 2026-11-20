@@ -205,7 +205,7 @@
       pause: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.pauseVideo?.(); },
       play: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.playVideo?.(); },
       rate: rate => setViewerRate(rate),
-      sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.(), mirrorContradicted: () => !!window.WatchFusionMirrorConvergenceGate?.contradicted?.(),
+      sourceBuffering: () => !!window.watchFusionPlayout?.sourceBuffering?.(), mirrorContradicted: () => !!(window.WatchFusionMirrorConvergenceGate?.contradicted?.() || window.watchFusionPlayout?.status?.()?.mirrorContradicted),
       recentSourceRecovery: () => { const c=window.watchFusionPlayout?.status?.();
         if(!c || c.source!=='live' || c.reference!=='linked-tab' || c.authorityBuffering || window.WatchFusionMirrorConvergenceGate?.contradicted?.())return null;
         return c.sourceRecovery ? {...c.sourceRecovery,reference:c.reference,source:c.source,
@@ -216,7 +216,8 @@
       referenceTrusted: () => state?.linkedSourceActive !== true || window.watchFusionPlayout?.status?.()?.source === 'live',
       // Source-aware host hold: only a live, fresh, in-phase linked source with
       // no held mirror contradiction may authorize a small, non-seek correction.
-      hostFineHoldTrusted: () => { const c=window.watchFusionPlayout?.status?.(), m=window.watchFusionLinkedTab?.metadata?.(); return !!(isHost() && state?.linkedSourceActive === true && c?.reference === 'linked-tab' && c.source === 'live' && !c.authorityBuffering && Number.isFinite(c.uncertaintyMs) && c.uncertaintyMs <= 75 && Number.isFinite(c.sourcePhaseMs) && Math.abs(c.sourcePhaseMs) <= 35 && Number.isFinite(m?.sampledAt) && Date.now()-m.sampledAt >= 0 && Date.now()-m.sampledAt <= 750 && !window.WatchFusionMirrorConvergenceGate?.contradicted?.()); }
+      hostHoldBlocker: () => window.WatchFusionHostSeekPolicy?.sourceBlocker(youtubeTarget(estimatedServerNow(), duration)),
+      hostFineHoldTrusted() { return this.hostLinked && this.hostHoldBlocker() === null; }
     };
   }
   function applyViewerCorrection(force = false, bufferedOnly = false, explicitSync = false) {
@@ -226,7 +227,7 @@
     const roomPaused = !!(state.playback.paused || state.playback.ended);
     const sameSource = viewerScope && scope.slice(0, scope.lastIndexOf(':')) === viewerScope.slice(0, viewerScope.lastIndexOf(':'));
     const ordinaryResume = viewerPausedPosition !== null && !roomPaused && Math.abs(Number(state.playback.position) - viewerPausedPosition) < .75;
-    if (scope !== viewerScope) trackStartRecovery = viewerScope && !sameSource && !roomPaused && !isHost() ? {scope, at:performance.now(), spent:false} : null;
+    if (scope !== viewerScope) trackStartRecovery = !sameSource && !roomPaused && !isHost() && (viewerScope || state.linkedSourceActive) ? {scope, at:performance.now(), spent:false} : null;
     viewerPausedPosition = roomPaused ? Number(state.playback.position) : null;
     const baseRate = Math.min(2, Math.max(0.25, Number(state.playback.rate) || 1));
     const duration = Number(ytPlayer.getDuration?.()) || 0;
@@ -250,10 +251,10 @@
     const target = youtubeTarget(estimatedServerNow(), duration);
     const rawDrift = target - current;
     const absRaw = Math.abs(rawDrift), nowMs = performance.now();
+    arbiter?.observeRelease?.(nowMs, io);
     const playerState = ytPlayer.getPlayerState?.();
     const buffering = playerState === (window.YT?.PlayerState?.BUFFERING ?? 3);
     if (coldJoinUntil && (force || roomPaused || nowMs >= coldJoinUntil || absRaw <= 2.5)) coldJoinUntil = 0;
-    if (!transportSeekPending && coldJoinReady({until:coldJoinUntil,nowMs,roomPaused,force,playerState,drift:rawDrift,linked:state.linkedSourceActive===true,reference:window.watchFusionPlayout?.status?.(),matches:ytPlayer.getVideoData?.()?.video_id===state.source.videoId})) { transportSeekPending = true; coldJoinUntil = 0; }
     const playerEnded = playerState === (window.YT?.PlayerState?.ENDED ?? 0);
     const transport = {roomId, videoId:state.source.videoId, epoch:state.presentationEpoch, segment:state.playoutSegment};
     if (roomPaused) {
@@ -282,11 +283,12 @@
     }
     if (!arbiter?.owns() && !window.watchFusionHostZeroCenter?.isApplying?.() && !window.WatchFusionZeroConverge?.isApplying?.()) setViewerRate(baseRate);
     const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
+    if (!transportSeekPending && startup?.ready && !io.mirrorContradicted() && coldJoinReady({until:coldJoinUntil,nowMs,roomPaused,force,playerState,drift:rawDrift,linked:state.linkedSourceActive===true,reference:window.watchFusionPlayout?.status?.(),matches:ytPlayer.getVideoData?.()?.video_id===state.source.videoId})) { transportSeekPending = true; coldJoinUntil = 0; }
     // v13.10.7: a wedged decoder (frozen while PLAYING after the ladder, or stuck BUFFERING) gets the bounded terminal ladder.
     const decoderRescue=(bufferingNow,exhausted=!bufferingNow)=>!force&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,position:current,stalledMs:startup?.stalledMs ?? 0,
       trusted:state?.linkedSourceActive!==true||window.watchFusionPlayout?.status?.()?.source==='live',sourceBuffering:!!window.watchFusionPlayout?.sourceBuffering?.(),
       reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target+.5});replayLoads++;arbiter?.intent('pause',io);awaitSeekRecovery(nowMs);},
-      rebuild:()=>{window.watchFusionLinkedTab?.suppressPlaybackEcho?.();window.WatchFusionDecoderRescue.rebuildPlayer(state.source.videoId);arbiter?.intent('pause',io);replayLoads++;viewerScope='';}});
+      rebuild:()=>{window.watchFusionLinkedTab?.suppressPlaybackEcho?.();arbiter?.intent('pause',io);window.WatchFusionDecoderRescue.rebuildPlayer(state.source.videoId,isHost()?null:target);replayLoads++;}});
     if (!force && buffering) {
       if (decoderRescue(true)) { diagnostics.action='decoder-recovery'; setStatus('TV decoder recovery · restarting this player once…'); return true; }
       if (!viewerWasBuffering) resetDriftSensor('buffering');
@@ -321,10 +323,10 @@
       const c = window.watchFusionPlayout?.status?.(), first = window.watchFusionYouTubeStartup?.snapshot?.()?.firstProgressDelayMs;
       const eligible = trackStartRecoveryEligible({ageMs:nowMs - trackStartRecovery.at,
         driftSec:diagnostics.filteredDriftSec, stable:diagnostics.stable,
-        ready:startup?.ready === true, sourceLive:c?.source === 'live' && c?.authorityBuffering !== true,
+        ready:startup?.ready === true, sourceLive:window.watchFusionPlayout?.hasSourceReference?.(c, estimatedServerNow()) === true,
         uncertaintyMs:c?.uncertaintyMs ?? null, rateList:ytPlayer.getAvailablePlaybackRates?.(),
         firstProgressMs:first, seekCount:correctiveSeeks,
-        contradicted:window.WatchFusionMirrorConvergenceGate?.contradicted?.() === true});
+        contradicted:io.mirrorContradicted()});
       if (eligible) {
         trackStartRecovery.spent = true; // one attempt only, even on rejection
         if (arbiter?.rejoinNow?.(nowMs,io,'track-start') === true) {
@@ -345,7 +347,7 @@
     if (!force && startup?.ready === true && !arbiter?.owns()) decoderRescue(false, false);
     if (isHost() && state?.linkedSourceActive && arbiter && window.WatchFusionHostPeerRecovery?.consider?.({
       scope,nowMs,hostOffsetMs:(current-target)*1000,peer:window.watchFusionPresentation?.peerCandidate?.(),observedPeer:window.watchFusionPresentation?.peerCandidate?.(true),
-      reference:window.watchFusionPlayout?.status?.()?.reference,trusted:(()=>{const p=window.watchFusionPlayout?.status?.();return p?.source==='live'&&!p.authorityBuffering&&
+      reference:window.watchFusionPlayout?.status?.()?.reference,trusted:(()=>{const p=window.watchFusionPlayout?.status?.();return p?.source==='live'&&!p.authorityBuffering&&!io.mirrorContradicted()&&
         (p.reference==='room-clock'||(p.reference==='peer-cohort'||p.reference==='linked-tab') &&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125 &&(p.reference!=='linked-tab'||Number.isFinite(p.sourcePhaseMs)&&Math.abs(p.sourcePhaseMs)<=70))&&
         Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs
     })) {const accepted=arbiter.rejoinNow(nowMs,io,'host-peer');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}

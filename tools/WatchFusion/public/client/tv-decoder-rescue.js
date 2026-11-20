@@ -75,11 +75,11 @@
     } catch { outcome = 'recovery-failed'; return false; }
   }
   // The same thing a manual URL reload does for the player, without leaving the room.
-  function rebuildPlayer(videoId) {
+  function rebuildPlayer(videoId, startSeconds) {
     if (!videoId || typeof ensurePlayer !== 'function') throw Error('rebuild unavailable');
     try { ytPlayer?.destroy?.(); } catch {}
     ytPlayer = null; ytPlayerReady = false; playerPrimed = false; playerInitializing = false;
-    ensurePlayer(videoId);
+    ensurePlayer(videoId, startSeconds);
   }
   window.WatchFusionDecoderRescue = {version: 'v13.10.8', consider, rebuildPlayer,
     diagnostics: () => ({scope, attempted: steps > 0, steps, outcome, healthyProgressMs: Math.round(healthyProgressMs)})};
