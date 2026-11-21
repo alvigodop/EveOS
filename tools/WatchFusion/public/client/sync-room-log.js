@@ -325,23 +325,85 @@
     if (peers.length) emit(estimatedServerNow(), peers, coordination, roster);
     else render();
   }
-  function exported() {
+  function exportPayload() {
     refreshScope();
     prune();
-    return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
+    return {format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
       disclosure:'Player timing, source-supplied song titles and durations, user control intents and redacted transitions only; no audio, URLs, tokens or microphone measurements. Titles are included only when the user copies this local log. Player target error does not measure speaker-output latency; clock bounds include unknown asymmetry.',
-      diagnosticsVersion:'v13.10.8x-room-recovery',snapshots:entries,events},null,2);
+      diagnosticsVersion:'v13.10.8x-room-recovery',snapshots:entries,events};
   }
+  function exported() { return JSON.stringify(exportPayload(),null,2); }
+  // Copies a ten-minute room trace without a large synchronous JSON.stringify or
+  // rendering the whole trace inside the live playback page's visible textarea.
+  // The same redacted schema remains available to diagnostics callers via export().
+  async function cooperativeExport() {
+    const payload=exportPayload();
+    const rows=payload.snapshots.slice(), transitions=payload.events.slice();
+    const header=JSON.stringify({...payload,snapshots:undefined,events:undefined});
+    const chunks=[header.slice(0,-1),',"snapshots":['];
+    const yieldToPlayback=()=>new Promise(resolve=>setTimeout(resolve,0));
+    for(let i=0;i<rows.length;i++) {
+      chunks.push(i?',':'',JSON.stringify(rows[i]));
+      if((i+1)%8===0) await yieldToPlayback();
+    }
+    chunks.push('],"events":[');
+    for(let i=0;i<transitions.length;i++) {
+      chunks.push(i?',':'',JSON.stringify(transitions[i]));
+      if((i+1)%16===0) await yieldToPlayback();
+    }
+    chunks.push(']}');
+    return chunks.join('');
+  }
+  let copyBusy=false;
   async function copyLog() {
-    const content = exported();
+    if(copyBusy)return;
+    copyBusy=true;
+    if(copy){copy.disabled=true;copy.textContent='Copying...';}
     try {
-      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(content);
-      else {
-        area.value=content;area.focus();area.select();
-        if (!document.execCommand('copy')) throw new Error('copy failed');
+      note('ui-intent',{action:'copy-log'});
+      const content=await cooperativeExport();
+      let copied=false;
+      if(navigator.clipboard?.writeText) {
+        try {await navigator.clipboard.writeText(content);copied=true;} catch {}
       }
-      copy.textContent='Copied';setTimeout(()=>copy.textContent='Copy log',1500);
-    } catch {area.value=content;area.focus();area.select();copy.textContent='Select to copy';}
+      if(!copied) {
+        // On LAN http://, Clipboard API is often unavailable. Use an invisible
+        // temporary field; do not put hundreds of kB into the live log panel.
+        const previous=document.activeElement;
+        const temporary=document.createElement('textarea');
+        temporary.value=content;
+        temporary.setAttribute('aria-hidden','true');
+        temporary.style.position='fixed';
+        temporary.style.top='-10000px';
+        temporary.style.left='-10000px';
+        temporary.style.width='1px';
+        temporary.style.height='1px';
+        document.body.appendChild(temporary);
+        try {
+          temporary.focus({preventScroll:true});
+          temporary.select();
+          copied=document.execCommand?.('copy')===true;
+        } finally {
+          temporary.remove();
+          if(previous && previous!==temporary && typeof previous.focus==='function') {
+            try{previous.focus({preventScroll:true});}catch{}
+          }
+        }
+      }
+      if(copied) {
+        copy.textContent='Copied';
+        setTimeout(()=>{if(copy)copy.textContent='Copy log';},1500);
+      } else {
+        // Explicit manual fallback only if both clipboard paths fail.
+        area.value=content;area.focus();area.select();
+        copy.textContent='Select to copy';
+      }
+    } catch {
+      if(copy)copy.textContent='Copy failed';
+    } finally {
+      copyBusy=false;
+      if(copy)copy.disabled=false;
+    }
   }
   copy?.addEventListener('click', () => void copyLog());
   clear?.addEventListener('click', () => {entries=[];events=[];lastPeers.clear();lastKey='';lastRendered='';observedSong=0;lastSongKey='';render();});

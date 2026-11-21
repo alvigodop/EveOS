@@ -215,18 +215,49 @@
   // This policy observes the iframe media timeline only; it never controls the player.
   function createTvRecoveryOwner() {
     let identity='', releasedAt=-Infinity, last='idle', blocks=0, held={since:-1,lastAt:-1,reads:0};
+    let retryCandidate=null, retriedThisVideo=false;
     const mediaKey = value => String(value||'').split(':').slice(0,3).join(':');
     function scope(value) {
       const key=mediaKey(value);
-      if (key!==identity) {identity=key;releasedAt=-Infinity;held={since:-1,lastAt:-1,reads:0};last='new-video';}
+      if (key!==identity) {identity=key;releasedAt=-Infinity;held={since:-1,lastAt:-1,reads:0};retryCandidate=null;retriedThisVideo=false;last='new-video';}
     }
-    function release(value,at) {scope(value);if(Number.isFinite(at)){releasedAt=at;last='release-observed';}}
+    function release(value,at) {scope(value);if(Number.isFinite(at)){releasedAt=at;retryCandidate=null;last='release-observed';}}
     function block(value,at,error,why,io) {
       scope(value);
       if (!io?.follower || io?.linkedSourceActive?.()!==true || io.hostLinked || why==='manual') return false;
       const age=at-releasedAt;
       if (!(Number.isFinite(age)&&age>=0&&age<25000&&Number.isFinite(error))) return false;
       if (why==='stall' || (Math.abs(error)>4 && io.referenceTrusted?.()===true)) return false;
+      // A healthy advancing TV may nevertheless remain seconds behind after its
+      // first release. The old blanket 25s duplicate guard then prevented any
+      // recovery for a short next video. Permit exactly ONE buffered retry per
+      // video, after observing real decoder progress and a stable large lag.
+      // Stalled/buffering/untrusted players retain the decoder-first policy.
+      const target=io.target?.(at), current=io.current?.();
+      const uncertainty=io.referenceUncertaintyMs?.();
+      const candidateOk=!retriedThisVideo && age>=4500 && age<20000 &&
+        error>=2.5 && error<=4 && io.state?.()===1 &&
+        io.referenceTrusted?.()===true && io.sourceReferenceQualified?.(100)===true &&
+        io.sourceBuffering?.()!==true && io.mirrorContradicted?.()!==true &&
+        Number.isFinite(uncertainty) && uncertainty>=0 && uncertainty<=35 &&
+        Number.isFinite(target) && Number.isFinite(current) &&
+        io.buffered?.(target+4)===true;
+      if(candidateOk) {
+        const c=retryCandidate;
+        const stable=!!c && at>=c.lastAt && at-c.lastAt<=1500 &&
+          Math.abs(c.error-error)<=.14 && current>=c.current;
+        if(!stable)retryCandidate={since:at,lastAt:at,error,current,reads:1,progress:0};
+        else {
+          const dt=(at-c.lastAt)/1000,dp=current-c.current;
+          if(dt>0 && dp>=dt*.5 && dp<=dt*1.5) {
+            c.lastAt=at;c.current=current;c.error=error;c.reads++;c.progress+=dp;
+            if(at-c.since>=2200 && c.reads>=4 && c.progress>=1.2) {
+              retriedThisVideo=true;retryCandidate=null;
+              last='one-buffered-post-release-retry';return false;
+            }
+          } else retryCandidate=null;
+        }
+      } else retryCandidate=null;
       last='post-release-duplicate-blocked';blocks++;return true;
     }
     function motion({value,at,playing,buffering,ready,hidden,state,rate,stalledMs,sourceLive}) {
