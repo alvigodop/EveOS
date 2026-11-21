@@ -10,7 +10,7 @@ import statistics
 import subprocess
 import sys
 
-from eveos_qualification_manifest import ROOT, load_manifest, load_package, validate_manifest
+from eveos_qualification_manifest import ROOT, load_manifest, load_package, transitive_inventory, validate_manifest
 
 
 REGISTRY_PATH = Path(__file__).with_name('eveos_engineering_safeguards.v1.json')
@@ -60,11 +60,12 @@ def current_errors(registry=None, package=None, manifest=None, *, check_git=True
         errors.append('npm run verify:legacy comparison oracle is missing')
     if scripts.get('smoke:engineering-safeguards-contract') != ENTRYPOINT:
         errors.append('engineering safeguards entrypoint drifted or was removed')
-    guardrails = scripts.get('test:guardrails', '')
-    for required in entry.get('authoritativeTests', []):
-        if f'npm run --silent {required}' not in guardrails:
-            errors.append(f'test:guardrails lost authoritative regression: {required}')
     try:
+        records, _ = transitive_inventory(['test:guardrails'], scripts)
+        registered = {record['id'] for record in records if record['kind'] == 'script'}
+        for required in entry.get('authoritativeTests', []):
+            if required not in registered:
+                errors.append(f'test:guardrails lost authoritative regression: {required}')
         validated = validate_manifest(manifest, package)
         if validated['legacyObligations'] != entry.get('requiredObligations'):
             errors.append('release obligation count changed without updating the safeguards registry')
@@ -89,6 +90,7 @@ def receipt_errors(receipt, registry=None, manifest=None):
         (receipt.get('status') == 'PASS' and receipt.get('releaseEligible') is True, 'receipt is not release eligible'),
         (receipt.get('dependencyClosureComplete') is True, 'dependency closure is incomplete'),
         (receipt.get('dynamicResultsCached') is False, 'dynamic results were cached'),
+        (receipt.get('reusedChecks', 0) == 0, 'release receipt contains reused checks'),
         (receipt.get('observedGates') == receipt.get('expectedGates') == entry['requiredObligations'],
          'receipt does not contain every required obligation'),
         (receipt.get('coverageManifestIdentity') == expected_manifest, 'receipt manifest identity is stale')]
@@ -133,7 +135,7 @@ def self_test():
     bypass = copy.deepcopy(package); bypass['scripts'].pop('verify:legacy')
     _expect_failure('removed recovery oracle', registry, bypass, manifest, 'comparison oracle is missing')
     unregistered = copy.deepcopy(package)
-    unregistered['scripts']['test:guardrails'] = unregistered['scripts']['test:guardrails'].replace(
+    unregistered['scripts']['test:guardrails:shared'] = unregistered['scripts']['test:guardrails:shared'].replace(
         ' && npm run --silent smoke:engineering-safeguards-contract', '')
     _expect_failure('removed registration', registry, unregistered, manifest, 'lost authoritative regression')
 

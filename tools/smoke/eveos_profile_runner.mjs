@@ -192,14 +192,24 @@ function main() {
   const profile = argValue(args, '--profile', 'fast');
   const verbose = args.includes('--verbose') || args.includes('-v');
   const reuse = args.includes('--reuse-pass');
-  const scripts = PROFILES[profile];
-  if (!scripts) {
+  const scoped = args.includes('--scoped');
+  const additional = argValue(args, '--also-profile', '');
+  if (!Object.hasOwn(PROFILES, profile) || (additional && !Object.hasOwn(PROFILES, additional))) {
     console.error(`Unknown EveOS smoke profile: ${profile}`);
     process.exit(2);
   }
+  const combined = [...PROFILES[profile], ...(additional ? PROFILES[additional] : [])];
+  const scripts = [...new Set(combined.map(name =>
+    scoped && name === 'smoke:capability-surfaces' ? 'smoke:capability-surfaces:release' : name
+  ))];
+  if (args.includes('--list-scripts')) {
+    console.log(JSON.stringify(scripts));
+    return;
+  }
 
-  const fingerprint = inputFingerprint();
-  if (profile === 'fast' && reuse && !verbose) {
+  const standaloneFast = profile === 'fast' && !additional && !scoped;
+  const fingerprint = standaloneFast ? inputFingerprint() : null;
+  if (standaloneFast && reuse && !verbose) {
     const cached = reusableFastPass(fingerprint);
     if (cached) {
       console.log(`EVEOS SMOKE: REUSED PASS ${cached.pass} | FAIL 0 | PROFILE fast`);
@@ -226,7 +236,7 @@ function main() {
     process.exit(1);
   }
 
-  if (profile === 'fast') saveFastPass(fingerprint, results.length);
+  if (standaloneFast) saveFastPass(fingerprint, results.length);
   console.log(`EVEOS SMOKE: PASS ${results.length} | FAIL 0 | PROFILE ${profile}`);
 }
 

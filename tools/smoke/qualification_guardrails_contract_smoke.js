@@ -48,7 +48,13 @@ const baseline = JSON.parse(fs.readFileSync(
     'utf8'
 ));
 
-const guardrailScript = String(scripts['test:guardrails'] || '');
+const guardrailScript = String(scripts['test:guardrails:shared'] || '');
+const audioflixGuardrails = ['smoke:spotify-mode-handoff-regression', 'smoke:audioflix-mode-requirements'];
+requireTrue(
+    scripts['test:guardrails'] === ['test:guardrails:shared', ...audioflixGuardrails].map(name => `npm run --silent ${name}`).join(' && ') &&
+        audioflixGuardrails.every(name => scripts[name] && !guardrailScript.includes(name)),
+    'full guardrails must retain Audioflix regressions while scoped guardrails remain domain neutral'
+);
 for (const required of [
     'smoke:codex-exec-bootstrap-contract',
     'smoke:tlo-autorecovery-contract',
@@ -88,7 +94,7 @@ requireTrue(
 );
 requireTrue(
     scripts['smoke:timed-qualification-contract'] ===
-        'python -B tools/qualification/eveos_timed_qualification.py --self-test',
+        'python -B tools/qualification/eveos_timed_qualification.py --self-test && python -B tools/qualification/test_eveos_timed_qualification.py -q',
     'timed qualification scheduler contract entrypoint drifted'
 );
 for (const [name, profile] of Object.entries({

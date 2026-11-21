@@ -130,7 +130,8 @@ async function main() {
   const fast = !node && !browser && !integration && !has(args, '--security') || has(args, '--fast', '--smoke');
   const profile = browser ? 'browser' : integration ? 'integration' : node ? 'deep-node' : 'fast';
   const fingerprint = inputFingerprint();
-  const canReuse = has(args, '--reuse-pass') && fast && !node && !browser && !integration && !security && !verbose;
+  const canReuse = process.env.EVEOS_REQUIRE_FRESH_SMOKES !== '1' &&
+    has(args, '--reuse-pass') && fast && !node && !browser && !integration && !security && !verbose;
   const reused = canReuse ? reusableFastPass(fingerprint) : null;
   if (reused) {
     console.log(`WATCHFUSION SMOKE: REUSED PASS ${reused.pass} | FAIL 0 | SKIP ${reused.skip} | TOTAL ${reused.pass + reused.skip}`);

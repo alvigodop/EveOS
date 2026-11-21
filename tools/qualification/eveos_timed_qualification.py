@@ -6,6 +6,7 @@ import argparse
 import concurrent.futures
 import contextlib
 import datetime
+from functools import partial
 import io
 import json
 import os
@@ -17,7 +18,8 @@ import threading
 import time
 
 from eveos_qualification_manifest import gate_specs, source_fingerprint, validate_manifest
-from eveos_affected_selection import build_affected_plan, validate_affected_selection
+from eveos_affected_selection import build_affected_plan, changed_files, validate_affected_selection
+from eveos_affected_passes import AffectedPasses
 
 ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE = ROOT / 'data/runtime/smoke-results/timed-qualification'
@@ -44,20 +46,6 @@ def gate(label, argv, resources=(), depends=(), category='integration'):
             'dependsOn': list(depends), 'category': category}
 
 
-def changed_files(base):
-    names = set()
-    for argv in (['git', 'diff', '--name-only', f'{base}...HEAD'], ['git', 'diff', '--name-only'],
-                 ['git', 'diff', '--name-only', '--cached']):
-        result = subprocess.run(argv, cwd=ROOT, text=True, capture_output=True, check=False)
-        if result.returncode == 0:
-            names.update(line.strip().replace('\\', '/') for line in result.stdout.splitlines() if line.strip())
-    status = subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, text=True,
-                            capture_output=True, check=False)
-    if status.returncode == 0:
-        names.update(line[3:].strip().replace('\\', '/') for line in status.stdout.splitlines() if len(line) > 3)
-    return sorted(names)
-
-
 def affected_plan_for_files(files, base):
     return build_affected_plan(files, base, gate, npm)
 
@@ -66,8 +54,8 @@ def affected_plan(base):
     return affected_plan_for_files(changed_files(base), base)
 
 
-def gate_plan(profile, base='origin/main'):
-    validated = validate_manifest()
+def gate_plan(profile, base='HEAD', validated=None):
+    validated = validated or validate_manifest()
     if profile in {'verify', 'release'}: return gate_specs(validated), {'coverage': validated}
     if profile == 'fast': return [gate('fast', npm('run', '--silent', 'test:smoke'), ('build-output',))], {}
     if profile == 'integration':
@@ -138,15 +126,16 @@ def nested_reports(started_epoch):
     return reports
 
 
-def run_gate(spec, evidence, *, registry, heartbeat=15, slow_warning=3600):
+def run_gate(spec, evidence, *, registry, heartbeat=15, slow_warning=3600, quiet=False, fresh_nested=False):
     label, argv = spec['label'], spec['argv']
     started, started_epoch, cpu_before = time.monotonic(), time.time(), os.times()
     dest = evidence / f'{label}.log'; last_notice, warned = started, False
-    say('RUNNING', label, 'resources', ','.join(spec.get('resources', ())) or 'none')
+    if not quiet: say('RUNNING', label, 'resources', ','.join(spec.get('resources', ())) or 'none')
     with dest.open('wb') as log:
         try:
             process = subprocess.Popen(argv, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
-                                       shell=False, stdin=subprocess.DEVNULL)
+                                       shell=False, stdin=subprocess.DEVNULL,
+                                       env={**os.environ, 'EVEOS_REQUIRE_FRESH_SMOKES': '1'} if fresh_nested else None)
         except OSError as error:
             log.write((str(error)+'\n').encode('utf-8', 'replace'))
             return {'gate': label, 'status': 'FAIL', 'seconds': 0, 'exitCode': None,
@@ -155,7 +144,7 @@ def run_gate(spec, evidence, *, registry, heartbeat=15, slow_warning=3600):
         try:
             while process.poll() is None:
                 time.sleep(.4); now = time.monotonic()
-                if now-last_notice >= heartbeat:
+                if not quiet and now-last_notice >= heartbeat:
                     estimate = float(spec.get('estimateSeconds') or 0)
                     say('IN_PROGRESS', label, 'elapsed', clock(now-started), 'remaining_estimate',
                         clock(max(0, estimate-(now-started))) if estimate else 'UNKNOWN')
@@ -175,7 +164,7 @@ def run_gate(spec, evidence, *, registry, heartbeat=15, slow_warning=3600):
                   (cpu_before.children_user+cpu_before.children_system), 3),
               'retryMentions': len(RETRY.findall(text)), 'timeoutMentions': len(TIMEOUT.findall(text)),
               'nestedReports': nested_reports(started_epoch)}
-    say(status, label, 'time', clock(ended-started), 'log', result['log'])
+    if not quiet or status == 'FAIL': say(status, label, 'time', clock(ended-started), 'log', result['log'])
     if status == 'FAIL': say('FAILURE_TAIL', label, '\n'.join(text.splitlines()[-24:]))
     return result
 
@@ -197,7 +186,7 @@ def validate_gate_graph(gates):
     if visited != len(gates): raise ValueError('qualification dependency cycle detected')
 
 
-def run_dag(gates, evidence, *, jobs, heartbeat, slow_warning, previous=None, runner=run_gate):
+def run_dag(gates, evidence, *, jobs, heartbeat, slow_warning, previous=None, runner=run_gate, quiet=False):
     validate_gate_graph(gates)
     previous_times = {item.get('gate'): item.get('seconds') for item in (previous or {}).get('gates', [])}
     for item in gates:
@@ -230,7 +219,7 @@ def run_dag(gates, evidence, *, jobs, heartbeat, slow_warning, previous=None, ru
                         item['workerWaitSeconds'] = round(max(
                             0, item['queueWaitSeconds']-item['resourceWaitSeconds']), 3)
                         future = pool.submit(runner, item, evidence, registry=registry,
-                                             heartbeat=heartbeat, slow_warning=slow_warning)
+                                             heartbeat=heartbeat, slow_warning=slow_warning, quiet=quiet)
                         futures[future] = item; pending.pop(label); capacity -= 1
                 if not futures:
                     if pending: raise RuntimeError('scheduler stalled without runnable gates')
@@ -244,7 +233,7 @@ def run_dag(gates, evidence, *, jobs, heartbeat, slow_warning, previous=None, ru
                     result['workerWaitSeconds'] = item.get('workerWaitSeconds', 0)
                     result['dependencyWaitSeconds'] = dependency_wait.get(item['label'], 0)
                     results.append(result); completed[item['label']] = result
-                    say('PROGRESS', len(results), '/', len(gates), 'active', len(futures), '/', jobs)
+                    if not quiet: say('PROGRESS', len(results), '/', len(gates), 'active', len(futures), '/', jobs)
                     if result['status'] == 'FAIL':
                         for label in list(pending):
                             reason = ('dependency failed' if item['label'] in pending[label].get('dependsOn', ())
@@ -286,6 +275,8 @@ def make_report(profile, evidence, gates, results, skipped, begun, started_at, j
             slow.extend({'id': f"{nested['name']}::{child['id']}", 'seconds': child['seconds']}
                         for child in nested.get('results', []))
     full = profile in {'verify', 'release'}
+    reused = sum(item.get('execution') == 'reused' for item in results)
+    complete = complete and not (full and reused)
     manifest_gates = [item['label'] for item in gate_specs(validate_manifest())]
     selected = {item['label'] for item in gates}
     profile_skips = [] if full else [{'gate': name, 'reason': f'not selected by {profile} profile'}
@@ -295,7 +286,8 @@ def make_report(profile, evidence, gates, results, skipped, begun, started_at, j
             'qualificationScope': 'full-release' if full else 'partial',
             'releaseEligible': bool(full and complete), 'elapsedSeconds': elapsed,
             'expectedGates': len(gates), 'observedGates': len(results), 'workerLimit': jobs,
-            'executedChecks': len(results), 'reusedChecks': 0, 'skippedChecks': [*skipped, *profile_skips],
+            'executedChecks': len(results)-reused, 'reusedChecks': reused, 'skippedChecks': [*skipped, *profile_skips],
+            'reusedSeconds': round(sum(item.get('previousSeconds', 0) for item in results), 2),
             'dependencyClosureComplete': complete, 'workerUtilization': round(
                 sum(item.get('seconds', 0) for item in results)/max(.001, elapsed*max(1, jobs)), 3),
             'criticalPathSeconds': elapsed, 'dependencyCriticalPathSeconds': _dependency_critical_path(gates, results),
@@ -318,21 +310,29 @@ def make_report(profile, evidence, gates, results, skipped, begun, started_at, j
             'gates': results, 'dynamicResultsCached': False, 'publicationPerformed': False}
 
 
-def run(profile, evidence, *, jobs=3, heartbeat=15, timeout=3600, base='origin/main'):
+def run(profile, evidence, *, jobs=3, heartbeat=15, timeout=3600, base='HEAD', fresh=False, verbose=False):
     validated = validate_manifest(); fingerprint, fingerprint_material = source_fingerprint(validated)
-    gates, metadata = gate_plan(profile, base); validate_gate_graph(gates)
+    gates, metadata = gate_plan(profile, base, validated); validate_gate_graph(gates)
+    evidence.mkdir(parents=True, exist_ok=False)
     previous, begun = prior_report(profile, evidence), time.monotonic()
     started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     estimate = previous.get('elapsedSeconds') if previous else None
-    say('QUALIFICATION_V3_STARTED', 'profile', profile, 'gates', len(gates), 'workers', jobs,
-        'estimate', clock(estimate) if estimate else 'UNKNOWN', 'evidence', evidence)
+    quiet = profile == 'affected' and not verbose
+    if not quiet:
+        say('QUALIFICATION_V3_STARTED', 'profile', profile, 'gates', len(gates), 'workers', jobs,
+            'estimate', clock(estimate) if estimate else 'UNKNOWN', 'evidence', evidence)
+    runner = partial(run_gate, fresh_nested=profile in {'affected', 'verify', 'release'})
+    if profile == 'affected':
+        cache = AffectedPasses(ROOT, evidence.parent/'affected-passes', reuse=not fresh)
+        runner = partial(cache.run, runner)
     results, skipped, interrupted = run_dag(gates, evidence, jobs=jobs, heartbeat=heartbeat,
-                                            slow_warning=timeout, previous=previous)
+                                            slow_warning=timeout, previous=previous, runner=runner, quiet=quiet)
     report = make_report(profile, evidence, gates, results, skipped, begun, started_at, jobs, metadata,
                          fingerprint, fingerprint_material, interrupted)
     (evidence/'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     say('QUALIFICATION_'+report['status'], 'elapsed', clock(report['elapsedSeconds']), 'gates',
-        len(results), '/', len(gates), 'releaseEligible', report['releaseEligible'], 'report', evidence/'report.json')
+        len(results), '/', len(gates), 'executed', report['executedChecks'], 'reused', report['reusedChecks'],
+        'releaseEligible', report['releaseEligible'], 'report', evidence/'report.json')
     return report
 
 
@@ -397,7 +397,10 @@ def self_test():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--profile', choices=['fast','affected','integration','verify','release','nexus'], default='verify')
-    parser.add_argument('--base', default='origin/main', help='Git base for the affected profile only.')
+    parser.add_argument('--base', default='HEAD', help='Git base for affected selection. Defaults to local changes.')
+    parser.add_argument('--plan', action='store_true', help='Print the selected commands as JSON without executing them.')
+    parser.add_argument('--fresh', action='store_true', help='Run affected checks without reusing local passes.')
+    parser.add_argument('--verbose', action='store_true', help='Show per-gate progress in the affected profile.')
     parser.add_argument('--jobs', type=int, choices=[1,2,3,4], default=3)
     parser.add_argument('--heartbeat', type=int, default=15)
     parser.add_argument('--slow-warning', type=int, default=3600, dest='timeout')
@@ -406,10 +409,21 @@ def main():
     if args.self_test: return self_test()
     if not (5 <= args.heartbeat <= 120) or not (60 <= args.timeout <= 14400):
         parser.error('Heartbeat must be 5..120 seconds; slow-warning must be 60..14400 seconds.')
+    if args.plan:
+        try:
+            gates, metadata = gate_plan(args.profile, args.base)
+            validate_gate_graph(gates)
+        except (ValueError, OSError, subprocess.CalledProcessError) as error:
+            parser.error(str(error))
+        print(json.dumps({'profile': args.profile, 'gates': gates, 'metadata': metadata}, indent=2))
+        return 0
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    evidence = EVIDENCE/f'{args.profile}-{stamp}'; evidence.mkdir(parents=True, exist_ok=False)
-    report = run(args.profile, evidence, jobs=args.jobs, heartbeat=args.heartbeat,
-                 timeout=args.timeout, base=args.base)
+    evidence = EVIDENCE/f'{args.profile}-{stamp}'
+    try:
+        report = run(args.profile, evidence, jobs=args.jobs, heartbeat=args.heartbeat,
+                     timeout=args.timeout, base=args.base, fresh=args.fresh, verbose=args.verbose)
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        parser.error(str(error))
     return 0 if report['status'] == 'PASS' else 1
 
 

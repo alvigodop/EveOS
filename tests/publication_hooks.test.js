@@ -64,7 +64,8 @@ test('pre-push retains the candidate SHA after reading stdin to EOF', () => {
 test('structural suite always includes publication-contract regressions', () => {
     const scripts = JSON.parse(read('package.json')).scripts;
     assert.equal(scripts['test:publication-hooks'], 'node --test tests/publication_hooks.test.js');
-    assert.ok(scripts['test:guardrails'].startsWith('npm run --silent test:publication-hooks && '));
+    assert.ok(scripts['test:guardrails'].startsWith('npm run --silent test:guardrails:shared && '));
+    assert.ok(scripts['test:guardrails:shared'].startsWith('npm run --silent test:publication-hooks && '));
     assert.equal(scripts['hooks:install'], 'git config --local core.hooksPath tools/hooks');
 });
 
