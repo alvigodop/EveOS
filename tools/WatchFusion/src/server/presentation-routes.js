@@ -68,6 +68,7 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
         playoutSegment:body.segment === segment ? segment : null, positionMs: report.positionMs, roomPositionMs: report.roomPositionMs, rate: report.rate,
         targetPositionMs: metric(report.targetPositionMs, 0, 1e10),
         rttMs: metric(report.rttMs, 0, 5000), offsetMs: metric(report.offsetMs, -1e12, 1e12),
+        clockWitness: report.clockWitness === true,
         adjustmentMs: metric(report.adjustmentMs, -1500, 1500),
         videoFrameOffsetMs: metric(report.videoFrameOffsetMs, -2000, 2000),
         sourceAgeMs: metric(report.sourceAgeMs, 0, 10000),

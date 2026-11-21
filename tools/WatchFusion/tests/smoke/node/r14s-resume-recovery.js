@@ -30,6 +30,20 @@ export async function runR14sRecoveryChecks(check) {
     assert.deepEqual(L.actions,['reload','rebuild']);
     assert.equal(L.rescue.diagnostics().outcome,'terminal-recovery-spent');
   });
+  await check('R14S-13:explicit-restart-requires-a-stuck-player-and-preserves-the-automatic-budget',()=>{
+    const L=lab(); exhaust(L);
+    assert.equal(L.rescue.consider(L.input(60000,{manual:true,trusted:false})),false);
+    assert.equal(L.rescue.consider(L.input(61000,{manual:true,sourceBuffering:true})),false);
+    assert.equal(L.rescue.consider(L.input(62000,{manual:true,drift:-.25})),false);
+    assert.equal(L.rescue.consider(L.input(63000,{manual:true,buffering:false,playing:true})),false);
+    assert.deepEqual(L.actions,['reload','rebuild']);
+    assert.equal(L.rescue.consider(L.input(64000,{manual:true})),true);
+    assert.equal(L.rescue.consider(L.input(64250,{manual:true})),true);
+    L.wedge(65000,100000);
+    assert.deepEqual(L.actions,['reload','rebuild','rebuild']);
+    assert.equal(L.rescue.diagnostics().steps,2);
+    assert.equal(L.notes.filter(([kind])=>kind==='tv-decoder-manual-restart').length,1);
+  });
   await check('R14S-02:long-real-pause-resume-rearms-once-then-requires-new-9s-buffer-evidence',()=>{
     const L=lab(); exhaust(L);
     assert.equal(L.rescue.observeTransport({scope:SCOPE, nowMs:80000, paused:true}),false);

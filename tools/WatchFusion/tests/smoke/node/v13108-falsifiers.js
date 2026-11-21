@@ -166,6 +166,8 @@ export async function runV13108Checks(check) {
     const tab = read('public/client/linked-tab.js'), boot = read('public/client/bootstrap.js'), files = read('src/server/static-files.js');
     const body = tab.slice(tab.indexOf('async function mirrorNow'));
     assert.ok(body.indexOf('mirrorGuard()?.gate?.(') < body.indexOf("command('mirror'"), 'gate before the request');
+    assert.match(body, /rebase\?\.\(plan,metadata,loadedPageUrl\)\) \{ lastMirrorAnchor = plan\.anchor; return false;/,
+      'repair the publisher baseline locally without republishing transport');
     assert.ok(body.indexOf('stalledRepeat') < body.indexOf("command('mirror'"), 'stall hold before the request');
     assert.match(body, /mirrorGuard\(\)\?\.result\?\.\(ok,receipt\.status/);
     assert.match(tab, /function reconnect\(\)\{if\(!link\)return start\(\);mirrorGuard\(\)\?\.reset\?\.\(\)/);
@@ -191,7 +193,9 @@ export async function runV13108Checks(check) {
     assert.equal(ctx.lastMirrorAnchor,null);
     assert.equal(await emit(423,false),false);
     assert.equal(positions.length,1);
-    ctx.advance(3100);
+    ctx.advance(499);
+    assert.equal(await emit(424,false),false);
+    ctx.advance(1);
     assert.equal(await emit(425,false),true);
     assert.ok(Math.abs(positions[1]-425)<.1,'next metadata supplies the new position');
     assert.deepEqual(ctx.notes.filter(([kind])=>['mirror-expired','mirror-applied'].includes(kind))

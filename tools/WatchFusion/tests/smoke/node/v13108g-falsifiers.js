@@ -147,6 +147,53 @@ export async function runV13108gChecks(check) {
     assert.equal(gate.contradicted(),null);
   });
 
+  await check('V13108G-06C:large-automatic-mirror-jumps-need-fresh-moving-source-confirmation', () => {
+    let now = 10000, fresh = true;
+    const c = {sourcePhaseMs:-150};
+    const ctx = {window:{watchFusionPlayout:{status:()=>c,hasSourceReference:()=>fresh}},
+      Date:{now:()=>now},performance:{now:()=>now},estimatedServerNow:()=>now,Math,Number};
+    vm.runInNewContext(read('public/client/mirror-convergence-gate.js'),ctx);
+    const gate=ctx.window.WatchFusionMirrorConvergenceGate;
+    const plan={publish:true,reason:'drift',drift:-3.7};
+    for(let i=0;i<=4;i++){
+      now+=300;
+      assert.equal(gate.defer(plan,{sampledAt:now,currentTime:100+i*.3},'p'),true);
+    }
+    assert.ok(gate.contradicted());
+    fresh=false;
+    now+=300;
+    assert.equal(gate.defer(plan,{sampledAt:now,currentTime:101.5},'p'),false,
+      'a confirmed moving jump can publish after the old reference expires');
+    assert.equal(gate.defer({...plan,reason:'state'},{sampledAt:now,currentTime:101.5},'p'),false);
+  });
+
+  await check('V13108G-06D:two advancing source samples repair a stale mirror baseline without publishing', () => {
+    let now = 10_000;
+    const c = {segment:3, sourcePhaseMs:4, phaseMs:4, anchorAt:now, anchorPositionMs:30_000, rate:1};
+    const notes = [];
+    const ctx = {window:{watchFusionPlayout:{status:()=>c,hasSourceReference:()=>true},
+      watchFusionRoomSyncLog:{note:(kind, detail)=>notes.push({kind, ...detail})}},
+      Date:{now:()=>now},performance:{now:()=>now},estimatedServerNow:()=>now,Math,Number};
+    vm.runInNewContext(read('public/client/mirror-convergence-gate.js'),ctx);
+    const gate=ctx.window.WatchFusionMirrorConvergenceGate;
+    const plan={publish:true,reason:'drift',drift:1.05};
+    const sample=offset=>({pageUrl:'p',sampledAt:now,currentTime:30.004+(now-10_000)/1000+offset,rate:1});
+    assert.equal(gate.defer(plan,sample(-1),'p'),true);
+    assert.equal(typeof gate.rebase, 'function');
+    now+=250;
+    assert.equal(gate.rebase(plan,sample(-1),'p'),false,'advancing but off-source');
+    assert.ok(gate.contradicted());
+    assert.equal(gate.rebase(plan,sample(0),'p'),false,'one coherent reading');
+    now+=250;
+    c.segment++;
+    assert.equal(gate.rebase(plan,sample(0),'p'),false,'evidence cannot cross a segment');
+    now+=250;
+    assert.equal(gate.rebase(plan,sample(0),'p'),true);
+    assert.equal(gate.contradicted(),null);
+    assert.equal(gate.diagnostics().published,0);
+    assert.equal(notes.filter(e=>e.kind==='mirror-anchor-rebased').length,1);
+  });
+
   await check('V13108G-07:rejoin-probe-measures-commanded-landed-and-late-release', () => {
     assert.ok(exists('public/client/rejoin-probe.js'), 'rejoin-probe.js missing');
     let now = 0, wall = 0, playerPos = 100, playing = true, timers = [];

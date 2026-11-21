@@ -64,7 +64,6 @@
     }
   }
 
-
   function active(){return !!link;}
   function roomProof(){return roomId && link?.roomId === roomId ? {id:link.id,token:link.publisherToken} : undefined;}
   async function bindRoom(source, targetRoom) {
@@ -279,6 +278,7 @@
       if (roomId) window.WatchFusionMirrorConvergenceGate?.observeSteady?.(plan,metadata,loadedPageUrl);
       return false;
     }
+    if (roomId && !force && window.WatchFusionMirrorConvergenceGate?.rebase?.(plan,metadata,loadedPageUrl)) { lastMirrorAnchor = plan.anchor; return false; }
     if(roomId&&!force&&mirrorGuard()?.stalledRepeat?.(plan,metadata,loadedPageUrl))return false;
     if(roomId&&!force&&window.WatchFusionMirrorConvergenceGate?.defer?.(plan,metadata,loadedPageUrl))return false;
     window.watchFusionRoomSyncLog?.note?.('mirror-request',{

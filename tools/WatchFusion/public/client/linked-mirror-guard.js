@@ -9,7 +9,7 @@
  *  - in a room, only the current host whose linked source the room still holds publishes mirrors;
  *  - a 401/403/409 stops automatic mirrors until the room authority changes (host, link, source, binding)
  *    or the user presses Reconnect; one request per authority, never a loop;
- *  - other failures back off 3 s -> 30 s and never block for good;
+ *  - an expired sample waits briefly for fresh metadata; other failures back off 3 s -> 30 s;
  *  - when the original host gets the host role back (after a handoff seen in this room) and the room dropped the link but still plays the same
  *    video, one protected rebind is attempted (the server still checks ownership);
  *  - a frozen source (same currentTime) is mirrored once per stall; the next mirror waits until it moves.
@@ -58,6 +58,7 @@
       if (deniedFor !== authority) { counts.denied++; note('host-link-denied', {status: code}); say?.('ownership-denied'); }
       deniedFor = authority; reason = 'ownership-denied'; return;
     }
+    if (code === 408) { quietUntil = now() + 500; reason = 'sample-expired'; return; }
     const wait = BACKOFF_MS[Math.min(softFails, BACKOFF_MS.length - 1)];
     softFails++; quietUntil = now() + wait; counts.backoff++; reason = 'transport-backoff';
     if (softFails === 1 || softFails % 5 === 0) note('host-link-suppressed', {status: code, backoffMs: wait});

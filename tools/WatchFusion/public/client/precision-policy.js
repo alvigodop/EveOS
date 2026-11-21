@@ -5,6 +5,29 @@
   'use strict';
   const LOCK_MS = 50, ACTION_MS = 100, HARD_REJOIN_MS = 160;
   const finite = value => typeof value === 'number' && Number.isFinite(value);
+  function peerCandidate({peers, coordination: c, member, segment, sourceAgeMs, now, sourceErrorMs, observeOnly}) {
+    const reference = c?.reference || 'room-clock', cohort = reference === 'peer-cohort';
+    const uncertainty = c?.uncertaintyMs;
+    const live = c?.source === 'live' && finite(c.sourcePhaseMs) && Math.abs(c.sourcePhaseMs) <= 70 &&
+      finite(sourceAgeMs) && sourceAgeMs <= 900;
+    const linked = reference === 'linked-tab' && live && !c.authorityBuffering && finite(uncertainty) && uncertainty <= 125;
+    if (!linked && reference !== 'room-clock' && !(cohort && finite(uncertainty) && uncertainty <= 125)) return null;
+    const members = peers.filter(p => p.member !== member && p.playoutSegment === segment && p.follows &&
+      p.ready && p.playing && !p.buffering && !p.correcting && ['fine-locked','decoder-confirmed','direct-ready'].includes(p.startupPhase));
+    const single = members.length === 1 ? members[0] : null;
+    const observedSingle = !!single && observeOnly === true && linked;
+    const liveSingle = !!single && reference === 'room-clock' && live && (uncertainty == null || (finite(uncertainty) && uncertainty <= 125));
+    if (!members.length || (single && !observedSingle && !liveSingle)) return null;
+    const offsets = members.map(p => linked ? sourceErrorMs?.(p,c,now) : p.positionMs - (cohort ? p.targetPositionMs : p.roomPositionMs));
+    if (offsets.some(offset => !finite(offset) || Math.abs(offset) > 70) ||
+        members.some(p => !finite(p.sampledAt) || Math.abs(now-p.sampledAt) >= 1500 || !finite(p.rttMs) || p.rttMs >= 90)) return null;
+    const spreadMs = Math.max(...offsets) - Math.min(...offsets);
+    if (spreadMs > (linked || cohort ? 110 : 45)) return null;
+    return {reference, spreadMs, count:members.length, observeOnly:observedSingle,
+      offsetMs:offsets.reduce((sum,offset)=>sum+offset,0)/offsets.length,
+      sampledAt:Math.min(...members.map(p=>p.sampledAt)), ageMs:Math.max(...members.map(p=>Math.abs(now-p.sampledAt))),
+      ...(observedSingle ? {member:single.member, clockWitness:single.clockWitness === true} : {})};
+  }
   function witness(peer, localOffsetMs) {
     if (!peer || peer.count < 2 || !finite(peer.offsetMs) || !finite(peer.spreadMs) ||
         !finite(peer.ageMs) || peer.ageMs > 1500 || peer.ageMs < 0 || peer.spreadMs > 110 ||
@@ -51,6 +74,6 @@
   }
   globalThis.WatchFusionPrecisionPolicy = Object.freeze({
     version:'v13.10.6', LOCK_MS, ACTION_MS, HARD_REJOIN_MS,
-    witness, trustedHostReference, zone, label
+    peerCandidate, witness, trustedHostReference, zone, label
   });
 })();

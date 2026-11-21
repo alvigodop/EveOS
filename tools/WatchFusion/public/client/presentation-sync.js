@@ -67,6 +67,7 @@
       outputSession, follows: !isHost() && following, adjustmentMs, correcting: (!direct && window.watchFusionViewerArbiter?.correcting?.() === true) || hostServo?.active === true,
       videoFrameOffsetMs: direct && videoFrame && performance.now() - videoFrame.at < 500 ? videoFrame.offset : null,
       rttMs: window.watchPartyClock.rttMs(), offsetMs: window.watchPartyClock.offsetMs(),
+      clockWitness: window.watchPartyClock.witnessReady?.() === true,
       corrections: isHost() ? Math.max(diagnostics?.arbiter?.corrections??0,diagnostics?.correctiveSeeks??0)+(hostServo?.attempts??0) : diagnostics?.correctiveSeeks ?? null, recentCorrection: hostServo?.active ? 'rate-correction' : diagnostics?.action ?? null, sourceAgeMs,
       timingReference: syncReference?.reference === 'peer-cohort' && Number.isFinite(syncReference.uncertaintyMs) ? 'Shared cohort ±'+Math.round(syncReference.uncertaintyMs)+' ms' : syncReference?.reference === 'linked-tab' ? 'Linked tab (estimated clock)' : 'Room clock (limited)',
       hostCorrection: window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome === 'host-peer-rejoin' ? 'Peers corroborated · host rejoin' : hostServo?.outcome ?? null, hostRecovery: isHost() ? {...(window.WatchFusionHostPeerRecovery?.diagnostics?.()??{}),linkedSource:window.WatchFusionHostSourceConverge?.diagnostics?.()??null} : null, sensor: window.WatchFusionSensorProvenance?.describe?.({direct, media, now:performance.now(), clock:window.watchPartyClock.offsetBound?.(), source:isHost()&&window.watchFusionLinkedTab?.publishing?.()?window.watchFusionLinkedTab.metadata?.():null}) ?? null,
@@ -81,18 +82,10 @@
     };
   }
   function peerCandidate(observeOnly = false) {
-    if(!isHost()||!state?.linkedSourceActive||Date.now()-peerBatchAt>1600)return null;
-    const now=estimatedServerNow(),ref=peerCoordination?.reference||'room-clock',cohort=ref==='peer-cohort',uncertainty=Number(peerCoordination?.uncertaintyMs);
-    // A linked-tab room reference is independently witnessed by two healthy peers, not by the host itself.
-    const linkedRef=ref==='linked-tab'&&peerCoordination?.source==='live'&&!peerCoordination?.authorityBuffering
-      &&peerCoordination?.uncertaintyMs!=null&&Number.isFinite(uncertainty)&&uncertainty<=125&&Number.isFinite(peerCoordination?.sourcePhaseMs)
-      &&Math.abs(peerCoordination.sourcePhaseMs)<=70&&window.watchFusionLinkedTab?.publishing?.()
-      &&(sourceSampleAge()??Infinity)<=900;
-    if((!['room-clock','peer-cohort'].includes(ref)&&!linkedRef)||(cohort&&(!Number.isFinite(uncertainty)||uncertainty>125)))return null;
-    const members=peerBatch.filter(p=>p.member!==session?.publicId&&p.playoutSegment===state.playoutSegment&&p.follows&&p.ready&&p.playing&&!p.buffering&&!p.correcting&&['fine-locked','decoder-confirmed','direct-ready'].includes(p.startupPhase));const liveSingle=members.length===1&&ref==='room-clock'&&peerCoordination?.source==='live'&&Number.isFinite(peerCoordination?.sourcePhaseMs)&&Math.abs(peerCoordination.sourcePhaseMs)<=70&&(peerCoordination.uncertaintyMs==null||(Number.isFinite(peerCoordination.uncertaintyMs)&&peerCoordination.uncertaintyMs<=125))&&window.watchFusionLinkedTab?.publishing?.()&&sourceSampleAge()!=null&&sourceSampleAge()<=900;const observedSingle=observeOnly===true&&members.length===1&&linkedRef;if(!members.length||(members.length===1&&!liveSingle&&!observedSingle))return null;
-    const useTarget=cohort||linkedRef;const points=members.map(p=>({p,offset:linkedRef?window.watchFusionPlayout?.sourceErrorMs?.(p,peerCoordination,now):p.positionMs-(cohort?p.targetPositionMs:p.roomPositionMs)}));if(points.some(({p,offset})=>!Number.isFinite(offset)||Math.abs(offset)>70||!Number.isFinite(p.sampledAt)||Math.abs(now-p.sampledAt)>=1500||!Number.isFinite(p.rttMs)||p.rttMs>=90))return null;
-    const offsets=points.map(v=>v.offset),spread=Math.max(...offsets)-Math.min(...offsets);if(spread>(useTarget?110:45))return null;
-    return {offsetMs:offsets.reduce((a,b)=>a+b,0)/offsets.length,sampledAt:Math.min(...members.map(p=>p.sampledAt)),ageMs:Math.max(...members.map(p=>Math.abs(now-p.sampledAt))),reference:ref,count:members.length,spreadMs:spread,observeOnly:observedSingle};
+    if (!isHost() || !state?.linkedSourceActive || Date.now() - peerBatchAt > 1600) return null;
+    return window.WatchFusionPrecisionPolicy?.peerCandidate({peers:peerBatch, coordination:peerCoordination,
+      member:session?.publicId, segment:state.playoutSegment, sourceAgeMs:sourceSampleAge(),
+      now:estimatedServerNow(), sourceErrorMs:window.watchFusionPlayout?.sourceErrorMs, observeOnly});
   }
   function sourceSampleAge() {
     if (!window.watchFusionLinkedTab?.publishing?.()) return null;

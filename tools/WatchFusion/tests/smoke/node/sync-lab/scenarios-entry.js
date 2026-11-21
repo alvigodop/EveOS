@@ -8,6 +8,28 @@ function savedModel(release) {
 }
 
 export const ENTRY_SCENARIOS = {
+  async 'SYNC-32:a late TV with verified timing corroborates one host correction'() {
+    const lab = await createRoomLab({seed:32, sourceNoiseMs:0});
+    try {
+      const host = lab.addViewer('host', {...fixedPlayer, seekLatencyMs:90}, {offsetSec:.390,
+        store:savedModel({hostReleaseLatencySec:.03, hostReleaseMeasured:true})});
+      await lab.run(9000);
+      const tv = lab.addViewer('tv', {rates:[.75,1], startLatencyMs:30}, {offsetSec:-.225});
+      const witnessReady = tv.ctx.watchPartyClock.witnessReady;
+      tv.ctx.watchPartyClock.witnessReady = () => false;
+      await lab.run(22000);
+      const seeksWithThinClock = host.player.stats.seeks;
+      tv.ctx.watchPartyClock.witnessReady = witnessReady;
+      await lab.run(22000);
+      const events = JSON.parse(host.ctx.watchFusionRoomSyncLog.export()).events;
+      const triggers = events.filter(e => e.kind === 'host-rejoin-triggered');
+      const detail = {hostMs:host.errorMs(), tvMs:tv.errorMs(), seeksWithThinClock, hostSeeks:host.player.stats.seeks,
+        tvSeeks:tv.player.stats.seeks, triggerCount:triggers.length, peerCount:triggers[0]?.peerCount, recovery:host.ctx.WatchFusionHostPeerRecovery.diagnostics()};
+      return {ok:seeksWithThinClock===0 && detail.hostSeeks===1 && detail.tvSeeks===0 &&
+        triggers.length===1 && triggers[0].peerCount===1 && Math.abs(detail.hostMs)<=50 &&
+        Math.abs(detail.tvMs)<=50 && Math.abs(detail.hostMs-detail.tvMs)<=50, detail};
+    } finally { lab.close(); }
+  },
   async 'SYNC-31:a forced join during buffering preserves early catch-up for a far-behind viewer'() {
     const lab = await createRoomLab({seed:31,sourceNoiseMs:0});
     try {

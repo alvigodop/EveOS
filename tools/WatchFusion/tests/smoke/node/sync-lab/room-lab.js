@@ -15,7 +15,8 @@ export function viewerScripts({fineTrim = false} = {}) {
   const bundle = fs.readFileSync(path.join(ROOT, 'src/server/static-files.js'), 'utf8');
   const listed = [...bundle.matchAll(/'((?:client\/)?[a-z0-9-]+\.js)'/g)].map(m => m[1]);
   const wanted = new Set(['client/linked-playback-sync.js', 'client/sync-seek-health.js', 'client/youtube-startup-gate.js', 'client/host-seek-policy.js', 'client/host-source-converge.js', 'client/sensor-provenance.js', 'client/mirror-convergence-gate.js',
-    'client/gentle-catchup.js', 'client/viewer-release-evidence.js', 'client/viewer-timing-math.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/presentation-sync.js', 'client/room-playout.js']);
+    'client/gentle-catchup.js', 'client/viewer-release-evidence.js', 'client/viewer-timing-math.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/tv-decoder-rescue.js',
+    'client/precision-policy.js', 'client/presentation-sync.js', 'client/room-playout.js']);
   if (fineTrim) wanted.add('client/zero-converge.js');
   return listed.filter(name => wanted.has(name));
 }
@@ -117,7 +118,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
     };
     ctx.window = ctx; ctx.globalThis = ctx;
     ctx.watchPartyClock = {precise: () => true, rttMs: () => rttMs, offsetMs: () => 0, update() {}, now: () => clock.now(),
-      offsetBound: () => ({boundMs:rttMs/2, spreadMs:2, ageMs:50, samples:4, precise:true})};
+      witnessReady: () => rttMs <= 90, offsetBound: () => ({boundMs:rttMs/2, spreadMs:2, ageMs:50, samples:4, precise:true})};
     if (id === room.hostId) {
       ctx.watchFusionLinkedTab = {publishing:() => linkedOnline, metadata:() => lastSource};
       ctx.document.getElementById = key => key.startsWith('syncRoomLog') ? ctx.$(key) : null;

@@ -282,10 +282,12 @@
     if (!arbiter?.owns() && !window.watchFusionHostZeroCenter?.isApplying?.() && !window.WatchFusionZeroConverge?.isApplying?.()) setViewerRate(baseRate);
     const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
     if (!transportSeekPending && startup?.ready && !io.mirrorContradicted() && coldJoinReady({until:coldJoinUntil,nowMs,roomPaused,force,playerState,drift:rawDrift,linked:state.linkedSourceActive===true,reference:window.watchFusionPlayout?.status?.(),matches:ytPlayer.getVideoData?.()?.video_id===state.source.videoId})) { transportSeekPending = true; coldJoinUntil = 0; }
-    const decoderRescue=(bufferingNow,exhausted=!bufferingNow,heldProofMs=0)=>!force&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,position:current,stalledMs:Math.max(startup?.stalledMs??0,heldProofMs),
-      trusted:state?.linkedSourceActive!==true||window.watchFusionPlayout?.status?.()?.source==='live',sourceBuffering:!!window.watchFusionPlayout?.sourceBuffering?.(),
+    const manualDecoder = force && explicitSync && !bufferedOnly && !isHost();
+    const decoderRescue=(bufferingNow,exhausted=!bufferingNow)=>(!force||manualDecoder)&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted,manual:manualDecoder,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,position:current,stalledMs:startup?.stalledMs??0,
+      trusted:io.referenceTrusted()&&(!manualDecoder||!io.mirrorContradicted()),sourceBuffering:io.sourceBuffering(),onSpent:()=>{if(!isHost())setStatus('TV playback stalled · use Sync me to restart this player');},
       reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target+.5});replayLoads++;arbiter?.intent('pause',io);awaitSeekRecovery(nowMs);},
       rebuild:()=>{window.watchFusionLinkedTab?.suppressPlaybackEcho?.();arbiter?.intent('pause',io);window.WatchFusionDecoderRescue.rebuildPlayer(state.source.videoId,isHost()?null:target);replayLoads++;}});
+    if (manualDecoder && decoderRescue(buffering, startup?.stalledMs >= 6500)) { diagnostics.action='decoder-manual-restart';setStatus('TV decoder recovery · restarting this player…');return true; }
     if (!force && buffering) {
       if (decoderRescue(true)) { diagnostics.action='decoder-recovery'; setStatus('TV decoder recovery · restarting this player once…'); return true; }
       if (!viewerWasBuffering) resetDriftSensor('buffering');
@@ -336,8 +338,6 @@
         const verdict=tvOwner.motion({value:scope,at:nowMs,playing:playerState===1,buffering,
           ready:startup.ready,hidden:document.hidden,state:m?.timelineState,rate:m?.timelineRatePct,
           stalledMs:startup.stalledMs,sourceLive:window.watchFusionPlayout?.status?.()?.source==='live'&&!io.sourceBuffering?.()});
-        // Progress rules out a frozen decoder. Otherwise the proven bounded
-        // kick/rejoin ladder owns recovery; a terminal reload must wait for exhaustion.
         if(verdict==='advancing') {diagnostics.action='tv-motion-proves-progress';return true;}
       }
       if (arbiter?.recoverStall?.(nowMs, io, startup.stalledMs)) { diagnostics.action = arbiter.snapshot().reason; return true; }
@@ -348,9 +348,9 @@
     if (!force && startup?.ready === true && !arbiter?.owns()) decoderRescue(false, false);
     if (isHost() && state?.linkedSourceActive && arbiter && window.WatchFusionHostPeerRecovery?.consider?.({
       scope,nowMs,hostOffsetMs:(current-target)*1000,peer:window.watchFusionPresentation?.peerCandidate?.(),observedPeer:window.watchFusionPresentation?.peerCandidate?.(true),
-      reference:window.watchFusionPlayout?.status?.()?.reference,trusted:(()=>{const p=window.watchFusionPlayout?.status?.();return p?.source==='live'&&!p.authorityBuffering&&!io.mirrorContradicted()&&
+      sourceVerified:io.hostHoldBlocker()===null,reference:window.watchFusionPlayout?.status?.()?.reference,trusted:(()=>{const p=window.watchFusionPlayout?.status?.();return p?.source==='live'&&!p.authorityBuffering&&!io.mirrorContradicted()&&
         (p.reference==='room-clock'||(p.reference==='peer-cohort'||p.reference==='linked-tab') &&Number.isFinite(p.uncertaintyMs)&&p.uncertaintyMs<=125 &&(p.reference!=='linked-tab'||Number.isFinite(p.sourcePhaseMs)&&Math.abs(p.sourcePhaseMs)<=70))&&
-        Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs
+        Math.abs(Date.now()-(window.watchFusionLinkedTab?.metadata?.()?.sampledAt||0))<900;})(),active:!force&&!buffering&&playerState===1&&!arbiter.owns()&&!startup?.stalledMs&&!window.watchFusionHostZeroCenter?.isApplying?.()&&!window.WatchFusionZeroConverge?.isApplying?.()
     })) {const accepted=arbiter.rejoinNow(nowMs,io,'host-peer');window.WatchFusionHostPeerRecovery?.accept?.(accepted);if(accepted){diagnostics.action='host-peer-rejoin';return true;}}
     if(isHost()&&state?.linkedSourceActive&&arbiter&&window.WatchFusionHostSourceConverge?.consider?.({scope:[roomId,state.source.videoId,state.presentationEpoch].join(':'),segment:state.playoutSegment,nowMs,errorMs:rawDrift*1000,coordination:window.watchFusionPlayout?.status?.(),sourceAgeMs:Date.now()-Number(window.watchFusionLinkedTab?.metadata?.()?.sampledAt),publisher:!!window.watchFusionLinkedTab?.publishing?.(),policyMinErrorMs:window.WatchFusionHostSeekPolicy?.MIN_HOST_REJOIN_MS,policyBlocked:!!arbiter.snapshot()?.hostSeekGuard,sameVideo:ytPlayer?.getVideoData?.()?.video_id===state?.source?.videoId,peerPresent:!!window.watchFusionPresentation?.peerCandidate?.(),contradiction:window.WatchFusionMirrorConvergenceGate?.contradicted?.(),active:!force&&!buffering&&!roomPaused&&playerState===1&&!arbiter.owns()&&!window.watchFusionHostZeroCenter?.isApplying?.()&&!window.WatchFusionZeroConverge?.isApplying?.()&&!startup?.stalledMs})){const accepted=arbiter.rejoinNow(nowMs,io,'host-source');window.WatchFusionHostSourceConverge.accept(accepted,nowMs);if(accepted){diagnostics.action='host-source-rejoin';return true;}}
     const decision = window.watchFusionHostZeroCenter?.isApplying?.() ? {owned:true,reason:'host-zero-centering'} : window.WatchFusionZeroConverge?.isApplying?.() ? {owned:true,reason:'zero-converging'} : arbiter ? arbiter.tick(scope, nowMs, io) : {owned:false, reason:'no-arbiter'};

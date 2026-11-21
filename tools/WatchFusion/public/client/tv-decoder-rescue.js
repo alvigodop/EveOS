@@ -26,6 +26,7 @@
   let healthyAt = -1, healthyPosition = null, healthyProgressMs = 0;
   let pausedAt = -1, wasRoomPaused = false, resumeRearms = [], rearmCount = 0, lastRearmDwellMs = null;
   let healthOffsets = [], healRearms = [], healCount = 0;
+  let manualRestartAt = -Infinity;
   const rebuilds = [];
   // v13.10.8: the caller's scope is room:video:epoch:playoutSegment. The playout segment bumps on every
   // room transport rewrite (a frozen linked source re-mirrored once a second in Drift's trace), so it must
@@ -99,12 +100,27 @@
         {progressMs: Math.round(healthyProgressMs), offsetMs: Math.round(drift*1000)});
     }
   }
+  function restartAfterSync(input, nowMs, wedged) {
+    if (!scope || steps < 2 || !wedged || document.hidden || !Number.isFinite(nowMs) ||
+        input.trusted !== true || input.sourceBuffering || typeof input.rebuild !== 'function' ||
+        (input.buffering && !(Math.abs(input.drift) >= MIN_DRIFT_SEC))) return false;
+    if (nowMs - manualRestartAt < RETRY_AFTER_MS) return true;
+    manualRestartAt = lastStepAt = nowMs;
+    since = 0;
+    try {
+      input.rebuild();
+      outcome = 'manual-player-rebuilt';
+      window.watchFusionRoomSyncLog?.note?.('tv-decoder-manual-restart', {reason:outcome});
+    } catch { outcome = 'manual-restart-failed'; }
+    return true;
+  }
   function consider(input = {}) {
     const nextScope = input.scope ? dwellScope(input.scope) : '';
     enterScope(nextScope);
     const nowMs = Number(input.nowMs);
     if (input.trusted) liveSeenAt = nowMs;
     const wedged = input.buffering ? true : !!(input.exhausted && input.playing);
+    if (input.manual) return restartAfterSync(input, nowMs, wedged);
     observeHealth(input, nowMs, wedged);
     if (!scope || !wedged || document.hidden || !Number.isFinite(nowMs)) { since = 0; return false; }
     // A one-report "frozen" blink of the linked source is not a frozen room.
@@ -118,7 +134,10 @@
     }
     if (!since) { since = nowMs; outcome = 'confirming-wedged-decoder'; return false; }
     if (nowMs - since < (input.buffering ? BUFFER_DWELL_MS : STALL_DWELL_MS)) return false;
-    if (steps >= 2) { outcome = 'terminal-recovery-spent'; return false; }
+    if (steps >= 2) {
+      if (outcome !== 'terminal-recovery-spent') input.onSpent?.();
+      outcome = 'terminal-recovery-spent'; return false;
+    }
     if (steps === 1 && nowMs - lastStepAt < RETRY_AFTER_MS) { outcome = 'verifying-decoder-reload'; return false; }
     const recent = rebuilds.filter(t => nowMs - t < 600000);
     const rebuild = steps === 1 && recent.length < MAX_REBUILDS_PER_10_MIN && typeof input.rebuild === 'function';

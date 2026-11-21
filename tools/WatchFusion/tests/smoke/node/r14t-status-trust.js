@@ -111,7 +111,7 @@ export async function runR14tStatusChecks(check) {
     const detail={reason:'measured-improvement',beforeMs:59,residualMs:42,progressMs:17,expectedMs:41};
     log.note('host-zero-rate-recheck-verified',{...detail,extra:'discard'});
     const data=JSON.parse(log.export());
-    assert.equal(data.diagnosticsVersion,'v13.10.8x-r14y-fine-trim');
+    assert.equal(data.diagnosticsVersion,'v13.10.8x-room-recovery');
     const event=data.events.find(e=>e.kind==='host-zero-rate-recheck-verified');
     for(const [key,value] of Object.entries(detail)) assert.equal(event[key],value);
     assert.equal(event.extra,undefined);

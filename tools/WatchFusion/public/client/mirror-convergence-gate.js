@@ -11,17 +11,10 @@
   let contradiction = null, clockEvidence = null, coherent = null;
   const clock = () => performance.now();
   function defer(plan, metadata = {}, page = '') {
-    coherent = null;
     if (!plan?.publish || plan.reason !== 'drift' || metadata.paused || metadata.ended) {
       candidate = null; return false;
     }
     const drift = Number(plan.drift), sampleAt = Number(metadata.sampledAt), current = Number(metadata.currentTime);
-    // Keep the first large source seek immediate; an adjacent second drift-driven
-    // room re-anchor must not reset synced viewers again without fresh evidence.
-    // Explicit state and force changes bypass this drift-only gate entirely.
-    if (Number.isFinite(drift) && Math.abs(drift) > 2.5 && clock() - lastPublishedAt >= COOLDOWN_MS) {
-      candidate = null; lastPublishedAt = clock(); return false;
-    }
     if (!Number.isFinite(drift) || !Number.isFinite(sampleAt) || !Number.isFinite(current) || sampleAt <= 0) {
       candidate = null; return true;
     }
@@ -34,7 +27,8 @@
     // Repetition against the publisher's last mirror anchor is not confirmation
     // of a room displacement when the independent source still follows the room.
     const disagrees = playout?.hasSourceReference?.(c, estimatedServerNow()) &&
-      Math.abs(c.sourcePhaseMs) <= 35 && Math.abs(drift * 1000 - c.sourcePhaseMs) > LARGE_SEC * 1000;
+      (Math.abs(drift) > 2.5 || Math.abs(c.sourcePhaseMs) <= 35) &&
+      Math.abs(drift * 1000 - c.sourcePhaseMs) > LARGE_SEC * 1000;
     if (!same || disagrees || sampleAt - candidate.firstAt < CONFIRM_MS || now - lastPublishedAt < COOLDOWN_MS) {
       held++; heldSinceNote++;
       if (Math.abs(drift) > LARGE_SEC) contradiction = {page, driftMs: Math.round(drift * 1000), at: now};
@@ -65,14 +59,32 @@
         ![sampledAt,currentTime,rate,c?.sourcePhaseMs,plan?.drift].every(Number.isFinite) ||
         age < 0 || age > 500 || rate <= 0 || Math.abs(plan.drift * 1000 - c.sourcePhaseMs) > 100 ||
         !playout.hasSourceReference?.(c, estimatedServerNow())) { coherent = null; return; }
-    const elapsed = coherent ? sampledAt - coherent.sampledAt : Infinity;
-    if (elapsed >= 0 && elapsed < 150) return;
+    if (advancing(metadata, page, c.segment, 'steady')) contradiction = candidate = coherent = clockEvidence = null;
+  }
+  function advancing({sampledAt,currentTime,rate}, page, segment, kind) {
+    const same = coherent?.kind === kind && coherent.page === page && coherent.segment === segment && coherent.rate === rate;
+    const elapsed = same ? sampledAt - coherent.sampledAt : Infinity;
+    if (elapsed >= 0 && elapsed < 150) return false;
     const expected = elapsed * rate / 1000, advance = currentTime - coherent?.position;
-    if (elapsed >= 150 && elapsed <= 1000 && advance >= expected * .5 && advance <= expected * 1.5) {
-      contradiction = candidate = coherent = clockEvidence = null;
-      return;
-    }
-    coherent = {sampledAt, position:currentTime};
+    coherent = {sampledAt, position:currentTime, page, segment, rate, kind};
+    return elapsed >= 150 && elapsed <= 1000 && advance >= expected * .5 && advance <= expected * 1.5;
+  }
+  function rebase(plan, metadata, page) {
+    const playout = window.watchFusionPlayout, c = playout?.status?.();
+    const {sampledAt, currentTime, rate} = metadata;
+    const age = Date.now() - sampledAt, serverNow = estimatedServerNow();
+    // Confirm against the independent source timeline before replacing the local publisher baseline.
+    const sourceAtSample = c?.anchorPositionMs + (serverNow - age - c?.anchorAt) * c?.rate + c?.phaseMs;
+    if (plan?.reason !== 'drift' || !Number.isFinite(plan.drift) || Math.abs(plan.drift) <= LARGE_SEC ||
+        !page || metadata.pageUrl !== page || metadata.paused || metadata.ended || metadata.buffering ||
+        !Number.isFinite(age) || age < 0 || age > 500 || rate !== c?.rate ||
+        !Number.isFinite(c?.sourcePhaseMs) || Math.abs(c.sourcePhaseMs) > 35 ||
+        !Number.isFinite(sourceAtSample) || !Number.isFinite(currentTime) || Math.abs(currentTime * 1000 - sourceAtSample) > 60 ||
+        !playout?.hasSourceReference?.(c, serverNow)) { coherent = null; return false; }
+    if (!advancing(metadata, page, c.segment, 'rebase')) return false;
+    contradiction = candidate = coherent = clockEvidence = null;
+    window.watchFusionRoomSyncLog?.note?.('mirror-anchor-rebased', {driftMs:Math.round(plan.drift * 1000), sampleAgeMs:Math.round(age)});
+    return true;
   }
   function reset() {candidate = null; lastPublishedAt = -Infinity; contradiction = coherent = clockEvidence = null;}
   // A drift publish (the room re-anchored to the source) resolves it; so does CONTRADICTION_MS without another one.
@@ -80,5 +92,5 @@
     if (!contradiction || now - contradiction.at > CONTRADICTION_MS || contradiction.at <= lastPublishedAt) return null;
     return {driftMs: contradiction.driftMs, ageMs: Math.round(now - contradiction.at)};
   }
-  window.WatchFusionMirrorConvergenceGate = {defer, observeSteady, reset, contradicted, diagnostics: () => ({held,published,contradiction:contradicted(),clockEvidence:clockEvidence&&clock()-clockEvidence.at<=4000?clockEvidence:null})};
+  window.WatchFusionMirrorConvergenceGate = {defer, observeSteady, rebase, reset, contradicted, diagnostics: () => ({held,published,contradiction:contradicted(),clockEvidence:clockEvidence&&clock()-clockEvidence.at<=4000?clockEvidence:null})};
 })();

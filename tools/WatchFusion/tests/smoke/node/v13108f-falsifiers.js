@@ -97,7 +97,23 @@ export async function runV13108fChecks(check) {
     assert.deepEqual({...p.clockBound(null)}, {clockBoundMs: null, clockState: 'unknown'});
   });
 
-  await check('V13108F-03:clock-bound-is-diagnostic-only-and-correction-gates-are-unchanged', () => {
+  await check('V13108F-02B:clock exchanges qualify a witness only while precise stable and fresh', () => {
+    const lab = clockLab();
+    for (let i = 0; i < 4; i++) lab.exchange(15,15,1,false);
+    assert.equal(lab.clock.witnessReady(),false,'coarse samples cannot qualify');
+    lab.exchange(15,15);
+    lab.exchange(15,15);
+    assert.equal(lab.clock.witnessReady(),false,'two precise exchanges are insufficient');
+    lab.exchange(15,15);
+    assert.equal(lab.clock.witnessReady(),true);
+    lab.wait(15000);
+    assert.equal(lab.clock.witnessReady(),false,'old exchanges cannot qualify');
+    const unstable = clockLab();
+    for (let i = 0; i < 4; i++) unstable.exchange(15,15,1,true,i > 1 ? 200 : 0);
+    assert.equal(unstable.clock.witnessReady(),false,'a shifting server offset cannot qualify');
+  });
+
+  await check('V13108F-03:clock diagnostics stay read-only and existing RTT limits still apply', () => {
     const files = ['public/client', 'src/server'].flatMap(dir => fs.readdirSync(path.join(ROOT, dir)).filter(f => f.endsWith('.js')).map(f => dir + '/' + f));
     const allowed = new Set(['public/client/sensor-provenance.js', 'public/client/sync-room-log.js', 'public/client/sync-center.js',
       'public/client/core.js', 'public/client/presentation-sync.js', 'src/server/presentation-report-schema.js']);
@@ -106,7 +122,8 @@ export async function runV13108fChecks(check) {
     }
     const ps = read('public/client/presentation-sync.js');
     assert.equal((ps.match(/offsetBound|clockBound|clockState/g) || []).length, 1, 'presentation-sync only forwards the bound into the report');
-    assert.match(ps, /!Number\.isFinite\(p\.rttMs\)\|\|p\.rttMs>=90\)\)return null/, 'peer-proposal RTT gate unchanged');
+    const precision = read('public/client/precision-policy.js');
+    assert.match(precision, /!finite\(p\.rttMs\) \|\| p\.rttMs >= 90/, 'peer-proposal RTT gate unchanged');
     assert.match(ps, /sample\.rttMs <= 45\)/, 'measured-adjustment RTT gate unchanged');
     const center = read('public/client/sync-center.js');
     assert.match(center, /\(estimated\)/); assert.doesNotMatch(center, /accuracy|calibrat/i);

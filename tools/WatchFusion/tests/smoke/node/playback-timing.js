@@ -138,6 +138,13 @@ export async function runPlaybackTimingChecks(check) {
     const livePath = '/api/live/' + stream.id;
     assert.equal((await post(livePath + '/room', {roomId:room.id, mode:'linked-tab', publisherToken:linkedSource.token}, host)).code,200);
     try {
+      const resume = await command('mirror', {...delayed, linkedSource, sampledServerAt:Date.now()-700});
+      assert.equal(resume.code,200,'a delayed resume can establish the new running transport');
+      assert.equal(room.playback.paused,false);
+      const beforeLate = {...room.playback};
+      const late = await command('mirror', {...delayed, linkedSource, sampledServerAt:Date.now()-911});
+      assert.equal(late.code,408,'the trace’s ~911 ms running mirror needs advancing linked samples');
+      assert.deepEqual(room.playback,beforeLate,'rejection preserves the previous transport');
       const sent = Date.now() - 1557;
       Object.assign(room.playback, {position:410, rate:1, paused:false, updatedAt:sent-5000});
       const mirror = {...delayed, linkedSource, sampledServerAt:sent};

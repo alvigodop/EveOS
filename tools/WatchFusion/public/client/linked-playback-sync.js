@@ -381,11 +381,11 @@
   let peerCount=0,observedPeerCount=0,observedPeerErrorMs=null,peerSpreadMs=null,hostErrorMs=null,peerErrorMs=null,gapMs=null,reference=null;
   let lastReason='',lastReasonAt=-Infinity,triggeredAt=null,verifyAt=-1,nearSince=-1,failedAt=-1;
   const note=(kind,detail)=>window.watchFusionRoomSyncLog?.note?.(kind,detail); const fields=()=>({reference,hostErrorMs,peerErrorMs,gapMs,peerCount,observedPeerCount,observedPeerErrorMs,peerSpreadMs,attempts});
-  function gate(why,nowMs){samples=['source-not-trusted','no-healthy-peer-witness','reference-mismatch'].includes(why)?samples.filter(x=>nowMs-x.at<=24000):[];outcome=why;
+  function gate(why,nowMs){samples=['source-not-trusted','no-healthy-peer-witness','reference-mismatch'].includes(why)?samples.filter(x=>nowMs-x.at<=24000&&(!x.member||why==='no-healthy-peer-witness')):[];outcome=why;
     if(nowMs-lastReasonAt>=(why!==lastReason?2500:10000)){lastReason=why;lastReasonAt=nowMs;note('host-rejoin-gated',{reason:why,...fields()});}
     return false;}
   function consider(input={}) {
-    const at=Number(input.nowMs),p=input.peer,host=Number(input.hostOffsetMs),gap=host-Number(p?.offsetMs);
+    const p=input.peer??window.WatchFusionHostSeekPolicy?.singleRecoveryWitness(input), at=Number(input.nowMs),host=Number(input.hostOffsetMs),gap=host-Number(p?.offsetMs);
     if(input.scope!==scope){scope=input.scope;samples=[];lastStamp=-Infinity;stage='observe';outcome='new-segment';attempts=0;
       echoUntil=0;triggeredAt=null;verifyAt=nearSince=failedAt=-1;lastReason='';peerCount=0;}
     reference=input.reference??p?.reference??'room-clock';peerCount=p?.count??0;observedPeerCount=input.observedPeer?.count??peerCount;observedPeerErrorMs=Number.isFinite(input.observedPeer?.offsetMs)?Math.round(input.observedPeer.offsetMs):null;
@@ -419,12 +419,12 @@
     if(!Number.isFinite(host)||!Number.isFinite(gap))return gate('invalid-player-phase',at);
     if(p.ageMs>1500||p.ageMs<0)return gate('peer-report-stale',at);
     if(Math.abs(p.offsetMs)>70)return gate('peer-outside-lock-band',at);
-    const peerNoise=Number.isFinite(p.spreadMs)?Math.max(45,p.spreadMs/2+20):125;if(Math.abs(host)<155||Math.abs(gap)<Math.max(125,peerNoise*1.35))return gate('host-within-guard-band',at);
+    const peerNoise=Number.isFinite(p.spreadMs)?Math.max(45,p.spreadMs/2+20):125;if(Math.abs(host)<155||Math.abs(gap)<Math.max(125,peerNoise*1.35)||p.observeOnly&&(host > -250 || host < -650))return gate('host-within-guard-band',at);
     if(Math.abs(host)>650 && (host>=0 || Math.abs(host)>820 || reference!=='linked-tab' || p.count<2 || !Number.isFinite(p.spreadMs) || p.spreadMs>55 || Math.abs(p.offsetMs)>50))return gate('host-offset-too-large',at);
     if(!(p.sampledAt>lastStamp))return false;lastStamp=p.sampledAt;
-    if(samples.length&&(at-samples.at(-1).at>12500||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference))samples=[];
-    samples.push({at,host,peer:p.offsetMs,gap,reference});samples=samples.filter(x=>at-x.at<=24000);
-    if(samples.length<7||at-samples[0].at<6500||samples.filter(x=>at-x.at<=2500).length<2){outcome='corroborating-host-drift';return false;}
+    if(samples.length&&(at-samples.at(-1).at>(p.observeOnly?5500:12500)||Math.sign(gap)!==Math.sign(samples.at(-1).gap)||reference!==samples.at(-1).reference||p.member!==samples.at(-1).member))samples=[];
+    samples.push({at,host,peer:p.offsetMs,gap,reference,member:p.member});samples=samples.filter(x=>at-x.at<=24000);
+    if(samples.length<(p.observeOnly?5:7)||at-samples[0].at<6500||samples.filter(x=>at-x.at<=(p.observeOnly?5500:2500)).length<2){outcome='corroborating-host-drift';return false;}
     const spread=key=>Math.max(...samples.map(x=>x[key]))-Math.min(...samples.map(x=>x[key]));
     if(spread('host')>60||spread('peer')>35||spread('gap')>65)return gate('unstable-peer-or-host',at);
     attempts++;triggeredAt=Date.now();echoUntil=performance.now()+3500;stage='actuating';outcome='host-peer-rejoin';

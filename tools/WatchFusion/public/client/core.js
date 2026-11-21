@@ -58,9 +58,7 @@ let roomAudioGuardUntil = 0;
 let roomAudioCommandTimer = null;
 let roomAudioCandidateKey = '';
 let linkedAudioPlayer = null, linkedAudioKey = '';
-
 const $ = (id) => document.getElementById(id);
-
 function loadPlayerAudioPrefs() {
   try {
     const raw = storage.get(PLAYER_AUDIO_PREFS_KEY);
@@ -203,7 +201,6 @@ function updateServerClock(serverTime, sentAt, receivedAt, receivedByServer) {
   serverClockSamples = serverClockSamples.filter(sample => t3 - sample.at < 45000 && t3 >= sample.at);
   serverClockSamples.push({ rtt, offset, at: t3, precise });
   if (serverClockSamples.length > 12) serverClockSamples.shift();
-
   // Prefer low-delay exchanges and reject isolated asymmetric samples.
   const sorted = [...serverClockSamples].sort((a, b) => a.rtt - b.rtt);
   serverClockRttMs = sorted[0].rtt;
@@ -219,6 +216,11 @@ window.watchPartyClock = {
   offsetMs: () => serverClockOffsetMs,
   rttMs: () => Number.isFinite(serverClockRttMs) ? serverClockRttMs : null,
   precise: () => serverClockSamples.some(sample => sample.precise && Date.now() - sample.at < 15000),
+  witnessReady() {
+    const reference = serverClockReference, now = Date.now();
+    return !!reference?.precise && reference.samples >= 3 && reference.boundMs <= 45 && reference.spreadMs <= 2 * reference.boundMs + 2 &&
+      now >= reference.newestAt && now - reference.newestAt <= 15000 && this.serverAt(now) !== null;
+  },
   sampleCount: () => serverClockSamples.length, offsetBound: () => Number.isFinite(serverClockReference?.boundMs) ? { boundMs: serverClockReference.boundMs, spreadMs: serverClockReference.spreadMs, ageMs: Date.now() - serverClockReference.newestAt, samples: serverClockReference.samples, precise: serverClockReference.precise } : null,
   now: estimatedServerNow,
   serverAt: localTime => serverClockReference
@@ -226,7 +228,6 @@ window.watchPartyClock = {
     ? Number(localTime) + serverClockOffsetMs : null,
   update: updateServerClock
 };
-
 function playbackAuthorityKey(roomState = state) {
   const source = roomState?.source || {};
   const playback = roomState?.playback || {};
@@ -312,7 +313,6 @@ function updateLanCopyVisibility() {
 }
 function apiUrl(path) { const value=String(path||''); return transportBaseUrl ? `${transportBaseUrl}${value.startsWith('/')?value:`/${value}`}` : value; }
 function eventStreamUrl(path) { return apiUrl(path); }
-
 async function loadNetworkInfo() {
   try {
     const res = await fetch(apiUrl('/api/network-info'), { cache: 'no-store' });

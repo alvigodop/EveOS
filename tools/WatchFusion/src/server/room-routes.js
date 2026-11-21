@@ -170,12 +170,15 @@ async function commandRoute(req, res, room, roomId, member) {
     const sampledPosition = Math.max(0, Number(body.position) || 0);
     const rate = Math.min(2, Math.max(0.25, Number(body.rate) || 1));
     const paused = !!body.paused || !!body.ended;
+    const sameRate = Math.abs(rate - (Number(room.playback.rate) || 1)) <= .01;
     // v13.10.8e: a volume-only mirror that agrees with the room transport changes audio, never the timeline anchor.
-    const audioOnly = body.volumeOnly === true && paused === !!room.playback.paused && !!body.ended === !!room.playback.ended
-      && Math.abs(rate - (Number(room.playback.rate) || 1)) <= .01;
+    const audioOnly = body.volumeOnly === true && paused === !!room.playback.paused && !!body.ended === !!room.playback.ended && sameRate;
     if (!audioOnly) {
       let position = paused ? sampledPosition : sampledPosition + sampleAgeSeconds * rate;
-      if (!paused && mirrorAgeMs !== null && (mirrorAgeMs > 1000 || mirrorAgeMs < -250)) {
+      // Retiming a running linked room requires fresh evidence. A resume or rate change
+      // has no established source timeline at the new transport yet.
+      const maxMirrorAgeMs = linked && !room.playback.paused && !room.playback.ended && sameRate ? 500 : 1000;
+      if (!paused && mirrorAgeMs !== null && (mirrorAgeMs > maxMirrorAgeMs || mirrorAgeMs < -250)) {
         const {playout} = presentationScope(room);
         playout.transport(room.playback);
         position = linked && mirrorAgeMs > 0

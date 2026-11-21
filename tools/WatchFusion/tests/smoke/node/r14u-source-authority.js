@@ -122,7 +122,7 @@ export async function runR14uChecks(check){
   await check('R14U-13:export-redacts-source-url-and-mute-events-remain-discrete-data',()=>{
     const l=logLab();l.setMetadata({...l.ctx.watchFusionLinkedTab.metadata(),pageUrl:'https://secret.example/token/ABC',tabMuted:false});
     l.observe([l.peer('host',-5)]);const raw=l.exportText();
-    assert.equal(JSON.parse(raw).diagnosticsVersion,'v13.10.8x-r14y-fine-trim');
+    assert.equal(JSON.parse(raw).diagnosticsVersion,'v13.10.8x-room-recovery');
     assert.match(raw,/"tabMuted": false/);
     assert.doesNotMatch(raw,/secret\.example|token\/ABC/);
   });

@@ -15,6 +15,37 @@ const arbiterOf = device => device.diagnostics()?.arbiter || {};
 const settled = (device, from, to, p95 = 200) => { const s = summarize(device, from, to); return {ok: s.p95AbsMs <= p95, summary: s}; };
 
 export const RECOVERY_SCENARIOS = {
+  async 'SYNC-33:Sync me restarts an exhausted buffered TV in the same room'() {
+    const lab=await createRoomLab({seed:33,sourceNoiseMs:0});
+    try {
+      const host=lab.addViewer('host',PROFILES.laptop);
+      const tv=lab.addViewer('tv',{...PROFILES.variableTv,quantumMs:0});
+      const memberId=tv.ctx.session.memberId;
+      tv.ctx.playerPrimed=true;
+      let rebuilds=0, reloads=0;
+      tv.player.loadVideoById=()=>{reloads++;tv.player.stall(180000);};
+      tv.ctx.ensurePlayer=(videoId,start)=>{
+        tv.ctx.ytPlayer=tv.player;
+        tv.ctx.ytPlayerReady=true;
+        if(++rebuilds===1){tv.player.stall(180000);return;}
+        tv.player.setTrack(videoId);
+        tv.player.jump(start);
+      };
+      await lab.run(5000);
+      tv.player.stall(180000);
+      await lab.run(46000);
+      const before={reloads,rebuilds,members:lab.room.members.size,segment:tv.ctx.state.playoutSegment,
+        exhausted:tv.ctx.WatchFusionDecoderRescue.diagnostics().outcome};
+      tv.syncMe();
+      await lab.run(17000);
+      const tvResult=summarize(tv,lab.clock.now()-5000,lab.clock.now());
+      const after={reloads,rebuilds,members:lab.room.members.size,segment:tv.ctx.state.playoutSegment};
+      return {ok:before.exhausted==='terminal-recovery-spent' && before.reloads===1 && before.rebuilds===1 &&
+        rebuilds===2 && reloads===1 && after.members===before.members && after.segment===before.segment &&
+        tv.ctx.session.memberId===memberId && tvResult.p95AbsMs<=200 && tvResult.frozenMs===0 &&
+        Math.abs(host.errorMs())<=100,detail:{before,after,tvResult}};
+    } finally {lab.close();}
+  },
   async 'SYNC-13:trace 3 replay, pause + backward scrub + play leaves both viewers PLAYING but frozen'() {
     const r = await pair();
     await r.lab.run(40000);

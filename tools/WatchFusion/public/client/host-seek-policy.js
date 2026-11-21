@@ -30,6 +30,11 @@
     if (!Number.isFinite(source) || !Number.isFinite(target) || Math.abs(source-target)*1000 > 35) return 'host-source-disagrees';
     return null;
   }
+  function singleRecoveryWitness({observedPeer:peer, reference, sourceVerified}) {
+    return sourceVerified && reference === 'linked-tab' && peer?.observeOnly && peer.count === 1 &&
+      !!peer.member && peer.clockWitness === true &&
+      Math.abs(peer.offsetMs) <= 50 ? peer : null;
+  }
   function learnRelease(residual,correction,model){
     if(!correction?.hostLinked||!correction.releaseVerified||
        !Number.isFinite(correction.releaseLeadSec)||!Number.isFinite(correction.baseRate)||
@@ -97,5 +102,5 @@
       reset: () => { blocked = ''; fineHolds = 0; holdReason = ''; candidate = null; nextHoldAt = 0; },
       get blocked() { return blocked; } };
   }
-  globalThis.WatchFusionHostSeekPolicy = {create, sourceBlocker, MIN_HOST_REJOIN_MS:Math.round(MIN_HOST_REJOIN_SEC*1000)};
+  globalThis.WatchFusionHostSeekPolicy = {create, sourceBlocker, singleRecoveryWitness, MIN_HOST_REJOIN_MS:Math.round(MIN_HOST_REJOIN_SEC*1000)};
 })();
