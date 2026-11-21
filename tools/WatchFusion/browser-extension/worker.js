@@ -5,6 +5,7 @@ const asset = value => (globalThis.EveOSExtensionModuleRoots?.watchfusion || '')
 importScripts('live-peer.js');
 
 let sourceTab = null, controlFrameId = 0, statePeer = null;
+let sourcePlayerSilenced = false;
 let lastRefresh = 0, lastCombinedSample = null, publisherReady = false;
 let clockSamples = [];
 let sourceOperation = Promise.resolve();
@@ -46,7 +47,7 @@ function pairing(value) {
 
 async function messageFrames(tabId, message) {
   const frameIds = new Set([0, ...frameSamples.keys()]);
-  await Promise.all([...frameIds].map(frameId => chrome.tabs.sendMessage(tabId, message, { frameId }).catch(() => {})));
+  return Promise.all([...frameIds].map(frameId => chrome.tabs.sendMessage(tabId, message, { frameId }).catch(() => {})));
 }
 
 async function cleanupInjected(tabId) {
@@ -75,7 +76,7 @@ async function inject(tabId) {
     results = await chrome.scripting.executeScript({ target:{ tabId }, files:[asset('source-probe.js')] });
   }
   results.forEach(result => { if (!frameSamples.has(result.frameId)) frameSamples.set(result.frameId, null); });
-  await messageFrames(tabId, { type:'probe-start' });
+  await messageFrames(tabId, { type:'probe-start', sourcePlayerSilenced });
 }
 
 function combinedSample(frameId, message, pageUrl = '') {
@@ -156,10 +157,11 @@ function connectStatePublisher(config) {
 
 async function restorePublisherIfNeeded(expectedTabId) {
   if(statePeer&&!statePeer.closed)return expectedTabId==null || sourceTab===expectedTabId;
-  const saved=await chrome.storage.session.get(['sourceTab','sourceLinkConfig']);
+  const saved=await chrome.storage.session.get(['sourceTab','sourceLinkConfig','sourcePlayerSilenced']);
   if(!Number.isInteger(saved.sourceTab)||!saved.sourceLinkConfig)return false;
   if(expectedTabId!=null && saved.sourceTab!==expectedTabId)return false;
   sourceTab=saved.sourceTab;
+  sourcePlayerSilenced=saved.sourcePlayerSilenced===true;
   try {
     const tab=await chrome.tabs.get(sourceTab);
     if(!(await ensureSourceTabMuted(sourceTab,true)))throw new Error('Source tab mute could not be verified during restore.');
@@ -175,8 +177,8 @@ async function stop() {
   const tabId=sourceTab??saved.sourceTab;
   publisherReady=false;statePeer?.stop();statePeer=null;
   await restoreSourceTab(tabId,saved.sourceTabWasMuted);
-  sourceTab=null;muteVerified=null;lastMuteAttemptAt=0;frameSamples.clear();controlFrameId=0;lastCombinedSample=null;
-  await chrome.storage.session.remove(['sourceTab','sourceTabWasMuted','sourceLinkConfig']);
+  sourceTab=null;sourcePlayerSilenced=false;muteVerified=null;lastMuteAttemptAt=0;frameSamples.clear();controlFrameId=0;lastCombinedSample=null;
+  await chrome.storage.session.remove(['sourceTab','sourceTabWasMuted','sourceLinkConfig','sourcePlayerSilenced']);
   return {ok:true};
 }
 
@@ -200,14 +202,26 @@ async function startCurrentTab(value,options={}) {
   }catch(error){await stop();throw error;}
 }
 
+async function setSourcePlayerSilence(tabId, enabled) {
+  if (!Number.isInteger(tabId) || typeof enabled !== 'boolean' || !(await restorePublisherIfNeeded(tabId))) {
+    return {error:'Open EveOS Bridge on the linked source tab.'};
+  }
+  await chrome.storage.session.set({sourcePlayerSilenced:enabled});
+  sourcePlayerSilenced=enabled;
+  const responses=await messageFrames(tabId,{type:'source-player-silence',enabled});
+  const silencedMedia=responses.reduce((total,response)=>total+(response?.silencedMedia||0),0);
+  return {ok:true,sourcePlayerSilenced,silencedMedia};
+}
+
 globalThis.WatchFusionMediaLink=Object.freeze({
   pairing,
   startCurrentTab:(...args)=>withSourceOperation(()=>startCurrentTab(...args)),
   stop:()=>withSourceOperation(stop),
+  setSourcePlayerSilence:(...args)=>withSourceOperation(()=>setSourcePlayerSilence(...args)),
   status:({verifyMute=false}={})=>withSourceOperation(async()=>{
     if(!(await restorePublisherIfNeeded()))return {linked:false};
     const tabMuted=verifyMute ? await ensureSourceTabMuted(sourceTab,true) : muteVerified===true;
-    return {linked:true,sourceTabId:sourceTab,tabMuted,relayVideoMode:'state-only',captureSettings:null,diagnostics:[]};
+    return {linked:true,sourceTabId:sourceTab,tabMuted,sourcePlayerSilenced,relayVideoMode:'state-only',captureSettings:null,diagnostics:[]};
   })
 });
 
@@ -220,6 +234,7 @@ chrome.runtime.onMessage.addListener((message,sender,reply)=>{
     if(message.type==='runtime-status'&&internal)return globalThis.WatchFusionHubConnector?.serviceStatus?.()||{online:false,exposureMode:null,mode:'Offline'};
     if(message.type==='start-pairing'&&internal&&!sender.tab)return globalThis.WatchFusionMediaLink.startCurrentTab(message.pairing,{tabId:message.tabId,windowId:message.windowId});
     if(message.type==='stop'&&internal&&!sender.tab)return globalThis.WatchFusionMediaLink.stop();
+    if(message.type==='source-player-silence'&&internal&&!sender.tab)return globalThis.WatchFusionMediaLink.setSourcePlayerSilence(message.tabId,message.enabled);
     const tabId=sourceTab??(await chrome.storage.session.get('sourceTab')).sourceTab;
     if(message.type==='refresh-probes'&&internal&&tabId!=null&&(!sender.tab||sender.tab.id===tabId)){
       return withSourceOperation(async()=>{

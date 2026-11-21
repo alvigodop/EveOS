@@ -242,5 +242,66 @@ export async function runSourceTabSmokes() {
     assert.notEqual(context.__watchFusionMediaProbe, true, 'The marker must be released so a fresh context can inject.');
   })();
 
+  await record('ST-19:explicit-source-silence-preserves-playback-and-reported-volume', async () => {
+    const { runInNewContext } = await import('node:vm');
+    const createMedia = (muted, volume) => ({
+      tagName: 'VIDEO', muted, volume, readyState: 4, paused: false, currentTime: 12,
+      duration: 100, playbackRate: 1, isConnected: true,
+      addEventListener() {}, removeEventListener() {}
+    });
+    const original = createMedia(false, 0.42);
+    const preview = createMedia(true, 0.25);
+    let media = [original, preview];
+    let receive, latest, sampler;
+    const events = new Map();
+    const context = {
+      crypto: { randomUUID: () => 'source-silence' },
+      navigator: {},
+      location: { href:'https://example.test/media' },
+      document: {
+        querySelectorAll: () => media, querySelector: () => null,
+        addEventListener: (event, listener) => events.set(event, listener),
+        removeEventListener: (event) => events.delete(event)
+      },
+      chrome: { runtime: {
+        id: 'extension',
+        sendMessage: (message) => { if (message.type === 'sample') latest = message.metadata; },
+        onMessage: { addListener: (fn) => { receive = fn; }, removeListener() {} }
+      } },
+      setInterval: (fn) => { sampler = fn; }, clearInterval() {},
+      addEventListener() {}, removeEventListener() {}, postMessage() {}
+    };
+    context.window = context; context.top = context;
+    runInNewContext(probe, context);
+
+    assert.equal(original.muted, false, 'Normal attachment is passive');
+    receive({ type:'source-player-silence', enabled:true }, {}, () => {});
+    assert.equal(original.muted, true);
+    assert.equal(latest.volume, 0.42);
+    assert.equal(latest.currentTime, 12);
+    assert.equal(latest.paused, false);
+
+    receive({ type:'source-control', action:'volume', value:0.7 });
+    assert.equal(original.muted, true, 'WatchFusion volume changes cannot reopen the captured output');
+    assert.equal(latest.volume, 0.7);
+    original.muted = false;
+    events.get('volumechange')({ target:original });
+    assert.equal(original.muted, true);
+
+    const nextTrack = createMedia(false, 0.7);
+    media = [nextTrack, preview];
+    original.isConnected = false;
+    events.get('play')({ target:nextTrack });
+    assert.equal(nextTrack.muted, true);
+    sampler();
+    assert.equal(latest.volume, 0.7);
+    assert.equal(original.muted, false, 'Detached media restores its previous mute state');
+
+    receive({ type:'probe-stop' });
+    assert.equal(nextTrack.muted, false);
+    assert.equal(preview.muted, true);
+    assert.equal(context.__watchFusionMediaProbe, undefined);
+  })();
+
   return results;
 }

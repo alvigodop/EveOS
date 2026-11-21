@@ -1,5 +1,5 @@
 /* Runs in every accessible frame of the explicitly selected tab.
-   Passive sampler: read URL/playback state only. Never restyle, resize, capture, or change quality. */
+   Passive by default. Writes require an explicit WatchFusion control. */
 (() => {
   if (window.__watchFusionMediaProbe) return;
   window.__watchFusionMediaProbe = true;
@@ -8,6 +8,34 @@
   const PAGE_CHANNEL = 'eveos.watchfusion.page-media.v1';
   const mediaEvents=['play','pause','playing','seeking','seeked','ratechange','volumechange','waiting','ended'];
   let observedElement=null, eventTimer=null;
+  let silenceSourcePlayer = false;
+  const priorMute = new Map();
+  function silenceElement(element) {
+    if (!priorMute.has(element) || !element.muted) priorMute.set(element, element.muted);
+    if (!element.muted) element.muted = true;
+  }
+  function updatePlayerSilence() {
+    if (!silenceSourcePlayer) return;
+    for (const [element, muted] of priorMute) {
+      if (element.isConnected === false) {
+        element.muted = muted;
+        priorMute.delete(element);
+      }
+    }
+    for (const element of document.querySelectorAll('video,audio')) silenceElement(element);
+  }
+  function setPlayerSilence(enabled) {
+    silenceSourcePlayer = enabled;
+    if (enabled) {
+      updatePlayerSilence();
+      return;
+    }
+    for (const [element, muted] of priorMute) element.muted = muted;
+    priorMute.clear();
+  }
+  function onSourceAudioChange(event) {
+    if (silenceSourcePlayer && /^(AUDIO|VIDEO)$/.test(event.target?.tagName)) silenceElement(event.target);
+  }
   function onMediaEvent(event) {
     if (!enabled || event.target !== observedElement) return;
     clearTimeout(eventTimer);
@@ -81,11 +109,14 @@
   function cleanup() {
     if (!window.__watchFusionMediaProbe) return;
     enabled = false; pageMedia = null;
+    setPlayerSilence(false);
     clearInterval(sampleTimer); sampleTimer = null;
     if (eventTimer !== null) clearTimeout(eventTimer);
     eventTimer = null; observeMedia(null);
     window.removeEventListener('message', onWindowMessage);
     document.removeEventListener('load', onDocumentLoad, true);
+    document.removeEventListener('play', onSourceAudioChange, true);
+    document.removeEventListener('volumechange', onSourceAudioChange, true);
     const runtime = runtimeListenerAttached ? runtimeApi() : null;
     runtimeListenerAttached = false;
     if (runtime) {
@@ -111,6 +142,7 @@
 
   function snapshot() {
     if (!enabled) return;
+    updatePlayerSilence();
     const element = media();
     observeMedia(element);
     const controller = element ? null : pagePlayer();
@@ -129,15 +161,27 @@
         currentTime:element?.currentTime || pageMedia?.currentTime || 0,
         duration:Number.isFinite(element?.duration) ? element.duration : pageMedia?.duration || 0,
         rate:element?.playbackRate || pageMedia?.rate || 1,
-        volume:element ? (element.muted ? 0 : element.volume ?? 1) : pageMedia?.volume ?? 1,
+        // The local output override must not mute WatchFusion's resolved player.
+        volume:element ? ((priorMute.get(element) ?? element.muted) ? 0 : element.volume ?? 1) : pageMedia?.volume ?? 1,
         status:hasMedia ? '' : 'Waiting for playable media state.'
       }
     });
   }
 
-  function onRuntimeMessage(message) {
+  function onRuntimeMessage(message, _sender, reply) {
     if (message.type === 'probe-stop') { cleanup(); return; }
-    if (message.type === 'probe-start') { enabled = true; snapshot(); return; }
+    if (message.type === 'probe-start') {
+      enabled = true;
+      setPlayerSilence(message.sourcePlayerSilenced === true);
+      snapshot();
+      return;
+    }
+    if (message.type === 'source-player-silence' && enabled) {
+      setPlayerSilence(message.enabled === true);
+      snapshot();
+      reply?.({ silencedMedia:priorMute.size });
+      return;
+    }
     if (message.type !== 'source-control' || !enabled) return;
     const element = media(), controller = element ? null : pagePlayer(), value = Number(message.value) || 0;
     if (controller) {
@@ -152,12 +196,18 @@
     if (message.action === 'pause') element.pause();
     if (message.action === 'seek') element.currentTime = Math.max(0, Math.min(value, Number.isFinite(element.duration) ? element.duration : value));
     if (message.action === 'rate') element.playbackRate = Math.max(.25, Math.min(4, value));
-    if (message.action === 'volume') { element.volume = Math.max(0, Math.min(1, value)); element.muted = value === 0; }
+    if (message.action === 'volume') {
+      element.volume = Math.max(0, Math.min(1, value));
+      if (priorMute.has(element)) priorMute.set(element, value === 0);
+      else element.muted = value === 0;
+    }
     snapshot();
   }
 
   window.addEventListener('message', onWindowMessage);
   document.addEventListener('load', onDocumentLoad, true);
+  document.addEventListener('play', onSourceAudioChange, true);
+  document.addEventListener('volumechange', onSourceAudioChange, true);
   const runtime = runtimeApi();
   if (!runtime) { cleanup(); return; }
   try {

@@ -282,6 +282,20 @@ export async function runV13107Checks(check) {
     await lab.update({ audible: true });
     assert.equal(lab.muted(), true);
   });
+  await check('V13107-08F:source-player-silence-belongs-to-the-selected-link', async () => {
+    const lab = sourceWorkerLab(false);
+    await lab.link.status();
+    assert.equal((await lab.link.setSourcePlayerSilence(6, true)).ok, undefined);
+    assert.equal(lab.saved.sourcePlayerSilenced, undefined);
+    const enabled = await lab.link.setSourcePlayerSilence(5, true);
+    assert.equal(enabled.silencedMedia, 1);
+    assert.equal((await lab.link.status()).sourcePlayerSilenced, true);
+    assert.equal(lab.saved.sourcePlayerSilenced, true);
+    await lab.update({ status:'complete' });
+    assert.equal(lab.probeStartModes.at(-1), true);
+    await lab.link.stop();
+    assert.equal(lab.saved.sourcePlayerSilenced, undefined);
+  });
   await check('V13107-09:new-modules-are-in-the-served-bundle-in-order', () => {
     const b = read('src/server/static-files.js');
     const order = ['client/linked-playback-sync.js', 'client/linked-tab.js', 'client/solo-link-sync.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/zero-converge.js', 'client/room-audio-unlock.js']
@@ -297,6 +311,7 @@ function sourceWorkerLab(previousMuted, { linked = true } = {}) {
   let onMessage;
   let deferRead;
   let queriedWindow;
+  const probeStartModes = [];
   const peers = [];
   const saved = linked ? {
     sourceTab: tabId, sourceTabWasMuted: previousMuted,
@@ -328,7 +343,9 @@ function sourceWorkerLab(previousMuted, { linked = true } = {}) {
         },
         update: async (id, changes) => { assert.equal(id, tabId); muted = changes.muted; },
         sendMessage: async (id, message) => {
+          if (message.type === 'source-player-silence') return { silencedMedia: message.enabled ? 1 : 0 };
           if (message.type !== 'probe-start') return;
+          probeStartModes.push(message.sourcePlayerSilenced);
           assert.equal(muted, true, 'Browser tab must be muted before collecting source samples');
           onMessage({ to: 'worker', type: 'sample', hasMedia: true }, {
             tab: { id, url: 'https://example.test/media', mutedInfo: { muted } }
@@ -341,7 +358,7 @@ function sourceWorkerLab(previousMuted, { linked = true } = {}) {
   });
   vm.runInContext(read('browser-extension/worker.js'), ctx);
   return {
-    peers, saved, link: ctx.WatchFusionMediaLink,
+    peers, saved, probeStartModes, link: ctx.WatchFusionMediaLink,
     update: (info) => update(tabId, info),
     muted: () => muted,
     queriedWindow: () => queriedWindow,
