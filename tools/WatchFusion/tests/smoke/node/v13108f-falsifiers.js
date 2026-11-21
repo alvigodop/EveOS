@@ -2,6 +2,10 @@
 // "uncertainty" is minimum-RTT/2, which under-states the bound on the offset actually used and ignores asymmetric,
 // stale, thin, coarse and unstable clocks; and group phase lets a muted room player vouch for a laptop whose sound
 // comes from the source tab. Evidence type: Node VM only. Not Playwright, not Windows, not audible playback.
+import {runR14sRecoveryChecks} from './r14s-resume-recovery.js';
+import {runR14tStatusChecks} from './r14t-status-trust.js';
+import {runR14uChecks} from './r14u-source-authority.js';
+import {runR14vChecks} from './r14v-plateau-healing.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -140,4 +144,8 @@ export async function runV13108fChecks(check) {
     assert.deepEqual(shots.map(x => x.outputs), ['room-players', 'source-tab-audible'], 'the switch is evidence and is not deferred 4.5 s');
     assert.equal(shots.at(-1).speakerPhase, 'not-measured', 'a Bluetooth/HDMI route change inside one output is still not observable');
   });
+  await runR14sRecoveryChecks(check);
+  await runR14tStatusChecks(check);
+  await runR14uChecks(check);
+  await runR14vChecks(check);
 }

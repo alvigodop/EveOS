@@ -124,16 +124,23 @@ export async function runV13108Checks(check) {
     for (let t = 245000; t <= 280000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:73', nowMs: t,
       playing: true, buffering: false, trusted: true, sourceBuffering: false, drift: 0, position: 40});
     assert.equal(R.diagnostics().steps, 2, 'frozen PLAYING cannot refill decoder budget');
-    // Only 30+ s of advancing player position close to a live room reference
-    // earns a fresh budget. Supply that evidence in this synthetic fixture.
+    // R14v: healthy playback must persist for a full 60 seconds before a
+    // spent decoder-recovery budget can be replenished. A merely advancing
+    // 35-second interval must NOT recreate the old reload/rebuild loop.
     for (let t = 300000; t <= 335000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:73', nowMs: t,
       playing: true, buffering: false, trusted: true, sourceBuffering: false, drift: 0,
       position: 50 + (t - 300000) / 1000});
-    assert.equal(R.diagnostics().steps, 0, 'only genuinely advancing/aligned playback heals');
+    assert.equal(R.diagnostics().steps, 2, '35 seconds must not refill the R14v 60-second recovery budget');
+    // Continue the SAME uninterrupted, advancing playback to 65 seconds.
+    for (let t = 335500; t <= 365000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:73', nowMs: t,
+      playing: true, buffering: false, trusted: true, sourceBuffering: false, drift: 0,
+      position: 50 + (t - 300000) / 1000});
+    assert.equal(R.diagnostics().steps, 0, '65 seconds of verified healthy progress earns one rearm');
+    assert.equal(R.diagnostics().healCount, 1, 'exactly one qualified healthy-progress rearm');
     let again = 0;
-    for (let t = 340000; t <= 360000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:74', nowMs: t, buffering: true, playing: false, trusted: true,
+    for (let t = 370000; t <= 390000; t += 500) R.consider({scope: 'ROOM:AAAAAAAAAAA:4:74', nowMs: t, buffering: true, playing: false, trusted: true,
       drift: -30, reload: () => again++, rebuild: () => again++});
-    assert.equal(again, 1, 'after 30 s healthy, a new wedge gets a fresh reload');
+    assert.equal(again, 1, 'one fresh reload only after sustained healthy playback, never a reload loop');
   });
   await check('V13108-07:a-rebuilt-tv-player-gets-the-room-volume-again', () => {
     const ctx = world(); const unmutes = [];

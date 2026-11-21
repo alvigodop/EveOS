@@ -13,15 +13,57 @@
   if (typeof window === 'undefined') return;
   const STALL_DWELL_MS = 6000, BUFFER_DWELL_MS = 9000, MIN_DRIFT_SEC = 2.5, RETRY_AFTER_MS = 15000;
   const TRUST_GRACE_MS = 6000, MAX_REBUILDS_PER_10_MIN = 2;
-  const HEALED_MS = 30000, HEALTH_PHASE_SEC = .10, HEALTH_PROGRESS_MS = 20000, HEALTH_GAP_MS = 4000;
+  // R14v: decoder health is not proof of 0 ms room/speaker phase.  The TV in
+  // the November 21 physical run advanced for >3 minutes with a stable ~170 ms
+  // player-timeline offset. Give ONE additional decoder budget after a full
+  // minute of actual, steady progress; never interpret this as audible lock.
+  const HEALED_MS = 60000, HEALTH_PHASE_SEC = .25, HEALTH_PROGRESS_MS = 45000, HEALTH_GAP_MS = 4000;
+  const HEALTH_JITTER_SEC = .04, HEAL_REARM_WINDOW_MS = 600000;
+  // R14s: a genuinely long room pause may grant ONE new bounded terminal attempt
+  // in 10 minutes. Segment churn and brief pause/play cycles never refill this budget.
+  const PAUSE_REARM_MS = 20000, REARM_QUIET_MS = 60000, REARM_WINDOW_MS = 600000;
   let scope = '', since = 0, steps = 0, lastStepAt = -Infinity, outcome = 'idle', liveSeenAt = -Infinity, healthySince = 0;
   let healthyAt = -1, healthyPosition = null, healthyProgressMs = 0;
+  let pausedAt = -1, wasRoomPaused = false, resumeRearms = [], rearmCount = 0, lastRearmDwellMs = null;
+  let healthOffsets = [], healRearms = [], healCount = 0;
   const rebuilds = [];
   // v13.10.8: the caller's scope is room:video:epoch:playoutSegment. The playout segment bumps on every
   // room transport rewrite (a frozen linked source re-mirrored once a second in Drift's trace), so it must
   // not restart the dwell or refill the budget. Dwell and budget belong to room:video:epoch; the budget
   // refills only after the player has been healthy for 30 s.
   const dwellScope = raw => String(raw ?? '').split(':').slice(0, 3).join(':');
+  function enterScope(next) {
+    if (next === scope) return;
+    scope = next; since = 0; steps = 0; lastStepAt = -Infinity; liveSeenAt = -Infinity;
+    healthySince = 0; healthyAt = -1; healthyPosition = null; healthyProgressMs = 0;
+    healthOffsets = [];
+    pausedAt = -1; wasRoomPaused = false; outcome = 'scope-change';
+  }
+  // Called for TV followers from playback-sync, even while the room is paused.
+  // It does not command the player and cannot rearm during a playing segment.
+  function observeTransport({scope: raw, nowMs, paused} = {}) {
+    const next = raw ? dwellScope(raw) : '';
+    if (!next || !Number.isFinite(nowMs)) return false;
+    enterScope(next);
+    if (paused === true) {
+      if (!wasRoomPaused) { pausedAt = nowMs; wasRoomPaused = true; }
+      return false;
+    }
+    if (!wasRoomPaused || paused !== false) return false;
+    const dwell = nowMs - pausedAt;
+    wasRoomPaused = false; pausedAt = -1;
+    resumeRearms = resumeRearms.filter(t => nowMs - t < REARM_WINDOW_MS);
+    healRearms = healRearms.filter(t => nowMs - t < HEAL_REARM_WINDOW_MS);
+    if (steps !== 2 || dwell < PAUSE_REARM_MS || nowMs - lastStepAt < REARM_QUIET_MS ||
+        resumeRearms.length >= 1 || healRearms.length >= 1 || document.hidden) return false;
+    steps = 0; since = 0; lastStepAt = -Infinity;
+    healthySince = 0; healthyAt = -1; healthyPosition = null; healthyProgressMs = 0;
+    healthOffsets = [];
+    resumeRearms.push(nowMs); rearmCount++; lastRearmDwellMs = Math.round(dwell);
+    outcome = 'long-pause-resume-budget-rearmed';
+    window.watchFusionRoomSyncLog?.note?.('tv-resume-rearmed', {pauseMs: Math.round(dwell), count: rearmCount});
+    return true;
+  }
   // Never replenish decoder-reload budgets just because YT reports PLAYING.
   // Qualify healing from actual progress and near-room phase across 30 seconds.
   function observeHealth(input, nowMs, wedged) {
@@ -29,22 +71,37 @@
     const healthy = !wedged && input.playing && !input.buffering && !input.exhausted
       && input.trusted && !input.sourceBuffering && Number.isFinite(nowMs)
       && Number.isFinite(position) && Number.isFinite(drift) && Math.abs(drift) <= HEALTH_PHASE_SEC;
-    if (!healthy) { healthySince = 0; healthyAt = -1; healthyPosition = null; healthyProgressMs = 0; return; }
+    if (!healthy || document.hidden) { healthySince = 0; healthyAt = -1; healthyPosition = null;
+      healthyProgressMs = 0; healthOffsets = []; return; }
     if (healthyAt < 0) healthySince = nowMs;
     else {
       const elapsed = nowMs - healthyAt, advanced = position - healthyPosition;
       if (elapsed <= 0 || elapsed > HEALTH_GAP_MS || advanced < -.08 || advanced > elapsed / 1000 * 1.8 + .3) {
-        healthySince = nowMs; healthyProgressMs = 0;
+        healthySince = nowMs; healthyProgressMs = 0; healthOffsets = [];
       } else if (advanced > .05) healthyProgressMs += Math.min(elapsed, advanced * 1000);
     }
     healthyAt = nowMs; healthyPosition = position;
-    if (steps && nowMs - healthySince >= HEALED_MS && healthyProgressMs >= HEALTH_PROGRESS_MS) {
-      steps = 0; lastStepAt = -Infinity; outcome = 'healed-advancing-aligned';
+    healthOffsets.push({at:nowMs, drift});
+    healthOffsets = healthOffsets.filter(sample => nowMs - sample.at <= HEALED_MS);
+    healRearms = healRearms.filter(t => nowMs - t < HEAL_REARM_WINDOW_MS);
+    const spread = healthOffsets.length ? Math.max(...healthOffsets.map(x=>x.drift)) -
+      Math.min(...healthOffsets.map(x=>x.drift)) : Infinity;
+    // Separate decoder continuity from room-clock and speaker alignment.
+    // Recovery budget refill is rate-limited even when the player keeps healing.
+    resumeRearms = resumeRearms.filter(t => nowMs - t < REARM_WINDOW_MS);
+    if (steps && healRearms.length === 0 && resumeRearms.length === 0 &&
+        nowMs - healthySince >= HEALED_MS &&
+        healthyProgressMs >= HEALTH_PROGRESS_MS && spread <= HEALTH_JITTER_SEC &&
+        nowMs - lastStepAt >= HEALED_MS) {
+      steps = 0; lastStepAt = -Infinity; outcome = 'healed-advancing-stable-offset';
+      healRearms.push(nowMs); healCount++;
+      window.watchFusionRoomSyncLog?.note?.('tv-decoder-recovered',
+        {progressMs: Math.round(healthyProgressMs), offsetMs: Math.round(drift*1000)});
     }
   }
   function consider(input = {}) {
     const nextScope = input.scope ? dwellScope(input.scope) : '';
-    if (nextScope !== scope) { scope = nextScope; since = 0; steps = 0; lastStepAt = -Infinity; liveSeenAt = -Infinity; healthySince = 0; healthyAt = -1; healthyPosition = null; healthyProgressMs = 0; outcome = 'scope-change'; }
+    enterScope(nextScope);
     const nowMs = Number(input.nowMs);
     if (input.trusted) liveSeenAt = nowMs;
     const wedged = input.buffering ? true : !!(input.exhausted && input.playing);
@@ -77,10 +134,14 @@
   // The same thing a manual URL reload does for the player, without leaving the room.
   function rebuildPlayer(videoId, startSeconds) {
     if (!videoId || typeof ensurePlayer !== 'function') throw Error('rebuild unavailable');
+    // Nova R14r, selectively retained: retire ownership of the OLD iframe
+    // before destroying it. A stale lease must not block the new player.
+    try { window.WatchFusionLinkedTrackOwnership?.invalidate?.(ytPlayer); } catch {}
     try { ytPlayer?.destroy?.(); } catch {}
     ytPlayer = null; ytPlayerReady = false; playerPrimed = false; playerInitializing = false;
     ensurePlayer(videoId, startSeconds);
   }
-  window.WatchFusionDecoderRescue = {version: 'v13.10.8', consider, rebuildPlayer,
-    diagnostics: () => ({scope, attempted: steps > 0, steps, outcome, healthyProgressMs: Math.round(healthyProgressMs)})};
+  window.WatchFusionDecoderRescue = {version: 'v13.10.8-r14s', consider, observeTransport, rebuildPlayer,
+    diagnostics: () => ({scope, attempted: steps > 0, steps, outcome, healthyProgressMs: Math.round(healthyProgressMs),
+      rearmCount, healCount, lastRearmDwellMs, pauseObserved: wasRoomPaused})};
 })();

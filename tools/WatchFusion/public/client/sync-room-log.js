@@ -14,6 +14,7 @@
   let entries = [], events = [], roomScope = '', lastPeers = new Map(), lastKey = '', lastAt = 0, requestAt = -Infinity;
   let lastRendered = '', lastSegmentKey = '', segmentSequence = 0;
   let observedSong = 0, lastSongKey = '';
+  let plateauScope = '', plateauSamples = [];
   const finite = value => typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
   const memberName = id => (state?.members || []).find(m => m.id === id)?.name || 'Viewer';
   // Explicit opt-in title in copied diagnostics, never a URL, artwork, token, or full metadata blob.
@@ -76,14 +77,76 @@
     const fresh=rows.filter(p=>p.playing&&!p.buffering&&p.targetErrorMs!==null&&p.reportAgeMs!==null&&p.reportAgeMs<=2700&&
       !p.signals.includes('UNTRUSTED_PLAYER_OFFSET'));
     const usable=fresh.filter(p=>['player','both'].includes(p.sensor?.audibleOutput)),outputs=outputIdentity(fresh);
+    // R14u adds a separate AUDIO-INDEPENDENT player-timeline comparison.
+    // Never silently promote it to groupPhase: source-tab audio is not this player's speaker.
+    const timelineErrors=fresh.map(p=>p.targetErrorMs).sort((a,b)=>a-b);
+    const timelineSpreadMs=timelineErrors.length>=2 ? timelineErrors.at(-1)-timelineErrors[0] : null;
+    const timelinePhase=timelineSpreadMs===null?'no-peer-comparison':timelineSpreadMs<=50?'player-timelines-within-50':
+      timelineSpreadMs<=75?'player-timelines-near-50':'player-timelines-differ';
+    const timeline={timelinePlayerCount:fresh.length,timelineSpreadMs,timelinePhase};
     if(usable.length<2)return {playerCount:usable.length,groupSpreadMs:null,commonModeMs:null,groupUncertaintyMs:null,
-      groupPhase:'unmeasured-'+(usable.length?'single-player':'no-player'),outputs};
+      groupPhase:'unmeasured-'+(usable.length?'single-player':'no-player'),outputs,...timeline};
     const errors=usable.map(p=>p.targetErrorMs).sort((a,b)=>a-b),clocks=usable.map(p=>p.sensor?.clockState==='bounded'?p.sensor.clockBoundMs:NaN);
     const spread=errors.at(-1)-errors[0],middle=errors[Math.floor(errors.length/2)];
     const uncertainty=clocks.every(Number.isFinite)?clocks.sort((a,b)=>b-a).slice(0,2).reduce((a,b)=>a+b,0):null;
     const phase=uncertainty===null?'unmeasured-clock':
-      spread<=Math.max(40,uncertainty)?(Math.abs(middle)>=80?'common-mode-offset':'aligned'):'players-disagree';
-    return {playerCount:usable.length,groupSpreadMs:spread,commonModeMs:middle,groupUncertaintyMs:uncertainty,groupPhase:phase,outputs};
+      spread<=Math.max(50,uncertainty)?(Math.abs(middle)>=80?'common-mode-offset':'aligned'):
+      spread<=Math.max(75,uncertainty+20)?'near-alignment':'players-disagree';
+    return {playerCount:usable.length,groupSpreadMs:spread,commonModeMs:middle,groupUncertaintyMs:uncertainty,groupPhase:phase,outputs,...timeline};
+  }
+  // A linked source remains a timeline authority even when the host embedded
+  // YouTube iframe is unembeddable. Native tab mute is reported by the extension;
+  // the page cannot claim it was muted without a recent publisher confirmation.
+  function linkedSourceEvidence(peers, coordination, now) {
+    if(state?.linkedSourceActive!==true) return null;
+    const sourceAgeMs=Number.isFinite(coordination?.sourceReferenceAt)?finite(now-coordination.sourceReferenceAt):null;
+    const live=coordination?.source==='live'&&coordination?.reference==='linked-tab'&&
+      coordination?.authorityBuffering!==true && sourceAgeMs!==null && sourceAgeMs>=0 && sourceAgeMs<=1500 &&
+      Number.isFinite(coordination?.uncertaintyMs)&&coordination.uncertaintyMs<=125;
+    const host=peers.find(p=>p.member===state?.hostId);
+    const metadata=window.watchFusionLinkedTab?.active?.()===true ? window.watchFusionLinkedTab?.metadata?.() : null;
+    const sampleAt=Number(metadata?.sampledAt);
+    const muteAgeMs=Number.isFinite(sampleAt)&&sampleAt>0?finite(Date.now()-sampleAt):null;
+    const tabMuted=muteAgeMs!==null&&muteAgeMs>=0&&muteAgeMs<=2000&&typeof metadata?.tabMuted==='boolean'
+      ?metadata.tabMuted:null;
+    const hostPlaying=host?.playing===true&&!host.buffering;
+    const audioRoute=tabMuted===false&&hostPlaying?'double-audio-risk':tabMuted===false&&!hostPlaying?'source-tab-fallback':
+      tabMuted===true&&hostPlaying?'room-player':tabMuted===true&&!hostPlaying?'host-player-unavailable':'unverified';
+    return {mode:live?'live-linked-source':'unverified-source-reference',sourceAgeMs,
+      uncertaintyMs:finite(coordination?.uncertaintyMs),hostPlayerPlaying:host?.playing??null,
+      tabMuted,muteSampleAgeMs:muteAgeMs,audioRoute};
+  }
+  // R14v: plateau is longitudinal evidence that two advancing video/player
+  // timelines have a stable separation.  It is NOT an audio calibration or a
+  // new correction target.  Retain the measured 170 ms from the physical run.
+  function plateauEvidence(rows, timeline, coordination, now) {
+    const scope = [state?.presentationEpoch, state?.source?.videoId, state?.playoutSegment].join(':');
+    if (scope !== plateauScope) { plateauScope = scope; plateauSamples = []; }
+    const qualified = rows.filter(p=>p.playing&&!p.buffering&&p.targetErrorMs!==null&&
+      p.reportAgeMs!==null&&p.reportAgeMs>=0&&p.reportAgeMs<=1500&&
+      p.startupPhase === 'decoder-confirmed'&&
+      !['unstable','stale','unknown'].includes(p.sensor?.clockState)&&
+      Number.isFinite(p.sensor?.clockBoundMs)&&p.sensor.clockBoundMs<=100);
+    const sourceFresh = coordination?.source==='live' && coordination?.authorityBuffering!==true &&
+      Number.isFinite(coordination?.sourceReferenceAt) &&
+      now - coordination.sourceReferenceAt >= 0 && now - coordination.sourceReferenceAt <= 1500;
+    if (qualified.length < 2 || !sourceFresh || timeline.timelineSpreadMs===null || timeline.timelineSpreadMs>600) {
+      plateauSamples = [];
+      return {state:'insufficient-evidence',medianSpreadMs:null,jitterMs:null,observedMs:0,
+        samples:0,speakerPhase:'not-measured'};
+    }
+    const spread=timeline.timelineSpreadMs;
+    // A 4.5-second ordinary diagnostic cadence must not reset sustained progress.
+    if (plateauSamples.length && (now <= plateauSamples.at(-1).at || now - plateauSamples.at(-1).at > 6500))
+      plateauSamples=[];
+    plateauSamples.push({at:now,spread});
+    plateauSamples=plateauSamples.filter(sample => now-sample.at <= 30000).slice(-40);
+    const sorted=plateauSamples.map(p=>p.spread).sort((a,b)=>a-b);
+    const jitter=sorted.at(-1)-sorted[0],observed=now-plateauSamples[0].at;
+    const stable=plateauSamples.length>=5&&observed>=20000&&jitter<=35;
+    return {state:stable?'stable-timeline-offset':jitter>80?'unstable-timeline-offset':'qualifying',
+      medianSpreadMs:stable?sorted[Math.floor(sorted.length/2)]:null,jitterMs:jitter,
+      observedMs:Math.round(observed),samples:plateauSamples.length,speakerPhase:'not-measured'};
   }
   function recordSegment() {
     const key=state?.presentationEpoch!=null&&state?.playoutSegment!=null
@@ -92,11 +155,20 @@
     if(lastSegmentKey)events.push({at:new Date().toISOString(),kind:'playback-segment-transition',sequence:segmentSequence+1});
     lastSegmentKey=key;segmentSequence++;prune();
   }
+  // R14t: decoder progress is distinct from fresh network-clock calibration.
+  // Preserve raw positions for diagnosis; do not certify a room-sync phase while
+  // the startup gate reports stalled/unverified decoding or recovery ownership.
+  function decoderProgressUnverified(peer) {
+    return ['decoder-stalled','decoder-buffering','decoder-warming','decoder-advancing','awaiting-play','awaiting-first-frame'].includes(peer.startupPhase)
+      || /^(?:viewer-stalled-while-playing|viewer-warming-after-play|stall-recovery-exhausted|auto-correction-suspended|rejoin-|stall-kick|settling)/.test(peer.recentCorrection || '')
+      || peer.decoderRecovery?.outcome === 'terminal-recovery-spent';
+  }
   function strip(peer, now, coordination) {
     const rawPhase = finite(peer.positionMs - peer.roomPositionMs);
     const targetError = Number.isFinite(peer.targetPositionMs) ? finite(peer.positionMs - peer.targetPositionMs) : null;
     const reportAge=finite(now-peer.sampledAt),live=peer.playing&&!peer.buffering&&peer.ready&&reportAge!==null&&reportAge>=0&&reportAge<=1500;
-    const phase = live ? targetError ?? rawPhase : null; // paused/stale residuals are not live sync error
+    const unverifiedDecoder = decoderProgressUnverified(peer);
+    const phase = live && !unverifiedDecoder ? targetError ?? rawPhase : null; // paused/stale residuals are not live sync error
     const last = lastPeers.get(peer.member);
     const corrections = finite(peer.corrections);
     const recoveries = peer.seekHealth?.recoveryAttempts ?? 0;
@@ -105,6 +177,7 @@
     if (!peer.ready || (phase !== null && Math.abs(phase) > 10000)) signals.push('UNTRUSTED_PLAYER_OFFSET');
     if (now - peer.sampledAt > 2700) signals.push('STALE_PLAYER_REPORT');
     if (peer.buffering) signals.push('BUFFERING');
+    if (peer.playing && unverifiedDecoder) signals.push('DECODER_PROGRESS_UNVERIFIED');
     if (peer.audioReadiness === 'needs-gesture') signals.push('AUDIO_GESTURE_REQUIRED');
     if (decoderSteps != null && decoderSteps > (last?.decoderSteps ?? 0)) signals.push('DECODER_RECOVERY_STEP_' + decoderSteps);
     if (peer.playing && !peer.buffering && peer.sensor?.heldMs > 300) signals.push('POSITION_HELD');
@@ -128,9 +201,9 @@
       signals.push('PLAYER_PHASE_JUMP');
     lastPeers.set(peer.member, {phase, corrections, recoveries, decoderSteps});
     return {device:memberName(peer.member), playing:peer.playing, buffering:peer.buffering,
-      reportAgeMs:reportAge, playerOffsetMs:live?rawPhase:null,
-       rawOffsetMs:rawPhase, targetErrorMs:live?targetError:null, sourceErrorMs:peer.sensor?.clockState==='bounded' ? window.watchFusionPlayout?.sourceErrorMs?.(peer, coordination, now) ?? null : null, adjustmentMs:finite(peer.adjustmentMs),
-       timingQuality:!peer.playing?'paused-residual':!live?'stale-or-buffering':peer.sensor?.clockState==='bounded'?'bounded-player-only':'thin-clock-estimate',
+      reportAgeMs:reportAge, playerOffsetMs:live&&!unverifiedDecoder?rawPhase:null,
+       rawOffsetMs:rawPhase, targetErrorMs:live&&!unverifiedDecoder?targetError:null, sourceErrorMs:peer.sensor?.clockState==='bounded' ? window.watchFusionPlayout?.sourceErrorMs?.(peer, coordination, now) ?? null : null, adjustmentMs:finite(peer.adjustmentMs),
+       timingQuality:!peer.playing?'paused-residual':!live?'stale-or-buffering':unverifiedDecoder?'decoder-progress-unverified':peer.sensor?.clockState==='bounded'?'bounded-player-only':'thin-clock-estimate',
       rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
       startupPhase:/^[a-z-]{1,30}$/.test(peer.startupPhase)?peer.startupPhase:null, audioReadiness:/^[a-z-]{1,30}$/.test(peer.audioReadiness)?peer.audioReadiness:null,
       corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
@@ -158,7 +231,9 @@
   function emit(now, peers, coordination, roster) {
     recordSegment();
     const rows = peers.map(p => strip(p, now, coordination)).sort((a,b) => a.device.localeCompare(b.device));
-    const relative = group(rows), members = finite(roster?.members), reporting = finite(roster?.reporting);
+    const relative = group(rows), linkedSource = linkedSourceEvidence(peers,coordination,now);
+    const playbackPlateau = plateauEvidence(rows,relative,coordination,now);
+    const members = finite(roster?.members), reporting = finite(roster?.reporting);
     const rejections = roster?.rejections && typeof roster.rejections === 'object' ? Object.fromEntries(Object.entries(roster.rejections)
       .filter(([k,v]) => /^[a-z-]{1,20}$/.test(k) && Number.isFinite(v)).slice(0,8).map(([k,v]) => [k,Math.round(v)])) : null;
     const ref = coordination?.reference || window.watchFusionPlayout?.status?.()?.reference || 'room-clock';
@@ -169,13 +244,17 @@
       sourceReferenceAgeMs:Number.isFinite(coordination?.sourceReferenceAt)?finite(now-coordination.sourceReferenceAt):null,
       source:coordination?.source || null, sourcePhaseMs:finite(coordination?.sourcePhaseMs),song:song(),
       mirrorClock:(()=>{const c=window.WatchFusionMirrorConvergenceGate?.diagnostics?.()?.clockEvidence;return c?{gapMs:finite(c.gapMs),sourcePhaseMs:finite(c.sourcePhaseMs),sampleAgeMs:finite(c.sampleAgeMs),classification:/^[a-z-]{1,35}$/.test(c.classification)?c.classification:null}:null;})(),
-      ...relative, speakerPhase:'not-measured', roster:members===null?null:{members,reporting,rejections},
+      ...relative, linkedSourceEvidence:linkedSource, playbackPlateau, speakerPhase:'not-measured', roster:members===null?null:{members,reporting,rejections},
       peers:rows};
-    const key = JSON.stringify([ref,phaseMs,relative.groupPhase,members,reporting,rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.startupPhase,p.audioReadiness,p.seekHealth?.recoveryAttempts,p.signals])]);
+    const key = JSON.stringify([ref,phaseMs,relative.groupPhase,relative.timelinePhase,playbackPlateau.state,linkedSource?.audioRoute,members,reporting,
+      rows.map(p => [p.device,p.playerOffsetMs,p.corrections,p.action,p.buffering,p.startupPhase,p.audioReadiness,p.seekHealth?.recoveryAttempts,p.signals])]);
     // Source-trust transitions (live/stale/off-phase/...) are acceptance evidence: record them at once.
     const changed = rows.some(p=>p.freeze?.transition) || key !== lastKey && rows.some(p=>p.signals.length) || ref !== (entries.at(-1)?.ref) ||
       row.source !== (entries.at(-1)?.source ?? null) || row.segmentSequence !== entries.at(-1)?.segmentSequence ||
-      row.groupPhase !== entries.at(-1)?.groupPhase || row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting || rows.some(p=>{const q=entries.at(-1)?.peers?.find(x=>x.device===p.device);return q&&(q.startupPhase!==p.startupPhase||q.audioReadiness!==p.audioReadiness);});
+      row.groupPhase !== entries.at(-1)?.groupPhase || row.timelinePhase !== entries.at(-1)?.timelinePhase ||
+      row.linkedSourceEvidence?.audioRoute !== entries.at(-1)?.linkedSourceEvidence?.audioRoute ||
+      row.linkedSourceEvidence?.mode !== entries.at(-1)?.linkedSourceEvidence?.mode ||
+      row.outputs !== entries.at(-1)?.outputs || row.roster?.reporting !== entries.at(-1)?.roster?.reporting || rows.some(p=>{const q=entries.at(-1)?.peers?.find(x=>x.device===p.device);return q&&(q.startupPhase!==p.startupPhase||q.audioReadiness!==p.audioReadiness);});
     if (!changed && now - lastAt < (performance.now() < burstUntil ? 500 : lastHealthCritical ? 1100 : 4500)) return;
     lastKey = key; lastAt = now;
     entries.push(row); prune();
@@ -191,7 +270,7 @@
     roomScope = scope;
     entries = []; events = [];
     lastPeers.clear();
-    lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;lastHealthKey='';lastHealthCritical=false;observedSong=0;lastSongKey='';
+    lastKey = lastRendered = '';lastSegmentKey='';segmentSequence=0;lastHealthKey='';lastHealthCritical=false;observedSong=0;lastSongKey='';plateauScope='';plateauSamples=[];
     window.WatchFusionFreezeTelemetry?.reset?.();
     lastAt = 0;
     requestAt = -Infinity;
@@ -231,7 +310,7 @@
     prune();
     return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
       disclosure:'Player timing, source-supplied song titles and durations, user control intents and redacted transitions only; no audio, URLs, tokens or microphone measurements. Titles are included only when the user copies this local log. Player target error does not measure speaker-output latency; clock bounds include unknown asymmetry.',
-      diagnosticsVersion:'v13.10.8x-r14c',snapshots:entries,events},null,2);
+      diagnosticsVersion:'v13.10.8x-r14v',snapshots:entries,events},null,2);
   }
   async function copyLog() {
     const content = exported();

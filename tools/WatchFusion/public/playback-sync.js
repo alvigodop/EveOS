@@ -36,8 +36,7 @@
   };
   // Fresh TV-only join: one time-limited, same-video, qualified seek for seconds-scale displacement.
   const coldJoinReady=({until,nowMs,roomPaused,force,playerState,drift,linked,reference,matches})=>!!(until>nowMs&&!roomPaused&&!force&&playerState===1&&Math.abs(drift)>8&&matches&&(!linked||reference?.source==='live'&&reference.authorityBuffering!==true&&Number.isFinite(reference.sourcePhaseMs)&&Math.abs(reference.sourcePhaseMs)<=100));
-  // This gate cannot actuate anything. It qualifies a one-shot transition
-  // rejoin, never a correction on an established small-offset song.
+  // A one-shot transition rejoin gate; never a small-offset mid-song correction.
   function trackStartRecoveryEligible({ageMs, driftSec, stable, ready, sourceLive,
       uncertaintyMs, rateList, firstProgressMs, seekCount, contradicted}) {
     return ageMs >= 4500 && ageMs <= 18000 && driftSec >= .20 && driftSec <= .85
@@ -225,6 +224,8 @@
     if (playerInitializing || primingPlayer) return;
     const scope = [roomId, state.source.videoId, state.presentationEpoch, state.playoutSegment].join(':');
     const roomPaused = !!(state.playback.paused || state.playback.ended);
+    // Observe pause/resume during BUFFERING, without untrusted seeks or playback actions.
+    if (!isHost()) window.WatchFusionDecoderRescue?.observeTransport?.({scope, nowMs:performance.now(), paused:roomPaused});
     const sameSource = viewerScope && scope.slice(0, scope.lastIndexOf(':')) === viewerScope.slice(0, viewerScope.lastIndexOf(':'));
     const ordinaryResume = viewerPausedPosition !== null && !roomPaused && Math.abs(Number(state.playback.position) - viewerPausedPosition) < .75;
     if (scope !== viewerScope) trackStartRecovery = !sameSource && !roomPaused && !isHost() && (viewerScope || state.linkedSourceActive) ? {scope, at:performance.now(), spent:false} : null;
@@ -314,9 +315,7 @@
       return true;
     }
     sampleDrift(rawDrift, nowMs);
-    // v13.10.8x-r3: one deliberate, qualified initial landing after an actual
-    // track replacement. A fixed-rate TV may have started ~400ms late but has
-    // no legal continuous fine actuator. Do not chase that error mid-song.
+    // Qualified track-start landing only: no mid-song fixed-rate phase chase.
     if (trackStartRecovery && !trackStartRecovery.spent && trackStartRecovery.scope === scope
         && !force && !roomPaused && playerState === 1 && !buffering
         && !arbiter?.owns() && ytPlayer.getVideoData?.()?.video_id === state.source.videoId) {
