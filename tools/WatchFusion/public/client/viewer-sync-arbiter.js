@@ -144,7 +144,8 @@
     }
     function endRate(io) {
       if (job?.kind !== 'rate') return;
-      const rejectedTrial = probeRate(io)==='rejected' && job.recheck;
+      const verdict = probeRate(io), rejectedTrial = verdict==='rejected' && job.recheck;
+      if (job.recheck) rateRecheck?.settle(scope, verdict);
       io.rate(io.baseRate);
       finish(io.now(), rejectedTrial ? 'rate-capability-not-honored' : 'rate-burst-complete');
       if (rejectedTrial) phase = 'observe';
@@ -230,6 +231,7 @@
     }
     function superviseRate(nowMs, io) {
       if (io.state() !== 1 || (job.recheck && (io.sourceReferenceQualified?.(100) !== true || io.sourceBuffering?.() || io.mirrorContradicted?.()))) {
+        if (job.recheck) rateRecheck?.settle(scope, job.rateVerdict);
         cancelJob(io); phase = 'observe'; samples = []; reason = 'rate-burst-interrupted'; return;
       }
       if (!job.rateVerdict && nowMs-job.probe.nowMs>=Math.min(RATE_PROBE_MS,Math.max(600,job.durationMs*.75)) &&
@@ -287,7 +289,6 @@
         locked = true; if (failures && nowMs - healthySince >= 15000 && io.referenceTrusted?.() === true && !io.sourceBuffering?.() && nowMs - lastStallSeenAt >= 15000) { failures = 0; cooldownUntil = Math.min(cooldownUntil, nowMs); healthyRearms++; reason = 'locked-failure-rearmed'; } else reason = 'locked'; return;
       }
       healthySince = -1; if (absolute <= ACTION_SEC + EPS_SEC) {
-        // Refining: soft rate nudges toward 0 ms when the error exceeds reference noise; never a seek.
         const precision = Number(io.referenceUncertaintyMs?.());
         if (absolute >= ZERO_SERVO_SEC && model.rateHonored !== false && io.referenceTrusted?.() === true
             && precision >= 0 && precision < absolute * 1000 && nowMs - lastZeroServoAt >= ZERO_SERVO_COOLDOWN_MS) {
@@ -297,7 +298,6 @@
         reason = 'fine-drift-refining'; return;
       }
       locked = false;
-      // Keep uncertain phase errors on the rate-only path.
       const uncertaintyMs = Number(io.referenceUncertaintyMs?.());
       if (uncertaintyMs > 0 && Number.isFinite(uncertaintyMs)
           && absolute * 1000 <= Math.max(100, uncertaintyMs * 1.2)) {

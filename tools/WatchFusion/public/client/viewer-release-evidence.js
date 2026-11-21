@@ -282,18 +282,25 @@
     return {consider, spend};
   }
 
-  // R14y: one per-video, source-qualified trial when a TV previously rejected
-  // speed control. No forced rates, pause, seek, reload or synthetic audio phase.
+  // A source-qualified trial for a TV that previously rejected speed control.
+  // A coarse trial with inconclusive rate evidence may leave a stable final lag.
   function createTvRateRecheckGate() {
-    const spent=new Set();let candidate=null,reason='idle',attempts=0;
+    const spent=new Map();let candidate=null,reason='idle',attempts=0;
     const videoKey=scope=>String(scope||'').split(':').slice(0,3).join(':');
+    function settle(scope, verdict) {
+      const trial=spent.get(videoKey(scope));
+      if(trial?.scope===scope && trial.error>=.85 && !verdict)trial.mayFinish=true;
+    }
     function consider({scope,nowMs,error,io,rateHonored,quietStallMs,quietRejoinMs}) {
       const key=videoKey(scope),rates=io.availableRates?.();
       const alternate=Array.isArray(rates) ? rates.filter(r=>Number.isFinite(r)&&r>0&&
         (error<0 ? r>=io.baseRate*.74&&r<=io.baseRate*.96 : r>=io.baseRate*1.04&&r<=io.baseRate*1.26) &&
         (error<=.85 || (r-io.baseRate)*10>=error))
         .sort((a,b)=>Math.abs(a-io.baseRate)-Math.abs(b-io.baseRate))[0] : null;
-      if (spent.has(key)){reason='per-video-trial-spent';candidate=null;return null;}
+      const prior=spent.get(key);
+      const finishing=prior?.mayFinish===true && prior.scope===scope &&
+        error>=.24 && error<=.43 && prior.error-error>=.45;
+      if (prior && !finishing){reason='per-video-trial-spent';candidate=null;return null;}
       const precision=io.referenceUncertaintyMs?.();
       const largeLag = error >= .35;
       const eligible=key.split(':').length===3 && rateHonored===false && !!alternate &&
@@ -304,16 +311,18 @@
         Number.isFinite(error)&&error>=-.43&&error<=2.5&&Math.abs(error)>=.115 &&
         Number.isFinite(nowMs)&&quietStallMs>=(largeLag?5000:20000)&&quietRejoinMs>=(largeLag?6000:25000);
       if(!eligible){reason=!alternate?'no-advertised-rate-actuator':'source-motion-or-quiet-time-not-qualified';candidate=null;return null;}
-      if(!candidate || candidate.key!==key || Math.sign(candidate.error)!==Math.sign(error) ||
+      if(!candidate || candidate.scope!==scope || candidate.rate!==alternate || Math.sign(candidate.error)!==Math.sign(error) ||
           Math.abs(candidate.error-error)>.035 || nowMs-candidate.lastAt>1000 || nowMs<candidate.lastAt){
-        candidate={key,error,at:nowMs,lastAt:nowMs,samples:1};reason='stable-rate-trial-dwell';return null;
+        candidate={scope,rate:alternate,error,at:nowMs,lastAt:nowMs,samples:1};reason='stable-rate-trial-dwell';return null;
       }
       candidate.samples++;candidate.lastAt=nowMs;
-      if(nowMs-candidate.at<(largeLag?2500:10000) || candidate.samples<8){reason='stable-rate-trial-dwell';return null;}
-      spent.add(key);candidate=null;attempts++;reason='single-advertised-rate-trial';
+      const dwellMs=finishing ? 4000 : largeLag ? 2500 : 10000;
+      if(nowMs-candidate.at<dwellMs || candidate.samples<8){reason='stable-rate-trial-dwell';return null;}
+      spent.set(key,{scope,error});
+      candidate=null;attempts++;reason=finishing?'single-advertised-rate-finish':'single-advertised-rate-trial';
       return {rate:alternate};
     }
-    return {consider,snapshot:()=>({reason,attempts,watching:!!candidate})};
+    return {consider,settle,snapshot:()=>({reason,attempts,watching:!!candidate})};
   }
 
   // Classify actual raw IFrame timeline movement, not an API rate-setting ack.

@@ -164,4 +164,38 @@ export async function runR14yChecks(check){
   assert.equal(L.arb.owns(),false);
   assert.equal(L.arb.snapshot().model.rateHonored,false);
  });
+ await check('R14Y-15:a progressing but inconclusive coarse trial can finish a post-transition 350ms lag',()=>{
+  let contradiction=false, interrupted=false;
+  const L=lab({rates:[1,1.25],startingError:-1.65,mirror:()=>contradiction});
+  const evidence=L.ctx.WatchFusionReleaseEvidence;
+  L.ctx.WatchFusionReleaseEvidence={...evidence,classifyRateProbe:(...args)=>
+    L.ops.filter(([,rate])=>rate===1.25).length===1?'unverified':evidence.classifyRateProbe(...args)};
+  for(let at=50000;at<=85000;at+=50){
+    L.at(at);
+    if(!interrupted && L.arb.owns() && L.ops[0]?.[1]===1.25 && at/1000-L.position()<=.36){
+      contradiction=interrupted=true;
+    }
+    L.arb.tick('room:video:epoch:seg3',at,L.io);
+    contradiction=false;
+  }
+  assert.ok(interrupted,'the coarse rate burst stopped with a residual lag');
+  assert.ok(Math.abs(L.position()-L.now()/1000)<=.05,'the final lag should converge');
+  assert.deepEqual(L.ops,[['rate',1.25],['rate',1],['rate',1.25],['rate',1]]);
+ });
+ await check('R14Y-16:a final trial cannot reopen a rejected trial or reuse another segment',()=>{
+  const L=lab({rates:[1,1.25]}), scope='room:video:epoch:seg3';
+  for(const [verdict,nextScope,error] of [
+    ['rejected',scope,.35], [undefined,'room:video:epoch:seg4',.35], [undefined,scope,1.1]
+  ]){
+    const gate=L.ctx.WatchFusionReleaseEvidence.createTvRateRecheckGate();
+    const evidence={scope,io:L.io,rateHonored:false,quietStallMs:30000,quietRejoinMs:30000};
+    for(let t=0;t<=4500;t+=250)gate.consider({...evidence,nowMs:t,error:1.65});
+    assert.equal(gate.snapshot().attempts,1);
+    gate.settle(scope,verdict);
+    for(let t=5000;t<=20000;t+=250){
+      assert.equal(gate.consider({...evidence,scope:nextScope,nowMs:t,error}),null);
+    }
+    assert.equal(gate.snapshot().attempts,1);
+  }
+ });
 }
