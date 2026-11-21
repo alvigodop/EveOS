@@ -11,11 +11,12 @@ import { createFakeYouTube, PROFILES } from './fake-youtube.js';
 const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const read = rel => fs.readFileSync(path.join(ROOT, 'public', rel), 'utf8');
 // The same order static-files.js bundles for the synchronization path.
-export function viewerScripts() {
+export function viewerScripts({fineTrim = false} = {}) {
   const bundle = fs.readFileSync(path.join(ROOT, 'src/server/static-files.js'), 'utf8');
   const listed = [...bundle.matchAll(/'((?:client\/)?[a-z0-9-]+\.js)'/g)].map(m => m[1]);
   const wanted = new Set(['client/linked-playback-sync.js', 'client/sync-seek-health.js', 'client/youtube-startup-gate.js', 'client/host-seek-policy.js', 'client/host-source-converge.js', 'client/sensor-provenance.js', 'client/mirror-convergence-gate.js',
     'client/gentle-catchup.js', 'client/viewer-release-evidence.js', 'client/viewer-timing-math.js', 'client/viewer-sync-arbiter.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/presentation-sync.js', 'client/room-playout.js']);
+  if (fineTrim) wanted.add('client/zero-converge.js');
   return listed.filter(name => wanted.has(name));
 }
 
@@ -24,7 +25,7 @@ function element(id) {
     addEventListener() {}, removeEventListener() {}, replaceChildren() {}, click() {}, setAttribute() {}, querySelector: () => null};
 }
 
-export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups = []} = {}) {
+export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups = [], fineTrim = false} = {}) {
   const clock = createVirtualClock();
   const RealDate = globalThis.Date;
   globalThis.Date = clock.Date; // the server routes read Date.now()
@@ -136,7 +137,7 @@ export async function createRoomLab({seed = 7, sourceNoiseMs = 12, sourceHiccups
       }, rttMs / 2);
     });
     vm.createContext(ctx);
-    for (const script of viewerScripts()) vm.runInContext(read(script), ctx, {filename: script});
+    for (const script of viewerScripts({fineTrim})) vm.runInContext(read(script), ctx, {filename: script});
     if (id === room.hostId) vm.runInContext(read('client/sync-room-log.js'),ctx);
     const device = {
       name, memberId: id, player, ctx, latencyMs, samples: [],

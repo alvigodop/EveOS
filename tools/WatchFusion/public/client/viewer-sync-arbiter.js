@@ -133,19 +133,21 @@
       job.timer = timers.setTimeout(() => endRate(io), durationMs);
     }
     function probeRate(io) {
-      if(job?.kind!=='rate'||job.verified)return;
+      if(job?.kind!=='rate'||job.rateVerdict)return job?.rateVerdict;
       const verdict=globalThis.WatchFusionReleaseEvidence?.classifyRateProbe?.(job,io,io.now())||'unverified';
       if(verdict==='unverified'){reason='rate-evidence-inconclusive';return;}
-      job.verified=true;
+      job.rateVerdict=verdict;
       if(verdict==='honored'){model.rateHonored=true;model.rateRejections=0;reason='rate-capability-confirmed';}
       else {model.rateRejections=(model.rateRejections||0)+1;if(model.rateRejections>=2)model.rateHonored=false;stats.rateRejected++;reason='rate-capability-not-honored';}
       save();
+      return verdict;
     }
     function endRate(io) {
       if (job?.kind !== 'rate') return;
-      probeRate(io);
+      const rejectedTrial = probeRate(io)==='rejected' && job.recheck;
       io.rate(io.baseRate);
-      finish(io.now(), 'rate-burst-complete');
+      finish(io.now(), rejectedTrial ? 'rate-capability-not-honored' : 'rate-burst-complete');
+      if (rejectedTrial) phase = 'observe';
     }
     function startHold(nowMs, error, io) {
       // Device ahead: freeze for the lead, release early by the learned start latency.
@@ -230,8 +232,11 @@
       if (io.state() !== 1 || (job.recheck && (io.sourceReferenceQualified?.(100) !== true || io.sourceBuffering?.() || io.mirrorContradicted?.()))) {
         cancelJob(io); phase = 'observe'; samples = []; reason = 'rate-burst-interrupted'; return;
       }
-      if(!job.verified && nowMs-job.probe.nowMs>=Math.min(RATE_PROBE_MS,Math.max(600,job.durationMs*.75)))probeRate(io);
-      if(!job.verified)reason='rate-evidence-inconclusive';
+      if (!job.rateVerdict && nowMs-job.probe.nowMs>=Math.min(RATE_PROBE_MS,Math.max(600,job.durationMs*.75)) &&
+          probeRate(io)==='rejected' && job.recheck) {
+        endRate(io); return;
+      }
+      if(!job.rateVerdict)reason='rate-evidence-inconclusive';
     }
     function learn(residual,io,nowMs) {
       const c = lastCorrection;
@@ -292,12 +297,10 @@
         reason = 'fine-drift-refining'; return;
       }
       locked = false;
-      // A 125 ms error is not an actionable measurement if the active room
-      // reference itself has greater uncertainty. Never turn noise into seeks.
+      // Keep uncertain phase errors on the rate-only path.
       const uncertaintyMs = Number(io.referenceUncertaintyMs?.());
       if (uncertaintyMs > 0 && Number.isFinite(uncertaintyMs)
           && absolute * 1000 <= Math.max(100, uncertaintyMs * 1.2)) {
-        // >100 ms must act: a soft rate nudge only (never a seek on a noisy reference).
         const soft = nowMs - lastZeroServoAt >= ZERO_SERVO_COOLDOWN_MS ? rateFor(io, error) : null;
         if (soft !== null) { lastZeroServoAt = nowMs; return startRate(nowMs, error, io, soft); }
         reason = 'fine-drift-below-reference-precision'; return;
@@ -305,9 +308,7 @@
       if (failures >= MAX_FAILURES) { phase = 'suspended'; reason = 'auto-correction-suspended'; return; }
       if (nowMs < cooldownUntil) { reason = 'correction-cooldown'; return; }
       if (absolute > MAX_AUTO_SEC) {
-        // A reference discontinuity resets sampling; only a steady, consistent
-        // displacement of an advancing player is trusted, once per segment.
-        // A steady offset proves nothing when the room timeline itself is wrong (log 3 stayed on room-clock).
+        // One large displacement rejoin per segment requires a trusted reference.
         if (!io.referenceTrusted?.()) { displaced = null; reason = 'displacement-unverified-reference'; return; }
         if (!displaced || Math.sign(displaced.error) !== Math.sign(error) || Math.abs(displaced.error - error) > 1) displaced = {since: nowMs, error};
         if (displacedRejoins >= 1 || nowMs - displaced.since < DISPLACED_MS) { reason = 'displacement-needs-transport-seek'; return; }
@@ -355,7 +356,6 @@
       }
       return startRejoin(nowMs, error, io);
     }
-    // io: {now, target(nowMs), current, state, baseRate, availableRates, buffered, seek, pause, play, rate}
     function tick(next, nowMs, io) {
       if (next !== scope) reset(next, 'scope-change', io);
       if (acquiredAt < 0) acquiredAt = nowMs;

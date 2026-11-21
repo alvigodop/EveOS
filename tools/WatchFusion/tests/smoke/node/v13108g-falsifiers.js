@@ -126,6 +126,27 @@ export async function runV13108gChecks(check) {
     assert.equal(G.contradicted(), null, 'a publish resolves it');
   });
 
+  await check('V13108G-06B:fresh-advancing-source-samples-clear-an-isolated-mirror-outlier', () => {
+    let now = 10000;
+    const c = {sourcePhaseMs:-41};
+    const ctx = {window:{watchFusionPlayout:{status:()=>c,hasSourceReference:()=>true}},
+      Date:{now:()=>now},performance:{now:()=>now},estimatedServerNow:()=>now,Math,Number};
+    vm.runInNewContext(read('public/client/mirror-convergence-gate.js'),ctx);
+    const gate=ctx.window.WatchFusionMirrorConvergenceGate;
+    assert.equal(gate.defer({publish:true,reason:'drift',drift:-1.18},{sampledAt:now,currentTime:30},'p'),true);
+    assert.ok(gate.contradicted());
+    const steady={publish:false,reason:'steady',drift:-.041};
+    now+=200;
+    gate.observeSteady(steady,{sampledAt:now,currentTime:31,rate:1},'p');
+    assert.ok(gate.contradicted(),'a single sample cannot clear the veto');
+    now+=200;
+    gate.observeSteady(steady,{sampledAt:now,currentTime:31,rate:1},'p');
+    assert.ok(gate.contradicted(),'a frozen sample cannot clear the veto');
+    now+=200;
+    gate.observeSteady(steady,{sampledAt:now,currentTime:31.2,rate:1},'p');
+    assert.equal(gate.contradicted(),null);
+  });
+
   await check('V13108G-07:rejoin-probe-measures-commanded-landed-and-late-release', () => {
     assert.ok(exists('public/client/rejoin-probe.js'), 'rejoin-probe.js missing');
     let now = 0, wall = 0, playerPos = 100, playing = true, timers = [];

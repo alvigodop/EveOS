@@ -133,7 +133,7 @@ export async function runSourceTabSmokes() {
 
   await record('ST-13:linked-room-mirror-is-projected-and-bounded', async () => {
     assert.match(linkedTab, /mirrorPlan\?\.\(metadata,lastMirrorAnchor,\{force\}\)/);
-    assert.match(linkedTab, /if\(!plan\?\.publish\)return false/);
+    assert.match(linkedTab, /if \(!plan\?\.publish\) \{\s+if \(roomId\) window\.WatchFusionMirrorConvergenceGate\?\.observeSteady\?\.\(plan,metadata,loadedPageUrl\);\s+return false;/);
     assert.match(linkedTab, /mirrorInFlight=true/);
     assert.match(linkedTab, /queuedMirror=\{metadata:\{\.\.\.metadata\},force:/);
     assert.match(linkedTab, /if\(link!==activeLink\|\|loadedPageUrl!==activePage\|\|!receipt.status\)return false;[\s\S]*?if\(ok\)\{lastMirrorAnchor=plan\.anchor/);

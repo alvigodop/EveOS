@@ -149,4 +149,19 @@ export async function runR14yChecks(check){
     assert.ok(L.ops.every(([kind])=>kind==='rate'));
   }
  });
+ await check('R14Y-13:an-advancing-TV-can-close-the-traced-1.65-second-gap-before-a-rejoin',()=>{
+  const L=lab({rates:[1,1.05,1.25],startingError:-1.65});
+  L.ctx.WatchFusionReleaseEvidence.tvRecoveryOwner.release(L.io.tvIdentity,49000);
+  play(L,{end:61800,step:50});
+  assert.deepEqual(L.ops,[['rate',1.25],['rate',1]]);
+  assert.ok(Math.abs(L.position()-L.now()/1000)<.05);
+ });
+ await check('R14Y-14:an-ignored-long-rate-trial-returns-to-room-speed-as-soon-as-it-is-rejected',()=>{
+  const L=lab({rates:[1,1.25],startingError:-1.65,actualRate:false});
+  L.ctx.WatchFusionReleaseEvidence.tvRecoveryOwner.release(L.io.tvIdentity,49000);
+  play(L,{end:55800,step:50});
+  assert.deepEqual(L.ops,[['rate',1.25],['rate',1]]);
+  assert.equal(L.arb.owns(),false);
+  assert.equal(L.arb.snapshot().model.rateHonored,false);
+ });
 }

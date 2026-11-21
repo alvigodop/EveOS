@@ -63,6 +63,76 @@ function roomGlobals(ctx, player, {targetOffsetSec, uncertaintyMs = 110, host = 
 }
 
 export async function runV13107Checks(check) {
+  await check('V13107-00B:a-delayed-host-rate-response-qualifies-only-with-measured-progress',()=>{
+    for(const delay of [100,1000]){
+      const ctx=world(), p=fakePlayer(ctx,{position:29.941});
+      roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:12});
+      ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:12});
+      ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+      ctx.watchFusionViewerArbiter.snapshot=()=>({model:{rateHonored:false},locked:Math.abs(p.position-30-ctx.clock()/1000)<=.05,lockedForMs:2000,
+        timelineErrorMs:Math.round((30+ctx.clock()/1000-p.position)*1000),timelineObservedAtMs:ctx.clock()});
+      let timer;
+      p.setPlaybackRate=rate=>{
+        p.calls.push(['rate',rate]);
+        ctx.clearTimeout(timer);
+        if(rate===1)p.rate=1;
+        else timer=ctx.setTimeout(()=>{p.rate=rate;},delay);
+      };
+      vm.runInContext(read('public/client/zero-converge.js'),ctx);
+      ctx.advance(24000);
+      const proven=ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement;
+      const residual=Math.abs(54-p.position)*1000;
+      assert.equal(proven,delay===100);
+      assert.ok(delay===100?residual<=16:Math.abs(residual-59)<1,residual);
+      assert.equal(p.rate,1);
+      assert.ok(p.calls.every(([kind])=>kind==='rate'));
+    }
+  });
+  await check('V13107-00:linked-host-rechecks-rejected-speed-to-close-a-steady-440ms-lag',()=>{
+    for(const sourceTrusted of [true,false]){
+      const ctx=world(), p=fakePlayer(ctx,{position:29.56});
+      roomGlobals(ctx,p,{targetOffsetSec:0,host:true,uncertaintyMs:15});
+      ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:15});
+      ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>sourceTrusted?null:'host-source-stale'};
+      ctx.watchFusionViewerArbiter.snapshot=()=>({model:{rateHonored:false},locked:Math.abs(p.position-30-ctx.clock()/1000)<=.05,lockedForMs:2000,
+        timelineErrorMs:Math.round((30+ctx.clock()/1000-p.position)*1000),timelineObservedAtMs:ctx.clock()});
+      vm.runInContext(read('public/client/zero-converge.js'),ctx);
+      ctx.advance(27000);
+      const error=Math.abs(57-p.position)*1000;
+      assert.ok(sourceTrusted?error<=20:error>=430,error);
+      assert.ok(p.calls.every(([kind])=>kind==='rate'));
+      if(sourceTrusted) assert.equal(ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement,true);
+      else assert.equal(p.calls.length,0);
+    }
+  });
+  await check('V13107-00C:a-new-track-releases-the-old-player-rate-and-earns-its-own-probe',()=>{
+    const ctx=world();
+    let player=fakePlayer(ctx,{position:29.941});
+    roomGlobals(ctx,player,{targetOffsetSec:0,host:true,uncertaintyMs:12});
+    ctx.watchFusionPlayout.status=()=>({source:'live',reference:'linked-tab',uncertaintyMs:12});
+    ctx.WatchFusionHostSeekPolicy={sourceBlocker:()=>null};
+    ctx.watchFusionViewerArbiter.snapshot=()=>({model:{rateHonored:false},
+      locked:Math.abs(player.position-30-ctx.clock()/1000)<=.05,lockedForMs:2000,
+      timelineErrorMs:Math.round((30+ctx.clock()/1000-player.position)*1000),timelineObservedAtMs:ctx.clock()});
+    vm.runInContext(read('public/client/zero-converge.js'),ctx);
+    ctx.advance(2275);
+    const previous=player;
+    assert.equal(previous.rate,1.25);
+    player=fakePlayer(ctx,{position:30+ctx.clock()/1000-.059});
+    player.videoId='BBBBBBBBBBB';
+    player.last=ctx.clock();
+    ctx.ytPlayer=player;
+    ctx.state.source.videoId=player.videoId;
+    ctx.state.presentationEpoch++;
+    ctx.state.playoutSegment++;
+    ctx.advance(25000);
+    assert.deepEqual(previous.calls,[['rate',1.25],['rate',1]]);
+    assert.equal(player.calls[0][1],1.25);
+    assert.equal(player.rate,1);
+    assert.ok(Math.abs(30+ctx.clock()/1000-player.position)<=.016);
+    assert.equal(ctx.WatchFusionZeroConverge.diagnostics().hostRateRecheck.measuredImprovement,true);
+  });
+
   await check('V13107-01:locked-50ms-walks-toward-zero-despite-a-100ms-shared-reference', () => {
     const ctx = world(); const p = fakePlayer(ctx, {position: 30.05}); // 50 ms ahead
     roomGlobals(ctx, p, {targetOffsetSec: 0, uncertaintyMs: 110});

@@ -8,9 +8,10 @@
   // still report the source live and in phase; that is contradictory evidence, so host-source recovery waits on it.
   const CONTRADICTION_MS = 4000, LARGE_SEC = .75;
   let candidate = null, lastPublishedAt = -Infinity, held = 0, published = 0, lastNote = -Infinity, heldSinceNote = 0;
-  let contradiction = null, clockEvidence = null;
+  let contradiction = null, clockEvidence = null, coherent = null;
   const clock = () => performance.now();
   function defer(plan, metadata = {}, page = '') {
+    coherent = null;
     if (!plan?.publish || plan.reason !== 'drift' || metadata.paused || metadata.ended) {
       candidate = null; return false;
     }
@@ -36,7 +37,7 @@
       Math.abs(c.sourcePhaseMs) <= 35 && Math.abs(drift * 1000 - c.sourcePhaseMs) > LARGE_SEC * 1000;
     if (!same || disagrees || sampleAt - candidate.firstAt < CONFIRM_MS || now - lastPublishedAt < COOLDOWN_MS) {
       held++; heldSinceNote++;
-      if (Math.abs(drift) > LARGE_SEC) contradiction = {driftMs: Math.round(drift * 1000), at: now, confirmed: same && sampleAt - candidate.firstAt >= CONFIRM_MS};
+      if (Math.abs(drift) > LARGE_SEC) contradiction = {page, driftMs: Math.round(drift * 1000), at: now};
       const phaseNow=window.watchFusionPlayout?.status?.()?.sourcePhaseMs; const gapNow=Number.isFinite(phaseNow)?Math.round(drift*1000-phaseNow):null;
       clockEvidence={gapMs:gapNow,sourcePhaseMs:Number.isFinite(phaseNow)?Math.round(phaseNow):null,sampleAgeMs:Math.round(Date.now()-sampleAt),at:now,classification:gapNow!==null&&Math.abs(gapNow)>750?'clock-domains-disagree':'unverified'};
       if (now - lastNote > 15000) {
@@ -56,11 +57,28 @@
     }
     published++; lastPublishedAt = now; candidate = null; return false;
   }
-  function reset() {candidate = null; lastPublishedAt = -Infinity; contradiction = null; clockEvidence = null;}
+  function observeSteady(plan, metadata, page) {
+    const playout = window.watchFusionPlayout, c = playout?.status?.();
+    const {sampledAt, currentTime, rate, paused, ended, buffering} = metadata;
+    const age = Date.now() - sampledAt;
+    if (!contradicted() || contradiction.page !== page || plan?.reason !== 'steady' || paused || ended || buffering ||
+        ![sampledAt,currentTime,rate,c?.sourcePhaseMs,plan?.drift].every(Number.isFinite) ||
+        age < 0 || age > 500 || rate <= 0 || Math.abs(plan.drift * 1000 - c.sourcePhaseMs) > 100 ||
+        !playout.hasSourceReference?.(c, estimatedServerNow())) { coherent = null; return; }
+    const elapsed = coherent ? sampledAt - coherent.sampledAt : Infinity;
+    if (elapsed >= 0 && elapsed < 150) return;
+    const expected = elapsed * rate / 1000, advance = currentTime - coherent?.position;
+    if (elapsed >= 150 && elapsed <= 1000 && advance >= expected * .5 && advance <= expected * 1.5) {
+      contradiction = candidate = coherent = clockEvidence = null;
+      return;
+    }
+    coherent = {sampledAt, position:currentTime};
+  }
+  function reset() {candidate = null; lastPublishedAt = -Infinity; contradiction = coherent = clockEvidence = null;}
   // A drift publish (the room re-anchored to the source) resolves it; so does CONTRADICTION_MS without another one.
   function contradicted(now = clock()) {
     if (!contradiction || now - contradiction.at > CONTRADICTION_MS || contradiction.at <= lastPublishedAt) return null;
     return {driftMs: contradiction.driftMs, ageMs: Math.round(now - contradiction.at)};
   }
-  window.WatchFusionMirrorConvergenceGate = {defer, reset, contradicted, diagnostics: () => ({held,published,contradiction:contradicted(),clockEvidence:clockEvidence&&clock()-clockEvidence.at<=4000?clockEvidence:null})};
+  window.WatchFusionMirrorConvergenceGate = {defer, observeSteady, reset, contradicted, diagnostics: () => ({held,published,contradiction:contradicted(),clockEvidence:clockEvidence&&clock()-clockEvidence.at<=4000?clockEvidence:null})};
 })();

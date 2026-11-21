@@ -42,7 +42,7 @@ function logLab() {
     sampledAt:now-10,positionMs:now+offset,roomPositionMs:now,targetPositionMs:now,rate:1,
     sensor:{clockState:'bounded',clockBoundMs:8,heldMs:0,audibleOutput:'player'},startupPhase:'decoder-confirmed',recentCorrection:'locked',...overrides});
   const observe=peers=>{ctx.watchFusionRoomSyncLog.observe(peers,{reference:'linked-tab',source:'live'});const data=JSON.parse(ctx.watchFusionRoomSyncLog.export());return data.snapshots.at(-1);};
-  return {peer,observe,advance:ms=>{now+=ms;},now:()=>now};
+  return {peer,observe,advance:ms=>{now+=ms;},now:()=>now,log:ctx.watchFusionRoomSyncLog};
 }
 export async function runR14tStatusChecks(check) {
   await check('R14T-01:bounded-clock-does-not-prove-decoder-playback',()=>{
@@ -106,8 +106,15 @@ export async function runR14tStatusChecks(check) {
     assert.equal(s.groupSpreadMs,20);assert.equal(s.groupPhase,'common-mode-offset');
     assert.equal(s.peers.find(x=>x.device==='TV').targetErrorMs,-200);
   });
-  await check('R14T-10:exported-trace-identifies-active-timing-policy',()=>{
-    assert.match(read('public/client/sync-room-log.js'),/diagnosticsVersion:'v13\.10\.8x-r14y-rate-recovery'/);
+  await check('R14T-10:exported-trace-includes-the-active-timing-policy-and-host-rate-verdict',()=>{
+    const {log}=logLab();
+    const detail={reason:'measured-improvement',beforeMs:59,residualMs:42,progressMs:17,expectedMs:41};
+    log.note('host-zero-rate-recheck-verified',{...detail,extra:'discard'});
+    const data=JSON.parse(log.export());
+    assert.equal(data.diagnosticsVersion,'v13.10.8x-r14y-fine-trim');
+    const event=data.events.find(e=>e.kind==='host-zero-rate-recheck-verified');
+    for(const [key,value] of Object.entries(detail)) assert.equal(event[key],value);
+    assert.equal(event.extra,undefined);
   });
   await check('R14T-09:status-modules-never-call-seek-play-pause-rate-or-source-controls',()=>{
     const s=read('public/client/sync-center.js'), t=read('public/client/sync-room-log.js');

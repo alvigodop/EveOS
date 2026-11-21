@@ -275,7 +275,10 @@
       return false;
     }
     const plan=window.WatchFusionLinkedPlaybackSync?.mirrorPlan?.(metadata,lastMirrorAnchor,{force});
-    if(!plan?.publish)return false;
+    if (!plan?.publish) {
+      if (roomId) window.WatchFusionMirrorConvergenceGate?.observeSteady?.(plan,metadata,loadedPageUrl);
+      return false;
+    }
     if(roomId&&!force&&mirrorGuard()?.stalledRepeat?.(plan,metadata,loadedPageUrl))return false;
     if(roomId&&!force&&window.WatchFusionMirrorConvergenceGate?.defer?.(plan,metadata,loadedPageUrl))return false;
     window.watchFusionRoomSyncLog?.note?.('mirror-request',{
@@ -287,7 +290,6 @@
     }
     const linkedSource=roomProof();
     if(!linkedSource)return;
-
     const activeLink=link, activePage=loadedPageUrl, receipt={};
     mirrorInFlight=true;const mirrorStartedAt=performance.now();
     try{

@@ -290,7 +290,8 @@
     function consider({scope,nowMs,error,io,rateHonored,quietStallMs,quietRejoinMs}) {
       const key=videoKey(scope),rates=io.availableRates?.();
       const alternate=Array.isArray(rates) ? rates.filter(r=>Number.isFinite(r)&&r>0&&
-        (error<0 ? r>=io.baseRate*.74&&r<=io.baseRate*.96 : r>=io.baseRate*1.04&&r<=io.baseRate*1.26))
+        (error<0 ? r>=io.baseRate*.74&&r<=io.baseRate*.96 : r>=io.baseRate*1.04&&r<=io.baseRate*1.26) &&
+        (error<=.85 || (r-io.baseRate)*10>=error))
         .sort((a,b)=>Math.abs(a-io.baseRate)-Math.abs(b-io.baseRate))[0] : null;
       if (spent.has(key)){reason='per-video-trial-spent';candidate=null;return null;}
       const precision=io.referenceUncertaintyMs?.();
@@ -300,7 +301,7 @@
         io.sourceReferenceQualified?.(100)===true && io.state?.()===1 &&
         io.referenceTrusted?.()===true && io.sourceBuffering?.()!==true && io.mirrorContradicted?.()!==true &&
         Number.isFinite(precision)&&precision>=0&&precision<=35 &&
-        Number.isFinite(error)&&error>=-.43&&error<=.85&&Math.abs(error)>=.115 &&
+        Number.isFinite(error)&&error>=-.43&&error<=2.5&&Math.abs(error)>=.115 &&
         Number.isFinite(nowMs)&&quietStallMs>=(largeLag?5000:20000)&&quietRejoinMs>=(largeLag?6000:25000);
       if(!eligible){reason=!alternate?'no-advertised-rate-actuator':'source-motion-or-quiet-time-not-qualified';candidate=null;return null;}
       if(!candidate || candidate.key!==key || Math.sign(candidate.error)!==Math.sign(error) ||
