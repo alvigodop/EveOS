@@ -16,6 +16,7 @@ runner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runner)
 from eveos_affected_passes import AffectedPasses
 from eveos_affected_selection import WORLD_BOOK_CLIENT, WORLD_BOOK_CLIENT_INPUTS
+from eveos_publication_scope import publication_scripts
 
 
 class TimedQualificationTests(unittest.TestCase):
@@ -108,6 +109,24 @@ class TimedQualificationTests(unittest.TestCase):
         self.assertEqual(report['reusedChecks'], 1)
         self.assertFalse(report['releaseEligible'])
         self.assertEqual(report['status'], 'FAIL')
+
+    def test_publication_runs_fresh_structural_checks_for_affected_areas(self):
+        shared = ['test:guardrails:shared']
+        cases = [
+            ([], shared),
+            (['tools/WatchFusion/public/playback-sync.js'], shared),
+            (['tools/World-Book/app/server.py'], shared),
+            (['tools/Piano-Auto-Player/web/piano_pcm_capture.js'], shared + ['smoke:audioflix-mode-requirements']),
+            (['server_modules/audioflix_spotify_edge_session.py'],
+             shared + ['smoke:spotify-mode-handoff-regression', 'smoke:audioflix-mode-requirements']),
+            (['js/modules/core/storage.js'], ['test:guardrails']),
+            (['unclassified.js'], ['test:guardrails']),
+        ]
+        for files, expected in cases:
+            with self.subTest(files=files):
+                gates, _ = runner.affected_plan_for_files(files, 'fixture')
+                self.assertEqual(publication_scripts(gates), expected)
+                self.assertEqual(publication_scripts(gates, full=True), ['test:guardrails'])
 
 
 if __name__ == '__main__': unittest.main()

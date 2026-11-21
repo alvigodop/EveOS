@@ -34,6 +34,8 @@ Missing, skipped, interrupted, stale, or partial evidence cannot produce release
 | `npm run verify` / `npm run verify:timed` | Fresh manifest-complete release graph | Yes, only when all 41 gates pass |
 | `npm run verify:legacy` | Sequential rollback/parity oracle | Comparison only |
 | `npm run --silent qualify:affected:timed` | Affected checks for local changes | No |
+| `npm run --silent test:handoff` | Affected checks with a chat handoff receipt | No |
+| `npm run --silent test:handoff -- --final` | Full release with a chat handoff receipt | Same requirements as `verify` |
 | `npm run qualify:fast:timed` | Fast development feedback | No |
 | `npm run qualify:integration:timed` | Deep integration | No |
 | `npm run qualify:nexus:timed` | Nexus-focused guardrails and tests | No |
@@ -63,7 +65,7 @@ changes select their relevant playback, provider, Spotify, or mode checks. Share
 and unrecognized code paths fall back to a broader profile. The plan records those paths.
 
 Shared guardrails retain asset, coverage, and repository checks. Spotify handoff and Audioflix mode
-checks run in their affected lanes and remain in full guardrails for publication. A combined plan
+checks run in their affected lanes and remain in full guardrails. A combined plan
 reuses the broader profile's mandatory guardrails and omits a narrower npm gate when its command
 already runs inside that plan.
 
@@ -73,6 +75,25 @@ original log. Misses, failures, and changed inputs lead to real execution. Use `
 rerun, or `--verbose` for per-gate progress. Receipts record executed, reused, and unselected checks.
 Use an existing passing receipt when it already covers the task. Run a broader suite when its
 coverage is required and run release or publication gates through their normal entry points.
+
+## Commit, push, and chat handoffs
+
+For a local edit, use affected qualification before committing. The pre-commit hook checks the
+staged files. On the approved publication branch, pre-push compares the fetched origin tip with
+the clean candidate commit. It always runs fresh shared repository guardrails, adds the applicable
+Audioflix structural checks, and falls back to full guardrails for a broad or unclassified range.
+It writes its logs under `data/runtime/smoke-results/publication/`. Set
+`EVEOS_PUSH_FULL_GUARDRAILS=1` for a push that requires all structural guardrails.
+
+For a clean candidate and a handoff receipt, preview with `npm run --silent test:handoff -- --plan`
+and run `npm run --silent test:handoff`. The affected default supports `main` and the active
+publication branch. Its origin tip must be an ancestor of the candidate after fetching. An explicit
+`--base HEAD~1` reviews the last commit after it has already been published. The standalone affected
+command is the development path for a dirty tree.
+
+Use `npm run verify` for a full release qualification or `npm run --silent test:handoff -- --final`
+for the release gate with a handoff receipt. When a final handoff has no explicit profile or
+script, it runs only `verify`.
 
 ## Coverage and deduplication
 

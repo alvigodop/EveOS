@@ -22,6 +22,7 @@ while read -r local_ref local_oid remote_ref remote_oid; do
         echo "PUSH BLOCKED: new branch or non-fast-forward update." >&2
         exit 1
     fi
+    base_oid=$remote_oid
 done
 if [ "$seen" -ne 1 ] ||
    [ "$(git branch --show-current)" != "eve/nexus-machine-spaces" ] ||
@@ -30,8 +31,8 @@ if [ "$seen" -ne 1 ] ||
     exit 1
 fi
 
-# Structural checks on the exact checked-out commit, independent of test choices.
-if ! npm run --silent test:guardrails; then
+# Fresh shared checks and any affected feature guardrails on the exact push range.
+if ! python -B tools/qualification/eveos_publication_scope.py --base "$base_oid"; then
     echo "PUSH BLOCKED: mandatory EveOS repository guardrails are RED." >&2
     exit 1
 fi
@@ -40,4 +41,4 @@ if [ -n "$(git status --porcelain=v1 --untracked-files=normal)" ] ||
     echo "PUSH BLOCKED: source changed during qualification." >&2
     exit 1
 fi
-echo "EVEOS_PUBLICATION_GUARD_OK $local_oid"
+echo "EVEOS_PUBLICATION_GUARD_OK $candidate_oid"

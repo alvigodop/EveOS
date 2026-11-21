@@ -125,10 +125,14 @@ Enable the tracked Git hooks once per checkout with `npm run hooks:install`. The
 pre-commit hook rejects files over 450 lines and growth beyond the 440-line
 headroom gate, alongside existing credential, runtime-asset and extension checks.
 The pre-push hook permits only one clean fast-forward update of
-`eve/nexus-machine-spaces` to a matching fetched origin SHA, then executes
-`npm run test:guardrails` against the exact candidate commit. A failing test
+`eve/nexus-machine-spaces` to a matching fetched origin SHA, then runs fresh shared
+guardrails and applicable feature checks for the exact push range. Broad or
+unclassified changes use full guardrails. A failing test
 or changing source blocks publication. Use `git fetch origin` and inspect
 remote drift rather than bypassing the hook. `main` remains protected.
+
+Use [affected qualification](../../docs/EVEOS-QUALIFICATION-ENGINE-V3.md#commit-push-and-chat-handoffs)
+before committing. Full release qualification is available through `npm run verify`.
 
 Git hooks are local and can be bypassed by `--no-verify`, a different Git
 installation/configuration, or direct GitHub API writes. They do **not** replace

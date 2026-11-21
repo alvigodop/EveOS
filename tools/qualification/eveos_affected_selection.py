@@ -36,6 +36,7 @@ DOMAIN_RULES = (
     ('datapack', 'smoke:datapack-nebula-integrity', 'browser-owned', ('playwright', 'ports'),
      ('js/modules/features/datapack', 'js/modules/features/nebula', 'tools/smoke/datapack_',
       'tools/smoke/large_datapack_', 'tools/smoke/nebula_')),
+    ('chat-handoff', 'smoke:chat-handoff', 'pure', (), ('tools/smoke/eveos_chat_handoff',)),
 )
 
 
@@ -62,13 +63,14 @@ def _local_only(path):
             or path.startswith(('tools/qualification/eveos_affected_', 'tools/qualification/eveos_timed_qualification',
                                 'tools/qualification/eveos_qualification_manifest',
                                 'tools/qualification/eveos_engineering_safeguards',
+                                'tools/qualification/eveos_publication_scope.py',
                                 'tests/publication_', 'tools/audit/', 'tools/hooks/'))
             or path == 'tools/qualification/test_eveos_timed_qualification.py'
             or path in ('tools/smoke/qualification_guardrails_contract_smoke.js', PROFILE_RUNNER))
 
 
 def _documentation(path):
-    return path.endswith('.md') and (path.startswith('docs/') or '/' not in path)
+    return path.endswith('.md') and (path.startswith(('docs/', 'tools/qualification/')) or '/' not in path)
 
 
 def _profile_scripts(argv):
