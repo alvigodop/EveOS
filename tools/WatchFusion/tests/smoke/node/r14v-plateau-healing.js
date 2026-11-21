@@ -44,7 +44,7 @@ function logLab(){
   vm.runInNewContext(read('public/client/sync-room-log.js'),ctx,{filename:'sync-room-log.js'});
   const peer=(member,offset,changes={})=>({member,ready:true,playing:true,buffering:false,sampledAt:now-10,
     positionMs:now+offset,roomPositionMs:now,targetPositionMs:now,rate:1,
-    sensor:{clockState:'bounded',clockBoundMs:9,heldMs:1,audibleOutput:'player'},
+    sensor:{clockState:'bounded',clockBoundMs:9,heldMs:1,audibleOutput:'player',timelineState:'advancing',timelineRatePct:100},
     startupPhase:'decoder-confirmed',recentCorrection:'locked',...changes});
   const observe=rows=>{
     ctx.watchFusionRoomSyncLog.observe(rows,{source:'live',reference:'linked-tab',sourceReferenceAt:now-60,uncertaintyMs:11,authorityBuffering:false});
@@ -143,7 +143,7 @@ export async function runR14vChecks(check){
     const l=logLab();let s;
     for(const [dt,host,tv,clock] of PHYSICAL_20261121_STEADY){
       l.advance(dt);
-      s=l.observe([l.peer('host',host),l.peer('tv',tv,{sensor:{clockState:clock,clockBoundMs:34,heldMs:1,audibleOutput:'player'}})]);
+      s=l.observe([l.peer('host',host),l.peer('tv',tv,{sensor:{clockState:clock,clockBoundMs:34,heldMs:1,audibleOutput:'player',timelineState:'advancing',timelineRatePct:100}})]);
     }
     const spreads=PHYSICAL_20261121_STEADY.map(([,host,tv])=>host-tv).sort((a,b)=>a-b);
     assert.equal(spreads.length,44);

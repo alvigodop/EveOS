@@ -4,22 +4,27 @@
  */
 (() => {
   'use strict';
+  const LATE_RELEASE_RETRY_WINDOW_MS = 22000;
 
   function createReleaseEvidence() {
     let postRelease = null;
     function reset() { postRelease = null; }
     function start(at) {
       postRelease = {at, previous:null, sampleAt:0, firstAt:null,
-        lastAdvanceAt:null, invalid:false, sourceFault:false};
+        lastAdvanceAt:null, invalid:false, sourceFault:false, interrupted:false};
     }
     function observe(nowMs, io) {
       const p = postRelease;
-      if (!p || nowMs-p.at > 12000 || p.invalid || p.sourceFault) return;
+      if (!p || nowMs-p.at > LATE_RELEASE_RETRY_WINDOW_MS || p.invalid || p.sourceFault) return;
+      const state = io.state();
+      // Decoder startup can buffer before the first advance. A later interruption changes the measured lag.
+      if (state === 3 && p.firstAt !== null) p.interrupted = true;
+      if (nowMs-p.at > 12000) return;
       if (io.sourceBuffering?.() || io.referenceTrusted?.() !== true || (io.hostLinked && io.hostFineHoldTrusted?.() !== true)) {
         p.sourceFault = true;
         return;
       }
-      if (io.state() !== 1) return;
+      if (state !== 1) return;
       const current = io.current();
       if (!Number.isFinite(current)) { p.invalid = true; return; }
       if (p.previous === null) { p.previous = current; p.sampleAt = nowMs; return; }
@@ -52,7 +57,11 @@
       return p ? {firstProgressDelayMs:p.firstAt === null ? null : Math.round(p.firstAt-p.at),
         invalid:p.invalid, sourceFault:p.sourceFault, qualified:qualified(c,nowMs)} : null;
     }
-    return {reset, start, observe, qualified, snapshot};
+    function canRetry(c) {
+      const p = postRelease;
+      return !!(p && c?.releasedAt === p.at && p.firstAt !== null && !p.interrupted && !p.invalid && !p.sourceFault);
+    }
+    return {reset, start, observe, qualified, snapshot, canRetry};
   }
 
   function sourceRecoveryHoldEligible({error,recovery,trust,uncertainty,rates,buffering}) {
@@ -201,8 +210,129 @@
     return {consider,cancelCandidate,snapshot};
   }
 
+
+  // R14x: a follower's post-release callback and its decoder cannot both own recovery.
+  // This policy observes the iframe media timeline only; it never controls the player.
+  function createTvRecoveryOwner() {
+    let identity='', releasedAt=-Infinity, last='idle', blocks=0, held={since:-1,lastAt:-1,reads:0};
+    const mediaKey = value => String(value||'').split(':').slice(0,3).join(':');
+    function scope(value) {
+      const key=mediaKey(value);
+      if (key!==identity) {identity=key;releasedAt=-Infinity;held={since:-1,lastAt:-1,reads:0};last='new-video';}
+    }
+    function release(value,at) {scope(value);if(Number.isFinite(at)){releasedAt=at;last='release-observed';}}
+    function block(value,at,error,why,io) {
+      scope(value);
+      if (!io?.follower || io?.linkedSourceActive?.()!==true || io.hostLinked || why==='manual') return false;
+      const age=at-releasedAt;
+      if (!(Number.isFinite(age)&&age>=0&&age<25000&&Number.isFinite(error))) return false;
+      if (why==='stall' || (Math.abs(error)>4 && io.referenceTrusted?.()===true)) return false;
+      last='post-release-duplicate-blocked';blocks++;return true;
+    }
+    function motion({value,at,playing,buffering,ready,hidden,state,rate,stalledMs,sourceLive}) {
+      scope(value);
+      const clear=()=>{held={since:-1,lastAt:-1,reads:0};};
+      if(!identity || !Number.isFinite(at)||hidden||!playing||buffering||ready!==false||sourceLive!==true){clear();return 'not-eligible';}
+      if(state==='advancing'&&Number.isFinite(rate)&&rate>=70&&rate<=135){clear();last='decoder-advancing';return 'advancing';}
+      if(state!=='held'||!Number.isFinite(rate)||rate<0||rate>15){clear();last='motion-unverified';return 'observe';}
+      if(held.since<0||at<held.lastAt||at-held.lastAt>1500)held={since:at,lastAt:at,reads:1};
+      else {held.lastAt=at;held.reads++;}
+      const duration=at-held.since;
+      if(held.reads>=4&&duration>=1200&&Math.max(Number(stalledMs)||0,duration)>=6500){last='decoder-first-qualified';return 'decoder';}
+      last='held-witness-building';return 'observe';
+    }
+    function heldMs(at){return held.since>=0&&Number.isFinite(at)?Math.max(0,at-held.since):0;}
+    function snapshot(){return {owner:last,blocks,heldReads:held.reads};}
+    return {scope,release,block,motion,heldMs,snapshot};
+  }
+
+  // The stable lag plus the lead at play() estimates the decoder's start delay.
+  // Reuse it for one buffered retry without changing the stored latency model.
+  function createLateReleaseRetryGate() {
+    const attempts = new Set();
+    let candidate = null;
+    function consider({scope, nowMs, error, io, correction}) {
+      const c = correction;
+      const ageMs = nowMs - c?.releasedAt;
+      const precisionMs = io.referenceUncertaintyMs?.();
+      const target = io.target(nowMs);
+      const latency = (c?.releaseLeadSec + error) / io.baseRate;
+      const eligible = c?.automaticRelease && io.follower === true && !io.hostLinked &&
+        io.state() === 1 && io.referenceTrusted?.() === true &&
+        io.sourceReferenceQualified?.() === true && Number.isFinite(c.releaseLeadSec) &&
+        !io.sourceBuffering?.() && !io.mirrorContradicted?.() &&
+        Number.isFinite(precisionMs) && precisionMs >= 0 && precisionMs <= 35 &&
+        error >= .65 && error <= 2.5 && ageMs >= 4000 && ageMs <= LATE_RELEASE_RETRY_WINDOW_MS &&
+        Math.abs(target - c.releaseTarget - ageMs / 1000 * io.baseRate) <= .08 &&
+        latency >= .35 && latency <= 2;
+      if (!eligible || attempts.has(scope)) { candidate = null; return null; }
+      if (candidate?.scope !== scope || candidate.correction !== c || nowMs - candidate.lastAt > 1000 ||
+          Math.abs(candidate.error - error) > .06) {
+        candidate = {scope, correction: c, since: nowMs, lastAt: nowMs, error};
+        return null;
+      }
+      candidate.lastAt = nowMs;
+      return nowMs - candidate.since >= 2500 ? latency : null;
+    }
+    function spend(scope) {
+      if (attempts.size >= 32) attempts.delete(attempts.values().next().value);
+      attempts.add(scope);
+      candidate = null;
+    }
+    return {consider, spend};
+  }
+
+  // R14y: one per-video, source-qualified trial when a TV previously rejected
+  // speed control. No forced rates, pause, seek, reload or synthetic audio phase.
+  function createTvRateRecheckGate() {
+    const spent=new Set();let candidate=null,reason='idle',attempts=0;
+    const videoKey=scope=>String(scope||'').split(':').slice(0,3).join(':');
+    function consider({scope,nowMs,error,io,rateHonored,quietStallMs,quietRejoinMs}) {
+      const key=videoKey(scope),rates=io.availableRates?.();
+      const alternate=Array.isArray(rates) ? rates.filter(r=>Number.isFinite(r)&&r>0&&
+        (error<0 ? r>=io.baseRate*.74&&r<=io.baseRate*.96 : r>=io.baseRate*1.04&&r<=io.baseRate*1.26))
+        .sort((a,b)=>Math.abs(a-io.baseRate)-Math.abs(b-io.baseRate))[0] : null;
+      if (spent.has(key)){reason='per-video-trial-spent';candidate=null;return null;}
+      const precision=io.referenceUncertaintyMs?.();
+      const largeLag = error >= .35;
+      const eligible=key.split(':').length===3 && rateHonored===false && !!alternate &&
+        io.follower===true && io.hostLinked!==true && io.linkedSourceActive?.()===true &&
+        io.sourceReferenceQualified?.(100)===true && io.state?.()===1 &&
+        io.referenceTrusted?.()===true && io.sourceBuffering?.()!==true && io.mirrorContradicted?.()!==true &&
+        Number.isFinite(precision)&&precision>=0&&precision<=35 &&
+        Number.isFinite(error)&&error>=-.43&&error<=.85&&Math.abs(error)>=.115 &&
+        Number.isFinite(nowMs)&&quietStallMs>=(largeLag?5000:20000)&&quietRejoinMs>=(largeLag?6000:25000);
+      if(!eligible){reason=!alternate?'no-advertised-rate-actuator':'source-motion-or-quiet-time-not-qualified';candidate=null;return null;}
+      if(!candidate || candidate.key!==key || Math.sign(candidate.error)!==Math.sign(error) ||
+          Math.abs(candidate.error-error)>.035 || nowMs-candidate.lastAt>1000 || nowMs<candidate.lastAt){
+        candidate={key,error,at:nowMs,lastAt:nowMs,samples:1};reason='stable-rate-trial-dwell';return null;
+      }
+      candidate.samples++;candidate.lastAt=nowMs;
+      if(nowMs-candidate.at<(largeLag?2500:10000) || candidate.samples<8){reason='stable-rate-trial-dwell';return null;}
+      spent.add(key);candidate=null;attempts++;reason='single-advertised-rate-trial';
+      return {rate:alternate};
+    }
+    return {consider,snapshot:()=>({reason,attempts,watching:!!candidate})};
+  }
+
+  // Classify actual raw IFrame timeline movement, not an API rate-setting ack.
+  // Short subsecond bursts otherwise end before the old 1600ms probe begins.
+  function classifyRateProbe(job,io,nowMs) {
+    const elapsed=(nowMs-job?.probe?.nowMs)/1000;
+    if(!Number.isFinite(elapsed)||elapsed<.55||elapsed>15||io.state?.()!==1||
+       io.sourceBuffering?.()===true||io.referenceTrusted?.()!==true||io.mirrorContradicted?.()===true) return 'unverified';
+    const current=io.current?.(),start=job.probe.current,base=io.baseRate,trial=job.rate;
+    if(![current,start,base,trial].every(Number.isFinite))return 'unverified';
+    const actual=current-start-base*elapsed,expected=(trial-base)*elapsed;
+    if(Math.abs(expected)<.11 || current-start<elapsed*.4 || current-start>elapsed*1.6)return 'unverified';
+    if(Math.abs(actual-expected)<=Math.min(.07,Math.abs(expected)*.38))return 'honored';
+    if(Math.abs(actual)<=Math.min(.055,Math.abs(expected)*.32))return 'rejected';
+    return 'unverified';
+  }
+
   globalThis.WatchFusionReleaseEvidence = Object.freeze({
     createReleaseEvidence, sourceRecoveryHoldEligible, createSourceRecoveryGate,
-    createFixedRateFineGate, createFixedRatePlateauRecoveryGate
+    createFixedRateFineGate, createFixedRatePlateauRecoveryGate, createLateReleaseRetryGate,
+    createTvRateRecheckGate, classifyRateProbe, tvRecoveryOwner:createTvRecoveryOwner()
   });
 })();

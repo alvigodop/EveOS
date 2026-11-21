@@ -155,6 +155,7 @@ test('a buffered TV pause aligns once and an unverified 260ms plateau does not h
         getPlayerState: () => playerState, getCurrentTime: () => current,
         getVideoData: () => ({video_id:'M7lc1UVf-VE'}),
         getDuration: () => 300, getVolume: () => 100, getPlaybackRate: () => 1,
+        getAvailablePlaybackRates: () => [1],
         getVideoLoadedFraction: () => 1, playVideo(){ playerState = 1; },
         pauseVideo(){ playerState = 2; },
         seekTo(target, network){ seeks.push({target,network}); current = target; }
@@ -197,7 +198,7 @@ test('a buffered TV pause aligns once and an unverified 260ms plateau does not h
   expect(observed.afterStable).toBe(observed.afterManual);
   expect(observed.stable.failures).toBe(0);
   expect(observed.stable.rejoins).toBe(0);
-  expect(observed.stable.reason).toBe('output-phase-unverified');
+  expect(observed.stable.reason).toBe('tv-no-advertised-fine-rate');
   // A real later transport change is still allowed to rejoin.
   expect(observed.hostSeekApplied).toBe(true);
 });

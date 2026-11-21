@@ -10,6 +10,7 @@ const count = value => int(value, 0, 100000);
 export const SENSOR_DOMAINS = new Set(['player-timeline', 'media-element', 'video-frame']);
 export const AUDIBLE_OUTPUTS = new Set(['player', 'source-tab', 'both', 'none', 'unknown']);
 const CLOCK_STATES = new Set(['bounded', 'coarse', 'thin', 'unstable', 'stale', 'unknown']);
+const TIMELINE_STATES = new Set(['advancing', 'slow', 'held', 'jumped', 'unverified']);
 
 function linkedSource(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -32,7 +33,8 @@ export function sanitizeSensor(value) {
   return {domain: SENSOR_DOMAINS.has(value.domain) ? value.domain : null,
     heldMs: int(value.heldMs, 0, 10000), cadenceMs: int(value.cadenceMs, 0, 10000),
     clockBoundMs: int(value.clockBoundMs, 0, 10000), clockState: CLOCK_STATES.has(value.clockState) ? value.clockState : 'unknown',
-    audibleOutput: AUDIBLE_OUTPUTS.has(value.audibleOutput) ? value.audibleOutput : 'unknown'};
+    timelineState: TIMELINE_STATES.has(value.timelineState) ? value.timelineState : 'unverified',
+    timelineRatePct: int(value.timelineRatePct, 0, 300), audibleOutput: AUDIBLE_OUTPUTS.has(value.audibleOutput) ? value.audibleOutput : 'unknown'};
 }
 
 // Remote decoder diagnostics are bounded enums and integers only: never raw messages or URLs.

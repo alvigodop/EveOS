@@ -6,6 +6,9 @@ import {runR14sRecoveryChecks} from './r14s-resume-recovery.js';
 import {runR14tStatusChecks} from './r14t-status-trust.js';
 import {runR14uChecks} from './r14u-source-authority.js';
 import {runR14vChecks} from './r14v-plateau-healing.js';
+import {runR14wChecks} from './r14w-evidence.js';
+import {runR14xChecks} from './r14x-recovery-ownership.js';
+import {runR14yChecks} from './r14y-rate-convergence.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -148,4 +151,7 @@ export async function runV13108fChecks(check) {
   await runR14tStatusChecks(check);
   await runR14uChecks(check);
   await runR14vChecks(check);
+  await runR14wChecks(check);
+  await runR14xChecks(check);
+  await runR14yChecks(check);
 }

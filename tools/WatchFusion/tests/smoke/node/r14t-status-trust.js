@@ -106,8 +106,8 @@ export async function runR14tStatusChecks(check) {
     assert.equal(s.groupSpreadMs,20);assert.equal(s.groupPhase,'common-mode-offset');
     assert.equal(s.peers.find(x=>x.device==='TV').targetErrorMs,-200);
   });
-  await check('R14T-10:exported-trace-identifies-r14t-measurement-policy',()=>{
-    assert.match(read('public/client/sync-room-log.js'),/diagnosticsVersion:'v13\.10\.8x-r14(?:t|u|v)'/);
+  await check('R14T-10:exported-trace-identifies-active-timing-policy',()=>{
+    assert.match(read('public/client/sync-room-log.js'),/diagnosticsVersion:'v13\.10\.8x-r14y-rate-recovery'/);
   });
   await check('R14T-09:status-modules-never-call-seek-play-pause-rate-or-source-controls',()=>{
     const s=read('public/client/sync-center.js'), t=read('public/client/sync-room-log.js');

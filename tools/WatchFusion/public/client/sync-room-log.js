@@ -52,7 +52,9 @@
   function sensor(d) {
     if(!d||typeof d!=='object')return null;
     return {domain:/^[a-z-]{1,20}$/.test(d.domain)?d.domain:null,heldMs:finite(d.heldMs),cadenceMs:finite(d.cadenceMs),
-      clockBoundMs:finite(d.clockBoundMs),clockState:/^[a-z]{1,10}$/.test(d.clockState)?d.clockState:'unknown',audibleOutput:/^[a-z-]{1,12}$/.test(d.audibleOutput)?d.audibleOutput:'unknown'};
+      clockBoundMs:finite(d.clockBoundMs),clockState:/^[a-z]{1,10}$/.test(d.clockState)?d.clockState:'unknown',
+      timelineState:/^(?:advancing|slow|held|jumped|unverified)$/.test(d.timelineState)?d.timelineState:null,
+      timelineRatePct:Number.isFinite(d.timelineRatePct)&&d.timelineRatePct>=0&&d.timelineRatePct<=300?finite(d.timelineRatePct):null,audibleOutput:/^[a-z-]{1,12}$/.test(d.audibleOutput)?d.audibleOutput:'unknown'};
   }
   // Explicit whitelist for exported peer diagnostics: no opaque JSON or free text.
   function decoder(v) {
@@ -124,15 +126,17 @@
     if (scope !== plateauScope) { plateauScope = scope; plateauSamples = []; }
     const qualified = rows.filter(p=>p.playing&&!p.buffering&&p.targetErrorMs!==null&&
       p.reportAgeMs!==null&&p.reportAgeMs>=0&&p.reportAgeMs<=1500&&
-      p.startupPhase === 'decoder-confirmed'&&
+      ['decoder-confirmed','fine-locked'].includes(p.startupPhase)&&
       !['unstable','stale','unknown'].includes(p.sensor?.clockState)&&
+      p.sensor?.timelineState==='advancing' &&
+      (p.sensor?.heldMs==null || p.sensor.heldMs<=300) &&
       Number.isFinite(p.sensor?.clockBoundMs)&&p.sensor.clockBoundMs<=100);
     const sourceFresh = coordination?.source==='live' && coordination?.authorityBuffering!==true &&
       Number.isFinite(coordination?.sourceReferenceAt) &&
       now - coordination.sourceReferenceAt >= 0 && now - coordination.sourceReferenceAt <= 1500;
     if (qualified.length < 2 || !sourceFresh || timeline.timelineSpreadMs===null || timeline.timelineSpreadMs>600) {
       plateauSamples = [];
-      return {state:'insufficient-evidence',medianSpreadMs:null,jitterMs:null,observedMs:0,
+      return {state:'insufficient-evidence',targetBand:null,medianSpreadMs:null,jitterMs:null,observedMs:0,
         samples:0,speakerPhase:'not-measured'};
     }
     const spread=timeline.timelineSpreadMs;
@@ -144,8 +148,10 @@
     const sorted=plateauSamples.map(p=>p.spread).sort((a,b)=>a-b);
     const jitter=sorted.at(-1)-sorted[0],observed=now-plateauSamples[0].at;
     const stable=plateauSamples.length>=5&&observed>=20000&&jitter<=35;
+    const median=sorted[Math.floor(sorted.length/2)];
     return {state:stable?'stable-timeline-offset':jitter>80?'unstable-timeline-offset':'qualifying',
-      medianSpreadMs:stable?sorted[Math.floor(sorted.length/2)]:null,jitterMs:jitter,
+      targetBand:stable?(median<=50?'within-50':'outside-50'):null,
+      medianSpreadMs:stable?median:null,jitterMs:jitter,
       observedMs:Math.round(observed),samples:plateauSamples.length,speakerPhase:'not-measured'};
   }
   function recordSegment() {
@@ -178,6 +184,8 @@
     if (now - peer.sampledAt > 2700) signals.push('STALE_PLAYER_REPORT');
     if (peer.buffering) signals.push('BUFFERING');
     if (peer.playing && unverifiedDecoder) signals.push('DECODER_PROGRESS_UNVERIFIED');
+    if(peer.playing && ['held','slow','jumped'].includes(peer.sensor?.timelineState))
+      signals.push('TIMELINE_MOTION_UNVERIFIED');
     if (peer.audioReadiness === 'needs-gesture') signals.push('AUDIO_GESTURE_REQUIRED');
     if (decoderSteps != null && decoderSteps > (last?.decoderSteps ?? 0)) signals.push('DECODER_RECOVERY_STEP_' + decoderSteps);
     if (peer.playing && !peer.buffering && peer.sensor?.heldMs > 300) signals.push('POSITION_HELD');
@@ -200,13 +208,22 @@
     if (last && last.phase !== null && phase !== null && Math.abs(phase - last.phase) > 900)
       signals.push('PLAYER_PHASE_JUMP');
     lastPeers.set(peer.member, {phase, corrections, recoveries, decoderSteps});
-    return {device:memberName(peer.member), playing:peer.playing, buffering:peer.buffering,
+    const hostInBand=peer.member===state?.hostId && live && !unverifiedDecoder &&
+      Number.isFinite(targetError) && Math.abs(targetError)<=50;
+    const recoveryMeaning=peer.hostRecovery?.outcome==='no-healthy-peer-witness'
+      ? (hostInBand?'not-needed-host-in-band':'no-qualified-peer-witness') : null;
+    return {device:memberName(peer.member), role:peer.member===state?.hostId?'host':'viewer',
+      hostRecoveryMeaning:recoveryMeaning, playing:peer.playing, buffering:peer.buffering,
       reportAgeMs:reportAge, playerOffsetMs:live&&!unverifiedDecoder?rawPhase:null,
        rawOffsetMs:rawPhase, targetErrorMs:live&&!unverifiedDecoder?targetError:null, sourceErrorMs:peer.sensor?.clockState==='bounded' ? window.watchFusionPlayout?.sourceErrorMs?.(peer, coordination, now) ?? null : null, adjustmentMs:finite(peer.adjustmentMs),
        timingQuality:!peer.playing?'paused-residual':!live?'stale-or-buffering':unverifiedDecoder?'decoder-progress-unverified':peer.sensor?.clockState==='bounded'?'bounded-player-only':'thin-clock-estimate',
+      playerRate:Number.isFinite(peer.rate)?Math.round(peer.rate*1000)/1000:null,
       rttMs:finite(peer.rttMs), sourceAgeMs:finite(peer.sourceAgeMs), startupWaitMs:finite(peer.startupWaitMs),
       startupPhase:/^[a-z-]{1,30}$/.test(peer.startupPhase)?peer.startupPhase:null, audioReadiness:/^[a-z-]{1,30}$/.test(peer.audioReadiness)?peer.audioReadiness:null,
-      corrections, action:peer.recentCorrection || null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
+      corrections, action:peer.recentCorrection || null,
+      correctionOwner:/^tv-decoder-first/.test(peer.recentCorrection||'')?'bounded-decoder-rescue':
+        /^(?:tv-post-release-duplicate-blocked|tv-healthy-plateau-no-speaker-proof|tv-motion-|tv-reference-)/.test(peer.recentCorrection||'')?'observe-only':
+        /^(?:rejoin-|stall-kick|rate-|track-start-qualified-rejoin|late-release-retry-started)/.test(peer.recentCorrection||'')?'viewer-arbiter':null, hostRecovery:recover(peer) || (peer.member===state?.hostId && typeof isHost==='function' && isHost() ? recover(localRecovery()) : null),
       audible:typeof peer.audible==='boolean'?peer.audible:null, sensor:sensor(peer.sensor),
       filteredDriftMs:finite(peer.filteredDriftMs),
       seekHealth:peer.seekHealth || null, decoderRecovery:decoder(peer.decoderRecovery),
@@ -233,6 +250,9 @@
     const rows = peers.map(p => strip(p, now, coordination)).sort((a,b) => a.device.localeCompare(b.device));
     const relative = group(rows), linkedSource = linkedSourceEvidence(peers,coordination,now);
     const playbackPlateau = plateauEvidence(rows,relative,coordination,now);
+    const host=rows.find(p=>p.role==='host' && p.targetErrorMs!==null);
+    for(const peer of rows) peer.relativeToHostMs=host && peer.targetErrorMs!==null
+      ? peer.targetErrorMs-host.targetErrorMs:null;
     const members = finite(roster?.members), reporting = finite(roster?.reporting);
     const rejections = roster?.rejections && typeof roster.rejections === 'object' ? Object.fromEntries(Object.entries(roster.rejections)
       .filter(([k,v]) => /^[a-z-]{1,20}$/.test(k) && Number.isFinite(v)).slice(0,8).map(([k,v]) => [k,Math.round(v)])) : null;
@@ -310,7 +330,7 @@
     prune();
     return JSON.stringify({format:'WatchFusion room sync trace v3',generatedAt:new Date().toISOString(),windowMs:MAX_AGE,
       disclosure:'Player timing, source-supplied song titles and durations, user control intents and redacted transitions only; no audio, URLs, tokens or microphone measurements. Titles are included only when the user copies this local log. Player target error does not measure speaker-output latency; clock bounds include unknown asymmetry.',
-      diagnosticsVersion:'v13.10.8x-r14v',snapshots:entries,events},null,2);
+      diagnosticsVersion:'v13.10.8x-r14y-rate-recovery',snapshots:entries,events},null,2);
   }
   async function copyLog() {
     const content = exported();

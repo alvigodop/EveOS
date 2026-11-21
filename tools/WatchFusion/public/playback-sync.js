@@ -13,6 +13,7 @@
   let deviceDelayMs = normalizeDeviceDelay(storage.get(DEVICE_TIMING_KEY));
   let draftDeviceDelayMs = deviceDelayMs;
   const arbiter = window.watchFusionViewerArbiter;
+  const tvOwner = window.WatchFusionReleaseEvidence?.tvRecoveryOwner;
   let anchorKey = '';
   let anchorPosition = 0;
   let anchorServerTime = 0;
@@ -34,9 +35,7 @@
     stable: false,
     action: 'idle'
   };
-  // Fresh TV-only join: one time-limited, same-video, qualified seek for seconds-scale displacement.
   const coldJoinReady=({until,nowMs,roomPaused,force,playerState,drift,linked,reference,matches})=>!!(until>nowMs&&!roomPaused&&!force&&playerState===1&&Math.abs(drift)>8&&matches&&(!linked||reference?.source==='live'&&reference.authorityBuffering!==true&&Number.isFinite(reference.sourcePhaseMs)&&Math.abs(reference.sourcePhaseMs)<=100));
-  // A one-shot transition rejoin gate; never a small-offset mid-song correction.
   function trackStartRecoveryEligible({ageMs, driftSec, stable, ready, sourceLive,
       uncertaintyMs, rateList, firstProgressMs, seekCount, contradicted}) {
     return ageMs >= 4500 && ageMs <= 18000 && driftSec >= .20 && driftSec <= .85
@@ -175,7 +174,6 @@
     awaitingSeekRecovery = true;
     seekCooldownUntil = nowMs + SEEK_COOLDOWN_MS;
   }
-  // Fallback only when the arbiter module is unavailable; intentional actions only.
   function seekViewer(target, baseRate, nowMs, action = 'seek', allowNetwork = true) {
     try {
       setViewerRate(baseRate);
@@ -188,10 +186,10 @@
     setStatus('Catching up…');
     return true;
   }
-  // The only actuator handed to the arbiter: every automatic seek/rate/pause/play passes here.
   function arbiterIo(baseRate, duration) {
     return {
-      baseRate, hostLinked: isHost() && state?.linkedSourceActive === true, now: () => performance.now(),
+      baseRate, hostLinked: isHost() && state?.linkedSourceActive === true, follower:!isHost()&&followsRoomPlayback(),
+      tvIdentity:[roomId,state?.source?.videoId,state?.presentationEpoch].join(':'),linkedSourceActive:()=>state?.linkedSourceActive===true,now: () => performance.now(),
       target: () => youtubeTarget(estimatedServerNow(), duration),
       current: () => Number(ytPlayer.getCurrentTime?.()), state: () => ytPlayer.getPlayerState?.(),
       availableRates: () => ytPlayer.getAvailablePlaybackRates?.(),
@@ -199,7 +197,7 @@
       seek: (position, allowNetwork) => {
         window.watchFusionLinkedTab?.suppressPlaybackEcho?.();
         ytPlayer.seekTo(Math.max(0, Math.min(duration || Infinity, position)), allowNetwork);
-        correctiveSeeks++; setStatus('Catching up…');
+        window.watchFusionYouTubeStartup?.seekIssued?.(false); correctiveSeeks++; setStatus('Catching up…');
       },
       pause: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.pauseVideo?.(); },
       play: () => { window.watchFusionLinkedTab?.suppressPlaybackEcho?.(); ytPlayer.playVideo?.(); },
@@ -210,11 +208,12 @@
         return c.sourceRecovery ? {...c.sourceRecovery,reference:c.reference,source:c.source,
           uncertaintyMs:c.uncertaintyMs,authorityBuffering:c.authorityBuffering} : null; },
       referenceUncertaintyMs: () => { const c=window.watchFusionPlayout?.status?.();const p=isHost()?window.watchFusionPresentation?.peerCandidate?.():null;const offset=(Number(ytPlayer?.getCurrentTime?.())-Number(window.watchFusionYouTubeTarget?.(estimatedServerNow(),ytPlayer?.getDuration?.())))*1000;return window.WatchFusionPrecisionPolicy?.trustedHostReference?.(c,p,offset)?.precisionMs??c?.uncertaintyMs??null; },
-      // Host-driven rooms have no external source: the host transport is the room timeline.
-      // With a linked source, large automatic moves need that source to corroborate the room.
       referenceTrusted: () => state?.linkedSourceActive !== true || window.watchFusionPlayout?.status?.()?.source === 'live',
-      // Source-aware host hold: only a live, fresh, in-phase linked source with
-      // no held mirror contradiction may authorize a small, non-seek correction.
+      sourceReferenceQualified: (maxPhaseMs = 25) => {
+        const playout=window.watchFusionPlayout, c=playout?.status?.();
+        return !document.hidden && c?.reference==='linked-tab' && playout.hasSourceReference?.(c,estimatedServerNow())===true &&
+          Number.isFinite(c.sourcePhaseMs) && Math.abs(c.sourcePhaseMs)<=maxPhaseMs;
+      },
       hostHoldBlocker: () => window.WatchFusionHostSeekPolicy?.sourceBlocker(youtubeTarget(estimatedServerNow(), duration)),
       hostFineHoldTrusted() { return this.hostLinked && this.hostHoldBlocker() === null; }
     };
@@ -224,7 +223,6 @@
     if (playerInitializing || primingPlayer) return;
     const scope = [roomId, state.source.videoId, state.presentationEpoch, state.playoutSegment].join(':');
     const roomPaused = !!(state.playback.paused || state.playback.ended);
-    // Observe pause/resume during BUFFERING, without untrusted seeks or playback actions.
     if (!isHost()) window.WatchFusionDecoderRescue?.observeTransport?.({scope, nowMs:performance.now(), paused:roomPaused});
     const sameSource = viewerScope && scope.slice(0, scope.lastIndexOf(':')) === viewerScope.slice(0, viewerScope.lastIndexOf(':'));
     const ordinaryResume = viewerPausedPosition !== null && !roomPaused && Math.abs(Number(state.playback.position) - viewerPausedPosition) < .75;
@@ -255,7 +253,7 @@
     arbiter?.observeRelease?.(nowMs, io);
     const playerState = ytPlayer.getPlayerState?.();
     const buffering = playerState === (window.YT?.PlayerState?.BUFFERING ?? 3);
-    if (coldJoinUntil && (force || roomPaused || nowMs >= coldJoinUntil || absRaw <= 2.5)) coldJoinUntil = 0;
+    if (coldJoinUntil && (roomPaused || nowMs >= coldJoinUntil || absRaw <= 2.5)) coldJoinUntil = 0;
     const playerEnded = playerState === (window.YT?.PlayerState?.ENDED ?? 0);
     const transport = {roomId, videoId:state.source.videoId, epoch:state.presentationEpoch, segment:state.playoutSegment};
     if (roomPaused) {
@@ -276,7 +274,6 @@
       if (pause && !pause.seek) resetSeekRecovery();
       markStable(); return true;
     }
-    // While the arbiter holds the player (scheduled release, rate burst) nothing else may touch it.
     if (arbiter?.owns() && !force) {
       const decision = arbiter.tick(scope, nowMs, io);
       diagnostics.action = decision.reason;
@@ -285,8 +282,7 @@
     if (!arbiter?.owns() && !window.watchFusionHostZeroCenter?.isApplying?.() && !window.WatchFusionZeroConverge?.isApplying?.()) setViewerRate(baseRate);
     const startup = window.watchFusionYouTubeStartup?.running({...transport, nowMs, current, playing:playerState===1, buffering, drift:rawDrift, rate:baseRate});
     if (!transportSeekPending && startup?.ready && !io.mirrorContradicted() && coldJoinReady({until:coldJoinUntil,nowMs,roomPaused,force,playerState,drift:rawDrift,linked:state.linkedSourceActive===true,reference:window.watchFusionPlayout?.status?.(),matches:ytPlayer.getVideoData?.()?.video_id===state.source.videoId})) { transportSeekPending = true; coldJoinUntil = 0; }
-    // v13.10.7: a wedged decoder (frozen while PLAYING after the ladder, or stuck BUFFERING) gets the bounded terminal ladder.
-    const decoderRescue=(bufferingNow,exhausted=!bufferingNow)=>!force&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,position:current,stalledMs:startup?.stalledMs ?? 0,
+    const decoderRescue=(bufferingNow,exhausted=!bufferingNow,heldProofMs=0)=>!force&&!roomPaused&&window.WatchFusionDecoderRescue?.consider?.({scope,nowMs,exhausted,playing:playerState===1,buffering:bufferingNow,drift:rawDrift,position:current,stalledMs:Math.max(startup?.stalledMs??0,heldProofMs),
       trusted:state?.linkedSourceActive!==true||window.watchFusionPlayout?.status?.()?.source==='live',sourceBuffering:!!window.watchFusionPlayout?.sourceBuffering?.(),
       reload:()=>{if(typeof ytPlayer.loadVideoById!=='function')throw Error('reload unavailable');window.watchFusionLinkedTab?.suppressPlaybackEcho?.();ytPlayer.loadVideoById({videoId:state.source.videoId,startSeconds:target+.5});replayLoads++;arbiter?.intent('pause',io);awaitSeekRecovery(nowMs);},
       rebuild:()=>{window.watchFusionLinkedTab?.suppressPlaybackEcho?.();arbiter?.intent('pause',io);window.WatchFusionDecoderRescue.rebuildPlayer(state.source.videoId,isHost()?null:target);replayLoads++;}});
@@ -303,19 +299,17 @@
     viewerSawEnded = false;
     if (playerState !== (window.YT?.PlayerState?.PLAYING ?? 1)) { diagnostics.action = startup?.reason || 'viewer-awaiting-play'; requestViewerPlayback(); return true; }
     if (force || transportSeekPending || startup?.reclaim) {
-      // Sync me, a host transport change and a scrub reclaim use the same landing-aware rejoin.
       if (bufferedOnly) { arbiter?.intent('calibration', io); return true; }
       if (explicitSync && absRaw < .18) arbiter?.intent('manual', io);
       else if (arbiter) arbiter.rejoinNow(nowMs, io, explicitSync ? 'manual' : force ? 'hydrate' : transportSeekPending ? 'transport' : 'reclaim');
-      else seekViewer(target, baseRate, nowMs, explicitSync ? 'manual-sync' : 'transport-seek');
+      else if (seekViewer(target, baseRate, nowMs, explicitSync ? 'manual-sync' : 'transport-seek')) coldJoinUntil = 0;
       transportSeekPending = false;
       window.watchFusionYouTubeStartup?.seekIssued?.(!!startup?.reclaim);
       diagnostics.action = arbiter?.snapshot().reason || 'transport-seek';
-      if (arbiter?.owns()) setStatus('Catching up…');
+      if (arbiter?.owns()) { coldJoinUntil = 0; setStatus('Catching up…'); }
       return true;
     }
     sampleDrift(rawDrift, nowMs);
-    // Qualified track-start landing only: no mid-song fixed-rate phase chase.
     if (trackStartRecovery && !trackStartRecovery.spent && trackStartRecovery.scope === scope
         && !force && !roomPaused && playerState === 1 && !buffering
         && !arbiter?.owns() && ytPlayer.getVideoData?.()?.video_id === state.source.videoId) {
@@ -336,13 +330,21 @@
       }
     }
     if (startup?.ready === false && !arbiter?.owns()) {
-      // PLAYING with a frozen position never proves movement: the arbiter's bounded ladder recovers it.
+      if(!force&&!isHost()&&state?.linkedSourceActive===true&&tvOwner){
+        if(document.hidden||window.watchFusionPlayout?.status?.()?.source!=='live'||io.sourceBuffering?.()) {diagnostics.action='tv-reference-or-visibility-unverified';return true;}
+        const m=window.WatchFusionSensorProvenance?.describe?.({media:ytPlayer,now:nowMs,clock:window.watchPartyClock?.offsetBound?.()});
+        const verdict=tvOwner.motion({value:scope,at:nowMs,playing:playerState===1,buffering,
+          ready:startup.ready,hidden:document.hidden,state:m?.timelineState,rate:m?.timelineRatePct,
+          stalledMs:startup.stalledMs,sourceLive:window.watchFusionPlayout?.status?.()?.source==='live'&&!io.sourceBuffering?.()});
+        // Progress rules out a frozen decoder. Otherwise the proven bounded
+        // kick/rejoin ladder owns recovery; a terminal reload must wait for exhaustion.
+        if(verdict==='advancing') {diagnostics.action='tv-motion-proves-progress';return true;}
+      }
       if (arbiter?.recoverStall?.(nowMs, io, startup.stalledMs)) { diagnostics.action = arbiter.snapshot().reason; return true; }
       const exhausted=arbiter?.snapshot().reason === 'stall-recovery-exhausted';
       if(exhausted && decoderRescue(false)){diagnostics.action='decoder-recovery';setStatus('TV decoder recovery · restarting this player once…');return true;}
       diagnostics.action=exhausted?'stall-recovery-exhausted':startup.reason;if(playerState!==1)requestViewerPlayback();return true;
     }
-    // Healthy PLAYING is observation only: it cannot invoke any reload/seek.
     if (!force && startup?.ready === true && !arbiter?.owns()) decoderRescue(false, false);
     if (isHost() && state?.linkedSourceActive && arbiter && window.WatchFusionHostPeerRecovery?.consider?.({
       scope,nowMs,hostOffsetMs:(current-target)*1000,peer:window.watchFusionPresentation?.peerCandidate?.(),observedPeer:window.watchFusionPresentation?.peerCandidate?.(true),
@@ -422,7 +424,6 @@
       else { hostPositionSample = null; applyViewerCorrection(false); }
     } catch {}
   }, TICK_MS);
-  // Timestamp position changes finely so held getCurrentTime() values can be projected.
   setInterval(() => {
     try {
       if (roomId && followsRoomPlayback() && ytPlayerReady && ytPlayer?.getPlayerState?.() === 1)

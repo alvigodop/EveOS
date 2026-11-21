@@ -8,6 +8,23 @@ function savedModel(release) {
 }
 
 export const ENTRY_SCENARIOS = {
+  async 'SYNC-31:a forced join during buffering preserves early catch-up for a far-behind viewer'() {
+    const lab = await createRoomLab({seed:31,sourceNoiseMs:0});
+    try {
+      lab.addViewer('host', {rates:[1]});
+      await lab.run(8000);
+      lab.hostSeek(1490);
+      await lab.run(4000);
+      const tv = lab.addViewer('tv', {rates:[1], seekLatencyMs:100, startLatencyMs:200, bufferAheadSec:25}, {offsetSec:1480});
+      tv.player.stall(1200);
+      tv.ctx.syncPlayer({force:true});
+      await lab.run(5250);
+      const earlySeeks = tv.player.stats.seeks;
+      await lab.run(4000);
+      const detail = {earlySeeks, seeks:tv.player.stats.seeks, errorMs:tv.errorMs()};
+      return {ok:earlySeeks===1 && detail.seeks===1 && Math.abs(detail.errorMs)<=100, detail};
+    } finally { lab.close(); }
+  },
   async 'SYNC-26:first linked entry removes a shared lead with one measured hold per device'() {
     const lab = await createRoomLab({seed:26, sourceNoiseMs:0});
     try {

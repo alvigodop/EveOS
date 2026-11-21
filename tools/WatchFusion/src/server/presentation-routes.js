@@ -39,7 +39,7 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
 
   if (req.method !== 'POST') return json(res, 405, { error: 'Use POST for presentation timing.' });
   let body;
-  try { body = await readBody(req, { maxBytes: 2048 }); }
+  try { body = await readBody(req, { maxBytes: 2560 }); }
   catch (error) { noteRejection(entry, error.code === 'PAYLOAD_TOO_LARGE' ? 'payload' : 'invalid-body'); return json(res, error.code === 'PAYLOAD_TOO_LARGE' ? 413 : 400, { error: 'Invalid presentation request.' }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) { noteRejection(entry, 'invalid-body'); return json(res, 400, { error: 'Invalid presentation request.' }); }
   if (presentationScope(room) !== entry || body.epoch !== entry.epoch || !room.members.has(member.id)) {
@@ -87,7 +87,7 @@ export async function handlePresentation(req, res, room, member, at = Date.now()
         } : null,
         ready: report.ready === true, playing: report.playing === true, buffering: report.buffering === true,
         bufferedUntilMs: metric(report.bufferedUntilMs, 0, 1e10),
-        recentCorrection: typeof report.recentCorrection === 'string' && /^[a-z-]{1,32}$/.test(report.recentCorrection) ? report.recentCorrection : null,
+        recentCorrection: typeof report.recentCorrection === 'string' && /^[a-z-]{1,42}$/.test(report.recentCorrection) ? report.recentCorrection : null,
         audible: report.audible === true, follows: report.follows === true, correcting: report.correcting === true,
         // v13.10.8e: host recovery (legacy peer path and source-led path) and sensor provenance survive, bounded.
         hostRecovery: member.id === room.hostId ? sanitizeHostRecovery(report.hostRecovery) : null,

@@ -158,8 +158,12 @@
   // Health and reported timeline precision are separate; no speaker timing is measured.
   function recoveryLabel(peer) {
     const raw = peer.hostRecovery?.outcome ?? (peer.member===state?.hostId && isHost() ? window.WatchFusionHostPeerRecovery?.diagnostics?.()?.outcome : null);
+    const hostError=peer.hostRecovery?.hostErrorMs;
+    const inBand=peer.member===state?.hostId && peer.playing && !peer.buffering &&
+      Number.isFinite(hostError) && Math.abs(hostError)<=50;
     return raw === 'source-not-trusted' ? 'Reference not qualified for host recovery'
-      : raw === 'no-healthy-peer-witness' ? 'No qualified peer witness' : raw;
+      : raw === 'no-healthy-peer-witness' && inBand ? 'Recovery not needed · host within 50 ms'
+      : raw === 'no-healthy-peer-witness' ? 'No qualified peer witness for recovery' : raw;
   }
   // v13.8: status reflects actual drift and actuation, not merely PLAYING.
   function classifyPeer(peer, sourceError, evidence = null) {
