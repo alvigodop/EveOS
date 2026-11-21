@@ -1,14 +1,33 @@
 const $ = id => document.getElementById(id);
 const status = message => { $('status').textContent = message; };
+const sourceWindowId = Number(new URLSearchParams(location.search).get('windowId'));
+async function currentSourceTab() {
+  const windowFilter = Number.isInteger(sourceWindowId) && sourceWindowId > 0
+    ? { windowId:sourceWindowId } : { currentWindow:true };
+  const [tab] = await chrome.tabs.query({ active:true, ...windowFilter });
+  return tab;
+}
+function sharingMessage(result, currentTabId) {
+  if (result.tabMuted !== true) return currentTabId === result.sourceTabId
+    ? 'This tab is linked. Browser mute could not be verified.'
+    : 'A different tab is linked. Browser mute could not be verified.';
+  return currentTabId === result.sourceTabId
+    ? 'This tab is linked. Browser audio muted.'
+    : 'A different tab is linked and muted. Connect this tab to switch.';
+}
 let sharingRevision = 0;
 async function refreshSharing() {
   const revision = ++sharingRevision;
   try {
-    const result = await chrome.runtime.sendMessage({ to:'worker', type:'status' });
+    const [result, tab] = await Promise.all([
+      chrome.runtime.sendMessage({ to:'worker', type:'status', verifyMute:true }),
+      currentSourceTab()
+    ]);
     if (revision === sharingRevision) {
       const linked = result?.linked === true;
       $('stop').hidden = !linked;
       $('stats').hidden = !linked;
+      if (linked) status(sharingMessage(result, tab?.id));
     }
     return result;
   } catch {
@@ -55,15 +74,16 @@ async function connectPairing(value, requestAccess = true) {
   } else if (!(await chrome.permissions.contains({ origins: [`${parsed.base}/*`] }))) {
     throw new Error('Press Connect once to approve access to this WatchFusion server.');
   }
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await currentSourceTab();
   status('Connecting…');
-  const result = await chrome.runtime.sendMessage({ to: 'worker', type: 'start-pairing', pairing: value, tabId: tab?.id });
-  if (result?.error) throw new Error(result.error);
-  await refreshSharing();
+  const result = await chrome.runtime.sendMessage({
+    to:'worker', type:'start-pairing', pairing:value, tabId:tab?.id, windowId:tab?.windowId
+  });
+  if (!result?.ok) throw new Error(result?.error || 'Could not link this tab.');
   $('pairing').value = '';
   await chrome.storage.local.set({ watchFusionLastBase: parsed.base });
   await chrome.storage.local.remove('watchFusionPendingPairing');
-  status('Tab selected. WatchFusion follows its playable media; embedded players may need Setup & embedded players access.');
+  if (!(await refreshSharing())?.linked) status('The source disconnected. Create a fresh pairing link in WatchFusion.');
 }
 
 $('connect').onclick = async () => {
@@ -73,9 +93,11 @@ $('connect').onclick = async () => {
 
 $('stats').onclick = async () => {
   try {
-    const result = await chrome.runtime.sendMessage({ to:'worker', type:'status' });
+    const result = await refreshSharing();
     if (!result?.linked) throw new Error('No tab is currently linked.');
     const payload = JSON.stringify({
+      tabMuted: result.tabMuted === true,
+      thisTabLinked: (await currentSourceTab())?.id === result.sourceTabId,
       relayVideoMode: result.relayVideoMode || null,
       captureSettings: result.captureSettings || null,
       publisher: result.diagnostics || []
@@ -124,6 +146,5 @@ const runtimeStatusTimer = setInterval(() => void refreshRuntimeStatus(), 2000);
 window.addEventListener('unload', () => clearInterval(runtimeStatusTimer));
 
 void refreshSharing().then(result => {
-  if (result?.linked) status('A tab is currently linked.');
-  else return restorePreparedLink();
+  if (!result?.linked) return restorePreparedLink();
 }).catch(() => restorePreparedLink());

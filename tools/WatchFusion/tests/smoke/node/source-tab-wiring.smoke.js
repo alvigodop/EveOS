@@ -127,8 +127,9 @@ export async function runSourceTabSmokes() {
     assert.match(bootstrap, /watchFusionLinkedTab\?\.active\?\.\(\)[\s\S]{0,100}watchFusionLinkedTab\.stop\(\{quiet:true\}\)/);
     const mediaControls = readClient('media-controls.js');
     assert.match(mediaControls, /loadSelectedMedia\(\)[\s\S]{0,260}watchFusionLinkedTab\.stop\(\{quiet:true\}\)/);
-    assert.match(worker, /message\.type==='start-pairing'/);
-    assert.equal((worker.match(/startCurrentTab\(/g)||[]).length,2,'Only the public method and explicit start-pairing route may start a tab link.');
+    assert.match(worker, /message\.type==='start-pairing'&&internal&&!sender\.tab\)return globalThis\.WatchFusionMediaLink\.startCurrentTab\(/);
+    assert.match(worker, /startCurrentTab:\(\.\.\.args\)=>withSourceOperation\(\(\)=>startCurrentTab\(\.\.\.args\)\)/);
+    assert.equal((worker.match(/(?<!\.)\bstartCurrentTab\(/g)||[]).length,2,'New links must start through the serialized public method.');
   })();
 
   await record('ST-13:linked-room-mirror-is-projected-and-bounded', async () => {

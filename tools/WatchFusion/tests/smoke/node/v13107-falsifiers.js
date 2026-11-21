@@ -224,10 +224,135 @@ export async function runV13107Checks(check) {
     assert.match(src, /sendSourceSample\(sample\.metadata,muted\)/, 'source telemetry carries verified mute, not a stale sender flag');
     assert.match(src, /chrome\.tabs\.update\(tabId,\{muted:previousMuted\}\)/, 'unlink restores the original mute state');
   });
+  await check('V13107-08A:cold-worker-remutes-before-sampling-and-restores-the-original-tab-mute', async () => {
+    for (const previousMuted of [false, true]) {
+      const lab = sourceWorkerLab(previousMuted);
+      const event = previousMuted ? { status: 'complete' } : { mutedInfo: { muted: false } };
+      await Promise.all([lab.update(event), lab.link.status()]);
+      assert.equal(lab.muted(), true);
+      assert.equal(lab.peers.length, 1);
+      const firstPeer = lab.peers[0];
+      firstPeer.options.onReady();
+      assert.equal(firstPeer.samples.at(-1)?.tabMuted, true);
+      await Promise.all([lab.update({ status: 'complete' }), lab.link.status()]);
+      assert.equal(lab.peers.length, 1);
+      assert.equal(lab.muted(), true);
+      await lab.link.stop();
+      assert.equal(lab.muted(), previousMuted);
+      assert.equal(lab.saved.sourceTab, undefined);
+    }
+  });
+  await check('V13107-08B:unlink-restores-mute-after-an-in-flight-reassertion', async () => {
+    const lab = sourceWorkerLab(false);
+    assert.equal((await lab.link.status()).linked, true);
+    lab.unmute();
+    const pending = lab.deferTabRead();
+    const update = lab.update({ mutedInfo: { muted: false } });
+    await pending.started;
+    const unlink = lab.link.stop();
+    pending.release();
+    await Promise.all([update, unlink]);
+    assert.equal(lab.muted(), false);
+    assert.equal(lab.saved.sourceTab, undefined);
+  });
+  await check('V13107-08C:pairing-mutes-the-tab-before-starting-the-probe', async () => {
+    for (const previousMuted of [false, true]) {
+      const lab = sourceWorkerLab(previousMuted, { linked: false });
+      const pairing = 'http://localhost:9087/#live=' + 'a'.repeat(36) + '.' + 'b'.repeat(48);
+      assert.equal((await lab.link.startCurrentTab(pairing, { tabId: 5, windowId: 2 })).ok, true);
+      assert.equal(lab.queriedWindow(), 2);
+      assert.equal(lab.muted(), true);
+      await lab.link.stop();
+      assert.equal(lab.muted(), previousMuted);
+    }
+  });
+  await check('V13107-08D:popup-status-verifies-native-mute-and-identifies-the-owned-tab', async () => {
+    const lab = sourceWorkerLab(false);
+    await lab.link.status();
+    lab.unmute();
+    const status = await lab.link.status({ verifyMute: true });
+    assert.equal(status.sourceTabId, 5);
+    assert.equal(status.tabMuted, true);
+    assert.equal(lab.muted(), true);
+  });
+  await check('V13107-08E:source-starting-to-play-rechecks-the-native-mute', async () => {
+    const lab = sourceWorkerLab(false);
+    await lab.link.status();
+    lab.unmute();
+    await lab.update({ audible: true });
+    assert.equal(lab.muted(), true);
+  });
   await check('V13107-09:new-modules-are-in-the-served-bundle-in-order', () => {
     const b = read('src/server/static-files.js');
     const order = ['client/linked-playback-sync.js', 'client/linked-tab.js', 'client/solo-link-sync.js', 'playback-sync.js', 'client/tv-decoder-rescue.js', 'client/zero-converge.js', 'client/room-audio-unlock.js']
       .map(n => b.indexOf("'" + n + "'"));
     assert.ok(order.every(i => i > 0) && order.every((v, i) => !i || v > order[i - 1]), 'bundle order ' + order.join(','));
   });
+}
+
+function sourceWorkerLab(previousMuted, { linked = true } = {}) {
+  const tabId = 5;
+  let muted = linked ? false : previousMuted;
+  let update;
+  let onMessage;
+  let deferRead;
+  let queriedWindow;
+  const peers = [];
+  const saved = linked ? {
+    sourceTab: tabId, sourceTabWasMuted: previousMuted,
+    sourceLinkConfig: { base: 'http://localhost:9087', id: 'publisher', token: 'test' }
+  } : {};
+  const session = {
+    get: async () => ({ ...saved }),
+    set: async (values) => { Object.assign(saved, values); },
+    remove: async (keys) => keys.forEach((key) => { delete saved[key]; })
+  };
+  class LivePeer {
+    constructor(options) { this.options = options; this.samples = []; peers.push(this); }
+    metadata(sample) { this.samples.push(sample); }
+    stop() { this.closed = true; }
+  }
+  const ctx = vm.createContext({
+    URL,
+    importScripts() {},
+    WatchFusionLivePeer: LivePeer,
+    chrome: {
+      runtime: { onMessage: { addListener: (listener) => { onMessage = listener; } } },
+      storage: { session },
+      scripting: { executeScript: async () => [{ frameId: 0 }] },
+      tabs: {
+        query: async ({ windowId }) => { queriedWindow = windowId; return [{ id: tabId }]; },
+        get: async () => {
+          if (deferRead) await deferRead();
+          return { id: tabId, url: 'https://example.test/media', mutedInfo: { muted } };
+        },
+        update: async (id, changes) => { assert.equal(id, tabId); muted = changes.muted; },
+        sendMessage: async (id, message) => {
+          if (message.type !== 'probe-start') return;
+          assert.equal(muted, true, 'Browser tab must be muted before collecting source samples');
+          onMessage({ to: 'worker', type: 'sample', hasMedia: true }, {
+            tab: { id, url: 'https://example.test/media', mutedInfo: { muted } }
+          }, () => {});
+        },
+        onRemoved: { addListener() {} },
+        onUpdated: { addListener: (listener) => { update = listener; } }
+      }
+    }
+  });
+  vm.runInContext(read('browser-extension/worker.js'), ctx);
+  return {
+    peers, saved, link: ctx.WatchFusionMediaLink,
+    update: (info) => update(tabId, info),
+    muted: () => muted,
+    queriedWindow: () => queriedWindow,
+    unmute: () => { muted = false; },
+    deferTabRead: () => {
+      let release;
+      let notify;
+      const gate = new Promise((resolve) => { release = resolve; });
+      const started = new Promise((resolve) => { notify = resolve; });
+      deferRead = () => { deferRead = null; notify(); return gate; };
+      return { started, release };
+    }
+  };
 }

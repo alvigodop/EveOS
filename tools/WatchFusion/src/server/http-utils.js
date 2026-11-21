@@ -1,3 +1,5 @@
+import { isHostMachineName, requestHostIsLocal, socketIsHostMachine } from './local-request.js';
+
 export function now() {
   return Date.now();
 }
@@ -54,6 +56,12 @@ export function apiCorsOriginForRequest(req) {
   const pathname = String(req.url || '').split('?')[0];
   if (rawOrigin === 'null') return pathname === '/api/health' ? 'null' : null;
 
+  // HTTP EveOS and the advertised sslip host can name the same machine.
+  // Allow the health probe across those names without exposing local APIs.
+  if (pathname === '/api/health' && ['GET', 'OPTIONS'].includes(req.method)
+      && isHostMachineName(parsedBrowserOrigin(req)?.hostname)
+      && socketIsHostMachine(req) && requestHostIsLocal(req)
+      && !req.headers['cf-ray'] && !req.headers['cf-connecting-ip']) return rawOrigin;
   return isTrustedApiBrowserOrigin(req) ? rawOrigin : null;
 }
 

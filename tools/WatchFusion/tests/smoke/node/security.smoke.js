@@ -58,6 +58,28 @@ export async function runSecuritySmokes() {
     assert.equal(res.headers.Vary, 'Origin');
   });
 
+  await check('SEC-CORS-EVEOS-SSLIP-HEALTH-ONLY', () => {
+    const headers = { host: '127-0-0-1.sslip.io:9087', origin: 'http://127.0.0.1:8765', 'sec-fetch-site': 'cross-site' };
+    for (const method of ['GET', 'OPTIONS']) {
+      const health = mockResponse();
+      applyApiCors(localRequest({ method, url: '/api/health', headers }), health);
+      assert.equal(health.headers['Access-Control-Allow-Origin'], headers.origin);
+      assert.equal(health.headers.Vary, 'Origin');
+    }
+    for (const req of [
+      localRequest({ headers }),
+      localRequest({ method: 'POST', url: '/api/health', headers }),
+      localRequest({ url: '/api/health', headers: { ...headers, origin: 'https://evil.example' } }),
+      localRequest({ url: '/api/health', headers: { ...headers, 'x-forwarded-host': 'tunnel.trycloudflare.com' } }),
+      localRequest({ url: '/api/health', headers: { ...headers, 'cf-ray': 'fixture' } }),
+      localRequest({ url: '/api/health', headers, socket: { remoteAddress: '203.0.113.10' } })
+    ]) {
+      const res = mockResponse();
+      applyApiCors(req, res);
+      assert.equal(res.headers['Access-Control-Allow-Origin'], undefined);
+    }
+  });
+
   await check('SEC-CORS-CROSS-SITE-DENY', () => {
     const res = mockResponse();
     applyApiCors({

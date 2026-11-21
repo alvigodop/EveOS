@@ -196,13 +196,12 @@ function sourceContract() {
     check(!ui.includes('if (status?.dependenciesReady) await setRunning(true)'), 'WF-SETUP-NO-AUTOSTART', 'core dependency setup still starts WatchFusion automatically');
     check(ui.includes("DETACHED_WINDOW_NAME = 'eveWatchFusionWindow'") && ui.includes('function detach()'), 'WF-DETACH', 'WatchFusion does not have Matrix-style named-window detach');
     check(ui.includes('data-wf-action="detach"') && !ui.includes('Open separate'), 'WF-DETACH-UI', 'WatchFusion header still uses the old separate-window action');
-    check(sensing.includes("mode === 'lan' || mode === 'cloudflare'") && sensing.includes('snapshot?.publicUrl || snapshot?.url || snapshot?.localUrl') && ui.includes('sensor()?.workspaceUrl?.(status'), 'WF-SELECTED-EXPOSURE-URL', 'embedded and detached WatchFusion do not follow the selected Local/LAN/Cloudflare launch path');
+    check(ui.includes('sensor()?.workspaceUrl?.(status)') && ui.includes('sensor()?.workspaceUrl?.(status, { detached: true })'), 'WF-SELECTED-EXPOSURE-URL', 'embedded and detached WatchFusion do not share the runtime sensor workspace URL');
     check(networkServer.includes('127-0-0-1.sslip.io')
       && networkServer.includes('localEmbedHostUrl')
       && systemRoutes.includes('const localEmbedHost = LAN_MODE ? (preferredUrls.host || loopbackEmbedHost) : loopbackEmbedHost')
       && exposureControl.includes('hostUrl=host_url')
       && exposureControl.includes('exposureMode="local"')
-      && sensing.includes('snapshot?.directHostUrl || snapshot?.hostUrl || snapshot?.localUrl')
       && ui.includes('directHostUrl: direct.url')
       && sensing.indexOf('hostExposureOrigin') < sensing.indexOf('exposureOrigin) values.push(exposureOrigin)')
       && clientCore.includes('lanNetworkInfo?.localEmbedHost')
